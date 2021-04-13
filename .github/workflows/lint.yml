@@ -11,7 +11,7 @@ on:
       - '*'
 
 jobs:
-  unit-test:
+  android-lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -29,15 +29,11 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
 
-    - name: Run unit tests for ${{ matrix.module }} 
-      run: ./gradlew :${{ matrix.module }}:testDebugUnitTest
+    - name: Run lint for ${{ matrix.module }} 
+      run: ./gradlew :${{ matrix.module }}:lintDebug
 
-    - name: Publish test results for ${{ matrix.module }}
-      uses: mikepenz/action-junit-report@v2      
+    - name: Parse lint results for ${{ matrix.module }}
+      uses: yutailang0119/action-android-lint@v1.0.2
       with:
-        report_paths: '**/build/test-results/test*/TEST-*.xml'
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        fail_on_failure: true 
-        require_tests: true 
+        xml_path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 
-

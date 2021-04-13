@@ -1,0 +1,42 @@
+name: Test
+# only run on PRs and when push a commit on a branch that we don't deploy on. 
+on: 
+  push:
+    branches: # all branches because code coverage reports. Need reports on branch to know the difference. 
+      - '*'
+    tags-ignore: # Don't run tests on tags as tags are made off of main branch. 
+      - '*'
+  pull_request: # Run on all PRs. 
+    branches:
+      - '*'
+
+jobs:
+  unit-test-sdk:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [app, sdk]
+    name: Unit tests ${{ matrix.module }}
+    # skip if '[skip ci]' exists in commit message 
+    if: ${{ !contains(format('{0} {1}', github.event.head_commit.message, github.event.pull_request.title), '[skip ci]') }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'adopt'
+        java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+
+    - name: Run unit tests for ${{ matrix.module }} 
+      run: ./gradlew :${{ matrix.module }}:testDebugUnitTest
+
+    - name: Publish test results for ${{ matrix.module }}
+      uses: mikepenz/action-junit-report@v2      
+      with:
+        report_paths: '**/build/test-results/test*/TEST-*.xml'
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        fail_on_failure: true 
+        require_tests: true 
+      if: ${{ always() }} # if running tests fails, we still want to parse the test results 

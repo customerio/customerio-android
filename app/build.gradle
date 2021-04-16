@@ -5,6 +5,10 @@ plugins {
     id 'dagger.hilt.android.plugin'
 }
 
+hilt {
+    enableTransformForLocalTests = true // to get unit tests (robolectric) working: https://developer.android.com/training/dependency-injection/hilt-testing
+}
+
 android {
     compileSdkVersion 30
     buildToolsVersion "30.0.3"
@@ -32,6 +36,15 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+
+    testOptions {
+        animationsDisabled = true
+
+        unitTests {
+            // From: http://robolectric.org/getting-started/
+            includeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -45,11 +58,57 @@ dependencies {
     implementation 'androidx.navigation:navigation-fragment-ktx:2.3.5'
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.5'
 
-    // Dagger 2
+    // Hilt
     implementation "com.google.dagger:hilt-android:$hilt_version"
     kapt "com.google.dagger:hilt-compiler:$hilt_version"
 
-    testImplementation 'junit:junit:4.+'
+    // Truth
+    testImplementation "com.google.truth:truth:1.0.1"
+    androidTestImplementation "com.google.truth:truth:1.0.1"
+    androidTestImplementation 'androidx.test.ext:truth:1.3.0'
+    testImplementation 'androidx.test.ext:truth:1.3.0'
+
+    // Mockito
+    def mockitoVersion = '3.3.3'
+    def mockitoKotlinVersion = '2.2.0'
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation "com.nhaarman.mockitokotlin2:mockito-kotlin:$mockitoKotlinVersion", {
+        exclude group: 'org.jetbrains.kotlin'
+        exclude group: 'org.mockito'
+    }
+    androidTestImplementation "org.mockito:mockito-android:$mockitoVersion"
+    androidTestImplementation "com.nhaarman.mockitokotlin2:mockito-kotlin:$mockitoKotlinVersion", {
+        exclude group: 'org.jetbrains.kotlin'
+        exclude group: 'org.mockito'
+    }
+
+    // JUnit
+    def junitVersion = '4.13.2'
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "junit:junit:$junitVersion"
+    androidTestImplementation 'androidx.test.ext:junit:1.1.2'
+    testImplementation 'androidx.test.ext:junit:1.1.2'
+
+    // Robolectric
+    testImplementation "org.robolectric:robolectric:4.5.1"
+
+    // Android Testing Support Library's runner and rules
+    def androidTestLibVersion = "1.3.0"
+    androidTestImplementation "androidx.test:core-ktx:$androidTestLibVersion"
+    androidTestImplementation "androidx.test:runner:$androidTestLibVersion"
+    androidTestImplementation "androidx.test:rules:$androidTestLibVersion"
+    testImplementation "androidx.test:core-ktx:$androidTestLibVersion"
+    testImplementation "androidx.test:runner:$androidTestLibVersion"
+    testImplementation "androidx.test:rules:$androidTestLibVersion"
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
+
+    // Espresso UI Testing
+    def espressoVersion = '3.3.0'
+    androidTestImplementation "androidx.test.espresso:espresso-core:$espressoVersion"
+    androidTestImplementation "androidx.test.espresso.idling:idling-concurrent:$espressoVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-idling-resource:$espressoVersion"
+    testImplementation "androidx.test.espresso:espresso-core:$espressoVersion"
+    testImplementation "androidx.test.espresso.idling:idling-concurrent:$espressoVersion"
+    testImplementation "androidx.test.espresso:espresso-idling-resource:$espressoVersion"
 }

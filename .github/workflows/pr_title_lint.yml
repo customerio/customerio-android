@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: aslafy-z/conventional-pr-title-action@v2.2.3
         with:
-          success-state: PR title follows conventional commits spec 👍. Ready to merge. 
+          success-state: PR title follows conventional commits spec. Ready to merge. 
           failure-state: Please, edit the PR title to the allowed format https://gist.github.com/levibostian/71afa00ddc69688afebb215faab48fd7
           context-name: conventional-pr-title
           preset: conventional-changelog-angular@5

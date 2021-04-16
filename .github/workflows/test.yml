@@ -1,4 +1,4 @@
-name: Test
+name: Tests
 # only run on PRs and when push a commit on a branch that we don't deploy on. 
 on: 
   push:
@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         module: [app, sdk]
-    name: Unit tests ${{ matrix.module }}
+    name: Unit tests (${{ matrix.module }})
     # skip if '[skip ci]' exists in commit message 
     if: ${{ !contains(format('{0} {1}', github.event.head_commit.message, github.event.pull_request.title), '[skip ci]') }}
     steps:
@@ -29,10 +29,10 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
 
-    - name: Run unit tests for ${{ matrix.module }} 
+    - name: Run unit tests (${{ matrix.module }})
       run: ./gradlew :${{ matrix.module }}:testDebugUnitTest
 
-    - name: Publish test results for ${{ matrix.module }}
+    - name: Publish test results (${{ matrix.module }})
       uses: mikepenz/action-junit-report@v2      
       with:
         report_paths: '**/build/test-results/test*/TEST-*.xml'

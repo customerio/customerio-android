@@ -12,5 +12,4 @@ if ! [ -x "$(command -v ktlint)" ]; then
     exit 1
 fi
 
-ktlint --android --format  "app/src/**/*.kt" 2> /dev/null
-ktlint --android --format  "sdk/src/**/*.kt" 2> /dev/null
+ktlint --android --format  "app/src/**/*.kt" "sdk/src/**/*.kt" 2> /dev/null

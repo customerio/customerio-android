@@ -1,4 +1,4 @@
-name: Test
+name: Lint
 # only run on PRs and when push a commit on a branch that we don't deploy on. 
 on: 
   push:
@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         module: [app, sdk]
-    name: Unit tests ${{ matrix.module }}
+    name: Android Lint (${{ matrix.module }})
     # skip if '[skip ci]' exists in commit message 
     if: ${{ !contains(format('{0} {1}', github.event.head_commit.message, github.event.pull_request.title), '[skip ci]') }}
     steps:
@@ -29,11 +29,31 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
 
-    - name: Run lint for ${{ matrix.module }} 
+    - name: Run lint (${{ matrix.module }})
       run: ./gradlew :${{ matrix.module }}:lintDebug
 
-    - name: Parse lint results for ${{ matrix.module }}
+    - name: Parse lint results (${{ matrix.module }})
       uses: yutailang0119/action-android-lint@v1.0.2
       with:
         xml_path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 
+
+  # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed. 
+  kotlin-lint:
+    runs-on: ubuntu-latest
+    name: Kotlin Lint
+    # skip if '[skip ci]' exists in commit message 
+    if: ${{ !contains(format('{0} {1}', github.event.head_commit.message, github.event.pull_request.title), '[skip ci]') }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'adopt'
+        java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
+    - name: Install ktlint
+      uses: nbadal/action-ktlint-setup@v1
+    
+    # The task will simply fail if it does not pass. It would be better if we make a comment on the PR telling the PR author to install git hooks but that scenario should not happen often (at least I don't think so) so for now, let's lean on assuming it will not happen and if it does happen a lot, we will improve this. 
+    - name: Run ktlint
+      run: ktlint --android "app/src/**/*.kt" "sdk/src/**/*.kt" 2> /dev/null 

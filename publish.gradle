@@ -1,0 +1,110 @@
+apply plugin: 'maven-publish'
+apply plugin: 'org.jetbrains.dokka'
+
+dokkaHtml.configure {
+    dokkaSourceSets {
+        named("main") {
+            sourceLink {
+                localDirectory.set(file(moduleSourceCodeLocalDir))
+                remoteUrl.set(java.net.URL(moduleSourceCodeLinkUrl))
+                remoteLineSuffix.set("#L") // works for github links
+            }
+        }
+    }
+}
+
+def getRepositoryUrl() {
+    return "https://maven.pkg.github.com/" + githubRepoOrg + "/" + githubRepoName
+}
+
+afterEvaluate { project ->
+    publishing {
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri(getRepositoryUrl())
+                credentials {
+                    username = System.getenv("GRADLE_PUBLISH_USERNAME")
+                    password = System.getenv("GRADLE_PUBLISH_PASSWORD")
+                }
+            }
+        }
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId modulePackageName
+                version System.getenv("MODULE_VERSION") // example: 1.0.0 or 1.0.0-alpha
+                artifactId moduleName
+
+                artifact sourcesJar
+                artifact javadocJar
+
+                configurePom(pom)
+            }
+        }
+    }
+}
+
+task sourcesJar(type: Jar) {
+    group "publishing"
+    description "Generates source jar"
+    archiveClassifier.set("sources")
+    from android.sourceSets.main.java.srcDirs
+}
+
+task javadocJar(type: Jar, dependsOn: dokkaJavadoc) {
+    group "publishing"
+    description "Generates javadocJar based on Dokka"
+    archiveClassifier.set("javadoc")
+    from dokkaJavadoc.outputDirectory
+}
+
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addStringOption('Xdoclint:none', '-quiet')
+        }
+    }
+}
+
+if (JavaVersion.current().isJava9Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addBooleanOption('html5', true)
+        }
+    }
+}
+
+artifacts {
+    archives javadocJar
+    archives sourcesJar
+}
+
+// https://docs.gradle.org/current/userguide/publishing_maven.html#sec:modifying_the_generated_pom
+def configurePom(pom) {
+    pom.name = moduleFormalName
+    pom.packaging = "aar"
+    pom.description = moduleDescription
+    pom.url = moduleUrl
+
+    pom.scm {
+        url = moduleSourceCodeUrl
+        connection = moduleSourceCodeConnection
+        developerConnection = moduleSourceCodeConnection
+    }
+
+    pom.licenses {
+        license {
+            name = moduleLicenseName
+            url = moduleLicenseUrl
+        }
+    }
+
+    pom.developers {
+        developer {
+            id = developerId
+            name = developerName
+            email = developerEmail
+        }
+    }
+}

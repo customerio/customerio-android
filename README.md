@@ -2,6 +2,14 @@
 
 Official Customer.io SDK for Android
 
+# Why use the Customer.io SDK?
+
+* [X] Official SDK from Customer.io for Android. 
+* [X] Written in Kotlin, for Kotlin (with Java support).
+* [X] Javadoc + source code packaged in SDK. View Javadoc and source code easily in Android Studio while you develop!
+* [X] Zero dependencies. Nice and slim for fast build times.
+* [X] Deployments often. No need to wait for the next release of the SDK when something you need is added.
+
 # Getting started
 
 To use the SDK in your Android project....
@@ -42,7 +50,7 @@ githubRepo.token="<github-token>"
 implementation 'io.customer.android:sdk:<version-here>'
 ```
 
-Replace `version-here` with the [latest version published](https://github.com/customerio/customerio-android/packages/754003/versions). 
+Replace `version-here` with the [latest version published](https://github.com/customerio/customerio-android/packages/754003/versions).
 
 # Documentation
 

@@ -2,6 +2,29 @@
 buildscript {
     ext.kotlin_version = "1.4.32"
     ext.hilt_version = '2.33-beta'
+
+    ext {
+        githubRepoOrg = "customerio"
+        githubRepoName = "customerio-android"
+        developerId = "customerio"
+        developerName = "Customer.io Team"
+        developerEmail = "win@customer.io"
+
+        // these are default values for each module. See sdk/build.gradle for example of how to overwrite values before publishing
+        modulePackageName = "<overwrite-me>" // example: "io.customer.sdk"
+        moduleName = "<overwrite-me>" // example: sdk"
+        moduleFormalName = "<overwrite-me>" // example: "Customer.io Android SDK" // human readable name
+        moduleDescription = "<overwrite-me>" // example: "Official Customer.io SDK for Android"
+        moduleSourceCodeLocalDir = "<overwrite-me>" // For Dokka for source code linking. Path to local source code. Example: "sdk/src/main/java"
+        moduleSourceCodeLinkUrl = "<overwrite-me>" // For Dokka to link to remote source code. Path to remote source code path that matches local. example: "https://github.com/customerio/customerio-android/blob/main/sdk/src/main/java"
+
+        moduleUrl = "https://github.com/customerio/customerio-android"
+        moduleSourceCodeUrl = "https://github.com/customerio/customerio-android"
+        moduleSourceCodeConnection = "scm:git@github.com:customerio/customerio-android.git"
+        moduleLicenseName = "MIT"
+        moduleLicenseUrl = "https://github.com/customerio/customerio-android/blob/main/LICENSE"
+    }
+
     repositories {
         google()
         jcenter()
@@ -10,6 +33,7 @@ buildscript {
         classpath "com.android.tools.build:gradle:4.1.3"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "com.google.dagger:hilt-android-gradle-plugin:$hilt_version"
+        classpath "org.jetbrains.dokka:dokka-gradle-plugin:1.4.30"
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files

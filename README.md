@@ -2,9 +2,55 @@
 
 Official Customer.io SDK for Android
 
+# Why use the Customer.io SDK?
+
+* [X] Official SDK from Customer.io for Android. 
+* [X] Written in Kotlin, for Kotlin (with Java support).
+* [X] Javadoc + source code packaged in SDK. View Javadoc and source code easily in Android Studio while you develop!
+* [X] Zero dependencies. Nice and slim for fast build times.
+* [X] Deployments often. No need to wait for the next release of the SDK when something you need is added.
+
 # Getting started
 
-//
+To use the SDK in your Android project....
+
+1. In your root level `build.gradle` file, add the following:
+
+```groovy
+allprojects {
+    repositories {
+        google()
+        jcenter()
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/customerio/customerio-android")
+            credentials {
+                username = project.findProperty("githubRepo.username") ?: System.getenv("GITHUB_REPO_USERNAME")
+                password = project.findProperty("githubRepo.token") ?: System.getenv("GITHUB_REPO_TOKEN")
+            }
+        }
+    }
+}
+```
+
+2. Create a new file in the root level of your project, `secrets.properties`. Inside, put:
+
+```
+githubRepo.username="<github-username>"
+githubRepo.token="<github-token>"
+```
+
+*Note: You will need to create a new GitHub personal access token that has access to private repos scope. Make sure your GitHub account has read access to the SDK's GitHub repo. Then, replace `<github-username>` with your GitHub username and `<github-token>` with the access token you just created.*
+
+> Important: Add `secrets.properties` to your `.gitignore` to not check the file into version control. 
+
+3. Add your dependency to your app's `build.gradle` file:
+
+```groovy
+implementation 'io.customer.android:sdk:<version-here>'
+```
+
+Replace `version-here` with the [latest version published](https://github.com/customerio/customerio-android/packages/754003/versions).
 
 # Documentation
 
@@ -76,6 +122,20 @@ When you make a pull request, a team member will merge it for you after...
 * All automated tests pass. If they don't it's your responsibility to fix them. 
 * A team member will review your code. If they have suggestions on how to fix it, you can discuss the suggestions as a team and/or make changes to your code from those suggestions. 
 * Make sure the title of the pull request follows the [conventional commit message](https://gist.github.com/levibostian/71afa00ddc69688afebb215faab48fd7) specification. 
+
+### Deployment 
+
+This project is setup to automatically deploy when a commit is made on any of the branches: `main`, `beta`, and `alpha`. 
+
+To setup the CI server to make the deployments, follow these steps:
+1. Create a GitHub token on your personal GitHub account. As long as your account has push access to the SDK source code repository on GitHub. The scopes need to (1) read packages, (2) write packages, (3) private repos. 
+
+Create GitHub Actions secrets: 
+* `REPO_PUSH_TOKEN` - set the value to the GitHub token created in this step. This is used to push commits made on the CI server back to the source code repo after deployment. 
+* `GRADLE_PUBLISH_USERNAME` - set the value to the GitHub username of the GitHub access token created. 
+* `GRADLE_PUBLISH_PASSWORD` - set the value to the GitHub token created in this step. 
+
+2. Follow the development workflow as described in this document. You will be making pull requests and once those are merged, the CI server will automatically execute and deploy for you. 
 
 # License
 

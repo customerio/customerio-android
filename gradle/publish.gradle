@@ -1,0 +1,92 @@
+apply plugin: 'maven-publish'
+apply plugin: 'org.jetbrains.dokka'
+
+dokkaHtml.configure {
+    dokkaSourceSets {
+        named("main") {
+            sourceLink {
+                localDirectory.set(file(moduleSourceCodeLocalDir))
+                remoteUrl.set(java.net.URL(moduleSourceCodeLinkUrl))
+                remoteLineSuffix.set("#L") // works for github links
+            }
+        }
+    }
+}
+
+def getRepositoryUrl() {
+    return "https://maven.pkg.github.com/" + githubRepoOrg + "/" + githubRepoName
+}
+
+afterEvaluate { project ->
+    publishing {
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri(getRepositoryUrl())
+                credentials {
+                    username = System.getenv("GRADLE_PUBLISH_USERNAME")
+                    password = System.getenv("GRADLE_PUBLISH_PASSWORD")
+                }
+            }
+        }
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId modulePackageName
+                version System.getenv("MODULE_VERSION") // example: 1.0.0 or 1.0.0-alpha
+                artifactId moduleName
+
+                artifact sourcesJar
+                artifact javadocJar
+
+                // https://docs.gradle.org/current/userguide/publishing_maven.html#sec:modifying_the_generated_pom
+                pom {
+                    name = moduleFormalName
+                    packaging = "aar"
+                    description = moduleDescription
+                    url = moduleUrl
+
+                    scm {
+                        url = moduleSourceCodeUrl
+                        connection = moduleSourceCodeConnection
+                        developerConnection = moduleSourceCodeConnection
+                    }
+
+                    licenses {
+                        license {
+                            name = moduleLicenseName
+                            url = moduleLicenseUrl
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = developerId
+                            name = developerName
+                            email = developerEmail
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+task sourcesJar(type: Jar) {
+    group "publishing"
+    description "Generates sources jar"
+    archiveClassifier.set("sources")
+    from android.sourceSets.main.java.srcDirs
+}
+
+task javadocJar(type: Jar, dependsOn: dokkaJavadoc) {
+    group "publishing"
+    description "Generates javadocJar based on Dokka"
+    archiveClassifier.set("javadoc")
+    from dokkaJavadoc.outputDirectory
+}
+
+artifacts {
+    archives javadocJar
+    archives sourcesJar
+}

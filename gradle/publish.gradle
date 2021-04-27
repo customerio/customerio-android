@@ -39,7 +39,34 @@ afterEvaluate { project ->
                 artifact sourcesJar
                 artifact javadocJar
 
-                configurePom(pom)
+                // https://docs.gradle.org/current/userguide/publishing_maven.html#sec:modifying_the_generated_pom
+                pom {
+                    name = moduleFormalName
+                    packaging = "aar"
+                    description = moduleDescription
+                    url = moduleUrl
+
+                    scm {
+                        url = moduleSourceCodeUrl
+                        connection = moduleSourceCodeConnection
+                        developerConnection = moduleSourceCodeConnection
+                    }
+
+                    licenses {
+                        license {
+                            name = moduleLicenseName
+                            url = moduleLicenseUrl
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = developerId
+                            name = developerName
+                            email = developerEmail
+                        }
+                    }
+                }
             }
         }
     }
@@ -47,7 +74,7 @@ afterEvaluate { project ->
 
 task sourcesJar(type: Jar) {
     group "publishing"
-    description "Generates source jar"
+    description "Generates sources jar"
     archiveClassifier.set("sources")
     from android.sourceSets.main.java.srcDirs
 }
@@ -59,52 +86,7 @@ task javadocJar(type: Jar, dependsOn: dokkaJavadoc) {
     from dokkaJavadoc.outputDirectory
 }
 
-if (JavaVersion.current().isJava8Compatible()) {
-    allprojects {
-        tasks.withType(Javadoc) {
-            options.addStringOption('Xdoclint:none', '-quiet')
-        }
-    }
-}
-
-if (JavaVersion.current().isJava9Compatible()) {
-    allprojects {
-        tasks.withType(Javadoc) {
-            options.addBooleanOption('html5', true)
-        }
-    }
-}
-
 artifacts {
     archives javadocJar
     archives sourcesJar
-}
-
-// https://docs.gradle.org/current/userguide/publishing_maven.html#sec:modifying_the_generated_pom
-def configurePom(pom) {
-    pom.name = moduleFormalName
-    pom.packaging = "aar"
-    pom.description = moduleDescription
-    pom.url = moduleUrl
-
-    pom.scm {
-        url = moduleSourceCodeUrl
-        connection = moduleSourceCodeConnection
-        developerConnection = moduleSourceCodeConnection
-    }
-
-    pom.licenses {
-        license {
-            name = moduleLicenseName
-            url = moduleLicenseUrl
-        }
-    }
-
-    pom.developers {
-        developer {
-            id = developerId
-            name = developerName
-            email = developerEmail
-        }
-    }
 }

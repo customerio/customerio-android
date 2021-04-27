@@ -58,4 +58,4 @@ ext {
     moduleSourceCodeLinkUrl = "https://github.com/customerio/customerio-android/blob/main/sdk/src/main/java"
 }
 
-apply from: '../publish.gradle'
+apply from: '../gradle/publish.gradle'

@@ -1,4 +1,5 @@
 ![min Android SDK version is 16](https://img.shields.io/badge/min%20Android%20SDK-16-green)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/sdk/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/sdk)
 
 # Customer.io Android SDK
 
@@ -10,16 +11,13 @@ Official Customer.io SDK for Android
 
 To use the SDK in your Android project....
 
-1. In your root level `build.gradle` file, add the following:
+1. In your root level `build.gradle` file, make sure that you have `mavenCentral()` added as a repository:
 
 ```groovy
 allprojects {
     repositories {
         google()        
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/customerio/customerio-android")
-        }
+        mavenCentral()
     }
 }
 ```
@@ -30,7 +28,7 @@ allprojects {
 implementation 'io.customer.android:sdk:<version-here>'
 ```
 
-Replace `version-here` with the [latest version published](https://github.com/customerio/customerio-android/packages/754003/versions).
+Replace `version-here` with the the latest version: ![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/sdk/badge.svg)
 
 # Documentation
 

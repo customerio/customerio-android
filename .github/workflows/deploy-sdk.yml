@@ -1,10 +1,7 @@
 name: Deploy SDK 
 on:
   push:
-    branches:
-      - main
-      - beta
-      - alpha
+    branches: [main, beta, alpha]
 
 jobs:
   deploy-sdk:
@@ -12,8 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Setup node # required for semantic-release CLI to run 
-        uses: actions/setup-node@v2
       - name: Set up JDK
         uses: actions/setup-java@v2
         with:
@@ -39,4 +34,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.REPO_PUSH_TOKEN }}
           GRADLE_PUBLISH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
           GRADLE_PUBLISH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
-          
+          ORG_GRADLE_PROJECT_signingKeyId: ${{ secrets.GRADLE_SIGNING_KEYID }}
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}

@@ -1,14 +1,5 @@
 name: Tests
-# only run on PRs and when push a commit on a branch that we don't deploy on. 
-on: 
-  push:
-    branches: # all branches because code coverage reports. Need reports on branch to know the difference. 
-      - '*'
-    tags-ignore: # Don't run tests on tags as tags are made off of main branch. 
-      - '*'
-  pull_request: # Run on all PRs. 
-    branches:
-      - '*'
+on: [push, pull_request]
 
 jobs:
   unit-test:

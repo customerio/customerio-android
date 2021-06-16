@@ -9,7 +9,7 @@
         "@semantic-release/commit-analyzer",
         "@semantic-release/release-notes-generator",
         ["@semantic-release/exec", {
-            "publishCmd": "MODULE_VERSION=${nextRelease.version} ./gradlew :sdk:publish"
+            "prepareCmd": "MODULE_VERSION=${nextRelease.version} ./gradlew :sdk:uploadArchives"
         }],
         ["@semantic-release/changelog",{
             "changelogFile": "CHANGELOG.md"

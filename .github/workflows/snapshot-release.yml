@@ -19,7 +19,7 @@ jobs:
           java-version: 11
       - name: Release build
         # assembleRelease for all modules, excluding non-library modules: samples, docs
-        run: ./gradlew assembleRelease -x :app:assembleRelease -x
+        run: ./gradlew assembleRelease -x :app:assembleRelease
       - name: Source jar and dokka
         run: ./gradlew androidSourcesJar javadocJar
       - name: Add MODULE_VERSION env property with commit short sha

@@ -11,6 +11,7 @@ object Dependencies {
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
     const val coroutinesCore =
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.COROUTINES}"
+    const val materialComponents = "com.google.android.material:material:${Versions.MATERIAL_COMPONENTS}"
     const val androidxAppCompat = "androidx.appcompat:appcompat:${Versions.ANDROIDX_APPCOMPAT}"
     const val coroutinesTest =
         "org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.COROUTINES}"
@@ -24,5 +25,5 @@ object Dependencies {
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val kotlinReflect = "org.jetbrains.kotlin:kotlin-reflect:${Versions.KOTLIN}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
-
+    const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
 }

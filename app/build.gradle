@@ -37,6 +37,7 @@ android {
         unitTests {
             // From: http://robolectric.org/getting-started/
             includeAndroidResources = true
+            returnDefaultValues = true
         }
     }
 }
@@ -45,4 +46,10 @@ dependencies {
     implementation project(":sdk")
     implementation Dependencies.androidxAppCompat
     implementation Dependencies.androidxCoreKtx
+    implementation Dependencies.materialComponents
+
+    androidTestImplementation Dependencies.junit4
+    testImplementation Dependencies.junit4
+    testImplementation Dependencies.androidxTestJunit
+    testImplementation Dependencies.robolectric
 }

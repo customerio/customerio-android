@@ -1,0 +1,10 @@
+import customerio.android.Configurations
+
+android {
+    compileSdk Configurations.compileSdk
+
+    defaultConfig {
+        minSdk Configurations.minSdk
+        targetSdk Configurations.targetSdk
+    }
+}

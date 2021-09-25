@@ -18,12 +18,27 @@ jobs:
           distribution: adopt
           java-version: 11
       - name: Release build
-        # assembleRelease for all modules, excluding non-library modules: samples, docs
+        # assembleRelease for all modules, excluding non-library modules: app, docs
         run: ./gradlew assembleRelease -x :app:assembleRelease
       - name: Source jar and dokka
         run: ./gradlew androidSourcesJar javadocJar
-      - name: Add MODULE_VERSION env property with commit short sha
-        run: echo "MODULE_VERSION=`echo ${GITHUB_SHA} | cut -c1-8`-snapshot" >> $GITHUB_ENV
+#      - name: Add MODULE_VERSION env property with commit short sha
+#        run: echo "MODULE_VERSION=`echo ${GITHUB_SHA} | cut -c1-8`-SNAPSHOT" >> $GITHUB_ENV
+
+      # Perform git related tasks inside of semantic-release because `git config user...` is already setup. It's easier to run commands in there with exec plugin.
+      - name: Run semantic release to get version
+        uses: cycjimmy/semantic-release-action@v2
+        id: semantic
+        with:
+          # version numbers below can be in many forms: M, M.m, M.m.p
+          semantic_version: 17
+          dry_run: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PUSH_TOKEN }}
+
+      - name: Add MODULE_VERSION env property
+        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
+
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
         env:

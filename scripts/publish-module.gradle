@@ -30,7 +30,7 @@ artifacts {
 }
 
 group = PUBLISH_GROUP_ID
-version = System.getenv("MODULE_VERSION")
+version = PUBLISH_VERSION
 
 afterEvaluate {
     publishing {
@@ -38,7 +38,8 @@ afterEvaluate {
             release(MavenPublication) {
                 groupId PUBLISH_GROUP_ID
                 artifactId PUBLISH_ARTIFACT_ID
-                version = System.getenv("MODULE_VERSION")
+
+                version PUBLISH_VERSION
 
                 if (project.plugins.findPlugin("com.android.library")) {
                     from components.release

@@ -17,11 +17,7 @@ jobs:
         with:
           distribution: adopt
           java-version: 11
-      - name: Release build
-        # assembleRelease for all modules, excluding non-library modules: app, docs
-        run: ./gradlew assembleRelease -x :app:assembleRelease
-      - name: Source jar and dokka
-        run: ./gradlew androidSourcesJar javadocJar
+
       #      - name: Add MODULE_VERSION env property with commit short sha
       #        run: echo "MODULE_VERSION=`echo ${GITHUB_SHA} | cut -c1-8`-SNAPSHOT" >> $GITHUB_ENV
 
@@ -43,8 +39,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_PUSH_TOKEN }}
 
+      - name: Release build
+        # assembleRelease for all modules, excluding non-library modules: app, docs
+        run: ./gradlew assembleRelease -x :app:assembleRelease
+      - name: Source jar and dokka
+        run: ./gradlew androidSourcesJar javadocJar
+
       - name: Add MODULE_VERSION env property
-        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
+        run: echo "MODULE_VERSION=`echo ${GITHUB_SHA} | cut -c1-8`-SNAPSHOT" >> $GITHUB_ENV
+#        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

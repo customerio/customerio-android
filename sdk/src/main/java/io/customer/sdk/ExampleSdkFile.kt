@@ -21,4 +21,16 @@ class ExampleSdkFile {
     fun add(num1: Int, num2: Int): Int {
         return num1 + num2
     }
+
+    /**
+     * Multiplies 2 numbers together. Pretty easy.
+     *
+     * @param num1 the first number
+     * @param num2 the second number
+     *
+     * @return the product of the 2 numbers
+     */
+    fun multiply(num1: Int, num2: Int): Int {
+        return num1 * num2
+    }
 }

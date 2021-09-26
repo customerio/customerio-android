@@ -46,8 +46,8 @@ jobs:
         run: ./gradlew androidSourcesJar javadocJar
 
       - name: Add MODULE_VERSION env property
-        run: echo "MODULE_VERSION=`echo ${GITHUB_SHA} | cut -c1-8`-SNAPSHOT" >> $GITHUB_ENV
-#        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
+#        run: echo "MODULE_VERSION=`echo ${GITHUB_SHA} | cut -c1-8`-SNAPSHOT" >> $GITHUB_ENV
+        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-snapshot" >> $GITHUB_ENV
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

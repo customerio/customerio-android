@@ -1,11 +1,13 @@
-name: Deploy SDK
+name: Publish Snapshot builds
+
 on:
   push:
-    branches: [ main, beta, alpha ]
+    branches:
+      - develop
 
 jobs:
-  deploy-sdk:
-    name: Deploy SDK
+  publish:
+    name: Snapshot build and publish
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -15,19 +17,15 @@ jobs:
         with:
           distribution: adopt
           java-version: 11
-      - name: Release build
-        # assembleRelease for all modules, excluding non-library modules: app, docs
-        run: ./gradlew assembleRelease -x :app:assembleRelease
-      - name: Source jar and dokka
-        run: ./gradlew androidSourcesJar javadocJar
 
-      # Perform git related tasks inside of semantic-release because `git config user...` is already setup. It's easier to run commands in there with exec plugin.
-      - name: Deploy via semantic release
+      # Get just version number for semantic snapshot release. It would just dry run and not publish, release
+      - name: Run semantic release to get version
         uses: cycjimmy/semantic-release-action@v2
+        id: semantic
         with:
           # version numbers below can be in many forms: M, M.m, M.m.p
           semantic_version: 17
-          dry_run: false
+          branch: develop
           extra_plugins: |
             @semantic-release/commit-analyzer@8
             @semantic-release/release-notes-generator@9
@@ -36,10 +34,24 @@ jobs:
             @semantic-release/github@7
             @semantic-release/exec@5
         env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PUSH_TOKEN }}
+
+      - name: Release build
+        # assembleRelease for all modules, excluding non-library modules: app, docs
+        run: ./gradlew assembleRelease -x :app:assembleRelease
+      - name: Source jar and dokka
+        run: ./gradlew androidSourcesJar javadocJar
+
+      - name: Add MODULE_VERSION env property
+        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
+
+      - name: Publish to MavenCentral
+        run: ./gradlew publishReleasePublicationToSonatypeRepository
+        env:
           OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
           SIGNING_KEY_ID: ${{ secrets.GRADLE_SIGNING_KEYID }}
           SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
-          GITHUB_TOKEN: ${{ secrets.REPO_PUSH_TOKEN }}
+          SNAPSHOT: true

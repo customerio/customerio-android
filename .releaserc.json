@@ -1,20 +1,33 @@
 {
-    "tagFormat": "${version}",
-    "branches": [
-        "main",
-        { "name": "beta", "prerelease": true },
-        { "name": "alpha", "prerelease": true }
+  "tagFormat": "${version}",
+  "branches": [
+    "main",
+    {
+      "name": "beta",
+      "prerelease": true
+    },
+    {
+      "name": "alpha",
+      "prerelease": true
+    }
+  ],
+  "dryRun": true,
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "MODULE_VERSION=${nextRelease.version} ./gradlew publishReleasePublicationToSonatypeRepository --max-workers 1 closeAndReleaseSonatypeStagingRepository"
+      }
     ],
-    "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
-        ["@semantic-release/exec", {
-            "prepareCmd": "MODULE_VERSION=${nextRelease.version} ./gradlew :sdk:uploadArchives"
-        }],
-        ["@semantic-release/changelog",{
-            "changelogFile": "CHANGELOG.md"
-        }],
-        "@semantic-release/git",
-        "@semantic-release/github"
-    ]
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    "@semantic-release/git",
+    "@semantic-release/github"
+  ]
 }

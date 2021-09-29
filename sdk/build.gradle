@@ -1,18 +1,22 @@
+import customerio.android.Configurations
+import customerio.android.Dependencies
+
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
 }
 
+ext {
+    PUBLISH_GROUP_ID = Configurations.artifactGroup
+    PUBLISH_ARTIFACT_ID = "tracking"
+}
+
+apply from: "${rootDir}/scripts/publish-module.gradle"
+apply from: "${rootDir}/scripts/android-config.gradle"
+
 android {
-    compileSdkVersion 30
-    buildToolsVersion "30.0.3"
 
     defaultConfig {
-        minSdkVersion 16
-        targetSdkVersion 30
-        versionCode 1
-        versionName "1.0"
-
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -40,22 +44,6 @@ android {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-
-    testImplementation 'junit:junit:4.+'
-    testImplementation "org.robolectric:robolectric:4.5.1"
-    androidTestImplementation 'androidx.test.ext:junit:1.1.2'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
+    testImplementation Dependencies.androidxTestJunit
 }
 
-// overwrite variables before applying publish.gradle file
-ext {
-    modulePackageName = "io.customer.android"
-    moduleName = "sdk"
-    moduleFormalName = "Customer.io Android SDK"
-    moduleDescription = "Official Customer.io SDK for Android"
-    moduleSourceCodeLocalDir = "sdk/src/main/java"
-    moduleSourceCodeLinkUrl = "https://github.com/customerio/customerio-android/blob/main/sdk/src/main/java"
-}
-
-apply from: '../gradle/publish.gradle'

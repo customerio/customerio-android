@@ -1,4 +1,4 @@
-package customerio.android
+package io.customer.android
 
 object Dependencies {
     const val androidGradlePlugin =
@@ -9,6 +9,7 @@ object Dependencies {
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
+    const val androidxAnnotations = "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
     const val coroutinesCore =
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.COROUTINES}"
     const val materialComponents =
@@ -26,4 +27,8 @@ object Dependencies {
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
+    const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
+    const val okhttp = "com.squareup.okhttp3:okhttp:${Versions.OKHTTP}"
+    const val okhttpLoggingInterceptor = "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
+
 }

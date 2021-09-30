@@ -1,4 +1,4 @@
-package customerio.android
+package io.customer.android
 
 object Configurations {
     const val compileSdk = 30

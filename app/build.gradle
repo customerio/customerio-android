@@ -1,4 +1,4 @@
-import customerio.android.Dependencies
+import io.customer.android.Dependencies
 
 plugins {
     id 'com.android.application'

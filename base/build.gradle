@@ -1,0 +1,24 @@
+import io.customer.android.Configurations
+import io.customer.android.Dependencies
+
+plugins {
+    id 'java-library'
+    id 'kotlin'
+}
+
+ext {
+    PUBLISH_GROUP_ID = Configurations.artifactGroup
+    PUBLISH_ARTIFACT_ID = "base"
+}
+
+apply from: "${rootDir}/scripts/publish-module.gradle"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+dependencies {
+    implementation Dependencies.coroutinesCore
+    implementation Dependencies.androidxAnnotations
+}

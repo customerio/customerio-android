@@ -1,4 +1,4 @@
-import customerio.android.Configurations
+import io.customer.android.Configurations
 
 android {
     compileSdk Configurations.compileSdk

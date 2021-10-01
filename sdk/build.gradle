@@ -1,5 +1,5 @@
-import customerio.android.Configurations
-import customerio.android.Dependencies
+import io.customer.android.Configurations
+import io.customer.android.Dependencies
 
 plugins {
     id 'com.android.library'
@@ -44,6 +44,17 @@ android {
 }
 
 dependencies {
+    api project(":base")
+
+    implementation Dependencies.retrofit
+
+    implementation Dependencies.coroutinesCore
+    implementation Dependencies.coroutinesAndroid
+    implementation Dependencies.retrofit
+    implementation Dependencies.okhttpLoggingInterceptor
+
     testImplementation Dependencies.androidxTestJunit
+    androidTestImplementation Dependencies.junit4
+
 }
 

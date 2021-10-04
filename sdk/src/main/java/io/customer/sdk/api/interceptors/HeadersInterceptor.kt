@@ -1,4 +1,4 @@
-package io.customer.sdk.api
+package io.customer.sdk.api.interceptors
 
 import okhttp3.Interceptor
 import okhttp3.Response

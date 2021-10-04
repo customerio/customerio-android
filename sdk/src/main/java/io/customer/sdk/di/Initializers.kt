@@ -1,6 +1,6 @@
 package io.customer.sdk.di
 
-import io.customer.sdk.api.HeadersInterceptor
+import io.customer.sdk.api.interceptors.HeadersInterceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit

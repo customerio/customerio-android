@@ -28,6 +28,7 @@ object Dependencies {
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
+    const val retrofitMoshiConverter = "com.squareup.retrofit2:converter-moshi:${Versions.RETROFIT}"
     const val okhttp = "com.squareup.okhttp3:okhttp:${Versions.OKHTTP}"
     const val okhttpLoggingInterceptor = "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
 

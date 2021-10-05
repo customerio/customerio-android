@@ -19,4 +19,5 @@ object Versions {
     internal const val ROBOLECTRIC = "4.6.1"
     internal const val OKHTTP = "4.9.1"
     internal const val RETROFIT = "2.9.0"
+
 }

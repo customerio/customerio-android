@@ -1,14 +1,16 @@
 package io.customer.sdk.api.retrofit
 
 import io.customer.base.comunication.Action
-import io.customer.base.data.ErrorResult
 import io.customer.base.data.Result
-import io.customer.base.error.ErrorDetail
+import io.customer.sdk.extensions.getErrorResult
 import io.customer.sdk.extensions.toResult
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
+/**
+ * Class to convert retrofit `Call` object to `Action` object
+ */
 class CustomerIoCall<T : Any>(
     private val call: Call<T>,
 ) : Action<T> {
@@ -16,7 +18,7 @@ class CustomerIoCall<T : Any>(
         return try {
             call.execute().toResult()
         } catch (t: Throwable) {
-            ErrorResult(ErrorDetail(cause = t))
+            t.getErrorResult()
         }
     }
 
@@ -31,7 +33,7 @@ class CustomerIoCall<T : Any>(
 
                 override fun onFailure(call: Call<T>, t: Throwable) {
                     if (!call.isCanceled) {
-                        callback.onResult(ErrorResult(ErrorDetail(cause = t)))
+                        callback.onResult(t.getErrorResult())
                     }
                 }
             }

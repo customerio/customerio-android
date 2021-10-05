@@ -1,6 +1,5 @@
 package io.customer.sdk.data.model
 
-
 sealed class IdentityAttributeValue {
     class StringAttribute(val value: String) : IdentityAttributeValue()
     class IntAttribute(val value: Int) : IdentityAttributeValue()

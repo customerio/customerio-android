@@ -78,18 +78,18 @@ class CustomerIo internal constructor(
     }
 
     /**
-    Identify a customer (aka: Add or update a profile).
+     Identify a customer (aka: Add or update a profile).
 
-    [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
+     [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
 
-    Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
-    the previously identified profile will be removed. Only the latest identified customer is persisted.
+     Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
+     the previously identified profile will be removed. Only the latest identified customer is persisted.
 
-    @param identifier ID you want to assign to the customer.
-    This value can be an internal ID that your system uses or an email address.
-    [Learn more](https://customer.io/docs/api/#operation/identify)
-    @param attributes Map of <String, IdentityAttributeValue> to be added
-    @return Action<Unit> which can be accessed via `execute` `enqueue`
+     @param identifier ID you want to assign to the customer.
+     This value can be an internal ID that your system uses or an email address.
+     [Learn more](https://customer.io/docs/api/#operation/identify)
+     @param attributes Map of <String, IdentityAttributeValue> to be added
+     @return Action<Unit> which can be accessed via `execute` `enqueue`
      */
     fun identify(
         identifier: String,

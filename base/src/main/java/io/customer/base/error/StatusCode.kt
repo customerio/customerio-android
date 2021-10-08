@@ -1,6 +1,8 @@
 package io.customer.base.error
 
 enum class StatusCode(val code: Int) {
+    UnIdentifiedUser(1),
+
     Continue(100),
     SwitchingProtocols(101),
     Processing(102),
@@ -72,6 +74,7 @@ enum class StatusCode(val code: Int) {
     fun getMessage(): String {
         return when (this) {
             Unauthorized -> "HTTP request responded with 401. Configure the SDK with valid credentials."
+            UnIdentifiedUser -> "Customer has not yet been identified."
             else -> this.name
         }
     }

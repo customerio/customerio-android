@@ -1,11 +1,19 @@
 package io.customer.sdk.di
 
+import android.content.Context
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import io.customer.sdk.CustomerIoClient
 import io.customer.sdk.CustomerIoConfig
 import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
+import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.repository.IdentityRepositoryImpl
+import io.customer.sdk.repository.MoshiAttributesRepositoryImp
+import io.customer.sdk.repository.PreferenceRepositoryImpl
+import io.customer.sdk.repository.TrackingRepositoryImp
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -16,13 +24,23 @@ import java.util.concurrent.TimeUnit
  * CustomerIoComponent is the configuration class to configure/initialize low-level operations and objects.
  */
 internal class CustomerIoComponent(
-    private val customerIoConfig: CustomerIoConfig
+    private val customerIoConfig: CustomerIoConfig,
+    private val context: Context
 ) {
 
     fun buildApi(): CustomerIoApi {
         return CustomerIoClient(
             identityRepository = IdentityRepositoryImpl(
-                customerService = buildRetrofitApi()
+                customerService = buildRetrofitApi<CustomerService>(),
+            ),
+            preferenceRepository = PreferenceRepositoryImpl(
+                context = context
+            ),
+            trackingRepository = TrackingRepositoryImp(
+                customerService = buildRetrofitApi<CustomerService>(),
+                attributesRepository = MoshiAttributesRepositoryImp(
+                    jsonAdapter = jsonAdapter
+                )
             )
         )
     }
@@ -33,6 +51,24 @@ internal class CustomerIoComponent(
             customerIoConfig.region.baseUrl,
             customerIoConfig.timeout,
         ).create(apiClass)
+    }
+
+    private val moshi by lazy { Moshi.Builder().build() }
+
+    private val jsonAdapter: JsonAdapter<Map<String, Any>> by lazy {
+        moshi.adapter(
+            Types.newParameterizedType(
+                MutableMap::class.java,
+                String::class.java,
+                Any::class.java
+            )
+        )
+    }
+
+    private val httpLoggingInterceptor by lazy {
+        HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
     }
 
     private fun buildRetrofit(
@@ -63,6 +99,6 @@ internal class CustomerIoComponent(
             .readTimeout(timeout, TimeUnit.MILLISECONDS)
             // interceptors
             .addInterceptor(HeadersInterceptor())
-            .addInterceptor(HttpLoggingInterceptor())
+            .addInterceptor(httpLoggingInterceptor)
     }
 }

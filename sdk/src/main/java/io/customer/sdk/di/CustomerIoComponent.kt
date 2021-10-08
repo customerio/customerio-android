@@ -4,6 +4,7 @@ import android.content.Context
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
+import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIoClient
 import io.customer.sdk.CustomerIoConfig
 import io.customer.sdk.api.CustomerIoApi
@@ -22,7 +23,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * CustomerIoComponent is the configuration class to configure/initialize low-level operations and objects.
+ * Configuration class to configure/initialize low-level operations and objects.
  */
 internal class CustomerIoComponent(
     private val customerIoConfig: CustomerIoConfig,
@@ -72,7 +73,9 @@ internal class CustomerIoComponent(
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            if (BuildConfig.DEBUG) {
+                level = HttpLoggingInterceptor.Level.BODY
+            }
         }
     }
 

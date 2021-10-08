@@ -8,4 +8,5 @@ import io.customer.sdk.data.model.IdentityAttributeMap
  */
 internal interface CustomerIoApi {
     fun identify(identifier: String, attributes: IdentityAttributeMap): Action<Unit>
+    fun track(name: String, attributes: Map<String, Any>): Action<Unit>
 }

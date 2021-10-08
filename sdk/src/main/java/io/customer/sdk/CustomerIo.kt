@@ -69,7 +69,8 @@ class CustomerIo internal constructor(
                 timeout = timeout
             )
 
-            val customerIoComponent = CustomerIoComponent(config)
+            val customerIoComponent =
+                CustomerIoComponent(customerIoConfig = config, context = appContext)
 
             val client = CustomerIo(config, customerIoComponent.buildApi())
             instance = client
@@ -96,5 +97,12 @@ class CustomerIo internal constructor(
         attributes: IdentityAttributeMap = emptyMap()
     ): Action<Unit> {
         return api.identify(identifier, attributes)
+    }
+
+    fun track(
+        name: String,
+        attributes: Map<String, Any>
+    ): Action<Unit> {
+        return api.track(name, attributes)
     }
 }

@@ -10,6 +10,7 @@ import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.data.moshi.adapter.SupportedAttributesFactory
 import io.customer.sdk.repository.IdentityRepositoryImpl
 import io.customer.sdk.repository.MoshiAttributesRepositoryImp
 import io.customer.sdk.repository.PreferenceRepositoryImpl
@@ -53,7 +54,11 @@ internal class CustomerIoComponent(
         ).create(apiClass)
     }
 
-    private val moshi by lazy { Moshi.Builder().build() }
+    private val moshi by lazy {
+        Moshi.Builder()
+            .add(SupportedAttributesFactory())
+            .build()
+    }
 
     private val jsonAdapter: JsonAdapter<Map<String, Any>> by lazy {
         moshi.adapter(

@@ -49,4 +49,11 @@ internal class CustomerIoClient(
         val identifier = preferenceRepository.getIdentifier()
         return trackingRepository.track(identifier, name, attributes)
     }
+
+    override fun clearIdentify() {
+        val identifier = preferenceRepository.getIdentifier()
+        identifier?.let {
+            preferenceRepository.removeIdentifier(it)
+        }
+    }
 }

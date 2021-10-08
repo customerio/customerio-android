@@ -79,18 +79,18 @@ class CustomerIo internal constructor(
     }
 
     /**
-     Identify a customer (aka: Add or update a profile).
+     * Identify a customer (aka: Add or update a profile).
 
-     [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
+     * [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
 
-     Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
-     the previously identified profile will be removed. Only the latest identified customer is persisted.
+     * Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
+     * the previously identified profile will be removed. Only the latest identified customer is persisted.
 
-     @param identifier ID you want to assign to the customer.
-     This value can be an internal ID that your system uses or an email address.
-     [Learn more](https://customer.io/docs/api/#operation/identify)
-     @param attributes Map of <String, IdentityAttributeValue> to be added
-     @return Action<Unit> which can be accessed via `execute` `enqueue`
+     * @param identifier ID you want to assign to the customer.
+     * This value can be an internal ID that your system uses or an email address.
+     * [Learn more](https://customer.io/docs/api/#operation/identify)
+     * @param attributes Map of <String, IdentityAttributeValue> to be added
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     fun identify(
         identifier: String,
@@ -99,10 +99,31 @@ class CustomerIo internal constructor(
         return api.identify(identifier, attributes)
     }
 
+    /**
+     * Track an event
+
+     * [Learn more](https://customer.io/docs/events/) about events in Customer.io
+     * @param name Name of the event you want to track.
+     * @param attributes Optional event body in Map format used as JSON object
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
     fun track(
         name: String,
         attributes: Map<String, Any>
     ): Action<Unit> {
         return api.track(name, attributes)
+    }
+
+    /**
+     * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
+     * be associated with the previously identified customer.
+
+     * Note: If you simply want to identify a *new* customer, this function call is optional. Simply
+     * call `identify()` again to identify the new customer profile over the existing.
+
+     * If no profile has been identified yet, this function will ignore your request.
+     */
+    fun clearIdentify() {
+        api.clearIdentify()
     }
 }

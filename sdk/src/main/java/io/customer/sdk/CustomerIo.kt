@@ -3,7 +3,6 @@ package io.customer.sdk
 import android.content.Context
 import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIoApi
-import io.customer.sdk.data.model.IdentityAttributeMap
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.di.CustomerIoComponent
 
@@ -94,7 +93,7 @@ class CustomerIo internal constructor(
      */
     fun identify(
         identifier: String,
-        attributes: IdentityAttributeMap = emptyMap()
+        attributes: Map<String, Any> = emptyMap()
     ): Action<Unit> {
         return api.identify(identifier, attributes)
     }
@@ -109,7 +108,7 @@ class CustomerIo internal constructor(
      */
     fun track(
         name: String,
-        attributes: Map<String, Any>
+        attributes: Map<String, Any> = emptyMap()
     ): Action<Unit> {
         return api.track(name, attributes)
     }

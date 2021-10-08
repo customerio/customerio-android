@@ -34,16 +34,25 @@ internal class CustomerIoComponent(
         return CustomerIoClient(
             identityRepository = IdentityRepositoryImpl(
                 customerService = buildRetrofitApi<CustomerService>(),
+                attributesRepository = attributesRepository
             ),
-            preferenceRepository = PreferenceRepositoryImpl(
-                context = context
-            ),
+            preferenceRepository = sharedPreferenceRepository,
             trackingRepository = TrackingRepositoryImp(
                 customerService = buildRetrofitApi<CustomerService>(),
-                attributesRepository = MoshiAttributesRepositoryImp(
-                    jsonAdapter = jsonAdapter
-                )
+                attributesRepository = attributesRepository
             )
+        )
+    }
+
+    private val sharedPreferenceRepository by lazy {
+        PreferenceRepositoryImpl(
+            context = context
+        )
+    }
+
+    private val attributesRepository by lazy {
+        MoshiAttributesRepositoryImp(
+            jsonAdapter = jsonAdapter
         )
     }
 

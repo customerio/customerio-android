@@ -20,13 +20,13 @@ class MainActivity : AppCompatActivity() {
         // there are two ways to identify customer
 
         // 1st way
-//        makeSynchronousRequest()
+        makeSynchronousRequest()
 
         // 2nd way
-//        makeAsynchronousRequest()
+        makeAsynchronousRequest()
 
         // log events
-        makeEventsRequests()
+//        makeEventsRequests()
     }
 
     private val outputCallback = Action.Callback<Unit> { result ->
@@ -75,13 +75,19 @@ class MainActivity : AppCompatActivity() {
     private fun makeAsynchronousRequest() {
         CustomerIo.instance()
             .identify(
-                "identifier"
+                identifier = "identifier",
+                attributes = mapOf("email" to "testemail@email.com")
             ).enqueue(outputCallback)
     }
 
     private fun makeSynchronousRequest() {
         CoroutineScope(Dispatchers.IO).launch {
-            when (val result = CustomerIo.instance().identify("testcoo@email.com").execute()) {
+            when (
+                val result =
+                    CustomerIo.instance()
+                        .identify("sample@email.com@email.com", mapOf("speed" to "slow"))
+                        .execute()
+            ) {
                 is ErrorResult -> Log.v("ErrorResult", result.error.cause.toString())
                 is Success -> Log.v("Success", "Success")
             }

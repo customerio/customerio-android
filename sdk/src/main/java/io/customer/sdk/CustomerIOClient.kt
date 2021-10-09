@@ -12,7 +12,7 @@ import io.customer.sdk.repository.TrackingRepository
  * CustomerIoClient is client class to hold all repositories and act as a bridge between
  * repositories and `CustomerIo` class
  */
-internal class CustomerIoClient(
+internal class CustomerIOClient(
     private val identityRepository: IdentityRepository,
     private val preferenceRepository: PreferenceRepository,
     private val trackingRepository: TrackingRepository,

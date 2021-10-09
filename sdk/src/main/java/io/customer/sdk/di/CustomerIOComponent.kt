@@ -5,8 +5,8 @@ import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import io.customer.sdk.BuildConfig
-import io.customer.sdk.CustomerIoClient
-import io.customer.sdk.CustomerIoConfig
+import io.customer.sdk.CustomerIOClient
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
@@ -25,13 +25,13 @@ import java.util.concurrent.TimeUnit
 /**
  * Configuration class to configure/initialize low-level operations and objects.
  */
-internal class CustomerIoComponent(
-    private val customerIoConfig: CustomerIoConfig,
+internal class CustomerIOComponent(
+    private val customerIOConfig: CustomerIOConfig,
     private val context: Context
 ) {
 
     fun buildApi(): CustomerIoApi {
-        return CustomerIoClient(
+        return CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
                 customerService = buildRetrofitApi<CustomerService>(),
                 attributesRepository = attributesRepository
@@ -59,8 +59,8 @@ internal class CustomerIoComponent(
     private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return buildRetrofit(
-            customerIoConfig.region.baseUrl,
-            customerIoConfig.timeout,
+            customerIOConfig.region.baseUrl,
+            customerIOConfig.timeout,
         ).create(apiClass)
     }
 

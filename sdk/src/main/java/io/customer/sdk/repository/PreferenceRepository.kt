@@ -2,6 +2,7 @@ package io.customer.sdk.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.customer.sdk.CustomerIO
 
 internal interface PreferenceRepository {
     fun saveIdentifier(identifier: String)
@@ -18,7 +19,7 @@ internal class PreferenceRepositoryImpl(private val context: Context) : Preferen
 
     private val prefs: SharedPreferences by lazy {
         context.applicationContext.getSharedPreferences(
-            PREFS_NAME,
+            CustomerIO.instance().config.siteId,
             Context.MODE_PRIVATE
         )
     }

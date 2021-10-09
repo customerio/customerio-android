@@ -4,7 +4,7 @@ import android.content.Context
 import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.di.CustomerIoComponent
+import io.customer.sdk.di.CustomerIOComponent
 
 /**
 Welcome to the Customer.io Android SDK!
@@ -19,15 +19,15 @@ It is recommended to initialize the client in the `Application::onCreate()` meth
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
 
-class CustomerIo internal constructor(
-    val config: CustomerIoConfig,
+class CustomerIO internal constructor(
+    val config: CustomerIOConfig,
     private val api: CustomerIoApi,
 ) {
     companion object {
-        private var instance: CustomerIo? = null
+        private var instance: CustomerIO? = null
 
         @JvmStatic
-        fun instance(): CustomerIo {
+        fun instance(): CustomerIO {
             return instance
                 ?: throw IllegalStateException("CustomerIo.Builder::build() must be called before obtaining CustomerIo instance")
         }
@@ -51,7 +51,7 @@ class CustomerIo internal constructor(
             return this
         }
 
-        fun build(): CustomerIo {
+        fun build(): CustomerIO {
 
             if (apiKey.isEmpty()) {
                 throw IllegalStateException("apiKey is not defined in " + this::class.java.simpleName)
@@ -61,7 +61,7 @@ class CustomerIo internal constructor(
                 throw IllegalStateException("siteId is not defined in " + this::class.java.simpleName)
             }
 
-            val config = CustomerIoConfig(
+            val config = CustomerIOConfig(
                 siteId = siteId,
                 apiKey = apiKey,
                 region = region,
@@ -69,9 +69,9 @@ class CustomerIo internal constructor(
             )
 
             val customerIoComponent =
-                CustomerIoComponent(customerIoConfig = config, context = appContext)
+                CustomerIOComponent(customerIOConfig = config, context = appContext)
 
-            val client = CustomerIo(config, customerIoComponent.buildApi())
+            val client = CustomerIO(config, customerIoComponent.buildApi())
             instance = client
             return client
         }

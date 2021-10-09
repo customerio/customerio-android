@@ -6,7 +6,7 @@ import androidx.appcompat.app.AppCompatActivity
 import io.customer.base.comunication.Action
 import io.customer.base.data.ErrorResult
 import io.customer.base.data.Success
-import io.customer.sdk.CustomerIo
+import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,13 +20,13 @@ class MainActivity : AppCompatActivity() {
         // there are two ways to identify customer
 
         // 1st way
-        makeSynchronousRequest()
+//        makeSynchronousRequest()
 
         // 2nd way
-        makeAsynchronousRequest()
+//        makeAsynchronousRequest()
 
         // log events
-//        makeEventsRequests()
+        makeEventsRequests()
     }
 
     private val outputCallback = Action.Callback<Unit> { result ->
@@ -39,41 +39,41 @@ class MainActivity : AppCompatActivity() {
     data class Fol(val a: String, val c: Int)
 
     private fun makeEventsRequests() {
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "string event",
             attributes = mapOf(
                 "value" to "string test",
                 "target" to 1
             )
         ).enqueue(outputCallback)
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "int event",
             attributes = mapOf("value" to 1)
         ).enqueue(outputCallback)
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "long event",
             attributes = mapOf("value" to 1L)
         ).enqueue(outputCallback)
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "array event",
             attributes = mapOf("value" to listOf("1", "2"))
         ).enqueue(outputCallback)
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "date event",
             attributes = mapOf("value" to Date())
         ).enqueue(outputCallback)
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "timestamp event",
             attributes = mapOf("value" to Date().time)
         ).enqueue(outputCallback)
-        CustomerIo.instance().track(
+        CustomerIO.instance().track(
             name = "custom class event",
             attributes = mapOf("value" to Fol(a = "aa", c = 1))
         )
     }
 
     private fun makeAsynchronousRequest() {
-        CustomerIo.instance()
+        CustomerIO.instance()
             .identify(
                 identifier = "identifier",
                 attributes = mapOf("email" to "testemail@email.com")
@@ -84,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             when (
                 val result =
-                    CustomerIo.instance()
+                    CustomerIO.instance()
                         .identify("sample@email.com@email.com", mapOf("speed" to "slow"))
                         .execute()
             ) {

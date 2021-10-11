@@ -1,13 +1,13 @@
 package io.customer.example
 
 import android.app.Application
-import io.customer.sdk.CustomerIo
+import io.customer.sdk.CustomerIO
 
 class MainApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        CustomerIo.Builder(
+        CustomerIO.Builder(
             siteId = "YOUR-SITE-ID",
             apiKey = "YOUR-API-KEY",
             appContext = this

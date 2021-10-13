@@ -14,7 +14,6 @@ fun Throwable.getErrorDetail(): ErrorDetail {
         val statusCode = StatusCode.values().find { it.code == this.code() }
             ?: StatusCode.Unknown
         ErrorDetail(
-            message = statusCode.getMessage(),
             statusCode = statusCode,
             cause = this
         )

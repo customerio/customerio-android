@@ -1,7 +1,7 @@
 package io.customer.sdk.api.interceptors
 
 import android.util.Base64
-import io.customer.sdk.CustomerIo
+import io.customer.sdk.CustomerIO
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.nio.charset.StandardCharsets
@@ -21,8 +21,8 @@ internal class HeadersInterceptor : Interceptor {
     }
 
     private fun getBasicAuthHeaderString(): String {
-        val apiKey = CustomerIo.instance().config.apiKey
-        val siteId = CustomerIo.instance().config.siteId
+        val apiKey = CustomerIO.instance().config.apiKey
+        val siteId = CustomerIO.instance().config.siteId
         val rawHeader = "$siteId:$apiKey"
         return Base64.encodeToString(rawHeader.toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP)
     }

@@ -12,14 +12,17 @@ internal interface PreferenceRepository {
 
 internal class PreferenceRepositoryImpl(private val context: Context) : PreferenceRepository {
 
+    private val prefsName by lazy {
+        "io.customer.sdk.${context.packageName}.${CustomerIO.instance().config.siteId}"
+    }
+
     companion object {
-        private const val PREFS_NAME = "customer_io_store"
         private const val KEY_IDENTIFIER = "identifier"
     }
 
     private val prefs: SharedPreferences by lazy {
         context.applicationContext.getSharedPreferences(
-            CustomerIO.instance().config.siteId,
+            prefsName,
             Context.MODE_PRIVATE
         )
     }

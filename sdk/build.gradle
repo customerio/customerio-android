@@ -53,6 +53,5 @@ dependencies {
     implementation Dependencies.okhttpLoggingInterceptor
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
-
 }
 

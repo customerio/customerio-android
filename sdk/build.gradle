@@ -46,15 +46,12 @@ android {
 dependencies {
     api project(":base")
 
-    implementation Dependencies.retrofit
-
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.retrofit
+    implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
-
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
-
 }
 

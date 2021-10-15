@@ -48,6 +48,9 @@ dependencies {
     implementation Dependencies.androidxCoreKtx
     implementation Dependencies.materialComponents
 
+    implementation Dependencies.coroutinesCore
+    implementation Dependencies.coroutinesAndroid
+
     androidTestImplementation Dependencies.junit4
     testImplementation Dependencies.junit4
     testImplementation Dependencies.androidxTestJunit

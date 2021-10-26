@@ -1,11 +1,9 @@
 package io.customer.sdk.api.service
 
 import io.customer.sdk.api.retrofit.CustomerIoCall
+import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.Event
-import retrofit2.http.Body
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Path
+import retrofit2.http.*
 
 internal interface CustomerService {
 
@@ -21,5 +19,19 @@ internal interface CustomerService {
     fun track(
         @Path("identifier") identifier: String,
         @Body body: Event,
+    ): CustomerIoCall<Unit>
+
+    @JvmSuppressWildcards
+    @PUT("api/v1/customers/{identifier}/devices")
+    fun addDevice(
+        @Path("identifier") identifier: String,
+        @Body body: Device,
+    ): CustomerIoCall<Unit>
+
+    @JvmSuppressWildcards
+    @DELETE("api/v1/customers/{identifier}/devices/{token}")
+    fun removeDevice(
+        @Path("identifier") identifier: String,
+        @Path("token") token: String,
     ): CustomerIoCall<Unit>
 }

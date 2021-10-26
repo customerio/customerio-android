@@ -4,6 +4,7 @@ import android.content.Context
 import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 
 /**
@@ -94,9 +95,7 @@ class CustomerIO internal constructor(
     fun identify(
         identifier: String,
         attributes: Map<String, Any> = emptyMap()
-    ): Action<Unit> {
-        return api.identify(identifier, attributes)
-    }
+    ): Action<Unit> = api.identify(identifier, attributes)
 
     /**
      * Track an event
@@ -109,9 +108,7 @@ class CustomerIO internal constructor(
     fun track(
         name: String,
         attributes: Map<String, Any> = emptyMap()
-    ): Action<Unit> {
-        return api.track(name, attributes)
-    }
+    ) = api.track(name, attributes)
 
     /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
@@ -125,4 +122,29 @@ class CustomerIO internal constructor(
     fun clearIdentify() {
         api.clearIdentify()
     }
+
+    /**
+     * Register a new device token with Customer.io, associated with the current active customer. If there
+     * is no active customer, this will fail to register the device
+     */
+    fun registerDeviceToken(deviceToken: String): Action<Unit> =
+        api.registerDeviceToken(deviceToken)
+
+    /**
+     * Delete the currently registered device token
+     */
+    fun deleteDeviceToken(): Action<Unit> = api.deleteDeviceToken()
+
+    /**
+     * Track a push metric
+     */
+    fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String,
+    ) = api.trackMetric(
+        deliveryID = deliveryID,
+        event = event,
+        deviceToken = deviceToken
+    )
 }

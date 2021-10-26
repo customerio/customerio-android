@@ -19,6 +19,8 @@ object Dependencies {
         "org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.COROUTINES}"
     const val espressoCore = "androidx.test.espresso:espresso-core:${Versions.ESPRESSO}"
     const val dokka = "org.jetbrains.dokka:dokka-gradle-plugin:${Versions.DOKKA}"
+    const val firebaseMessaging = "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
+    const val googlePlayServicesBase = "com.google.android.gms:play-services-base:${Versions.GOOGLE_PLAY_SERVICES_BASE}"
     const val gradleNexusPublishPlugin =
         "io.github.gradle-nexus:publish-plugin:${Versions.GRADLE_NEXUS_PUBLISH_PLUGIN}"
     const val gradleVersionsPlugin =

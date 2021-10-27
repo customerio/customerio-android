@@ -5,6 +5,7 @@ import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.request.Device
+import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
 import java.util.*
@@ -27,7 +28,10 @@ internal class PushNotificationRepositoryImp(
         val device = Device(token = deviceToken, lastUsed = Date().time)
         return if (identifier == null) {
             return ActionUtils.getUnidentifiedUserAction()
-        } else customerService.addDevice(identifier = identifier, body = device)
+        } else customerService.addDevice(
+            identifier = identifier,
+            body = DeviceRequest(device = device)
+        )
     }
 
     override fun deleteDeviceToken(identifier: String?, deviceToken: String?): Action<Unit> {

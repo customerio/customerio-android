@@ -1,7 +1,7 @@
 package io.customer.sdk.api.service
 
 import io.customer.sdk.api.retrofit.CustomerIoCall
-import io.customer.sdk.data.request.Device
+import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
 import retrofit2.http.*
 
@@ -25,7 +25,7 @@ internal interface CustomerService {
     @PUT("api/v1/customers/{identifier}/devices")
     fun addDevice(
         @Path("identifier") identifier: String,
-        @Body body: Device,
+        @Body body: DeviceRequest,
     ): CustomerIoCall<Unit>
 
     @JvmSuppressWildcards

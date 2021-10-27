@@ -15,7 +15,7 @@ object Versions {
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "1.1.0"
     internal const val GRADLE_VERSIONS_PLUGIN = "0.39.0"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "17.6.0"
-    const val KOTLIN = "1.5.31"
+    internal const val KOTLIN = "1.5.31"
     internal const val MATERIAL_COMPONENTS = "1.4.0"
     internal const val TIMBER = "5.0.0"
     internal const val ROBOLECTRIC = "4.6.1"

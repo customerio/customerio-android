@@ -126,7 +126,9 @@ internal class CustomerIOClient(
         }
     }
 
-    override fun trackMetric(deliveryID: String, event: MetricEvent, deviceToken: String) {
-        pushNotificationRepository
-    }
+    override fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
+    ) = pushNotificationRepository.trackMetric(deliveryID, event, deviceToken)
 }

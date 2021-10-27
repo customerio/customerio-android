@@ -7,8 +7,8 @@ enum class MetricEvent {
 }
 
 data class Metric(
-    @Json(name = "delivery_id") val deliveryID: String,
-    @Json(name = "device_id") val deviceToken: String,
+    @field:Json(name = "delivery_id") val deliveryID: String,
+    @field:Json(name = "device_id") val deviceToken: String,
     val event: MetricEvent,
     val timestamp: Long
 )

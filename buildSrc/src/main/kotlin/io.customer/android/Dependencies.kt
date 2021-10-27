@@ -9,7 +9,8 @@ object Dependencies {
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
-    const val androidxAnnotations = "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
+    const val androidxAnnotations =
+        "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
     const val coroutinesCore =
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.COROUTINES}"
     const val materialComponents =
@@ -19,8 +20,10 @@ object Dependencies {
         "org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.COROUTINES}"
     const val espressoCore = "androidx.test.espresso:espresso-core:${Versions.ESPRESSO}"
     const val dokka = "org.jetbrains.dokka:dokka-gradle-plugin:${Versions.DOKKA}"
-    const val firebaseMessaging = "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
-    const val googlePlayServicesBase = "com.google.android.gms:play-services-base:${Versions.GOOGLE_PLAY_SERVICES_BASE}"
+    const val firebaseMessaging =
+        "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
+    const val googlePlayServicesBase =
+        "com.google.android.gms:play-services-base:${Versions.GOOGLE_PLAY_SERVICES_BASE}"
     const val gradleNexusPublishPlugin =
         "io.github.gradle-nexus:publish-plugin:${Versions.GRADLE_NEXUS_PUBLISH_PLUGIN}"
     const val gradleVersionsPlugin =
@@ -32,6 +35,7 @@ object Dependencies {
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
     const val retrofitMoshiConverter = "com.squareup.retrofit2:converter-moshi:${Versions.RETROFIT}"
     const val okhttp = "com.squareup.okhttp3:okhttp:${Versions.OKHTTP}"
-    const val okhttpLoggingInterceptor = "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
+    const val okhttpLoggingInterceptor =
+        "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
 
 }

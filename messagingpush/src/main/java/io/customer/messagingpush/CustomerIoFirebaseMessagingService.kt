@@ -44,7 +44,6 @@ class CustomerIoFirebaseMessagingService : FirebaseMessagingService() {
                 } catch (exception: IllegalStateException) {
                     Log.e(TAG, "Error while handling message: ${exception.message}")
                 }
-
             }
         }
 

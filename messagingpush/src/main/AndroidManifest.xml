@@ -7,12 +7,21 @@
 
     <application>
         <service
-            android:name=".CustomerIoFirebaseMessagingService"
+            android:name=".CustomerIOFirebaseMessagingService"
             android:exported="false">
             <intent-filter android:priority="-1">
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Action receiver for push interactions -->
+        <receiver
+            android:name=".CustomerIOPushActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.customer.messagingpush.PUSH_ACTION" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

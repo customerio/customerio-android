@@ -3,7 +3,6 @@ package io.customer.sdk.data.request
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
-@JsonClass(generateAdapter = true)
 enum class MetricEvent {
     delivered, opened, converted;
 }

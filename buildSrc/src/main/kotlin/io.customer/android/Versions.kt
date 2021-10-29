@@ -17,6 +17,7 @@ object Versions {
     internal const val GOOGLE_PLAY_SERVICES_BASE = "17.6.0"
     internal const val KOTLIN = "1.5.31"
     internal const val MATERIAL_COMPONENTS = "1.4.0"
+    internal const val MOSHI = "1.12.0"
     internal const val TIMBER = "5.0.0"
     internal const val ROBOLECTRIC = "4.6.1"
     internal const val OKHTTP = "4.9.1"

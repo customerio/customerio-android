@@ -31,6 +31,8 @@ object Dependencies {
     const val junit4 = "junit:junit:${Versions.JUNIT4}"
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
+    const val moshi = "com.squareup.moshi:moshi:${Versions.MOSHI}"
+    const val moshiCodeGen = "com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
     const val retrofitMoshiConverter = "com.squareup.retrofit2:converter-moshi:${Versions.RETROFIT}"

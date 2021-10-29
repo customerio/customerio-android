@@ -4,6 +4,7 @@ import io.customer.android.Dependencies
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
+    id "org.jetbrains.kotlin.kapt"
 }
 
 ext {
@@ -49,8 +50,12 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.retrofit
+    implementation Dependencies.moshi
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
+
+    kapt(Dependencies.moshiCodeGen)
+
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
 }

@@ -135,7 +135,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        super.onNewToken(token)
         try {
             CustomerIO.instance().registerDeviceToken(deviceToken = token).enqueue()
         } catch (exception: IllegalStateException) {
@@ -144,7 +143,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        super.onMessageReceived(remoteMessage)
         handleMessageReceived(this, remoteMessage)
     }
 }

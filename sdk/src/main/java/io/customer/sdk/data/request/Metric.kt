@@ -4,7 +4,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
-internal enum class MetricEvent {
+enum class MetricEvent {
     delivered, opened, converted;
 }
 

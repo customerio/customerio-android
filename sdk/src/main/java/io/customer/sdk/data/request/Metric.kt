@@ -1,12 +1,15 @@
 package io.customer.sdk.data.request
 
 import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 
-enum class MetricEvent {
+@JsonClass(generateAdapter = true)
+internal enum class MetricEvent {
     delivered, opened, converted;
 }
 
-data class Metric(
+@JsonClass(generateAdapter = true)
+internal data class Metric(
     @field:Json(name = "delivery_id") val deliveryID: String,
     @field:Json(name = "device_id") val deviceToken: String,
     val event: MetricEvent,

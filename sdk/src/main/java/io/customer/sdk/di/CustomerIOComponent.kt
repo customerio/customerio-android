@@ -11,11 +11,9 @@ import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.adapter.SupportedAttributesFactory
-import io.customer.sdk.repository.IdentityRepositoryImpl
-import io.customer.sdk.repository.MoshiAttributesRepositoryImp
-import io.customer.sdk.repository.PreferenceRepositoryImpl
-import io.customer.sdk.repository.TrackingRepositoryImp
+import io.customer.sdk.repository.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -40,6 +38,10 @@ internal class CustomerIOComponent(
             trackingRepository = TrackingRepositoryImp(
                 customerService = buildRetrofitApi<CustomerService>(),
                 attributesRepository = attributesRepository
+            ),
+            pushNotificationRepository = PushNotificationRepositoryImp(
+                customerService = buildRetrofitApi<CustomerService>(),
+                pushService = buildRetrofitApi<PushService>()
             )
         )
     }

@@ -1,10 +1,7 @@
 package io.customer.sdk.repository
 
 import io.customer.base.comunication.Action
-import io.customer.base.data.ErrorResult
-import io.customer.base.data.Result
-import io.customer.base.error.ErrorDetail
-import io.customer.base.error.StatusCode
+import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.data.request.Event
 
@@ -23,27 +20,7 @@ internal class TrackingRepositoryImp(
         attributes: Map<String, Any>
     ): Action<Unit> {
         return if (identifier == null) {
-            identifier ?: return object : Action<Unit> {
-                override fun execute(): Result<Unit> {
-                    return ErrorResult(
-                        error = ErrorDetail(
-                            statusCode = StatusCode.UnIdentifiedUser
-                        )
-                    )
-                }
-
-                override fun enqueue(callback: Action.Callback<Unit>) {
-                    callback.onResult(
-                        ErrorResult(
-                            error = ErrorDetail(
-                                statusCode = StatusCode.UnIdentifiedUser
-                            )
-                        )
-                    )
-                }
-
-                override fun cancel() {}
-            }
+            return ActionUtils.getUnidentifiedUserAction()
         } else customerService.track(
             identifier = identifier,
             body = Event(name = name, data = attributesRepository.mapToJson(attributes))

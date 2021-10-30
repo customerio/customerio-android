@@ -20,7 +20,7 @@ import kotlin.math.abs
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         const val TAG = "FirebaseMessaging:"
-        const val DELIVERY_ID = "CIO-Delivery-ID:"
+        const val DELIVERY_ID = "CIO-Delivery-ID"
         const val DELIVERY_TOKEN = "CIO-Delivery-Token"
         const val REQUEST_CODE = "requestCode"
 

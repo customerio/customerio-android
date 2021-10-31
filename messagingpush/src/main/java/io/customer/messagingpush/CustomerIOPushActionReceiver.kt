@@ -15,6 +15,7 @@ class CustomerIOPushActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION = "com.customer.messagingpush.PUSH_ACTION"
     }
+
     override fun onReceive(context: Context?, intent: Intent?) {
         // Dismiss the notification
         val requestCode = intent!!.getIntExtra(REQUEST_CODE, 0)

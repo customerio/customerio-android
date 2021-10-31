@@ -68,7 +68,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
             // Check if message contains a notification payload.
             if (remoteMessage.notification != null && handleNotificationTrigger) {
-
                 val pushContentIntent = Intent(ACTION)
                 pushContentIntent.setClass(context, CustomerIOPushActionReceiver::class.java)
                 pushContentIntent.putExtra(DELIVERY_ID, deliveryId)

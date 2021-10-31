@@ -1,6 +1,7 @@
 package io.customer.sdk.repository
 
 import io.customer.base.comunication.Action
+import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.api.service.PushService
@@ -25,7 +26,7 @@ internal class PushNotificationRepositoryImp(
         identifier: String?,
         deviceToken: String
     ): Action<Unit> {
-        val device = Device(token = deviceToken, lastUsed = Date().time)
+        val device = Device(token = deviceToken, lastUsed = Date().getUnixTimestamp())
         return if (identifier == null) {
             return ActionUtils.getUnidentifiedUserAction()
         } else customerService.addDevice(
@@ -57,7 +58,7 @@ internal class PushNotificationRepositoryImp(
             deliveryID = deliveryID,
             event = event,
             deviceToken = deviceToken,
-            timestamp = Date().time
+            timestamp = Date().getUnixTimestamp()
         )
         return pushService.trackMetric(metric)
     }

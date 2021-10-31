@@ -23,9 +23,6 @@ class CustomerIOPushActionReceiver : BroadcastReceiver() {
             context!!.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         mNotificationManager.cancel(requestCode)
 
-        // Dismiss the notifications panel
-        context.sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
-
         val deliveryId = intent.getStringExtra(DELIVERY_ID)
         val deliveryToken = intent.getStringExtra(DELIVERY_TOKEN)
 

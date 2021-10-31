@@ -18,8 +18,9 @@ import io.customer.sdk.data.request.MetricEvent
 import kotlin.math.abs
 
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
+
     companion object {
-        const val TAG = "FirebaseMessaging:"
+        private const val TAG = "FirebaseMessaging:"
         const val DELIVERY_ID = "CIO-Delivery-ID"
         const val DELIVERY_TOKEN = "CIO-Delivery-Token"
         const val REQUEST_CODE = "requestCode"
@@ -27,7 +28,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         private const val CHANNEL_NAME = "CustomerIO Channel"
 
         /**
-         * Handles receiving an incoming push notification from the intent.
+         * Handles receiving an incoming push notification.
          *
          * Call this from a custom [FirebaseMessagingService] to pass push messages to
          * CustomerIo SDK for tracking and rendering
@@ -81,6 +82,18 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             }
 
             return true
+        }
+
+        /**
+         * Handles new or refreshed token
+         * Call this from [FirebaseMessagingService] to register the new device token
+         */
+        fun handleNewToken(token: String) {
+            try {
+                CustomerIO.instance().registerDeviceToken(deviceToken = token).enqueue()
+            } catch (exception: IllegalStateException) {
+                Log.e(TAG, "Error while handling token: ${exception.message}")
+            }
         }
 
         @SuppressLint("LaunchActivityFromNotification")
@@ -137,11 +150,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        try {
-            CustomerIO.instance().registerDeviceToken(deviceToken = token).enqueue()
-        } catch (exception: IllegalStateException) {
-            Log.e(TAG, "Error while handling token: ${exception.message}")
-        }
+        handleNewToken(token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {

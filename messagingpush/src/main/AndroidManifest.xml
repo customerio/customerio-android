@@ -19,7 +19,7 @@
             android:name=".CustomerIOPushActionReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.customer.messagingpush.PUSH_ACTION" />
+                <action android:name="io.customer.messagingpush.PUSH_ACTION" />
             </intent-filter>
         </receiver>
     </application>

@@ -12,9 +12,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.base.comunication.Action
 import io.customer.messagingpush.CustomerIOPushActionReceiver.Companion.ACTION
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.extensions.getErrorResult
 import kotlin.math.abs
 
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
@@ -23,7 +25,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         private const val TAG = "FirebaseMessaging:"
         const val DELIVERY_ID = "CIO-Delivery-ID"
         const val DELIVERY_TOKEN = "CIO-Delivery-Token"
-        const val REQUEST_CODE = "requestCode"
+        const val NOTIFICATION_REQUEST_CODE = "requestCode"
 
         private const val CHANNEL_NAME = "CustomerIO Channel"
 
@@ -35,9 +37,49 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param remoteMessage Remote message received from Firebase in
          * [FirebaseMessagingService.onMessageReceived]
          * @param handleNotificationTrigger indicating if the local notification should be triggered
+         * @param errorCallback callback containing any error occurred
          * @return Boolean indicating whether this will be handled by CustomerIo
          */
-        fun handleMessageReceived(
+        fun onMessageReceived(
+            context: Context,
+            remoteMessage: RemoteMessage,
+            handleNotificationTrigger: Boolean = true,
+            errorCallback: Action.Callback<Unit> = Action.Callback { }
+        ): Boolean {
+            return try {
+                handleMessageReceived(context, remoteMessage, handleNotificationTrigger)
+            } catch (e: Exception) {
+                errorCallback.onResult(e.getErrorResult())
+                false
+            }
+        }
+
+        /**
+         * Handles new or refreshed token
+         * Call this from [FirebaseMessagingService] to register the new device token
+         *
+         * @param token new or refreshed token
+         * @param errorCallback callback containing any error occurred
+         */
+        fun onNewToken(
+            token: String,
+            errorCallback: Action.Callback<Unit> = Action.Callback { }
+        ) {
+            handleNewToken(token, errorCallback)
+        }
+
+        private fun handleNewToken(token: String, errorCallback: Action.Callback<Unit>) {
+            try {
+                CustomerIO.instance().registerDeviceToken(deviceToken = token)
+                    .enqueue(errorCallback)
+            } catch (exception: IllegalStateException) {
+                Log.e(TAG, "Error while handling token: ${exception.message}")
+                errorCallback.onResult(exception.getErrorResult())
+            }
+        }
+
+
+        private fun handleMessageReceived(
             context: Context,
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
@@ -84,17 +126,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             return true
         }
 
-        /**
-         * Handles new or refreshed token
-         * Call this from [FirebaseMessagingService] to register the new device token
-         */
-        fun handleNewToken(token: String) {
-            try {
-                CustomerIO.instance().registerDeviceToken(deviceToken = token).enqueue()
-            } catch (exception: IllegalStateException) {
-                Log.e(TAG, "Error while handling token: ${exception.message}")
-            }
-        }
 
         @SuppressLint("LaunchActivityFromNotification")
         private fun handleNotification(
@@ -104,8 +135,9 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         ) {
 
             val requestCode = abs(System.currentTimeMillis().toInt())
-            pushContentIntent.putExtra(REQUEST_CODE, requestCode)
+            pushContentIntent.putExtra(NOTIFICATION_REQUEST_CODE, requestCode)
 
+            // In Android 12, you must specify the mutability of each PendingIntent
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             } else {
@@ -150,7 +182,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        handleNewToken(token)
+        handleNewToken(token) { }
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {

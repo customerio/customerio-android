@@ -6,21 +6,25 @@ import android.content.Context
 import android.content.Intent
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.DELIVERY_ID
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.DELIVERY_TOKEN
-import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.REQUEST_CODE
+import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.NOTIFICATION_REQUEST_CODE
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 
 class CustomerIOPushActionReceiver : BroadcastReceiver() {
 
     companion object {
-        const val ACTION = "com.customer.messagingpush.PUSH_ACTION"
+        const val ACTION = "io.customer.messagingpush.PUSH_ACTION"
     }
 
     override fun onReceive(context: Context?, intent: Intent?) {
+
+        if (context == null || intent == null)
+            return
+
         // Dismiss the notification
-        val requestCode = intent!!.getIntExtra(REQUEST_CODE, 0)
+        val requestCode = intent.getIntExtra(NOTIFICATION_REQUEST_CODE, 0)
         val mNotificationManager =
-            context!!.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         mNotificationManager.cancel(requestCode)
 
         val deliveryId = intent.getStringExtra(DELIVERY_ID)

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.customer.messagingpush">
+
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+        <service
+            android:name=".CustomerIOFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter android:priority="-1">
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Action receiver for push interactions -->
+        <receiver
+            android:name=".CustomerIOPushActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="io.customer.messagingpush.PUSH_ACTION" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

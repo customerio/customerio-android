@@ -4,19 +4,17 @@ import io.customer.android.Dependencies
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
-    id "org.jetbrains.kotlin.kapt"
 }
 
 ext {
     PUBLISH_GROUP_ID = Configurations.artifactGroup
-    PUBLISH_ARTIFACT_ID = "tracking"
+    PUBLISH_ARTIFACT_ID = "messaging-push-fcm"
 }
 
 apply from: "${rootDir}/scripts/publish-module.gradle"
 apply from: "${rootDir}/scripts/android-config.gradle"
 
 android {
-
     defaultConfig {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
@@ -45,18 +43,18 @@ android {
 }
 
 dependencies {
-    api project(":base")
+
+    api project(":sdk")
 
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.retrofit
-    implementation Dependencies.moshi
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
-
-    kapt(Dependencies.moshiCodeGen)
-
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
-}
 
+    api Dependencies.firebaseMessaging
+    implementation Dependencies.googlePlayServicesBase
+
+}

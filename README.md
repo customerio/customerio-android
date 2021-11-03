@@ -1,4 +1,4 @@
-![min Android SDK version is 16](https://img.shields.io/badge/min%20Android%20SDK-21-green)
+![min Android SDK version is 21](https://img.shields.io/badge/min%20Android%20SDK-21-green)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking)
 
 # Customer.io Android SDK
@@ -43,7 +43,7 @@ allprojects {
 
 ### Available Artifiacts
 
-2. Add relevant dependencies to your app's `build.gradle` file:
+2. Here are the list of available dependencies that you can install. You can find more details on both in the later sections.
 
 ```groovy
 implementation 'io.customer.android:tracking:<version-here>'
@@ -65,13 +65,14 @@ class App : Application() {
             apiKey = "your-api-key",
             appContext = this
         ).build()
+
+
    }
 }
 ```
-The Builder for CustomerIO exposes configuration options for features such `region`,
-`timeout`. 
+The Builder for CustomerIO exposes configuration options for features such `region`,`timeout`.
 
-> A best practice is to initialize CustomerIO in the Application class, this way you will be able to access that instance from any part of your application using the instance() method:
+> A best practice is to initialize CustomerIO in the Application class, this way you will be able to access that instance from any part of your application using the instance() method.
 
 # Tracking
 
@@ -89,10 +90,9 @@ When you identify a customer, you:
 You can only identify one customer at a time. The SDK "remembers" the most recently-identified customer.
 If you identify customer "A", and then call the identify function for customer "B", the SDK "forgets" customer "A" and assumes that customer "B" is the current app user. 
 
-[Learn more about the `Tracking` class][s-tracking].
 
 ```kotlin
-CustomerIO.instance()
+        CustomerIO.instance()
             .identify(
                 identifier = "989388339",
                 attributes = mapOf("first_name" to "firstName")
@@ -172,8 +172,17 @@ class FirebaseMessagingService : FirebaseMessagingService() {
  }
  
  override fun onNewToken(token: String) {
-     CustomerIOFirebaseMessagingService.onNewToken(token)
- }
+     CustomerIOFirebaseMessagingService.onNewToken(token) { result ->
+                 when (result) {
+                     is ErrorResult -> {
+                         // Handle error
+                     }
+                     is Success -> {
+                         // Handle success
+                     }
+                 }
+             }
+     }
 }
 ```
 

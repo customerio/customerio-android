@@ -186,6 +186,8 @@ class FirebaseMessagingService : FirebaseMessagingService() {
 }
 ```
 
+Currently push notifications launched via CustomerIO SDK are posted to our default channel `CustomerIO Channel` but in future we plan to bring customised channels/categories so that users can subscribe and unsubscribe to content as necessary.
+
 ## Tracking push metrics
 When handling push messages from Customer.io, you may want to have your app report back device-side metrics when people interact with your messages. Customer.io supports three device-side metrics: `delivered`, `opened`, and `converted`. You can find more information about these metrics [in our push developer guide](https://customer.io/docs/push-developer-guide).
 

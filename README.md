@@ -108,6 +108,8 @@ If you identify customer "A", and then call the identify function for customer "
             }
 ```
 
+> Tip: See [Callbacks/Error handling](#Callbacks/Error-handling) to learn more about handling of callbacks and errors.
+
 ## Track a custom event
 
 Once you've identified a customer, you can use the `track` method to capture customer activity and send it Customer.io, optionally supplying event data with your request
@@ -210,7 +212,7 @@ CustomerIO.instance().trackMetric(
 
 If you already configured Push messaging artifact, then our SDK will automatically track `opened` and `delivered` events by default for push notifications originating from Customer.io.
 
-# Callbacks/Error handelling 
+# Callbacks/Error handling
 CustomerIO provides an `Action` interface for almost all of its method. You can use it to make method calls execute synchronously or asynchronously. Method returns `Result<T>` object, which futher contains a `Success<T>` or `ErrorResult<T>` object. 
 In order to get any error details, `ErrorResult` provides and `ErrorDetail` object. 
 

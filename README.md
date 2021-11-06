@@ -54,7 +54,7 @@ Replace `version-here` with the the latest version: ![Maven Central](https://mav
 
 # Initialize the SDK
 
-Before you can use the Customer.io SDK, you need to initialize it. `CustomerIO` is a singleton: you'll create it once and re-use it across your application.
+Before you can use the Customer.io SDK, you need to initialize it. `CustomerIO` is a singleton: once created it will be re-used, until you decide to reconfigure and recreate the instance.
 
 ```kotlin
 class App : Application() {

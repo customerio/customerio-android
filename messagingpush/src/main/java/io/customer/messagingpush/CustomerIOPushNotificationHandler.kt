@@ -14,9 +14,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.squareup.moshi.JsonAdapter
-import com.squareup.moshi.Moshi
-import io.customer.messagingpush.data.model.PushData
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +29,11 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
     companion object {
         private const val TAG = "NotificationHandler:"
 
-        private const val PUSH_NOTIFICATION_KEY = "CIO"
         const val DELIVERY_ID = "CIO-Delivery-ID"
         const val DELIVERY_TOKEN = "CIO-Delivery-Token"
 
-        const val DEEP_LINK_KEY = "CIO-Deeplink-Key"
+        const val DEEP_LINK_KEY = "link"
+        const val IMAGE_KEY = "image"
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
 
@@ -57,10 +54,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
     private val body by lazy {
         remoteMessage.notification?.body
-    }
-
-    fun isCIOPushNotification(): Boolean {
-        return bundle.getString(PUSH_NOTIFICATION_KEY) != null
     }
 
     fun handleMessage(
@@ -132,24 +125,12 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
             .setTicker(applicationName)
 
         try {
-            val moshi = Moshi.Builder().build()
-            val jsonAdapter: JsonAdapter<PushData> = moshi.adapter(
-                PushData::class.java
-            )
-            val customerIOData: String? = bundle.getString(PUSH_NOTIFICATION_KEY)
-            customerIOData?.let {
-                val pushData = jsonAdapter.fromJson(customerIOData)
-                val notificationImage = pushData?.image
-                if (notificationImage != null) {
-                    addImage(notificationImage, notificationBuilder)
-                }
-                val notificationDeepLink = pushData?.link
-                if (notificationDeepLink != null) {
-                    bundle.putString(DEEP_LINK_KEY, notificationDeepLink)
-                }
+            val notificationImage = bundle.getString(IMAGE_KEY)
+            if (notificationImage != null) {
+                addImage(notificationImage, notificationBuilder)
             }
         } catch (e: Exception) {
-
+            e.printStackTrace()
         }
 
         val notificationManager =

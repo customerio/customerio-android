@@ -2,6 +2,7 @@ package io.customer.sdk
 
 import android.content.Context
 import io.customer.base.comunication.Action
+import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
@@ -41,6 +42,7 @@ class CustomerIO internal constructor(
         private val appContext: Context
     ) {
         private var timeout = 6000L
+        private var urlHandler: CustomerIOUrlHandler? = null
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -49,6 +51,11 @@ class CustomerIO internal constructor(
 
         fun setTimeout(timeout: Long): Builder {
             this.timeout = timeout
+            return this
+        }
+
+        fun setCustomerIOUrlHandler(urlHandler: CustomerIOUrlHandler): Builder {
+            this.urlHandler = urlHandler
             return this
         }
 
@@ -66,7 +73,8 @@ class CustomerIO internal constructor(
                 siteId = siteId,
                 apiKey = apiKey,
                 region = region,
-                timeout = timeout
+                timeout = timeout,
+                urlHandler = urlHandler
             )
 
             val customerIoComponent =

@@ -4,9 +4,11 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.DELIVERY_ID
-import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.DELIVERY_TOKEN
-import io.customer.messagingpush.CustomerIOFirebaseMessagingService.Companion.NOTIFICATION_REQUEST_CODE
+import android.net.Uri
+import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DEEP_LINK_KEY
+import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_ID
+import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_TOKEN
+import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOTIFICATION_REQUEST_CODE
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 
@@ -27,14 +29,52 @@ class CustomerIOPushActionReceiver : BroadcastReceiver() {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         mNotificationManager.cancel(requestCode)
 
-        val deliveryId = intent.getStringExtra(DELIVERY_ID)
-        val deliveryToken = intent.getStringExtra(DELIVERY_TOKEN)
+        val bundle = intent.extras
+        val deliveryId = bundle?.getString(DELIVERY_ID)
+        val deliveryToken = bundle?.getString(DELIVERY_TOKEN)
 
         if (deliveryId != null && deliveryToken != null) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
                 .enqueue()
         }
 
+        val deepLink = bundle?.getString(DEEP_LINK_KEY)
+        if (deepLink != null) {
+            handleDeepLink(context, deepLink)
+        }
+    }
+
+    private fun handleDeepLink(context: Context, deepLink: String) {
+        val deepLinkUri = Uri.parse(deepLink)
+
+        // check if host app overrides the handling of deeplink
+        if (CustomerIO.instance().config.urlHandler != null) {
+            if (CustomerIO.instance().config.urlHandler?.handleIterableURL(deepLinkUri) == true)
+                return
+        }
+
+        // check if the deep links are handled within the host app
+        val intent = Intent(Intent.ACTION_VIEW).apply { data = deepLinkUri }
+
+        val resolveInfo = context.packageManager.queryIntentActivities(intent, 0)
+        for (item in resolveInfo) {
+            if (item.activityInfo.packageName == context.packageName) {
+                intent.setPackage(item.activityInfo.packageName)
+                break
+            }
+        }
+
+        intent.flags =
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+        if (intent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(intent)
+            return
+        } else {
+            // open web browser
+            context.startActivity(intent)
+            return
+        }
     }
 }
 

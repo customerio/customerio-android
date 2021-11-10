@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DEEP_LINK_KEY
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_ID
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_TOKEN
@@ -12,9 +13,10 @@ import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOT
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 
-class CustomerIOPushActionReceiver : BroadcastReceiver() {
+class CustomerIOPushReceiver : BroadcastReceiver() {
 
     companion object {
+        private const val TAG = "CustomerIOPushReceiver:"
         const val ACTION = "io.customer.messagingpush.PUSH_ACTION"
     }
 
@@ -71,8 +73,7 @@ class CustomerIOPushActionReceiver : BroadcastReceiver() {
             context.startActivity(intent)
             return
         } else {
-            // open web browser
-            context.startActivity(intent)
+            Log.v(TAG, "No supporting application for this deepLink $deepLink")
             return
         }
     }

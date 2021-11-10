@@ -145,8 +145,8 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         }
 
         // set pending intent
-        val pushContentIntent = Intent(CustomerIOPushActionReceiver.ACTION)
-        pushContentIntent.setClass(context, CustomerIOPushActionReceiver::class.java)
+        val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)
+        pushContentIntent.setClass(context, CustomerIOPushReceiver::class.java)
 
         pushContentIntent.putExtras(bundle)
         val notificationClickedIntent = PendingIntent.getBroadcast(
@@ -181,6 +181,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         }?.let { bitmap ->
             style.bigPicture(bitmap)
             builder.setLargeIcon(bitmap)
+            builder.setStyle(style)
         }
     }
 

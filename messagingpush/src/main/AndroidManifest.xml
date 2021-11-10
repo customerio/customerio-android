@@ -16,7 +16,7 @@
 
         <!-- Action receiver for push interactions -->
         <receiver
-            android:name=".CustomerIOPushActionReceiver"
+            android:name=".CustomerIOPushReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="io.customer.messagingpush.PUSH_ACTION" />

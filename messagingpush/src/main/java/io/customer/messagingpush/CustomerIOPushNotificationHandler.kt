@@ -34,6 +34,8 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
         const val DEEP_LINK_KEY = "link"
         const val IMAGE_KEY = "image"
+        const val TITLE_KEY = "title"
+        const val BODY_KEY = "body"
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
 
@@ -46,14 +48,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
                 putString(entry.key, entry.value)
             }
         }
-    }
-
-    private val title by lazy {
-        remoteMessage.notification?.title
-    }
-
-    private val body by lazy {
-        remoteMessage.notification?.body
     }
 
     fun handleMessage(
@@ -114,6 +108,10 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
         val icon = context.applicationInfo.icon
 
+        // set title and body
+        val title = bundle.getString(TITLE_KEY) ?: remoteMessage.notification?.title ?: ""
+        val body = bundle.getString(BODY_KEY) ?: remoteMessage.notification?.body ?: ""
+
         val channelId = context.packageName
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
@@ -127,7 +125,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         try {
             val notificationImage = bundle.getString(IMAGE_KEY)
             if (notificationImage != null) {
-                addImage(notificationImage, notificationBuilder)
+                addImage(notificationImage, notificationBuilder, body)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -166,7 +164,8 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
     private fun addImage(
         imageUrl: String,
-        builder: NotificationCompat.Builder
+        builder: NotificationCompat.Builder,
+        body: String
     ) = runBlocking {
         val style = NotificationCompat.BigPictureStyle()
             .bigLargeIcon(null)

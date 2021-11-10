@@ -23,7 +23,6 @@ import java.io.IOException
 import java.net.URL
 import kotlin.math.abs
 
-
 class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
 
     companion object {
@@ -54,8 +53,8 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         context: Context,
         handleNotificationTrigger: Boolean = true
     ): Boolean {
+
         // Check if message contains a data payload.
-        // You can have data only notifications.
         if (bundle.isEmpty) {
             Log.d(TAG, "Message data payload: $bundle")
             return false
@@ -77,6 +76,9 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
             } catch (exception: IllegalStateException) {
                 Log.e(TAG, "Error while handling message: ${exception.message}")
             }
+        } else {
+            // not a CIO push notification
+            return false
         }
 
         // Check if message contains a notification payload.
@@ -123,6 +125,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
             .setTicker(applicationName)
 
         try {
+            // check for image
             val notificationImage = bundle.getString(IMAGE_KEY)
             if (notificationImage != null) {
                 addImage(notificationImage, notificationBuilder, body)

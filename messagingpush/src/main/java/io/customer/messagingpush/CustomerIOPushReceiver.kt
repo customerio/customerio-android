@@ -51,7 +51,7 @@ class CustomerIOPushReceiver : BroadcastReceiver() {
 
         // check if host app overrides the handling of deeplink
         if (CustomerIO.instance().config.urlHandler != null) {
-            if (CustomerIO.instance().config.urlHandler?.handleIterableURL(deepLinkUri) == true)
+            if (CustomerIO.instance().config.urlHandler?.handleCustomerIOUrl(deepLinkUri) == true)
                 return
         }
 

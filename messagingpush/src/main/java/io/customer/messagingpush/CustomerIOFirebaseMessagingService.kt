@@ -68,9 +68,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            // Check if message contains a data payload.
-            // You can have data only notifications.
-
             val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
             return handler.handleMessage(context, handleNotificationTrigger)
         }

@@ -9,5 +9,5 @@ interface CustomerIOUrlHandler {
      * @param uri Deeplink URL
      * @return Boolean return TRUE, if the URI was handled otherwise false.
      */
-    fun handleIterableURL(uri: Uri): Boolean
+    fun handleCustomerIOUrl(uri: Uri): Boolean
 }

@@ -2,8 +2,8 @@ package io.customer.sdk
 
 import android.content.Context
 import io.customer.base.comunication.Action
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.api.CustomerIoApi
+import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
@@ -54,6 +54,11 @@ class CustomerIO internal constructor(
             return this
         }
 
+        /**
+         * Override url/deep link handling
+         *
+         * @param urlHandler callback called when deeplink push action is performed.
+         */
         fun setCustomerIOUrlHandler(urlHandler: CustomerIOUrlHandler): Builder {
             this.urlHandler = urlHandler
             return this

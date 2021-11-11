@@ -212,18 +212,89 @@ CustomerIO.instance().trackMetric(
 
 If you already configured Push messaging artifact, then our SDK will automatically track `opened` and `delivered` events by default for push notifications originating from Customer.io.
 
+## Rich Push
+Interested in doing more with your push notification? Showing an image? Opening a deep link when a push is touched? That's what we call *rich push* notifications. Let's get into how to send them.
+
+> Note: At this time, the Customer.io SDK only works with deep links and images.
+
+To use rich push, you can use the following template
+
+```json
+{
+  "message": {
+    "data": {
+      "link": "remote-habits://deep?message=hello&message2=world",
+      "image": "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fpawsindoorssouthend.com%2Fwp-content%2Fuploads%2F2020%2F04%2Ftips-for-choosing-doggy-day-care.jpg",
+      "title": "Hey",
+      "body": "there you"
+    }
+  }
+}
+```
+> Tip: [See our doc](https://customer.io/docs/push-custom-payloads/#getting-started-with-custom-payloads) if you are unsure how to use custom payloads for sending push notifications.
+
+With both of the templates:
+* Modify the `link` to the deep link URL that you want to open when the push notification is touched.
+* Modify the `image` to the URL of an image you want to display in the push notification. It's important that the image URL starts with `https://` and *not* `http://` or the image may not be displayed.
+
+## Deep links
+After you have followed the setup instructions for [setting up rich push notifications](#rich-push) you can enable deep links in rich push notifications.
+
+There are two ways of handeling deep link in your application.
+
+1. Using the [intent filters](https://developer.android.com/training/app-links/deep-linking) in your `AndroidManifest.xml` file
+
+```xml
+            <intent-filter android:label="deep_linking_filter">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "remote-habits://deep” -->
+                <data
+                    android:host="deep"
+                    android:scheme="remote-habits" />
+            </intent-filter>
+```
+
+> Tip: In case if no intent filters are found, CustomerIO SDK will open the web browser for this link.
+
+2. Using `CustomerIOUrlHandler` (a url handler feature provided by CustomerIO SDK). To use this this all you have to do is, While configuring `CustomerIO` instance, attach a listener using `setCustomerIOUrlHandler` method of `CustomerIO.Builder`. This should ideally be done in the entry point of the application, which is usually the `Application` class.
+
+```kotlin
+class MainApplication : Application(), CustomerIOUrlHandler {
+
+    override fun onCreate() {
+        super.onCreate()
+        val builder = CustomerIO.Builder(
+            siteId = "YOUR-SITE-ID",
+            apiKey = "YOUR-API-KEY",
+            appContext = this
+        )
+        builder.setCustomerIOUrlHandler(this)
+        builder.build()
+    }
+    override fun handleCustomerIOUrl(uri: Uri): Boolean {
+        // return true in case you plan to handle the deep link yourself, false if you want CustomerIO SDK to do it for you
+        TODO("Pass the link to your Deep link managers")
+    }
+}
+```
+
+> Tip: When the push notification with deep link is clicked, the SDK first calls the urlHandler specified in your `CustomerIO.Builder` object. If the handler is not set or returns `false`, only then SDK will open browser.
+
+*Note:* In case both methods are used the second one takes presedence in execution.
+
 # Callbacks/Error handling
-CustomerIO provides an `Action` interface for almost all of its method. You can use it to make method calls execute synchronously or asynchronously. Method returns `Result<T>` object, which futher contains a `Success<T>` or `ErrorResult<T>` object. 
-In order to get any error details, `ErrorResult` provides and `ErrorDetail` object. 
+CustomerIO provides an `Action` interface for almost all of its method. You can use it to make method calls execute synchronously or asynchronously. Method returns `Result<T>` object, which futher contains a `Success<T>` or `ErrorResult<T>` object.
+In order to get any error details, `ErrorResult` provides and `ErrorDetail` object.
 
 ```kotlin
 class ErrorDetail(
     val message: String? = null,
     val statusCode: StatusCode = StatusCode.Unknown,
     val cause: Throwable = Throwable()
-) 
+)
 ```
-
 
 # Contributing
 

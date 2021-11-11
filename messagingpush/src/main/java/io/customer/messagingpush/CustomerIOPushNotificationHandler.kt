@@ -19,7 +19,6 @@ import io.customer.sdk.data.request.MetricEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import java.net.URL
 import kotlin.math.abs
 
@@ -73,7 +72,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
                     deviceToken = deliveryToken,
                     event = MetricEvent.delivered
                 ).enqueue()
-            } catch (exception: IllegalStateException) {
+            } catch (exception: Exception) {
                 Log.e(TAG, "Error while handling message: ${exception.message}")
             }
         } else {
@@ -178,7 +177,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
             try {
                 val input = url.openStream()
                 BitmapFactory.decodeStream(input)
-            } catch (e: IOException) {
+            } catch (e: Exception) {
                 null
             }
         }?.let { bitmap ->

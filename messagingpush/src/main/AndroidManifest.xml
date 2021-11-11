@@ -16,12 +16,25 @@
 
         <!-- Action receiver for push interactions -->
         <receiver
-            android:name=".CustomerIOPushActionReceiver"
+            android:name=".CustomerIOPushReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="io.customer.messagingpush.PUSH_ACTION" />
             </intent-filter>
         </receiver>
     </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
 
 </manifest>

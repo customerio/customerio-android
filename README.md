@@ -174,6 +174,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
  }
  
  override fun onNewToken(token: String) {
+     // whenever a token update is available, register the updated token
      CustomerIOFirebaseMessagingService.onNewToken(token) { result ->
                  when (result) {
                      is ErrorResult -> {
@@ -187,6 +188,8 @@ class FirebaseMessagingService : FirebaseMessagingService() {
      }
 }
 ```
+
+> **Note**: It is recommended to [retrieve the current registration token](https://firebase.google.com/docs/cloud-messaging/android/client#retrieve-the-current-registration-token) and register it using `CustomerIO.instance().registerDeviceToken(token)` right after you identify the customer, so the identified customer has latest token associated with it.
 
 Currently push notifications launched via CustomerIO SDK are posted to our default channel `CustomerIO Channel` but in future we plan to bring customised channels/categories so that users can subscribe and unsubscribe to content as necessary.
 
@@ -282,7 +285,7 @@ class MainApplication : Application(), CustomerIOUrlHandler {
 
 > Tip: When the push notification with deep link is clicked, the SDK first calls the urlHandler specified in your `CustomerIO.Builder` object. If the handler is not set or returns `false`, only then SDK will open browser.
 
-*Note:* In case both methods are used the second one takes presedence in execution.
+> **Note**: In case both methods are used the second one takes presedence in execution.
 
 # Callbacks/Error handling
 CustomerIO provides an `Action` interface for almost all of its method. You can use it to make method calls execute synchronously or asynchronously. Method returns `Result<T>` object, which futher contains a `Success<T>` or `ErrorResult<T>` object.

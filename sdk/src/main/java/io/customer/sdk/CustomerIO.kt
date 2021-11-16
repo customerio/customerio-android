@@ -49,7 +49,7 @@ class CustomerIO internal constructor(
             return this
         }
 
-        fun setTimeout(timeout: Long): Builder {
+        fun setRequestTimeout(timeout: Long): Builder {
             this.timeout = timeout
             return this
         }

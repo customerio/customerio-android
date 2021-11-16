@@ -79,7 +79,8 @@ The `Builder` for CustomerIO exposes configuration options for features such `re
             appContext = this
         )
         builder.setRegion(Region.EU)
-        builder.setTimeout(8000L)
+        // set the request timeout for all the API requests sent from SDK
+        builder.setRequestTimeout(8000L)
         builder.build()
 ```
 

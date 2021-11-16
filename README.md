@@ -9,10 +9,10 @@ Official Customer.io SDK for Android
 
 # Getting started
 
-The SDK supports both Kotlin and Java
+The SDK supports both Kotlin and Java.
 
-To get started, you need to install and initialize the relevant SDK packages in your project. 
-To minimize our SDK's impact on your app's size, we offer multiple, separate artifacts. You should only install the artifact that you need for your project. 
+To get started, install and initialize the relevant SDK packages in your project.
+To minimize our SDK's impact on your app's size, we offer multiple, separate SDKs. You should only install the packages that you need for your project.
 
 > Tip: Check out our [sample android app, Remote Habits](https://github.com/customerio/RemoteHabits-Android), for a example of how to use our SDK. 
 
@@ -30,7 +30,7 @@ dependencyResolutionManagement {
 }
 ```
 
-Or if you're using an older project setup, in your root level `build.gradle` file, make sure that you have `mavenCentral()` added as a repository:
+Or if you're using an earlier project setup, in your root level `build.gradle` file, make sure that you have `mavenCentral()` added as a repository:
 
 ```groovy
 allprojects {
@@ -41,9 +41,9 @@ allprojects {
 }
 ```
 
-### Available Artifiacts
+### Available SDKs
 
-2. Here are the list of available dependencies that you can install. You can find more details on both in the later sections.
+2. Here are the list of available SDKs that you can install. You can find more details on both in the later sections.
 
 ```groovy
 implementation 'io.customer.android:tracking:<version-here>'
@@ -70,14 +70,26 @@ class App : Application() {
    }
 }
 ```
-The Builder for CustomerIO exposes configuration options for features such `region`,`timeout`.
+The `Builder` for CustomerIO exposes configuration options for features such `region`,`timeout`.
+
+```kotlin
+        val builder = CustomerIO.Builder(
+            siteId = "YOUR-SITE-ID",
+            apiKey = "YOUR-API-KEY",
+            appContext = this
+        )
+        builder.setRegion(Region.EU)
+        // set the request timeout for all the API requests sent from SDK
+        builder.setRequestTimeout(8000L)
+        builder.build()
+```
 
 > A best practice is to initialize CustomerIO in the Application class, this way you will be able to access that instance from any part of your application using the instance() method.
 
 # Tracking
 
 ### Dependency
-Tracking artifact is needed in order to use tracking features
+The Tracking SDK is needed in order to use the following tracking features.
 ```groovy
 implementation 'io.customer.android:tracking:<version-here>'
 ```
@@ -112,7 +124,7 @@ If you identify customer "A", and then call the identify function for customer "
 
 ## Track a custom event
 
-Once you've identified a customer, you can use the `track` method to capture customer activity and send it Customer.io, optionally supplying event data with your request
+Once you've identified a customer, you can use the `track` method to capture customer activity and send it Customer.io, optionally supplying event data with your request.
 
 ```kotlin
 CustomerIO.instance().track(
@@ -149,17 +161,17 @@ CustomerIO.instance().clearIdentify()
 # Push notifications 
 Want to send push notification messages to your customer's devices? Great!
 
-The Customer.io SDK supports sending push notifications via FCM for now. 
+The Customer.io SDK supports sending push notifications via FCM.
 
 ## Getting Started FCM 
 
 ### Dependency
-Push messaging artifact is needed in order to use push notification features
+The Push Messaging SDK is needed in order to use push notification features.
 ```groovy
 implementation 'io.customer.android:messaging-push-fcm:<version-here>'
 ```
 
-The artifact adds a `FirebaseMessagingService` to the app manifest automatically, so you don't have to do any extra setup to handle incoming push messages.
+The package adds a `FirebaseMessagingService` to the app manifest automatically, so you don't have to do any extra setup to handle incoming push messages.
 
 In case, your application implements its own `FirebaseMessagingService`, make sure on  `onMessageReceived` and `onNewToken` method calls you additionally call CustomerIOFirebaseMessagingService.onMessageReceived and CustomerIOFirebaseMessagingService.onNewToken, respectively:
 
@@ -191,7 +203,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
 
 > **Note**: It is recommended to [retrieve the current registration token](https://firebase.google.com/docs/cloud-messaging/android/client#retrieve-the-current-registration-token) and register it using `CustomerIO.instance().registerDeviceToken(token)` right after you identify the customer, so the identified customer has latest token associated with it.
 
-Currently push notifications launched via CustomerIO SDK are posted to our default channel `CustomerIO Channel` but in future we plan to bring customised channels/categories so that users can subscribe and unsubscribe to content as necessary.
+Currently push notifications launched via CustomerIO SDK are posted to our default channel `[App Name] Notifications` but in future we plan to bring customised channels/categories so that users can subscribe and unsubscribe to content as necessary.
 
 ## Tracking push metrics
 When handling push messages from Customer.io, you may want to have your app report back device-side metrics when people interact with your messages. Customer.io supports three device-side metrics: `delivered`, `opened`, and `converted`. You can find more information about these metrics [in our push developer guide](https://customer.io/docs/push-developer-guide).
@@ -243,7 +255,7 @@ With both of the templates:
 ## Deep links
 After you have followed the setup instructions for [setting up rich push notifications](#rich-push) you can enable deep links in rich push notifications.
 
-There are two ways of handeling deep link in your application.
+There are two ways of handling deep links in your application.
 
 1. Using the [intent filters](https://developer.android.com/training/app-links/deep-linking) in your `AndroidManifest.xml` file
 
@@ -261,7 +273,7 @@ There are two ways of handeling deep link in your application.
 
 > Tip: In case if no intent filters are found, CustomerIO SDK will open the web browser for this link.
 
-2. Using `CustomerIOUrlHandler` (a url handler feature provided by CustomerIO SDK). To use this this all you have to do is, While configuring `CustomerIO` instance, attach a listener using `setCustomerIOUrlHandler` method of `CustomerIO.Builder`. This should ideally be done in the entry point of the application, which is usually the `Application` class.
+2. Using `CustomerIOUrlHandler` (a url handler feature provided by CustomerIO SDK). To use this attach a listener using `setCustomerIOUrlHandler` method of `CustomerIO.Builder`. This should ideally be done in the entry point of the application, which is usually the `Application` class.
 
 ```kotlin
 class MainApplication : Application(), CustomerIOUrlHandler {
@@ -285,10 +297,10 @@ class MainApplication : Application(), CustomerIOUrlHandler {
 
 > Tip: When the push notification with deep link is clicked, the SDK first calls the urlHandler specified in your `CustomerIO.Builder` object. If the handler is not set or returns `false`, only then SDK will open browser.
 
-> **Note**: In case both methods are used the second one takes presedence in execution.
+> **Note**: If both methods are used, the second one takes precedence in execution.
 
 # Callbacks/Error handling
-CustomerIO provides an `Action` interface for almost all of its method. You can use it to make method calls execute synchronously or asynchronously. Method returns `Result<T>` object, which futher contains a `Success<T>` or `ErrorResult<T>` object.
+CustomerIO provides an `Action` interface for almost all of its methods. You can use it to make method calls execute synchronously or asynchronously. Method returns `Result<T>` object, which futher contains a `Success<T>` or `ErrorResult<T>` object.
 In order to get any error details, `ErrorResult` provides and `ErrorDetail` object.
 
 ```kotlin

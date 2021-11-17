@@ -1,3 +1,10 @@
+# [1.0.0-alpha.4](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.3...1.0.0-alpha.4) (2021-11-17)
+
+
+### Bug Fixes
+
+* timestamp conversion issue ([#37](https://github.com/customerio/customerio-android/issues/37)) ([d986f54](https://github.com/customerio/customerio-android/commit/d986f546c9200fd5477de719db2e6b804fe9308f))
+
 # [1.0.0-alpha.3](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.2...1.0.0-alpha.3) (2021-11-11)
 
 

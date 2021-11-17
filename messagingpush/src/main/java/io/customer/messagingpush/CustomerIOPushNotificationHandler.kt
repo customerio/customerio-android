@@ -37,7 +37,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
 
-        private const val CHANNEL_NAME = "CustomerIO Channel"
     }
 
     private val bundle: Bundle by lazy {
@@ -136,11 +135,14 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
 
+
+        val channelName = "$applicationName Notifications"
+
         // Since android Oreo notification channel is needed.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                CHANNEL_NAME,
+                channelName,
                 NotificationManager.IMPORTANCE_DEFAULT
             )
             notificationManager.createNotificationChannel(channel)

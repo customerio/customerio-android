@@ -1,3 +1,10 @@
+# [1.0.0-alpha.5](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.4...1.0.0-alpha.5) (2021-11-18)
+
+
+### Bug Fixes
+
+* pro-guarding removal of enums  ([#39](https://github.com/customerio/customerio-android/issues/39)) ([dd27d35](https://github.com/customerio/customerio-android/commit/dd27d3567172b5c8b1e0bdd989126afa8f290541))
+
 # [1.0.0-alpha.4](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.3...1.0.0-alpha.4) (2021-11-17)
 
 

@@ -12,10 +12,10 @@ interface DeviceStore {
     // Device model: Pixel
     val deviceModel: String
 
-    // Manufacturer: samsung
+    // Manufacturer: Samsung
     val deviceManufacturer: String
 
-    // Android SDK Version: 15
+    // Android SDK Version: 21
     val deviceOSVersion: Int
 
     // Customer App information
@@ -51,8 +51,8 @@ internal class DeviceStoreImp(val context: Context) : DeviceStore {
         return buildString {
             append("Customer.io Android Client/")
             append(customerIOVersion)
-            append("($deviceManufacturer $deviceModel; $deviceOSVersion)")
-            append("$customerAppName/$customerAppVersion")
+            append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
+            append(" $customerAppName/$customerAppVersion")
         }
     }
 

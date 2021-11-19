@@ -2,8 +2,7 @@ name: Publish Snapshot builds
 
 on:
   push:
-    branches:
-      - develop
+    branches-ignore: [ main, beta, alpha ] # skip for deployment branches.
 
 jobs:
   publish:

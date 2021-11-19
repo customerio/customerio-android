@@ -25,6 +25,16 @@ interface DeviceStore {
     // SDK version
     val customerIOVersion: String
 
+    /**
+     * buildUserAgent - To get `user-agent` header value. This value depends on SDK version
+     * and device detail such as OS version, device model, customer's app name etc
+     *
+     * If the device and OS information is available, it will return in following format :
+     * `Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) User App/1.0`
+     *
+     * Otherwise will return
+     * `Customer.io Android Client/1.0.0-alpha.6`
+     */
     fun buildUserAgent(): String
 }
 
@@ -60,12 +70,12 @@ internal class DeviceStoreImp(val context: Context) : DeviceStore {
         val appName: String = try {
             context.applicationInfo.loadLabel(context.packageManager).toString()
         } catch (e: Exception) {
-            "Unknown Name"
+            ""
         }
         val appVersion: String = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         } catch (e: Exception) {
-            "Unknown version"
+            ""
         }
         return appName to appVersion
     }

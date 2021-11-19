@@ -13,6 +13,9 @@ import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.adapter.SupportedAttributesFactory
+import io.customer.sdk.data.store.CustomerIOStore
+import io.customer.sdk.data.store.DeviceStore
+import io.customer.sdk.data.store.DeviceStoreImp
 import io.customer.sdk.repository.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -44,6 +47,12 @@ internal class CustomerIOComponent(
                 pushService = buildRetrofitApi<PushService>()
             )
         )
+    }
+
+    fun buildStore(): CustomerIOStore {
+        return object : CustomerIOStore {
+            override val deviceStore: DeviceStore by lazy { DeviceStoreImp(context) }
+        }
     }
 
     private val sharedPreferenceRepository by lazy {

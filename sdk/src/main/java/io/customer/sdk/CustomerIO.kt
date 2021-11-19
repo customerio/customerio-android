@@ -6,6 +6,7 @@ import io.customer.sdk.api.CustomerIoApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.store.CustomerIOStore
 import io.customer.sdk.di.CustomerIOComponent
 
 /**
@@ -23,6 +24,7 @@ After the instance is created you can access it via singleton instance: `Custome
 
 class CustomerIO internal constructor(
     val config: CustomerIOConfig,
+    val store: CustomerIOStore,
     private val api: CustomerIoApi,
 ) {
     companion object {
@@ -85,7 +87,11 @@ class CustomerIO internal constructor(
             val customerIoComponent =
                 CustomerIOComponent(customerIOConfig = config, context = appContext)
 
-            val client = CustomerIO(config, customerIoComponent.buildApi())
+            val client = CustomerIO(
+                config = config,
+                store = customerIoComponent.buildStore(),
+                api = customerIoComponent.buildApi()
+            )
             instance = client
             return client
         }

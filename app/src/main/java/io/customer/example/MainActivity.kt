@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
         // there are two ways to identify customer
 
         // 1st way
-//        makeSynchronousRequest()
+        makeSynchronousRequest()
 
         // 2nd way
 //        makeAsynchronousRequest()

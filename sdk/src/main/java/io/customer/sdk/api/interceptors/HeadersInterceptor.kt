@@ -10,12 +10,13 @@ internal class HeadersInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
 
         val token by lazy { "Basic ${getBasicAuthHeaderString()}" }
+        val userAgent by lazy { CustomerIO.instance().store.deviceStore.buildUserAgent() }
 
         val request = chain.request()
             .newBuilder()
             .addHeader("Content-Type", "application/json; charset=utf-8")
             .addHeader("Authorization", token)
-            .addHeader("User-Agent", "CustomerIO-SDK-Android/1.0.0-snapshot")
+            .addHeader("User-Agent", userAgent)
             .build()
         return chain.proceed(request)
     }

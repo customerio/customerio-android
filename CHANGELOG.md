@@ -1,3 +1,10 @@
+# [1.0.0-alpha.6](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.5...1.0.0-alpha.6) (2021-11-23)
+
+
+### Bug Fixes
+
+* user agent ([#42](https://github.com/customerio/customerio-android/issues/42)) ([37af83e](https://github.com/customerio/customerio-android/commit/37af83ed0f73d4123354f2cf8d68befbd172c8f8))
+
 # [1.0.0-alpha.5](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.4...1.0.0-alpha.5) (2021-11-18)
 
 

@@ -23,4 +23,4 @@ sed -i "s/$LINE_PATTERN/const val version: String = \"$NEW_VERSION\"/" "$KOTLIN_
 echo "Done! New version: "
 
 # print the line (/p) that is matched in the file to show the change.
-sed -n "/$LINE_PATTERN/p" KOTLIN_SOURCE_FILE
+sed -n "/$LINE_PATTERN/p" $KOTLIN_SOURCE_FILE

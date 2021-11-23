@@ -18,7 +18,7 @@ echo "Updating file: $KOTLIN_SOURCE_FILE to new version: $NEW_VERSION"
 # -i overwrites file
 # "s/" means substitute given pattern with given string.
 #
-sed -i "" "s/$LINE_PATTERN/const val version: String = \"$NEW_VERSION\"/" "$KOTLIN_SOURCE_FILE"
+sed -i "s/$LINE_PATTERN/const val version: String = \"$NEW_VERSION\"/" "$KOTLIN_SOURCE_FILE"
 
 echo "Done! New version: "
 

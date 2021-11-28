@@ -68,6 +68,8 @@ enum class StatusCode(val code: Int) {
     NotExtended(510),
     NetworkAuthenticationRequired(511),
 
+    InvalidToken(1000),
+
     Unknown(0);
 
     // Custom description for the Error to describe the error that happened.
@@ -75,6 +77,7 @@ enum class StatusCode(val code: Int) {
         return when (this) {
             Unauthorized -> "HTTP request responded with 401. Configure the SDK with valid credentials."
             UnIdentifiedUser -> "Customer has not yet been identified."
+            InvalidToken -> "Token provided isn't valid"
             else -> this.name
         }
     }

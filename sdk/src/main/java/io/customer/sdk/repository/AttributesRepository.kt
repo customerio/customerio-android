@@ -1,6 +1,7 @@
 package io.customer.sdk.repository
 
-import com.squareup.moshi.JsonAdapter
+import io.customer.base.extenstions.getUnixTimestamp
+import io.customer.sdk.data.moshi.CustomerIOParser
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -9,11 +10,11 @@ internal interface AttributesRepository {
 }
 
 internal class MoshiAttributesRepositoryImp(
-    private val jsonAdapter: JsonAdapter<Map<String, Any>>,
+    private val parser: CustomerIOParser,
 ) : AttributesRepository {
 
     override fun mapToJson(map: Map<String, Any>): Map<String, Any> {
-        return jsonAdapter.fromJsonValue(verifyMap(map)) ?: emptyMap()
+        return parser.getAttributesParser().fromJsonValue(verifyMap(map)) ?: emptyMap()
     }
 
     private fun verifyMap(map: Map<String, Any>): Map<String, Any> {
@@ -27,7 +28,8 @@ internal class MoshiAttributesRepositoryImp(
     // Unix timestamp date are only acceptable
     private fun getValidValue(any: Any): Any {
         return when (any) {
-            is Date -> any.time
+            is Date -> any.getUnixTimestamp()
+            is Enum<*> -> any.name
             else -> any
         }
     }

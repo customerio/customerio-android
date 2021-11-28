@@ -1,5 +1,6 @@
 package io.customer.sdk.api.retrofit
 
+import io.customer.base.comunication.Call
 import retrofit2.CallAdapter
 import retrofit2.Retrofit
 import java.lang.reflect.ParameterizedType
@@ -31,21 +32,13 @@ internal class CustomerIoCallAdapterFactory private constructor() : CallAdapter.
         annotations: Array<out Annotation>,
         retrofit: Retrofit
     ): CallAdapter<*, *>? {
-        returnType.let {
-            return try {
-                // get enclosing type
-                val enclosingType = (it as ParameterizedType)
-
-                // ensure enclosing type is 'CustomerIoCall'
-                if (enclosingType.rawType != CustomerIoCall::class.java)
-                    null
-                else {
-                    val type = enclosingType.actualTypeArguments[0]
-                    CustomerIoCallAdapter<Any>(type)
-                }
-            } catch (ex: ClassCastException) {
-                null
-            }
+        if (getRawType(returnType) != Call::class.java) {
+            return null
         }
+        if (returnType !is ParameterizedType) {
+            throw IllegalArgumentException("Call return type must be parameterized as Call<Foo>")
+        }
+        val responseType: Type = getParameterUpperBound(0, returnType)
+        return CustomerIoCallAdapter<Any>(responseType)
     }
 }

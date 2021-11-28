@@ -57,6 +57,18 @@ dependencies {
     kapt(Dependencies.moshiCodeGen)
 
     testImplementation Dependencies.androidxTestJunit
+    testImplementation Dependencies.junitJupiterApi
+    testImplementation Dependencies.junitJupiterParams
+    testRuntimeOnly Dependencies.junitJupiterEngine
+    testRuntimeOnly Dependencies.junitVintageEngine
+
+    testImplementation Dependencies.mockito
+    testImplementation Dependencies.mockitoKotlin
+
+    testImplementation Dependencies.kluent
+    testImplementation Dependencies.okhttpMockWebserver
+
+    testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
 }
 

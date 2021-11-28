@@ -1,9 +1,6 @@
 package io.customer.sdk.di
 
 import android.content.Context
-import com.squareup.moshi.JsonAdapter
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.Types
 import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
@@ -12,7 +9,8 @@ import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.api.service.PushService
-import io.customer.sdk.data.moshi.adapter.SupportedAttributesFactory
+import io.customer.sdk.data.moshi.CustomerIOParser
+import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.store.CustomerIOStore
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.DeviceStoreImp
@@ -63,7 +61,7 @@ internal class CustomerIOComponent(
 
     private val attributesRepository by lazy {
         MoshiAttributesRepositoryImp(
-            jsonAdapter = jsonAdapter
+            parser = customerIOParser
         )
     }
 
@@ -75,21 +73,7 @@ internal class CustomerIOComponent(
         ).create(apiClass)
     }
 
-    private val moshi by lazy {
-        Moshi.Builder()
-            .add(SupportedAttributesFactory())
-            .build()
-    }
-
-    private val jsonAdapter: JsonAdapter<Map<String, Any>> by lazy {
-        moshi.adapter(
-            Types.newParameterizedType(
-                MutableMap::class.java,
-                String::class.java,
-                Any::class.java
-            )
-        )
-    }
+    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl() }
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {

@@ -17,7 +17,7 @@ import kotlin.reflect.javaType
 import kotlin.reflect.typeOf
 
 @ExperimentalStdlibApi
-class CustomerIOCallAdapterTest {
+internal class CustomerIOCallAdapterTest {
 
     @Rule
     @JvmField

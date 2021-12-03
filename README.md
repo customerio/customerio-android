@@ -1,3 +1,10 @@
+<p align="center">
+  <a href="https://customer.io">
+    <img src="https://user-images.githubusercontent.com/6409227/144680509-907ee093-d7ad-4a9c-b0a5-f640eeb060cd.png" height="60">
+  </a>
+  <p align="center">Power automated communication that people like to receive.</p>
+</p>
+
 ![min Android SDK version is 21](https://img.shields.io/badge/min%20Android%20SDK-21-green)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking)
 

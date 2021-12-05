@@ -13,11 +13,11 @@ import io.customer.sdk.utils.verifyError
 import io.customer.sdk.utils.verifySuccess
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.times
-import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 
 internal class CustomerIOClientTest {
 
@@ -40,7 +40,7 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify client sends error when identify repo fails identifying`() {
-        Mockito.`when`(identityRepository.identify(any(), any()))
+        `when`(identityRepository.identify(any(), any()))
             .thenReturn(
                 ActionUtils.getErrorAction(
                     errorResult = ErrorResult(
@@ -58,7 +58,7 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify client sends success when identify repo succeed in identifying`() {
-        Mockito.`when`(identityRepository.identify(any(), any()))
+        `when`(identityRepository.identify(any(), any()))
             .thenReturn(ActionUtils.getEmptyAction())
 
         val result = customerIOClient.identify("identifier", mapOf()).execute()
@@ -68,7 +68,7 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify when customer is identified then identifier is saved in prefs repo`() {
-        Mockito.`when`(identityRepository.identify(any(), any()))
+        `when`(identityRepository.identify(any(), any()))
             .thenReturn(ActionUtils.getEmptyAction())
 
         customerIOClient.identify("identifier", mapOf()).execute()
@@ -78,20 +78,20 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify when customer identify is cleared its removed in prefs repo`() {
-        Mockito.`when`(preferenceRepository.getIdentifier()).thenReturn("identify")
+        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
 
         customerIOClient.clearIdentify()
 
-        verify(preferenceRepository, times(1)).removeIdentifier(any())
+        verify(preferenceRepository, times(1)).removeIdentifier("identify")
     }
 
     @Test
     fun `verify client sends success when customer device is added`() {
-        Mockito.`when`(
+        `when`(
             preferenceRepository.getIdentifier()
         ).thenReturn("identify")
 
-        Mockito.`when`(pushNotificationRepository.registerDeviceToken(any(), any()))
+        `when`(pushNotificationRepository.registerDeviceToken(any(), any()))
             .thenReturn(ActionUtils.getEmptyAction())
 
         val result = customerIOClient.registerDeviceToken("token").execute()
@@ -101,11 +101,11 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify when customer device is added then token is saved`() {
-        Mockito.`when`(
+        `when`(
             preferenceRepository.getIdentifier()
         ).thenReturn("identify")
 
-        Mockito.`when`(pushNotificationRepository.registerDeviceToken(any(), any()))
+        `when`(pushNotificationRepository.registerDeviceToken(any(), any()))
             .thenReturn(ActionUtils.getEmptyAction())
 
         customerIOClient.registerDeviceToken("token").execute()
@@ -115,13 +115,13 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify when customer device is removed then token is removed`() {
-        Mockito.`when`(
+        `when`(
             preferenceRepository.getIdentifier()
         ).thenReturn("identify")
 
-        Mockito.`when`(preferenceRepository.getDeviceToken()).thenReturn("token")
+        `when`(preferenceRepository.getDeviceToken()).thenReturn("token")
 
-        Mockito.`when`(
+        `when`(
             pushNotificationRepository.deleteDeviceToken(any(), any())
         ).thenReturn(ActionUtils.getEmptyAction())
 
@@ -132,7 +132,7 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify client sends error when push repo fails in tracking push metric`() {
-        Mockito.`when`(
+        `when`(
             pushNotificationRepository.trackMetric(any(), any(), any())
         ).thenReturn(
             ActionUtils.getErrorAction(
@@ -152,7 +152,7 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify client sends success when repo succeed in tracking push metric`() {
-        Mockito.`when`(
+        `when`(
             pushNotificationRepository.trackMetric(any(), any(), any())
         ).thenReturn(ActionUtils.getEmptyAction())
 
@@ -164,7 +164,7 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify client sends error when tracking repo fails in tracking event`() {
-        Mockito.`when`(
+        `when`(
             trackingRepository.track(any(), any(), any())
         ).thenReturn(
             ActionUtils.getErrorAction(
@@ -176,7 +176,7 @@ internal class CustomerIOClientTest {
             )
         )
 
-        Mockito.`when`(preferenceRepository.getIdentifier()).thenReturn("identify")
+        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
 
         val result = customerIOClient.track("name", mapOf("key" to "value")).execute()
 
@@ -185,11 +185,11 @@ internal class CustomerIOClientTest {
 
     @Test
     fun `verify client sends success when tracking repo succeed in tracking event`() {
-        Mockito.`when`(
+        `when`(
             trackingRepository.track(any(), any(), any())
         ).thenReturn(ActionUtils.getEmptyAction())
 
-        Mockito.`when`(preferenceRepository.getIdentifier()).thenReturn("identify")
+        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
 
         val result = customerIOClient.track("name", mapOf("key" to "value")).execute()
 

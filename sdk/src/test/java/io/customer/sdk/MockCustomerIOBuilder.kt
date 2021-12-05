@@ -11,6 +11,14 @@ internal class MockCustomerIOBuilder {
     lateinit var store: CustomerIOStore
     private lateinit var customerIO: CustomerIO
 
+    companion object {
+        const val apiKey = "mock-key"
+        const val siteId = "mock-site"
+        val region = Region.US
+        const val timeout = 6000
+        val urlHandler = null
+    }
+
     fun build(): CustomerIO {
         val customerIOConfig = CustomerIOConfig(
             apiKey = "mock-key",

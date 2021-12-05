@@ -82,7 +82,7 @@ internal class CustomerIOClientTest {
 
         customerIOClient.clearIdentify()
 
-        verify(preferenceRepository, times(1)).removeIdentifier(any())
+        verify(preferenceRepository, times(1)).removeIdentifier("identify")
     }
 
     @Test
@@ -110,7 +110,7 @@ internal class CustomerIOClientTest {
 
         customerIOClient.registerDeviceToken("token").execute()
 
-        verify(preferenceRepository, times(1)).saveDeviceToken(any())
+        verify(preferenceRepository, times(1)).saveDeviceToken("token")
     }
 
     @Test
@@ -127,7 +127,7 @@ internal class CustomerIOClientTest {
 
         customerIOClient.deleteDeviceToken().execute()
 
-        verify(preferenceRepository, times(1)).removeDeviceToken(any())
+        verify(preferenceRepository, times(1)).removeDeviceToken("token")
     }
 
     @Test

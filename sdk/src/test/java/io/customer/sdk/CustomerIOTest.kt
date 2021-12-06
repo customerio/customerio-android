@@ -29,7 +29,7 @@ internal class CustomerIOTest {
     fun `verify SDK configuration is correct`() {
         customerIO.config.siteId `should be equal to` MockCustomerIOBuilder.siteId
         customerIO.config.apiKey `should be equal to` MockCustomerIOBuilder.apiKey
-        customerIO.config.timeout `should be equal to` MockCustomerIOBuilder.timeout
+        customerIO.config.timeout `should be equal to` MockCustomerIOBuilder.timeout.toLong()
         customerIO.config.region `should be equal to` MockCustomerIOBuilder.region
         customerIO.config.urlHandler `should be equal to` MockCustomerIOBuilder.urlHandler
     }

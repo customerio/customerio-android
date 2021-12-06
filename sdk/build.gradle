@@ -57,6 +57,14 @@ dependencies {
     kapt(Dependencies.moshiCodeGen)
 
     testImplementation Dependencies.androidxTestJunit
+
+    testImplementation Dependencies.mockito
+    testImplementation Dependencies.mockitoKotlin
+
+    testImplementation Dependencies.kluent
+    testImplementation Dependencies.okhttpMockWebserver
+
+    testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
 }
 

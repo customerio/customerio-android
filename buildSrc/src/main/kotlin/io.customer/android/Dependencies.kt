@@ -3,8 +3,6 @@ package io.customer.android
 object Dependencies {
     const val androidGradlePlugin =
         "com.android.tools.build:gradle:${Versions.ANDROID_GRADLE_PLUGIN}"
-    const val androidJunit5GradlePlugin =
-        "de.mannodermaus.gradle.plugins:android-junit5:${Versions.ANDROID_JUNIT5_GRADLE_PLUGIN}"
     const val androidxTestJunit = "androidx.test.ext:junit:${Versions.ANDROIDX_TEST_JUNIT}"
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
@@ -29,14 +27,18 @@ object Dependencies {
     const val gradleVersionsPlugin =
         "com.github.ben-manes:gradle-versions-plugin:${Versions.GRADLE_VERSIONS_PLUGIN}"
     const val junit4 = "junit:junit:${Versions.JUNIT4}"
+    const val kluent = "org.amshove.kluent:kluent:${Versions.KLUENT}"
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
     const val moshi = "com.squareup.moshi:moshi:${Versions.MOSHI}"
+    const val mockito = "org.mockito:mockito-core:${Versions.MOCKITO}"
+    const val mockitoKotlin = "org.mockito.kotlin:mockito-kotlin:${Versions.MOCKITO_KOTLIN}"
     const val moshiCodeGen = "com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
     const val retrofitMoshiConverter = "com.squareup.retrofit2:converter-moshi:${Versions.RETROFIT}"
     const val okhttp = "com.squareup.okhttp3:okhttp:${Versions.OKHTTP}"
+    const val okhttpMockWebserver = "com.squareup.okhttp3:mockwebserver:${Versions.OKHTTP}"
     const val okhttpLoggingInterceptor =
         "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
 

@@ -17,7 +17,7 @@ abstract class ActionUtils {
             )
         }
 
-        private fun <T : Any> getErrorAction(errorResult: ErrorResult<T>): Action<T> {
+        fun <T : Any> getErrorAction(errorResult: ErrorResult<T>): Action<T> {
             return object : Action<T> {
                 override fun execute(): Result<T> = errorResult
 
@@ -33,17 +33,20 @@ abstract class ActionUtils {
             return getErrorAction(unIdentifiedUserErrorResult())
         }
 
-        fun getEmptyAction(): Action<Unit> {
-            return object : Action<Unit> {
-                override fun execute(): Result<Unit> = Success(data = Unit)
+        fun getEmptyAction() = getSuccessAction(Unit)
 
-                override fun enqueue(callback: Action.Callback<Unit>) {
-                    callback.onResult(Success(data = Unit))
+        fun <T : Any> getSuccessAction(data: T): Action<T> {
+            return object : Action<T> {
+                override fun execute(): Result<T> = Success(data = data)
+
+                override fun enqueue(callback: Action.Callback<T>) {
+                    callback.onResult(Success(data = data))
                 }
 
                 override fun cancel() {}
             }
         }
+
     }
 
 }

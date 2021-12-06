@@ -9,6 +9,12 @@ sealed class Result<T> {
         is Success -> get()
         is ErrorResult -> throw error.cause
     }
+
+    val isSuccess: Boolean
+        get() = this is Success
+
+    val isError: Boolean
+        get() = this is ErrorResult
 }
 
 data class Success<T>(val data: T) : Result<T>() {

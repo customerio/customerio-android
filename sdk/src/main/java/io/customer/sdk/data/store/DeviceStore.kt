@@ -1,26 +1,6 @@
 package io.customer.sdk.data.store
 
-import android.content.Context
-import android.os.Build
-import io.customer.sdk.Version
-
-interface DeviceStore {
-
-    // Brand: Google
-    val deviceBrand: String
-
-    // Device model: Pixel
-    val deviceModel: String
-
-    // Manufacturer: Samsung
-    val deviceManufacturer: String
-
-    // Android SDK Version: 21
-    val deviceOSVersion: Int
-
-    // Customer App information
-    val customerAppName: String
-    val customerAppVersion: String
+interface DeviceStore : BuildStore, ApplicationStore {
 
     // SDK version
     val customerIOVersion: String
@@ -38,24 +18,26 @@ interface DeviceStore {
     fun buildUserAgent(): String
 }
 
-internal class DeviceStoreImp(val context: Context) : DeviceStore {
-
-    private val appInfo: Pair<String, String> = getAppInformation()
+internal class DeviceStoreImp(
+    private val buildStore: BuildStore,
+    private val applicationStore: ApplicationStore,
+    private val version: String
+) : DeviceStore {
 
     override val deviceBrand: String
-        get() = Build.BRAND
+        get() = buildStore.deviceBrand
     override val deviceModel: String
-        get() = Build.MODEL
+        get() = buildStore.deviceModel
     override val deviceManufacturer: String
-        get() = Build.MANUFACTURER
+        get() = buildStore.deviceManufacturer
     override val deviceOSVersion: Int
-        get() = Build.VERSION.SDK_INT
+        get() = buildStore.deviceOSVersion
     override val customerAppName: String
-        get() = appInfo.first
+        get() = applicationStore.customerAppName
     override val customerAppVersion: String
-        get() = appInfo.second
+        get() = applicationStore.customerAppVersion
     override val customerIOVersion: String
-        get() = Version.version
+        get() = version
 
     override fun buildUserAgent(): String {
         return buildString {
@@ -64,19 +46,5 @@ internal class DeviceStoreImp(val context: Context) : DeviceStore {
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
             append(" $customerAppName/$customerAppVersion")
         }
-    }
-
-    private fun getAppInformation(): Pair<String, String> {
-        val appName: String = try {
-            context.applicationInfo.loadLabel(context.packageManager).toString()
-        } catch (e: Exception) {
-            ""
-        }
-        val appVersion: String = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        } catch (e: Exception) {
-            ""
-        }
-        return appName to appVersion
     }
 }

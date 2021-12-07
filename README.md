@@ -1,20 +1,19 @@
 ![min Android SDK version is 21](https://img.shields.io/badge/min%20Android%20SDK-21-green)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking)
 
-# Summary
+# Customer.io Android SDK
 
 This is the official Customer.io SDK for Android.
 
 You'll find our [complete SDK documentation at https://customer.io/docs/sdk/android](https://customer.io/docs/sdk/android/). This readme only contains basic information to help you install and initialize the SDK.
 
-**This SDK is a work in progress!** While we're *very* excited about it, it's still in its alpha phase; it is not ready for general availability. If you want to try it out, contact [product@customer.io](mailto:product@customer.io) and we'll help set you up!
+**Our SDK is a work in progress!** While we're *very* excited about it, it's still in its alpha phase; it is not ready for general availability. If you want to try it out, contact [product@customer.io](mailto:product@customer.io) and we'll help set you up!
 
-# Getting started
+## Summary
 
 The SDK supports both Kotlin and Java.
 
-To get started, install and initialize the relevant SDK packages in your project.
-To minimize our SDK's impact on your app's size, we offer multiple, separate SDKs. You should only install the packages that you need for your project.
+To get started, you need to install and initialize the relevant [SDK packages](#available-sdks) in your project. We've separated our SDK into packages to minimize our impact on your app's size. You should only install the packages that you need for your project. 
 
 > Tip: Check out our [sample android app, Remote Habits](https://github.com/customerio/RemoteHabits-Android), for a example of how to use our SDK. 
 
@@ -43,9 +42,14 @@ allprojects {
 }
 ```
 
-## Available SDKs
+### Available SDKs
 
-Here are the list of available SDKs that you can install. You can find more details on both in [our SDK documentation](/docs/sdk/android/)
+We separated our SDK into packages to minimize our impact on your app's size. You should only install the packages that you need for your project. 
+
+| Package | Required? | Description |
+| :-- | :---: | :--- |
+| `tracking` | Yes | [`identify`](https://customer.io/docs/sdk/android/identify/) people/devices and [send events](https://customer.io/docs/sdk/android/track-events/) (to trigger campaigns, track metrics, etc). |
+| `messaging-push-fcm` | No | [Push](https://customer.io/docs/sdk/android/push/) and [rich push](https://customer.io/docs/sdk/android/rich-push/) notifications using Google Firebase Cloud Messaging (FCM). |
 
 ```groovy
 implementation 'io.customer.android:tracking:<version-here>'
@@ -54,7 +58,8 @@ implementation 'io.customer.android:messaging-push-fcm:<version-here>'
 
 Replace `version-here` with the the latest version: ![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)
 
-# Initialize the SDK
+
+## Initialize the SDK
 
 Before you can use the Customer.io SDK, you need to initialize it. `CustomerIO` is a singleton: once created it will be re-used, until you decide to reconfigure and recreate the instance.
 

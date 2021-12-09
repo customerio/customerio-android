@@ -5,7 +5,7 @@ import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.CustomerIoApi
+import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import io.customer.sdk.api.service.CustomerService
@@ -28,7 +28,7 @@ internal class CustomerIOComponent(
     private val context: Context
 ) {
 
-    fun buildApi(): CustomerIoApi {
+    fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
                 customerService = buildRetrofitApi<CustomerService>(),

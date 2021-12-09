@@ -3,7 +3,8 @@ package io.customer.sdk
 import io.customer.base.comunication.Action
 import io.customer.base.data.Result
 import io.customer.base.data.Success
-import io.customer.sdk.api.CustomerIoApi
+import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
@@ -19,7 +20,7 @@ internal class CustomerIOClient(
     private val preferenceRepository: PreferenceRepository,
     private val trackingRepository: TrackingRepository,
     private val pushNotificationRepository: PushNotificationRepository
-) : CustomerIoApi {
+) : CustomerIOApi {
 
     override fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit> {
         return object : Action<Unit> {
@@ -48,8 +49,17 @@ internal class CustomerIOClient(
     }
 
     override fun track(name: String, attributes: Map<String, Any>): Action<Unit> {
+        return track(EventType.event, name, attributes)
+    }
+
+    fun track(eventType: EventType, name: String, attributes: Map<String, Any>): Action<Unit> {
         val identifier = preferenceRepository.getIdentifier()
-        return trackingRepository.track(identifier, name, attributes)
+        return trackingRepository.track(
+            identifier = identifier,
+            type = eventType,
+            name = name,
+            attributes = attributes
+        )
     }
 
     override fun clearIdentify() {
@@ -131,4 +141,8 @@ internal class CustomerIOClient(
         event: MetricEvent,
         deviceToken: String
     ) = pushNotificationRepository.trackMetric(deliveryID, event, deviceToken)
+
+    override fun screen(name: String, attributes: Map<String, Any>): Action<Unit> {
+        return track(EventType.screen, name, attributes)
+    }
 }

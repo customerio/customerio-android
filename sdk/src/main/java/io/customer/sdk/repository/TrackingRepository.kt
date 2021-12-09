@@ -3,10 +3,16 @@ package io.customer.sdk.repository
 import io.customer.base.comunication.Action
 import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event
 
 internal interface TrackingRepository {
-    fun track(identifier: String?, name: String, attributes: Map<String, Any>): Action<Unit>
+    fun track(
+        identifier: String?,
+        type: EventType,
+        name: String,
+        attributes: Map<String, Any>
+    ): Action<Unit>
 }
 
 internal class TrackingRepositoryImp(
@@ -16,6 +22,7 @@ internal class TrackingRepositoryImp(
 
     override fun track(
         identifier: String?,
+        type: EventType,
         name: String,
         attributes: Map<String, Any>
     ): Action<Unit> {
@@ -23,7 +30,11 @@ internal class TrackingRepositoryImp(
             return ActionUtils.getUnidentifiedUserAction()
         } else customerService.track(
             identifier = identifier,
-            body = Event(name = name, data = attributesRepository.mapToJson(attributes))
+            body = Event(
+                type = type,
+                name = name,
+                data = attributesRepository.mapToJson(attributes)
+            )
         )
     }
 }

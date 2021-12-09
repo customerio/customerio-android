@@ -69,7 +69,10 @@ class MainActivity : AppCompatActivity() {
         CustomerIO.instance().track(
             name = "custom class event",
             attributes = mapOf("value" to Fol(a = "aa", c = 1))
-        )
+        ).enqueue(outputCallback)
+        CustomerIO.instance().screen(
+            name = "MainActivity"
+        ).enqueue(outputCallback)
     }
 
     private fun makeAsynchronousRequest() {

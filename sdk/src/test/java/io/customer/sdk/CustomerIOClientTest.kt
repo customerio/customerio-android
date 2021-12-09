@@ -165,7 +165,7 @@ internal class CustomerIOClientTest {
     @Test
     fun `verify client sends error when tracking repo fails in tracking event`() {
         `when`(
-            trackingRepository.track(any(), any(), any())
+            trackingRepository.track(any(), any(), any(), any())
         ).thenReturn(
             ActionUtils.getErrorAction(
                 errorResult = ErrorResult(
@@ -186,12 +186,25 @@ internal class CustomerIOClientTest {
     @Test
     fun `verify client sends success when tracking repo succeed in tracking event`() {
         `when`(
-            trackingRepository.track(any(), any(), any())
+            trackingRepository.track(any(), any(), any(), any())
         ).thenReturn(ActionUtils.getEmptyAction())
 
         `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
 
         val result = customerIOClient.track("name", mapOf("key" to "value")).execute()
+
+        verifySuccess(result, Unit)
+    }
+
+    @Test
+    fun `verify client sends success when tracking repo succeed in screen tracking`() {
+        `when`(
+            trackingRepository.track(any(), any(), any(), any())
+        ).thenReturn(ActionUtils.getEmptyAction())
+
+        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
+
+        val result = customerIOClient.screen("Home", emptyMap()).execute()
 
         verifySuccess(result, Unit)
     }

@@ -1,3 +1,10 @@
+# [1.0.0-alpha.7](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.6...1.0.0-alpha.7) (2021-12-14)
+
+
+### Features
+
+* manual screen tracking ([#51](https://github.com/customerio/customerio-android/issues/51)) ([213a278](https://github.com/customerio/customerio-android/commit/213a278e668f0e26ffef5983d6357b5370f96ad2))
+
 # [1.0.0-alpha.6](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.5...1.0.0-alpha.6) (2021-11-23)
 
 

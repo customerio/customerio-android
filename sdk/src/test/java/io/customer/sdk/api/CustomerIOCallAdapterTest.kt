@@ -1,6 +1,6 @@
 package io.customer.sdk.api
 
-import io.customer.base.comunication.Call
+import io.customer.sdk.api.retrofit.CustomerIoCall
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import okhttp3.mockwebserver.MockWebServer
 import org.amshove.kluent.fail
@@ -37,7 +37,7 @@ internal class CustomerIOCallAdapterTest {
     @Test
     fun `When returning raw call Then should throw an exception`() {
         try {
-            factory[Call::class.java, emptyArray(), retrofit]
+            factory[CustomerIoCall::class.java, emptyArray(), retrofit]
             fail("Assertion failed")
         } catch (e: IllegalArgumentException) {
             e.message shouldBeEqualTo "Call return type must be parameterized as Call<Foo>"
@@ -46,7 +46,7 @@ internal class CustomerIOCallAdapterTest {
 
     @Test
     fun `When returning raw response type Then adapter should have the same response type`() {
-        val type: Type = typeOf<Call<String>>().javaType
+        val type: Type = typeOf<CustomerIoCall<String>>().javaType
         val callAdapter = factory[type, emptyArray(), retrofit]
 
         callAdapter.shouldNotBeNull()
@@ -55,7 +55,7 @@ internal class CustomerIOCallAdapterTest {
 
     @Test
     fun `When returning generic response type Then adapter should have the same response type`() {
-        val type = typeOf<Call<List<String>>>().javaType
+        val type = typeOf<CustomerIoCall<List<String>>>().javaType
         val callAdapter = factory[type, emptyArray(), retrofit]
 
         callAdapter.shouldNotBeNull()

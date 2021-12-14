@@ -2,6 +2,7 @@ package io.customer.sdk.repositories
 
 import io.customer.base.error.StatusCode
 import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.repository.AttributesRepository
@@ -38,7 +39,11 @@ internal class TrackingRepositoryTest {
     fun `Unverified user error thrown when identifier is null`() {
 
         val result =
-            trackingRepository.track(identifier = null, name = "event", attributes = emptyMap())
+            trackingRepository.track(
+                identifier = null,
+                type = EventType.event,
+                name = "event", attributes = emptyMap()
+            )
                 .execute()
 
         verifyError(result, StatusCode.UnIdentifiedUser)
@@ -52,6 +57,7 @@ internal class TrackingRepositoryTest {
 
         val result = trackingRepository.track(
             identifier = "identifier",
+            type = EventType.event,
             name = "event",
             attributes = emptyMap()
         ).execute()
@@ -67,6 +73,7 @@ internal class TrackingRepositoryTest {
 
         val result = trackingRepository.track(
             identifier = "identifier",
+            type = EventType.event,
             name = "event",
             attributes = emptyMap()
         ).execute()
@@ -82,6 +89,7 @@ internal class TrackingRepositoryTest {
 
         val result = trackingRepository.track(
             identifier = "identifier",
+            type = EventType.screen,
             name = "event",
             attributes = mapOf("key" to Unit)
         ).execute()

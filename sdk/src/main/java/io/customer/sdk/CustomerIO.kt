@@ -2,7 +2,7 @@ package io.customer.sdk
 
 import android.content.Context
 import io.customer.base.comunication.Action
-import io.customer.sdk.api.CustomerIoApi
+import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
@@ -25,7 +25,7 @@ After the instance is created you can access it via singleton instance: `Custome
 class CustomerIO internal constructor(
     val config: CustomerIOConfig,
     val store: CustomerIOStore,
-    private val api: CustomerIoApi,
+    private val api: CustomerIOApi,
 ) {
     companion object {
         private var instance: CustomerIO? = null
@@ -128,6 +128,18 @@ class CustomerIO internal constructor(
         name: String,
         attributes: Map<String, Any> = emptyMap()
     ) = api.track(name, attributes)
+
+    /**
+     * Track screen
+
+     * @param name Name of the screen you want to track.
+     * @param attributes Optional event body in Map format used as JSON object
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
+    fun screen(
+        name: String,
+        attributes: Map<String, Any> = emptyMap()
+    ) = api.screen(name, attributes)
 
     /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer

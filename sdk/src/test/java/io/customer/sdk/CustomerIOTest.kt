@@ -84,6 +84,20 @@ internal class CustomerIOTest {
     }
 
     @Test
+    fun `verify SDK returns success when screen is tracked`() {
+        `when`(
+            mockCustomerIO.api.screen(
+                name = any(),
+                attributes = any()
+            )
+        ).thenReturn(getEmptyAction())
+
+        val response = customerIO.screen("Login", mapOf("key" to "value")).execute()
+
+        verifySuccess(response, Unit)
+    }
+
+    @Test
     fun `verify SDK returns error when event tracking request fails`() {
         `when`(
             mockCustomerIO.api.track(
@@ -102,6 +116,27 @@ internal class CustomerIOTest {
         val response = customerIO.track("event_name", mapOf("key" to "value")).execute()
 
         verifyError(response, StatusCode.InternalServerError)
+    }
+
+    @Test
+    fun `verify SDK returns error when screen tracking request fails`() {
+        `when`(
+            mockCustomerIO.api.screen(
+                name = any(),
+                attributes = any()
+            )
+        ).thenReturn(
+            getErrorAction(
+                errorResult = ErrorResult(
+                    error =
+                    ErrorDetail(statusCode = StatusCode.BadRequest)
+                )
+            )
+        )
+
+        val response = customerIO.screen("Login", emptyMap()).execute()
+
+        verifyError(response, StatusCode.BadRequest)
     }
 
     @Test

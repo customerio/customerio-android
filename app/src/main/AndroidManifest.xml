@@ -17,6 +17,7 @@
         tools:targetApi="m">
         <activity
             android:name="io.customer.example.MainActivity"
+            android:label="Home"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

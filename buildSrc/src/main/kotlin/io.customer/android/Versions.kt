@@ -16,6 +16,7 @@ object Versions {
     internal const val GOOGLE_PLAY_SERVICES_BASE = "17.6.0"
     internal const val KLUENT = "1.68"
     internal const val KOTLIN = "1.5.31"
+    internal const val LIFECYCLE_COMMON = "2.4.0"
     internal const val MATERIAL_COMPONENTS = "1.4.0"
     internal const val MOCKITO_KOTLIN = "4.0.0"
     internal const val MOCKITO = "3.11.2"

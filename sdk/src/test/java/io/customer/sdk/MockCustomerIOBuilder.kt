@@ -27,7 +27,7 @@ internal class MockCustomerIOBuilder {
             region = Region.US,
             timeout = 6000,
             urlHandler = urlHandler,
-            shouldAutoRecordScreenViews = shouldAutoRecordScreenViews
+            autoTrackScreenViews = shouldAutoRecordScreenViews
         )
 
         api = mock()

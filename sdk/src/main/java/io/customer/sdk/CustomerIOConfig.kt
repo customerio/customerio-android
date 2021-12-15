@@ -9,5 +9,5 @@ class CustomerIOConfig(
     val region: Region,
     val timeout: Long,
     val urlHandler: CustomerIOUrlHandler?,
-    val shouldAutoRecordScreenViews: Boolean
+    val autoTrackScreenViews: Boolean
 )

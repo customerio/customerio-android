@@ -29,7 +29,6 @@ object Dependencies {
     const val junit4 = "junit:junit:${Versions.JUNIT4}"
     const val kluent = "org.amshove.kluent:kluent:${Versions.KLUENT}"
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
-    const val lifecycleCommon = "androidx.lifecycle:lifecycle-common:${Versions.LIFECYCLE_COMMON}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
     const val moshi = "com.squareup.moshi:moshi:${Versions.MOSHI}"
     const val mockito = "org.mockito:mockito-core:${Versions.MOCKITO}"

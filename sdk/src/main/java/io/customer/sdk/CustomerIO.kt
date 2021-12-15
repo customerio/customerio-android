@@ -64,7 +64,7 @@ class CustomerIO internal constructor(
             return this
         }
 
-        fun shouldAutoRecordScreenViews(shouldRecordScreenViews: Boolean): Builder {
+        fun autoTrackScreenViews(shouldRecordScreenViews: Boolean): Builder {
             this.shouldAutoRecordScreenViews = shouldRecordScreenViews
             return this
         }
@@ -95,7 +95,7 @@ class CustomerIO internal constructor(
                 region = region,
                 timeout = timeout,
                 urlHandler = urlHandler,
-                shouldAutoRecordScreenViews = shouldAutoRecordScreenViews
+                autoTrackScreenViews = shouldAutoRecordScreenViews
             )
 
             val customerIoComponent =

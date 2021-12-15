@@ -3,17 +3,16 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application.ActivityLifecycleCallbacks
 import android.os.Bundle
-import androidx.lifecycle.DefaultLifecycleObserver
 
 class CustomerIOActivityLifecycleCallbacks internal constructor(
     private val customerIO: CustomerIO
-) : ActivityLifecycleCallbacks, DefaultLifecycleObserver {
+) : ActivityLifecycleCallbacks {
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {
     }
 
     override fun onActivityStarted(activity: Activity) {
-        if (customerIO.config.shouldAutoRecordScreenViews) {
+        if (customerIO.config.autoTrackScreenViews) {
             customerIO.screen(activity).enqueue()
         }
     }

@@ -8,5 +8,6 @@ class CustomerIOConfig(
     val apiKey: String,
     val region: Region,
     val timeout: Long,
-    val urlHandler: CustomerIOUrlHandler?
+    val urlHandler: CustomerIOUrlHandler?,
+    val autoTrackScreenViews: Boolean
 )

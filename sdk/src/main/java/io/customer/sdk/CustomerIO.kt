@@ -1,7 +1,12 @@
 package io.customer.sdk
 
-import android.content.Context
+import android.app.Activity
+import android.app.Application
+import android.content.pm.PackageManager
 import io.customer.base.comunication.Action
+import io.customer.base.data.ErrorResult
+import io.customer.base.error.ErrorDetail
+import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
@@ -41,10 +46,13 @@ class CustomerIO internal constructor(
         private val siteId: String,
         private val apiKey: String,
         private var region: Region = Region.US,
-        private val appContext: Context
+        private val appContext: Application
     ) {
         private var timeout = 6000L
         private var urlHandler: CustomerIOUrlHandler? = null
+        private var shouldAutoRecordScreenViews: Boolean = false
+
+        private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -53,6 +61,11 @@ class CustomerIO internal constructor(
 
         fun setRequestTimeout(timeout: Long): Builder {
             this.timeout = timeout
+            return this
+        }
+
+        fun autoTrackScreenViews(shouldRecordScreenViews: Boolean): Builder {
+            this.shouldAutoRecordScreenViews = shouldRecordScreenViews
             return this
         }
 
@@ -81,7 +94,8 @@ class CustomerIO internal constructor(
                 apiKey = apiKey,
                 region = region,
                 timeout = timeout,
-                urlHandler = urlHandler
+                urlHandler = urlHandler,
+                autoTrackScreenViews = shouldAutoRecordScreenViews
             )
 
             val customerIoComponent =
@@ -90,8 +104,12 @@ class CustomerIO internal constructor(
             val client = CustomerIO(
                 config = config,
                 store = customerIoComponent.buildStore(),
-                api = customerIoComponent.buildApi()
+                api = customerIoComponent.buildApi(),
             )
+
+            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client)
+            appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
+
             instance = client
             return client
         }
@@ -142,6 +160,18 @@ class CustomerIO internal constructor(
     ) = api.screen(name, attributes)
 
     /**
+     * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
+
+     * @param activity Instance of the activity you want to track.
+     * @param attributes Optional event body in Map format used as JSON object
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
+    fun screen(
+        activity: Activity,
+        attributes: Map<String, Any> = emptyMap()
+    ) = recordScreenViews(activity, attributes)
+
+    /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
      * be associated with the previously identified customer.
 
@@ -178,4 +208,19 @@ class CustomerIO internal constructor(
         event = event,
         deviceToken = deviceToken
     )
+
+    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>): Action<Unit> {
+        val packageManager = activity.packageManager
+        return try {
+            val info = packageManager.getActivityInfo(
+                activity.componentName, PackageManager.GET_META_DATA
+            )
+            val activityLabel = info.loadLabel(packageManager)
+            screen(activityLabel.toString(), attributes)
+        } catch (e: PackageManager.NameNotFoundException) {
+            ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
+        } catch (e: Exception) {
+            ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
+        }
+    }
 }

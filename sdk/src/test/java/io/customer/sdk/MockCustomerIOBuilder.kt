@@ -17,6 +17,7 @@ internal class MockCustomerIOBuilder {
         val region = Region.US
         const val timeout = 6000
         val urlHandler = null
+        const val shouldAutoRecordScreenViews = false
     }
 
     fun build(): CustomerIO {
@@ -25,7 +26,8 @@ internal class MockCustomerIOBuilder {
             siteId = "mock-site",
             region = Region.US,
             timeout = 6000,
-            urlHandler = null
+            urlHandler = urlHandler,
+            autoTrackScreenViews = shouldAutoRecordScreenViews
         )
 
         api = mock()

@@ -32,6 +32,7 @@ internal class CustomerIOTest {
         customerIO.config.timeout `should be equal to` MockCustomerIOBuilder.timeout.toLong()
         customerIO.config.region `should be equal to` MockCustomerIOBuilder.region
         customerIO.config.urlHandler `should be equal to` MockCustomerIOBuilder.urlHandler
+        customerIO.config.autoTrackScreenViews `should be equal to` MockCustomerIOBuilder.shouldAutoRecordScreenViews
     }
 
     @Test

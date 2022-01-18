@@ -1,3 +1,10 @@
+# [1.0.0-beta.2](https://github.com/customerio/customerio-android/compare/1.0.0-beta.1...1.0.0-beta.2) (2022-01-18)
+
+
+### Bug Fixes
+
+* updated host endpoints ([#53](https://github.com/customerio/customerio-android/issues/53)) ([efe2b9e](https://github.com/customerio/customerio-android/commit/efe2b9e36e0fe86abd9666f2d3af4fb84eadcdfb))
+
 # [1.0.0-alpha.9](https://github.com/customerio/customerio-android/compare/1.0.0-alpha.8...1.0.0-alpha.9) (2022-01-14)
 
 

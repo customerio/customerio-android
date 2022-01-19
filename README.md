@@ -12,11 +12,7 @@
 
 This is the official Customer.io SDK for Android.
 
-You'll find our [complete SDK documentation at https://customer.io/docs/sdk/android](https://customer.io/docs/sdk/android/). This readme only contains basic information to help you install and initialize the SDK.
-
-**Our SDK is a work in progress!** While we're *very* excited about it, it's still in its alpha phase; it is not ready for general availability. If you want to try it out, contact [product@customer.io](mailto:product@customer.io) and we'll help set you up!
-
-## Summary
+# Getting started
 
 The SDK supports both Kotlin and Java.
 

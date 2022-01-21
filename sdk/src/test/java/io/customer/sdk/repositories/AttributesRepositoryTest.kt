@@ -35,16 +35,18 @@ internal class AttributesRepositoryTest {
         val result = attributesRepository.mapToJson(mapOf("key" to 1, "key2" to 2))
 
         // JSON only has numbers. Not integers or doubles. And since numbers can have decimals they are always represented as doubles in Java.
-        val expected = mapOf("key" to 1, "key2" to 2).mapValues { it.value.toDouble() }
+        val expected = mapOf("key" to 1, "key2" to 2).mapValues { it.value.toBigDecimal() }
 
         (result == expected).shouldBeTrue()
     }
 
     @Test
     fun `Verify Long attributes are mapped correctly`() {
-        val expected = mapOf("key" to 1.0, "key2" to 2.0)
+        val expected =
+            sortedMapOf("key" to 1.0, "key2" to 2.0).mapValues { it.value.toBigDecimal() }
 
-        val result = attributesRepository.mapToJson(mapOf("key" to 1.0, "key2" to 2.0))
+        val result =
+            attributesRepository.mapToJson(mutableMapOf("key" to 1.0, "key2" to 2.0)).toSortedMap()
 
         (result == expected).shouldBeTrue()
     }
@@ -53,7 +55,7 @@ internal class AttributesRepositoryTest {
     fun `Verify Date attributes are mapped correctly`() {
 
         val date = Date()
-        val expected = mapOf("key" to date.getUnixTimestamp().toDouble())
+        val expected = mapOf("key" to date.getUnixTimestamp().toBigDecimal())
 
         // even if Date is sent, unix timestamp should be mapped
         val result = attributesRepository.mapToJson(mapOf("key" to date))

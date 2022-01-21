@@ -2,6 +2,7 @@ package io.customer.sdk.data.moshi.adapter
 
 import com.squareup.moshi.*
 import java.lang.reflect.Type
+import java.math.BigDecimal
 
 internal class SupportedAttributesFactory : JsonAdapter.Factory {
     override fun create(
@@ -20,6 +21,8 @@ internal class SupportedAttributesAdapter(moshi: Moshi) :
     JsonAdapter<Map<String, Any>>() {
 
     private val elementAdapter: JsonAdapter<Any> = moshi.adapter(Any::class.java)
+    private val elementBigDecimalAdapter: JsonAdapter<BigDecimal> =
+        moshi.adapter(BigDecimal::class.java)
 
     private val mapAdapter: JsonAdapter<Map<String, Any?>> =
         moshi.adapter(
@@ -37,7 +40,11 @@ internal class SupportedAttributesAdapter(moshi: Moshi) :
             try {
                 val name = reader.nextName()
                 val peeked = reader.peekJson()
-                result[name] = elementAdapter.fromJson(peeked)!!
+                if (peeked.peek() == JsonReader.Token.NUMBER) {
+                    result[name] = elementBigDecimalAdapter.fromJson(peeked)!!
+                } else {
+                    result[name] = elementAdapter.fromJson(peeked)!!
+                }
             } catch (ignored: JsonDataException) {
             }
             reader.skipValue()

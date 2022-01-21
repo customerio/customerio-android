@@ -3,6 +3,7 @@ package io.customer.sdk.data.moshi
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
+import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.SupportedAttributesFactory
 
 internal interface CustomerIOParser {
@@ -14,6 +15,7 @@ internal class CustomerIOParserImpl : CustomerIOParser {
 
     private val moshi by lazy {
         Moshi.Builder()
+            .add(BigDecimalAdapter())
             .add(SupportedAttributesFactory())
             .build()
     }

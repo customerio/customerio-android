@@ -1,6 +1,7 @@
 package io.customer.sdk.di
 
 import android.content.Context
+import com.squareup.moshi.Moshi
 import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
@@ -12,6 +13,7 @@ import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
+import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.store.*
 import io.customer.sdk.repository.*
 import okhttp3.OkHttpClient
@@ -88,6 +90,14 @@ internal class CustomerIOComponent(
         }
     }
 
+    private val retrofitMoshiConverterFactory by lazy {
+        MoshiConverterFactory.create(
+            Moshi.Builder()
+                .add(BigDecimalAdapter())
+                .build()
+        )
+    }
+
     private fun buildRetrofit(
         endpoint: String,
         timeout: Long
@@ -96,7 +106,7 @@ internal class CustomerIOComponent(
         return Retrofit.Builder()
             .baseUrl(endpoint)
             .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create())
+            .addConverterFactory(retrofitMoshiConverterFactory)
             .addCallAdapterFactory(CustomerIoCallAdapterFactory.create())
             .build()
     }

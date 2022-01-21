@@ -48,11 +48,15 @@ class MainActivity : AppCompatActivity() {
         ).enqueue(outputCallback)
         CustomerIO.instance().track(
             name = "int event",
-            attributes = mapOf("value" to 1)
+            attributes = mapOf("value" to 1388377266772)
         ).enqueue(outputCallback)
         CustomerIO.instance().track(
             name = "long event",
-            attributes = mapOf("value" to 1L)
+            attributes = mapOf("value" to 1653L)
+        ).enqueue(outputCallback)
+        CustomerIO.instance().track(
+            name = "double event",
+            attributes = mapOf("value" to 133333.882)
         ).enqueue(outputCallback)
         CustomerIO.instance().track(
             name = "array event",
@@ -87,9 +91,10 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             when (
                 val result =
-                    CustomerIO.instance()
-                        .identify("sample@email.com@email.com", mapOf("speed" to "slow"))
-                        .execute()
+                    CustomerIO.instance().identify(
+                        identifier = "support-ticket-test",
+                        mapOf("created_at" to 1642659790)
+                    ).execute()
             ) {
                 is ErrorResult -> Log.v("ErrorResult", result.error.cause.toString())
                 is Success -> Log.v("Success", "Success")

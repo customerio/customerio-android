@@ -1,3 +1,10 @@
+## [1.0.1-beta.1](https://github.com/customerio/customerio-android/compare/1.0.0...1.0.1-beta.1) (2022-01-21)
+
+
+### Bug Fixes
+
+* number parsing coverts to double ([#57](https://github.com/customerio/customerio-android/issues/57)) ([72a80fe](https://github.com/customerio/customerio-android/commit/72a80fe38932a199dda68b3fcbfd10b3d025f450))
+
 # 1.0.0 (2022-01-19)
 
 

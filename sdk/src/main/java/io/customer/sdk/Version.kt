@@ -7,5 +7,5 @@ package io.customer.sdk
 
 internal object Version {
 
-    const val version: String = "1.0.0"
+    const val version: String = "1.0.1"
 }

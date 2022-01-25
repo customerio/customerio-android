@@ -18,7 +18,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "MODULE_VERSION=${nextRelease.version} ./gradlew publishReleasePublicationToSonatypeRepository --max-workers 1 closeAndReleaseSonatypeStagingRepository",
+        "prepareCmd": "",
         "verifyReleaseCmd": "./update_version.sh ${nextRelease.version} sdk/src/main/java/io/customer/sdk/Version.kt"
       }
     ],

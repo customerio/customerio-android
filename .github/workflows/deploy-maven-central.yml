@@ -1,0 +1,34 @@
+name: Deploy SDK Maven Central 
+# If deployment tries to push to maven central and then push git tags
+# when git tag deployment fails, you cannot push to maven central again
+# as it doesn't allow overwriting previously deployed artifacts. Deploy 
+# tag first, then deploy to Maven Central on successful tag deployment. 
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy-sonatype:
+    name: Deploy SDK to Cocoapods 
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: adopt
+          java-version: 11
+      - name: Build 
+        # assembleRelease for all modules, excluding non-library modules: app, docs
+        run: ./gradlew assembleRelease -x :app:assembleRelease
+      - name: Source jar and dokka
+        run: ./gradlew androidSourcesJar javadocJar
+      - name: Push to Sonatype servers 
+        run: MODULE_VERSION=${{ github.event.release.tag_name }} ./gradlew publishReleasePublicationToSonatypeRepository --max-workers 1 closeAndReleaseSonatypeStagingRepository
+        env:
+          OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.GRADLE_SIGNING_KEYID }}
+          SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
+          SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}

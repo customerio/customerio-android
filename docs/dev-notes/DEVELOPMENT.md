@@ -30,6 +30,10 @@ $ ./hooks/autohook.sh install
 
 * Install `ktlint` Kotlin linting CLI tool. The easiest way is `brew install ktlint` but if you are not on a Mac, [find another way to install](https://ktlint.github.io/#getting-started) on your machine. 
 
+### Development workflow 
+
+See file [GIT-WORKFLOW](GIT-WORKFLOW.md) to learn about the workflow that this project uses. 
+
 # Work on Remote Habits locally 
 
 We use the [Remote Habits](https://github.com/customerio/RemoteHabits-Android) Android app to test the SDK in a real-world environment. 
@@ -50,7 +54,9 @@ That is all you need to do on the SDK side. Next, view the [Remote Habits docs](
 
 ### Deployment 
 
-This project is setup to automatically deploy when a commit is made on any of the branches: `main`, `beta`, and `alpha`. 
+See file [GIT-WORKFLOW](GIT-WORKFLOW.md) to learn about how code is deployed in this project. 
+
+#### Deployment setup 
 
 To setup the CI server to make the deployments, follow these steps:
 1. Create a GitHub token on your personal GitHub account. As long as your account has push access to the SDK source code repository on GitHub. The scopes need to (1) public repos to write to repos. 

@@ -46,8 +46,11 @@ afterEvaluate {
                     from components.java
                 }
 
-                artifact androidSourcesJar
-                artifact javadocJar
+                // to speed up local development build times, skip dokka
+                if (!IS_DEVELOPMENT) {
+                    artifact androidSourcesJar
+                    artifact javadocJar
+                }
 
                 pom {
                     name = PUBLISH_ARTIFACT_ID
@@ -83,5 +86,6 @@ signing {
             rootProject.ext["signing.key"],
             rootProject.ext["signing.password"],
     )
-    sign publishing.publications
+    if (!IS_DEVELOPMENT) // skip signing for local installs during development
+        sign publishing.publications
 }

@@ -1,4 +1,5 @@
 name: Tests
+
 on: [push, pull_request]
 
 jobs:
@@ -25,7 +26,6 @@ jobs:
       uses: mikepenz/action-junit-report@v2      
       with:
         report_paths: '**/build/test-results/test*/TEST-*.xml'
-        github_token: ${{ secrets.GITHUB_TOKEN }}
         fail_on_failure: true 
         require_tests: true 
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 

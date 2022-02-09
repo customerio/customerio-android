@@ -22,3 +22,10 @@ jobs:
             @semantic-release/exec@6
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_PUSH_TOKEN }}
+
+      - name: Copy commits into develop after main deployment 
+        uses: levibostian/action-sync-branches@v1
+        with:
+          behind: develop
+          ahead: main 
+          githubToken: ${{ secrets.REPO_PUSH_TOKEN }}

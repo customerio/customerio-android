@@ -8,8 +8,6 @@ jobs:
       matrix:
         module: [app, sdk]
     name: Unit tests (${{ matrix.module }})
-    # skip if '[skip ci]' exists in commit message 
-    if: ${{ !contains(format('{0} {1}', github.event.head_commit.message, github.event.pull_request.title), '[skip ci]') }}
     steps:
     - uses: actions/checkout@v2
     - name: Set up JDK

@@ -4,6 +4,8 @@ object Dependencies {
     const val androidGradlePlugin =
         "com.android.tools.build:gradle:${Versions.ANDROID_GRADLE_PLUGIN}"
     const val androidxTestJunit = "androidx.test.ext:junit:${Versions.ANDROIDX_TEST_JUNIT}"
+    const val androidxTestRunner = "androidx.test:runner:${Versions.ANDROIDX_TEST_RUNNER}"
+    const val androidxTestRules = "androidx.test:rules:${Versions.ANDROIDX_TEST_RULES}"
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
@@ -27,7 +29,7 @@ object Dependencies {
     const val gradleVersionsPlugin =
         "com.github.ben-manes:gradle-versions-plugin:${Versions.GRADLE_VERSIONS_PLUGIN}"
     const val junit4 = "junit:junit:${Versions.JUNIT4}"
-    const val kluent = "org.amshove.kluent:kluent:${Versions.KLUENT}"
+    const val kluent = "org.amshove.kluent:kluent-android:${Versions.KLUENT}"
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
     const val moshi = "com.squareup.moshi:moshi:${Versions.MOSHI}"

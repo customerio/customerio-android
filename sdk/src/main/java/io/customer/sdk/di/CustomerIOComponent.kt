@@ -14,8 +14,11 @@ import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
+import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
+import io.customer.sdk.queue.QueueStorage
 import io.customer.sdk.repository.*
+import io.customer.sdk.util.JsonAdapter
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -29,6 +32,18 @@ internal class CustomerIOComponent(
     private val customerIOConfig: CustomerIOConfig,
     private val context: Context
 ) {
+
+    val siteId: String
+        get() = customerIOConfig.siteId
+
+    val fileStorage: FileStorage
+        get() = FileStorage(siteId, context)
+
+    val jsonAdapter: JsonAdapter
+        get() = JsonAdapter(buildMoshi())
+
+    val queueStorage: QueueStorage
+        get() = QueueStorage(fileStorage, jsonAdapter)
 
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
@@ -80,7 +95,7 @@ internal class CustomerIOComponent(
         ).create(apiClass)
     }
 
-    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl() }
+    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(buildMoshi()) }
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
@@ -90,11 +105,14 @@ internal class CustomerIOComponent(
         }
     }
 
+    fun buildMoshi(): Moshi = Moshi.Builder()
+        .add(UnixDateAdapter())
+        .add(BigDecimalAdapter())
+        .build()
+
     private val retrofitMoshiConverterFactory by lazy {
         MoshiConverterFactory.create(
-            Moshi.Builder()
-                .add(BigDecimalAdapter())
-                .build()
+            buildMoshi()
         )
     }
 

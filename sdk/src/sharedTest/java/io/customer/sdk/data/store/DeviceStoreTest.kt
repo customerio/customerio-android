@@ -1,10 +1,6 @@
-package io.customer.sdk.store
+package io.customer.sdk.data.store
 
-import io.customer.sdk.data.store.ApplicationStore
-import io.customer.sdk.data.store.BuildStore
-import io.customer.sdk.data.store.DeviceStore
-import io.customer.sdk.data.store.DeviceStoreImp
-import org.amshove.kluent.`should be equal to`
+import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
 
@@ -36,22 +32,22 @@ internal class DeviceStoreTest {
     }
 
     @Test
-    fun `verify build attributes in device`() {
-        deviceStore.deviceBrand `should be equal to` "Google"
-        deviceStore.deviceModel `should be equal to` "Pixel 6"
-        deviceStore.deviceManufacturer `should be equal to` "Google"
-        deviceStore.deviceOSVersion `should be equal to` 30
+    fun verify_build_attributes_in_device() {
+        deviceStore.deviceBrand shouldBeEqualTo "Google"
+        deviceStore.deviceModel shouldBeEqualTo "Pixel 6"
+        deviceStore.deviceManufacturer shouldBeEqualTo "Google"
+        deviceStore.deviceOSVersion shouldBeEqualTo 30
     }
 
     @Test
-    fun `verify host application attributes in device`() {
-        deviceStore.customerAppName `should be equal to` "User App"
-        deviceStore.customerAppVersion `should be equal to` "1.0"
+    fun verify_host_application_attributes_in_device() {
+        deviceStore.customerAppName shouldBeEqualTo "User App"
+        deviceStore.customerAppVersion shouldBeEqualTo "1.0"
     }
 
     @Test
-    fun `verify user-agent is created correctly`() {
-        deviceStore.buildUserAgent() `should be equal to`
+    fun verify_useragent_is_created_correctly() {
+        deviceStore.buildUserAgent() shouldBeEqualTo
             "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) User App/1.0"
     }
 }

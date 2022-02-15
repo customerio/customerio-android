@@ -6,7 +6,7 @@ import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.MoshiAttributesRepositoryImp
-import io.customer.sdk.utils.UnitTest
+import io.customer.sdk.utils.BaseTest
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Before
 import org.junit.Test
@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 import java.util.*
 
 @RunWith(AndroidJUnit4::class)
-internal class AttributesRepositoryTest : UnitTest() {
+internal class AttributesRepositoryTest : BaseTest() {
 
     private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
     lateinit var attributesRepository: AttributesRepository

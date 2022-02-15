@@ -5,7 +5,7 @@ import io.customer.sdk.data.store.FileType
 import io.customer.sdk.util.JsonAdapter
 import java.util.*
 
-public interface QueueStorage {
+interface QueueStorage {
     fun getInventory(): QueueInventory
     fun saveInventory(inventory: QueueInventory): Boolean
     fun create(type: String, data: String): QueueModifyResult

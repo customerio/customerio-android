@@ -1,7 +1,7 @@
 package io.customer.sdk.data.store
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.sdk.utils.UnitTest
+import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
@@ -9,7 +9,7 @@ import org.junit.runner.RunWith
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
-class FileTypeTest : UnitTest() {
+class FileTypeTest : BaseTest() {
 
     val testPath = "/path/to/file/io.customer"
     val existingPath = File(testPath)

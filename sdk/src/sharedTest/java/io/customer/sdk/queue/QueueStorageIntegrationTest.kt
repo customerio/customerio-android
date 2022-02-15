@@ -5,14 +5,14 @@ import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskMetadata
-import io.customer.sdk.utils.UnitTest
+import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
 import org.amshove.kluent.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class QueueStorageIntegrationTest : UnitTest() {
+class QueueStorageIntegrationTest : BaseTest() {
 
     // using real instance of FileStorage to perform integration test
     private val queueStorage = QueueStorageImpl(siteId, di.fileStorage, di.jsonAdapter)

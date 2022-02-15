@@ -1,14 +1,14 @@
 package io.customer.sdk.data.store
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.sdk.utils.UnitTest
+import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class FileStorageTest : UnitTest() {
+class FileStorageTest : BaseTest() {
 
     private val fileStorage = FileStorage(siteId, context)
 

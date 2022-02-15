@@ -1,7 +1,7 @@
 package io.customer.sdk.queue.type
 
 import com.squareup.moshi.JsonClass
-import io.customer.base.extenstions.toDate
+import io.customer.base.extenstions.unixTimeToDate
 import io.customer.sdk.utils.random
 import java.util.*
 
@@ -23,6 +23,6 @@ data class QueueTaskMetadata(
 ) {
     companion object {
         val random: QueueTaskMetadata
-            get() = QueueTaskMetadata(String.random, String.random, null, null, 1644600699L.toDate())
+            get() = QueueTaskMetadata(String.random, String.random, null, null, 1644600699L.unixTimeToDate())
     }
 }

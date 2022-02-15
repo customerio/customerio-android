@@ -23,7 +23,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 
 @RunWith(AndroidJUnit4::class)
-internal class TrackingRepositoryTest : UnitTest() {
+internal class TrackingRepositoryTest : BaseTest() {
 
     lateinit var trackingRepository: TrackingRepository
     private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())

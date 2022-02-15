@@ -11,7 +11,7 @@ import org.mockito.MockitoAnnotations
 /**
  * Base class for test classes to subclass. Meant to provide convenience to test classes with properties and functions tests may use.
  */
-abstract class UnitTest {
+abstract class BaseTest {
 
     open fun provideTestClass(): Any = this
 

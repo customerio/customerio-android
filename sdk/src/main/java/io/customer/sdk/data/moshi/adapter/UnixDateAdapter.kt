@@ -2,7 +2,7 @@ package io.customer.sdk.data.moshi.adapter
 
 import com.squareup.moshi.*
 import io.customer.base.extenstions.getUnixTimestamp
-import io.customer.base.extenstions.toDate
+import io.customer.base.extenstions.unixTimeToDate
 import org.json.JSONObject.NULL
 import java.io.IOException
 import java.util.*
@@ -18,7 +18,7 @@ class UnixDateAdapter : JsonAdapter<Date>() {
             return reader.nextNull()
         }
         val string = reader.nextString()
-        return string.toLongOrNull()?.toDate()
+        return string.toLongOrNull()?.unixTimeToDate()
     }
 
     @Synchronized

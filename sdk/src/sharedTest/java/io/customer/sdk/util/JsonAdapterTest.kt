@@ -2,7 +2,7 @@ package io.customer.sdk.util
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.squareup.moshi.JsonClass
-import io.customer.sdk.utils.UnitTest
+import io.customer.sdk.utils.BaseTest
 import org.amshove.kluent.AnyException
 import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEqualTo
@@ -11,7 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class JsonAdapterTest : UnitTest() {
+class JsonAdapterTest : BaseTest() {
 
     private val jsonAdapter = JsonAdapter(di.buildMoshi())
 

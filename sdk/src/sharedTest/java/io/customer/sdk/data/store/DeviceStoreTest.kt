@@ -32,7 +32,7 @@ internal class DeviceStoreTest {
     }
 
     @Test
-    fun verify_build_attributes_in_device() {
+    fun verifyBuildAttributesInDevice() {
         deviceStore.deviceBrand shouldBeEqualTo "Google"
         deviceStore.deviceModel shouldBeEqualTo "Pixel 6"
         deviceStore.deviceManufacturer shouldBeEqualTo "Google"
@@ -40,13 +40,13 @@ internal class DeviceStoreTest {
     }
 
     @Test
-    fun verify_host_application_attributes_in_device() {
+    fun verifyHostApplicationAttributesInDevice() {
         deviceStore.customerAppName shouldBeEqualTo "User App"
         deviceStore.customerAppVersion shouldBeEqualTo "1.0"
     }
 
     @Test
-    fun verify_useragent_is_created_correctly() {
+    fun verifyUseragentIsCreatedCorrectly() {
         deviceStore.buildUserAgent() shouldBeEqualTo
             "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) User App/1.0"
     }

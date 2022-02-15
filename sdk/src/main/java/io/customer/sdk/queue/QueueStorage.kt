@@ -2,6 +2,12 @@ package io.customer.sdk.queue
 
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType
+import io.customer.sdk.queue.type.QueueInventory
+import io.customer.sdk.queue.type.QueueModifyResult
+import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.queue.type.QueueTask
+import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.util.JsonAdapter
 import java.util.*
 

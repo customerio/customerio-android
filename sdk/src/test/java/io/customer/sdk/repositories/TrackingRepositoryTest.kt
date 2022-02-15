@@ -1,5 +1,6 @@
 package io.customer.sdk.repositories
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.error.StatusCode
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.data.model.EventType
@@ -9,25 +10,30 @@ import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.MoshiAttributesRepositoryImp
 import io.customer.sdk.repository.TrackingRepository
 import io.customer.sdk.repository.TrackingRepositoryImp
+import io.customer.sdk.utils.*
 import io.customer.sdk.utils.MockRetrofitError
 import io.customer.sdk.utils.MockRetrofitSuccess
 import io.customer.sdk.utils.verifyError
 import io.customer.sdk.utils.verifySuccess
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 
-internal class TrackingRepositoryTest {
+@RunWith(AndroidJUnit4::class)
+internal class TrackingRepositoryTest: UnitTest() {
 
     lateinit var trackingRepository: TrackingRepository
-    private val parser: CustomerIOParser = CustomerIOParserImpl()
+    private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
     lateinit var attributesRepository: AttributesRepository
     private val mockCustomerService: CustomerService = mock()
 
     @Before
-    fun setup() {
+    override fun setup() {
+        super.setup()
+
         attributesRepository = MoshiAttributesRepositoryImp(parser)
         trackingRepository = TrackingRepositoryImp(
             customerService = mockCustomerService,

@@ -71,7 +71,7 @@ dependencies {
     androidTestImplementation Dependencies.androidxTestRules
 
     testImplementation Dependencies.mockito
-    androidTestImplementation Dependencies.mockito
+    androidTestImplementation Dependencies.mockitoAndroid
     testImplementation Dependencies.mockitoKotlin
     androidTestImplementation Dependencies.mockitoKotlin
     testImplementation Dependencies.robolectric
@@ -80,6 +80,7 @@ dependencies {
     androidTestImplementation Dependencies.kluent
     testImplementation Dependencies.okhttpMockWebserver
 
+    testImplementation Dependencies.junit4
     androidTestImplementation Dependencies.junit4
 }
 

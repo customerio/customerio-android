@@ -1,22 +1,28 @@
 package io.customer.sdk.repositories
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.MoshiAttributesRepositoryImp
+import io.customer.sdk.utils.UnitTest
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import java.util.*
 
-internal class AttributesRepositoryTest {
+@RunWith(AndroidJUnit4::class)
+internal class AttributesRepositoryTest: UnitTest() {
 
-    private val parser: CustomerIOParser = CustomerIOParserImpl()
+    private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
     lateinit var attributesRepository: AttributesRepository
 
     @Before
-    fun setup() {
+    override fun setup() {
+        super.setup()
+
         attributesRepository = MoshiAttributesRepositoryImp(parser)
     }
 

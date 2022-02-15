@@ -17,8 +17,10 @@ import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
 import io.customer.sdk.queue.QueueStorage
+import io.customer.sdk.queue.QueueStorageImpl
 import io.customer.sdk.repository.*
 import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.Logger
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -33,6 +35,9 @@ internal class CustomerIOComponent(
     private val context: Context
 ) {
 
+    val sdkConfig: CustomerIOConfig
+        get() = customerIOConfig
+
     val siteId: String
         get() = customerIOConfig.siteId
 
@@ -43,7 +48,10 @@ internal class CustomerIOComponent(
         get() = JsonAdapter(buildMoshi())
 
     val queueStorage: QueueStorage
-        get() = QueueStorage(fileStorage, jsonAdapter)
+        get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
+
+    val logger: Logger
+        get() = Logger()
 
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(

@@ -8,7 +8,7 @@ import io.customer.base.utils.ActionUtils.Companion.getErrorAction
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.utils.verifyError
 import io.customer.sdk.utils.verifySuccess
-import org.amshove.kluent.`should be equal to`
+import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
@@ -27,12 +27,12 @@ internal class CustomerIOTest {
 
     @Test
     fun `verify SDK configuration is correct`() {
-        customerIO.config.siteId `should be equal to` MockCustomerIOBuilder.siteId
-        customerIO.config.apiKey `should be equal to` MockCustomerIOBuilder.apiKey
-        customerIO.config.timeout `should be equal to` MockCustomerIOBuilder.timeout.toLong()
-        customerIO.config.region `should be equal to` MockCustomerIOBuilder.region
-        customerIO.config.urlHandler `should be equal to` MockCustomerIOBuilder.urlHandler
-        customerIO.config.autoTrackScreenViews `should be equal to` MockCustomerIOBuilder.shouldAutoRecordScreenViews
+        customerIO.config.siteId shouldBeEqualTo MockCustomerIOBuilder.siteId
+        customerIO.config.apiKey shouldBeEqualTo MockCustomerIOBuilder.apiKey
+        customerIO.config.timeout shouldBeEqualTo MockCustomerIOBuilder.timeout.toLong()
+        customerIO.config.region shouldBeEqualTo MockCustomerIOBuilder.region
+        customerIO.config.urlHandler shouldBeEqualTo MockCustomerIOBuilder.urlHandler
+        customerIO.config.autoTrackScreenViews shouldBeEqualTo MockCustomerIOBuilder.shouldAutoRecordScreenViews
     }
 
     @Test

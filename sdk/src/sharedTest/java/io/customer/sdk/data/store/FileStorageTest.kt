@@ -3,7 +3,7 @@ package io.customer.sdk.data.store
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.squareup.moshi.JsonClass
 import io.customer.sdk.utils.UnitTest
-import io.customer.sdk.extensions.random
+import io.customer.sdk.utils.random
 import org.amshove.kluent.AnyException
 import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEqualTo

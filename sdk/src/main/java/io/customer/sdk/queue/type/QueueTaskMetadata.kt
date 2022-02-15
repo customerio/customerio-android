@@ -2,7 +2,7 @@ package io.customer.sdk.queue.type
 
 import com.squareup.moshi.JsonClass
 import io.customer.base.extenstions.toDate
-import io.customer.sdk.extensions.random
+import io.customer.sdk.utils.random
 import java.util.*
 
 /// Pointer to full queue task in persistent storage.

@@ -95,7 +95,8 @@ class CustomerIO internal constructor(
                 region = region,
                 timeout = timeout,
                 urlHandler = urlHandler,
-                autoTrackScreenViews = shouldAutoRecordScreenViews
+                autoTrackScreenViews = shouldAutoRecordScreenViews,
+                backgroundQueueMinNumberOfTasks = 10
             )
 
             val customerIoComponent =

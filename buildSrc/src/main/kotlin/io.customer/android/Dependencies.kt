@@ -34,6 +34,7 @@ object Dependencies {
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"
     const val moshi = "com.squareup.moshi:moshi:${Versions.MOSHI}"
     const val mockito = "org.mockito:mockito-core:${Versions.MOCKITO}"
+    const val mockitoAndroid = "org.mockito:mockito-android:${Versions.MOCKITO}"
     const val mockitoKotlin = "org.mockito.kotlin:mockito-kotlin:${Versions.MOCKITO_KOTLIN}"
     const val moshiCodeGen = "com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"

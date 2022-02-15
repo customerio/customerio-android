@@ -3,9 +3,7 @@ package io.customer.sdk.data.moshi
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.SupportedAttributesFactory
-import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 
 internal interface CustomerIOParser {
 

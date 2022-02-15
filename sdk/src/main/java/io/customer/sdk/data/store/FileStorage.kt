@@ -31,7 +31,7 @@ class FileStorage internal constructor(
 ) {
 
     val sdkRootDirectoryPath = File(context.filesDir, "io.customer") // All files in the SDK exist in here.
-    val siteIdRootDirectoryPath = File(sdkRootDirectoryPath, siteId)       // Root directory for given <site-id>
+    val siteIdRootDirectoryPath = File(sdkRootDirectoryPath, siteId) // Root directory for given <site-id>
 
     fun save(type: FileType, contents: String): Boolean {
         val parentFilePath = type.getFilePath(siteIdRootDirectoryPath)
@@ -85,5 +85,4 @@ class FileStorage internal constructor(
             path.delete()
         }
     }
-
 }

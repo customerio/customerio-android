@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 import java.util.*
 
 @RunWith(AndroidJUnit4::class)
-internal class AttributesRepositoryTest: UnitTest() {
+internal class AttributesRepositoryTest : UnitTest() {
 
     private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
     lateinit var attributesRepository: AttributesRepository

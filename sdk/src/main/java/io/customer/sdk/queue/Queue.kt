@@ -13,7 +13,7 @@ class Queue internal constructor(
     private val logger: Logger
 ) {
 
-    fun <TaskData: Any> addTask(type: String, data: TaskData): QueueModifyResult {
+    fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult {
         logger.info("adding queue task $type")
 
         val taskDataString = jsonAdapter.toJson(data)

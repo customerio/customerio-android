@@ -1,26 +1,18 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.squareup.moshi.JsonClass
 import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.utils.UnitTest
 import io.customer.sdk.utils.random
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.newFixedThreadPoolContext
-import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.given
-import java.io.File
-import kotlin.concurrent.thread
 
 @RunWith(AndroidJUnit4::class)
-class QueueStorageIntegrationTest: UnitTest() {
+class QueueStorageIntegrationTest : UnitTest() {
 
     // using real instance of FileStorage to perform integration test
     private val queueStorage = QueueStorageImpl(siteId, di.fileStorage, di.jsonAdapter)

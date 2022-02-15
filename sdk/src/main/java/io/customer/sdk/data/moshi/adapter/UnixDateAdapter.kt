@@ -9,7 +9,7 @@ import java.util.*
 
 // Help from: https://github.com/square/moshi/blob/fd128875c308a90288e705162e03a835220a74d9/moshi-adapters/src/main/java/com/squareup/moshi/adapters/Rfc3339DateJsonAdapter.kt
 // The Customer.io API uses unix date format. Use this date format for all Dates with JSON.
-class UnixDateAdapter: JsonAdapter<Date>() {
+class UnixDateAdapter : JsonAdapter<Date>() {
     @Synchronized
     @Throws(IOException::class)
     @FromJson

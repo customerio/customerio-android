@@ -2,7 +2,6 @@ package io.customer.sdk.queue
 
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType
-import io.customer.sdk.queue.type.*
 import io.customer.sdk.util.JsonAdapter
 import java.util.*
 
@@ -18,7 +17,7 @@ class QueueStorageImpl internal constructor(
     private val siteId: String,
     private val fileStorage: FileStorage,
     private val jsonAdapter: JsonAdapter
-): QueueStorage {
+) : QueueStorage {
 
     override fun getInventory(): QueueInventory {
         synchronized(this) {
@@ -94,5 +93,4 @@ class QueueStorageImpl internal constructor(
         val fileContents = jsonAdapter.toJson(queueTask)
         return fileStorage.save(FileType.QueueTask(queueTask.storageId), fileContents)
     }
-
 }

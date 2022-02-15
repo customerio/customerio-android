@@ -9,4 +9,3 @@ data class QueueTask(
     val data: String,
     val runResults: QueueTaskRunResults
 )
-

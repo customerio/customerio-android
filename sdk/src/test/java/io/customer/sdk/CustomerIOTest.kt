@@ -17,11 +17,11 @@ import org.mockito.kotlin.any
 internal class CustomerIOTest {
 
     private lateinit var customerIO: CustomerIO
-    lateinit var mockCustomerIO: MockCustomerIOBuilder
+    lateinit var mockCustomerIO: io.customer.base.MockCustomerIOBuilder
 
     @Before
     fun setUp() {
-        mockCustomerIO = MockCustomerIOBuilder()
+        mockCustomerIO = io.customer.base.MockCustomerIOBuilder()
         customerIO = mockCustomerIO.build()
     }
 

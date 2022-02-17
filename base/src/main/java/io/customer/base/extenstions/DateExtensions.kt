@@ -9,6 +9,6 @@ fun Date.getUnixTimestamp(): Long {
 
 fun Long.unixTimeToDate(): Date {
     val seconds = this
-    val milliseconds = seconds * 1000L
+    val milliseconds = TimeUnit.SECONDS.toMillis(seconds)
     return Date(milliseconds)
 }

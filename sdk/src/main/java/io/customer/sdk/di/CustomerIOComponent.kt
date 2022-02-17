@@ -45,7 +45,7 @@ internal class CustomerIOComponent(
         get() = FileStorage(siteId, context)
 
     val jsonAdapter: JsonAdapter
-        get() = JsonAdapter(buildMoshi())
+        get() = JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
         get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
@@ -103,7 +103,7 @@ internal class CustomerIOComponent(
         ).create(apiClass)
     }
 
-    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(buildMoshi()) }
+    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(moshi) }
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
@@ -113,14 +113,17 @@ internal class CustomerIOComponent(
         }
     }
 
-    fun buildMoshi(): Moshi = Moshi.Builder()
-        .add(UnixDateAdapter())
-        .add(BigDecimalAdapter())
-        .build()
+    // performance improvement to keep created moshi instance for re-use.
+    val moshi: Moshi by lazy {
+        Moshi.Builder()
+            .add(UnixDateAdapter())
+            .add(BigDecimalAdapter())
+            .build()
+    }
 
     private val retrofitMoshiConverterFactory by lazy {
         MoshiConverterFactory.create(
-            buildMoshi()
+            moshi
         )
     }
 

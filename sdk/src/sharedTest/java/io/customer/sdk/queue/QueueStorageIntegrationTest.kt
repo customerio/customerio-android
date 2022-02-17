@@ -5,6 +5,7 @@ import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
 import org.amshove.kluent.*
@@ -89,5 +90,36 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.delete(newlyCreatedTaskId)
 
         queueStorage.getInventory().count() shouldBeEqualTo 0
+    }
+
+    @Test
+    fun givenTaskNotCreated_expectIgnoreRequestToUpdate() {
+        queueStorage.create(String.random, String.random)
+        val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
+        val createdTask = queueStorage.get(newlyCreatedTaskId)
+
+        val didUpdate = queueStorage.update("does-not-exist", QueueTaskRunResults(Int.random(10, 30)))
+        val createdTaskAfterUpdateRequest = queueStorage.get(newlyCreatedTaskId)
+
+        didUpdate.shouldBeFalse()
+        createdTask shouldBeEqualTo createdTaskAfterUpdateRequest // since the task wasn't updated, it shouldn't have changed
+    }
+
+    @Test
+    fun givenTaskCreated_expectUpdateTask() {
+        queueStorage.create(String.random, String.random)
+        val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
+        val createdTask = queueStorage.get(newlyCreatedTaskId)
+        val givenRunResults = QueueTaskRunResults(Int.random(10, 30))
+
+        createdTask!!.runResults shouldBeEqualTo QueueTaskRunResults(0)
+
+        val didUpdate = queueStorage.update(newlyCreatedTaskId, givenRunResults)
+        val createdTaskAfterUpdate = queueStorage.get(newlyCreatedTaskId)
+
+        didUpdate.shouldBeTrue()
+        createdTask shouldNotBeEqualTo createdTaskAfterUpdate
+
+        createdTaskAfterUpdate!!.runResults shouldBeEqualTo givenRunResults
     }
 }

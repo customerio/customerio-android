@@ -6,10 +6,10 @@ import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.repository.PushNotificationRepositoryImp
-import io.customer.sdk.utils.MockRetrofitError
-import io.customer.sdk.utils.MockRetrofitSuccess
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.sdk.testutils.MockRetrofitError
+import io.customer.sdk.testutils.MockRetrofitSuccess
+import io.customer.sdk.testutils.verifyError
+import io.customer.sdk.testutils.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito

@@ -2,6 +2,7 @@ package io.customer.sdk.repositories
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.error.StatusCode
+import io.customer.sdk.testutils.BaseTest
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.moshi.CustomerIOParser
@@ -10,11 +11,11 @@ import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.MoshiAttributesRepositoryImp
 import io.customer.sdk.repository.TrackingRepository
 import io.customer.sdk.repository.TrackingRepositoryImp
-import io.customer.sdk.utils.*
-import io.customer.sdk.utils.MockRetrofitError
-import io.customer.sdk.utils.MockRetrofitSuccess
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.sdk.testutils.*
+import io.customer.sdk.testutils.MockRetrofitError
+import io.customer.sdk.testutils.MockRetrofitSuccess
+import io.customer.sdk.testutils.verifyError
+import io.customer.sdk.testutils.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +27,7 @@ import org.mockito.kotlin.mock
 internal class TrackingRepositoryTest : BaseTest() {
 
     lateinit var trackingRepository: TrackingRepository
-    private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
+    private val parser: CustomerIOParser = CustomerIOParserImpl(di.moshi)
     lateinit var attributesRepository: AttributesRepository
     private val mockCustomerService: CustomerService = mock()
 

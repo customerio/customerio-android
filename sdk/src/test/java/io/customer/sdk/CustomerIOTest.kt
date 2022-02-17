@@ -3,11 +3,11 @@ package io.customer.sdk
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
-import io.customer.base.utils.ActionUtils.Companion.getEmptyAction
-import io.customer.base.utils.ActionUtils.Companion.getErrorAction
+import io.customer.base.testutils.ActionUtils.Companion.getEmptyAction
+import io.customer.base.testutils.ActionUtils.Companion.getErrorAction
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.sdk.testutils.verifyError
+import io.customer.sdk.testutils.verifySuccess
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
@@ -17,11 +17,11 @@ import org.mockito.kotlin.any
 internal class CustomerIOTest {
 
     private lateinit var customerIO: CustomerIO
-    lateinit var mockCustomerIO: io.customer.base.MockCustomerIOBuilder
+    lateinit var mockCustomerIO: MockCustomerIOBuilder
 
     @Before
     fun setUp() {
-        mockCustomerIO = io.customer.base.MockCustomerIOBuilder()
+        mockCustomerIO = MockCustomerIOBuilder()
         customerIO = mockCustomerIO.build()
     }
 

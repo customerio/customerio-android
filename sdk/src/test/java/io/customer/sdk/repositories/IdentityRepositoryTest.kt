@@ -5,10 +5,10 @@ import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.IdentityRepositoryImpl
-import io.customer.sdk.utils.MockRetrofitError
-import io.customer.sdk.utils.MockRetrofitSuccess
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.sdk.testutils.MockRetrofitError
+import io.customer.sdk.testutils.MockRetrofitSuccess
+import io.customer.sdk.testutils.verifyError
+import io.customer.sdk.testutils.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito

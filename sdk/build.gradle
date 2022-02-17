@@ -28,32 +28,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
-
-    testOptions {
-        unitTests {
-            // From: http://robolectric.org/getting-started/
-            includeAndroidResources = true
-        }
-    }
-
-    sourceSets {
-        // Preferred to put test classes in `src/sharedTest/` so the tests will run on both
-        // JVM (for speed) and Android (for confidence).
-        String sharedTestDir = 'src/sharedTest/java'
-        test.java.srcDirs += sharedTestDir
-        androidTest.java.srcDirs += sharedTestDir
-    }
 }
 
 dependencies {
-    api project(":base")
+    implementation project(":base")
 
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
@@ -65,23 +43,5 @@ dependencies {
     kapt(Dependencies.moshiCodeGen)
     kaptTest(Dependencies.moshiCodeGen)
     kaptAndroidTest(Dependencies.moshiCodeGen)
-
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.androidxTestRunner
-    androidTestImplementation Dependencies.androidxTestRules
-
-    testImplementation Dependencies.mockito
-    androidTestImplementation Dependencies.mockitoAndroid
-    testImplementation Dependencies.mockitoKotlin
-    androidTestImplementation Dependencies.mockitoKotlin
-    testImplementation Dependencies.robolectric
-
-    testImplementation Dependencies.kluent
-    androidTestImplementation Dependencies.kluent
-    testImplementation Dependencies.okhttpMockWebserver
-
-    testImplementation Dependencies.junit4
-    androidTestImplementation Dependencies.junit4
 }
 

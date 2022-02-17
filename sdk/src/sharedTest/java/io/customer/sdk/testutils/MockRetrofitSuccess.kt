@@ -1,15 +1,13 @@
-package io.customer.sdk.utils
+package io.customer.sdk.testutils
 
 import io.customer.sdk.api.retrofit.CustomerIoCall
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Timeout
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-internal class MockRetrofitError<T : Any>(private val statusCode: Int) : Call<T> {
+internal class MockRetrofitSuccess<T : Any>(private val result: T) : Call<T> {
 
     fun toCustomerIoCall(): CustomerIoCall<T> {
         return CustomerIoCall(
@@ -37,10 +35,7 @@ internal class MockRetrofitError<T : Any>(private val statusCode: Int) : Call<T>
     }
 
     override fun execute(): Response<T> {
-        return Response.error(
-            statusCode,
-            "{Server error}".toResponseBody("text/plain".toMediaType())
-        )
+        return Response.success(result)
     }
 
     override fun request(): Request {

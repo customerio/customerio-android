@@ -1,4 +1,4 @@
-package io.customer.sdk.utils
+package io.customer.sdk.testutils
 
 import io.customer.base.data.ErrorResult
 import io.customer.base.data.Result

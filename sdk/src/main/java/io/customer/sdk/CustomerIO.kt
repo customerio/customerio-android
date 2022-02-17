@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import io.customer.base.comunication.Action
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
-import io.customer.base.utils.ActionUtils
+import io.customer.base.testutils.ActionUtils
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region

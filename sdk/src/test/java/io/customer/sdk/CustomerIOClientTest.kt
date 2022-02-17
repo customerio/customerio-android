@@ -3,14 +3,14 @@ package io.customer.sdk
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
-import io.customer.base.utils.ActionUtils
+import io.customer.base.testutils.ActionUtils
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.repository.TrackingRepository
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.sdk.testutils.verifyError
+import io.customer.sdk.testutils.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`

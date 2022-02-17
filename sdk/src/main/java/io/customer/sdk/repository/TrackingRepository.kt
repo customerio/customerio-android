@@ -1,7 +1,7 @@
 package io.customer.sdk.repository
 
 import io.customer.base.comunication.Action
-import io.customer.base.utils.ActionUtils
+import io.customer.base.testutils.ActionUtils
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event

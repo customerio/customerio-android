@@ -4,8 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.squareup.moshi.JsonClass
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
-import io.customer.sdk.utils.BaseTest
-import io.customer.sdk.utils.random
+import io.customer.sdk.testutils.BaseTest
+import io.customer.sdk.testutils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test

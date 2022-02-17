@@ -1,4 +1,4 @@
-package io.customer.base.utils
+package io.customer.base.testutils
 
 import io.customer.base.comunication.Action
 import io.customer.base.data.ErrorResult

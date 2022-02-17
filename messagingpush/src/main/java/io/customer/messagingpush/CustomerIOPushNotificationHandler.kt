@@ -36,7 +36,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         const val BODY_KEY = "body"
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
-
     }
 
     private val bundle: Bundle by lazy {
@@ -87,7 +86,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         return true
     }
 
-
     @SuppressLint("LaunchActivityFromNotification")
     private fun handleNotification(
         context: Context
@@ -135,7 +133,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
 
-
         val channelName = "$applicationName Notifications"
 
         // Since android Oreo notification channel is needed.
@@ -165,7 +162,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         notificationManager.notify(requestCode, notification)
     }
 
-
     private fun addImage(
         imageUrl: String,
         builder: NotificationCompat.Builder,
@@ -188,6 +184,4 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
             builder.setStyle(style)
         }
     }
-
-
 }

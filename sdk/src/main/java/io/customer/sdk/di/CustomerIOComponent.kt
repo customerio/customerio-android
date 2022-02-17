@@ -14,8 +14,13 @@ import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
+import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
+import io.customer.sdk.queue.QueueStorage
+import io.customer.sdk.queue.QueueStorageImpl
 import io.customer.sdk.repository.*
+import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.Logger
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -29,6 +34,24 @@ internal class CustomerIOComponent(
     private val customerIOConfig: CustomerIOConfig,
     private val context: Context
 ) {
+
+    val sdkConfig: CustomerIOConfig
+        get() = customerIOConfig
+
+    val siteId: String
+        get() = customerIOConfig.siteId
+
+    val fileStorage: FileStorage
+        get() = FileStorage(siteId, context)
+
+    val jsonAdapter: JsonAdapter
+        get() = JsonAdapter(moshi)
+
+    val queueStorage: QueueStorage
+        get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
+
+    val logger: Logger
+        get() = Logger()
 
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
@@ -80,7 +103,7 @@ internal class CustomerIOComponent(
         ).create(apiClass)
     }
 
-    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl() }
+    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(moshi) }
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
@@ -90,11 +113,17 @@ internal class CustomerIOComponent(
         }
     }
 
+    // performance improvement to keep created moshi instance for re-use.
+    val moshi: Moshi by lazy {
+        Moshi.Builder()
+            .add(UnixDateAdapter())
+            .add(BigDecimalAdapter())
+            .build()
+    }
+
     private val retrofitMoshiConverterFactory by lazy {
         MoshiConverterFactory.create(
-            Moshi.Builder()
-                .add(BigDecimalAdapter())
-                .build()
+            moshi
         )
     }
 

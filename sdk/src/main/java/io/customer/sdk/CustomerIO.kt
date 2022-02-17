@@ -16,14 +16,11 @@ import io.customer.sdk.di.CustomerIOComponent
 
 /**
 Welcome to the Customer.io Android SDK!
-
 This class is where you begin to use the SDK.
 You must have an instance of `CustomerIO` to use the features of the SDK.
-
 Create your own instance using
 `CustomerIo.Builder(siteId: "XXX", apiKey: "XXX", region: Region.US, appContext: Application context)`
 It is recommended to initialize the client in the `Application::onCreate()` method.
-
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
 
@@ -95,7 +92,8 @@ class CustomerIO internal constructor(
                 region = region,
                 timeout = timeout,
                 urlHandler = urlHandler,
-                autoTrackScreenViews = shouldAutoRecordScreenViews
+                autoTrackScreenViews = shouldAutoRecordScreenViews,
+                backgroundQueueMinNumberOfTasks = 10
             )
 
             val customerIoComponent =
@@ -117,12 +115,9 @@ class CustomerIO internal constructor(
 
     /**
      * Identify a customer (aka: Add or update a profile).
-
      * [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
-
      * Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
      * the previously identified profile will be removed. Only the latest identified customer is persisted.
-
      * @param identifier ID you want to assign to the customer.
      * This value can be an internal ID that your system uses or an email address.
      * [Learn more](https://customer.io/docs/api/#operation/identify)
@@ -136,7 +131,6 @@ class CustomerIO internal constructor(
 
     /**
      * Track an event
-
      * [Learn more](https://customer.io/docs/events/) about events in Customer.io
      * @param name Name of the event you want to track.
      * @param attributes Optional event body in Map format used as JSON object
@@ -149,7 +143,6 @@ class CustomerIO internal constructor(
 
     /**
      * Track screen
-
      * @param name Name of the screen you want to track.
      * @param attributes Optional event body in Map format used as JSON object
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
@@ -161,7 +154,6 @@ class CustomerIO internal constructor(
 
     /**
      * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
-
      * @param activity Instance of the activity you want to track.
      * @param attributes Optional event body in Map format used as JSON object
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
@@ -174,10 +166,8 @@ class CustomerIO internal constructor(
     /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
      * be associated with the previously identified customer.
-
      * Note: If you simply want to identify a *new* customer, this function call is optional. Simply
      * call `identify()` again to identify the new customer profile over the existing.
-
      * If no profile has been identified yet, this function will ignore your request.
      */
     fun clearIdentify() {

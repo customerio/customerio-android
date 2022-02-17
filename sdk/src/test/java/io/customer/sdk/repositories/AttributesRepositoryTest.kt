@@ -16,7 +16,7 @@ import java.util.*
 @RunWith(AndroidJUnit4::class)
 internal class AttributesRepositoryTest : BaseTest() {
 
-    private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
+    private val parser: CustomerIOParser = CustomerIOParserImpl(di.moshi)
     lateinit var attributesRepository: AttributesRepository
 
     @Before

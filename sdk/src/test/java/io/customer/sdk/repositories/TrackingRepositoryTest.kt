@@ -26,7 +26,7 @@ import org.mockito.kotlin.mock
 internal class TrackingRepositoryTest : BaseTest() {
 
     lateinit var trackingRepository: TrackingRepository
-    private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
+    private val parser: CustomerIOParser = CustomerIOParserImpl(di.moshi)
     lateinit var attributesRepository: AttributesRepository
     private val mockCustomerService: CustomerService = mock()
 

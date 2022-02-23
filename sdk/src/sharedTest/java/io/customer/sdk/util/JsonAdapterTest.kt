@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class JsonAdapterTest : BaseTest() {
 
-    private val jsonAdapter = JsonAdapter(di.buildMoshi())
+    private val jsonAdapter = JsonAdapter(di.moshi)
 
     @JsonClass(generateAdapter = true)
     data class TestVo(

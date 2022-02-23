@@ -1,10 +1,20 @@
 package io.customer.sdk.util
 
+import android.util.Log
+
 class Logger {
 
-    fun info(message: String) {}
+    private val tag = "[CIO]"
 
-    fun debug(message: String) {}
+    fun info(message: String) {
+        Log.i(tag, message)
+    }
 
-    fun error(message: String) {}
+    fun debug(message: String) {
+        Log.d(tag, message)
+    }
+
+    fun error(message: String) {
+        Log.e(tag, message)
+    }
 }

@@ -4,9 +4,6 @@ import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.base.comunication.Action
-import io.customer.base.data.ErrorResult
-import io.customer.base.error.ErrorDetail
-import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
@@ -199,7 +196,7 @@ class CustomerIO internal constructor(
         deviceToken = deviceToken
     )
 
-    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>): Action<Unit> {
+    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>) {
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(
@@ -208,9 +205,9 @@ class CustomerIO internal constructor(
             val activityLabel = info.loadLabel(packageManager)
             screen(activityLabel.toString(), attributes)
         } catch (e: PackageManager.NameNotFoundException) {
-            ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
+            // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
         } catch (e: Exception) {
-            ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
+            // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
         }
     }
 }

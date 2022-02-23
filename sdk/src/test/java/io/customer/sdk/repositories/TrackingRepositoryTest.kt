@@ -2,7 +2,7 @@ package io.customer.sdk.repositories
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.error.StatusCode
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
@@ -28,7 +28,7 @@ internal class TrackingRepositoryTest : BaseTest() {
     lateinit var trackingRepository: TrackingRepository
     private val parser: CustomerIOParser = CustomerIOParserImpl(di.buildMoshi())
     lateinit var attributesRepository: AttributesRepository
-    private val mockCustomerService: CustomerService = mock()
+    private val mockCustomerIOService: CustomerIOService = mock()
 
     @Before
     override fun setup() {
@@ -36,7 +36,7 @@ internal class TrackingRepositoryTest : BaseTest() {
 
         attributesRepository = MoshiAttributesRepositoryImp(parser)
         trackingRepository = TrackingRepositoryImp(
-            customerService = mockCustomerService,
+            customerService = mockCustomerIOService,
             attributesRepository = attributesRepository,
         )
     }
@@ -58,7 +58,7 @@ internal class TrackingRepositoryTest : BaseTest() {
     @Test
     fun `Return success action when track api request with attributes returns success`() {
         Mockito.`when`(
-            mockCustomerService.track(any(), any())
+            mockCustomerIOService.track(any(), any())
         ).thenReturn(MockRetrofitSuccess(Unit).toCustomerIoCall())
 
         val result = trackingRepository.track(
@@ -74,7 +74,7 @@ internal class TrackingRepositoryTest : BaseTest() {
     @Test
     fun `Return error action when track api request returns 500 error`() {
         Mockito.`when`(
-            mockCustomerService.track(any(), any())
+            mockCustomerIOService.track(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(500).toCustomerIoCall())
 
         val result = trackingRepository.track(
@@ -90,7 +90,7 @@ internal class TrackingRepositoryTest : BaseTest() {
     @Test
     fun `Return error action when track api request returns 400 error`() {
         Mockito.`when`(
-            mockCustomerService.track(any(), any())
+            mockCustomerIOService.track(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(400).toCustomerIoCall())
 
         val result = trackingRepository.track(

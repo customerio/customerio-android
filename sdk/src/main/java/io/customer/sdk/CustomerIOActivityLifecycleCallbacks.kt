@@ -13,7 +13,7 @@ class CustomerIOActivityLifecycleCallbacks internal constructor(
 
     override fun onActivityStarted(activity: Activity) {
         if (customerIO.config.autoTrackScreenViews) {
-            customerIO.screen(activity).enqueue()
+            customerIO.screen(activity)
         }
     }
 

@@ -6,18 +6,27 @@ import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
+import io.customer.sdk.api.CustomerIOAPIHttpClient
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.api.RetrofitCustomerIOAPIHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
+import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.QueueRequestManager
+import io.customer.sdk.queue.QueueRequestManagerImpl
+import io.customer.sdk.queue.QueueRunRequest
+import io.customer.sdk.queue.QueueRunRequestImpl
 import io.customer.sdk.queue.QueueStorage
 import io.customer.sdk.queue.QueueStorageImpl
+import io.customer.sdk.queue.type.QueueRunner
+import io.customer.sdk.queue.type.QueueRunnerImpl
 import io.customer.sdk.repository.*
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
@@ -50,24 +59,37 @@ internal class CustomerIOComponent(
     val queueStorage: QueueStorage
         get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
 
+    val queueRunner: QueueRunner
+        get() = QueueRunnerImpl(jsonAdapter, cioHttpClient)
+
+    val queueRunRequestManager: QueueRequestManager
+        get() = QueueRequestManagerImpl()
+
+    val queueRunRequest: QueueRunRequest
+        get() = QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
+
+    val queue: Queue
+        get() = Queue(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+
     val logger: Logger
         get() = Logger()
+
+    val cioHttpClient: CustomerIOAPIHttpClient
+        get() = RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
 
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
-                customerService = buildRetrofitApi<CustomerService>(),
+                customerIOService = buildRetrofitApi<CustomerIOService>(),
                 attributesRepository = attributesRepository
             ),
             preferenceRepository = sharedPreferenceRepository,
-            trackingRepository = TrackingRepositoryImp(
-                customerService = buildRetrofitApi<CustomerService>(),
-                attributesRepository = attributesRepository
-            ),
             pushNotificationRepository = PushNotificationRepositoryImp(
-                customerService = buildRetrofitApi<CustomerService>(),
+                customerIOService = buildRetrofitApi<CustomerIOService>(),
                 pushService = buildRetrofitApi<PushService>()
-            )
+            ),
+            backgroundQueue = queue,
+            logger = logger
         )
     }
 
@@ -85,7 +107,8 @@ internal class CustomerIOComponent(
 
     private val sharedPreferenceRepository by lazy {
         PreferenceRepositoryImpl(
-            context = context
+            context = context,
+            siteId = siteId
         )
     }
 

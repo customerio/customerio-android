@@ -16,7 +16,11 @@ private fun <T> Response<T>.toException() = HttpException(this)
 
 fun <T> Response<T>.toResultUnit(): Result<Unit> = toResult { }
 
+fun <T> Response<T>.toKResultUnit(): kotlin.Result<Unit> = toKResult { }
+
 fun <T> Response<T>.toResult(): Result<T> = toResult { it }
+
+fun <T> Response<T>.toKResult(): kotlin.Result<T> = toKResult { it }
 
 fun <T, E> Response<T>.toResult(mapper: (T) -> E): Result<E> {
     return try {
@@ -27,5 +31,17 @@ fun <T, E> Response<T>.toResult(mapper: (T) -> E): Result<E> {
         }
     } catch (e: Exception) {
         ErrorResult(ErrorDetail(cause = e))
+    }
+}
+
+fun <T, E> Response<T>.toKResult(mapper: (T) -> E): kotlin.Result<E> {
+    return try {
+        if (isSuccessful) {
+            kotlin.Result.success(mapper(bodyOrThrow()))
+        } else {
+            kotlin.Result.failure(toException())
+        }
+    } catch (e: Exception) {
+        kotlin.Result.failure(e)
     }
 }

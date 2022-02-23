@@ -1,7 +1,7 @@
 package io.customer.sdk.repositories
 
 import io.customer.base.error.StatusCode
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.IdentityRepositoryImpl
@@ -17,7 +17,7 @@ import org.mockito.kotlin.mock
 
 internal class IdentityRepositoryTest {
 
-    private val mockCustomerService: CustomerService = mock()
+    private val mockCustomerIOService: CustomerIOService = mock()
     private val mockAttributesRepository: AttributesRepository = mock()
 
     lateinit var identityRepository: IdentityRepository
@@ -25,7 +25,7 @@ internal class IdentityRepositoryTest {
     @Before
     fun setup() {
         identityRepository = IdentityRepositoryImpl(
-            customerService = mockCustomerService,
+            customerService = mockCustomerIOService,
             attributesRepository = mockAttributesRepository
         )
     }
@@ -33,7 +33,7 @@ internal class IdentityRepositoryTest {
     @Test
     fun `Return success action when identify api request returns success`() {
         Mockito.`when`(
-            mockCustomerService.identifyCustomer(any(), any())
+            mockCustomerIOService.identifyCustomer(any(), any())
         ).thenReturn(MockRetrofitSuccess(Unit).toCustomerIoCall())
 
         val result = identityRepository.identify("test", emptyMap()).execute()
@@ -44,7 +44,7 @@ internal class IdentityRepositoryTest {
     @Test
     fun `Return success action when identify api request with attributes returns success`() {
         Mockito.`when`(
-            mockCustomerService.identifyCustomer(any(), any())
+            mockCustomerIOService.identifyCustomer(any(), any())
         ).thenReturn(MockRetrofitSuccess(Unit).toCustomerIoCall())
 
         val result = identityRepository.identify("test", mapOf("email" to "test")).execute()
@@ -55,7 +55,7 @@ internal class IdentityRepositoryTest {
     @Test
     fun `Return error action identify api request returns 500 error`() {
         Mockito.`when`(
-            mockCustomerService.identifyCustomer(any(), any())
+            mockCustomerIOService.identifyCustomer(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(500).toCustomerIoCall())
 
         val result = identityRepository.identify("test", emptyMap()).execute()
@@ -66,7 +66,7 @@ internal class IdentityRepositoryTest {
     @Test
     fun `Return error action identify api request returns 400 error`() {
         Mockito.`when`(
-            mockCustomerService.identifyCustomer(any(), any())
+            mockCustomerIOService.identifyCustomer(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(400).toCustomerIoCall())
 
         val result = identityRepository.identify("test", emptyMap()).execute()

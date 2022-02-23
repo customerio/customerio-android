@@ -5,9 +5,12 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class Queue internal constructor(
     private val storage: QueueStorage,
+    private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
     private val sdkConfig: CustomerIOConfig,
     private val logger: Logger
@@ -33,7 +36,11 @@ class Queue internal constructor(
         if (isManyTasksInQueue) {
             logger.info("queue met criteria to run automatically")
 
-            // start running queue
+            GlobalScope.launch {
+                logger.info("running queue")
+                runRequest.start()
+                logger.info("done running queue tasks")
+            }
         }
     }
 }

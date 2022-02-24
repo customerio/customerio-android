@@ -25,7 +25,7 @@ internal class IdentityRepositoryTest {
     @Before
     fun setup() {
         identityRepository = IdentityRepositoryImpl(
-            customerService = mockCustomerIOService,
+            customerIOService = mockCustomerIOService,
             attributesRepository = mockAttributesRepository
         )
     }

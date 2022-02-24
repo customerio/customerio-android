@@ -19,6 +19,7 @@ import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.QueueImpl
 import io.customer.sdk.queue.QueueRequestManager
 import io.customer.sdk.queue.QueueRequestManagerImpl
 import io.customer.sdk.queue.QueueRunRequest
@@ -28,7 +29,10 @@ import io.customer.sdk.queue.QueueStorageImpl
 import io.customer.sdk.queue.type.QueueRunner
 import io.customer.sdk.queue.type.QueueRunnerImpl
 import io.customer.sdk.repository.*
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DateUtilImpl
 import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.Logger
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -69,13 +73,16 @@ internal class CustomerIOComponent(
         get() = QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
 
     val queue: Queue
-        get() = Queue(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+        get() = QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
 
     val logger: Logger
-        get() = Logger()
+        get() = LogcatLogger()
 
     val cioHttpClient: CustomerIOAPIHttpClient
         get() = RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
+
+    val dateUtil: DateUtil
+        get() = DateUtilImpl()
 
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
@@ -89,6 +96,7 @@ internal class CustomerIOComponent(
                 pushService = buildRetrofitApi<PushService>()
             ),
             backgroundQueue = queue,
+            dateUtil = dateUtil,
             logger = logger
         )
     }

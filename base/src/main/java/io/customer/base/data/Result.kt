@@ -2,6 +2,9 @@ package io.customer.base.data
 
 import io.customer.base.error.ErrorDetail
 
+/**
+ * Exists for Java compatibility to return in public facing SDK functions.
+ */
 sealed class Result<T> {
     open fun get(): T? = null
 

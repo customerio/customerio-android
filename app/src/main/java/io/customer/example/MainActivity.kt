@@ -45,38 +45,38 @@ class MainActivity : AppCompatActivity() {
                 "value" to "string test",
                 "target" to 1
             )
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "int event",
             attributes = mapOf("value" to 1388377266772)
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "long event",
             attributes = mapOf("value" to 1653L)
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "double event",
             attributes = mapOf("value" to 133333.882)
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "array event",
             attributes = mapOf("value" to listOf("1", "2"))
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "date event",
             attributes = mapOf("value" to Date())
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "timestamp event",
             attributes = mapOf("value" to Date().time)
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().track(
             name = "custom class event",
             attributes = mapOf("value" to Fol(a = "aa", c = 1))
-        ).enqueue(outputCallback)
+        )
         CustomerIO.instance().screen(
             name = "MainActivity"
-        ).enqueue(outputCallback)
+        )
     }
 
     private fun makeAsynchronousRequest() {

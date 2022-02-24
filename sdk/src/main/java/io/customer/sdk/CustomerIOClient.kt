@@ -3,7 +3,6 @@ package io.customer.sdk
 import io.customer.base.comunication.Action
 import io.customer.base.data.Result
 import io.customer.base.data.Success
-import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event
@@ -14,6 +13,7 @@ import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.repository.PushNotificationRepository
+import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 import java.util.*
 
@@ -26,6 +26,7 @@ internal class CustomerIOClient(
     private val preferenceRepository: PreferenceRepository,
     private val pushNotificationRepository: PushNotificationRepository,
     private val backgroundQueue: Queue,
+    private val dateUtil: DateUtil,
     private val logger: Logger
 ) : CustomerIOApi {
 
@@ -75,7 +76,7 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.TrackEvent.name, TrackEventQueueTaskData(name, Event(name, eventType, attributes, Date().getUnixTimestamp())))
+        backgroundQueue.addTask(QueueTaskType.TrackEvent.name, TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)))
     }
 
     override fun clearIdentify() {

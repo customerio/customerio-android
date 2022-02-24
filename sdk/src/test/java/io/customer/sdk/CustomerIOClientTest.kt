@@ -3,12 +3,20 @@ package io.customer.sdk
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
+import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.base.utils.ActionUtils
+import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
+import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.repository.PushNotificationRepository
-import io.customer.sdk.repository.TrackingRepository
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.Logger
+import io.customer.sdk.utils.random
 import io.customer.sdk.utils.verifyError
 import io.customer.sdk.utils.verifySuccess
 import org.junit.Before
@@ -18,13 +26,18 @@ import org.mockito.Mockito.times
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
+import org.mockito.kotlin.whenever
+import java.util.*
 
 internal class CustomerIOClientTest {
 
     private val preferenceRepository: PreferenceRepository = mock()
     private val identityRepository: IdentityRepository = mock()
-    private val trackingRepository: TrackingRepository = mock()
     private val pushNotificationRepository: PushNotificationRepository = mock()
+    private val backgroundQueueMock: Queue = mock()
+    private val dateUtilMock: DateUtil = mock()
+    private val loggerMock: Logger = mock()
 
     private lateinit var customerIOClient: CustomerIOClient
 
@@ -32,9 +45,11 @@ internal class CustomerIOClientTest {
     fun setup() {
         customerIOClient = CustomerIOClient(
             identityRepository = identityRepository,
-            trackingRepository = trackingRepository,
+            preferenceRepository = preferenceRepository,
             pushNotificationRepository = pushNotificationRepository,
-            preferenceRepository = preferenceRepository
+            backgroundQueue = backgroundQueueMock,
+            dateUtil = dateUtilMock,
+            logger = loggerMock
         )
     }
 
@@ -163,49 +178,25 @@ internal class CustomerIOClientTest {
     }
 
     @Test
-    fun `verify client sends error when tracking repo fails in tracking event`() {
-        `when`(
-            trackingRepository.track(any(), any(), any(), any())
-        ).thenReturn(
-            ActionUtils.getErrorAction(
-                errorResult = ErrorResult(
-                    error = ErrorDetail(
-                        statusCode = StatusCode.BadRequest
-                    )
-                )
-            )
-        )
+    fun track_givenNoProfileIdentified_expectDoNotAddTaskBackgroundQueue() {
+        whenever(preferenceRepository.getIdentifier()).thenReturn(null)
 
-        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
+        customerIOClient.track(EventType.event, String.random, emptyMap())
 
-        val result = customerIOClient.track("name", mapOf("key" to "value")).execute()
-
-        verifyError(result, StatusCode.BadRequest)
+        verifyNoInteractions(backgroundQueueMock)
     }
 
     @Test
-    fun `verify client sends success when tracking repo succeed in tracking event`() {
-        `when`(
-            trackingRepository.track(any(), any(), any(), any())
-        ).thenReturn(ActionUtils.getEmptyAction())
+    fun track_givenProfileIdentified_expectAddTaskBackgroundQueue() {
+        val givenIdentifier = String.random
+        val givenTrackEventName = String.random
+        val givenAttributes = mapOf("foo" to String.random)
+        val givenDateNow = Date().getUnixTimestamp()
+        whenever(dateUtilMock.nowUnixTimestamp).thenReturn(givenDateNow)
+        whenever(preferenceRepository.getIdentifier()).thenReturn(givenIdentifier)
 
-        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
+        customerIOClient.track(EventType.event, givenTrackEventName, givenAttributes)
 
-        val result = customerIOClient.track("name", mapOf("key" to "value")).execute()
-
-        verifySuccess(result, Unit)
-    }
-
-    @Test
-    fun `verify client sends success when tracking repo succeed in screen tracking`() {
-        `when`(
-            trackingRepository.track(any(), any(), any(), any())
-        ).thenReturn(ActionUtils.getEmptyAction())
-
-        `when`(preferenceRepository.getIdentifier()).thenReturn("identify")
-
-        val result = customerIOClient.screen("Home", emptyMap()).execute()
-
-        verifySuccess(result, Unit)
+        verify(backgroundQueueMock).addTask(QueueTaskType.TrackEvent.name, TrackEventQueueTaskData(givenTrackEventName, Event(givenTrackEventName, EventType.event, givenAttributes, givenDateNow)))
     }
 }

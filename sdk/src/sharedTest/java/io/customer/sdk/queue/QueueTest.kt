@@ -20,12 +20,13 @@ class QueueTest : BaseTest() {
 
     private lateinit var queue: Queue
     @Mock lateinit var storageMock: QueueStorage
+    @Mock lateinit var runRequestMock: QueueRunRequest
 
     @Before
     override fun setup() {
         super.setup()
 
-        queue = Queue(storageMock, di.jsonAdapter, di.sdkConfig, di.logger)
+        queue = QueueImpl(storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, di.logger)
     }
 
     @Test

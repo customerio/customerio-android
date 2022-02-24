@@ -26,7 +26,7 @@ internal class PushNotificationRepositoryTest {
     @Before
     fun setup() {
         pushNotificationRepository = PushNotificationRepositoryImp(
-            customerService = mockCustomerIOService,
+            customerIOService = mockCustomerIOService,
             pushService = mockPushService
         )
     }

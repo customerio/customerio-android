@@ -6,7 +6,7 @@ import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 
 interface QueueRunRequest {
-    suspend fun start()
+    suspend fun startIfNotAlready()
 }
 
 class QueueRunRequestImpl internal constructor(
@@ -16,7 +16,7 @@ class QueueRunRequestImpl internal constructor(
     private val requestManager: QueueRequestManager
 ) : QueueRunRequest {
 
-    override suspend fun start() {
+    override suspend fun startIfNotAlready() {
         val isRequestCurrentlyRunning = requestManager.startRequest()
 
         if (!isRequestCurrentlyRunning) {
@@ -25,6 +25,7 @@ class QueueRunRequestImpl internal constructor(
     }
 
     private suspend fun startNewRequest() {
+        logger.debug("queue starting to run tasks...")
         val inventory = queueStorage.getInventory()
 
         runTasks(inventory, inventory.count())
@@ -32,7 +33,7 @@ class QueueRunRequestImpl internal constructor(
 
     private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
         if (inventory.isEmpty()) {
-            logger.debug("queue out of tasks to run")
+            logger.debug("queue done running tasks")
             return requestManager.queueRunRequestComplete()
         }
 

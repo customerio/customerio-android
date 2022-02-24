@@ -66,8 +66,7 @@ internal class CustomerIOComponent(
     val queueRunner: QueueRunner
         get() = QueueRunnerImpl(jsonAdapter, cioHttpClient)
 
-    val queueRunRequestManager: QueueRequestManager
-        get() = QueueRequestManagerImpl()
+    val queueRunRequestManager: QueueRequestManager by lazy { QueueRequestManagerImpl() }
 
     val queueRunRequest: QueueRunRequest
         get() = QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)

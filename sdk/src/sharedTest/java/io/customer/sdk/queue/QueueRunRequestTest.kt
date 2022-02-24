@@ -16,7 +16,6 @@ import org.mockito.Mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.never
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -53,7 +52,7 @@ class QueueRunRequestTest : BaseTest() {
     fun test_start_givenAlreadyRunningARequest_expectDoNotStartNewRun() = runBlocking {
         whenever(requestManagerMock.startRequest()).thenReturn(true)
 
-        runRequest.start()
+        runRequest.startIfNotAlready()
 
         assertDidStartARun(false)
     }
@@ -63,7 +62,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(requestManagerMock.startRequest()).thenReturn(false)
         whenever(storageMock.getInventory()).thenReturn(emptyList())
 
-        runRequest.start()
+        runRequest.startIfNotAlready()
 
         assertDidStartARun(true)
         verify(runnerMock, never()).runTask(any())
@@ -79,7 +78,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.delete(eq(givenTaskId))).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.startIfNotAlready()
 
         assertDidStartARun(true)
         verify(storageMock).delete(givenTaskId)
@@ -96,7 +95,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.update(eq(givenTaskId), any())).thenReturn(true)
 
-        runRequest.start()
+        runRequest.startIfNotAlready()
 
         assertDidStartARun(true)
         verify(storageMock, never()).delete(givenTaskId)
@@ -122,7 +121,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId2))).thenReturn(givenQueueTask2)
         whenever(storageMock.delete(any())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.startIfNotAlready()
 
         assertDidStartARun(true)
         verify(storageMock).delete(givenTaskId)

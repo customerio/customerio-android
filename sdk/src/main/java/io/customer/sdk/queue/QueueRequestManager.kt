@@ -16,7 +16,7 @@ interface QueueRequestManager {
 }
 
 /**
-Simple singleton that helps assert that the background queue is only running
+Simple singleton (separate singleton for each siteId) that helps assert that the background queue is only running
 one run request at one time (1 run request per site id since each site id can have it's own background queue).
 When the background queue wants to run it's tasks, it's important that the queue only have 1 concurrent runner
 running at one time to prevent race conditions and tasks running multiple times.

@@ -42,9 +42,7 @@ class QueueImpl internal constructor(
             logger.info("queue met criteria to run automatically")
 
             CoroutineScope(Dispatchers.IO).launch {
-                logger.info("running queue")
-                runRequest.start()
-                logger.info("done running queue tasks")
+                runRequest.startIfNotAlready()
             }
         }
     }

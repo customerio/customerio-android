@@ -30,6 +30,7 @@ abstract class BaseTest {
     internal val di: CustomerIOComponent
         get() = CustomerIOComponent(cioConfig, context)
 
+    // convenient HttpException for test functions to test a failed HTTP request
     protected val http500Error: HttpException
         get() = HttpException(Response.error<String>(500, "{}".toResponseBody()))
 

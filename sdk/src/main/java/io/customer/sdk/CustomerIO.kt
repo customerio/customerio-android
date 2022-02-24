@@ -205,8 +205,11 @@ class CustomerIO internal constructor(
             val activityLabel = info.loadLabel(packageManager)
             screen(activityLabel.toString(), attributes)
         } catch (e: PackageManager.NameNotFoundException) {
+            // if `PackageManager.NameNotFoundException` is thrown, is that a bug in the SDK or a problem with the customer's app?
+            // We may want to decide to log this as an SDK error, log it so customer notices it to fix it themselves, or we do nothing because this exception might not be a big issue.
             // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
         } catch (e: Exception) {
+            // Should we log exceptions that happen? Ignore them? How rare is an exception happen in this function?
             // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
         }
     }

@@ -3,6 +3,7 @@ package io.customer.messagingpush
 import io.customer.base.comunication.Action
 import io.customer.messagingpush.hooks.MessagingPushModuleHookProvider
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.hooks.ProfileIdentifiedHook
@@ -14,7 +15,7 @@ interface MessagingPushInstance {
     fun deleteDeviceToken(): Action<Unit>
 }
 
-class MessagingPush(private val customerIO: CustomerIO) : MessagingPushInstance, ProfileIdentifiedHook {
+class MessagingPush(private val customerIO: CustomerIOInstance) : MessagingPushInstance, ProfileIdentifiedHook {
 
     companion object {
         @JvmStatic

@@ -30,7 +30,7 @@ abstract class BaseTest {
         get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 30)
 
     protected val di: CustomerIOComponent
-        get() = CustomerIOComponent(siteId).apply {
+        get() = CustomerIOComponent.getInstance(siteId).apply {
             sdkConfig = cioConfig
             context = this@BaseTest.context
         }
@@ -42,5 +42,6 @@ abstract class BaseTest {
     @Before
     open fun setup() {
         di.fileStorage.deleteAllSdkFiles()
+        CustomerIOComponent.reset()
     }
 }

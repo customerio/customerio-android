@@ -4,16 +4,38 @@ interface DiGraph {
     var overrides: MutableMap<String, Any>
 }
 
-// Call when you want to override a dependency with a mock in test functions.
+/**
+ * Call when you want to override a dependency with a mock in test functions.
+ * `di.overrideDependency(CustomerIOInstance::class.java, customerIOMock)`
+ */
 fun <DEP> DiGraph.overrideDependency(dependency: Class<DEP>, value: DEP) {
     overrides[dependency.simpleName] = value as Any
 }
+
+/**
+ * Call in Digraph property getters to get allow mock overriding before trying to get actual instance.
+ * ```
+ * val fileStorage: FileStorage
+ *   get() = override() ?: FileStorage(siteId, context)
+ * ```
+ * Note: Don't forget to include the interface in the property declaration:
+ * ```
+ * val foo: InterfaceOfFoo
+ *          ^^^^^^^^^^^^^^
+ * ```
+ * Or you may not be able to successfully mock in test functions.
+ */
 inline fun <reified DEP> DiGraph.override(): DEP? = overrides[DEP::class.java.simpleName] as? DEP
 
 abstract class DiGraphCompanion<DiGraphSubclass : DiGraph> {
     @Volatile private var instances: MutableMap<String, DiGraphSubclass> = mutableMapOf()
 
     abstract fun newInstance(siteId: String): DiGraphSubclass
+
+    // For running in tests to clear all dependencies from memory between test functions
+    fun reset() {
+        this.instances = mutableMapOf()
+    }
 
     /**
      * Each site id has it's own singleton instance of the DI graph. Each site id should be sandboxed from

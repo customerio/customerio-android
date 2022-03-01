@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Configuration class to configure/initialize low-level operations and objects.
  */
-class CustomerIOComponent(
+class CustomerIOComponent private constructor(
     private val siteId: String
 ) : DiGraph {
 
@@ -127,14 +127,14 @@ class CustomerIOComponent(
         }
     }
 
-    val sharedPreferenceRepository by lazy {
+    val sharedPreferenceRepository: PreferenceRepository by lazy {
         override() ?: PreferenceRepositoryImpl(
             context = context,
             siteId = siteId
         )
     }
 
-    private val attributesRepository by lazy {
+    private val attributesRepository: AttributesRepository by lazy {
         override() ?: MoshiAttributesRepositoryImp(
             parser = customerIOParser
         )
@@ -150,7 +150,7 @@ class CustomerIOComponent(
 
     private val customerIOParser: CustomerIOParser by lazy { override() ?: CustomerIOParserImpl(moshi) }
 
-    private val httpLoggingInterceptor by lazy {
+    private val httpLoggingInterceptor: HttpLoggingInterceptor by lazy {
         override() ?: HttpLoggingInterceptor().apply {
             if (BuildConfig.DEBUG) {
                 level = HttpLoggingInterceptor.Level.BODY
@@ -166,7 +166,7 @@ class CustomerIOComponent(
             .build()
     }
 
-    private val retrofitMoshiConverterFactory by lazy {
+    private val retrofitMoshiConverterFactory: MoshiConverterFactory by lazy {
         override() ?: MoshiConverterFactory.create(
             moshi
         )

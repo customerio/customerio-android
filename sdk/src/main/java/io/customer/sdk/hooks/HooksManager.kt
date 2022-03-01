@@ -23,8 +23,8 @@ class HooksManagerImpl : HooksManager {
 
     private val hooksProviders: MutableMap<HookModule, ModuleHookProvider> = mutableMapOf()
 
-    // / using key/value pairs enforces that there is only 1 hook provider for each
-    // / module without having duplicates.
+    // using key/value pairs enforces that there is only 1 hook provider for each
+    // module without having duplicates.
     override fun addProvider(key: HookModule, provider: ModuleHookProvider) {
         hooksProviders[key] = provider
     }

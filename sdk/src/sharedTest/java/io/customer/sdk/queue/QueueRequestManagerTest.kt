@@ -1,7 +1,7 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.sdk.utils.BaseTest
+import io.customer.common_test.BaseTest
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Before

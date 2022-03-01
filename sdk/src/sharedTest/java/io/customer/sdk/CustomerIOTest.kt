@@ -1,22 +1,22 @@
 package io.customer.sdk
 
 import android.net.Uri
+import io.customer.common_test.BaseTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
 import io.customer.base.utils.ActionUtils.Companion.getEmptyAction
 import io.customer.base.utils.ActionUtils.Companion.getErrorAction
+import io.customer.common_test.verifyError
+import io.customer.common_test.verifySuccess
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.overrideDependency
-import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before

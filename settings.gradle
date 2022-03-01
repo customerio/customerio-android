@@ -3,3 +3,4 @@ include ':app'
 rootProject.name = "Customer.io SDK"
 include ':base'
 include ':messagingpush'
+include ':common-test'

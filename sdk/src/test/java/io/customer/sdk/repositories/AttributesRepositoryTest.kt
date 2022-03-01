@@ -1,12 +1,12 @@
 package io.customer.sdk.repositories
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.common_test.BaseTest
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.MoshiAttributesRepositoryImp
-import io.customer.sdk.utils.BaseTest
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Before
 import org.junit.Test

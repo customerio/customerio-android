@@ -1,4 +1,4 @@
-package io.customer.sdk.utils
+package io.customer.common_test
 
 import android.app.Application
 import android.content.Context
@@ -9,7 +9,6 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.di.CustomerIOComponent
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Before
-import org.mockito.MockitoAnnotations
 import retrofit2.HttpException
 import retrofit2.Response
 
@@ -17,8 +16,6 @@ import retrofit2.Response
  * Base class for test classes to subclass. Meant to provide convenience to test classes with properties and functions tests may use.
  */
 abstract class BaseTest {
-
-    open fun provideTestClass(): Any = this
 
     protected val siteId: String
         get() = "test-site-id"
@@ -32,7 +29,7 @@ abstract class BaseTest {
     protected val cioConfig: CustomerIOConfig
         get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 30)
 
-    internal val di: CustomerIOComponent
+    protected val di: CustomerIOComponent
         get() = CustomerIOComponent(siteId).apply {
             sdkConfig = cioConfig
             context = this@BaseTest.context
@@ -44,9 +41,6 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
-        // if this doesn't work, you can use the mockito test rule: MockitoJUnit.rule().
-        MockitoAnnotations.initMocks(provideTestClass())
-
         di.fileStorage.deleteAllSdkFiles()
     }
 }

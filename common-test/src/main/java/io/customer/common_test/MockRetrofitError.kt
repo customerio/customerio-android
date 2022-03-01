@@ -1,4 +1,4 @@
-package io.customer.sdk.utils
+package io.customer.common_test
 
 import io.customer.sdk.api.retrofit.CustomerIoCall
 import okhttp3.MediaType.Companion.toMediaType
@@ -9,7 +9,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-internal class MockRetrofitError<T : Any>(private val statusCode: Int) : Call<T> {
+class MockRetrofitError<T : Any>(private val statusCode: Int) : Call<T> {
 
     fun toCustomerIoCall(): CustomerIoCall<T> {
         return CustomerIoCall(

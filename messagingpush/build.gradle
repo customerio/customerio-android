@@ -13,10 +13,10 @@ ext {
 
 apply from: "${rootDir}/scripts/publish-module.gradle"
 apply from: "${rootDir}/scripts/android-config.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
     defaultConfig {
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
     }
 
@@ -32,13 +32,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = '1.8'
-    }
-
-    testOptions {
-        unitTests {
-            // From: http://robolectric.org/getting-started/
-            includeAndroidResources = true
-        }
     }
 }
 
@@ -56,5 +49,4 @@ dependencies {
 
     api Dependencies.firebaseMessaging
     implementation Dependencies.googlePlayServicesBase
-
 }

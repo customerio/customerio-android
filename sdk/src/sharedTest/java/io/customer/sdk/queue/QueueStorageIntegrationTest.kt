@@ -6,8 +6,8 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
-import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
+import io.customer.common_test.BaseTest
 import org.amshove.kluent.*
 import org.junit.Test
 import org.junit.runner.RunWith

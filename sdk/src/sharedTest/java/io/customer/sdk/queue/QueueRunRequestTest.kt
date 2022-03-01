@@ -1,20 +1,20 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.common_test.BaseTest
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueRunner
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTask
 import io.customer.sdk.queue.type.QueueTaskMetadata
-import io.customer.sdk.utils.BaseTest
 import io.customer.sdk.utils.random
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -24,9 +24,9 @@ class QueueRunRequestTest : BaseTest() {
 
     private lateinit var runRequest: QueueRunRequest
 
-    @Mock lateinit var runnerMock: QueueRunner
-    @Mock lateinit var storageMock: QueueStorage
-    @Mock lateinit var requestManagerMock: QueueRequestManager
+    val runnerMock: QueueRunner = mock()
+    val storageMock: QueueStorage = mock()
+    val requestManagerMock: QueueRequestManager = mock()
 
     @Before
     override fun setup() {

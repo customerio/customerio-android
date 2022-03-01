@@ -17,8 +17,8 @@ import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.common_test.verifyError
+import io.customer.common_test.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`

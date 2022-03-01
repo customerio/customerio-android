@@ -3,7 +3,7 @@ package io.customer.sdk.repository
 import android.content.Context
 import android.content.SharedPreferences
 
-internal interface PreferenceRepository {
+interface PreferenceRepository {
     fun saveIdentifier(identifier: String)
     fun removeIdentifier(identifier: String)
     fun getIdentifier(): String?
@@ -13,7 +13,7 @@ internal interface PreferenceRepository {
     fun getDeviceToken(): String?
 }
 
-internal class PreferenceRepositoryImpl(
+class PreferenceRepositoryImpl(
     private val context: Context,
     private val siteId: String
 ) : PreferenceRepository {

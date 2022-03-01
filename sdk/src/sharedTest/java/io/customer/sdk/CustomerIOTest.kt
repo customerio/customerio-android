@@ -1,44 +1,74 @@
 package io.customer.sdk
 
+import android.net.Uri
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
 import io.customer.base.utils.ActionUtils.Companion.getEmptyAction
 import io.customer.base.utils.ActionUtils.Companion.getErrorAction
+import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.di.overrideDependency
+import io.customer.sdk.utils.BaseTest
+import io.customer.sdk.utils.random
 import io.customer.sdk.utils.verifyError
 import io.customer.sdk.utils.verifySuccess
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 
-internal class CustomerIOTest {
+@RunWith(AndroidJUnit4::class)
+class CustomerIOTest : BaseTest() {
+
+    private val apiMock: CustomerIOApi = mock()
 
     private lateinit var customerIO: CustomerIO
-    lateinit var mockCustomerIO: MockCustomerIOBuilder
 
     @Before
     fun setUp() {
-        mockCustomerIO = MockCustomerIOBuilder()
-        customerIO = mockCustomerIO.build()
+        CustomerIOComponent.getInstance(siteId).apply {
+            overrideDependency(CustomerIOApi::class.java, apiMock)
+        }
+
+        customerIO = CustomerIO(siteId)
     }
 
     @Test
-    fun `verify SDK configuration is correct`() {
-        customerIO.config.siteId shouldBeEqualTo MockCustomerIOBuilder.siteId
-        customerIO.config.apiKey shouldBeEqualTo MockCustomerIOBuilder.apiKey
-        customerIO.config.timeout shouldBeEqualTo MockCustomerIOBuilder.timeout.toLong()
-        customerIO.config.region shouldBeEqualTo MockCustomerIOBuilder.region
-        customerIO.config.urlHandler shouldBeEqualTo MockCustomerIOBuilder.urlHandler
-        customerIO.config.autoTrackScreenViews shouldBeEqualTo MockCustomerIOBuilder.shouldAutoRecordScreenViews
+    fun verifySDKConfigurationSetAfterBuild() {
+        val givenSiteId = String.random
+        val givenApiKey = String.random
+        CustomerIO.Builder(
+            siteId = givenSiteId,
+            apiKey = givenApiKey,
+            region = Region.EU,
+            appContext = application
+        ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
+            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
+        }).autoTrackScreenViews(true).build()
+
+        val actual = CustomerIOComponent.getInstance(givenSiteId).sdkConfig
+
+        actual.siteId shouldBeEqualTo givenSiteId
+        actual.apiKey shouldBeEqualTo givenApiKey
+        actual.timeout.shouldNotBeNull()
+        actual.region shouldBeEqualTo Region.EU
+        actual.urlHandler.shouldNotBeNull()
+        actual.autoTrackScreenViews shouldBeEqualTo true
     }
 
     @Test
-    fun `verify SDK returns success when customer is identified`() {
+    fun verifySDKReturnsSuccessWhenCustomerIsIdentified() {
         `when`(
-            mockCustomerIO.api.identify(
+            apiMock.identify(
                 identifier = any(),
                 attributes = any()
             )
@@ -50,9 +80,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns error when customer identify request fails`() {
+    fun verifySDKReturnsErrorWhenCustomerIdentifyRequestFails() {
         `when`(
-            mockCustomerIO.api.identify(
+            apiMock.identify(
                 identifier = any(),
                 attributes = any()
             )
@@ -71,9 +101,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns success when device is added`() {
+    fun verifySDKReturnsSuccessWhenDeviceIsAdded() {
         `when`(
-            mockCustomerIO.api.registerDeviceToken(
+            apiMock.registerDeviceToken(
                 any(),
             )
         ).thenReturn(getEmptyAction())
@@ -84,9 +114,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns error when adding device request fails`() {
+    fun verifySDKReturnsErrorWhenAddingDeviceRequestFails() {
         `when`(
-            mockCustomerIO.api.registerDeviceToken(
+            apiMock.registerDeviceToken(
                 any(),
             )
         )
@@ -98,9 +128,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns error when device is removed`() {
+    fun verifySDKReturnsErrorWhenDeviceIsRemoved() {
         `when`(
-            mockCustomerIO.api.deleteDeviceToken()
+            apiMock.deleteDeviceToken()
         ).thenReturn(getEmptyAction())
 
         val response = customerIO.deleteDeviceToken().execute()
@@ -109,9 +139,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns error when removing device request fails`() {
+    fun verifySDKReturnsErrorWhenRemovingDeviceRequestFails() {
         `when`(
-            mockCustomerIO.api.deleteDeviceToken()
+            apiMock.deleteDeviceToken()
         )
             .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
 
@@ -121,9 +151,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns success when push event metric is tracked`() {
+    fun verifySDKReturnsSuccessWhenPushEventMetricIsTracked() {
         `when`(
-            mockCustomerIO.api.trackMetric(any(), any(), any())
+            apiMock.trackMetric(any(), any(), any())
         ).thenReturn(getEmptyAction())
 
         val response =
@@ -133,9 +163,9 @@ internal class CustomerIOTest {
     }
 
     @Test
-    fun `verify SDK returns error when push event metric request fails`() {
+    fun verifySDKReturnsErrorWhenPushEventMetricRequestFails() {
         `when`(
-            mockCustomerIO.api.trackMetric(any(), any(), any())
+            apiMock.trackMetric(any(), any(), any())
         )
             .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
 

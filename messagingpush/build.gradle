@@ -43,7 +43,7 @@ android {
 }
 
 dependencies {
-
+    api project(":base")
     api project(":sdk")
 
     implementation Dependencies.coroutinesCore

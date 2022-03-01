@@ -8,7 +8,6 @@ import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.data.store.CustomerIOStore
 import io.customer.sdk.di.CustomerIOComponent
 
 /**
@@ -20,11 +19,8 @@ Create your own instance using
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-
-class CustomerIO internal constructor(
-    val config: CustomerIOConfig,
-    val store: CustomerIOStore,
-    private val api: CustomerIOApi,
+class CustomerIO constructor(
+    val siteId: String
 ) {
     companion object {
         private var instance: CustomerIO? = null
@@ -32,7 +28,7 @@ class CustomerIO internal constructor(
         @JvmStatic
         fun instance(): CustomerIO {
             return instance
-                ?: throw IllegalStateException("CustomerIo.Builder::build() must be called before obtaining CustomerIo instance")
+                ?: throw IllegalStateException("CustomerIO.Builder::build() must be called before obtaining CustomerIO instance")
         }
     }
 
@@ -93,22 +89,25 @@ class CustomerIO internal constructor(
                 backgroundQueueMinNumberOfTasks = 10
             )
 
-            val customerIoComponent =
-                CustomerIOComponent(customerIOConfig = config, context = appContext)
+            CustomerIOComponent.createAndUpdate(siteId, appContext, config)
 
-            val client = CustomerIO(
-                config = config,
-                store = customerIoComponent.buildStore(),
-                api = customerIoComponent.buildApi(),
-            )
+            val client = CustomerIO(siteId)
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client)
+            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
             return client
         }
     }
+
+    // Since this class is at the top-most level of the MessagingPush module,
+    // we get instances from the DiGraph, not through constructor dependency injection.
+    private val diGraph: CustomerIOComponent
+        get() = CustomerIOComponent.getInstance(siteId)
+
+    private val api: CustomerIOApi
+        get() = diGraph.buildApi()
 
     /**
      * Identify a customer (aka: Add or update a profile).

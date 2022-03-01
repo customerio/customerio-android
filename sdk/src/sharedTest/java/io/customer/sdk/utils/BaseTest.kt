@@ -1,6 +1,8 @@
 package io.customer.sdk.utils
 
+import android.app.Application
 import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
@@ -24,11 +26,17 @@ abstract class BaseTest {
     protected val context: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    protected val application: Application
+        get() = ApplicationProvider.getApplicationContext()
+
     protected val cioConfig: CustomerIOConfig
         get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 30)
 
     internal val di: CustomerIOComponent
-        get() = CustomerIOComponent(cioConfig, context)
+        get() = CustomerIOComponent(siteId).apply {
+            sdkConfig = cioConfig
+            context = this@BaseTest.context
+        }
 
     // convenient HttpException for test functions to test a failed HTTP request
     protected val http500Error: HttpException

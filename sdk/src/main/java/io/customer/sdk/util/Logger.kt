@@ -17,6 +17,7 @@ class LogcatLogger : Logger {
     }
 
     override fun debug(message: String) {
+        // TODO set log level via sdkconfig
         Log.d(tag, message)
     }
 

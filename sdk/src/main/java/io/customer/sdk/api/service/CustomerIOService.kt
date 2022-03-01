@@ -6,7 +6,7 @@ import io.customer.sdk.data.request.Event
 import retrofit2.Response
 import retrofit2.http.*
 
-internal interface CustomerIOService {
+interface CustomerIOService {
 
     @JvmSuppressWildcards
     @PUT("api/v1/customers/{identifier}")

@@ -18,6 +18,8 @@ import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
+import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.hooks.HooksManagerImpl
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.QueueImpl
 import io.customer.sdk.queue.QueueRequestManager
@@ -43,48 +45,61 @@ import java.util.concurrent.TimeUnit
 /**
  * Configuration class to configure/initialize low-level operations and objects.
  */
-internal class CustomerIOComponent(
-    private val customerIOConfig: CustomerIOConfig,
-    private val context: Context
-) {
+class CustomerIOComponent(
+    private val siteId: String
+) : DiGraph {
 
-    val sdkConfig: CustomerIOConfig
-        get() = customerIOConfig
+    companion object : DiGraphCompanion<CustomerIOComponent>() {
+        fun createAndUpdate(siteId: String, context: Context, sdkConfig: CustomerIOConfig) {
+            synchronized(this) {
+                val instance = getInstance(siteId)
 
-    val siteId: String
-        get() = customerIOConfig.siteId
+                instance.context = context
+                instance.sdkConfig = sdkConfig
+            }
+        }
+
+        override fun newInstance(siteId: String) = CustomerIOComponent(siteId)
+    }
+
+    override var overrides: MutableMap<String, Any> = mutableMapOf()
+
+    lateinit var context: Context
+    lateinit var sdkConfig: CustomerIOConfig
 
     val fileStorage: FileStorage
-        get() = FileStorage(siteId, context)
+        get() = override() ?: FileStorage(siteId, context)
 
     val jsonAdapter: JsonAdapter
-        get() = JsonAdapter(moshi)
+        get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
+        get() = override() ?: QueueStorageImpl(siteId, fileStorage, jsonAdapter)
 
     val queueRunner: QueueRunner
-        get() = QueueRunnerImpl(jsonAdapter, cioHttpClient)
+        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient)
 
-    val queueRunRequestManager: QueueRequestManager by lazy { QueueRequestManagerImpl() }
+    val queueRunRequestManager: QueueRequestManager by lazy { override() ?: QueueRequestManagerImpl() }
 
     val queueRunRequest: QueueRunRequest
-        get() = QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
+        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
 
     val queue: Queue
-        get() = QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+        get() = override() ?: QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
 
     val logger: Logger
-        get() = LogcatLogger()
+        get() = override() ?: LogcatLogger()
+
+    val hooks: HooksManager by lazy { override() ?: HooksManagerImpl() }
 
     val cioHttpClient: CustomerIOAPIHttpClient
-        get() = RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
+        get() = override() ?: RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
 
     val dateUtil: DateUtil
-        get() = DateUtilImpl()
+        get() = override() ?: DateUtilImpl()
 
     fun buildApi(): CustomerIOApi {
-        return CustomerIOClient(
+        return override() ?: CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
                 customerIOService = buildRetrofitApi<CustomerIOService>(),
                 attributesRepository = attributesRepository
@@ -101,7 +116,7 @@ internal class CustomerIOComponent(
     }
 
     fun buildStore(): CustomerIOStore {
-        return object : CustomerIOStore {
+        return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
                 DeviceStoreImp(
                     BuildStoreImp(),
@@ -112,31 +127,31 @@ internal class CustomerIOComponent(
         }
     }
 
-    private val sharedPreferenceRepository by lazy {
-        PreferenceRepositoryImpl(
+    val sharedPreferenceRepository by lazy {
+        override() ?: PreferenceRepositoryImpl(
             context = context,
             siteId = siteId
         )
     }
 
     private val attributesRepository by lazy {
-        MoshiAttributesRepositoryImp(
+        override() ?: MoshiAttributesRepositoryImp(
             parser = customerIOParser
         )
     }
 
     private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
-        return buildRetrofit(
-            customerIOConfig.region.baseUrl,
-            customerIOConfig.timeout,
+        return override() ?: buildRetrofit(
+            sdkConfig.region.baseUrl,
+            sdkConfig.timeout,
         ).create(apiClass)
     }
 
-    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(moshi) }
+    private val customerIOParser: CustomerIOParser by lazy { override() ?: CustomerIOParserImpl(moshi) }
 
     private val httpLoggingInterceptor by lazy {
-        HttpLoggingInterceptor().apply {
+        override() ?: HttpLoggingInterceptor().apply {
             if (BuildConfig.DEBUG) {
                 level = HttpLoggingInterceptor.Level.BODY
             }
@@ -145,14 +160,14 @@ internal class CustomerIOComponent(
 
     // performance improvement to keep created moshi instance for re-use.
     val moshi: Moshi by lazy {
-        Moshi.Builder()
+        override() ?: Moshi.Builder()
             .add(UnixDateAdapter())
             .add(BigDecimalAdapter())
             .build()
     }
 
     private val retrofitMoshiConverterFactory by lazy {
-        MoshiConverterFactory.create(
+        override() ?: MoshiConverterFactory.create(
             moshi
         )
     }
@@ -162,7 +177,7 @@ internal class CustomerIOComponent(
         timeout: Long
     ): Retrofit {
         val okHttpClient = clientBuilder(timeout).build()
-        return Retrofit.Builder()
+        return override() ?: Retrofit.Builder()
             .baseUrl(endpoint)
             .client(okHttpClient)
             .addConverterFactory(retrofitMoshiConverterFactory)
@@ -170,21 +185,20 @@ internal class CustomerIOComponent(
             .build()
     }
 
-    private val baseClient: OkHttpClient by lazy { OkHttpClient() }
+    private val baseClient: OkHttpClient by lazy { override() ?: OkHttpClient() }
 
-    private fun baseClientBuilder(): OkHttpClient.Builder =
-        baseClient.newBuilder()
+    private fun baseClientBuilder(): OkHttpClient.Builder = override() ?: baseClient.newBuilder()
 
     private fun clientBuilder(
         timeout: Long,
     ): OkHttpClient.Builder {
-        return baseClientBuilder()
+        return override() ?: baseClientBuilder()
             // timeouts
             .connectTimeout(timeout, TimeUnit.MILLISECONDS)
             .writeTimeout(timeout, TimeUnit.MILLISECONDS)
             .readTimeout(timeout, TimeUnit.MILLISECONDS)
             // interceptors
-            .addInterceptor(HeadersInterceptor())
+            .addInterceptor(HeadersInterceptor(buildStore(), sdkConfig))
             .addInterceptor(httpLoggingInterceptor)
     }
 }

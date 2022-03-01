@@ -8,6 +8,10 @@ import io.customer.base.comunication.Action
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.extensions.getErrorResult
 
+/**
+ * Uses the singleton instance of [MessagingPush]/[CustomerIO]. If you want to use a different site id/api key combination,
+ * create your own [FirebaseMessagingService] subclass and call [MessagingPush] functions manually.
+ */
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
@@ -54,8 +58,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
         private fun handleNewToken(token: String, errorCallback: Action.Callback<Unit>) {
             try {
-                CustomerIO.instance().registerDeviceToken(deviceToken = token)
-                    .enqueue(errorCallback)
+                MessagingPush.instance().registerDeviceToken(deviceToken = token).enqueue(errorCallback)
             } catch (exception: IllegalStateException) {
                 Log.e(TAG, "Error while handling token: ${exception.message}")
                 errorCallback.onResult(exception.getErrorResult())

@@ -6,7 +6,7 @@ import io.customer.sdk.data.request.MetricEvent
 /**
  * Apis exposed to clients
  */
-internal interface CustomerIOApi {
+interface CustomerIOApi {
     fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit>
     fun track(name: String, attributes: Map<String, Any>)
     fun clearIdentify()

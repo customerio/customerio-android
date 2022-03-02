@@ -7,6 +7,7 @@ import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueTaskType
@@ -27,10 +28,15 @@ internal class CustomerIOClient(
     private val pushNotificationRepository: PushNotificationRepository,
     private val backgroundQueue: Queue,
     private val dateUtil: DateUtil,
-    private val logger: Logger
+    private val logger: Logger,
+    private val hooks: HooksManager
 ) : CustomerIOApi {
 
     override fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit> {
+        hooks.profileIdentifiedHooks.forEach {
+            it.profileIdentified("xyz")
+        }
+
         return object : Action<Unit> {
             val action by lazy { identityRepository.identify(identifier, attributes) }
             override fun execute(): Result<Unit> {

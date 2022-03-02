@@ -4,6 +4,7 @@ import io.customer.base.comunication.Action
 import io.customer.messagingpush.hooks.MessagingPushModuleHookProvider
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.hooks.ProfileIdentifiedHook
@@ -15,7 +16,7 @@ interface MessagingPushInstance {
     fun deleteDeviceToken(): Action<Unit>
 }
 
-class MessagingPush(private val customerIO: CustomerIOInstance) : MessagingPushInstance, ProfileIdentifiedHook {
+class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
 
     companion object {
         @JvmStatic
@@ -26,8 +27,13 @@ class MessagingPush(private val customerIO: CustomerIOInstance) : MessagingPushI
         }
     }
 
-    private val siteId: String
-        get() = customerIO.siteId
+    // Constructor for customers to use
+    constructor(customerIO: CustomerIOInstance) : this(customerIO.siteId)
+    // Convenient constructor used internally to get instance without needing to worry about providing all required constructors of CustomerIO class.
+    internal constructor(siteId: String) {
+        this.siteId = siteId
+    }
+    private lateinit var siteId: String
 
     // Since this class is at the top-most level of the MessagingPush module,
     // we get instances from the DiGraph, not through constructor dependency injection.
@@ -36,6 +42,9 @@ class MessagingPush(private val customerIO: CustomerIOInstance) : MessagingPushI
 
     private val logger: Logger
         get() = trackingModuleDiGraph.logger
+
+    private val api: CustomerIOApi
+        get() = trackingModuleDiGraph.buildApi()
 
     private val preferenceRepository: PreferenceRepository
         get() = trackingModuleDiGraph.sharedPreferenceRepository
@@ -53,12 +62,20 @@ class MessagingPush(private val customerIO: CustomerIOInstance) : MessagingPushI
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String): Action<Unit> = customerIO.registerDeviceToken(deviceToken)
+    override fun registerDeviceToken(deviceToken: String): Action<Unit> {
+        // This is copy/pasted code from CustomerIO class. The iOS SDK has all push functions in the MessagingPush class for encapsulation in the optional messaging push SDK.
+        // TODO Should we deprecate the CustomerIO push functions and have the messaging functions exist in the messagingpush module, only?
+        return api.registerDeviceToken(deviceToken)
+    }
 
     /**
      * Delete the currently registered device token
      */
-    override fun deleteDeviceToken(): Action<Unit> = customerIO.deleteDeviceToken()
+    override fun deleteDeviceToken(): Action<Unit> {
+        // This is copy/pasted code from CustomerIO class. The iOS SDK has all push functions in the MessagingPush class for encapsulation in the optional messaging push SDK.
+        // TODO Should we deprecate the CustomerIO push functions and have the messaging functions exist in the messagingpush module, only?
+        return api.deleteDeviceToken()
+    }
 
     override fun beforeIdentifiedProfileChange(oldIdentifier: String, newIdentifier: String) {
         logger.debug("hook: deleting device token before identifying new profile")

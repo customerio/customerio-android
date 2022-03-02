@@ -7,6 +7,8 @@ interface DiGraph {
 /**
  * Call when you want to override a dependency with a mock in test functions.
  * `di.overrideDependency(CustomerIOInstance::class.java, customerIOMock)`
+ *
+ * See `CustomerIOTest` (or any other class that is top-level of the module) for an example on use.
  */
 fun <DEP> DiGraph.overrideDependency(dependency: Class<DEP>, value: DEP) {
     overrides[dependency.simpleName] = value as Any

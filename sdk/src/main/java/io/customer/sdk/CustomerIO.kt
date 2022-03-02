@@ -64,7 +64,10 @@ It is recommended to initialize the client in the `Application::onCreate()` meth
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
 class CustomerIO constructor(
-    override val siteId: String
+    // The constructor is a public constructor allowing customers to create non-singleton instance of CustomerIO class if they dont want to use the Singleton API.
+    override val siteId: String,
+    val apiKey: String,
+    val region: Region = Region.US
 ) : CustomerIOInstance {
     companion object {
         private var instance: CustomerIO? = null
@@ -135,7 +138,7 @@ class CustomerIO constructor(
 
             CustomerIOComponent.createAndUpdate(siteId, appContext, config)
 
-            val client = CustomerIO(siteId)
+            val client = CustomerIO(siteId, apiKey, region)
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
@@ -153,6 +156,16 @@ class CustomerIO constructor(
     private val api: CustomerIOApi
         get() = diGraph.buildApi()
 
+    /**
+     * Identify a customer (aka: Add or update a profile).
+     * [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
+     * Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
+     * the previously identified profile will be removed. Only the latest identified customer is persisted.
+     * @param identifier ID you want to assign to the customer.
+     * This value can be an internal ID that your system uses or an email address.
+     * [Learn more](https://customer.io/docs/api/#operation/identify)
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
     override fun identify(identifier: String): Action<Unit> = this.identify(identifier, emptyMap())
 
     /**
@@ -171,6 +184,12 @@ class CustomerIO constructor(
         attributes: Map<String, Any>
     ): Action<Unit> = api.identify(identifier, attributes)
 
+    /**
+     * Track an event
+     * [Learn more](https://customer.io/docs/events/) about events in Customer.io
+     * @param name Name of the event you want to track.
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
     override fun track(name: String) = this.track(name, emptyMap())
 
     /**
@@ -185,6 +204,11 @@ class CustomerIO constructor(
         attributes: Map<String, Any>
     ) = api.track(name, attributes)
 
+    /**
+     * Track screen
+     * @param name Name of the screen you want to track.
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
     override fun screen(name: String) = this.screen(name, emptyMap())
 
     /**
@@ -198,6 +222,11 @@ class CustomerIO constructor(
         attributes: Map<String, Any>
     ) = api.screen(name, attributes)
 
+    /**
+     * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
+     * @param activity Instance of the activity you want to track.
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
     override fun screen(activity: Activity) = this.screen(activity, emptyMap())
 
     /**

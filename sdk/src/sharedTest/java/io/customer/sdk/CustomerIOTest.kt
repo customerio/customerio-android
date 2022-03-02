@@ -35,11 +35,9 @@ class CustomerIOTest : BaseTest() {
 
     @Before
     fun setUp() {
-        CustomerIOComponent.getInstance(siteId).apply {
-            overrideDependency(CustomerIOApi::class.java, apiMock)
-        }
+        di.overrideDependency(CustomerIOApi::class.java, apiMock)
 
-        customerIO = CustomerIO(siteId)
+        customerIO = CustomerIO(siteId, String.random)
     }
 
     @Test

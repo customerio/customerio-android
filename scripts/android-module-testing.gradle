@@ -1,5 +1,5 @@
-// Gradle configuration to setup automated testing. JVM and Android instrumentation.
-// Testing tools and configuration that can be shared between all modules.
+// Gradle configuration to setup automated JVM and Android instrumentation testing.
+// In this file, include testing tools and configuration that is used by all modules.
 
 import io.customer.android.Dependencies
 

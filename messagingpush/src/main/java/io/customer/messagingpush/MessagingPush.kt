@@ -1,10 +1,10 @@
 package io.customer.messagingpush
 
-import io.customer.base.comunication.Action
+import io.customer.messagingpush.api.MessagingPushApi
+import io.customer.messagingpush.di.MessagingPushDiGraph
 import io.customer.messagingpush.hooks.MessagingPushModuleHookProvider
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOInstance
-import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.hooks.ProfileIdentifiedHook
@@ -12,11 +12,17 @@ import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.Logger
 
 interface MessagingPushInstance {
-    fun registerDeviceToken(deviceToken: String): Action<Unit>
-    fun deleteDeviceToken(): Action<Unit>
+    fun registerDeviceToken(deviceToken: String)
+    fun deleteDeviceToken()
 }
 
-class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
+// Convenient internal constructor used internally to get instance without needing to worry about providing all required constructors of CustomerIO class.
+class MessagingPush internal constructor(
+    private val siteId: String
+) : MessagingPushInstance, ProfileIdentifiedHook {
+
+    // Constructor for customers to use
+    constructor(customerIO: CustomerIOInstance) : this(customerIO.siteId)
 
     companion object {
         @JvmStatic
@@ -27,24 +33,19 @@ class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
         }
     }
 
-    // Constructor for customers to use
-    constructor(customerIO: CustomerIOInstance) : this(customerIO.siteId)
-    // Convenient constructor used internally to get instance without needing to worry about providing all required constructors of CustomerIO class.
-    internal constructor(siteId: String) {
-        this.siteId = siteId
-    }
-    private lateinit var siteId: String
-
     // Since this class is at the top-most level of the MessagingPush module,
     // we get instances from the DiGraph, not through constructor dependency injection.
-    val trackingModuleDiGraph: CustomerIOComponent
+    private val trackingModuleDiGraph: CustomerIOComponent
         get() = CustomerIOComponent.getInstance(siteId)
+
+    private val diGraph: MessagingPushDiGraph
+        get() = MessagingPushDiGraph.getInstance(siteId)
 
     private val logger: Logger
         get() = trackingModuleDiGraph.logger
 
-    private val api: CustomerIOApi
-        get() = trackingModuleDiGraph.buildApi()
+    private val api: MessagingPushApi
+        get() = diGraph.api
 
     private val preferenceRepository: PreferenceRepository
         get() = trackingModuleDiGraph.sharedPreferenceRepository
@@ -62,25 +63,17 @@ class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String): Action<Unit> {
-        // This is copy/pasted code from CustomerIO class. The iOS SDK has all push functions in the MessagingPush class for encapsulation in the optional messaging push SDK.
-        // TODO Should we deprecate the CustomerIO push functions and have the messaging functions exist in the messagingpush module, only?
-        return api.registerDeviceToken(deviceToken)
-    }
+    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken)
 
     /**
      * Delete the currently registered device token
      */
-    override fun deleteDeviceToken(): Action<Unit> {
-        // This is copy/pasted code from CustomerIO class. The iOS SDK has all push functions in the MessagingPush class for encapsulation in the optional messaging push SDK.
-        // TODO Should we deprecate the CustomerIO push functions and have the messaging functions exist in the messagingpush module, only?
-        return api.deleteDeviceToken()
-    }
+    override fun deleteDeviceToken() = api.deleteDeviceToken()
 
     override fun beforeIdentifiedProfileChange(oldIdentifier: String, newIdentifier: String) {
         logger.debug("hook: deleting device token before identifying new profile")
 
-        deleteDeviceToken().enqueue()
+        deleteDeviceToken()
     }
 
     override fun profileIdentified(identifier: String) {
@@ -92,12 +85,12 @@ class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
 
         logger.debug("hook: automatically registering token to profile identified. token: $existingDeviceToken")
 
-        registerDeviceToken(existingDeviceToken).enqueue()
+        registerDeviceToken(existingDeviceToken)
     }
 
     override fun profileStoppedBeingIdentified(oldIdentifier: String) {
         logger.debug("hook: deleting device token from profile no longer identified")
 
-        deleteDeviceToken().enqueue()
+        deleteDeviceToken()
     }
 }

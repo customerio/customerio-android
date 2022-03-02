@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 interface Queue {
-    fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult
+    fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult
 }
 
 class QueueImpl internal constructor(
@@ -21,12 +21,12 @@ class QueueImpl internal constructor(
     private val logger: Logger
 ) : Queue {
 
-    override fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult {
+    override fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult {
         logger.info("adding queue task $type")
 
         val taskDataString = jsonAdapter.toJson(data)
 
-        val createTaskResult = storage.create(type, taskDataString)
+        val createTaskResult = storage.create(type.name, taskDataString)
         logger.debug("added queue task data $taskDataString")
 
         processQueueStatus(createTaskResult.queueStatus)

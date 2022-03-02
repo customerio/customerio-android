@@ -99,56 +99,6 @@ class CustomerIOTest : BaseTest() {
     }
 
     @Test
-    fun verifySDKReturnsSuccessWhenDeviceIsAdded() {
-        `when`(
-            apiMock.registerDeviceToken(
-                any(),
-            )
-        ).thenReturn(getEmptyAction())
-
-        val response = customerIO.registerDeviceToken("event_name").execute()
-
-        verifySuccess(response, Unit)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenAddingDeviceRequestFails() {
-        `when`(
-            apiMock.registerDeviceToken(
-                any(),
-            )
-        )
-            .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
-
-        val response = customerIO.registerDeviceToken("event_name").execute()
-
-        verifyError(response, StatusCode.BadRequest)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenDeviceIsRemoved() {
-        `when`(
-            apiMock.deleteDeviceToken()
-        ).thenReturn(getEmptyAction())
-
-        val response = customerIO.deleteDeviceToken().execute()
-
-        verifySuccess(response, Unit)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenRemovingDeviceRequestFails() {
-        `when`(
-            apiMock.deleteDeviceToken()
-        )
-            .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
-
-        val response = customerIO.deleteDeviceToken().execute()
-
-        verifyError(response, StatusCode.BadRequest)
-    }
-
-    @Test
     fun verifySDKReturnsSuccessWhenPushEventMetricIsTracked() {
         `when`(
             apiMock.trackMetric(any(), any(), any())

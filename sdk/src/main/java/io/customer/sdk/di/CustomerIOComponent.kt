@@ -26,10 +26,10 @@ import io.customer.sdk.queue.QueueRequestManager
 import io.customer.sdk.queue.QueueRequestManagerImpl
 import io.customer.sdk.queue.QueueRunRequest
 import io.customer.sdk.queue.QueueRunRequestImpl
+import io.customer.sdk.queue.QueueRunner
+import io.customer.sdk.queue.QueueRunnerImpl
 import io.customer.sdk.queue.QueueStorage
 import io.customer.sdk.queue.QueueStorageImpl
-import io.customer.sdk.queue.type.QueueRunner
-import io.customer.sdk.queue.type.QueueRunnerImpl
 import io.customer.sdk.repository.*
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DateUtilImpl

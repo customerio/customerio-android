@@ -7,5 +7,5 @@ import io.customer.sdk.queue.type.QueueTask
 interface QueueRunnerHook {
     // called from background queue in `Tracking` module.
     // if queue task does *not* belong to the module, return null and the queue will send the task to another module.
-    suspend fun runTask(queueTask: QueueTask): QueueRunTaskResult?
+    suspend fun runTask(task: QueueTask): QueueRunTaskResult?
 }

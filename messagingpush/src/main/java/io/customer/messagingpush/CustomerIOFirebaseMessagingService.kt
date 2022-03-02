@@ -1,7 +1,6 @@
 package io.customer.messagingpush
 
 import android.content.Context
-import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.base.comunication.Action
@@ -53,16 +52,11 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             token: String,
             errorCallback: Action.Callback<Unit> = Action.Callback { }
         ) {
-            handleNewToken(token, errorCallback)
+            handleNewToken(token)
         }
 
-        private fun handleNewToken(token: String, errorCallback: Action.Callback<Unit>) {
-            try {
-                MessagingPush.instance().registerDeviceToken(deviceToken = token).enqueue(errorCallback)
-            } catch (exception: IllegalStateException) {
-                Log.e(TAG, "Error while handling token: ${exception.message}")
-                errorCallback.onResult(exception.getErrorResult())
-            }
+        private fun handleNewToken(token: String) {
+            MessagingPush.instance().registerDeviceToken(deviceToken = token)
         }
 
         private fun handleMessageReceived(
@@ -76,7 +70,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        handleNewToken(token) { }
+        handleNewToken(token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {

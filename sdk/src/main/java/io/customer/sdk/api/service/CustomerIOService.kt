@@ -24,15 +24,15 @@ interface CustomerIOService {
 
     @JvmSuppressWildcards
     @PUT("api/v1/customers/{identifier}/devices")
-    fun addDevice(
+    suspend fun addDevice(
         @Path("identifier") identifier: String,
         @Body body: DeviceRequest,
-    ): CustomerIoCall<Unit>
+    ): Response<Unit>
 
     @JvmSuppressWildcards
     @DELETE("api/v1/customers/{identifier}/devices/{token}")
-    fun removeDevice(
+    suspend fun removeDevice(
         @Path("identifier") identifier: String,
         @Path("token") token: String,
-    ): CustomerIoCall<Unit>
+    ): Response<Unit>
 }

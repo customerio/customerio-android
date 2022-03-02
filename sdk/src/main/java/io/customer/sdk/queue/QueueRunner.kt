@@ -1,8 +1,14 @@
-package io.customer.sdk.queue.type
+package io.customer.sdk.queue
 
+import io.customer.base.error.InternalSdkError
+import io.customer.base.extenstions.mapFirstSuspend
 import io.customer.sdk.api.CustomerIOAPIHttpClient
 import io.customer.sdk.extensions.valueOfOrNull
+import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
+import io.customer.sdk.queue.type.QueueRunTaskResult
+import io.customer.sdk.queue.type.QueueTask
+import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.util.JsonAdapter
 
 interface QueueRunner {
@@ -11,18 +17,21 @@ interface QueueRunner {
 
 internal class QueueRunnerImpl(
     private val jsonAdapter: JsonAdapter,
-    private val cioHttpClient: CustomerIOAPIHttpClient
+    private val cioHttpClient: CustomerIOAPIHttpClient,
+    private val hooks: HooksManager
 ) : QueueRunner {
     override suspend fun runTask(task: QueueTask): QueueRunTaskResult {
-        when (valueOfOrNull<QueueTaskType>(task.type)) {
+        return when (valueOfOrNull<QueueTaskType>(task.type)) {
             QueueTaskType.IdentifyProfile -> TODO() // return identifyProfile(task)
-            QueueTaskType.TrackEvent -> return trackEvent(task)
+            QueueTaskType.TrackEvent -> trackEvent(task)
             null -> {
-                // TODO where hooks will attempt to run queue task in other module.
+                val runTaskResult = hooks.queueRunnerHooks.mapFirstSuspend { hook ->
+                    hook.runTask(task)
+                }
+
+                runTaskResult ?: Result.failure(InternalSdkError("task ${task.type} not handled by any module"))
             }
         }
-
-        return Result.success(Unit)
     }
 
 //    private suspend fun identifyProfile(task: QueueTask): QueueRunTaskResult {

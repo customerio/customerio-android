@@ -43,10 +43,6 @@ interface CustomerIOInstance {
 
     fun clearIdentify()
 
-    fun registerDeviceToken(deviceToken: String): Action<Unit>
-
-    fun deleteDeviceToken(): Action<Unit>
-
     fun trackMetric(
         deliveryID: String,
         event: MetricEvent,
@@ -250,18 +246,6 @@ class CustomerIO constructor(
     override fun clearIdentify() {
         api.clearIdentify()
     }
-
-    /**
-     * Register a new device token with Customer.io, associated with the current active customer. If there
-     * is no active customer, this will fail to register the device
-     */
-    override fun registerDeviceToken(deviceToken: String): Action<Unit> =
-        api.registerDeviceToken(deviceToken)
-
-    /**
-     * Delete the currently registered device token
-     */
-    override fun deleteDeviceToken(): Action<Unit> = api.deleteDeviceToken()
 
     /**
      * Track a push metric

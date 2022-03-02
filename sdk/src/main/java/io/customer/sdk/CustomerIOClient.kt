@@ -1,18 +1,16 @@
 package io.customer.sdk
 
-import io.customer.base.comunication.Action
-import io.customer.base.data.Result
-import io.customer.base.data.Success
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event
+import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
-import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 import java.util.*
@@ -22,38 +20,50 @@ import java.util.*
  * repositories and `CustomerIo` class
  */
 internal class CustomerIOClient(
-    private val identityRepository: IdentityRepository,
     private val preferenceRepository: PreferenceRepository,
-    private val pushNotificationRepository: PushNotificationRepository,
     private val backgroundQueue: Queue,
+    private val hooks: HooksManager,
     private val dateUtil: DateUtil,
     private val logger: Logger
 ) : CustomerIOApi {
 
-    override fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit> {
-        return object : Action<Unit> {
-            val action by lazy { identityRepository.identify(identifier, attributes) }
-            override fun execute(): Result<Unit> {
-                val result = action.execute()
-                if (result is Success) {
-                    logger.info("logged in $identifier successfully. Saving identifier to storage")
-                    preferenceRepository.saveIdentifier(identifier = identifier)
-                }
-                return result
-            }
+    override fun identify(identifier: String, attributes: Map<String, Any>) {
+        logger.info("identify profile $identifier")
+        logger.debug("identify profile $identifier, $attributes")
 
-            override fun enqueue(callback: Action.Callback<Unit>) {
-                action.enqueue {
-                    if (it is Success) {
-                        logger.info("logged in $identifier successfully. Saving identifier to storage")
-                        preferenceRepository.saveIdentifier(identifier = identifier)
-                    }
-                    callback.onResult(it)
+        val currentlyIdentifiedProfileIdentifier = preferenceRepository.getIdentifier()
+        val isChangingIdentifiedProfile = currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
+        val isFirstTimeIdentifying = currentlyIdentifiedProfileIdentifier == null
+
+        currentlyIdentifiedProfileIdentifier?.let { currentlyIdentifiedProfileIdentifier ->
+            if (isChangingIdentifiedProfile) {
+                logger.info("changing profile from id $currentlyIdentifiedProfileIdentifier to $identifier")
+
+                logger.debug("running hooks changing profile from $currentlyIdentifiedProfileIdentifier to $identifier")
+                hooks.profileIdentifiedHooks.forEach { hook ->
+                    hook.beforeIdentifiedProfileChange(
+                        oldIdentifier = currentlyIdentifiedProfileIdentifier,
+                        newIdentifier = identifier
+                    )
                 }
             }
+        }
 
-            override fun cancel() {
-                action.cancel()
+        val queueStatus = backgroundQueue.addTask(QueueTaskType.IdentifyProfile, IdentifyProfileQueueTaskData(identifier, attributes))
+
+        // don't modify the state of the SDK until we confirm we added a queue task successfully.
+        if (!queueStatus.success) {
+            logger.debug("failed to add identify task to queue")
+            return
+        }
+
+        logger.debug("storing identifier on device storage $identifier")
+        preferenceRepository.saveIdentifier(identifier)
+
+        if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
+            logger.debug("running hooks profile identified")
+            hooks.profileIdentifiedHooks.forEach { hook ->
+                hook.profileIdentified(identifier)
             }
         }
     }
@@ -90,7 +100,20 @@ internal class CustomerIOClient(
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String
-    ) = pushNotificationRepository.trackMetric(deliveryID, event, deviceToken)
+    ) {
+        logger.info("push metric ${event.name}")
+        logger.debug("delivery id $deliveryID device token $deviceToken")
+
+        backgroundQueue.addTask(
+            QueueTaskType.TrackPushMetric,
+            Metric(
+                deliveryID = deliveryID,
+                deviceToken = deviceToken,
+                event = event,
+                timestamp = dateUtil.now
+            )
+        )
+    }
 
     override fun screen(name: String, attributes: Map<String, Any>) {
         return track(EventType.screen, name, attributes)

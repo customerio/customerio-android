@@ -3,7 +3,6 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
@@ -13,12 +12,12 @@ import io.customer.sdk.di.CustomerIOComponent
 interface CustomerIOInstance {
     val siteId: String
 
-    fun identify(identifier: String): Action<Unit>
+    fun identify(identifier: String)
 
     fun identify(
         identifier: String,
         attributes: Map<String, Any>
-    ): Action<Unit>
+    )
 
     fun track(name: String)
 
@@ -47,7 +46,7 @@ interface CustomerIOInstance {
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String,
-    ): Action<Unit>
+    )
 }
 
 /**
@@ -162,7 +161,7 @@ class CustomerIO constructor(
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    override fun identify(identifier: String): Action<Unit> = this.identify(identifier, emptyMap())
+    override fun identify(identifier: String) = this.identify(identifier, emptyMap())
 
     /**
      * Identify a customer (aka: Add or update a profile).
@@ -178,7 +177,7 @@ class CustomerIO constructor(
     override fun identify(
         identifier: String,
         attributes: Map<String, Any>
-    ): Action<Unit> = api.identify(identifier, attributes)
+    ) = api.identify(identifier, attributes)
 
     /**
      * Track an event

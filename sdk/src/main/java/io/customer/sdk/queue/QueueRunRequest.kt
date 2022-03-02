@@ -1,7 +1,6 @@
 package io.customer.sdk.queue
 
 import io.customer.sdk.queue.type.QueueInventory
-import io.customer.sdk.queue.type.QueueRunner
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 

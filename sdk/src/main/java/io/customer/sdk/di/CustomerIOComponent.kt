@@ -10,9 +10,6 @@ import io.customer.sdk.api.CustomerIOAPIHttpClient
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.api.RetrofitCustomerIOAPIHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
-import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
-import io.customer.sdk.api.service.CustomerIOService
-import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
@@ -77,7 +74,7 @@ class CustomerIOComponent private constructor(
         get() = override() ?: QueueStorageImpl(siteId, fileStorage, jsonAdapter)
 
     val queueRunner: QueueRunner
-        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient)
+        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, hooks)
 
     val queueRunRequestManager: QueueRequestManager by lazy { override() ?: QueueRequestManagerImpl() }
 
@@ -93,25 +90,18 @@ class CustomerIOComponent private constructor(
     val hooks: HooksManager by lazy { override() ?: HooksManagerImpl() }
 
     val cioHttpClient: CustomerIOAPIHttpClient
-        get() = override() ?: RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
+        get() = override() ?: RetrofitCustomerIOAPIHttpClient(buildRetrofitApi(), buildRetrofitApi())
 
     val dateUtil: DateUtil
         get() = override() ?: DateUtilImpl()
 
     fun buildApi(): CustomerIOApi {
         return override() ?: CustomerIOClient(
-            identityRepository = IdentityRepositoryImpl(
-                customerIOService = buildRetrofitApi<CustomerIOService>(),
-                attributesRepository = attributesRepository
-            ),
             preferenceRepository = sharedPreferenceRepository,
-            pushNotificationRepository = PushNotificationRepositoryImp(
-                customerIOService = buildRetrofitApi<CustomerIOService>(),
-                pushService = buildRetrofitApi<PushService>()
-            ),
             backgroundQueue = queue,
             dateUtil = dateUtil,
-            logger = logger
+            logger = logger,
+            hooks = hooks
         )
     }
 
@@ -131,12 +121,6 @@ class CustomerIOComponent private constructor(
         override() ?: PreferenceRepositoryImpl(
             context = context,
             siteId = siteId
-        )
-    }
-
-    private val attributesRepository: AttributesRepository by lazy {
-        override() ?: MoshiAttributesRepositoryImp(
-            parser = customerIOParser
         )
     }
 
@@ -181,7 +165,6 @@ class CustomerIOComponent private constructor(
             .baseUrl(endpoint)
             .client(okHttpClient)
             .addConverterFactory(retrofitMoshiConverterFactory)
-            .addCallAdapterFactory(CustomerIoCallAdapterFactory.create())
             .build()
     }
 

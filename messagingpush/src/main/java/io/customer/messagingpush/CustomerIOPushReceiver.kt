@@ -42,7 +42,6 @@ class CustomerIOPushReceiver : BroadcastReceiver() {
 
         if (deliveryId != null && deliveryToken != null) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
-                .enqueue()
         }
 
         val deepLink = bundle?.getString(DEEP_LINK_KEY)

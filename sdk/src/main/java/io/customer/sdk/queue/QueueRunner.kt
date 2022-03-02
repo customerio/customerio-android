@@ -3,8 +3,10 @@ package io.customer.sdk.queue
 import io.customer.base.error.InternalSdkError
 import io.customer.base.extenstions.mapFirstSuspend
 import io.customer.sdk.api.CustomerIOAPIHttpClient
+import io.customer.sdk.data.request.Metric
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueRunTaskResult
 import io.customer.sdk.queue.type.QueueTask
@@ -22,8 +24,9 @@ internal class QueueRunnerImpl(
 ) : QueueRunner {
     override suspend fun runTask(task: QueueTask): QueueRunTaskResult {
         return when (valueOfOrNull<QueueTaskType>(task.type)) {
-            QueueTaskType.IdentifyProfile -> TODO() // return identifyProfile(task)
+            QueueTaskType.IdentifyProfile -> identifyProfile(task)
             QueueTaskType.TrackEvent -> trackEvent(task)
+            QueueTaskType.TrackPushMetric -> trackPushMetrics(task)
             null -> {
                 val runTaskResult = hooks.queueRunnerHooks.mapFirstSuspend { hook ->
                     hook.runTask(task)
@@ -34,15 +37,21 @@ internal class QueueRunnerImpl(
         }
     }
 
-//    private suspend fun identifyProfile(task: QueueTask): QueueRunTaskResult {
-//        val taskData: IdentifyProfileQueueTaskData = jsonAdapter.fromJson(task.data)
-//
-//        // TODO perform http request
-//    }
+    private suspend fun identifyProfile(task: QueueTask): QueueRunTaskResult {
+        val taskData: IdentifyProfileQueueTaskData = jsonAdapter.fromJson(task.data)
+
+        return cioHttpClient.identifyProfile(taskData.identifier, taskData.attributes)
+    }
 
     private suspend fun trackEvent(task: QueueTask): QueueRunTaskResult {
         val taskData: TrackEventQueueTaskData = jsonAdapter.fromJson(task.data)
 
         return cioHttpClient.track(taskData.identifier, taskData.event)
+    }
+
+    private suspend fun trackPushMetrics(task: QueueTask): QueueRunTaskResult {
+        val taskData: Metric = jsonAdapter.fromJson(task.data)
+
+        return cioHttpClient.trackPushMetrics(taskData)
     }
 }

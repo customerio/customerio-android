@@ -1,6 +1,5 @@
 package io.customer.sdk.api.service
 
-import io.customer.sdk.api.retrofit.CustomerIoCall
 import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
 import retrofit2.Response
@@ -10,10 +9,10 @@ interface CustomerIOService {
 
     @JvmSuppressWildcards
     @PUT("api/v1/customers/{identifier}")
-    fun identifyCustomer(
+    suspend fun identifyCustomer(
         @Path("identifier") identifier: String,
         @Body body: Map<String, Any>,
-    ): CustomerIoCall<Unit>
+    ): Response<Unit>
 
     @JvmSuppressWildcards
     @POST("api/v1/customers/{identifier}/events")

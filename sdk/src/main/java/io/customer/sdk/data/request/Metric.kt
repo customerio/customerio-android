@@ -2,6 +2,7 @@ package io.customer.sdk.data.request
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import java.util.*
 
 @JsonClass(generateAdapter = false)
 enum class MetricEvent {
@@ -9,9 +10,9 @@ enum class MetricEvent {
 }
 
 @JsonClass(generateAdapter = true)
-internal data class Metric(
+data class Metric(
     @field:Json(name = "delivery_id") val deliveryID: String,
     @field:Json(name = "device_id") val deviceToken: String,
     val event: MetricEvent,
-    val timestamp: Long
+    val timestamp: Date
 )

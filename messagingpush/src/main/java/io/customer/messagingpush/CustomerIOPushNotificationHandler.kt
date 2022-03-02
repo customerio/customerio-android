@@ -69,7 +69,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
                     deliveryID = deliveryId,
                     deviceToken = deliveryToken,
                     event = MetricEvent.delivered
-                ).enqueue()
+                )
             } catch (exception: Exception) {
                 Log.e(TAG, "Error while handling message: ${exception.message}")
             }

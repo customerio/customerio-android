@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 
 interface CustomerIOInstance {
@@ -41,12 +40,6 @@ interface CustomerIOInstance {
     )
 
     fun clearIdentify()
-
-    fun trackMetric(
-        deliveryID: String,
-        event: MetricEvent,
-        deviceToken: String,
-    )
 }
 
 /**
@@ -245,19 +238,6 @@ class CustomerIO constructor(
     override fun clearIdentify() {
         api.clearIdentify()
     }
-
-    /**
-     * Track a push metric
-     */
-    override fun trackMetric(
-        deliveryID: String,
-        event: MetricEvent,
-        deviceToken: String,
-    ) = api.trackMetric(
-        deliveryID = deliveryID,
-        event = event,
-        deviceToken = deviceToken
-    )
 
     private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>) {
         val packageManager = activity.packageManager

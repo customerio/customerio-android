@@ -2,6 +2,8 @@ package io.customer.messagingpush.di
 
 import io.customer.messagingpush.api.MessagingPushApi
 import io.customer.messagingpush.api.MessagingPushApiImpl
+import io.customer.messagingpush.api.MessagingPushHttpClient
+import io.customer.messagingpush.api.RetrofitMessagingPushHttpClientImpl
 import io.customer.messagingpush.queue.MessagingPushQueueRunner
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.DiGraph
@@ -25,7 +27,10 @@ internal class MessagingPushDiGraph private constructor(
         get() = CustomerIOComponent.getInstance(siteId)
 
     val queueRunner: MessagingPushQueueRunner
-        get() = override() ?: MessagingPushQueueRunner(trackingDiGraph.jsonAdapter, trackingDiGraph.cioHttpClient)
+        get() = override() ?: MessagingPushQueueRunner(trackingDiGraph.jsonAdapter, httpClient)
+
+    internal val httpClient: MessagingPushHttpClient
+        get() = RetrofitMessagingPushHttpClientImpl(trackingDiGraph.buildRetrofitApi())
 
     val api: MessagingPushApi
         get() = override() ?: MessagingPushApiImpl(

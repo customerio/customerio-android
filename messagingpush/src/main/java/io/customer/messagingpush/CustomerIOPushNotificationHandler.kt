@@ -14,8 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.data.request.MetricEvent
+import io.customer.messagingpush.data.request.MetricEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -65,7 +64,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
         if (deliveryId != null && deliveryToken != null) {
             try {
-                CustomerIO.instance().trackMetric(
+                MessagingPush.instance().trackMetric(
                     deliveryID = deliveryId,
                     deviceToken = deliveryToken,
                     event = MetricEvent.delivered

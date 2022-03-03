@@ -6,9 +6,9 @@ import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.CustomerIOAPIHttpClient
+import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.api.CustomerIOApi
-import io.customer.sdk.api.RetrofitCustomerIOAPIHttpClient
+import io.customer.sdk.api.RetrofitTrackingHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.CustomerIOParser
 import io.customer.sdk.data.moshi.CustomerIOParserImpl
@@ -89,8 +89,8 @@ class CustomerIOComponent private constructor(
 
     val hooks: HooksManager by lazy { override() ?: HooksManagerImpl() }
 
-    val cioHttpClient: CustomerIOAPIHttpClient
-        get() = override() ?: RetrofitCustomerIOAPIHttpClient(buildRetrofitApi(), buildRetrofitApi())
+    internal val cioHttpClient: TrackingHttpClient
+        get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi())
 
     val dateUtil: DateUtil
         get() = override() ?: DateUtilImpl()
@@ -124,7 +124,7 @@ class CustomerIOComponent private constructor(
         )
     }
 
-    private inline fun <reified T> buildRetrofitApi(): T {
+    inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
             sdkConfig.region.baseUrl,
@@ -156,7 +156,7 @@ class CustomerIOComponent private constructor(
         )
     }
 
-    private fun buildRetrofit(
+    fun buildRetrofit(
         endpoint: String,
         timeout: Long
     ): Retrofit {

@@ -1,5 +1,7 @@
 package io.customer.messagingpush.api
 
+import io.customer.messagingpush.data.request.Metric
+import io.customer.messagingpush.data.request.MetricEvent
 import io.customer.messagingpush.queue.taskdata.DeletePushNotificationQueueTaskData
 import io.customer.messagingpush.queue.taskdata.RegisterPushNotificationQueueTaskData
 import io.customer.messagingpush.queue.type.QueueTaskType
@@ -8,12 +10,17 @@ import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 
-interface MessagingPushApi {
+internal interface MessagingPushApi {
     fun registerDeviceToken(deviceToken: String)
     fun deleteDeviceToken()
+    fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
+    )
 }
 
-class MessagingPushApiImpl(
+internal class MessagingPushApiImpl(
     private val logger: Logger,
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
@@ -66,5 +73,24 @@ class MessagingPushApiImpl(
          .identifiedProfile(identifier: identifiedProfileId)
          ])
          */
+    }
+
+    override fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
+    ) {
+        logger.info("push metric ${event.name}")
+        logger.debug("delivery id $deliveryID device token $deviceToken")
+
+        backgroundQueue.addTask(
+            QueueTaskType.TrackPushMetric,
+            Metric(
+                deliveryID = deliveryID,
+                deviceToken = deviceToken,
+                event = event,
+                timestamp = dateUtil.now
+            )
+        )
     }
 }

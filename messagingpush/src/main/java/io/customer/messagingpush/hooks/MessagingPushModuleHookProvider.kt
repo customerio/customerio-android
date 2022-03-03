@@ -6,8 +6,7 @@ import io.customer.sdk.hooks.ModuleHookProvider
 import io.customer.sdk.hooks.hooks.ProfileIdentifiedHook
 import io.customer.sdk.hooks.hooks.QueueRunnerHook
 
-//
-class MessagingPushModuleHookProvider(private val siteId: String) : ModuleHookProvider {
+internal class MessagingPushModuleHookProvider(private val siteId: String) : ModuleHookProvider {
 
     private val messagingPushDiGraph: MessagingPushDiGraph
         get() = MessagingPushDiGraph.getInstance(siteId)

@@ -1,6 +1,7 @@
 package io.customer.messagingpush
 
 import io.customer.messagingpush.api.MessagingPushApi
+import io.customer.messagingpush.data.request.MetricEvent
 import io.customer.messagingpush.di.MessagingPushDiGraph
 import io.customer.messagingpush.hooks.MessagingPushModuleHookProvider
 import io.customer.sdk.CustomerIO
@@ -14,6 +15,11 @@ import io.customer.sdk.util.Logger
 interface MessagingPushInstance {
     fun registerDeviceToken(deviceToken: String)
     fun deleteDeviceToken()
+    fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String,
+    )
 }
 
 // Convenient internal constructor used internally to get instance without needing to worry about providing all required constructors of CustomerIO class.
@@ -69,6 +75,15 @@ class MessagingPush internal constructor(
      * Delete the currently registered device token
      */
     override fun deleteDeviceToken() = api.deleteDeviceToken()
+
+    /**
+     * Track a push metric
+     */
+    override fun trackMetric(deliveryID: String, event: MetricEvent, deviceToken: String) = api.trackMetric(
+        deliveryID = deliveryID,
+        event = event,
+        deviceToken = deviceToken
+    )
 
     override fun beforeIdentifiedProfileChange(oldIdentifier: String, newIdentifier: String) {
         logger.debug("hook: deleting device token before identifying new profile")

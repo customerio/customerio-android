@@ -3,8 +3,6 @@ package io.customer.sdk
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event
-import io.customer.sdk.data.request.Metric
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
@@ -94,25 +92,6 @@ internal class CustomerIOClient(
         identifier?.let {
             preferenceRepository.removeIdentifier(it)
         }
-    }
-
-    override fun trackMetric(
-        deliveryID: String,
-        event: MetricEvent,
-        deviceToken: String
-    ) {
-        logger.info("push metric ${event.name}")
-        logger.debug("delivery id $deliveryID device token $deviceToken")
-
-        backgroundQueue.addTask(
-            QueueTaskType.TrackPushMetric,
-            Metric(
-                deliveryID = deliveryID,
-                deviceToken = deviceToken,
-                event = event,
-                timestamp = dateUtil.now
-            )
-        )
     }
 
     override fun screen(name: String, attributes: Map<String, Any>) {

@@ -2,8 +2,7 @@ package io.customer.sdk.queue
 
 import io.customer.base.error.InternalSdkError
 import io.customer.base.extenstions.mapFirstSuspend
-import io.customer.sdk.api.CustomerIOAPIHttpClient
-import io.customer.sdk.data.request.Metric
+import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
@@ -19,14 +18,14 @@ interface QueueRunner {
 
 internal class QueueRunnerImpl(
     private val jsonAdapter: JsonAdapter,
-    private val cioHttpClient: CustomerIOAPIHttpClient,
+    private val cioHttpClient: TrackingHttpClient,
     private val hooks: HooksManager
 ) : QueueRunner {
     override suspend fun runTask(task: QueueTask): QueueRunTaskResult {
         return when (valueOfOrNull<QueueTaskType>(task.type)) {
             QueueTaskType.IdentifyProfile -> identifyProfile(task)
             QueueTaskType.TrackEvent -> trackEvent(task)
-            QueueTaskType.TrackPushMetric -> trackPushMetrics(task)
+
             null -> {
                 val runTaskResult = hooks.queueRunnerHooks.mapFirstSuspend { hook ->
                     hook.runTask(task)
@@ -47,11 +46,5 @@ internal class QueueRunnerImpl(
         val taskData: TrackEventQueueTaskData = jsonAdapter.fromJson(task.data)
 
         return cioHttpClient.track(taskData.identifier, taskData.event)
-    }
-
-    private suspend fun trackPushMetrics(task: QueueTask): QueueRunTaskResult {
-        val taskData: Metric = jsonAdapter.fromJson(task.data)
-
-        return cioHttpClient.trackPushMetrics(taskData)
     }
 }

@@ -28,11 +28,15 @@ import io.customer.sdk.queue.QueueRunnerImpl
 import io.customer.sdk.queue.QueueStorage
 import io.customer.sdk.queue.QueueStorageImpl
 import io.customer.sdk.repository.*
+import io.customer.sdk.util.AndroidSimpleTimer
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DateUtilImpl
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.QueueTimer
+import io.customer.sdk.util.QueueTimerImpl
+import io.customer.sdk.util.SimpleTimer
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -82,7 +86,7 @@ class CustomerIOComponent private constructor(
         get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
 
     val queue: Queue
-        get() = override() ?: QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+        get() = override() ?: QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, queueTimer, logger)
 
     val logger: Logger
         get() = override() ?: LogcatLogger()
@@ -94,6 +98,12 @@ class CustomerIOComponent private constructor(
 
     val dateUtil: DateUtil
         get() = override() ?: DateUtilImpl()
+
+    val timer: SimpleTimer
+        get() = AndroidSimpleTimer(logger)
+
+    val queueTimer: QueueTimer
+        get() = override() ?: QueueTimerImpl.Factory(timer).getInstance(siteId)
 
     fun buildApi(): CustomerIOApi {
         return override() ?: CustomerIOClient(

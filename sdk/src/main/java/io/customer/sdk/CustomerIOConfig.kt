@@ -15,5 +15,10 @@ class CustomerIOConfig(
      This is mostly used during development to test configuration is setup. We do not recommend
      modifying this value because it impacts battery life of mobile device.
      */
-    val backgroundQueueMinNumberOfTasks: Int
+    val backgroundQueueMinNumberOfTasks: Int,
+    /**
+     * The number of seconds to delay running queue after a task has been added to it.
+     * We do not recommend modifying this value because it impacts battery life of mobile device.
+     */
+    val backgroundQueueSecondsDelay: Long
 )

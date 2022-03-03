@@ -121,7 +121,8 @@ class CustomerIO constructor(
                 timeout = timeout,
                 urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
-                backgroundQueueMinNumberOfTasks = 10
+                backgroundQueueMinNumberOfTasks = 10,
+                backgroundQueueSecondsDelay = 30
             )
 
             CustomerIOComponent.createAndUpdate(siteId, appContext, config)

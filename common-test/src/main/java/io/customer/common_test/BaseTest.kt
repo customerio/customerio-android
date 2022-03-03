@@ -27,7 +27,7 @@ abstract class BaseTest {
         get() = ApplicationProvider.getApplicationContext()
 
     protected val cioConfig: CustomerIOConfig
-        get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 30)
+        get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 10, 30)
 
     protected val di: CustomerIOComponent
         get() = CustomerIOComponent.getInstance(siteId).apply {

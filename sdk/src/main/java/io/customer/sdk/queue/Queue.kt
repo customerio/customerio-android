@@ -5,6 +5,8 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.QueueTimer
+import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,8 +20,12 @@ class QueueImpl internal constructor(
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
     private val sdkConfig: CustomerIOConfig,
+    private val queueTimer: QueueTimer,
     private val logger: Logger
 ) : Queue {
+
+    private val numberSecondsToScheduleTimer: Seconds
+        get() = Seconds(sdkConfig.backgroundQueueSecondsDelay)
 
     override fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult {
         logger.info("adding queue task $type")
@@ -34,6 +40,12 @@ class QueueImpl internal constructor(
         return createTaskResult
     }
 
+    private fun run() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runRequest.startIfNotAlready()
+        }
+    }
+
     private fun processQueueStatus(queueStatus: QueueStatus) {
         logger.debug("processing queue status $queueStatus")
         val isManyTasksInQueue = queueStatus.numTasksInQueue >= sdkConfig.backgroundQueueMinNumberOfTasks
@@ -41,9 +53,19 @@ class QueueImpl internal constructor(
         if (isManyTasksInQueue) {
             logger.info("queue met criteria to run automatically")
 
-            CoroutineScope(Dispatchers.IO).launch {
-                runRequest.startIfNotAlready()
+            queueTimer.cancel()
+
+            this.run()
+        } else {
+            // Not enough tasks in the queue yet to run it now, so let's schedule them to run in the future.
+            // It's expected that only 1 timer instance exists and is running in the SDK.
+            val didSchedule = queueTimer.scheduleIfNotAlready(numberSecondsToScheduleTimer) {
+                logger.info("queue timer: now running queue")
+
+                this.run()
             }
+
+            if (didSchedule) logger.info("queue timer: scheduled to run queue in $numberSecondsToScheduleTimer seconds")
         }
     }
 }

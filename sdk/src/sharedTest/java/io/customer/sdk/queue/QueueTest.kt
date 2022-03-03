@@ -6,6 +6,7 @@ import io.customer.common_test.BaseTest
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskType
+import io.customer.sdk.util.QueueTimer
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
@@ -19,12 +20,13 @@ class QueueTest : BaseTest() {
     private lateinit var queue: Queue
     val storageMock: QueueStorage = mock()
     val runRequestMock: QueueRunRequest = mock()
+    val queueTimerMock: QueueTimer = mock()
 
     @Before
     override fun setup() {
         super.setup()
 
-        queue = QueueImpl(storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, di.logger)
+        queue = QueueImpl(storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger)
     }
 
     @Test

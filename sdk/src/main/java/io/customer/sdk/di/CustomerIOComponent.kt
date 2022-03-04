@@ -111,6 +111,7 @@ class CustomerIOComponent private constructor(
             ),
             backgroundQueue = queue,
             dateUtil = dateUtil,
+            hooks = hooks,
             logger = logger
         )
     }

@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.utils.ActionUtils.Companion.getEmptyAction
 import io.customer.common_test.BaseTest
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.di.overrideDependency
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
@@ -23,6 +24,7 @@ import org.mockito.kotlin.whenever
 class MessagingPushTest : BaseTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
+    private val apiMock: CustomerIOApi = mock()
     private val hooksMock: HooksManager = mock()
     private val preferenceRepositoryMock: PreferenceRepository = mock()
 
@@ -35,6 +37,7 @@ class MessagingPushTest : BaseTest() {
         whenever(customerIOMock.siteId).thenReturn(siteId)
         di.overrideDependency(HooksManager::class.java, hooksMock)
         di.overrideDependency(PreferenceRepository::class.java, preferenceRepositoryMock)
+        di.overrideDependency(CustomerIOApi::class.java, apiMock)
 
         messagingPush = MessagingPush(customerIOMock)
     }
@@ -46,11 +49,11 @@ class MessagingPushTest : BaseTest() {
 
     @Test
     fun beforeIdentifiedProfileChange_expectDeleteOldDeviceToken() {
-        whenever(customerIOMock.deleteDeviceToken()).thenReturn(getEmptyAction())
+        whenever(apiMock.deleteDeviceToken()).thenReturn(getEmptyAction())
 
         messagingPush.beforeIdentifiedProfileChange(String.random, String.random)
 
-        verify(customerIOMock).deleteDeviceToken()
+        verify(apiMock).deleteDeviceToken()
     }
 
     @Test
@@ -59,26 +62,26 @@ class MessagingPushTest : BaseTest() {
 
         messagingPush.profileIdentified(String.random)
 
-        verify(customerIOMock, never()).registerDeviceToken(any())
+        verify(apiMock, never()).registerDeviceToken(any())
     }
 
     @Test
     fun profileIdentified_givenExistingPushToken_expectRegisterDeviceToken() {
         val givenDeviceToken = String.random
         whenever(preferenceRepositoryMock.getDeviceToken()).thenReturn(givenDeviceToken)
-        whenever(customerIOMock.registerDeviceToken(givenDeviceToken)).thenReturn(getEmptyAction())
+        whenever(apiMock.registerDeviceToken(givenDeviceToken)).thenReturn(getEmptyAction())
 
         messagingPush.profileIdentified(givenDeviceToken)
 
-        verify(customerIOMock).registerDeviceToken(givenDeviceToken)
+        verify(apiMock).registerDeviceToken(givenDeviceToken)
     }
 
     @Test
     fun profileStoppedBeingIdentified_expectDeleteDeviceToken() {
-        whenever(customerIOMock.deleteDeviceToken()).thenReturn(getEmptyAction())
+        whenever(apiMock.deleteDeviceToken()).thenReturn(getEmptyAction())
 
         messagingPush.profileStoppedBeingIdentified(String.random)
 
-        verify(customerIOMock).deleteDeviceToken()
+        verify(apiMock).deleteDeviceToken()
     }
 }

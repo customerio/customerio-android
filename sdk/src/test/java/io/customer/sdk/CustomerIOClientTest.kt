@@ -19,6 +19,7 @@ import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
 import io.customer.common_test.verifyError
 import io.customer.common_test.verifySuccess
+import io.customer.sdk.hooks.HooksManager
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
@@ -37,6 +38,7 @@ internal class CustomerIOClientTest {
     private val pushNotificationRepository: PushNotificationRepository = mock()
     private val backgroundQueueMock: Queue = mock()
     private val dateUtilMock: DateUtil = mock()
+    private val hooksMock: HooksManager = mock()
     private val loggerMock: Logger = mock()
 
     private lateinit var customerIOClient: CustomerIOClient
@@ -49,6 +51,7 @@ internal class CustomerIOClientTest {
             pushNotificationRepository = pushNotificationRepository,
             backgroundQueue = backgroundQueueMock,
             dateUtil = dateUtilMock,
+            hooks = hooksMock,
             logger = loggerMock
         )
     }

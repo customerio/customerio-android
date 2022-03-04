@@ -16,7 +16,7 @@ interface MessagingPushInstance {
     fun deleteDeviceToken(): Action<Unit>
 }
 
-class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
+class MessagingPush internal constructor(private val siteId: String) : MessagingPushInstance, ProfileIdentifiedHook {
 
     companion object {
         @JvmStatic
@@ -30,10 +30,6 @@ class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
     // Constructor for customers to use
     constructor(customerIO: CustomerIOInstance) : this(customerIO.siteId)
     // Convenient constructor used internally to get instance without needing to worry about providing all required constructors of CustomerIO class.
-    internal constructor(siteId: String) {
-        this.siteId = siteId
-    }
-    private lateinit var siteId: String
 
     // Since this class is at the top-most level of the MessagingPush module,
     // we get instances from the DiGraph, not through constructor dependency injection.
@@ -63,8 +59,6 @@ class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
      * is no active customer, this will fail to register the device
      */
     override fun registerDeviceToken(deviceToken: String): Action<Unit> {
-        // This is copy/pasted code from CustomerIO class. The iOS SDK has all push functions in the MessagingPush class for encapsulation in the optional messaging push SDK.
-        // TODO Should we deprecate the CustomerIO push functions and have the messaging functions exist in the messagingpush module, only?
         return api.registerDeviceToken(deviceToken)
     }
 
@@ -72,8 +66,6 @@ class MessagingPush : MessagingPushInstance, ProfileIdentifiedHook {
      * Delete the currently registered device token
      */
     override fun deleteDeviceToken(): Action<Unit> {
-        // This is copy/pasted code from CustomerIO class. The iOS SDK has all push functions in the MessagingPush class for encapsulation in the optional messaging push SDK.
-        // TODO Should we deprecate the CustomerIO push functions and have the messaging functions exist in the messagingpush module, only?
         return api.deleteDeviceToken()
     }
 

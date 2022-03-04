@@ -30,6 +30,10 @@ class QueueRunRequestImpl internal constructor(
         runTasks(inventory, inventory.count())
     }
 
+    // TODO create backgorund queue docs in project. include explaination of "snapshot"s from github PR.
+
+    // TODO can we split this function into smaller pieces? it would be easier to read/maintain/test
+    // idea: separate functions/classes to do all work related to getting the task from storage.
     private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
         if (inventory.isEmpty()) {
             logger.debug("queue done running tasks")
@@ -39,6 +43,7 @@ class QueueRunRequestImpl internal constructor(
         val nextTaskToRunInventoryItem = inventory[0]
         val nextTaskStorageId = nextTaskToRunInventoryItem.taskPersistedId
         val nextTaskToRun = queueStorage.get(nextTaskStorageId)
+        // TODO using groups, get the next task to run.
         if (nextTaskToRun == null) {
             logger.error("tried to get queue task with storage id: $nextTaskStorageId but storage couldn't find it.")
 
@@ -64,6 +69,7 @@ class QueueRunRequestImpl internal constructor(
                 val error = result.exceptionOrNull()
                 logger.debug("queue task $nextTaskStorageId run failed $error")
 
+                // TODO implement pauses in HTTP requests
                 // TODO parse the error to see if it was because of paused HTTP requests
                 val previousRunResults = nextTaskToRun.runResults
                 val newRunResults = nextTaskToRun.runResults.copy().apply { totalRuns + 1 }

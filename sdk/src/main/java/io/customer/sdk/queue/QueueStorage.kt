@@ -6,6 +6,7 @@ import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTask
+import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.util.JsonAdapter
@@ -14,7 +15,7 @@ import java.util.*
 interface QueueStorage {
     fun getInventory(): QueueInventory
     fun saveInventory(inventory: QueueInventory): Boolean
-    fun create(type: String, data: String): QueueModifyResult
+    fun create(type: String, data: String, groupStart: QueueTaskGroup?, blockingGroups: List<QueueTaskGroup>?): QueueModifyResult
     fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
@@ -40,7 +41,12 @@ class QueueStorageImpl internal constructor(
         }
     }
 
-    override fun create(type: String, data: String): QueueModifyResult {
+    override fun create(
+        type: String,
+        data: String,
+        groupStart: QueueTaskGroup?,
+        blockingGroups: List<QueueTaskGroup>?
+    ): QueueModifyResult {
         synchronized(this) {
             val existingInventory = getInventory().toMutableList()
             val beforeCreateQueueStatus = QueueStatus(siteId, existingInventory.count())
@@ -56,8 +62,8 @@ class QueueStorageImpl internal constructor(
             val newInventoryItem = QueueTaskMetadata(
                 newTaskStorageId,
                 type,
-                null,
-                null,
+                groupStart?.toString(),
+                blockingGroups?.map { it.toString() },
                 Date()
             )
             existingInventory.add(newInventoryItem)

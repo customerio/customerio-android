@@ -7,6 +7,7 @@ import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
+import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.DateUtil
@@ -47,7 +48,15 @@ internal class CustomerIOClient(
             }
         }
 
-        val queueStatus = backgroundQueue.addTask(QueueTaskType.IdentifyProfile, IdentifyProfileQueueTaskData(identifier, attributes))
+        // If SDK previously identified profile X and X is being identified again, no use blocking the queue with a queue group.
+        var queueGroupStart: QueueTaskGroup? = QueueTaskGroup.IdentifyProfile(identifier)
+        if (!isChangingIdentifiedProfile) queueGroupStart = null
+
+        val queueStatus = backgroundQueue.addTask(
+            QueueTaskType.IdentifyProfile,
+            IdentifyProfileQueueTaskData(identifier, attributes),
+            groupStart = queueGroupStart
+        )
 
         // don't modify the state of the SDK until we confirm we added a queue task successfully.
         if (!queueStatus.success) {
@@ -84,7 +93,13 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.TrackEvent, TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)))
+        backgroundQueue.addTask(
+            QueueTaskType.TrackEvent,
+            TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)),
+            blockingGroups = listOf(
+                QueueTaskGroup.IdentifyProfile(identifier)
+            )
+        )
     }
 
     override fun clearIdentify() {

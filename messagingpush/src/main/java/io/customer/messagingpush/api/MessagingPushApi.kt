@@ -6,6 +6,7 @@ import io.customer.messagingpush.queue.taskdata.DeletePushNotificationQueueTaskD
 import io.customer.messagingpush.queue.taskdata.RegisterPushNotificationQueueTaskData
 import io.customer.messagingpush.queue.type.QueueTaskType
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
@@ -39,12 +40,12 @@ internal class MessagingPushApiImpl(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.RegisterDeviceToken, RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now))
-        // TODO grouping
-        /**
-         *                                     groupStart: .registeredPushToken(token: deviceToken),
-         blockingGroups: [.identifiedProfile(identifier: identifier)])
-         */
+        backgroundQueue.addTask(
+            QueueTaskType.RegisterDeviceToken,
+            RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now),
+            groupStart = QueueTaskGroup.RegisterPushToken(deviceToken),
+            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifiedProfileId))
+        )
     }
 
     override fun deleteDeviceToken() {
@@ -65,14 +66,14 @@ internal class MessagingPushApiImpl(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.DeletePushToken, DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken))
-        // TODO add groups
-        /**
-         *                                     blockingGroups: [
-         .registeredPushToken(token: existingDeviceToken),
-         .identifiedProfile(identifier: identifiedProfileId)
-         ])
-         */
+        backgroundQueue.addTask(
+            QueueTaskType.DeletePushToken,
+            DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken),
+            blockingGroups = listOf(
+                QueueTaskGroup.RegisterPushToken(existingDeviceToken),
+                QueueTaskGroup.IdentifyProfile(identifiedProfileId)
+            )
+        )
     }
 
     override fun trackMetric(

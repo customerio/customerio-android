@@ -2,7 +2,6 @@ package io.customer.sdk.repositories
 
 import io.customer.base.error.StatusCode
 import io.customer.sdk.api.service.CustomerIOService
-import io.customer.sdk.repository.AttributesRepository
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.IdentityRepositoryImpl
 import io.customer.sdk.utils.MockRetrofitError
@@ -18,15 +17,13 @@ import org.mockito.kotlin.mock
 internal class IdentityRepositoryTest {
 
     private val mockCustomerIOService: CustomerIOService = mock()
-    private val mockAttributesRepository: AttributesRepository = mock()
 
     lateinit var identityRepository: IdentityRepository
 
     @Before
     fun setup() {
         identityRepository = IdentityRepositoryImpl(
-            customerIOService = mockCustomerIOService,
-            attributesRepository = mockAttributesRepository
+            customerIOService = mockCustomerIOService
         )
     }
 

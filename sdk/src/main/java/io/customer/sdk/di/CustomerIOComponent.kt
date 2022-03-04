@@ -13,9 +13,8 @@ import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
 import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.api.service.PushService
-import io.customer.sdk.data.moshi.CustomerIOParser
-import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
+import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
 import io.customer.sdk.queue.Queue
@@ -37,7 +36,6 @@ import io.customer.sdk.util.Logger
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -86,8 +84,7 @@ internal class CustomerIOComponent(
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
-                customerIOService = buildRetrofitApi<CustomerIOService>(),
-                attributesRepository = attributesRepository
+                customerIOService = buildRetrofitApi<CustomerIOService>()
             ),
             preferenceRepository = sharedPreferenceRepository,
             pushNotificationRepository = PushNotificationRepositoryImp(
@@ -119,12 +116,6 @@ internal class CustomerIOComponent(
         )
     }
 
-    private val attributesRepository by lazy {
-        MoshiAttributesRepositoryImp(
-            parser = customerIOParser
-        )
-    }
-
     private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return buildRetrofit(
@@ -132,8 +123,6 @@ internal class CustomerIOComponent(
             customerIOConfig.timeout,
         ).create(apiClass)
     }
-
-    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(moshi) }
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
@@ -148,13 +137,8 @@ internal class CustomerIOComponent(
         Moshi.Builder()
             .add(UnixDateAdapter())
             .add(BigDecimalAdapter())
+            .add(CustomAttributesFactory())
             .build()
-    }
-
-    private val retrofitMoshiConverterFactory by lazy {
-        MoshiConverterFactory.create(
-            moshi
-        )
     }
 
     private fun buildRetrofit(
@@ -165,7 +149,6 @@ internal class CustomerIOComponent(
         return Retrofit.Builder()
             .baseUrl(endpoint)
             .client(okHttpClient)
-            .addConverterFactory(retrofitMoshiConverterFactory)
             .addCallAdapterFactory(CustomerIoCallAdapterFactory.create())
             .build()
     }

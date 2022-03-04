@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
@@ -123,7 +124,7 @@ class CustomerIO internal constructor(
      */
     fun identify(
         identifier: String,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ): Action<Unit> = api.identify(identifier, attributes)
 
     /**
@@ -135,7 +136,7 @@ class CustomerIO internal constructor(
      */
     fun track(
         name: String,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ) = api.track(name, attributes)
 
     /**
@@ -146,7 +147,7 @@ class CustomerIO internal constructor(
      */
     fun screen(
         name: String,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ) = api.screen(name, attributes)
 
     /**
@@ -157,7 +158,7 @@ class CustomerIO internal constructor(
      */
     fun screen(
         activity: Activity,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -196,7 +197,7 @@ class CustomerIO internal constructor(
         deviceToken = deviceToken
     )
 
-    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>) {
+    private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(

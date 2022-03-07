@@ -69,13 +69,17 @@ internal class CustomerIOClient(
         }
     }
 
-    override fun registerDeviceToken(deviceToken: String): Action<Unit> {
+    override fun registerDeviceToken(
+        deviceToken: String,
+        deviceAttributes: Map<String, Any>
+    ): Action<Unit> {
         val identifier = preferenceRepository.getIdentifier()
         return object : Action<Unit> {
             val action by lazy {
                 pushNotificationRepository.registerDeviceToken(
-                    identifier,
-                    deviceToken
+                    identifier = identifier,
+                    deviceToken = deviceToken,
+                    attributes = deviceAttributes
                 )
             }
 

@@ -1,6 +1,7 @@
 package io.customer.sdk.repositories
 
 import io.customer.base.error.StatusCode
+import io.customer.sdk.BaseTest
 import io.customer.sdk.api.service.CustomerService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.request.MetricEvent
@@ -16,7 +17,7 @@ import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 
-internal class PushNotificationRepositoryTest {
+internal class PushNotificationRepositoryTest : BaseTest() {
 
     private val mockCustomerService: CustomerService = mock()
     private val mockPushService: PushService = mock()
@@ -27,14 +28,18 @@ internal class PushNotificationRepositoryTest {
     fun setup() {
         pushNotificationRepository = PushNotificationRepositoryImp(
             customerService = mockCustomerService,
-            pushService = mockPushService
+            pushService = mockPushService,
+            attributesRepository = attributesRepository
         )
     }
 
     @Test
     fun `Register device returns error if user is not identified`() {
 
-        val result = pushNotificationRepository.registerDeviceToken(null, "token").execute()
+        val result = pushNotificationRepository.registerDeviceToken(
+            null,
+            "token", deviceStore.buildDeviceAttributes()
+        ).execute()
 
         verifyError(result, StatusCode.UnIdentifiedUser)
     }
@@ -42,7 +47,10 @@ internal class PushNotificationRepositoryTest {
     @Test
     fun `Register device returns error if token is blank`() {
 
-        val result = pushNotificationRepository.registerDeviceToken("identifier", "").execute()
+        val result = pushNotificationRepository.registerDeviceToken(
+            "identifier",
+            "", emptyMap()
+        ).execute()
 
         verifyError(result, StatusCode.InvalidToken)
     }
@@ -53,7 +61,11 @@ internal class PushNotificationRepositoryTest {
             mockCustomerService.addDevice(any(), any())
         ).thenReturn(MockRetrofitSuccess(Unit).toCustomerIoCall())
 
-        val result = pushNotificationRepository.registerDeviceToken("identifier", "token").execute()
+        val result = pushNotificationRepository.registerDeviceToken(
+            "identifier",
+            "token",
+            deviceStore.buildDeviceAttributes()
+        ).execute()
 
         verifySuccess(result, Unit)
     }
@@ -64,7 +76,10 @@ internal class PushNotificationRepositoryTest {
             mockCustomerService.addDevice(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(500).toCustomerIoCall())
 
-        val result = pushNotificationRepository.registerDeviceToken("identifier", "token").execute()
+        val result = pushNotificationRepository.registerDeviceToken(
+            "identifier",
+            "token", deviceStore.buildDeviceAttributes()
+        ).execute()
 
         verifyError(result, StatusCode.InternalServerError)
     }

@@ -43,7 +43,8 @@ internal class CustomerIOComponent(
             ),
             pushNotificationRepository = PushNotificationRepositoryImp(
                 customerService = buildRetrofitApi<CustomerService>(),
-                pushService = buildRetrofitApi<PushService>()
+                pushService = buildRetrofitApi<PushService>(),
+                attributesRepository = attributesRepository
             )
         )
     }

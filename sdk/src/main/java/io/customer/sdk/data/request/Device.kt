@@ -7,7 +7,8 @@ import com.squareup.moshi.JsonClass
 internal data class Device(
     @field:Json(name = "id") val token: String,
     val platform: String = "android",
-    val lastUsed: Long
+    val lastUsed: Long,
+    val attributes: Map<String, Any>
 )
 
 @JsonClass(generateAdapter = true)

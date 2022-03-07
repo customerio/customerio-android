@@ -1,39 +1,11 @@
 package io.customer.sdk.store
 
-import io.customer.sdk.data.store.ApplicationStore
-import io.customer.sdk.data.store.BuildStore
-import io.customer.sdk.data.store.DeviceStore
-import io.customer.sdk.data.store.DeviceStoreImp
+import io.customer.sdk.BaseTest
 import org.amshove.kluent.`should be equal to`
-import org.junit.Before
+import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-internal class DeviceStoreTest {
-
-    lateinit var deviceStore: DeviceStore
-
-    @Before
-    fun setup() {
-        deviceStore = DeviceStoreImp(
-            buildStore = object : BuildStore {
-                override val deviceBrand: String
-                    get() = "Google"
-                override val deviceModel: String
-                    get() = "Pixel 6"
-                override val deviceManufacturer: String
-                    get() = "Google"
-                override val deviceOSVersion: Int
-                    get() = 30
-            },
-            applicationStore = object : ApplicationStore {
-                override val customerAppName: String
-                    get() = "User App"
-                override val customerAppVersion: String
-                    get() = "1.0"
-            },
-            version = "1.0.0-alpha.6"
-        )
-    }
+internal class DeviceStoreTest : BaseTest() {
 
     @Test
     fun `verify build attributes in device`() {
@@ -41,6 +13,7 @@ internal class DeviceStoreTest {
         deviceStore.deviceModel `should be equal to` "Pixel 6"
         deviceStore.deviceManufacturer `should be equal to` "Google"
         deviceStore.deviceOSVersion `should be equal to` 30
+        deviceStore.deviceLocale `should be equal to` "en"
     }
 
     @Test
@@ -53,5 +26,30 @@ internal class DeviceStoreTest {
     fun `verify user-agent is created correctly`() {
         deviceStore.buildUserAgent() `should be equal to`
             "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) User App/1.0"
+    }
+
+    @Test
+    fun `verify device attributes are created correctly`() {
+        val resultDeviceAttributes = deviceStore.buildDeviceAttributes()
+        val expectedDeviceAttributes = mapOf(
+            "device_os" to 30,
+            "device_model" to "Pixel 6",
+            "app_version" to "1.0",
+            "cio_sdk_version" to "1.0.0-alpha.6",
+            "device_locale" to "en",
+            "push_subscribed" to true
+        )
+
+        deviceStore.deviceBrand `should be equal to` "Google"
+        deviceStore.deviceModel `should be equal to` "Pixel 6"
+        deviceStore.deviceManufacturer `should be equal to` "Google"
+        deviceStore.deviceOSVersion `should be equal to` 30
+        deviceStore.deviceLocale `should be equal to` "en"
+
+        resultDeviceAttributes.keys shouldBeEqualTo expectedDeviceAttributes.keys
+
+        expectedDeviceAttributes.keys.forEach { key ->
+            expectedDeviceAttributes[key] `should be equal to` resultDeviceAttributes[key]
+        }
     }
 }

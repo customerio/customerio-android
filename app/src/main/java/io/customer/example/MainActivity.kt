@@ -26,7 +26,14 @@ class MainActivity : AppCompatActivity() {
 //        makeAsynchronousRequest()
 
         // log events
-        makeEventsRequests()
+//        makeEventsRequests()
+
+        // register device
+        makeRegisterDeviceRequest()
+    }
+
+    private fun makeRegisterDeviceRequest() {
+        CustomerIO.instance().registerDeviceToken("token").enqueue(outputCallback)
     }
 
     private val outputCallback = Action.Callback<Unit> { result ->

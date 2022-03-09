@@ -24,6 +24,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param errorCallback callback containing any error occurred
          * @return Boolean indicating whether this will be handled by CustomerIo
          */
+        @JvmOverloads
         fun onMessageReceived(
             context: Context,
             remoteMessage: RemoteMessage,
@@ -45,6 +46,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param token new or refreshed token
          * @param errorCallback callback containing any error occurred
          */
+        @JvmOverloads
         fun onNewToken(
             token: String,
             errorCallback: Action.Callback<Unit> = Action.Callback { }

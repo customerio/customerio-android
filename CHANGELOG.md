@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/customerio/customerio-android/compare/1.0.1...1.0.2) (2022-03-11)
+
+
+### Bug Fixes
+
+* added java compatibility in public constructors and methods ([2bb73be](https://github.com/customerio/customerio-android/commit/2bb73be50dd66ef7e308d587b19daaf66c7e0968))
+
 ## [1.0.1](https://github.com/customerio/customerio-android/compare/1.0.0...1.0.1) (2022-01-25)
 
 

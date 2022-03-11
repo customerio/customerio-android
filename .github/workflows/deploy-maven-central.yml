@@ -32,3 +32,13 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
+    
+      - name: Notify team of Maven Central deployment 
+        uses: openhousepvt/slack@v1.3.2
+        with:
+          status: 'success'
+          version: ${{ github.event.release.tag_name }}
+          platform: 'Android SDK - Deployed to Maven Central'
+          channel: '#squad-mobile'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}

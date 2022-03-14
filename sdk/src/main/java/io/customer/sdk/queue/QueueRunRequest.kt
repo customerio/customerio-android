@@ -13,15 +13,19 @@ class QueueRunRequestImpl internal constructor(
     private val runner: QueueRunner,
     private val queueStorage: QueueStorage,
     private val logger: Logger,
-    private val requestManager: QueueRequestManager
 ) : QueueRunRequest {
 
-    override suspend fun startIfNotAlready() {
-        val isRequestCurrentlyRunning = requestManager.startRequest()
+    @Volatile var isRunningRequest: Boolean = false
 
-        if (!isRequestCurrentlyRunning) {
-            startNewRequest()
+    override suspend fun startIfNotAlready() {
+        synchronized(this) {
+            val isQueueRunningRequest = isRunningRequest
+            if (isQueueRunningRequest) return
+
+            isRunningRequest = true
         }
+
+        startNewRequest()
     }
 
     private suspend fun startNewRequest() {
@@ -34,7 +38,8 @@ class QueueRunRequestImpl internal constructor(
     private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
         if (inventory.isEmpty()) {
             logger.debug("queue done running tasks")
-            return requestManager.queueRunRequestComplete()
+            isRunningRequest = false
+            return
         }
 
         val nextTaskToRunInventoryItem = inventory[0]

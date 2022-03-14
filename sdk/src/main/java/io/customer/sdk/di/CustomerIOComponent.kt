@@ -19,8 +19,6 @@ import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.QueueImpl
-import io.customer.sdk.queue.QueueRequestManager
-import io.customer.sdk.queue.QueueRequestManagerImpl
 import io.customer.sdk.queue.QueueRunRequest
 import io.customer.sdk.queue.QueueRunRequestImpl
 import io.customer.sdk.queue.QueueStorage
@@ -64,10 +62,9 @@ internal class CustomerIOComponent(
     val queueRunner: QueueRunner
         get() = QueueRunnerImpl(jsonAdapter, cioHttpClient)
 
-    val queueRunRequestManager: QueueRequestManager by lazy { QueueRequestManagerImpl() }
-
-    val queueRunRequest: QueueRunRequest
-        get() = QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
+    val queueRunRequest: QueueRunRequest by lazy {
+        QueueRunRequestImpl(queueRunner, queueStorage, logger)
+    }
 
     val queue: Queue
         get() = QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)

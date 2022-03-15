@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/customerio/customerio-android/compare/1.0.2...1.0.3) (2022-03-15)
+
+
+### Bug Fixes
+
+* allow http requests in host app ([#74](https://github.com/customerio/customerio-android/issues/74)) ([1035648](https://github.com/customerio/customerio-android/commit/103564882df611e956a54cba0c2635acd3f1997a))
+
 ## [1.0.2](https://github.com/customerio/customerio-android/compare/1.0.1...1.0.2) (2022-03-11)
 
 

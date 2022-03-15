@@ -4,12 +4,19 @@ import io.customer.base.comunication.Action
 import io.customer.base.data.Result
 import io.customer.base.data.Success
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.model.verify
+import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
+import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.repository.PushNotificationRepository
-import io.customer.sdk.repository.TrackingRepository
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.Logger
 
 /**
  * CustomerIoClient is client class to hold all repositories and act as a bridge between
@@ -18,16 +25,19 @@ import io.customer.sdk.repository.TrackingRepository
 internal class CustomerIOClient(
     private val identityRepository: IdentityRepository,
     private val preferenceRepository: PreferenceRepository,
-    private val trackingRepository: TrackingRepository,
-    private val pushNotificationRepository: PushNotificationRepository
+    private val pushNotificationRepository: PushNotificationRepository,
+    private val backgroundQueue: Queue,
+    private val dateUtil: DateUtil,
+    private val logger: Logger
 ) : CustomerIOApi {
 
-    override fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit> {
+    override fun identify(identifier: String, attributes: CustomAttributes): Action<Unit> {
         return object : Action<Unit> {
             val action by lazy { identityRepository.identify(identifier, attributes) }
             override fun execute(): Result<Unit> {
                 val result = action.execute()
                 if (result is Success) {
+                    logger.info("logged in $identifier successfully. Saving identifier to storage")
                     preferenceRepository.saveIdentifier(identifier = identifier)
                 }
                 return result
@@ -36,6 +46,7 @@ internal class CustomerIOClient(
             override fun enqueue(callback: Action.Callback<Unit>) {
                 action.enqueue {
                     if (it is Success) {
+                        logger.info("logged in $identifier successfully. Saving identifier to storage")
                         preferenceRepository.saveIdentifier(identifier = identifier)
                     }
                     callback.onResult(it)
@@ -48,18 +59,29 @@ internal class CustomerIOClient(
         }
     }
 
-    override fun track(name: String, attributes: Map<String, Any>): Action<Unit> {
+    override fun track(name: String, attributes: CustomAttributes) {
         return track(EventType.event, name, attributes)
     }
 
-    fun track(eventType: EventType, name: String, attributes: Map<String, Any>): Action<Unit> {
+    fun track(eventType: EventType, name: String, attributes: CustomAttributes) {
+        val eventTypeDescription = if (eventType == EventType.screen) "track screen view event" else "track event"
+
+        logger.info("$eventTypeDescription $name")
+        logger.debug("$eventTypeDescription $name attributes: $attributes")
+
+        // Clean-up attributes before any JSON parsing.
+        // TODO implement implementation tests for background queue and provide invalid attributes to make sure that we remembered to call this function.
+        val attributes = attributes.verify()
+
         val identifier = preferenceRepository.getIdentifier()
-        return trackingRepository.track(
-            identifier = identifier,
-            type = eventType,
-            name = name,
-            attributes = attributes
-        )
+        if (identifier == null) {
+            // when we have anonymous profiles implemented in the SDK, we can decide to not
+            // ignore events when a profile is not logged in yet.
+            logger.info("ignoring $eventTypeDescription $name because no profile currently identified")
+            return
+        }
+
+        backgroundQueue.addTask(QueueTaskType.TrackEvent.name, TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)))
     }
 
     override fun clearIdentify() {
@@ -142,7 +164,7 @@ internal class CustomerIOClient(
         deviceToken: String
     ) = pushNotificationRepository.trackMetric(deliveryID, event, deviceToken)
 
-    override fun screen(name: String, attributes: Map<String, Any>): Action<Unit> {
+    override fun screen(name: String, attributes: CustomAttributes) {
         return track(EventType.screen, name, attributes)
     }
 }

@@ -5,8 +5,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.di.CustomerIOComponent
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Before
 import org.mockito.MockitoAnnotations
+import retrofit2.HttpException
+import retrofit2.Response
 
 /**
  * Base class for test classes to subclass. Meant to provide convenience to test classes with properties and functions tests may use.
@@ -26,6 +29,10 @@ abstract class BaseTest {
 
     internal val di: CustomerIOComponent
         get() = CustomerIOComponent(cioConfig, context)
+
+    // convenient HttpException for test functions to test a failed HTTP request
+    protected val http500Error: HttpException
+        get() = HttpException(Response.error<String>(500, "{}".toResponseBody()))
 
     @Before
     open fun setup() {

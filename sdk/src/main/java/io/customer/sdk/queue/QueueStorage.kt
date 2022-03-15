@@ -15,6 +15,7 @@ interface QueueStorage {
     fun getInventory(): QueueInventory
     fun saveInventory(inventory: QueueInventory): Boolean
     fun create(type: String, data: String): QueueModifyResult
+    fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
 }
@@ -69,6 +70,16 @@ class QueueStorageImpl internal constructor(
             }
 
             return QueueModifyResult(true, afterCreateQueueStatus)
+        }
+    }
+
+    override fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean {
+        synchronized(this) {
+            var existingQueueTask = get(taskStorageId) ?: return false
+
+            existingQueueTask = existingQueueTask.copy(runResults = runResults)
+
+            return update(existingQueueTask)
         }
     }
 

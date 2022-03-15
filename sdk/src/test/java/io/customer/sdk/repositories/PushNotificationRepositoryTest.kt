@@ -1,7 +1,7 @@
 package io.customer.sdk.repositories
 
 import io.customer.base.error.StatusCode
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.PushNotificationRepository
@@ -18,7 +18,7 @@ import org.mockito.kotlin.mock
 
 internal class PushNotificationRepositoryTest {
 
-    private val mockCustomerService: CustomerService = mock()
+    private val mockCustomerIOService: CustomerIOService = mock()
     private val mockPushService: PushService = mock()
 
     private lateinit var pushNotificationRepository: PushNotificationRepository
@@ -26,7 +26,7 @@ internal class PushNotificationRepositoryTest {
     @Before
     fun setup() {
         pushNotificationRepository = PushNotificationRepositoryImp(
-            customerService = mockCustomerService,
+            customerIOService = mockCustomerIOService,
             pushService = mockPushService
         )
     }
@@ -50,7 +50,7 @@ internal class PushNotificationRepositoryTest {
     @Test
     fun `Register device returns success if add device api returns success`() {
         Mockito.`when`(
-            mockCustomerService.addDevice(any(), any())
+            mockCustomerIOService.addDevice(any(), any())
         ).thenReturn(MockRetrofitSuccess(Unit).toCustomerIoCall())
 
         val result = pushNotificationRepository.registerDeviceToken("identifier", "token").execute()
@@ -61,7 +61,7 @@ internal class PushNotificationRepositoryTest {
     @Test
     fun `Register device returns error if add device api returns error`() {
         Mockito.`when`(
-            mockCustomerService.addDevice(any(), any())
+            mockCustomerIOService.addDevice(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(500).toCustomerIoCall())
 
         val result = pushNotificationRepository.registerDeviceToken("identifier", "token").execute()
@@ -90,7 +90,7 @@ internal class PushNotificationRepositoryTest {
     @Test
     fun `Delete device method returns success if delete device api returns success`() {
         Mockito.`when`(
-            mockCustomerService.removeDevice(any(), any())
+            mockCustomerIOService.removeDevice(any(), any())
         ).thenReturn(MockRetrofitSuccess(Unit).toCustomerIoCall())
 
         val result = pushNotificationRepository.deleteDeviceToken("identifier", "token").execute()
@@ -101,7 +101,7 @@ internal class PushNotificationRepositoryTest {
     @Test
     fun `Delete device method returns returns error if add device api returns error`() {
         Mockito.`when`(
-            mockCustomerService.removeDevice(any(), any())
+            mockCustomerIOService.removeDevice(any(), any())
         ).thenReturn(MockRetrofitError<Unit>(500).toCustomerIoCall())
 
         val result = pushNotificationRepository.deleteDeviceToken("identifier", "token").execute()

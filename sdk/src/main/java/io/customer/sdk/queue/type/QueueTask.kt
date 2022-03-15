@@ -1,6 +1,7 @@
 package io.customer.sdk.queue.type
 
 import com.squareup.moshi.JsonClass
+import io.customer.sdk.utils.random
 
 @JsonClass(generateAdapter = true)
 data class QueueTask(
@@ -8,4 +9,9 @@ data class QueueTask(
     val type: String,
     val data: String,
     val runResults: QueueTaskRunResults
-)
+) {
+    companion object {
+        val random: QueueTask
+            get() = QueueTask(String.random, String.random, String.random, QueueTaskRunResults(Int.random(0, 10)))
+    }
+}

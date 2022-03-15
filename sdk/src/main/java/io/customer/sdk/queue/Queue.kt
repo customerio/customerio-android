@@ -5,15 +5,23 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class Queue internal constructor(
+interface Queue {
+    fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult
+}
+
+class QueueImpl internal constructor(
     private val storage: QueueStorage,
+    private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
     private val sdkConfig: CustomerIOConfig,
     private val logger: Logger
-) {
+) : Queue {
 
-    fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult {
+    override fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult {
         logger.info("adding queue task $type")
 
         val taskDataString = jsonAdapter.toJson(data)
@@ -33,7 +41,9 @@ class Queue internal constructor(
         if (isManyTasksInQueue) {
             logger.info("queue met criteria to run automatically")
 
-            // start running queue
+            CoroutineScope(Dispatchers.IO).launch {
+                runRequest.startIfNotAlready()
+            }
         }
     }
 }

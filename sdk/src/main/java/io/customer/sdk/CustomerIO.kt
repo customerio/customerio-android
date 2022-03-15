@@ -4,10 +4,8 @@ import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.base.comunication.Action
-import io.customer.base.data.ErrorResult
-import io.customer.base.error.ErrorDetail
-import io.customer.base.utils.ActionUtils
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
@@ -126,7 +124,7 @@ class CustomerIO internal constructor(
      */
     fun identify(
         identifier: String,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ): Action<Unit> = api.identify(identifier, attributes)
 
     /**
@@ -138,7 +136,7 @@ class CustomerIO internal constructor(
      */
     fun track(
         name: String,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ) = api.track(name, attributes)
 
     /**
@@ -149,7 +147,7 @@ class CustomerIO internal constructor(
      */
     fun screen(
         name: String,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ) = api.screen(name, attributes)
 
     /**
@@ -160,7 +158,7 @@ class CustomerIO internal constructor(
      */
     fun screen(
         activity: Activity,
-        attributes: Map<String, Any> = emptyMap()
+        attributes: CustomAttributes = emptyMap()
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -199,7 +197,7 @@ class CustomerIO internal constructor(
         deviceToken = deviceToken
     )
 
-    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>): Action<Unit> {
+    private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(
@@ -208,9 +206,12 @@ class CustomerIO internal constructor(
             val activityLabel = info.loadLabel(packageManager)
             screen(activityLabel.toString(), attributes)
         } catch (e: PackageManager.NameNotFoundException) {
-            ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
+            // if `PackageManager.NameNotFoundException` is thrown, is that a bug in the SDK or a problem with the customer's app?
+            // We may want to decide to log this as an SDK error, log it so customer notices it to fix it themselves, or we do nothing because this exception might not be a big issue.
+            // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
         } catch (e: Exception) {
-            ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
+            // Should we log exceptions that happen? Ignore them? How rare is an exception happen in this function?
+            // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
         }
     }
 }

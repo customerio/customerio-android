@@ -3,7 +3,7 @@ package io.customer.sdk.api.retrofit
 import io.customer.base.comunication.Action
 import io.customer.base.data.Result
 import io.customer.sdk.extensions.getErrorResult
-import io.customer.sdk.extensions.toResult
+import io.customer.sdk.extensions.toCompatibleResult
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -16,7 +16,7 @@ class CustomerIoCall<T : Any>(
 ) : Action<T> {
     override fun execute(): Result<T> {
         return try {
-            call.execute().toResult()
+            call.execute().toCompatibleResult()
         } catch (t: Throwable) {
             t.getErrorResult()
         }
@@ -27,7 +27,7 @@ class CustomerIoCall<T : Any>(
             object : Callback<T> {
                 override fun onResponse(call: Call<T>, response: Response<T>) {
                     if (!call.isCanceled) {
-                        callback.onResult(response.toResult())
+                        callback.onResult(response.toCompatibleResult())
                     }
                 }
 

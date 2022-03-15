@@ -6,7 +6,7 @@ import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.base.utils.ActionUtils
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.DeviceRequest
@@ -21,7 +21,7 @@ internal interface PushNotificationRepository {
 }
 
 internal class PushNotificationRepositoryImp(
-    private val customerService: CustomerService,
+    private val customerIOService: CustomerIOService,
     private val pushService: PushService
 ) : PushNotificationRepository {
 
@@ -37,7 +37,7 @@ internal class PushNotificationRepositoryImp(
             deviceToken.isBlank() -> {
                 return ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(statusCode = StatusCode.InvalidToken)))
             }
-            else -> customerService.addDevice(
+            else -> customerIOService.addDevice(
                 identifier = identifier,
                 body = DeviceRequest(device = device)
             )
@@ -54,7 +54,7 @@ internal class PushNotificationRepositoryImp(
             identifier.isNullOrBlank() -> {
                 return ActionUtils.getEmptyAction()
             }
-            else -> customerService.removeDevice(identifier = identifier, token = deviceToken)
+            else -> customerIOService.removeDevice(identifier = identifier, token = deviceToken)
         }
     }
 

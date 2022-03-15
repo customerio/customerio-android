@@ -6,25 +6,34 @@ import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
+import io.customer.sdk.api.CustomerIOAPIHttpClient
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.api.RetrofitCustomerIOAPIHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.api.service.PushService
-import io.customer.sdk.data.moshi.CustomerIOParser
-import io.customer.sdk.data.moshi.CustomerIOParserImpl
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
+import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
+import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.QueueImpl
+import io.customer.sdk.queue.QueueRunRequest
+import io.customer.sdk.queue.QueueRunRequestImpl
 import io.customer.sdk.queue.QueueStorage
 import io.customer.sdk.queue.QueueStorageImpl
+import io.customer.sdk.queue.type.QueueRunner
+import io.customer.sdk.queue.type.QueueRunnerImpl
 import io.customer.sdk.repository.*
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DateUtilImpl
 import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.Logger
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -50,24 +59,38 @@ internal class CustomerIOComponent(
     val queueStorage: QueueStorage
         get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
 
+    val queueRunner: QueueRunner
+        get() = QueueRunnerImpl(jsonAdapter, cioHttpClient)
+
+    val queueRunRequest: QueueRunRequest by lazy {
+        QueueRunRequestImpl(queueRunner, queueStorage, logger)
+    }
+
+    val queue: Queue
+        get() = QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+
     val logger: Logger
-        get() = Logger()
+        get() = LogcatLogger()
+
+    val cioHttpClient: CustomerIOAPIHttpClient
+        get() = RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
+
+    val dateUtil: DateUtil
+        get() = DateUtilImpl()
 
     fun buildApi(): CustomerIOApi {
         return CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
-                customerService = buildRetrofitApi<CustomerService>(),
-                attributesRepository = attributesRepository
+                customerIOService = buildRetrofitApi<CustomerIOService>()
             ),
             preferenceRepository = sharedPreferenceRepository,
-            trackingRepository = TrackingRepositoryImp(
-                customerService = buildRetrofitApi<CustomerService>(),
-                attributesRepository = attributesRepository
-            ),
             pushNotificationRepository = PushNotificationRepositoryImp(
-                customerService = buildRetrofitApi<CustomerService>(),
+                customerIOService = buildRetrofitApi<CustomerIOService>(),
                 pushService = buildRetrofitApi<PushService>()
-            )
+            ),
+            backgroundQueue = queue,
+            dateUtil = dateUtil,
+            logger = logger
         )
     }
 
@@ -85,13 +108,8 @@ internal class CustomerIOComponent(
 
     private val sharedPreferenceRepository by lazy {
         PreferenceRepositoryImpl(
-            context = context
-        )
-    }
-
-    private val attributesRepository by lazy {
-        MoshiAttributesRepositoryImp(
-            parser = customerIOParser
+            context = context,
+            siteId = siteId
         )
     }
 
@@ -102,8 +120,6 @@ internal class CustomerIOComponent(
             customerIOConfig.timeout,
         ).create(apiClass)
     }
-
-    private val customerIOParser: CustomerIOParser by lazy { CustomerIOParserImpl(moshi) }
 
     private val httpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
@@ -118,13 +134,8 @@ internal class CustomerIOComponent(
         Moshi.Builder()
             .add(UnixDateAdapter())
             .add(BigDecimalAdapter())
+            .add(CustomAttributesFactory())
             .build()
-    }
-
-    private val retrofitMoshiConverterFactory by lazy {
-        MoshiConverterFactory.create(
-            moshi
-        )
     }
 
     private fun buildRetrofit(
@@ -135,7 +146,6 @@ internal class CustomerIOComponent(
         return Retrofit.Builder()
             .baseUrl(endpoint)
             .client(okHttpClient)
-            .addConverterFactory(retrofitMoshiConverterFactory)
             .addCallAdapterFactory(CustomerIoCallAdapterFactory.create())
             .build()
     }

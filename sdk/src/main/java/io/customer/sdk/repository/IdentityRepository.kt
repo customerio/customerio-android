@@ -1,21 +1,22 @@
 package io.customer.sdk.repository
 
 import io.customer.base.comunication.Action
-import io.customer.sdk.api.service.CustomerService
+import io.customer.sdk.api.service.CustomerIOService
+import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.verify
 
 internal interface IdentityRepository {
-    fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit>
+    fun identify(identifier: String, attributes: CustomAttributes): Action<Unit>
 }
 
 internal class IdentityRepositoryImpl(
-    private val customerService: CustomerService,
-    private val attributesRepository: AttributesRepository
+    private val customerIOService: CustomerIOService
 ) : IdentityRepository {
 
-    override fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit> {
-        return customerService.identifyCustomer(
+    override fun identify(identifier: String, attributes: CustomAttributes): Action<Unit> {
+        return customerIOService.identifyCustomer(
             identifier = identifier,
-            body = attributesRepository.mapToJson(attributes)
+            body = attributes.verify()
         )
     }
 }

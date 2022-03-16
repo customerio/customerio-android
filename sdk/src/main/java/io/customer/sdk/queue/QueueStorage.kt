@@ -1,5 +1,6 @@
 package io.customer.sdk.queue
 
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType
 import io.customer.sdk.queue.type.QueueInventory
@@ -21,7 +22,7 @@ interface QueueStorage {
 }
 
 class QueueStorageImpl internal constructor(
-    private val siteId: String,
+    private val sdkConfig: CustomerIOConfig,
     private val fileStorage: FileStorage,
     private val jsonAdapter: JsonAdapter
 ) : QueueStorage {
@@ -43,7 +44,7 @@ class QueueStorageImpl internal constructor(
     override fun create(type: String, data: String): QueueModifyResult {
         synchronized(this) {
             val existingInventory = getInventory().toMutableList()
-            val beforeCreateQueueStatus = QueueStatus(siteId, existingInventory.count())
+            val beforeCreateQueueStatus = QueueStatus(sdkConfig.siteId, existingInventory.count())
 
             val newTaskStorageId = UUID.randomUUID().toString()
             val newQueueTask = QueueTask(newTaskStorageId, type, data, QueueTaskRunResults(0))
@@ -63,7 +64,7 @@ class QueueStorageImpl internal constructor(
             existingInventory.add(newInventoryItem)
 
             val updatedInventoryCount = existingInventory.count()
-            val afterCreateQueueStatus = QueueStatus(siteId, updatedInventoryCount)
+            val afterCreateQueueStatus = QueueStatus(sdkConfig.siteId, updatedInventoryCount)
 
             if (!saveInventory(existingInventory)) {
                 return QueueModifyResult(false, beforeCreateQueueStatus)
@@ -94,7 +95,7 @@ class QueueStorageImpl internal constructor(
         synchronized(this) {
             // update inventory first so if any deletion operation is unsuccessful, at least the inventory will not contain the task so queue doesn't try running it.
             val existingInventory = getInventory().toMutableList()
-            val queueStatusBeforeModifyInventory = QueueStatus(siteId, existingInventory.count())
+            val queueStatusBeforeModifyInventory = QueueStatus(sdkConfig.siteId, existingInventory.count())
 
             existingInventory.removeAll { it.taskPersistedId == taskStorageId }
 
@@ -102,7 +103,7 @@ class QueueStorageImpl internal constructor(
                 return QueueModifyResult(false, queueStatusBeforeModifyInventory)
             }
 
-            return QueueModifyResult(true, QueueStatus(siteId, existingInventory.count()))
+            return QueueModifyResult(true, QueueStatus(sdkConfig.siteId, existingInventory.count()))
         }
     }
 

@@ -4,10 +4,11 @@ import io.customer.base.comunication.Action
 import io.customer.base.data.Result
 import io.customer.base.data.Success
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.model.verify
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueTaskType
@@ -28,15 +29,10 @@ internal class CustomerIOClient(
     private val pushNotificationRepository: PushNotificationRepository,
     private val backgroundQueue: Queue,
     private val dateUtil: DateUtil,
-    private val logger: Logger,
-    private val hooks: HooksManager
+    private val logger: Logger
 ) : CustomerIOApi {
 
-    override fun identify(identifier: String, attributes: Map<String, Any>): Action<Unit> {
-        hooks.profileIdentifiedHooks.forEach {
-            it.profileIdentified("xyz")
-        }
-
+    override fun identify(identifier: String, attributes: CustomAttributes): Action<Unit> {
         return object : Action<Unit> {
             val action by lazy { identityRepository.identify(identifier, attributes) }
             override fun execute(): Result<Unit> {
@@ -64,15 +60,19 @@ internal class CustomerIOClient(
         }
     }
 
-    override fun track(name: String, attributes: Map<String, Any>) {
+    override fun track(name: String, attributes: CustomAttributes) {
         return track(EventType.event, name, attributes)
     }
 
-    fun track(eventType: EventType, name: String, attributes: Map<String, Any>) {
+    fun track(eventType: EventType, name: String, attributes: CustomAttributes) {
         val eventTypeDescription = if (eventType == EventType.screen) "track screen view event" else "track event"
 
         logger.info("$eventTypeDescription $name")
         logger.debug("$eventTypeDescription $name attributes: $attributes")
+
+        // Clean-up attributes before any JSON parsing.
+        // TODO implement implementation tests for background queue and provide invalid attributes to make sure that we remembered to call this function.
+        val attributes = attributes.verify()
 
         val identifier = preferenceRepository.getIdentifier()
         if (identifier == null) {
@@ -165,7 +165,7 @@ internal class CustomerIOClient(
         deviceToken: String
     ) = pushNotificationRepository.trackMetric(deliveryID, event, deviceToken)
 
-    override fun screen(name: String, attributes: Map<String, Any>) {
+    override fun screen(name: String, attributes: CustomAttributes) {
         return track(EventType.screen, name, attributes)
     }
 }

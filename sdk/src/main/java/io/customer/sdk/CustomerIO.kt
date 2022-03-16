@@ -5,14 +5,13 @@ import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 
 interface CustomerIOInstance {
-    val siteId: String
-
     fun identify(identifier: String): Action<Unit>
 
     fun identify(
@@ -63,12 +62,7 @@ Create your own instance using
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-class CustomerIO constructor(
-    // The constructor is a public constructor allowing customers to create non-singleton instance of CustomerIO class if they dont want to use the Singleton API.
-    override val siteId: String,
-    val apiKey: String,
-    val region: Region = Region.US
-) : CustomerIOInstance {
+class CustomerIO : CustomerIOInstance {
     companion object {
         private var instance: CustomerIO? = null
 
@@ -136,22 +130,24 @@ class CustomerIO constructor(
                 backgroundQueueMinNumberOfTasks = 10
             )
 
-            CustomerIOComponent.createAndUpdate(siteId, appContext, config)
-
-            val client = CustomerIO(siteId, apiKey, region)
+            val client = CustomerIO()
+            client.diGraph = CustomerIOComponent().apply {
+                sdkConfig = config
+                context = appContext
+            }
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
+
             return client
         }
     }
 
-    // Since this class is at the top-most level of the MessagingPush module,
+    // Since this class is at the top-most level of the Tracking module,
     // we get instances from the DiGraph, not through constructor dependency injection.
-    private val diGraph: CustomerIOComponent
-        get() = CustomerIOComponent.getInstance(siteId)
+    lateinit var diGraph: CustomerIOComponent
 
     private val api: CustomerIOApi
         get() = diGraph.buildApi()
@@ -181,7 +177,7 @@ class CustomerIO constructor(
      */
     override fun identify(
         identifier: String,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ): Action<Unit> = api.identify(identifier, attributes)
 
     /**
@@ -201,7 +197,7 @@ class CustomerIO constructor(
      */
     override fun track(
         name: String,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = api.track(name, attributes)
 
     /**
@@ -219,7 +215,7 @@ class CustomerIO constructor(
      */
     override fun screen(
         name: String,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = api.screen(name, attributes)
 
     /**
@@ -237,7 +233,7 @@ class CustomerIO constructor(
      */
     override fun screen(
         activity: Activity,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -276,7 +272,7 @@ class CustomerIO constructor(
         deviceToken = deviceToken
     )
 
-    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>) {
+    private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(

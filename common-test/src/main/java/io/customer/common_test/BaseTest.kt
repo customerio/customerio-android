@@ -29,11 +29,7 @@ abstract class BaseTest {
     protected val cioConfig: CustomerIOConfig
         get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 30)
 
-    protected val di: CustomerIOComponent
-        get() = CustomerIOComponent.getInstance(siteId).apply {
-            sdkConfig = cioConfig
-            context = this@BaseTest.context
-        }
+    protected lateinit var di: CustomerIOComponent
 
     // convenient HttpException for test functions to test a failed HTTP request
     protected val http500Error: HttpException
@@ -41,7 +37,10 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
+        di = CustomerIOComponent().apply {
+            sdkConfig = cioConfig
+            context = this@BaseTest.context
+        }
         di.fileStorage.deleteAllSdkFiles()
-        CustomerIOComponent.reset()
     }
 }

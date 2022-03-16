@@ -22,8 +22,11 @@ class CustomerIOPushReceiver : BroadcastReceiver() {
         const val ACTION = "io.customer.messagingpush.PUSH_ACTION"
     }
 
+    private val diGraph: CustomerIOComponent
+        get() = CustomerIO.instance().diGraph
+
     private val sdkConfig: CustomerIOConfig
-        get() = CustomerIOComponent.getInstance(CustomerIO.instance().siteId).sdkConfig
+        get() = diGraph.sdkConfig
 
     override fun onReceive(context: Context?, intent: Intent?) {
 

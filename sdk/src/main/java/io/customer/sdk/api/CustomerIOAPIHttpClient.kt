@@ -7,11 +7,11 @@ import io.customer.sdk.extensions.toResultUnit
 /**
  * Wrapper around Retrofit to encapsulate Retrofit if we decide to change how we perform HTTP requests in the future.
  */
-interface CustomerIOAPIHttpClient {
+internal interface CustomerIOAPIHttpClient {
     suspend fun track(identifier: String, body: Event): Result<Unit>
 }
 
-class RetrofitCustomerIOAPIHttpClient(
+internal class RetrofitCustomerIOAPIHttpClient(
     private val retrofitService: CustomerIOService
 ) : CustomerIOAPIHttpClient {
 

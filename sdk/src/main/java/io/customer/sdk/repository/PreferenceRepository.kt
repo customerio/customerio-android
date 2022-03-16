@@ -2,6 +2,7 @@ package io.customer.sdk.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.customer.sdk.CustomerIOConfig
 
 interface PreferenceRepository {
     fun saveIdentifier(identifier: String)
@@ -13,13 +14,13 @@ interface PreferenceRepository {
     fun getDeviceToken(): String?
 }
 
-class PreferenceRepositoryImpl(
+internal class PreferenceRepositoryImpl(
     private val context: Context,
-    private val siteId: String
+    private val config: CustomerIOConfig
 ) : PreferenceRepository {
 
-    private val prefsName by lazy {
-        "io.customer.sdk.${context.packageName}.$siteId"
+    private val prefsName: String by lazy {
+        "io.customer.sdk.${context.packageName}.${config.siteId}"
     }
 
     companion object {
@@ -27,12 +28,11 @@ class PreferenceRepositoryImpl(
         private const val KEY_DEVICE_TOKEN = "device_token"
     }
 
-    private val prefs: SharedPreferences by lazy {
-        context.applicationContext.getSharedPreferences(
+    private val prefs: SharedPreferences
+        get() = context.applicationContext.getSharedPreferences(
             prefsName,
             Context.MODE_PRIVATE
         )
-    }
 
     override fun saveIdentifier(identifier: String) {
         prefs.edit().putString(KEY_IDENTIFIER, identifier).apply()

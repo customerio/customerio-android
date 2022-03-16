@@ -14,8 +14,6 @@ import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.overrideDependency
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
@@ -35,16 +33,18 @@ class CustomerIOTest : BaseTest() {
 
     @Before
     fun setUp() {
+        super.setup()
+
         di.overrideDependency(CustomerIOApi::class.java, apiMock)
 
-        customerIO = CustomerIO(siteId, String.random)
+        customerIO = CustomerIO().apply { diGraph = di }
     }
 
     @Test
     fun verifySDKConfigurationSetAfterBuild() {
         val givenSiteId = String.random
         val givenApiKey = String.random
-        CustomerIO.Builder(
+        val client = CustomerIO.Builder(
             siteId = givenSiteId,
             apiKey = givenApiKey,
             region = Region.EU,
@@ -53,7 +53,7 @@ class CustomerIOTest : BaseTest() {
             override fun handleCustomerIOUrl(uri: Uri): Boolean = false
         }).autoTrackScreenViews(true).build()
 
-        val actual = CustomerIOComponent.getInstance(givenSiteId).sdkConfig
+        val actual = client.diGraph.sdkConfig
 
         actual.siteId shouldBeEqualTo givenSiteId
         actual.apiKey shouldBeEqualTo givenApiKey

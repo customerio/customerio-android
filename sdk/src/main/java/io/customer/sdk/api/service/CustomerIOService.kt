@@ -1,18 +1,19 @@
 package io.customer.sdk.api.service
 
 import io.customer.sdk.api.retrofit.CustomerIoCall
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
 import retrofit2.Response
 import retrofit2.http.*
 
-interface CustomerIOService {
+internal interface CustomerIOService {
 
     @JvmSuppressWildcards
     @PUT("api/v1/customers/{identifier}")
     fun identifyCustomer(
         @Path("identifier") identifier: String,
-        @Body body: Map<String, Any>,
+        @Body body: CustomAttributes,
     ): CustomerIoCall<Unit>
 
     @JvmSuppressWildcards

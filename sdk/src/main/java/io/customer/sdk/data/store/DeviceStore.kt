@@ -39,6 +39,8 @@ internal class DeviceStoreImp(
         get() = applicationStore.customerAppName
     override val customerAppVersion: String
         get() = applicationStore.customerAppVersion
+    override val isPushSubscribed: Boolean
+        get() = applicationStore.isPushSubscribed
     override val customerIOVersion: String
         get() = version
 
@@ -58,7 +60,7 @@ internal class DeviceStoreImp(
             "app_version" to customerAppVersion,
             "cio_sdk_version" to customerIOVersion,
             "device_locale" to deviceLocale,
-            "push_subscribed" to true
+            "push_subscribed" to isPushSubscribed
         )
     }
 }

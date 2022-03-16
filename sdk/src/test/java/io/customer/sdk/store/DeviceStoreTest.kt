@@ -40,16 +40,6 @@ internal class DeviceStoreTest : BaseTest() {
             "push_subscribed" to true
         )
 
-        deviceStore.deviceBrand `should be equal to` "Google"
-        deviceStore.deviceModel `should be equal to` "Pixel 6"
-        deviceStore.deviceManufacturer `should be equal to` "Google"
-        deviceStore.deviceOSVersion `should be equal to` 30
-        deviceStore.deviceLocale `should be equal to` "en"
-
-        resultDeviceAttributes.keys shouldBeEqualTo expectedDeviceAttributes.keys
-
-        expectedDeviceAttributes.keys.forEach { key ->
-            expectedDeviceAttributes[key] `should be equal to` resultDeviceAttributes[key]
-        }
+        resultDeviceAttributes shouldBeEqualTo expectedDeviceAttributes
     }
 }

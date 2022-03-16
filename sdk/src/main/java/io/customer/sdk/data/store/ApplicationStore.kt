@@ -1,11 +1,14 @@
 package io.customer.sdk.data.store
 
 import android.content.Context
+import androidx.core.app.NotificationManagerCompat
 
 interface ApplicationStore {
     // Customer App information
     val customerAppName: String
     val customerAppVersion: String
+
+    val isPushSubscribed: Boolean
 }
 
 internal class ApplicationStoreImp(val context: Context) : ApplicationStore {
@@ -16,6 +19,8 @@ internal class ApplicationStoreImp(val context: Context) : ApplicationStore {
         get() = appInfo.first
     override val customerAppVersion: String
         get() = appInfo.second
+    override val isPushSubscribed: Boolean
+        get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     private fun getAppInformation(): Pair<String, String> {
         val appName: String = try {

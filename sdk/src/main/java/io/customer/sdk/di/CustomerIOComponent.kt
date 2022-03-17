@@ -39,10 +39,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Configuration class to configure/initialize low-level operations and objects.
  */
-class CustomerIOComponent : DiGraph() {
-
-    lateinit var context: Context
-    lateinit var sdkConfig: CustomerIOConfig
+class CustomerIOComponent(
+    val context: Context,
+    val sdkConfig: CustomerIOConfig
+) : DiGraph() {
 
     val fileStorage: FileStorage
         get() = override() ?: FileStorage(sdkConfig, context)

@@ -37,7 +37,7 @@ class CustomerIOTest : BaseTest() {
 
         di.overrideDependency(CustomerIOApi::class.java, apiMock)
 
-        customerIO = CustomerIO().apply { diGraph = di }
+        customerIO = CustomerIO(di)
     }
 
     @Test

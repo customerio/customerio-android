@@ -15,21 +15,32 @@ import io.customer.sdk.data.request.MetricEvent
 import java.util.*
 
 internal interface PushNotificationRepository {
-    fun registerDeviceToken(identifier: String?, deviceToken: String): Action<Unit>
+    fun registerDeviceToken(
+        identifier: String?,
+        deviceToken: String,
+        attributes: Map<String, Any>
+    ): Action<Unit>
+
     fun deleteDeviceToken(identifier: String?, deviceToken: String?): Action<Unit>
     fun trackMetric(deliveryID: String, event: MetricEvent, deviceToken: String): Action<Unit>
 }
 
 internal class PushNotificationRepositoryImp(
     private val customerService: CustomerService,
-    private val pushService: PushService
+    private val pushService: PushService,
+    private val attributesRepository: AttributesRepository
 ) : PushNotificationRepository {
 
     override fun registerDeviceToken(
         identifier: String?,
-        deviceToken: String
+        deviceToken: String,
+        attributes: Map<String, Any>
     ): Action<Unit> {
-        val device = Device(token = deviceToken, lastUsed = Date().getUnixTimestamp())
+        val device = Device(
+            token = deviceToken,
+            lastUsed = Date().getUnixTimestamp(),
+            attributes = attributesRepository.mapToJson(attributes)
+        )
         return when {
             identifier == null -> {
                 return ActionUtils.getUnidentifiedUserAction()

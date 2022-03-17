@@ -19,7 +19,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 
-internal class CustomerIOClientTest {
+internal class CustomerIOClientTest : BaseTest() {
 
     private val preferenceRepository: PreferenceRepository = mock()
     private val identityRepository: IdentityRepository = mock()
@@ -91,10 +91,13 @@ internal class CustomerIOClientTest {
             preferenceRepository.getIdentifier()
         ).thenReturn("identify")
 
-        `when`(pushNotificationRepository.registerDeviceToken(any(), any()))
+        `when`(pushNotificationRepository.registerDeviceToken(any(), any(), any()))
             .thenReturn(ActionUtils.getEmptyAction())
 
-        val result = customerIOClient.registerDeviceToken("token").execute()
+        val result = customerIOClient.registerDeviceToken(
+            "token",
+            deviceStore.buildDeviceAttributes()
+        ).execute()
 
         verifySuccess(result, Unit)
     }
@@ -105,10 +108,16 @@ internal class CustomerIOClientTest {
             preferenceRepository.getIdentifier()
         ).thenReturn("identify")
 
-        `when`(pushNotificationRepository.registerDeviceToken(any(), any()))
+        `when`(
+            pushNotificationRepository.registerDeviceToken(
+                any(),
+                any(),
+                any()
+            )
+        )
             .thenReturn(ActionUtils.getEmptyAction())
 
-        customerIOClient.registerDeviceToken("token").execute()
+        customerIOClient.registerDeviceToken("token", deviceStore.buildDeviceAttributes()).execute()
 
         verify(preferenceRepository, times(1)).saveDeviceToken("token")
     }

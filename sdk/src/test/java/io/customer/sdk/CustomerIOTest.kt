@@ -14,7 +14,7 @@ import org.junit.Test
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 
-internal class CustomerIOTest {
+internal class CustomerIOTest : BaseTest() {
 
     private lateinit var customerIO: CustomerIO
     lateinit var mockCustomerIO: MockCustomerIOBuilder
@@ -23,6 +23,8 @@ internal class CustomerIOTest {
     fun setUp() {
         mockCustomerIO = MockCustomerIOBuilder()
         customerIO = mockCustomerIO.build()
+
+        `when`(mockCustomerIO.store.deviceStore).thenReturn(deviceStore)
     }
 
     @Test
@@ -145,6 +147,7 @@ internal class CustomerIOTest {
         `when`(
             mockCustomerIO.api.registerDeviceToken(
                 any(),
+                any(),
             )
         ).thenReturn(getEmptyAction())
 
@@ -157,6 +160,7 @@ internal class CustomerIOTest {
     fun `verify SDK returns error when adding device request fails`() {
         `when`(
             mockCustomerIO.api.registerDeviceToken(
+                any(),
                 any(),
             )
         )

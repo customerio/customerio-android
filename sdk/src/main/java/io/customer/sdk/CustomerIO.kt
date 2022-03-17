@@ -178,7 +178,7 @@ class CustomerIO internal constructor(
      * is no active customer, this will fail to register the device
      */
     fun registerDeviceToken(deviceToken: String): Action<Unit> =
-        api.registerDeviceToken(deviceToken)
+        api.registerDeviceToken(deviceToken, store.deviceStore.buildDeviceAttributes())
 
     /**
      * Delete the currently registered device token

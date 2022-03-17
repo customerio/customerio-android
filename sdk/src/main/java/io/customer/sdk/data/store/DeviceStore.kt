@@ -16,6 +16,7 @@ interface DeviceStore : BuildStore, ApplicationStore {
      * `Customer.io Android Client/1.0.0-alpha.6`
      */
     fun buildUserAgent(): String
+    fun buildDeviceAttributes(): Map<String, Any>
 }
 
 internal class DeviceStoreImp(
@@ -32,10 +33,14 @@ internal class DeviceStoreImp(
         get() = buildStore.deviceManufacturer
     override val deviceOSVersion: Int
         get() = buildStore.deviceOSVersion
+    override val deviceLocale: String
+        get() = buildStore.deviceLocale
     override val customerAppName: String
         get() = applicationStore.customerAppName
     override val customerAppVersion: String
         get() = applicationStore.customerAppVersion
+    override val isPushSubscribed: Boolean
+        get() = applicationStore.isPushSubscribed
     override val customerIOVersion: String
         get() = version
 
@@ -46,5 +51,16 @@ internal class DeviceStoreImp(
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
             append(" $customerAppName/$customerAppVersion")
         }
+    }
+
+    override fun buildDeviceAttributes(): Map<String, Any> {
+        return mapOf(
+            "device_os" to deviceOSVersion,
+            "device_model" to deviceModel,
+            "app_version" to customerAppVersion,
+            "cio_sdk_version" to customerIOVersion,
+            "device_locale" to deviceLocale,
+            "push_subscribed" to isPushSubscribed
+        )
     }
 }

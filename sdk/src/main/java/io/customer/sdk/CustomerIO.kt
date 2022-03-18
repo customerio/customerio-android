@@ -10,6 +10,10 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 
+/**
+ * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
+ * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
+ */
 interface CustomerIOInstance {
     fun identify(identifier: String)
 
@@ -61,7 +65,13 @@ Create your own instance using
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-class CustomerIO : CustomerIOInstance {
+class CustomerIO internal constructor(
+    /**
+     * Strong reference to graph that other top-level classes in SDK can use `CustomerIO.instance().diGraph`.
+     */
+    val diGraph: CustomerIOComponent
+) : CustomerIOInstance {
+
     companion object {
         private var instance: CustomerIO? = null
 
@@ -130,11 +140,8 @@ class CustomerIO : CustomerIOInstance {
                 backgroundQueueSecondsDelay = 30
             )
 
-            val client = CustomerIO()
-            client.diGraph = CustomerIOComponent().apply {
-                sdkConfig = config
-                context = appContext
-            }
+            val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
+            val client = CustomerIO(diGraph)
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
@@ -144,10 +151,6 @@ class CustomerIO : CustomerIOInstance {
             return client
         }
     }
-
-    // Since this class is at the top-most level of the Tracking module,
-    // we get instances from the DiGraph, not through constructor dependency injection.
-    lateinit var diGraph: CustomerIOComponent
 
     private val api: CustomerIOApi
         get() = diGraph.buildApi()

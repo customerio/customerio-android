@@ -37,10 +37,10 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
-        di = CustomerIOComponent().apply {
-            sdkConfig = cioConfig
+        di = CustomerIOComponent(
+            sdkConfig = cioConfig,
             context = this@BaseTest.context
-        }
+        )
         di.fileStorage.deleteAllSdkFiles()
     }
 }

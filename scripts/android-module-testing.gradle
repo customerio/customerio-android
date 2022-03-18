@@ -28,6 +28,9 @@ dependencies {
     testImplementation project(':common-test')
     androidTestImplementation project(':common-test')
 
+    testImplementation Dependencies.coroutinesTest
+    androidTestImplementation Dependencies.coroutinesTest
+
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.androidxTestRunner

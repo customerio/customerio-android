@@ -1,6 +1,7 @@
 package io.customer.sdk.data.store
 
 import android.content.Context
+import io.customer.sdk.CustomerIOConfig
 import java.io.File
 
 /*
@@ -26,12 +27,13 @@ import java.io.File
  The file tree remains the same for all site ids.
  */
 class FileStorage internal constructor(
-    private val siteId: String,
+    private val config: CustomerIOConfig,
     private val context: Context
 ) {
 
     val sdkRootDirectoryPath = File(context.filesDir, "io.customer") // All files in the SDK exist in here.
-    val siteIdRootDirectoryPath = File(sdkRootDirectoryPath, siteId) // Root directory for given <site-id>
+    val siteIdRootDirectoryPath: File
+        get() = File(sdkRootDirectoryPath, config.siteId) // Root directory for given <site-id>
 
     fun save(type: FileType, contents: String): Boolean {
         val parentFilePath = type.getFilePath(siteIdRootDirectoryPath)

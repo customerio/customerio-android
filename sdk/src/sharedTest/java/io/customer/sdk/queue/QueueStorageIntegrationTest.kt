@@ -9,6 +9,7 @@ import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.utils.random
 import io.customer.common_test.BaseTest
 import org.amshove.kluent.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -16,7 +17,14 @@ import org.junit.runner.RunWith
 class QueueStorageIntegrationTest : BaseTest() {
 
     // using real instance of FileStorage to perform integration test
-    private val queueStorage = QueueStorageImpl(siteId, di.fileStorage, di.jsonAdapter)
+    private lateinit var queueStorage: QueueStorageImpl
+
+    @Before
+    override fun setup() {
+        super.setup()
+
+        queueStorage = QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter)
+    }
 
     @Test
     fun givenNoQueueTasks_expectEmptyListForInventory() {

@@ -1,4 +1,4 @@
-package io.customer.messagingpush.queue.taskdata
+package io.customer.sdk.queue.taskdata
 
 import java.util.*
 import com.squareup.moshi.JsonClass

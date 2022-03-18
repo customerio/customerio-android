@@ -6,27 +6,65 @@ import io.customer.common_test.BaseTest
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.util.QueueTimer
+import io.customer.sdk.util.SimpleTimer
 import io.customer.sdk.utils.random
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestCoroutineDispatcher
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.*
 
+@ExperimentalCoroutinesApi
 @RunWith(AndroidJUnit4::class)
 class QueueTest : BaseTest() {
 
-    private lateinit var queue: Queue
+    private lateinit var queue: QueueImpl
     val storageMock: QueueStorage = mock()
     val runRequestMock: QueueRunRequest = mock()
-    val queueTimerMock: QueueTimer = mock()
+    val queueTimerMock: SimpleTimer = mock()
+
+    private val testDispatcher = TestCoroutineDispatcher()
 
     @Before
     override fun setup() {
         super.setup()
 
-        queue = QueueImpl(storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger)
+        queue = QueueImpl(testDispatcher, storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger)
+    }
+
+    // our indicator if queue started to run the queue
+    private suspend fun assertDidStartARun(didRun: Boolean) {
+        if (didRun) {
+            verify(runRequestMock).start()
+
+            // good idea to check that a run request always sets this to false for the next run attempt after a run did run.
+            queue.isRunningRequest shouldBeEqualTo false
+        } else {
+            verify(runRequestMock, never()).start()
+        }
+    }
+
+    // run
+
+    @Test
+    fun run_givenAlreadyRunningARequest_expectDoNotStartNewRun() = runBlocking {
+        queue.isRunningRequest = true
+
+        queue.run()
+
+        assertDidStartARun(false)
+    }
+
+    @Test
+    fun run_givenNotAlreadyRunningRequest_expectStartNewRun() = runBlocking {
+        queue.isRunningRequest = false
+
+        queue.run()
+
+        assertDidStartARun(true)
     }
 
     @Test

@@ -32,10 +32,12 @@ internal class DeviceStoreImp(
         get() = buildStore.deviceManufacturer
     override val deviceOSVersion: Int
         get() = buildStore.deviceOSVersion
-    override val customerAppName: String
+    override val customerAppName: String?
         get() = applicationStore.customerAppName
-    override val customerAppVersion: String
+    override val customerAppVersion: String?
         get() = applicationStore.customerAppVersion
+    override val customerPackageName: String
+        get() = applicationStore.customerPackageName
     override val customerIOVersion: String
         get() = version
 
@@ -44,7 +46,7 @@ internal class DeviceStoreImp(
             append("Customer.io Android Client/")
             append(customerIOVersion)
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
-            append(" $customerAppName/$customerAppVersion")
+            append(" $customerPackageName/${customerAppVersion ?: "0.0.0"}")
         }
     }
 }

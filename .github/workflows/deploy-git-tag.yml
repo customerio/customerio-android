@@ -20,6 +20,7 @@ jobs:
           # version numbers below can be in many forms: M, M.m, M.m.p
           semantic_version: 18
           extra_plugins: |
+            conventional-changelog-conventionalcommits@4
             @semantic-release/changelog@6
             @semantic-release/git@10
             @semantic-release/github@8

@@ -1,29 +1,40 @@
 package io.customer.sdk.api.interceptors
 
 import android.util.Base64
-import io.customer.sdk.CustomerIO
+import io.customer.base.extenstions.filterHeaderValue
+import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.data.store.DeviceStore
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.nio.charset.StandardCharsets
 
-internal class HeadersInterceptor : Interceptor {
+internal class HeadersInterceptor(
+    private val deviceStore: DeviceStore,
+    private val config: CustomerIOConfig
+) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
+        val requestBuilder = chain.request().newBuilder().apply {
+            getHeaders().forEach { headerPair ->
+                addHeader(headerPair.first, headerPair.second)
+            }
+        }
 
-        val token by lazy { "Basic ${getBasicAuthHeaderString()}" }
-        val userAgent by lazy { CustomerIO.instance().store.deviceStore.buildUserAgent() }
+        return chain.proceed(requestBuilder.build())
+    }
 
-        val request = chain.request()
-            .newBuilder()
-            .addHeader("Content-Type", "application/json; charset=utf-8")
-            .addHeader("Authorization", token)
-            .addHeader("User-Agent", userAgent)
-            .build()
-        return chain.proceed(request)
+    internal fun getHeaders(): List<Pair<String, String>> {
+        return listOf(
+            "Content-Type" to "application/json; charset=utf-8",
+            "Authorization" to "Basic ${getBasicAuthHeaderString()}",
+            "User-Agent" to deviceStore.buildUserAgent()
+        ).map { headerPair ->
+            headerPair.first to headerPair.second.filterHeaderValue()
+        }
     }
 
     private fun getBasicAuthHeaderString(): String {
-        val apiKey = CustomerIO.instance().config.apiKey
-        val siteId = CustomerIO.instance().config.siteId
+        val apiKey = config.apiKey
+        val siteId = config.siteId
         val rawHeader = "$siteId:$apiKey"
         return Base64.encodeToString(rawHeader.toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP)
     }

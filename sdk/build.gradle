@@ -64,6 +64,8 @@ dependencies {
     testImplementation Dependencies.kluent
     testImplementation Dependencies.okhttpMockWebserver
 
+    testImplementation Dependencies.robolectric
+
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
 }

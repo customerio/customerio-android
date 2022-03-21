@@ -1,5 +1,7 @@
 package io.customer.sdk.data.store
 
+import io.customer.base.extenstions.filterHeaderValue
+
 interface DeviceStore : BuildStore, ApplicationStore {
 
     // SDK version
@@ -39,6 +41,9 @@ internal class DeviceStoreImp(
     override val customerIOVersion: String
         get() = version
 
+    /**
+     * Note: If using as a Http header value, make sure to call [filterHeaderValue] on the User-Agent before adding as a header.
+     */
     override fun buildUserAgent(): String {
         return buildString {
             append("Customer.io Android Client/")

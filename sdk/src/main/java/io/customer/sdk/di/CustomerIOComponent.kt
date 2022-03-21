@@ -125,7 +125,7 @@ internal class CustomerIOComponent(
             .writeTimeout(timeout, TimeUnit.MILLISECONDS)
             .readTimeout(timeout, TimeUnit.MILLISECONDS)
             // interceptors
-            .addInterceptor(HeadersInterceptor())
+            .addInterceptor(HeadersInterceptor(buildStore().deviceStore, customerIOConfig))
             .addInterceptor(httpLoggingInterceptor)
     }
 }

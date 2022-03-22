@@ -12,7 +12,8 @@ class QueueRunRequestImpl internal constructor(
     private val runner: QueueRunner,
     private val queueStorage: QueueStorage,
     private val logger: Logger,
-    private val requestManager: QueueRequestManager
+    private val requestManager: QueueRequestManager,
+    private val queryRunner: QueueQueryRunner
 ) : QueueRunRequest {
 
     override suspend fun startIfNotAlready() {
@@ -31,19 +32,15 @@ class QueueRunRequestImpl internal constructor(
     }
 
     // TODO create backgorund queue docs in project. include explaination of "snapshot"s from github PR.
-
-    // TODO can we split this function into smaller pieces? it would be easier to read/maintain/test
-    // idea: separate functions/classes to do all work related to getting the task from storage.
     private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
-        if (inventory.isEmpty()) {
+        val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
+        if (nextTaskToRunInventoryItem == null) {
             logger.debug("queue done running tasks")
             return requestManager.queueRunRequestComplete()
         }
 
-        val nextTaskToRunInventoryItem = inventory[0]
         val nextTaskStorageId = nextTaskToRunInventoryItem.taskPersistedId
         val nextTaskToRun = queueStorage.get(nextTaskStorageId)
-        // TODO using groups, get the next task to run.
         if (nextTaskToRun == null) {
             logger.error("tried to get queue task with storage id: $nextTaskStorageId but storage couldn't find it.")
 

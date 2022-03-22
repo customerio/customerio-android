@@ -19,6 +19,8 @@ import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.HooksManagerImpl
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.QueueImpl
+import io.customer.sdk.queue.QueueQueryRunner
+import io.customer.sdk.queue.QueueQueryRunnerImpl
 import io.customer.sdk.queue.QueueRequestManager
 import io.customer.sdk.queue.QueueRequestManagerImpl
 import io.customer.sdk.queue.QueueRunRequest
@@ -83,7 +85,10 @@ class CustomerIOComponent private constructor(
     val queueRunRequestManager: QueueRequestManager by lazy { override() ?: QueueRequestManagerImpl() }
 
     val queueRunRequest: QueueRunRequest
-        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager)
+        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueRunRequestManager, queueQueryRunner)
+
+    val queueQueryRunner: QueueQueryRunner
+        get() = override() ?: QueueQueryRunnerImpl()
 
     val queue: Queue
         get() = override() ?: QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, queueTimer, logger)

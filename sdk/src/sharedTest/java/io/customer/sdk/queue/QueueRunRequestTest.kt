@@ -31,7 +31,7 @@ class QueueRunRequestTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger, requestManagerMock)
+        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger, requestManagerMock, di.queueQueryRunner)
     }
 
     // our indicator if queue started to run the queue

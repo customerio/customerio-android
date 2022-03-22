@@ -1,11 +1,16 @@
 package io.customer.sdk
 
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.model.verify
 import io.customer.sdk.data.request.Event
-import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.data.request.Metric
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
+import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
@@ -21,16 +26,16 @@ import java.util.*
 internal class CustomerIOClient(
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
-    private val hooks: HooksManager,
     private val dateUtil: DateUtil,
     private val logger: Logger
 ) : CustomerIOApi {
 
-    override fun identify(identifier: String, attributes: Map<String, Any>) {
+    override fun identify(identifier: String, attributes: CustomAttributes) {
         logger.info("identify profile $identifier")
         logger.debug("identify profile $identifier, $attributes")
 
         val currentlyIdentifiedProfileIdentifier = preferenceRepository.getIdentifier()
+        // The SDK calls identify() with the already identified profile for changing profile attributes.
         val isChangingIdentifiedProfile = currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
         val isFirstTimeIdentifying = currentlyIdentifiedProfileIdentifier == null
 
@@ -38,13 +43,8 @@ internal class CustomerIOClient(
             if (isChangingIdentifiedProfile) {
                 logger.info("changing profile from id $currentlyIdentifiedProfileIdentifier to $identifier")
 
-                logger.debug("running hooks changing profile from $currentlyIdentifiedProfileIdentifier to $identifier")
-                hooks.profileIdentifiedHooks.forEach { hook ->
-                    hook.beforeIdentifiedProfileChange(
-                        oldIdentifier = currentlyIdentifiedProfileIdentifier,
-                        newIdentifier = identifier
-                    )
-                }
+                logger.debug("deleting device token before identifying new profile")
+                this.deleteDeviceToken()
             }
         }
 
@@ -68,22 +68,28 @@ internal class CustomerIOClient(
         preferenceRepository.saveIdentifier(identifier)
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
-            logger.debug("running hooks profile identified")
-            hooks.profileIdentifiedHooks.forEach { hook ->
-                hook.profileIdentified(identifier)
+            logger.debug("first time identified or changing identified profile")
+
+            preferenceRepository.getDeviceToken()?.let {
+                logger.debug("automatically registering device token to newly identified profile")
+                registerDeviceToken(it)
             }
         }
     }
 
-    override fun track(name: String, attributes: Map<String, Any>) {
+    override fun track(name: String, attributes: CustomAttributes) {
         return track(EventType.event, name, attributes)
     }
 
-    fun track(eventType: EventType, name: String, attributes: Map<String, Any>) {
+    fun track(eventType: EventType, name: String, attributes: CustomAttributes) {
         val eventTypeDescription = if (eventType == EventType.screen) "track screen view event" else "track event"
 
         logger.info("$eventTypeDescription $name")
         logger.debug("$eventTypeDescription $name attributes: $attributes")
+
+        // Clean-up attributes before any JSON parsing.
+        // TODO implement implementation tests for background queue and provide invalid attributes to make sure that we remembered to call this function.
+        val attributes = attributes.verify()
 
         val identifier = preferenceRepository.getIdentifier()
         if (identifier == null) {
@@ -103,13 +109,79 @@ internal class CustomerIOClient(
     }
 
     override fun clearIdentify() {
-        val identifier = preferenceRepository.getIdentifier()
-        identifier?.let {
-            preferenceRepository.removeIdentifier(it)
+        preferenceRepository.getIdentifier()?.let { identifier ->
+            preferenceRepository.removeIdentifier(identifier)
         }
     }
 
-    override fun screen(name: String, attributes: Map<String, Any>) {
+    override fun screen(name: String, attributes: CustomAttributes) {
         return track(EventType.screen, name, attributes)
+    }
+
+    override fun registerDeviceToken(deviceToken: String) {
+        logger.info("registering device token $deviceToken")
+
+        logger.debug("storing device token to device storage $deviceToken")
+        preferenceRepository.saveDeviceToken(deviceToken)
+
+        val identifiedProfileId = preferenceRepository.getIdentifier()
+        if (identifiedProfileId == null) {
+            logger.info("no profile identified, so not registering device token to a profile")
+            return
+        }
+
+        backgroundQueue.addTask(QueueTaskType.RegisterDeviceToken, RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now))
+        // TODO grouping
+        /**
+         *                                     groupStart: .registeredPushToken(token: deviceToken),
+         blockingGroups: [.identifiedProfile(identifier: identifier)])
+         */
+    }
+
+    override fun deleteDeviceToken() {
+        logger.info("deleting device token request made")
+
+        val existingDeviceToken = preferenceRepository.getDeviceToken()
+        if (existingDeviceToken == null) {
+            logger.info("no device token exists so ignoring request to delete")
+            return
+        }
+
+        // Do not delete push token from device storage. The token is valid
+        // once given to SDK. We need it for future profile identifications.
+
+        val identifiedProfileId = preferenceRepository.getIdentifier()
+        if (identifiedProfileId == null) {
+            logger.info("no profile identified so not removing device token from profile")
+            return
+        }
+
+        backgroundQueue.addTask(QueueTaskType.DeletePushToken, DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken))
+        // TODO add groups
+        /**
+         *                                     blockingGroups: [
+         .registeredPushToken(token: existingDeviceToken),
+         .identifiedProfile(identifier: identifiedProfileId)
+         ])
+         */
+    }
+
+    override fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
+    ) {
+        logger.info("push metric ${event.name}")
+        logger.debug("delivery id $deliveryID device token $deviceToken")
+
+        backgroundQueue.addTask(
+            QueueTaskType.TrackPushMetric,
+            Metric(
+                deliveryID = deliveryID,
+                deviceToken = deviceToken,
+                event = event,
+                timestamp = dateUtil.now
+            )
+        )
     }
 }

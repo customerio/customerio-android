@@ -21,94 +21,53 @@ import org.mockito.kotlin.whenever
 @RunWith(AndroidJUnit4::class)
 class QueueRunRequestTest : BaseTest() {
 
-    private lateinit var runRequest: QueueRunRequest
+    private lateinit var runRequest: QueueRunRequestImpl
 
     val runnerMock: QueueRunner = mock()
     val storageMock: QueueStorage = mock()
-    val requestManagerMock: QueueRequestManager = mock()
 
     @Before
     override fun setup() {
         super.setup()
 
-        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger, requestManagerMock, di.queueQueryRunner)
-    }
-
-    // our indicator if queue started to run the queue
-    private fun assertDidStartARun(didRun: Boolean) {
-        if (didRun) {
-            verify(storageMock).getInventory()
-            verify(requestManagerMock).queueRunRequestComplete()
-        } else {
-            verify(storageMock, never()).getInventory()
-            verify(requestManagerMock, never()).queueRunRequestComplete()
-        }
-    }
-
-    // start
-
-    @Test
-    fun test_start_givenAlreadyRunningARequest_expectDoNotStartNewRun() = runBlocking {
-        whenever(requestManagerMock.startRequest()).thenReturn(true)
-
-        runRequest.startIfNotAlready()
-
-        assertDidStartARun(false)
+        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger)
     }
 
     @Test
-    fun test_start_givenNotAlreadyRunningRequest_expectStartNewRun(): Unit = runBlocking {
-        whenever(requestManagerMock.startRequest()).thenReturn(false)
-        whenever(storageMock.getInventory()).thenReturn(emptyList())
-
-        runRequest.startIfNotAlready()
-
-        assertDidStartARun(true)
-        verify(runnerMock, never()).runTask(any())
-    }
-
-    @Test
-    fun test_start_givenRunTaskSuccess_expectDeleteTask() = runBlocking {
+    fun test_start_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
-        whenever(requestManagerMock.startRequest()).thenReturn(false)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.success(Unit))
         whenever(storageMock.getInventory()).thenReturn(listOf(QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)))
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.delete(eq(givenTaskId))).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.startIfNotAlready()
+        runRequest.start()
 
-        assertDidStartARun(true)
         verify(storageMock).delete(givenTaskId)
-        verify(requestManagerMock).queueRunRequestComplete()
     }
 
     @Test
-    fun test_start_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask() = runBlocking {
+    fun test_start_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
-        whenever(requestManagerMock.startRequest()).thenReturn(false)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(http500Error))
         whenever(storageMock.getInventory()).thenReturn(listOf(QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)))
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.update(eq(givenTaskId), any())).thenReturn(true)
 
-        runRequest.startIfNotAlready()
+        runRequest.start()
 
-        assertDidStartARun(true)
         verify(storageMock, never()).delete(givenTaskId)
         verify(storageMock).update(eq(givenTaskId), any())
-        verify(requestManagerMock).queueRunRequestComplete()
     }
 
     @Test
-    fun test_start_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks() = runBlocking {
+    fun test_start_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         val givenTaskId2 = String.random
         val givenQueueTask2 = QueueTask.random.copy(storageId = givenTaskId2)
-        whenever(requestManagerMock.startRequest()).thenReturn(false)
         whenever(runnerMock.runTask(any())).thenReturn(Result.success(Unit))
         whenever(storageMock.getInventory()).thenReturn(
             listOf(
@@ -120,13 +79,11 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId2))).thenReturn(givenQueueTask2)
         whenever(storageMock.delete(any())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.startIfNotAlready()
+        runRequest.start()
 
-        assertDidStartARun(true)
         verify(storageMock).delete(givenTaskId)
         verify(storageMock).delete(givenTaskId2)
         verify(runnerMock).runTask(givenQueueTask)
         verify(runnerMock).runTask(givenQueueTask2)
-        verify(requestManagerMock).queueRunRequestComplete()
     }
 }

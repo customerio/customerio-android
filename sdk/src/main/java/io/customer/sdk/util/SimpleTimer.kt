@@ -7,7 +7,9 @@ import io.customer.sdk.utils.random
  * Wrapper around an OS timer that gives us the ability to mock timers in tests to make them run faster.
  */
 interface SimpleTimer {
+    // after block is called, timer is reset to be ready to use again
     fun scheduleAndCancelPrevious(seconds: Seconds, block: () -> Unit)
+    // after block is called, timer is reset to be ready to use again
     fun scheduleIfNotAlready(seconds: Seconds, block: () -> Unit): Boolean
     fun cancel()
 }
@@ -26,7 +28,7 @@ class AndroidSimpleTimer(
 
             log("making a timer for $seconds seconds")
 
-            countdownTimer = object : CountDownTimer(seconds.numberOfMilliseconds, 100) {
+            countdownTimer = object : CountDownTimer(seconds.toMilliseconds.value, 100) {
                 override fun onTick(millisUntilFinished: Long) {}
                 override fun onFinish() {
                     synchronized(this) {

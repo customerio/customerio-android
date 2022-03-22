@@ -1,11 +1,14 @@
 package io.customer.sdk.api
 
-/**
- * Apis exposed to clients
- */
-interface CustomerIOApi {
-    fun identify(identifier: String, attributes: Map<String, Any>)
-    fun track(name: String, attributes: Map<String, Any>)
+import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.request.MetricEvent
+
+internal interface CustomerIOApi {
+    fun identify(identifier: String, attributes: CustomAttributes)
+    fun track(name: String, attributes: CustomAttributes)
     fun clearIdentify()
-    fun screen(name: String, attributes: Map<String, Any>)
+    fun registerDeviceToken(deviceToken: String)
+    fun deleteDeviceToken()
+    fun trackMetric(deliveryID: String, event: MetricEvent, deviceToken: String)
+    fun screen(name: String, attributes: CustomAttributes)
 }

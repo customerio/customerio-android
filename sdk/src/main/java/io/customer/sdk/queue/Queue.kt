@@ -6,10 +6,11 @@ import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
-import io.customer.sdk.util.QueueTimer
 import io.customer.sdk.util.Seconds
+import io.customer.sdk.util.SimpleTimer
+import io.customer.sdk.util.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 interface Queue {
@@ -22,16 +23,21 @@ interface Queue {
 }
 
 class QueueImpl internal constructor(
+    private val dispatcher: CoroutineDispatcher,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
     private val sdkConfig: CustomerIOConfig,
-    private val queueTimer: QueueTimer,
+    private val queueTimer: SimpleTimer,
     private val logger: Logger
 ) : Queue {
 
+    companion object SingletonHolder : Singleton<Queue>()
+
     private val numberSecondsToScheduleTimer: Seconds
         get() = Seconds(sdkConfig.backgroundQueueSecondsDelay)
+
+    @Volatile var isRunningRequest: Boolean = false
 
     override fun <TaskType : Enum<*>, TaskData : Any> addTask(
         type: TaskType,
@@ -39,26 +45,38 @@ class QueueImpl internal constructor(
         groupStart: QueueTaskGroup?,
         blockingGroups: List<QueueTaskGroup>?
     ): QueueModifyResult {
-        logger.info("adding queue task $type")
+        synchronized(this) {
+            logger.info("adding queue task $type")
 
-        val taskDataString = jsonAdapter.toJson(data)
+            val taskDataString = jsonAdapter.toJson(data)
 
-        val createTaskResult = storage.create(
-            type = type.name,
-            data = taskDataString,
-            groupStart = groupStart,
-            blockingGroups = blockingGroups
-        )
-        logger.debug("added queue task data $taskDataString")
+            val createTaskResult = storage.create(
+                type = type.name,
+                data = taskDataString,
+                groupStart = groupStart,
+                blockingGroups = blockingGroups
+            )
+            logger.debug("added queue task data $taskDataString")
 
-        processQueueStatus(createTaskResult.queueStatus)
+            processQueueStatus(createTaskResult.queueStatus)
 
-        return createTaskResult
+            return createTaskResult
+        }
     }
 
-    private fun run() {
-        CoroutineScope(Dispatchers.IO).launch {
-            runRequest.startIfNotAlready()
+    internal fun run() {
+        synchronized(this) {
+            val isQueueRunningRequest = isRunningRequest
+            if (isQueueRunningRequest) return
+
+            isRunningRequest = true
+        }
+
+        CoroutineScope(dispatcher).launch {
+            runRequest.start()
+
+            // reset queue to be able to run again
+            isRunningRequest = false
         }
     }
 

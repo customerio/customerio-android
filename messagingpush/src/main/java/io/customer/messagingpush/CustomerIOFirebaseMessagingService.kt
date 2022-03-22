@@ -1,20 +1,17 @@
 package io.customer.messagingpush
 
-import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.base.comunication.Action
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.extensions.getErrorResult
+import io.customer.sdk.di.CustomerIOComponent
 
-/**
- * Uses the singleton instance of [MessagingPush]/[CustomerIO]. If you want to use a different site id/api key combination,
- * create your own [FirebaseMessagingService] subclass and call [MessagingPush] functions manually.
- */
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         private const val TAG = "FirebaseMessaging:"
+
+        private val diGraph: CustomerIOComponent
+            get() = CustomerIO.instance().diGraph
 
         /**
          * Handles receiving an incoming push notification.
@@ -28,17 +25,10 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @return Boolean indicating whether this will be handled by CustomerIo
          */
         fun onMessageReceived(
-            context: Context,
             remoteMessage: RemoteMessage,
-            handleNotificationTrigger: Boolean = true,
-            errorCallback: Action.Callback<Unit> = Action.Callback { }
+            handleNotificationTrigger: Boolean = true
         ): Boolean {
-            return try {
-                handleMessageReceived(context, remoteMessage, handleNotificationTrigger)
-            } catch (e: Exception) {
-                errorCallback.onResult(e.getErrorResult())
-                false
-            }
+            return handleMessageReceived(remoteMessage, handleNotificationTrigger)
         }
 
         /**
@@ -49,23 +39,21 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param errorCallback callback containing any error occurred
          */
         fun onNewToken(
-            token: String,
-            errorCallback: Action.Callback<Unit> = Action.Callback { }
+            token: String
         ) {
             handleNewToken(token)
         }
 
         private fun handleNewToken(token: String) {
-            MessagingPush.instance().registerDeviceToken(deviceToken = token)
+            CustomerIO.instance().registerDeviceToken(deviceToken = token)
         }
 
         private fun handleMessageReceived(
-            context: Context,
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
             val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
-            return handler.handleMessage(context, handleNotificationTrigger)
+            return handler.handleMessage(diGraph.context, handleNotificationTrigger)
         }
     }
 
@@ -74,6 +62,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        handleMessageReceived(this, remoteMessage)
+        handleMessageReceived(remoteMessage)
     }
 }

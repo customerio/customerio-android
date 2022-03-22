@@ -5,26 +5,17 @@ import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 
 interface QueueRunRequest {
-    suspend fun startIfNotAlready()
+    suspend fun start()
 }
 
 class QueueRunRequestImpl internal constructor(
     private val runner: QueueRunner,
     private val queueStorage: QueueStorage,
     private val logger: Logger,
-    private val requestManager: QueueRequestManager,
     private val queryRunner: QueueQueryRunner
 ) : QueueRunRequest {
 
-    override suspend fun startIfNotAlready() {
-        val isRequestCurrentlyRunning = requestManager.startRequest()
-
-        if (!isRequestCurrentlyRunning) {
-            startNewRequest()
-        }
-    }
-
-    private suspend fun startNewRequest() {
+    override suspend fun start() {
         logger.debug("queue starting to run tasks...")
         val inventory = queueStorage.getInventory()
 
@@ -36,7 +27,7 @@ class QueueRunRequestImpl internal constructor(
         val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
         if (nextTaskToRunInventoryItem == null) {
             logger.debug("queue done running tasks")
-            return requestManager.queueRunRequestComplete()
+            return
         }
 
         val nextTaskStorageId = nextTaskToRunInventoryItem.taskPersistedId

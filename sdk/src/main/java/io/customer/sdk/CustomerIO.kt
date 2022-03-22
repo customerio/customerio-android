@@ -4,13 +4,17 @@ import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 
+/**
+ * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
+ * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
+ */
 interface CustomerIOInstance {
-    val siteId: String
-
     fun identify(identifier: String)
 
     fun identify(
@@ -40,6 +44,16 @@ interface CustomerIOInstance {
     )
 
     fun clearIdentify()
+
+    fun registerDeviceToken(deviceToken: String)
+
+    fun deleteDeviceToken()
+
+    fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
+    )
 }
 
 /**
@@ -51,12 +65,13 @@ Create your own instance using
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-class CustomerIO constructor(
-    // The constructor is a public constructor allowing customers to create non-singleton instance of CustomerIO class if they dont want to use the Singleton API.
-    override val siteId: String,
-    val apiKey: String,
-    val region: Region = Region.US
+class CustomerIO internal constructor(
+    /**
+     * Strong reference to graph that other top-level classes in SDK can use `CustomerIO.instance().diGraph`.
+     */
+    val diGraph: CustomerIOComponent
 ) : CustomerIOInstance {
+
     companion object {
         private var instance: CustomerIO? = null
 
@@ -125,22 +140,17 @@ class CustomerIO constructor(
                 backgroundQueueSecondsDelay = 30
             )
 
-            CustomerIOComponent.createAndUpdate(siteId, appContext, config)
-
-            val client = CustomerIO(siteId, apiKey, region)
+            val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
+            val client = CustomerIO(diGraph)
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
+
             return client
         }
     }
-
-    // Since this class is at the top-most level of the MessagingPush module,
-    // we get instances from the DiGraph, not through constructor dependency injection.
-    private val diGraph: CustomerIOComponent
-        get() = CustomerIOComponent.getInstance(siteId)
 
     private val api: CustomerIOApi
         get() = diGraph.buildApi()
@@ -170,14 +180,13 @@ class CustomerIO constructor(
      */
     override fun identify(
         identifier: String,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = api.identify(identifier, attributes)
 
     /**
      * Track an event
      * [Learn more](https://customer.io/docs/events/) about events in Customer.io
      * @param name Name of the event you want to track.
-     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun track(name: String) = this.track(name, emptyMap())
 
@@ -190,7 +199,7 @@ class CustomerIO constructor(
      */
     override fun track(
         name: String,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = api.track(name, attributes)
 
     /**
@@ -208,7 +217,7 @@ class CustomerIO constructor(
      */
     override fun screen(
         name: String,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = api.screen(name, attributes)
 
     /**
@@ -226,7 +235,7 @@ class CustomerIO constructor(
      */
     override fun screen(
         activity: Activity,
-        attributes: Map<String, Any>
+        attributes: CustomAttributes
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -240,7 +249,31 @@ class CustomerIO constructor(
         api.clearIdentify()
     }
 
-    private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>) {
+    /**
+     * Register a new device token with Customer.io, associated with the current active customer. If there
+     * is no active customer, this will fail to register the device
+     */
+    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken)
+
+    /**
+     * Delete the currently registered device token
+     */
+    override fun deleteDeviceToken() = api.deleteDeviceToken()
+
+    /**
+     * Track a push metric
+     */
+    override fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String,
+    ) = api.trackMetric(
+        deliveryID = deliveryID,
+        event = event,
+        deviceToken = deviceToken
+    )
+
+    private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(

@@ -27,7 +27,7 @@ class DeviceStoreStub {
                     get() = "User App"
                 override val customerAppVersion: String
                     get() = "1.0"
-                override val isPushSubscribed: Boolean
+                override val isPushEnabled: Boolean
                     get() = true
             },
             version = "1.0.0-alpha.6"

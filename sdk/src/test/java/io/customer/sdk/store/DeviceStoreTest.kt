@@ -37,7 +37,7 @@ internal class DeviceStoreTest : BaseTest() {
             "app_version" to "1.0",
             "cio_sdk_version" to "1.0.0-alpha.6",
             "device_locale" to "en",
-            "push_subscribed" to true
+            "push_enabled" to true
         )
 
         resultDeviceAttributes shouldBeEqualTo expectedDeviceAttributes

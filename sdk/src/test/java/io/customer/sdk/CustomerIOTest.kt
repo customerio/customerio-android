@@ -13,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
+import org.mockito.kotlin.verify
 
 internal class CustomerIOTest : BaseTest() {
 
@@ -28,13 +29,14 @@ internal class CustomerIOTest : BaseTest() {
     }
 
     @Test
-    fun `verify SDK configuration is correct`() {
+    fun `verify SDK default configuration is correct`() {
         customerIO.config.siteId `should be equal to` MockCustomerIOBuilder.siteId
         customerIO.config.apiKey `should be equal to` MockCustomerIOBuilder.apiKey
         customerIO.config.timeout `should be equal to` MockCustomerIOBuilder.timeout.toLong()
         customerIO.config.region `should be equal to` MockCustomerIOBuilder.region
         customerIO.config.urlHandler `should be equal to` MockCustomerIOBuilder.urlHandler
         customerIO.config.autoTrackScreenViews `should be equal to` MockCustomerIOBuilder.shouldAutoRecordScreenViews
+        customerIO.config.autoTrackDeviceAttributes `should be equal to` MockCustomerIOBuilder.autoTrackDeviceAttributes
     }
 
     @Test
@@ -154,6 +156,55 @@ internal class CustomerIOTest : BaseTest() {
         val response = customerIO.registerDeviceToken("event_name").execute()
 
         verifySuccess(response, Unit)
+    }
+
+    @Test
+    fun `verify SDK both default and custom attributes are added`() {
+
+        `when`(
+            mockCustomerIO.api.registerDeviceToken(
+                any(),
+                any(),
+            )
+        ).thenReturn(getEmptyAction())
+
+        customerIO.deviceAttributes.putAll(mapOf("test" to "value"))
+
+        val expectedToken = "token"
+
+        val expectedAttributes = customerIO.deviceAttributes + deviceStore.buildDeviceAttributes()
+
+        val response = customerIO.registerDeviceToken(expectedToken).execute()
+
+        verify(mockCustomerIO.api).registerDeviceToken(expectedToken, expectedAttributes)
+
+        verifySuccess(response, Unit)
+    }
+
+    @Test
+    fun `verify SDK skips default attributes on basis of config`() {
+
+        val mockCustomerIO = MockCustomerIOBuilder(MockCustomerIOBuilder.defaultConfig.copy(autoTrackDeviceAttributes = false))
+        customerIO = mockCustomerIO.build()
+
+        `when`(mockCustomerIO.store.deviceStore).thenReturn(deviceStore)
+
+        `when`(
+            mockCustomerIO.api.registerDeviceToken(
+                any(),
+                any(),
+            )
+        ).thenReturn(getEmptyAction())
+
+        customerIO.deviceAttributes.putAll(mapOf("test" to "value"))
+
+        val expectedToken = "token"
+
+        val expectedAttributes = customerIO.deviceAttributes
+
+        customerIO.registerDeviceToken(expectedToken).execute()
+
+        verify(mockCustomerIO.api).registerDeviceToken(expectedToken, expectedAttributes)
     }
 
     @Test

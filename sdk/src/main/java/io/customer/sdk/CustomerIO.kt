@@ -50,8 +50,6 @@ class CustomerIO internal constructor(
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
 
-        private val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
-
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
         fun setRegion(region: Region): Builder {
@@ -71,11 +69,6 @@ class CustomerIO internal constructor(
 
         fun autoTrackDeviceAttributes(shouldTrackDeviceAttributes: Boolean): Builder {
             this.shouldAutoRecordScreenViews = shouldAutoRecordScreenViews
-            return this
-        }
-
-        fun setDeviceAttributes(attributes: Map<String, Any>): Builder {
-            deviceAttributes.putAll(attributes)
             return this
         }
 
@@ -107,7 +100,6 @@ class CustomerIO internal constructor(
                 urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
-                deviceAttributes = deviceAttributes
             )
 
             val customerIoComponent =
@@ -197,9 +189,9 @@ class CustomerIO internal constructor(
 
     private fun collectDeviceAttributes(): Map<String, Any> {
         return if (config.autoTrackDeviceAttributes) {
-            config.deviceAttributes + store.deviceStore.buildDeviceAttributes()
+            deviceAttributes + store.deviceStore.buildDeviceAttributes()
         } else {
-            config.deviceAttributes
+            deviceAttributes
         }
     }
 
@@ -225,9 +217,7 @@ class CustomerIO internal constructor(
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    fun addCustomDeviceAttributes(attributes: Map<String, Any>) {
-        config.deviceAttributes.putAll(attributes)
-    }
+    val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
 
     private fun recordScreenViews(activity: Activity, attributes: Map<String, Any>): Action<Unit> {
         val packageManager = activity.packageManager

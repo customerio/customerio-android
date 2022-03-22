@@ -187,7 +187,6 @@ class CustomerIO internal constructor(
      * Track an event
      * [Learn more](https://customer.io/docs/events/) about events in Customer.io
      * @param name Name of the event you want to track.
-     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun track(name: String) = this.track(name, emptyMap())
 

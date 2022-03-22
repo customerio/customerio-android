@@ -1,0 +1,48 @@
+// Gradle configuration to setup automated JVM and Android instrumentation testing.
+// In this file, include testing tools and configuration that is used by all modules.
+
+import io.customer.android.Dependencies
+
+android {
+    defaultConfig {
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    testOptions {
+        unitTests {
+            // From: http://robolectric.org/getting-started/
+            includeAndroidResources = true
+        }
+    }
+
+    sourceSets {
+        // Preferred to put test classes in `src/sharedTest/` so the tests will run on both
+        // JVM (for speed) and Android (for confidence).
+        String sharedTestDir = 'src/sharedTest/java'
+        test.java.srcDirs += sharedTestDir
+        androidTest.java.srcDirs += sharedTestDir
+    }
+}
+
+dependencies {
+    testImplementation project(':common-test')
+    androidTestImplementation project(':common-test')
+
+    testImplementation Dependencies.androidxTestJunit
+    androidTestImplementation Dependencies.androidxTestJunit
+    androidTestImplementation Dependencies.androidxTestRunner
+    androidTestImplementation Dependencies.androidxTestRules
+
+    testImplementation Dependencies.mockito
+    androidTestImplementation Dependencies.mockitoAndroid
+    testImplementation Dependencies.mockitoKotlin
+    androidTestImplementation Dependencies.mockitoKotlin
+    testImplementation Dependencies.robolectric
+
+    testImplementation Dependencies.kluent
+    androidTestImplementation Dependencies.kluent
+    testImplementation Dependencies.okhttpMockWebserver
+
+    testImplementation Dependencies.junit4
+    androidTestImplementation Dependencies.junit4
+}

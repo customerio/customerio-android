@@ -39,47 +39,41 @@ import java.util.concurrent.TimeUnit
 /**
  * Configuration class to configure/initialize low-level operations and objects.
  */
-internal class CustomerIOComponent(
-    private val customerIOConfig: CustomerIOConfig,
-    private val context: Context
-) {
-
+class CustomerIOComponent(
+    val context: Context,
     val sdkConfig: CustomerIOConfig
-        get() = customerIOConfig
-
-    val siteId: String
-        get() = customerIOConfig.siteId
+) : DiGraph() {
 
     val fileStorage: FileStorage
-        get() = FileStorage(siteId, context)
+        get() = override() ?: FileStorage(sdkConfig, context)
 
     val jsonAdapter: JsonAdapter
-        get() = JsonAdapter(moshi)
+        get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = QueueStorageImpl(siteId, fileStorage, jsonAdapter)
+        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter)
 
     val queueRunner: QueueRunner
-        get() = QueueRunnerImpl(jsonAdapter, cioHttpClient)
-
-    val queueRunRequest: QueueRunRequest by lazy {
-        QueueRunRequestImpl(queueRunner, queueStorage, logger)
-    }
+        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient)
 
     val queue: Queue
-        get() = QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+        get() = override() ?: QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+
+    val queueRunRequest: QueueRunRequest by lazy {
+        override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger)
+    }
 
     val logger: Logger
-        get() = LogcatLogger()
+        get() = override() ?: LogcatLogger()
 
-    val cioHttpClient: CustomerIOAPIHttpClient
-        get() = RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
+    internal val cioHttpClient: CustomerIOAPIHttpClient
+        get() = override() ?: RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
 
     val dateUtil: DateUtil
-        get() = DateUtilImpl()
+        get() = override() ?: DateUtilImpl()
 
-    fun buildApi(): CustomerIOApi {
-        return CustomerIOClient(
+    internal fun buildApi(): CustomerIOApi {
+        return override() ?: CustomerIOClient(
             identityRepository = IdentityRepositoryImpl(
                 customerIOService = buildRetrofitApi<CustomerIOService>()
             ),
@@ -95,7 +89,7 @@ internal class CustomerIOComponent(
     }
 
     fun buildStore(): CustomerIOStore {
-        return object : CustomerIOStore {
+        return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
                 DeviceStoreImp(
                     BuildStoreImp(),
@@ -107,22 +101,19 @@ internal class CustomerIOComponent(
     }
 
     private val sharedPreferenceRepository by lazy {
-        PreferenceRepositoryImpl(
-            context = context,
-            siteId = siteId
-        )
+        override() ?: PreferenceRepositoryImpl(context, sdkConfig)
     }
 
     private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
-        return buildRetrofit(
-            customerIOConfig.region.baseUrl,
-            customerIOConfig.timeout,
+        return override() ?: buildRetrofit(
+            sdkConfig.region.baseUrl,
+            sdkConfig.timeout,
         ).create(apiClass)
     }
 
     private val httpLoggingInterceptor by lazy {
-        HttpLoggingInterceptor().apply {
+        override() ?: HttpLoggingInterceptor().apply {
             if (BuildConfig.DEBUG) {
                 level = HttpLoggingInterceptor.Level.BODY
             }
@@ -131,7 +122,7 @@ internal class CustomerIOComponent(
 
     // performance improvement to keep created moshi instance for re-use.
     val moshi: Moshi by lazy {
-        Moshi.Builder()
+        override() ?: Moshi.Builder()
             .add(UnixDateAdapter())
             .add(BigDecimalAdapter())
             .add(CustomAttributesFactory())
@@ -143,28 +134,27 @@ internal class CustomerIOComponent(
         timeout: Long
     ): Retrofit {
         val okHttpClient = clientBuilder(timeout).build()
-        return Retrofit.Builder()
+        return override() ?: Retrofit.Builder()
             .baseUrl(endpoint)
             .client(okHttpClient)
             .addCallAdapterFactory(CustomerIoCallAdapterFactory.create())
             .build()
     }
 
-    private val baseClient: OkHttpClient by lazy { OkHttpClient() }
+    private val baseClient: OkHttpClient by lazy { override() ?: OkHttpClient() }
 
-    private fun baseClientBuilder(): OkHttpClient.Builder =
-        baseClient.newBuilder()
+    private fun baseClientBuilder(): OkHttpClient.Builder = override() ?: baseClient.newBuilder()
 
     private fun clientBuilder(
         timeout: Long,
     ): OkHttpClient.Builder {
-        return baseClientBuilder()
+        return override() ?: baseClientBuilder()
             // timeouts
             .connectTimeout(timeout, TimeUnit.MILLISECONDS)
             .writeTimeout(timeout, TimeUnit.MILLISECONDS)
             .readTimeout(timeout, TimeUnit.MILLISECONDS)
             // interceptors
-            .addInterceptor(HeadersInterceptor())
+            .addInterceptor(HeadersInterceptor(buildStore(), sdkConfig))
             .addInterceptor(httpLoggingInterceptor)
     }
 }

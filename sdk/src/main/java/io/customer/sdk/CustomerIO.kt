@@ -9,8 +9,53 @@ import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.data.store.CustomerIOStore
 import io.customer.sdk.di.CustomerIOComponent
+
+/**
+ * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
+ * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
+ */
+interface CustomerIOInstance {
+    fun identify(identifier: String): Action<Unit>
+
+    fun identify(
+        identifier: String,
+        attributes: Map<String, Any>
+    ): Action<Unit>
+
+    fun track(name: String)
+
+    fun track(
+        name: String,
+        attributes: Map<String, Any>
+    )
+
+    fun screen(name: String)
+
+    fun screen(
+        name: String,
+        attributes: Map<String, Any>
+    )
+
+    fun screen(activity: Activity)
+
+    fun screen(
+        activity: Activity,
+        attributes: Map<String, Any>
+    )
+
+    fun clearIdentify()
+
+    fun registerDeviceToken(deviceToken: String): Action<Unit>
+
+    fun deleteDeviceToken(): Action<Unit>
+
+    fun trackMetric(
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String,
+    ): Action<Unit>
+}
 
 /**
 Welcome to the Customer.io Android SDK!
@@ -21,19 +66,20 @@ Create your own instance using
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-
 class CustomerIO internal constructor(
-    val config: CustomerIOConfig,
-    val store: CustomerIOStore,
-    private val api: CustomerIOApi,
-) {
+    /**
+     * Strong reference to graph that other top-level classes in SDK can use `CustomerIO.instance().diGraph`.
+     */
+    val diGraph: CustomerIOComponent
+) : CustomerIOInstance {
+
     companion object {
         private var instance: CustomerIO? = null
 
         @JvmStatic
         fun instance(): CustomerIO {
             return instance
-                ?: throw IllegalStateException("CustomerIo.Builder::build() must be called before obtaining CustomerIo instance")
+                ?: throw IllegalStateException("CustomerIO.Builder::build() must be called before obtaining CustomerIO instance")
         }
     }
 
@@ -94,22 +140,32 @@ class CustomerIO internal constructor(
                 backgroundQueueMinNumberOfTasks = 10
             )
 
-            val customerIoComponent =
-                CustomerIOComponent(customerIOConfig = config, context = appContext)
+            val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
+            val client = CustomerIO(diGraph)
 
-            val client = CustomerIO(
-                config = config,
-                store = customerIoComponent.buildStore(),
-                api = customerIoComponent.buildApi(),
-            )
-
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client)
+            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
+
             return client
         }
     }
+
+    private val api: CustomerIOApi
+        get() = diGraph.buildApi()
+
+    /**
+     * Identify a customer (aka: Add or update a profile).
+     * [Learn more](https://customer.io/docs/identifying-people/) about identifying a customer in Customer.io
+     * Note: You can only identify 1 profile at a time in your SDK. If you call this function multiple times,
+     * the previously identified profile will be removed. Only the latest identified customer is persisted.
+     * @param identifier ID you want to assign to the customer.
+     * This value can be an internal ID that your system uses or an email address.
+     * [Learn more](https://customer.io/docs/api/#operation/identify)
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
+    override fun identify(identifier: String): Action<Unit> = this.identify(identifier, emptyMap())
 
     /**
      * Identify a customer (aka: Add or update a profile).
@@ -122,10 +178,18 @@ class CustomerIO internal constructor(
      * @param attributes Map of <String, IdentityAttributeValue> to be added
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    fun identify(
+    override fun identify(
         identifier: String,
-        attributes: CustomAttributes = emptyMap()
+        attributes: CustomAttributes
     ): Action<Unit> = api.identify(identifier, attributes)
+
+    /**
+     * Track an event
+     * [Learn more](https://customer.io/docs/events/) about events in Customer.io
+     * @param name Name of the event you want to track.
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
+    override fun track(name: String) = this.track(name, emptyMap())
 
     /**
      * Track an event
@@ -134,10 +198,17 @@ class CustomerIO internal constructor(
      * @param attributes Optional event body in Map format used as JSON object
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    fun track(
+    override fun track(
         name: String,
-        attributes: CustomAttributes = emptyMap()
+        attributes: CustomAttributes
     ) = api.track(name, attributes)
+
+    /**
+     * Track screen
+     * @param name Name of the screen you want to track.
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
+    override fun screen(name: String) = this.screen(name, emptyMap())
 
     /**
      * Track screen
@@ -145,10 +216,17 @@ class CustomerIO internal constructor(
      * @param attributes Optional event body in Map format used as JSON object
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    fun screen(
+    override fun screen(
         name: String,
-        attributes: CustomAttributes = emptyMap()
+        attributes: CustomAttributes
     ) = api.screen(name, attributes)
+
+    /**
+     * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
+     * @param activity Instance of the activity you want to track.
+     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
+     */
+    override fun screen(activity: Activity) = this.screen(activity, emptyMap())
 
     /**
      * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
@@ -156,9 +234,9 @@ class CustomerIO internal constructor(
      * @param attributes Optional event body in Map format used as JSON object
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    fun screen(
+    override fun screen(
         activity: Activity,
-        attributes: CustomAttributes = emptyMap()
+        attributes: CustomAttributes
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -168,7 +246,7 @@ class CustomerIO internal constructor(
      * call `identify()` again to identify the new customer profile over the existing.
      * If no profile has been identified yet, this function will ignore your request.
      */
-    fun clearIdentify() {
+    override fun clearIdentify() {
         api.clearIdentify()
     }
 
@@ -176,18 +254,18 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    fun registerDeviceToken(deviceToken: String): Action<Unit> =
+    override fun registerDeviceToken(deviceToken: String): Action<Unit> =
         api.registerDeviceToken(deviceToken)
 
     /**
      * Delete the currently registered device token
      */
-    fun deleteDeviceToken(): Action<Unit> = api.deleteDeviceToken()
+    override fun deleteDeviceToken(): Action<Unit> = api.deleteDeviceToken()
 
     /**
      * Track a push metric
      */
-    fun trackMetric(
+    override fun trackMetric(
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String,

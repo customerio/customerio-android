@@ -11,7 +11,9 @@ import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DEL
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_TOKEN
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOTIFICATION_REQUEST_CODE
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.di.CustomerIOComponent
 
 class CustomerIOPushReceiver : BroadcastReceiver() {
 
@@ -19,6 +21,12 @@ class CustomerIOPushReceiver : BroadcastReceiver() {
         private const val TAG = "CustomerIOPushReceiver:"
         const val ACTION = "io.customer.messagingpush.PUSH_ACTION"
     }
+
+    private val diGraph: CustomerIOComponent
+        get() = CustomerIO.instance().diGraph
+
+    private val sdkConfig: CustomerIOConfig
+        get() = diGraph.sdkConfig
 
     override fun onReceive(context: Context?, intent: Intent?) {
 
@@ -50,9 +58,9 @@ class CustomerIOPushReceiver : BroadcastReceiver() {
         val deepLinkUri = Uri.parse(deepLink)
 
         // check if host app overrides the handling of deeplink
-        if (CustomerIO.instance().config.urlHandler != null) {
-            if (CustomerIO.instance().config.urlHandler?.handleCustomerIOUrl(deepLinkUri) == true)
-                return
+        sdkConfig.urlHandler?.let { urlHandler ->
+            urlHandler.handleCustomerIOUrl(deepLinkUri)
+            return
         }
 
         // check if the deep links are handled within the host app

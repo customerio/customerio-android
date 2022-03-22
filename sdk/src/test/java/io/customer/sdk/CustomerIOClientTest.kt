@@ -5,6 +5,8 @@ import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.base.utils.ActionUtils
+import io.customer.common_test.verifyError
+import io.customer.common_test.verifySuccess
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.MetricEvent
@@ -17,8 +19,6 @@ import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`

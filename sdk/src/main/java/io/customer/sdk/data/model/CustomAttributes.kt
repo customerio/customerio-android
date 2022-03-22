@@ -13,7 +13,7 @@ typealias CustomAttributes = Map<String, Any>
  *
  * @see TestCustomAttributesDataSet
  */
-internal fun CustomAttributes.verify(): CustomAttributes {
+fun CustomAttributes.verify(): CustomAttributes {
     fun getValidValue(any: Any): Any {
         return when (any) {
             is Date -> any.getUnixTimestamp() // The API expects dates to be in Unix time format.

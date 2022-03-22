@@ -1,4 +1,4 @@
-package io.customer.sdk.utils
+package io.customer.common_test
 
 import io.customer.sdk.api.retrofit.CustomerIoCall
 import okhttp3.Request
@@ -7,7 +7,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-internal class MockRetrofitSuccess<T : Any>(private val result: T) : Call<T> {
+class MockRetrofitSuccess<T : Any>(private val result: T) : Call<T> {
 
     fun toCustomerIoCall(): CustomerIoCall<T> {
         return CustomerIoCall(

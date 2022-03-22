@@ -17,6 +17,7 @@ import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
+import java.util.*
 
 /**
  * CustomerIoClient is client class to hold all repositories and act as a bridge between

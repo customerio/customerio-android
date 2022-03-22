@@ -2,7 +2,7 @@ package io.customer.sdk.data.model
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.getUnixTimestamp
-import io.customer.sdk.utils.BaseTest
+import io.customer.common_test.BaseTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith

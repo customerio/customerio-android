@@ -54,8 +54,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
         private fun handleNewToken(token: String, errorCallback: Action.Callback<Unit>) {
             try {
-                CustomerIO.instance().registerDeviceToken(deviceToken = token)
-                    .enqueue(errorCallback)
+                CustomerIO.instance().registerDeviceToken(deviceToken = token).enqueue(errorCallback)
             } catch (exception: IllegalStateException) {
                 Log.e(TAG, "Error while handling token: ${exception.message}")
                 errorCallback.onResult(exception.getErrorResult())

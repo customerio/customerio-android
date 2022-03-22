@@ -4,10 +4,10 @@ import io.customer.base.error.StatusCode
 import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.IdentityRepositoryImpl
-import io.customer.sdk.utils.MockRetrofitError
-import io.customer.sdk.utils.MockRetrofitSuccess
-import io.customer.sdk.utils.verifyError
-import io.customer.sdk.utils.verifySuccess
+import io.customer.common_test.MockRetrofitError
+import io.customer.common_test.MockRetrofitSuccess
+import io.customer.common_test.verifyError
+import io.customer.common_test.verifySuccess
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito

@@ -9,5 +9,7 @@ class CustomerIOConfig(
     val region: Region,
     val timeout: Long,
     val urlHandler: CustomerIOUrlHandler?,
-    val autoTrackScreenViews: Boolean
+    val autoTrackScreenViews: Boolean,
+    val autoTrackDeviceAttributes: Boolean,
+    val deviceAttributes: MutableMap<String, Any>
 )

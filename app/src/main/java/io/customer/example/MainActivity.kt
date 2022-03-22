@@ -28,8 +28,15 @@ class MainActivity : AppCompatActivity() {
         // log events
 //        makeEventsRequests()
 
+        // add custom attributes
+        makeAddCustomDeviceAttributesRequest()
+
         // register device
         makeRegisterDeviceRequest()
+    }
+
+    private fun makeAddCustomDeviceAttributesRequest() {
+        CustomerIO.instance().addCustomDeviceAttributes(mapOf("bingo" to "heyaa"))
     }
 
     private fun makeRegisterDeviceRequest() {
@@ -99,7 +106,7 @@ class MainActivity : AppCompatActivity() {
             when (
                 val result =
                     CustomerIO.instance().identify(
-                        identifier = "support-ticket-test",
+                        identifier = "device-attri",
                         mapOf("created_at" to 1642659790)
                     ).execute()
             ) {

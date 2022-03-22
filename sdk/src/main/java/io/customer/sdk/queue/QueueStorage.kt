@@ -63,6 +63,7 @@ class QueueStorageImpl internal constructor(
             val newInventoryItem = QueueTaskMetadata(
                 newTaskStorageId,
                 type,
+                // Usually, we do not convert data types to a string before converting to a JSON string. We left the JSON parser to take care of the conversion for us. For groups, a String data type works good for use in the background queue.
                 groupStart?.toString(),
                 blockingGroups?.map { it.toString() },
                 Date()

@@ -135,6 +135,8 @@ class CustomerIOClientTest : BaseTest() {
         customerIOClient.identify(newIdentifier, givenAttributes)
 
         inOrder(backgroundQueueMock).apply {
+            // order of adding tasks to queue matter to prevent locking running background queue tasks. Some tasks may belong to a group and that group needs to exist in the queue!
+
             verify(backgroundQueueMock).addTask(
                 QueueTaskType.DeletePushToken,
                 DeletePushNotificationQueueTaskData(givenIdentifier, givenDeviceToken),

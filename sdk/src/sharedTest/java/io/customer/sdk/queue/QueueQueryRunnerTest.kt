@@ -60,7 +60,7 @@ class QueueQueryRunnerTest : BaseTest() {
     fun getNextTask_givenFailedTaskChildOfGroup_expectGetNextItemInQueue() {
         val givenFailedTask = QueueTaskMetadata.random.copy(groupMember = listOf(String.random))
         val givenQueue = listOf(
-            QueueTaskMetadata.random.copy(groupMember = listOf(givenFailedTask.groupStart!!))
+            QueueTaskMetadata.random.copy(groupMember = givenFailedTask.groupMember)
         )
         val expected = givenQueue[0]
 

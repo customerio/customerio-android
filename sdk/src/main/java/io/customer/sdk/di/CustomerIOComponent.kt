@@ -16,6 +16,8 @@ import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.QueueImpl
+import io.customer.sdk.queue.QueueQueryRunner
+import io.customer.sdk.queue.QueueQueryRunnerImpl
 import io.customer.sdk.queue.QueueRunRequest
 import io.customer.sdk.queue.QueueRunRequestImpl
 import io.customer.sdk.queue.QueueRunner
@@ -61,8 +63,11 @@ class CustomerIOComponent(
             QueueImpl(Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
         }
 
+    val queueQueryRunner: QueueQueryRunner
+        get() = override() ?: QueueQueryRunnerImpl()
+
     val queueRunRequest: QueueRunRequest
-        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger)
+        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
 
     val logger: Logger
         get() = override() ?: LogcatLogger()

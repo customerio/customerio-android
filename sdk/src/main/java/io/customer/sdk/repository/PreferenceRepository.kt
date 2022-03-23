@@ -10,7 +10,6 @@ interface PreferenceRepository {
     fun getIdentifier(): String?
 
     fun saveDeviceToken(token: String)
-    fun removeDeviceToken(token: String)
     fun getDeviceToken(): String?
 }
 
@@ -52,10 +51,6 @@ internal class PreferenceRepositoryImpl(
 
     override fun saveDeviceToken(token: String) {
         prefs.edit().putString(KEY_DEVICE_TOKEN, token).apply()
-    }
-
-    override fun removeDeviceToken(token: String) {
-        prefs.edit().remove(KEY_DEVICE_TOKEN).apply()
     }
 
     override fun getDeviceToken(): String? {

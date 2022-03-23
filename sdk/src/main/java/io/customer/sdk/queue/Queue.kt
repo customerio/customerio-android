@@ -5,33 +5,63 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.Seconds
+import io.customer.sdk.util.SimpleTimer
+import io.customer.sdk.util.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 interface Queue {
-    fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult
+    fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult
 }
 
 class QueueImpl internal constructor(
+    private val dispatcher: CoroutineDispatcher,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
     private val sdkConfig: CustomerIOConfig,
+    private val queueTimer: SimpleTimer,
     private val logger: Logger
 ) : Queue {
 
-    override fun <TaskData : Any> addTask(type: String, data: TaskData): QueueModifyResult {
-        logger.info("adding queue task $type")
+    companion object SingletonHolder : Singleton<Queue>()
 
-        val taskDataString = jsonAdapter.toJson(data)
+    private val numberSecondsToScheduleTimer: Seconds
+        get() = Seconds(sdkConfig.backgroundQueueSecondsDelay)
 
-        val createTaskResult = storage.create(type, taskDataString)
-        logger.debug("added queue task data $taskDataString")
+    @Volatile var isRunningRequest: Boolean = false
 
-        processQueueStatus(createTaskResult.queueStatus)
+    override fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult {
+        synchronized(this) {
+            logger.info("adding queue task $type")
 
-        return createTaskResult
+            val taskDataString = jsonAdapter.toJson(data)
+
+            val createTaskResult = storage.create(type.name, taskDataString)
+            logger.debug("added queue task data $taskDataString")
+
+            processQueueStatus(createTaskResult.queueStatus)
+
+            return createTaskResult
+        }
+    }
+
+    internal fun run() {
+        synchronized(this) {
+            val isQueueRunningRequest = isRunningRequest
+            if (isQueueRunningRequest) return
+
+            isRunningRequest = true
+        }
+
+        CoroutineScope(dispatcher).launch {
+            runRequest.start()
+
+            // reset queue to be able to run again
+            isRunningRequest = false
+        }
     }
 
     private fun processQueueStatus(queueStatus: QueueStatus) {
@@ -41,9 +71,19 @@ class QueueImpl internal constructor(
         if (isManyTasksInQueue) {
             logger.info("queue met criteria to run automatically")
 
-            CoroutineScope(Dispatchers.IO).launch {
-                runRequest.startIfNotAlready()
+            queueTimer.cancel()
+
+            this.run()
+        } else {
+            // Not enough tasks in the queue yet to run it now, so let's schedule them to run in the future.
+            // It's expected that only 1 timer instance exists and is running in the SDK.
+            val didSchedule = queueTimer.scheduleIfNotAlready(numberSecondsToScheduleTimer) {
+                logger.info("queue timer: now running queue")
+
+                this.run()
             }
+
+            if (didSchedule) logger.info("queue timer: scheduled to run queue in $numberSecondsToScheduleTimer seconds")
         }
     }
 }

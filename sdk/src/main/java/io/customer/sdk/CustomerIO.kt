@@ -3,7 +3,6 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.base.comunication.Action
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
@@ -16,12 +15,12 @@ import io.customer.sdk.di.CustomerIOComponent
  * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
  */
 interface CustomerIOInstance {
-    fun identify(identifier: String): Action<Unit>
+    fun identify(identifier: String)
 
     fun identify(
         identifier: String,
         attributes: Map<String, Any>
-    ): Action<Unit>
+    )
 
     fun track(name: String)
 
@@ -46,15 +45,15 @@ interface CustomerIOInstance {
 
     fun clearIdentify()
 
-    fun registerDeviceToken(deviceToken: String): Action<Unit>
+    fun registerDeviceToken(deviceToken: String)
 
-    fun deleteDeviceToken(): Action<Unit>
+    fun deleteDeviceToken()
 
     fun trackMetric(
         deliveryID: String,
         event: MetricEvent,
-        deviceToken: String,
-    ): Action<Unit>
+        deviceToken: String
+    )
 }
 
 /**
@@ -137,7 +136,8 @@ class CustomerIO internal constructor(
                 timeout = timeout,
                 urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
-                backgroundQueueMinNumberOfTasks = 10
+                backgroundQueueMinNumberOfTasks = 10,
+                backgroundQueueSecondsDelay = 30
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
@@ -165,7 +165,7 @@ class CustomerIO internal constructor(
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    override fun identify(identifier: String): Action<Unit> = this.identify(identifier, emptyMap())
+    override fun identify(identifier: String) = this.identify(identifier, emptyMap())
 
     /**
      * Identify a customer (aka: Add or update a profile).
@@ -181,13 +181,12 @@ class CustomerIO internal constructor(
     override fun identify(
         identifier: String,
         attributes: CustomAttributes
-    ): Action<Unit> = api.identify(identifier, attributes)
+    ) = api.identify(identifier, attributes)
 
     /**
      * Track an event
      * [Learn more](https://customer.io/docs/events/) about events in Customer.io
      * @param name Name of the event you want to track.
-     * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun track(name: String) = this.track(name, emptyMap())
 
@@ -254,13 +253,12 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String): Action<Unit> =
-        api.registerDeviceToken(deviceToken)
+    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken)
 
     /**
      * Delete the currently registered device token
      */
-    override fun deleteDeviceToken(): Action<Unit> = api.deleteDeviceToken()
+    override fun deleteDeviceToken() = api.deleteDeviceToken()
 
     /**
      * Track a push metric

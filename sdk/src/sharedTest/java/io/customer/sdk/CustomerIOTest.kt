@@ -3,25 +3,15 @@ package io.customer.sdk
 import android.net.Uri
 import io.customer.common_test.BaseTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.base.data.ErrorResult
-import io.customer.base.error.ErrorDetail
-import io.customer.base.error.StatusCode
-import io.customer.base.utils.ActionUtils.Companion.getEmptyAction
-import io.customer.base.utils.ActionUtils.Companion.getErrorAction
-import io.customer.common_test.verifyError
-import io.customer.common_test.verifySuccess
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.`when`
-import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 
 @RunWith(AndroidJUnit4::class)
@@ -61,115 +51,5 @@ class CustomerIOTest : BaseTest() {
         actual.region shouldBeEqualTo Region.EU
         actual.urlHandler.shouldNotBeNull()
         actual.autoTrackScreenViews shouldBeEqualTo true
-    }
-
-    @Test
-    fun verifySDKReturnsSuccessWhenCustomerIsIdentified() {
-        `when`(
-            apiMock.identify(
-                identifier = any(),
-                attributes = any()
-            )
-        ).thenReturn(getEmptyAction())
-
-        val response = customerIO.identify("test-identifier").execute()
-
-        verifySuccess(response, Unit)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenCustomerIdentifyRequestFails() {
-        `when`(
-            apiMock.identify(
-                identifier = any(),
-                attributes = any()
-            )
-        ).thenReturn(
-            getErrorAction(
-                errorResult = ErrorResult(
-                    error =
-                    ErrorDetail(statusCode = StatusCode.InternalServerError)
-                )
-            )
-        )
-
-        val response = customerIO.identify("test-identifier").execute()
-
-        verifyError(response, StatusCode.InternalServerError)
-    }
-
-    @Test
-    fun verifySDKReturnsSuccessWhenDeviceIsAdded() {
-        `when`(
-            apiMock.registerDeviceToken(
-                any(),
-            )
-        ).thenReturn(getEmptyAction())
-
-        val response = customerIO.registerDeviceToken("event_name").execute()
-
-        verifySuccess(response, Unit)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenAddingDeviceRequestFails() {
-        `when`(
-            apiMock.registerDeviceToken(
-                any(),
-            )
-        )
-            .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
-
-        val response = customerIO.registerDeviceToken("event_name").execute()
-
-        verifyError(response, StatusCode.BadRequest)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenDeviceIsRemoved() {
-        `when`(
-            apiMock.deleteDeviceToken()
-        ).thenReturn(getEmptyAction())
-
-        val response = customerIO.deleteDeviceToken().execute()
-
-        verifySuccess(response, Unit)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenRemovingDeviceRequestFails() {
-        `when`(
-            apiMock.deleteDeviceToken()
-        )
-            .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
-
-        val response = customerIO.deleteDeviceToken().execute()
-
-        verifyError(response, StatusCode.BadRequest)
-    }
-
-    @Test
-    fun verifySDKReturnsSuccessWhenPushEventMetricIsTracked() {
-        `when`(
-            apiMock.trackMetric(any(), any(), any())
-        ).thenReturn(getEmptyAction())
-
-        val response =
-            customerIO.trackMetric("delivery_id", MetricEvent.delivered, "token").execute()
-
-        verifySuccess(response, Unit)
-    }
-
-    @Test
-    fun verifySDKReturnsErrorWhenPushEventMetricRequestFails() {
-        `when`(
-            apiMock.trackMetric(any(), any(), any())
-        )
-            .thenReturn(getErrorAction(errorResult = ErrorResult(error = ErrorDetail(statusCode = StatusCode.BadRequest))))
-
-        val response =
-            customerIO.trackMetric("delivery_id", MetricEvent.delivered, "token").execute()
-
-        verifyError(response, StatusCode.BadRequest)
     }
 }

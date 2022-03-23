@@ -1,20 +1,19 @@
 package io.customer.sdk
 
-import io.customer.base.comunication.Action
-import io.customer.base.data.Result
-import io.customer.base.data.Success
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.model.verify
 import io.customer.sdk.data.request.Event
+import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
+import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
+import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.repository.IdentityRepository
 import io.customer.sdk.repository.PreferenceRepository
-import io.customer.sdk.repository.PushNotificationRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 import java.util.*
@@ -24,38 +23,47 @@ import java.util.*
  * repositories and `CustomerIo` class
  */
 internal class CustomerIOClient(
-    private val identityRepository: IdentityRepository,
     private val preferenceRepository: PreferenceRepository,
-    private val pushNotificationRepository: PushNotificationRepository,
     private val backgroundQueue: Queue,
     private val dateUtil: DateUtil,
     private val logger: Logger
 ) : CustomerIOApi {
 
-    override fun identify(identifier: String, attributes: CustomAttributes): Action<Unit> {
-        return object : Action<Unit> {
-            val action by lazy { identityRepository.identify(identifier, attributes) }
-            override fun execute(): Result<Unit> {
-                val result = action.execute()
-                if (result is Success) {
-                    logger.info("logged in $identifier successfully. Saving identifier to storage")
-                    preferenceRepository.saveIdentifier(identifier = identifier)
-                }
-                return result
-            }
+    override fun identify(identifier: String, attributes: CustomAttributes) {
+        logger.info("identify profile $identifier")
+        logger.debug("identify profile $identifier, $attributes")
 
-            override fun enqueue(callback: Action.Callback<Unit>) {
-                action.enqueue {
-                    if (it is Success) {
-                        logger.info("logged in $identifier successfully. Saving identifier to storage")
-                        preferenceRepository.saveIdentifier(identifier = identifier)
-                    }
-                    callback.onResult(it)
-                }
-            }
+        val currentlyIdentifiedProfileIdentifier = preferenceRepository.getIdentifier()
+        // The SDK calls identify() with the already identified profile for changing profile attributes.
+        val isChangingIdentifiedProfile = currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
+        val isFirstTimeIdentifying = currentlyIdentifiedProfileIdentifier == null
 
-            override fun cancel() {
-                action.cancel()
+        currentlyIdentifiedProfileIdentifier?.let { currentlyIdentifiedProfileIdentifier ->
+            if (isChangingIdentifiedProfile) {
+                logger.info("changing profile from id $currentlyIdentifiedProfileIdentifier to $identifier")
+
+                logger.debug("deleting device token before identifying new profile")
+                this.deleteDeviceToken()
+            }
+        }
+
+        val queueStatus = backgroundQueue.addTask(QueueTaskType.IdentifyProfile, IdentifyProfileQueueTaskData(identifier, attributes))
+
+        // don't modify the state of the SDK until we confirm we added a queue task successfully.
+        if (!queueStatus.success) {
+            logger.debug("failed to add identify task to queue")
+            return
+        }
+
+        logger.debug("storing identifier on device storage $identifier")
+        preferenceRepository.saveIdentifier(identifier)
+
+        if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
+            logger.debug("first time identified or changing identified profile")
+
+            preferenceRepository.getDeviceToken()?.let {
+                logger.debug("automatically registering device token to newly identified profile")
+                registerDeviceToken(it)
             }
         }
     }
@@ -82,90 +90,83 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.TrackEvent.name, TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)))
+        backgroundQueue.addTask(QueueTaskType.TrackEvent, TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)))
     }
 
     override fun clearIdentify() {
-        val identifier = preferenceRepository.getIdentifier()
-        identifier?.let {
-            preferenceRepository.removeIdentifier(it)
+        preferenceRepository.getIdentifier()?.let { identifier ->
+            preferenceRepository.removeIdentifier(identifier)
         }
     }
 
-    override fun registerDeviceToken(deviceToken: String): Action<Unit> {
-        val identifier = preferenceRepository.getIdentifier()
-        return object : Action<Unit> {
-            val action by lazy {
-                pushNotificationRepository.registerDeviceToken(
-                    identifier,
-                    deviceToken
-                )
-            }
-
-            override fun execute(): Result<Unit> {
-                val result = action.execute()
-                if (result is Success) {
-                    preferenceRepository.saveDeviceToken(token = deviceToken)
-                }
-                return result
-            }
-
-            override fun enqueue(callback: Action.Callback<Unit>) {
-                action.enqueue {
-                    if (it is Success) {
-                        preferenceRepository.saveDeviceToken(token = deviceToken)
-                    }
-                    callback.onResult(it)
-                }
-            }
-
-            override fun cancel() {
-                action.cancel()
-            }
-        }
+    override fun screen(name: String, attributes: CustomAttributes) {
+        return track(EventType.screen, name, attributes)
     }
 
-    override fun deleteDeviceToken(): Action<Unit> {
-        val identifier = preferenceRepository.getIdentifier()
-        val deviceToken = preferenceRepository.getDeviceToken()
-        return object : Action<Unit> {
-            val action by lazy {
-                pushNotificationRepository.deleteDeviceToken(
-                    identifier,
-                    deviceToken
-                )
-            }
+    override fun registerDeviceToken(deviceToken: String) {
+        logger.info("registering device token $deviceToken")
 
-            override fun execute(): Result<Unit> {
-                val result = action.execute()
-                if (result is Success && deviceToken != null) {
-                    preferenceRepository.removeDeviceToken(token = deviceToken)
-                }
-                return result
-            }
+        logger.debug("storing device token to device storage $deviceToken")
+        preferenceRepository.saveDeviceToken(deviceToken)
 
-            override fun enqueue(callback: Action.Callback<Unit>) {
-                action.enqueue {
-                    if (it is Success && deviceToken != null) {
-                        preferenceRepository.removeDeviceToken(token = deviceToken)
-                    }
-                    callback.onResult(it)
-                }
-            }
-
-            override fun cancel() {
-                action.cancel()
-            }
+        val identifiedProfileId = preferenceRepository.getIdentifier()
+        if (identifiedProfileId == null) {
+            logger.info("no profile identified, so not registering device token to a profile")
+            return
         }
+
+        backgroundQueue.addTask(QueueTaskType.RegisterDeviceToken, RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now))
+        // TODO grouping
+        /**
+         *                                     groupStart: .registeredPushToken(token: deviceToken),
+         blockingGroups: [.identifiedProfile(identifier: identifier)])
+         */
+    }
+
+    override fun deleteDeviceToken() {
+        logger.info("deleting device token request made")
+
+        val existingDeviceToken = preferenceRepository.getDeviceToken()
+        if (existingDeviceToken == null) {
+            logger.info("no device token exists so ignoring request to delete")
+            return
+        }
+
+        // Do not delete push token from device storage. The token is valid
+        // once given to SDK. We need it for future profile identifications.
+
+        val identifiedProfileId = preferenceRepository.getIdentifier()
+        if (identifiedProfileId == null) {
+            logger.info("no profile identified so not removing device token from profile")
+            return
+        }
+
+        backgroundQueue.addTask(QueueTaskType.DeletePushToken, DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken))
+        // TODO add groups
+        /**
+         *                                     blockingGroups: [
+         .registeredPushToken(token: existingDeviceToken),
+         .identifiedProfile(identifier: identifiedProfileId)
+         ])
+         */
     }
 
     override fun trackMetric(
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String
-    ) = pushNotificationRepository.trackMetric(deliveryID, event, deviceToken)
+    ) {
+        logger.info("push metric ${event.name}")
+        logger.debug("delivery id $deliveryID device token $deviceToken")
 
-    override fun screen(name: String, attributes: CustomAttributes) {
-        return track(EventType.screen, name, attributes)
+        backgroundQueue.addTask(
+            QueueTaskType.TrackPushMetric,
+            Metric(
+                deliveryID = deliveryID,
+                deviceToken = deviceToken,
+                event = event,
+                timestamp = dateUtil.now
+            )
+        )
     }
 }

@@ -1,9 +1,9 @@
 package io.customer.sdk.api.service
 
-import io.customer.sdk.api.retrofit.CustomerIoCall
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
+import io.customer.sdk.data.request.Metric
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -11,10 +11,10 @@ internal interface CustomerIOService {
 
     @JvmSuppressWildcards
     @PUT("api/v1/customers/{identifier}")
-    fun identifyCustomer(
+    suspend fun identifyCustomer(
         @Path("identifier") identifier: String,
         @Body body: CustomAttributes,
-    ): CustomerIoCall<Unit>
+    ): Response<Unit>
 
     @JvmSuppressWildcards
     @POST("api/v1/customers/{identifier}/events")
@@ -24,16 +24,22 @@ internal interface CustomerIOService {
     ): Response<Unit>
 
     @JvmSuppressWildcards
+    @POST("push/events")
+    suspend fun trackMetric(
+        @Body body: Metric,
+    ): Response<Unit>
+
+    @JvmSuppressWildcards
     @PUT("api/v1/customers/{identifier}/devices")
-    fun addDevice(
+    suspend fun addDevice(
         @Path("identifier") identifier: String,
         @Body body: DeviceRequest,
-    ): CustomerIoCall<Unit>
+    ): Response<Unit>
 
     @JvmSuppressWildcards
     @DELETE("api/v1/customers/{identifier}/devices/{token}")
-    fun removeDevice(
+    suspend fun removeDevice(
         @Path("identifier") identifier: String,
         @Path("token") token: String,
-    ): CustomerIoCall<Unit>
+    ): Response<Unit>
 }

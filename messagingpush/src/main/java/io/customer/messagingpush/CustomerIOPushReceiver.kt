@@ -10,12 +10,12 @@ import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DEE
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_ID
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_TOKEN
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOTIFICATION_REQUEST_CODE
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 
-class CustomerIOPushReceiver : BroadcastReceiver() {
+internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "CustomerIOPushReceiver:"
@@ -45,7 +45,6 @@ class CustomerIOPushReceiver : BroadcastReceiver() {
 
         if (deliveryId != null && deliveryToken != null) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
-                .enqueue()
         }
 
         val deepLink = bundle?.getString(DEEP_LINK_KEY)

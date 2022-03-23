@@ -1,17 +1,17 @@
 package io.customer.messagingpush
 
-import android.content.Context
-import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.base.comunication.Action
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.extensions.getErrorResult
+import io.customer.sdk.di.CustomerIOComponent
 
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         private const val TAG = "FirebaseMessaging:"
+
+        private val diGraph: CustomerIOComponent
+            get() = CustomerIO.instance().diGraph
 
         /**
          * Handles receiving an incoming push notification.
@@ -25,17 +25,10 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @return Boolean indicating whether this will be handled by CustomerIo
          */
         fun onMessageReceived(
-            context: Context,
             remoteMessage: RemoteMessage,
-            handleNotificationTrigger: Boolean = true,
-            errorCallback: Action.Callback<Unit> = Action.Callback { }
+            handleNotificationTrigger: Boolean = true
         ): Boolean {
-            return try {
-                handleMessageReceived(context, remoteMessage, handleNotificationTrigger)
-            } catch (e: Exception) {
-                errorCallback.onResult(e.getErrorResult())
-                false
-            }
+            return handleMessageReceived(remoteMessage, handleNotificationTrigger)
         }
 
         /**
@@ -46,36 +39,29 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param errorCallback callback containing any error occurred
          */
         fun onNewToken(
-            token: String,
-            errorCallback: Action.Callback<Unit> = Action.Callback { }
+            token: String
         ) {
-            handleNewToken(token, errorCallback)
+            handleNewToken(token)
         }
 
-        private fun handleNewToken(token: String, errorCallback: Action.Callback<Unit>) {
-            try {
-                CustomerIO.instance().registerDeviceToken(deviceToken = token).enqueue(errorCallback)
-            } catch (exception: IllegalStateException) {
-                Log.e(TAG, "Error while handling token: ${exception.message}")
-                errorCallback.onResult(exception.getErrorResult())
-            }
+        private fun handleNewToken(token: String) {
+            CustomerIO.instance().registerDeviceToken(deviceToken = token)
         }
 
         private fun handleMessageReceived(
-            context: Context,
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
             val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
-            return handler.handleMessage(context, handleNotificationTrigger)
+            return handler.handleMessage(diGraph.context, handleNotificationTrigger)
         }
     }
 
     override fun onNewToken(token: String) {
-        handleNewToken(token) { }
+        handleNewToken(token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        handleMessageReceived(this, remoteMessage)
+        handleMessageReceived(remoteMessage)
     }
 }

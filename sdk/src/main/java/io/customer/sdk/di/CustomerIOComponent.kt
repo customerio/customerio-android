@@ -6,13 +6,10 @@ import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.CustomerIOAPIHttpClient
+import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.api.CustomerIOApi
-import io.customer.sdk.api.RetrofitCustomerIOAPIHttpClient
+import io.customer.sdk.api.RetrofitTrackingHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
-import io.customer.sdk.api.retrofit.CustomerIoCallAdapterFactory
-import io.customer.sdk.api.service.CustomerIOService
-import io.customer.sdk.api.service.PushService
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
@@ -21,16 +18,19 @@ import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.QueueImpl
 import io.customer.sdk.queue.QueueRunRequest
 import io.customer.sdk.queue.QueueRunRequestImpl
+import io.customer.sdk.queue.QueueRunner
+import io.customer.sdk.queue.QueueRunnerImpl
 import io.customer.sdk.queue.QueueStorage
 import io.customer.sdk.queue.QueueStorageImpl
-import io.customer.sdk.queue.type.QueueRunner
-import io.customer.sdk.queue.type.QueueRunnerImpl
 import io.customer.sdk.repository.*
+import io.customer.sdk.util.AndroidSimpleTimer
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DateUtilImpl
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.SimpleTimer
+import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -54,34 +54,31 @@ class CustomerIOComponent(
         get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter)
 
     val queueRunner: QueueRunner
-        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient)
+        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
     val queue: Queue
-        get() = override() ?: QueueImpl(queueStorage, queueRunRequest, jsonAdapter, sdkConfig, logger)
+        get() = override() ?: QueueImpl.getInstanceOrCreate {
+            QueueImpl(Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
+        }
 
-    val queueRunRequest: QueueRunRequest by lazy {
-        override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger)
-    }
+    val queueRunRequest: QueueRunRequest
+        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger)
 
     val logger: Logger
         get() = override() ?: LogcatLogger()
 
-    internal val cioHttpClient: CustomerIOAPIHttpClient
-        get() = override() ?: RetrofitCustomerIOAPIHttpClient(buildRetrofitApi())
+    internal val cioHttpClient: TrackingHttpClient
+        get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi())
 
     val dateUtil: DateUtil
         get() = override() ?: DateUtilImpl()
 
+    val timer: SimpleTimer
+        get() = AndroidSimpleTimer(logger)
+
     internal fun buildApi(): CustomerIOApi {
         return override() ?: CustomerIOClient(
-            identityRepository = IdentityRepositoryImpl(
-                customerIOService = buildRetrofitApi<CustomerIOService>()
-            ),
             preferenceRepository = sharedPreferenceRepository,
-            pushNotificationRepository = PushNotificationRepositoryImp(
-                customerIOService = buildRetrofitApi<CustomerIOService>(),
-                pushService = buildRetrofitApi<PushService>()
-            ),
             backgroundQueue = queue,
             dateUtil = dateUtil,
             logger = logger
@@ -100,11 +97,14 @@ class CustomerIOComponent(
         }
     }
 
-    private val sharedPreferenceRepository by lazy {
-        override() ?: PreferenceRepositoryImpl(context, sdkConfig)
+    val sharedPreferenceRepository: PreferenceRepository by lazy {
+        override() ?: PreferenceRepositoryImpl(
+            context = context,
+            config = sdkConfig
+        )
     }
 
-    private inline fun <reified T> buildRetrofitApi(): T {
+    inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
             sdkConfig.region.baseUrl,
@@ -129,7 +129,7 @@ class CustomerIOComponent(
             .build()
     }
 
-    private fun buildRetrofit(
+    fun buildRetrofit(
         endpoint: String,
         timeout: Long
     ): Retrofit {
@@ -137,7 +137,6 @@ class CustomerIOComponent(
         return override() ?: Retrofit.Builder()
             .baseUrl(endpoint)
             .client(okHttpClient)
-            .addCallAdapterFactory(CustomerIoCallAdapterFactory.create())
             .build()
     }
 

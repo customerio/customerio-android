@@ -68,7 +68,7 @@ class CustomerIO internal constructor(
         }
 
         fun autoTrackDeviceAttributes(shouldTrackDeviceAttributes: Boolean): Builder {
-            this.shouldAutoRecordScreenViews = shouldAutoRecordScreenViews
+            this.autoTrackDeviceAttributes = shouldTrackDeviceAttributes
             return this
         }
 

@@ -22,7 +22,6 @@ class QueueRunRequestImpl internal constructor(
         runTasks(inventory, inventory.count())
     }
 
-    // TODO create backgorund queue docs in project. include explaination of "snapshot"s from github PR.
     private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
         val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
         if (nextTaskToRunInventoryItem == null) {

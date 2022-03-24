@@ -13,7 +13,7 @@ internal class DeviceStoreTest : BaseTest() {
         deviceStore.deviceModel `should be equal to` "Pixel 6"
         deviceStore.deviceManufacturer `should be equal to` "Google"
         deviceStore.deviceOSVersion `should be equal to` 30
-        deviceStore.deviceLocale `should be equal to` "en"
+        deviceStore.deviceLocale `should be equal to` "en-US"
     }
 
     @Test
@@ -36,7 +36,7 @@ internal class DeviceStoreTest : BaseTest() {
             "device_model" to "Pixel 6",
             "app_version" to "1.0",
             "cio_sdk_version" to "1.0.0-alpha.6",
-            "device_locale" to "en",
+            "device_locale" to "en-US",
             "push_enabled" to true
         )
 

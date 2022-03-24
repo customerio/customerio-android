@@ -20,7 +20,7 @@ class DeviceStoreStub {
                 override val deviceOSVersion: Int
                     get() = 30
                 override val deviceLocale: String
-                    get() = Locale.US.language
+                    get() = Locale.US.toLanguageTag()
             },
             applicationStore = object : ApplicationStore {
                 override val customerAppName: String

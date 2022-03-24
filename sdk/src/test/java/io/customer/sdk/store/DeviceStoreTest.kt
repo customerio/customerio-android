@@ -20,12 +20,13 @@ internal class DeviceStoreTest : BaseTest() {
     fun `verify host application attributes in device`() {
         deviceStore.customerAppName `should be equal to` "User App"
         deviceStore.customerAppVersion `should be equal to` "1.0"
+        deviceStore.customerPackageName shouldBeEqualTo "io.customer.sdk"
     }
 
     @Test
     fun `verify user-agent is created correctly`() {
         deviceStore.buildUserAgent() `should be equal to`
-            "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) User App/1.0"
+            "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) io.customer.sdk/1.0"
     }
 
     @Test

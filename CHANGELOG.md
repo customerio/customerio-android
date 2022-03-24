@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/customerio/customerio-android/compare/1.0.3...1.0.4) (2022-03-21)
+
+
+### Bug Fixes
+
+* crash using invalid characters in HTTP header ([#75](https://github.com/customerio/customerio-android/issues/75)) ([81a065e](https://github.com/customerio/customerio-android/commit/81a065ee44e1df58b3009287966e913f2888a6e1))
+
 ## [1.0.3](https://github.com/customerio/customerio-android/compare/1.0.2...1.0.3) (2022-03-15)
 
 

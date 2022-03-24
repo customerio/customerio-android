@@ -82,6 +82,20 @@
 * added java compatibility in public constructors and methods ([acdec46](https://github.com/customerio/customerio-android/commit/acdec46cece2e3dc44186bc7ff3c690bf48830dc))
 * added support for big decimal ([#56](https://github.com/customerio/customerio-android/issues/56)) ([58c791b](https://github.com/customerio/customerio-android/commit/58c791b8a6c9df91506cf75064622a399ca9a8d0))
 
+## [1.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/1.0.4...1.1.0-alpha.1) (2022-03-24)
+
+
+### Features
+
+* added support for device attributes ([#71](https://github.com/customerio/customerio-android/issues/71)) ([5fedf26](https://github.com/customerio/customerio-android/commit/5fedf26f251259601ab89c15b5cd691361c30e9d))
+* support for custom device attributes and config ([#77](https://github.com/customerio/customerio-android/issues/77)) ([a7dbaba](https://github.com/customerio/customerio-android/commit/a7dbaba4d82e5e7378f590425ee8b911072036a8))
+
+
+### Bug Fixes
+
+* added java compatibility in public constructors and methods ([acdec46](https://github.com/customerio/customerio-android/commit/acdec46cece2e3dc44186bc7ff3c690bf48830dc))
+* added support for big decimal ([#56](https://github.com/customerio/customerio-android/issues/56)) ([58c791b](https://github.com/customerio/customerio-android/commit/58c791b8a6c9df91506cf75064622a399ca9a8d0))
+
 ## [1.0.4](https://github.com/customerio/customerio-android/compare/1.0.3...1.0.4) (2022-03-21)
 
 

@@ -20,14 +20,14 @@ class DeviceStoreStub {
                 override val deviceOSVersion: Int
                     get() = 30
                 override val deviceLocale: String
-                    get() = Locale.US.language
+                    get() = Locale.US.toLanguageTag()
             },
             applicationStore = object : ApplicationStore {
                 override val customerAppName: String
                     get() = "User App"
                 override val customerAppVersion: String
                     get() = "1.0"
-                override val isPushSubscribed: Boolean
+                override val isPushEnabled: Boolean
                     get() = true
             },
             version = "1.0.0-alpha.6"

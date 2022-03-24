@@ -8,7 +8,7 @@ interface ApplicationStore {
     val customerAppName: String
     val customerAppVersion: String
 
-    val isPushSubscribed: Boolean
+    val isPushEnabled: Boolean
 }
 
 internal class ApplicationStoreImp(val context: Context) : ApplicationStore {
@@ -19,7 +19,7 @@ internal class ApplicationStoreImp(val context: Context) : ApplicationStore {
         get() = appInfo.first
     override val customerAppVersion: String
         get() = appInfo.second
-    override val isPushSubscribed: Boolean
+    override val isPushEnabled: Boolean
         get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     private fun getAppInformation(): Pair<String, String> {

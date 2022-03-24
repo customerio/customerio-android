@@ -17,7 +17,7 @@ interface BuildStore {
     // Android SDK Version: 21
     val deviceOSVersion: Int
 
-    // Device locale: en
+    // Device locale: en-US
     val deviceLocale: String
 }
 
@@ -32,5 +32,5 @@ internal class BuildStoreImp : BuildStore {
     override val deviceOSVersion: Int
         get() = Build.VERSION.SDK_INT
     override val deviceLocale: String
-        get() = Locale.getDefault().language
+        get() = Locale.getDefault().toLanguageTag()
 }

@@ -1,18 +1,24 @@
 package io.customer.sdk
 
+import android.net.Uri
 import io.customer.base.data.ErrorResult
 import io.customer.base.error.ErrorDetail
 import io.customer.base.error.StatusCode
 import io.customer.base.utils.ActionUtils.Companion.getEmptyAction
 import io.customer.base.utils.ActionUtils.Companion.getErrorAction
+import io.customer.sdk.MockCustomerIOBuilder.Companion.defaultConfig
+import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.utils.verifyError
 import io.customer.sdk.utils.verifySuccess
-import org.amshove.kluent.`should be equal to`
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
+import org.mockito.kotlin.verify
 
 internal class CustomerIOTest : BaseTest() {
 
@@ -28,13 +34,44 @@ internal class CustomerIOTest : BaseTest() {
     }
 
     @Test
-    fun `verify SDK configuration is correct`() {
-        customerIO.config.siteId `should be equal to` MockCustomerIOBuilder.siteId
-        customerIO.config.apiKey `should be equal to` MockCustomerIOBuilder.apiKey
-        customerIO.config.timeout `should be equal to` MockCustomerIOBuilder.timeout.toLong()
-        customerIO.config.region `should be equal to` MockCustomerIOBuilder.region
-        customerIO.config.urlHandler `should be equal to` MockCustomerIOBuilder.urlHandler
-        customerIO.config.autoTrackScreenViews `should be equal to` MockCustomerIOBuilder.shouldAutoRecordScreenViews
+    fun `verify SDK default configuration is correct`() {
+        customerIO.config.siteId shouldBeEqualTo MockCustomerIOBuilder.siteId
+        customerIO.config.apiKey shouldBeEqualTo MockCustomerIOBuilder.apiKey
+        customerIO.config.timeout shouldBeEqualTo MockCustomerIOBuilder.timeout.toLong()
+        customerIO.config.region shouldBeEqualTo MockCustomerIOBuilder.region
+        customerIO.config.urlHandler shouldBeEqualTo MockCustomerIOBuilder.urlHandler
+        customerIO.config.autoTrackScreenViews shouldBeEqualTo MockCustomerIOBuilder.shouldAutoRecordScreenViews
+        customerIO.config.autoTrackDeviceAttributes shouldBeEqualTo MockCustomerIOBuilder.autoTrackDeviceAttributes
+    }
+
+    @Test
+    fun verify_onUpdatingBuilderConfigurations_expectCustomerIOOConfigToBeUpdated() {
+
+        val mockCustomerIOBuilder =
+            MockCustomerIOBuilder(
+                defaultConfig.copy(
+                    autoTrackDeviceAttributes = false,
+                    autoTrackScreenViews = true,
+                    siteId = "new-id",
+                    apiKey = "new-key",
+                    region = Region.EU,
+                    urlHandler = object : CustomerIOUrlHandler {
+                        override fun handleCustomerIOUrl(uri: Uri): Boolean {
+                            return true
+                        }
+                    },
+                    timeout = 9000
+                )
+            )
+        customerIO = mockCustomerIOBuilder.build()
+
+        customerIO.config.siteId shouldNotBeEqualTo defaultConfig.siteId
+        customerIO.config.apiKey shouldNotBeEqualTo defaultConfig.apiKey
+        customerIO.config.timeout shouldNotBeEqualTo defaultConfig.timeout
+        customerIO.config.region shouldNotBeEqualTo defaultConfig.region
+        customerIO.config.urlHandler shouldNotBeEqualTo defaultConfig.urlHandler
+        customerIO.config.autoTrackScreenViews shouldNotBeEqualTo defaultConfig.autoTrackScreenViews
+        customerIO.config.autoTrackDeviceAttributes shouldNotBeEqualTo defaultConfig.autoTrackDeviceAttributes
     }
 
     @Test
@@ -154,6 +191,56 @@ internal class CustomerIOTest : BaseTest() {
         val response = customerIO.registerDeviceToken("event_name").execute()
 
         verifySuccess(response, Unit)
+    }
+
+    @Test
+    fun verify_bothDefaultAndCustomAttributesGetsAdded_withRegisterToken() {
+
+        `when`(
+            mockCustomerIO.api.registerDeviceToken(
+                any(),
+                any(),
+            )
+        ).thenReturn(getEmptyAction())
+
+        customerIO.deviceAttributes.putAll(mapOf("test" to "value"))
+
+        val expectedToken = "token"
+
+        val expectedAttributes = customerIO.deviceAttributes + deviceStore.buildDeviceAttributes()
+
+        val response = customerIO.registerDeviceToken(expectedToken).execute()
+
+        verify(mockCustomerIO.api).registerDeviceToken(expectedToken, expectedAttributes)
+
+        verifySuccess(response, Unit)
+    }
+
+    @Test
+    fun verify_defaultAttributesGetsSkipped_onBasisOfConfig() {
+
+        val mockCustomerIO =
+            MockCustomerIOBuilder(MockCustomerIOBuilder.defaultConfig.copy(autoTrackDeviceAttributes = false))
+        customerIO = mockCustomerIO.build()
+
+        `when`(mockCustomerIO.store.deviceStore).thenReturn(deviceStore)
+
+        `when`(
+            mockCustomerIO.api.registerDeviceToken(
+                any(),
+                any(),
+            )
+        ).thenReturn(getEmptyAction())
+
+        customerIO.deviceAttributes.putAll(mapOf("test" to "value"))
+
+        val expectedToken = "token"
+
+        val expectedAttributes = mapOf("test" to "value")
+
+        customerIO.registerDeviceToken(expectedToken).execute()
+
+        verify(mockCustomerIO.api).registerDeviceToken(expectedToken, expectedAttributes)
     }
 
     @Test

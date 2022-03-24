@@ -16,7 +16,7 @@ interface DeviceStore : BuildStore, ApplicationStore {
      * `Customer.io Android Client/1.0.0-alpha.6`
      */
     fun buildUserAgent(): String
-    fun buildDeviceAttributes(): Map<String, Any?>
+    fun buildDeviceAttributes(): Map<String, Any>
 }
 
 internal class DeviceStoreImp(
@@ -55,11 +55,11 @@ internal class DeviceStoreImp(
         }
     }
 
-    override fun buildDeviceAttributes(): Map<String, Any?> {
+    override fun buildDeviceAttributes(): Map<String, Any> {
         return mapOf(
             "device_os" to deviceOSVersion,
             "device_model" to deviceModel,
-            "app_version" to customerAppVersion,
+            "app_version" to (customerAppVersion ?: ""),
             "cio_sdk_version" to customerIOVersion,
             "device_locale" to deviceLocale,
             "push_enabled" to isPushEnabled

@@ -27,6 +27,8 @@ class DeviceStoreStub {
                     get() = "User App"
                 override val customerAppVersion: String
                     get() = "1.0"
+                override val customerPackageName: String
+                    get() = "io.customer.sdk"
                 override val isPushEnabled: Boolean
                     get() = true
             },

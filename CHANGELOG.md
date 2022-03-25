@@ -1,3 +1,18 @@
+## [1.1.0-alpha.2](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.1...1.1.0-alpha.2) (2022-03-25)
+
+
+### Features
+
+* support for custom device attributes and config ([#77](https://github.com/customerio/customerio-android/issues/77)) ([a7dbaba](https://github.com/customerio/customerio-android/commit/a7dbaba4d82e5e7378f590425ee8b911072036a8))
+
+
+### Bug Fixes
+
+* added java compatibility in public constructors and methods ([2bb73be](https://github.com/customerio/customerio-android/commit/2bb73be50dd66ef7e308d587b19daaf66c7e0968))
+* allow http requests in host app ([#74](https://github.com/customerio/customerio-android/issues/74)) ([1035648](https://github.com/customerio/customerio-android/commit/103564882df611e956a54cba0c2635acd3f1997a))
+* code cleanup ([c651ee6](https://github.com/customerio/customerio-android/commit/c651ee62e1a7698e4efad0376aab5710655a2e2f))
+* crash using invalid characters in HTTP header ([#75](https://github.com/customerio/customerio-android/issues/75)) ([81a065e](https://github.com/customerio/customerio-android/commit/81a065ee44e1df58b3009287966e913f2888a6e1))
+
 ## [1.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/1.0.1...1.1.0-alpha.1) (2022-03-21)
 
 

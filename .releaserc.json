@@ -13,12 +13,18 @@
   ],
   "dryRun": true,
   "plugins": [
-    ["@semantic-release/commit-analyzer", {
-      "preset": "conventionalcommits"
-    }],
-    ["@semantic-release/release-notes-generator", {
-      "preset": "conventionalcommits"
-    }],
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits"
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits"
+      }
+    ],
     [
       "@semantic-release/exec",
       {
@@ -31,10 +37,16 @@
         "changelogFile": "CHANGELOG.md"
       }
     ],
-    ["@semantic-release/git", {
-      "assets": ["CHANGELOG.md", "sdk/src/main/java/io/customer/sdk/Version.kt"],
-      "message": "chore: prepare for ${nextRelease.version}\n\n${nextRelease.notes}"
-    }],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "sdk/src/main/java/io/customer/sdk/Version.kt"
+        ],
+        "message": "chore: prepare for ${nextRelease.version}\n\n${nextRelease.notes}"
+      }
+    ],
     "@semantic-release/github"
   ]
 }

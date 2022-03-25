@@ -5,7 +5,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.CustomerIOStore
 import org.mockito.kotlin.mock
 
-internal class MockCustomerIOBuilder {
+internal class MockCustomerIOBuilder(private val customerIOConfig: CustomerIOConfig = defaultConfig) {
 
     lateinit var api: CustomerIOApi
     lateinit var store: CustomerIOStore
@@ -18,17 +18,20 @@ internal class MockCustomerIOBuilder {
         const val timeout = 6000
         val urlHandler = null
         const val shouldAutoRecordScreenViews = false
-    }
+        const val autoTrackDeviceAttributes = true
 
-    fun build(): CustomerIO {
-        val customerIOConfig = CustomerIOConfig(
+        val defaultConfig = CustomerIOConfig(
             apiKey = "mock-key",
             siteId = "mock-site",
             region = Region.US,
             timeout = 6000,
             urlHandler = urlHandler,
-            autoTrackScreenViews = shouldAutoRecordScreenViews
+            autoTrackScreenViews = shouldAutoRecordScreenViews,
+            autoTrackDeviceAttributes = autoTrackDeviceAttributes
         )
+    }
+
+    fun build(): CustomerIO {
 
         api = mock()
         store = mock()

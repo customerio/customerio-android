@@ -11,6 +11,27 @@
 * added java compatibility in public constructors and methods ([acdec46](https://github.com/customerio/customerio-android/commit/acdec46cece2e3dc44186bc7ff3c690bf48830dc))
 * added support for big decimal ([#56](https://github.com/customerio/customerio-android/issues/56)) ([58c791b](https://github.com/customerio/customerio-android/commit/58c791b8a6c9df91506cf75064622a399ca9a8d0))
 
+## [1.0.4](https://github.com/customerio/customerio-android/compare/1.0.3...1.0.4) (2022-03-21)
+
+
+### Bug Fixes
+
+* crash using invalid characters in HTTP header ([#75](https://github.com/customerio/customerio-android/issues/75)) ([81a065e](https://github.com/customerio/customerio-android/commit/81a065ee44e1df58b3009287966e913f2888a6e1))
+
+## [1.0.3](https://github.com/customerio/customerio-android/compare/1.0.2...1.0.3) (2022-03-15)
+
+
+### Bug Fixes
+
+* allow http requests in host app ([#74](https://github.com/customerio/customerio-android/issues/74)) ([1035648](https://github.com/customerio/customerio-android/commit/103564882df611e956a54cba0c2635acd3f1997a))
+
+## [1.0.2](https://github.com/customerio/customerio-android/compare/1.0.1...1.0.2) (2022-03-11)
+
+
+### Bug Fixes
+
+* added java compatibility in public constructors and methods ([2bb73be](https://github.com/customerio/customerio-android/commit/2bb73be50dd66ef7e308d587b19daaf66c7e0968))
+
 ## [1.0.1](https://github.com/customerio/customerio-android/compare/1.0.0...1.0.1) (2022-01-25)
 
 

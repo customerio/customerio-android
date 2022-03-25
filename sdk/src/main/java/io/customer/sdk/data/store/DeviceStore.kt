@@ -35,12 +35,14 @@ internal class DeviceStoreImp(
         get() = buildStore.deviceOSVersion
     override val deviceLocale: String
         get() = buildStore.deviceLocale
-    override val customerAppName: String
+    override val customerAppName: String?
         get() = applicationStore.customerAppName
-    override val customerAppVersion: String
+    override val customerAppVersion: String?
         get() = applicationStore.customerAppVersion
-    override val isPushSubscribed: Boolean
-        get() = applicationStore.isPushSubscribed
+    override val isPushEnabled: Boolean
+        get() = applicationStore.isPushEnabled
+    override val customerPackageName: String
+        get() = applicationStore.customerPackageName
     override val customerIOVersion: String
         get() = version
 
@@ -49,7 +51,7 @@ internal class DeviceStoreImp(
             append("Customer.io Android Client/")
             append(customerIOVersion)
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
-            append(" $customerAppName/$customerAppVersion")
+            append(" $customerPackageName/${customerAppVersion ?: "0.0.0"}")
         }
     }
 
@@ -57,10 +59,10 @@ internal class DeviceStoreImp(
         return mapOf(
             "device_os" to deviceOSVersion,
             "device_model" to deviceModel,
-            "app_version" to customerAppVersion,
+            "app_version" to (customerAppVersion ?: ""),
             "cio_sdk_version" to customerIOVersion,
             "device_locale" to deviceLocale,
-            "push_subscribed" to isPushSubscribed
+            "push_enabled" to isPushEnabled
         )
     }
 }

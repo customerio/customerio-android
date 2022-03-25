@@ -3,7 +3,6 @@ package io.customer.sdk.repository
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.data.moshi.CustomerIOParser
 import java.util.*
-import kotlin.collections.HashMap
 
 internal interface AttributesRepository {
     fun mapToJson(map: Map<String, Any>): Map<String, Any>

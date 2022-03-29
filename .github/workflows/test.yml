@@ -26,7 +26,7 @@ jobs:
       uses: codecov/codecov-action@v2
       with: 
         verbose: true 
-        directory: ${{ matrix.module }}/build/reports
+        directory: ./${{ matrix.module }}/build/reports
 
     - name: Publish test results (${{ matrix.module }})
       uses: mikepenz/action-junit-report@v2      

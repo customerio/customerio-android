@@ -26,7 +26,7 @@ jobs:
       uses: codecov/codecov-action@v2
       with: 
         verbose: true 
-        directory: ./${{ matrix.module }}/build/reports
+        files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml
 
     - name: Publish test results (${{ matrix.module }})
       uses: mikepenz/action-junit-report@v2      

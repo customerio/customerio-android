@@ -12,6 +12,7 @@ ext {
 }
 
 apply from: "${rootDir}/scripts/publish-module.gradle"
+apply from: "${rootDir}/scripts/codecov-java.gradle"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8

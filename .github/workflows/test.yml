@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [sdk, messagingpush, base]
+        module: [sdk, messagingpush, base] 
     name: Unit tests (${{ matrix.module }})
     steps:
     - uses: actions/checkout@v2
@@ -26,7 +26,7 @@ jobs:
       uses: codecov/codecov-action@v2
       with: 
         verbose: true 
-        directory: ${{ matrix.module }}/build
+        directory: ${{ matrix.module }}/build/reports
 
     - name: Publish test results (${{ matrix.module }})
       uses: mikepenz/action-junit-report@v2      

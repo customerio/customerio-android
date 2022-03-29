@@ -1,14 +1,13 @@
-apply plugin: 'jacoco'
+apply from: "${rootDir}/scripts/codecov-common.gradle"
 
-// Specify the version to avoid errors such as:
-// https://github.com/jacoco/jacoco/issues/1187
-jacoco.toolVersion = "0.8.7"
 
 // make sure name of task is identical for java and Android so CI script can use the same name for running both. 
-task runJacocoTestReport(type: JacocoReport, dependsOn: 'testDebugUnitTest') {
+task runJacocoTestReport(type: JacocoReport) {
+    dependsOn 'testDebugUnitTest' // run tests and then generate report 
+
     reports {
-        xml.enabled = true
-        html.enabled = true
+        xml.required = true 
+        html.required = true 
     }
 
     def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*', '**/*Test*.*', 'android/**/*.*']

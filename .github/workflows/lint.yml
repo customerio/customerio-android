@@ -6,8 +6,8 @@ jobs:
   android-lint:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        module: [app, sdk]
+      matrix:      
+        module: [sdk, messagingpush] # android modules 
     name: Android Lint (${{ matrix.module }})
     steps:
     - uses: actions/checkout@v2
@@ -44,4 +44,4 @@ jobs:
     
     # The task will simply fail if it does not pass. It would be better if we make a comment on the PR telling the PR author to install git hooks but that scenario should not happen often (at least I don't think so) so for now, let's lean on assuming it will not happen and if it does happen a lot, we will improve this. 
     - name: Run ktlint
-      run: ktlint --android "app/src/**/*.kt" "sdk/src/**/*.kt" 2> /dev/null 
+      run: ktlint --android "**/src/**/*.kt" 2> /dev/null 

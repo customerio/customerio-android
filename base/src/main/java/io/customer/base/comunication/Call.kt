@@ -39,4 +39,3 @@ public interface Call<T : Any> {
         public fun onResult(result: Result<T>)
     }
 }
-

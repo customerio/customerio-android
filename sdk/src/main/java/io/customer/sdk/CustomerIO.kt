@@ -137,7 +137,7 @@ class CustomerIO internal constructor(
                 urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 backgroundQueueMinNumberOfTasks = 10,
-                backgroundQueueSecondsDelay = 30
+                backgroundQueueSecondsDelay = 30.0
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)

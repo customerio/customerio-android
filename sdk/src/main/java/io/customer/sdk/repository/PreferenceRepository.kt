@@ -2,7 +2,10 @@ package io.customer.sdk.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.customer.base.extenstions.getUnixTimestamp
+import io.customer.base.extenstions.unixTimeToDate
 import io.customer.sdk.CustomerIOConfig
+import java.util.*
 
 interface PreferenceRepository {
     fun saveIdentifier(identifier: String)
@@ -11,6 +14,8 @@ interface PreferenceRepository {
 
     fun saveDeviceToken(token: String)
     fun getDeviceToken(): String?
+
+    var httpRequestsPauseEnds: Date?
 }
 
 internal class PreferenceRepositoryImpl(
@@ -25,6 +30,7 @@ internal class PreferenceRepositoryImpl(
     companion object {
         private const val KEY_IDENTIFIER = "identifier"
         private const val KEY_DEVICE_TOKEN = "device_token"
+        private const val KEY_HTTP_PAUSE_ENDS = "http_pause_ends"
     }
 
     private val prefs: SharedPreferences
@@ -60,4 +66,16 @@ internal class PreferenceRepositoryImpl(
             null
         }
     }
+
+    override var httpRequestsPauseEnds: Date?
+        get() {
+            prefs.getLong(KEY_HTTP_PAUSE_ENDS, Long.MIN_VALUE).let {
+                return if (it == Long.MIN_VALUE) null else it.unixTimeToDate()
+            }
+        }
+        set(value) {
+            val newValue = value?.getUnixTimestamp() ?: Long.MIN_VALUE
+
+            prefs.edit().putLong(KEY_HTTP_PAUSE_ENDS, newValue).apply()
+        }
 }

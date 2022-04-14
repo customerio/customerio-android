@@ -6,19 +6,21 @@ package io.customer.sdk.util
  * By creating separate data types for each time unit, this issue is no longer a problem.
  */
 data class Seconds(
-    val value: Long
+    val value: Double
 ) {
     val toMilliseconds: Milliseconds
-        get() = Milliseconds(value * 1000)
+        get() = Milliseconds((value * 1000).toLong())
 
     override fun toString(): String = "$value seconds"
 }
+fun Double.toSeconds(): Seconds = Seconds(this)
 
 data class Milliseconds(
     val value: Long
 ) {
     val toSeconds: Seconds
-        get() = Seconds(value / 1000)
+        get() = Seconds(value.toDouble() / 1000)
 
     override fun toString(): String = "$value millis"
 }
+// TODO write tests for conversion between the two especially with Double and Long

@@ -35,6 +35,7 @@ internal class DeviceStoreTest : BaseTest() {
         val expectedDeviceAttributes = mapOf(
             "device_os" to 30,
             "device_model" to "Pixel 6",
+            "device_manufacturer" to "Google",
             "app_version" to "1.0",
             "cio_sdk_version" to "1.0.0-alpha.6",
             "device_locale" to "en-US",

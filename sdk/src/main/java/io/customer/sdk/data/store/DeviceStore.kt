@@ -59,6 +59,7 @@ internal class DeviceStoreImp(
         return mapOf(
             "device_os" to deviceOSVersion,
             "device_model" to deviceModel,
+            "device_manufacturer" to deviceManufacturer,
             "app_version" to (customerAppVersion ?: ""),
             "cio_sdk_version" to customerIOVersion,
             "device_locale" to deviceLocale,

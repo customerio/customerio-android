@@ -1,3 +1,10 @@
+## [1.1.0-alpha.3](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.2...1.1.0-alpha.3) (2022-04-19)
+
+
+### Features
+
+* add device_manufacturer device attribute ([6a60f39](https://github.com/customerio/customerio-android/commit/6a60f3900c08e9e2bccc2fc76986dc4b66123c95))
+
 ## [1.1.0-alpha.2](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.1...1.1.0-alpha.2) (2022-03-25)
 
 

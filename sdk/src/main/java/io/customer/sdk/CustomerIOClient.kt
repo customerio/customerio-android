@@ -12,6 +12,7 @@ import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
 import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
+import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.DateUtil
@@ -47,7 +48,18 @@ internal class CustomerIOClient(
             }
         }
 
-        val queueStatus = backgroundQueue.addTask(QueueTaskType.IdentifyProfile, IdentifyProfileQueueTaskData(identifier, attributes))
+        // If SDK previously identified profile X and X is being identified again, no use blocking the queue with a queue group.
+        val queueGroupStart = if (isFirstTimeIdentifying || isChangingIdentifiedProfile) QueueTaskGroup.IdentifyProfile(identifier) else null
+        // If there was a previously identified profile, or, we are just adding attributes to an existing profile, we need to block
+        // this operation until the previous identify runs successfully.
+        val blockingGroups = if (currentlyIdentifiedProfileIdentifier != null) listOf(QueueTaskGroup.IdentifyProfile(currentlyIdentifiedProfileIdentifier)) else null
+
+        val queueStatus = backgroundQueue.addTask(
+            QueueTaskType.IdentifyProfile,
+            IdentifyProfileQueueTaskData(identifier, attributes),
+            groupStart = queueGroupStart,
+            blockingGroups = blockingGroups
+        )
 
         // don't modify the state of the SDK until we confirm we added a queue task successfully.
         if (!queueStatus.success) {
@@ -90,7 +102,11 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.TrackEvent, TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)))
+        backgroundQueue.addTask(
+            QueueTaskType.TrackEvent,
+            TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)),
+            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifier))
+        )
     }
 
     override fun clearIdentify() {
@@ -115,12 +131,12 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.RegisterDeviceToken, RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now))
-        // TODO grouping
-        /**
-         *                                     groupStart: .registeredPushToken(token: deviceToken),
-         blockingGroups: [.identifiedProfile(identifier: identifier)])
-         */
+        backgroundQueue.addTask(
+            QueueTaskType.RegisterDeviceToken,
+            RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now),
+            groupStart = QueueTaskGroup.RegisterPushToken(deviceToken),
+            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifiedProfileId))
+        )
     }
 
     override fun deleteDeviceToken() {
@@ -141,14 +157,12 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(QueueTaskType.DeletePushToken, DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken))
-        // TODO add groups
-        /**
-         *                                     blockingGroups: [
-         .registeredPushToken(token: existingDeviceToken),
-         .identifiedProfile(identifier: identifiedProfileId)
-         ])
-         */
+        backgroundQueue.addTask(
+            QueueTaskType.DeletePushToken,
+            DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken),
+            // only delete a device token after it has successfully been registered.
+            blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(existingDeviceToken))
+        )
     }
 
     override fun trackMetric(
@@ -166,7 +180,8 @@ internal class CustomerIOClient(
                 deviceToken = deviceToken,
                 event = event,
                 timestamp = dateUtil.now
-            )
+            ),
+            blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(deviceToken))
         )
     }
 }

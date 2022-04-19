@@ -5,6 +5,7 @@ import com.squareup.moshi.JsonClass
 import io.customer.common_test.BaseTest
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.util.SimpleTimer
 import io.customer.sdk.utils.random
@@ -71,11 +72,13 @@ class QueueTest : BaseTest() {
     fun addTask_expectReceiveResultFromAddingTask() {
         val givenTaskType = QueueTaskType.TrackEvent
         val givenTaskData = TestQueueTaskData()
+        val givenGroupStart = QueueTaskGroup.IdentifyProfile(String.random)
+        val givenBlockingGroups = listOf(QueueTaskGroup.RegisterPushToken(String.random))
         val expectedResult = QueueModifyResult(Boolean.random, QueueStatus(siteId, Int.random(20, 100)))
 
-        whenever(storageMock.create(eq(givenTaskType.name), any())).thenReturn(expectedResult)
+        whenever(storageMock.create(eq(givenTaskType.name), any(), eq(givenGroupStart), eq(givenBlockingGroups))).thenReturn(expectedResult)
 
-        val actual = queue.addTask(givenTaskType, givenTaskData)
+        val actual = queue.addTask(givenTaskType, givenTaskData, givenGroupStart, givenBlockingGroups)
 
         actual shouldBeEqualTo expectedResult
     }
@@ -85,12 +88,14 @@ class QueueTest : BaseTest() {
         val givenTaskType = QueueTaskType.TrackEvent
         val givenTaskData = TestQueueTaskData()
 
-        whenever(storageMock.create(eq(givenTaskType.name), any())).thenReturn(QueueModifyResult(true, QueueStatus("", 30)))
+        whenever(storageMock.create(eq(givenTaskType.name), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus("", 30)))
 
         queue.addTask(givenTaskType, givenTaskData)
 
-        // check if queue started running.
+        // TODO check if queue started running.n
     }
+
+    // TODO test queue timer
 
     @JsonClass(generateAdapter = true)
     data class TestQueueTaskData(val foo: String = String.random, val bar: Boolean = true)

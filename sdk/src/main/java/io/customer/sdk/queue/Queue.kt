@@ -3,6 +3,7 @@ package io.customer.sdk.queue
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
 import io.customer.sdk.util.Seconds
@@ -13,7 +14,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 interface Queue {
-    fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult
+    fun <TaskType : Enum<*>, TaskData : Any> addTask(
+        type: TaskType,
+        data: TaskData,
+        groupStart: QueueTaskGroup? = null,
+        blockingGroups: List<QueueTaskGroup>? = null
+    ): QueueModifyResult
 }
 
 class QueueImpl internal constructor(
@@ -33,13 +39,23 @@ class QueueImpl internal constructor(
 
     @Volatile var isRunningRequest: Boolean = false
 
-    override fun <TaskType : Enum<*>, TaskData : Any> addTask(type: TaskType, data: TaskData): QueueModifyResult {
+    override fun <TaskType : Enum<*>, TaskData : Any> addTask(
+        type: TaskType,
+        data: TaskData,
+        groupStart: QueueTaskGroup?,
+        blockingGroups: List<QueueTaskGroup>?
+    ): QueueModifyResult {
         synchronized(this) {
             logger.info("adding queue task $type")
 
             val taskDataString = jsonAdapter.toJson(data)
 
-            val createTaskResult = storage.create(type.name, taskDataString)
+            val createTaskResult = storage.create(
+                type = type.name,
+                data = taskDataString,
+                groupStart = groupStart,
+                blockingGroups = blockingGroups
+            )
             logger.debug("added queue task data $taskDataString")
 
             processQueueStatus(createTaskResult.queueStatus)

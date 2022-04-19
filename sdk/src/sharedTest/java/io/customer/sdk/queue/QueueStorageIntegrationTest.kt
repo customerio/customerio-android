@@ -8,6 +8,7 @@ import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.utils.random
 import io.customer.common_test.BaseTest
+import io.customer.sdk.queue.type.QueueTaskGroup
 import org.amshove.kluent.*
 import org.junit.Before
 import org.junit.Test
@@ -46,7 +47,7 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun givenCreateTask_expectDoesNotReturnTaskWhenAskingForDifferentId() {
-        queueStorage.create("foo", "foo")
+        queueStorage.create("foo", "foo", null, null)
         queueStorage.get("123").shouldBeNull()
     }
 
@@ -54,36 +55,41 @@ class QueueStorageIntegrationTest : BaseTest() {
     fun givenTaskCreated_expectToGetTask() {
         val givenType = String.random
         val givenData = String.random
+        val givenGroupStart = QueueTaskGroup.IdentifyProfile("148")
+        val givenGroupMembers = listOf(QueueTaskGroup.RegisterPushToken("ABC"))
 
-        queueStorage.create(givenType, givenData)
-        val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
+        queueStorage.create(givenType, givenData, givenGroupStart, givenGroupMembers)
+        val newlyCreatedInventoryItem = queueStorage.getInventory()[0]
+        val createdTask = queueStorage.get(newlyCreatedInventoryItem.taskPersistedId)
 
-        val createdTask = queueStorage.get(newlyCreatedTaskId)
+        newlyCreatedInventoryItem.shouldNotBeNull()
         createdTask.shouldNotBeNull()
 
         createdTask.type shouldBeEqualTo givenType
         createdTask.data shouldBeEqualTo givenData
+        newlyCreatedInventoryItem.groupStart shouldBeEqualTo "identified_profile_148"
+        newlyCreatedInventoryItem.groupMember shouldBeEqualTo listOf("registered_push_token_ABC")
     }
 
     @Test
     fun givenCreateNewTask_expectInventoryUpdated() {
         queueStorage.getInventory().isEmpty().shouldBeTrue()
 
-        queueStorage.create(String.random, String.random)
+        queueStorage.create(String.random, String.random, null, null)
 
         queueStorage.getInventory().isEmpty().shouldBeFalse()
     }
 
     @Test
     fun givenTaskNotCreated_expectNoFailureTryingToDeleteIt() {
-        queueStorage.create(String.random, String.random)
+        queueStorage.create(String.random, String.random, null, null)
 
         queueStorage.delete("does-not-exist") shouldBeEqualTo QueueModifyResult(false, QueueStatus(siteId, 1))
     }
 
     @Test
     fun givenTaskCreated_expectDeleteItSuccessfully() {
-        queueStorage.create(String.random, String.random)
+        queueStorage.create(String.random, String.random, null, null)
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
 
         queueStorage.delete(newlyCreatedTaskId) shouldBeEqualTo QueueModifyResult(true, QueueStatus(siteId, 0))
@@ -91,7 +97,7 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun givenDeleteTask_expectUpdateInventory() {
-        queueStorage.create(String.random, String.random)
+        queueStorage.create(String.random, String.random, null, null)
         queueStorage.getInventory().count() shouldBeEqualTo 1
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
 
@@ -102,7 +108,7 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun givenTaskNotCreated_expectIgnoreRequestToUpdate() {
-        queueStorage.create(String.random, String.random)
+        queueStorage.create(String.random, String.random, null, null)
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
         val createdTask = queueStorage.get(newlyCreatedTaskId)
 
@@ -115,7 +121,7 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun givenTaskCreated_expectUpdateTask() {
-        queueStorage.create(String.random, String.random)
+        queueStorage.create(String.random, String.random, null, null)
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
         val createdTask = queueStorage.get(newlyCreatedTaskId)
         val givenRunResults = QueueTaskRunResults(Int.random(10, 30))

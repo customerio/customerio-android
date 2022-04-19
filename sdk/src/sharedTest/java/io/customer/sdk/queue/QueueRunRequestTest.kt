@@ -30,7 +30,8 @@ class QueueRunRequestTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger)
+        // using real query runner instance as it's more work mocking it and it's a good integration test to use the real instance here.
+        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger, di.queueQueryRunner)
     }
 
     @Test

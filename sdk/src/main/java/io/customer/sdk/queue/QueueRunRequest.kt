@@ -12,6 +12,7 @@ class QueueRunRequestImpl internal constructor(
     private val runner: QueueRunner,
     private val queueStorage: QueueStorage,
     private val logger: Logger,
+    private val queryRunner: QueueQueryRunner
 ) : QueueRunRequest {
 
     override suspend fun start() {
@@ -22,12 +23,12 @@ class QueueRunRequestImpl internal constructor(
     }
 
     private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
-        if (inventory.isEmpty()) {
+        val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
+        if (nextTaskToRunInventoryItem == null) {
             logger.debug("queue done running tasks")
             return
         }
 
-        val nextTaskToRunInventoryItem = inventory[0]
         val nextTaskStorageId = nextTaskToRunInventoryItem.taskPersistedId
         val nextTaskToRun = queueStorage.get(nextTaskStorageId)
         if (nextTaskToRun == null) {
@@ -55,6 +56,7 @@ class QueueRunRequestImpl internal constructor(
                 val error = result.exceptionOrNull()
                 logger.debug("queue task $nextTaskStorageId run failed $error")
 
+                // TODO implement pauses in HTTP requests
                 // TODO parse the error to see if it was because of paused HTTP requests
                 val previousRunResults = nextTaskToRun.runResults
                 val newRunResults = nextTaskToRun.runResults.copy().apply { totalRuns + 1 }

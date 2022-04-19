@@ -8,6 +8,11 @@ package io.customer.sdk.util
 data class Seconds(
     val value: Double
 ) {
+    companion object {
+        // used for automated tests. Value that is small to make tests run fast, but long enough to test code's logic.
+        fun testValue(): Seconds = Seconds(0.01)
+    }
+
     val toMilliseconds: Milliseconds
         get() = Milliseconds((value * 1000).toLong())
 

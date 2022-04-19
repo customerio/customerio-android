@@ -15,6 +15,8 @@ interface PreferenceRepository {
     fun saveDeviceToken(token: String)
     fun getDeviceToken(): String?
 
+    fun clearAll()
+
     var httpRequestsPauseEnds: Date?
 }
 
@@ -75,4 +77,8 @@ internal class PreferenceRepositoryImpl(
                 apply()
             }
         }
+
+    override fun clearAll() {
+        prefs.edit().clear().commit()
+    }
 }

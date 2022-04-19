@@ -1,6 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.base.extenstions.unixTimeToDate
 import io.customer.common_test.BaseTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
@@ -29,7 +30,7 @@ class PreferenceRepositoryTest : BaseTest() {
 
     @Test
     fun httpRequestsPauseEnds_givenDate_expectSaveDate() {
-        val expectedDate = Date()
+        val expectedDate = 1650401489L.unixTimeToDate()
         prefRepository.httpRequestsPauseEnds = expectedDate
         val actual = prefRepository.httpRequestsPauseEnds
 

@@ -11,7 +11,11 @@ The API returns error response bodies in the format:
 @JsonClass(generateAdapter = true)
 internal data class CustomerIOApiErrorResponse(
     val meta: Meta
-) : Throwable(meta.error) {
+) {
+
+    // created property because Moshi cannot create adapter that extends Throwable
+    val throwable: Throwable = Throwable(meta.error)
+
     @JsonClass(generateAdapter = true)
     data class Meta(
         val error: String
@@ -27,7 +31,11 @@ The API returns error response bodies in the format:
 @JsonClass(generateAdapter = true)
 internal data class CustomerIOApiErrorsResponse(
     val meta: Meta
-) : Throwable(meta.error.joinToString(", ")) {
+) {
+
+    // created property because Moshi cannot create adapter that extends Throwable
+    val throwable: Throwable = Throwable(meta.error.joinToString(", "))
+
     @JsonClass(generateAdapter = true)
     data class Meta(
         val error: List<String>

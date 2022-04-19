@@ -13,15 +13,22 @@ import retrofit2.Response
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-abstract class BaseHttpClient(
+interface HttpRequestRunner {
+    suspend fun <R> performAndProcessRequest(makeRequest: suspend () -> Response<R>): Result<R>
+}
+
+/**
+ * Where HTTP response processing occurs.
+ */
+class HttpRequestRunnerImpl(
     private val prefsRepository: PreferenceRepository,
     private val logger: Logger,
     private val retryPolicy: HttpRetryPolicy,
     private val retryPolicyTimer: SimpleTimer,
     private val jsonAdapter: JsonAdapter
-) {
+) : HttpRequestRunner {
 
-    suspend fun <R> performAndProcessRequest(makeRequest: suspend () -> Response<R>): Result<R> {
+    override suspend fun <R> performAndProcessRequest(makeRequest: suspend () -> Response<R>): Result<R> {
         prefsRepository.httpRequestsPauseEnds?.let { httpPauseEnds ->
             if (!httpPauseEnds.hasPassed()) {
                 logger.debug("HTTP request ignored because requests are still paused.")
@@ -38,6 +45,10 @@ abstract class BaseHttpClient(
             return Result.success(responseBody)
         }
 
+        return processUnsuccessfulResponse(response, makeRequest)
+    }
+
+    suspend fun <R> processUnsuccessfulResponse(response: Response<R>, makeRequest: suspend () -> Response<R>): Result<R> {
         when (val statusCode = response.code()) {
             in 500 until 600 -> {
                 val sleepTime = retryPolicy.nextSleepTime
@@ -81,8 +92,8 @@ abstract class BaseHttpClient(
     }
 
     internal fun parseCustomerIOErrorBody(errorBody: String): Throwable? {
-        return jsonAdapter.fromJsonOrNull<CustomerIOApiErrorResponse>(errorBody)
-            ?: jsonAdapter.fromJsonOrNull<CustomerIOApiErrorsResponse>(errorBody)
+        return jsonAdapter.fromJsonOrNull<CustomerIOApiErrorResponse>(errorBody)?.throwable
+            ?: jsonAdapter.fromJsonOrNull<CustomerIOApiErrorsResponse>(errorBody)?.throwable
     }
 
     private fun prepareForNextRequest() {

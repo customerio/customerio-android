@@ -6,6 +6,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import java.lang.Exception
 
 /**
  * Wrapper around an OS timer that gives us the ability to mock timers in tests to make them run faster.
@@ -61,10 +62,11 @@ class AndroidSimpleTimer(
         val newTimer: CountDownTimer = synchronized(this) {
             timerAlreadyScheduled = true
             unsafeCancel()
+            val millisecondsIntoFuture = seconds.toMilliseconds.value
 
-            log("making a timer for $seconds")
+            log("making a timer for $millisecondsIntoFuture milliseconds ($seconds seconds)")
 
-            object : CountDownTimer(seconds.toMilliseconds.value, 100) {
+            object : CountDownTimer(millisecondsIntoFuture, 1) {
                 override fun onTick(millisUntilFinished: Long) {}
                 override fun onFinish() {
                     timerDone() // reset timer before calling block as block might be synchronous and if it tries to start a new timer, it will not succeed.
@@ -114,7 +116,11 @@ class AndroidSimpleTimer(
         countdownTimer?.cancel()
         countdownTimer = null
 
-        coroutineTimer?.cancel()
+        try {
+            coroutineTimer?.cancel()
+        } catch (e: Exception) {
+            // cancel() throws an error. Ignore it as we purposely want to cancel.
+        }
         coroutineTimer = null
     }
 

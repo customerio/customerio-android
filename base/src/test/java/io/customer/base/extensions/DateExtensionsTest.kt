@@ -15,8 +15,10 @@ class DateExtensionsTest {
 
     fun getDateFromIso8601(parseString: String): Date = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZZZZ").parse(parseString)
 
-    private val oldDate: Date = getDateFromIso8601("2000-01-05T01:00:00+00:00")
-    private val oldDateUnixTimestamp: Long = 947055600
+    // make sure to use a recent date. a hard-coded date in the year 2000 used to be used but it gave false positives in the tests.
+    // Changed to a more modern time and tests began failing.
+    private val oldDate: Date = getDateFromIso8601("2022-04-19T21:17:41+0000")
+    private val oldDateUnixTimestamp: Long = 1650403061
 
     @Test
     fun getUnixTimestamp_givenDate_expectToGetTimestampForDate() {
@@ -36,7 +38,7 @@ class DateExtensionsTest {
 
     @Test
     fun add_givenAdd1Day_expectGetDate1DayInFuture() {
-        val expected = getDateFromIso8601("2000-01-06T01:00:00+00:00")
+        val expected = getDateFromIso8601("2022-04-20T21:17:41+0000")
         val actual = oldDate.add(1, TimeUnit.DAYS)
 
         actual shouldBeEqualTo expected
@@ -44,7 +46,7 @@ class DateExtensionsTest {
 
     @Test
     fun subtract_givenSubtract1Day_expectGetDate1DayInPast() {
-        val expected = getDateFromIso8601("2000-01-04T01:00:00+00:00")
+        val expected = getDateFromIso8601("2022-04-18T21:17:41+0000")
         val actual = oldDate.subtract(1, TimeUnit.DAYS)
 
         actual shouldBeEqualTo expected
@@ -52,7 +54,7 @@ class DateExtensionsTest {
 
     @Test
     fun hasPassed_givenDateInThePast_expectTrue() {
-        oldDate.hasPassed() shouldBeEqualTo true
+        Date().subtract(1, TimeUnit.MINUTES).hasPassed() shouldBeEqualTo true
     }
 
     @Test

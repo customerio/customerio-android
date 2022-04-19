@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.util.JsonAdapter
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Before
 import retrofit2.HttpException
@@ -30,6 +31,8 @@ abstract class BaseTest {
         get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 10, 30.0)
 
     protected lateinit var di: CustomerIOComponent
+    protected val jsonAdapter: JsonAdapter
+        get() = di.jsonAdapter
 
     // convenient HttpException for test functions to test a failed HTTP request
     protected val http500Error: HttpException
@@ -42,5 +45,7 @@ abstract class BaseTest {
             context = this@BaseTest.context
         )
         di.fileStorage.deleteAllSdkFiles()
+
+        di.sharedPreferenceRepository.clearAll()
     }
 }

@@ -25,6 +25,7 @@ class AsyncWait(val expectedFulfills: Int, val isInverted: Boolean = false) {
         latch.countDown()
     }
 
+    // Note: wait() will block the current thread. It's recommended that the asynchronous code under test is on another thread and will call fulfill() on another thread or the test function will be blocked.
     fun wait(timeout: Seconds = Seconds(0.3)) {
         latch.await(timeout.toMilliseconds.value, TimeUnit.MILLISECONDS)
     }

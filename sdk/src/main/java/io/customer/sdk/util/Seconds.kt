@@ -23,4 +23,3 @@ data class Milliseconds(
 
     override fun toString(): String = "$value millis"
 }
-// TODO write tests for conversion between the two especially with Double and Long

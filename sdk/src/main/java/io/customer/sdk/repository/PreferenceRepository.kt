@@ -2,9 +2,9 @@ package io.customer.sdk.repository
 
 import android.content.Context
 import android.content.SharedPreferences
-import io.customer.base.extenstions.getUnixTimestamp
-import io.customer.base.extenstions.unixTimeToDate
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.extensions.getDate
+import io.customer.sdk.extensions.putDate
 import java.util.*
 
 interface PreferenceRepository {
@@ -68,14 +68,11 @@ internal class PreferenceRepositoryImpl(
     }
 
     override var httpRequestsPauseEnds: Date?
-        get() {
-            prefs.getLong(KEY_HTTP_PAUSE_ENDS, Long.MIN_VALUE).let {
-                return if (it == Long.MIN_VALUE) null else it.unixTimeToDate()
-            }
-        }
+        get() = prefs.getDate(KEY_HTTP_PAUSE_ENDS)
         set(value) {
-            val newValue = value?.getUnixTimestamp() ?: Long.MIN_VALUE
-
-            prefs.edit().putLong(KEY_HTTP_PAUSE_ENDS, newValue).apply()
+            prefs.edit().apply {
+                putDate(KEY_HTTP_PAUSE_ENDS, value)
+                apply()
+            }
         }
 }

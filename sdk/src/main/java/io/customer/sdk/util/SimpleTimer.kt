@@ -67,9 +67,8 @@ class AndroidSimpleTimer(
             object : CountDownTimer(seconds.toMilliseconds.value, 100) {
                 override fun onTick(millisUntilFinished: Long) {}
                 override fun onFinish() {
+                    timerDone() // reset timer before calling block as block might be synchronous and if it tries to start a new timer, it will not succeed.
                     block()
-                    // only reset *after* block has been called to be sure the job is done once.
-                    timerDone()
                 }
             }.also {
                 this.countdownTimer = it

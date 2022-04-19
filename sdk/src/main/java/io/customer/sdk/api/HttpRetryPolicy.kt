@@ -5,6 +5,7 @@ import io.customer.sdk.util.toSeconds
 
 interface HttpRetryPolicy {
     val nextSleepTime: Seconds?
+    fun reset()
 }
 
 class CustomerIOApiRetryPolicy : HttpRetryPolicy {
@@ -20,8 +21,17 @@ class CustomerIOApiRetryPolicy : HttpRetryPolicy {
         ).map { it.toSeconds() }
     }
 
-    private var retriesLeft: MutableList<Seconds> = retryPolicy.toMutableList()
+    private var retriesLeft: MutableList<Seconds> = mutableListOf()
+
+    init {
+        reset() // to populate fields and be ready for first request.
+    }
 
     override val nextSleepTime: Seconds?
         get() = retriesLeft.removeFirstOrNull()
+
+    // where all fields are populated in class. Single source of truth for initial values.
+    override fun reset() {
+        retriesLeft = retryPolicy.toMutableList()
+    }
 }

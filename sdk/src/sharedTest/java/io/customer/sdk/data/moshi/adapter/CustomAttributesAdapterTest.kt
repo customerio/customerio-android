@@ -3,7 +3,6 @@ package io.customer.sdk.data.moshi.adapter
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.sdk.data.model.CustomAttributes
-import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
@@ -23,9 +22,15 @@ class CustomAttributesAdapterTest : BaseTest() {
 
     @Test
     fun foo_given_expect() {
-        val given: CustomAttributes = mapOf("name" to String.random, "age" to 100)
+        val given: CustomAttributes = mapOf(
+            "name" to "Dana",
+            "age" to 100,
+            "favorites" to mapOf(
+                "movie" to "Star Wars"
+            )
+        )
         val expected = """
-            { name: "Dana", age: 100 }
+            {"name":"Dana","age":100,"favorites":{"movie":"Star Wars"}}
         """.trimIndent()
 
         val actual = adapter.toJson(given)

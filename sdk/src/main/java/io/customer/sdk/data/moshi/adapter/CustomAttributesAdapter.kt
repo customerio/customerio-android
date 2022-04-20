@@ -69,7 +69,12 @@ internal class CustomAttributesAdapter(moshi: Moshi) :
             throw NullPointerException("value was null! Wrap in .nullSafe() to write nullable values.")
         }
         writer.beginObject()
-        mapAdapter.toJson(writer, value)
+
+        value.forEach {
+            writer.name(it.key)
+            elementAdapter.toJson(writer, it.value)
+        }
+
         writer.endObject()
     }
 }

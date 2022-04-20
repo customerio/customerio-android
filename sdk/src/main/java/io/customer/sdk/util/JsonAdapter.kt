@@ -48,6 +48,17 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
         return jsonAdapter.fromJson(json) as T
     }
 
+    /**
+     * Use if you anticipate the json parsing to not work. You don't care about the exception. Else, use [fromJson].
+     */
+    inline fun <reified T : Any> fromJsonOrNull(json: String): T? {
+        return try {
+            fromJson(json)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     inline fun <reified T : Any> fromJsonList(json: String): List<T> {
         val json = json.trim()
 

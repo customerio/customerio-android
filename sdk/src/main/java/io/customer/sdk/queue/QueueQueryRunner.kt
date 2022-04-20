@@ -11,11 +11,9 @@ class QueueQueryRunnerImpl : QueueQueryRunner {
 
     override fun getNextTask(queue: List<QueueTaskMetadata>, lastFailedTask: QueueTaskMetadata?): QueueTaskMetadata? {
         if (queue.isEmpty()) return null
-        if (lastFailedTask == null) return queue[0]
+        if (lastFailedTask != null) updateCriteria(lastFailedTask)
 
-        updateCriteria(lastFailedTask)
-
-        return queue.first { doesTaskPassCriteria(it) }
+        return queue.firstOrNull { doesTaskPassCriteria(it) }
     }
 
     private fun updateCriteria(lastFailedTask: QueueTaskMetadata) {

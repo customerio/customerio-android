@@ -23,25 +23,24 @@ class AndroidSimpleTimer(
     private val instanceIdentifier = String.random
 
     override fun scheduleAndCancelPrevious(seconds: Seconds, block: () -> Unit) {
-        synchronized(this) {
+        val newTimer: CountDownTimer = synchronized(this) {
+            timerAlreadyScheduled = true
             unsafeCancel()
 
-            log("making a timer for $seconds seconds")
+            log("making a timer for $seconds")
 
-            countdownTimer = object : CountDownTimer(seconds.toMilliseconds.value, 100) {
+            object : CountDownTimer(seconds.toMilliseconds.value, 1) {
                 override fun onTick(millisUntilFinished: Long) {}
                 override fun onFinish() {
-                    synchronized(this) {
-                        timerAlreadyScheduled = false
-                        countdownTimer = null
-
-                        log("timer is done! It's been reset")
-
-                        block()
-                    }
+                    timerDone() // reset timer before calling block as block might be synchronous and if it tries to start a new timer, it will not succeed because we need to reset the timer.
+                    block()
                 }
+            }.also {
+                this.countdownTimer = it
             }
         }
+
+        newTimer.start()
     }
 
     override fun scheduleIfNotAlready(seconds: Seconds, block: () -> Unit): Boolean {
@@ -51,23 +50,30 @@ class AndroidSimpleTimer(
                 return false
             }
 
-            timerAlreadyScheduled = true
-
             scheduleAndCancelPrevious(seconds, block)
 
             return true
         }
     }
 
-    override fun cancel() {
+    private fun timerDone() {
         synchronized(this) {
             timerAlreadyScheduled = false
 
-            log("timer is being cancelled")
-            unsafeCancel()
+            log("timer is done! It's been reset")
         }
     }
 
+    override fun cancel() {
+        synchronized(this) {
+            log("timer is being cancelled")
+            unsafeCancel()
+
+            timerAlreadyScheduled = false
+        }
+    }
+
+    // cancel without having a mutex lock. Call within a synchronized{} block
     private fun unsafeCancel() {
         countdownTimer?.cancel()
         countdownTimer = null

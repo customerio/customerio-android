@@ -6,7 +6,6 @@ import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.Metric
-import io.customer.sdk.extensions.toResultUnit
 
 /**
  * Wrapper around Retrofit to encapsulate Retrofit if we decide to change how we perform HTTP requests in the future.
@@ -21,25 +20,36 @@ internal interface TrackingHttpClient {
 
 internal class RetrofitTrackingHttpClient(
     private val retrofitService: CustomerIOService,
+    private val httpRequestRunner: HttpRequestRunner
 ) : TrackingHttpClient {
 
     override suspend fun identifyProfile(identifier: String, attributes: CustomAttributes): Result<Unit> {
-        return retrofitService.identifyCustomer(identifier, attributes).toResultUnit()
+        return httpRequestRunner.performAndProcessRequest {
+            retrofitService.identifyCustomer(identifier, attributes)
+        }
     }
 
     override suspend fun track(identifier: String, body: Event): Result<Unit> {
-        return retrofitService.track(identifier, body).toResultUnit()
+        return httpRequestRunner.performAndProcessRequest {
+            retrofitService.track(identifier, body)
+        }
     }
 
     override suspend fun registerDevice(identifier: String, device: Device): Result<Unit> {
-        return retrofitService.addDevice(identifier, DeviceRequest(device)).toResultUnit()
+        return httpRequestRunner.performAndProcessRequest {
+            retrofitService.addDevice(identifier, DeviceRequest(device))
+        }
     }
 
     override suspend fun deleteDevice(identifier: String, deviceToken: String): Result<Unit> {
-        return retrofitService.removeDevice(identifier, deviceToken).toResultUnit()
+        return httpRequestRunner.performAndProcessRequest {
+            retrofitService.removeDevice(identifier, deviceToken)
+        }
     }
 
     override suspend fun trackPushMetrics(metric: Metric): Result<Unit> {
-        return retrofitService.trackMetric(metric).toResultUnit()
+        return httpRequestRunner.performAndProcessRequest {
+            retrofitService.trackMetric(metric)
+        }
     }
 }

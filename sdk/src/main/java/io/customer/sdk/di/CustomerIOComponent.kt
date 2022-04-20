@@ -8,6 +8,10 @@ import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
 import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.api.CustomerIOApi
+import io.customer.sdk.api.CustomerIOApiRetryPolicy
+import io.customer.sdk.api.HttpRequestRunner
+import io.customer.sdk.api.HttpRequestRunnerImpl
+import io.customer.sdk.api.HttpRetryPolicy
 import io.customer.sdk.api.RetrofitTrackingHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
@@ -36,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -73,7 +78,13 @@ class CustomerIOComponent(
         get() = override() ?: LogcatLogger()
 
     internal val cioHttpClient: TrackingHttpClient
-        get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi())
+        get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
+
+    private val httpRequestRunner: HttpRequestRunner
+        get() = HttpRequestRunnerImpl(sharedPreferenceRepository, logger, cioHttpRetryPolicy, jsonAdapter)
+
+    val cioHttpRetryPolicy: HttpRetryPolicy
+        get() = override() ?: CustomerIOApiRetryPolicy()
 
     val dateUtil: DateUtil
         get() = override() ?: DateUtilImpl()
@@ -141,6 +152,7 @@ class CustomerIOComponent(
         val okHttpClient = clientBuilder(timeout).build()
         return override() ?: Retrofit.Builder()
             .baseUrl(endpoint)
+            .addConverterFactory(MoshiConverterFactory.create())
             .client(okHttpClient)
             .build()
     }

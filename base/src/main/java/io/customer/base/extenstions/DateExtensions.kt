@@ -12,3 +12,17 @@ fun Long.unixTimeToDate(): Date {
     val milliseconds = TimeUnit.SECONDS.toMillis(seconds)
     return Date(milliseconds)
 }
+
+fun Date.add(unit: Int, type: TimeUnit): Date = this.add(unit.toLong(), type)
+fun Date.add(unit: Long, type: TimeUnit): Date {
+    return Date(this.time + type.toMillis(unit))
+}
+
+fun Date.subtract(unit: Int, type: TimeUnit): Date = this.subtract(unit.toLong(), type)
+fun Date.subtract(unit: Long, type: TimeUnit): Date {
+    return Date(this.time - type.toMillis(unit))
+}
+
+fun Date.hasPassed(): Boolean {
+    return this.time < Date().time
+}

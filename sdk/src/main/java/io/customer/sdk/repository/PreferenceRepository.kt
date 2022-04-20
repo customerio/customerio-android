@@ -3,6 +3,9 @@ package io.customer.sdk.repository
 import android.content.Context
 import android.content.SharedPreferences
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.extensions.getDate
+import io.customer.sdk.extensions.putDate
+import java.util.*
 
 interface PreferenceRepository {
     fun saveIdentifier(identifier: String)
@@ -11,6 +14,10 @@ interface PreferenceRepository {
 
     fun saveDeviceToken(token: String)
     fun getDeviceToken(): String?
+
+    fun clearAll()
+
+    var httpRequestsPauseEnds: Date?
 }
 
 internal class PreferenceRepositoryImpl(
@@ -25,6 +32,7 @@ internal class PreferenceRepositoryImpl(
     companion object {
         private const val KEY_IDENTIFIER = "identifier"
         private const val KEY_DEVICE_TOKEN = "device_token"
+        private const val KEY_HTTP_PAUSE_ENDS = "http_pause_ends"
     }
 
     private val prefs: SharedPreferences
@@ -59,5 +67,18 @@ internal class PreferenceRepositoryImpl(
         } catch (e: Exception) {
             null
         }
+    }
+
+    override var httpRequestsPauseEnds: Date?
+        get() = prefs.getDate(KEY_HTTP_PAUSE_ENDS)
+        set(value) {
+            prefs.edit().apply {
+                putDate(KEY_HTTP_PAUSE_ENDS, value)
+                apply()
+            }
+        }
+
+    override fun clearAll() {
+        prefs.edit().clear().commit()
     }
 }

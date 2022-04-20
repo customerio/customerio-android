@@ -2,8 +2,9 @@ package io.customer.sdk.data.moshi.adapter
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
-import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.utils.TestCustomAttributesDataSet
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,20 +22,32 @@ class CustomAttributesAdapterTest : BaseTest() {
     }
 
     @Test
-    fun foo_given_expect() {
-        val given: CustomAttributes = mapOf(
-            "name" to "Dana",
-            "age" to 100,
-            "favorites" to mapOf(
-                "movie" to "Star Wars"
-            )
-        )
-        val expected = """
-            {"name":"Dana","age":100,"favorites":{"movie":"Star Wars"}}
-        """.trimIndent()
+    fun toJson_givenAllKindsOfCustomAttributes_expectGetJsonString() {
+        val testDataSet = TestCustomAttributesDataSet.values()
+        testDataSet.isEmpty().shouldBeFalse()
 
-        val actual = adapter.toJson(given)
+        testDataSet.forEach { dataSet ->
+            val given = dataSet.attributes
+            val expected = dataSet.expectedJsonString
 
-        actual shouldBeEqualTo expected
+            val actual = adapter.toJson(given)
+
+            actual shouldBeEqualTo expected
+        }
+    }
+
+    @Test
+    fun fromJson_givenAllKindsOfCustomAttributes_expectGetObject() {
+        val testDataSet = TestCustomAttributesDataSet.values()
+        testDataSet.isEmpty().shouldBeFalse()
+
+        testDataSet.forEach { dataSet ->
+            val given = dataSet.expectedJsonString
+            val expected = dataSet.expectedAttributes
+
+            val actual = adapter.fromJson(given)
+
+            actual shouldBeEqualTo expected
+        }
     }
 }

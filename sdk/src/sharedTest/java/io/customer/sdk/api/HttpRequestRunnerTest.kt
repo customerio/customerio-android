@@ -27,6 +27,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import retrofit2.Response
+import java.io.IOException
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -43,7 +44,7 @@ class HttpRequestRunnerTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        httpRunner = HttpRequestRunnerImpl(prefsRepository, di.logger, retryPolicyMock, di.timer, jsonAdapter)
+        httpRunner = HttpRequestRunnerImpl(prefsRepository, di.logger, retryPolicyMock, jsonAdapter)
     }
 
     private fun assertHttpRequestsPaused(shouldHavePaused: Boolean = true) {
@@ -87,6 +88,15 @@ class HttpRequestRunnerTest : BaseTest() {
         }
 
         httpClientMock.didPerformRequest.shouldBeTrue()
+    }
+
+    @Test
+    fun performHttpRequest_givenInternetConnectionBad_expectFailure(): Unit = runBlocking {
+        val actual = httpRunner.performAndProcessRequest<Unit> {
+            throw IOException("No internet connection")
+        }
+
+        (actual.exceptionOrNull() is CustomerIOError.NoHttpRequestMade).shouldBeTrue()
     }
 
     @Test

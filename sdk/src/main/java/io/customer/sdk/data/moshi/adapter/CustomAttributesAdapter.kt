@@ -35,15 +35,6 @@ internal class CustomAttributesAdapter(moshi: Moshi) :
     private val elementBigDecimalAdapter: JsonAdapter<BigDecimal> =
         moshi.adapter(BigDecimal::class.java)
 
-    private val mapAdapter: JsonAdapter<Map<String, Any?>> =
-        moshi.adapter(
-            Types.newParameterizedType(
-                Map::class.java,
-                String::class.java,
-                Any::class.java
-            )
-        )
-
     override fun fromJson(reader: JsonReader): CustomAttributes {
         val result = mutableMapOf<String, Any>()
         reader.beginObject()
@@ -71,8 +62,22 @@ internal class CustomAttributesAdapter(moshi: Moshi) :
         writer.beginObject()
 
         value.forEach {
-            writer.name(it.key)
-            elementAdapter.toJson(writer, it.value)
+            try {
+                /**
+                 * If moshi can't serialize an object, it will throw an exception and crash the SDK.
+                 * To avoid the SDK crashing, try to see if Moshi is able to serialize the object.
+                 * If it is able to, then let's use the JSON writer to write the object to the JSON string. Else, ignore the attribute.
+                 */
+                elementAdapter.toJson(it.value) // our test. will throw exception if can't serialize.
+
+                // Write to json string since we are confident that it's able to be serialized now.
+                writer.name(it.key)
+                elementAdapter.toJson(writer, it.value)
+            } catch (e: Throwable) {
+                // Ignore element if it can't be serialized.
+                // Have automated tests written against SDK objects to assert the SDK models are able to
+                // serialize.
+            }
         }
 
         writer.endObject()

@@ -56,10 +56,9 @@ class QueueRunRequestImpl internal constructor(
                 val error = result.exceptionOrNull()
                 logger.debug("queue task $nextTaskStorageId run failed $error")
 
-                // TODO implement pauses in HTTP requests
                 // TODO parse the error to see if it was because of paused HTTP requests
                 val previousRunResults = nextTaskToRun.runResults
-                val newRunResults = nextTaskToRun.runResults.copy().apply { totalRuns + 1 }
+                val newRunResults = nextTaskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
 
                 logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
                 queueStorage.update(nextTaskStorageId, newRunResults)

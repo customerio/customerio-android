@@ -68,4 +68,16 @@ class QueueQueryRunnerTest : BaseTest() {
 
         actual shouldBeEqualTo expected
     }
+
+    @Test
+    fun getNextTask_givenNoTaskThatPassesCriteria_expectGetNull() {
+        val givenFailedTask = QueueTaskMetadata.random.copy(groupStart = String.random)
+        val givenQueue = listOf(
+            QueueTaskMetadata.random.copy(groupMember = listOf(givenFailedTask.groupStart!!))
+        )
+
+        val actual = queryRunner.getNextTask(givenQueue, givenFailedTask)
+
+        actual.shouldBeNull()
+    }
 }

@@ -8,7 +8,7 @@ import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
-import io.customer.sdk.util.SimpleTimer
+import kotlinx.coroutines.delay
 import retrofit2.Response
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -24,7 +24,6 @@ class HttpRequestRunnerImpl(
     private val prefsRepository: PreferenceRepository,
     private val logger: Logger,
     private val retryPolicy: HttpRetryPolicy,
-    private val retryPolicyTimer: SimpleTimer,
     private val jsonAdapter: JsonAdapter
 ) : HttpRequestRunner {
 
@@ -36,7 +35,16 @@ class HttpRequestRunnerImpl(
             }
         }
 
-        val response = makeRequest()
+        var response: Response<R>? = null
+        try {
+            response = makeRequest()
+        } catch (e: Throwable) {
+            // HTTP request was not able to be made. Probably an Internet connection issue
+        }
+
+        if (response == null) {
+            return Result.failure(CustomerIOError.NoHttpRequestMade())
+        }
 
         val responseBody = response.body()
         if (response.isSuccessful && responseBody != null) {
@@ -55,9 +63,9 @@ class HttpRequestRunnerImpl(
                 return if (sleepTime != null) {
                     logger.debug("Encountered $statusCode HTTP response. Sleeping $sleepTime seconds and then retrying.")
 
-                    retryPolicyTimer.scheduleAndCancelPreviousSuspend(sleepTime) {
-                        this.performAndProcessRequest(makeRequest)
-                    }
+                    delay(sleepTime.toMilliseconds.value)
+
+                    this.performAndProcessRequest(makeRequest)
                 } else {
                     pauseHttpRequests()
                     prepareForNextRequest() // after retry policy is finished, reset to prepare for the next HTTP request

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.JsonAdapter
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -28,7 +29,9 @@ abstract class BaseTest {
         get() = ApplicationProvider.getApplicationContext()
 
     protected val cioConfig: CustomerIOConfig
-        get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, 10, 30.0)
+        get() = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0)
+
+    protected val deviceStore: DeviceStore = DeviceStoreStub().deviceStore
 
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter

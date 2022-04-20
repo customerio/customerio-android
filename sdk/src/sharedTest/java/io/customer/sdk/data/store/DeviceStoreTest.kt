@@ -1,35 +1,13 @@
 package io.customer.sdk.data.store
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.common_test.BaseTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 
-internal class DeviceStoreTest {
-
-    lateinit var deviceStore: DeviceStore
-
-    @Before
-    fun setup() {
-        deviceStore = DeviceStoreImp(
-            buildStore = object : BuildStore {
-                override val deviceBrand: String
-                    get() = "Google"
-                override val deviceModel: String
-                    get() = "Pixel 6"
-                override val deviceManufacturer: String
-                    get() = "Google"
-                override val deviceOSVersion: Int
-                    get() = 30
-            },
-            applicationStore = object : ApplicationStore {
-                override val customerAppName: String
-                    get() = "User App"
-                override val customerAppVersion: String
-                    get() = "1.0"
-            },
-            version = "1.0.0-alpha.6"
-        )
-    }
+@RunWith(AndroidJUnit4::class)
+class DeviceStoreTest : BaseTest() {
 
     @Test
     fun verifyBuildAttributesInDevice() {
@@ -37,17 +15,35 @@ internal class DeviceStoreTest {
         deviceStore.deviceModel shouldBeEqualTo "Pixel 6"
         deviceStore.deviceManufacturer shouldBeEqualTo "Google"
         deviceStore.deviceOSVersion shouldBeEqualTo 30
+        deviceStore.deviceLocale shouldBeEqualTo "en-US"
     }
 
     @Test
     fun verifyHostApplicationAttributesInDevice() {
         deviceStore.customerAppName shouldBeEqualTo "User App"
         deviceStore.customerAppVersion shouldBeEqualTo "1.0"
+        deviceStore.customerPackageName shouldBeEqualTo "io.customer.sdk"
     }
 
     @Test
     fun verifyUseragentIsCreatedCorrectly() {
         deviceStore.buildUserAgent() shouldBeEqualTo
-            "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) User App/1.0"
+            "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) io.customer.sdk/1.0"
+    }
+
+    @Test
+    fun verifyDeviceAttributesAreCreatedCorrectly() {
+        val resultDeviceAttributes = deviceStore.buildDeviceAttributes()
+        val expectedDeviceAttributes = mapOf(
+            "device_os" to 30,
+            "device_model" to "Pixel 6",
+            "device_manufacturer" to "Google",
+            "app_version" to "1.0",
+            "cio_sdk_version" to "1.0.0-alpha.6",
+            "device_locale" to "en-US",
+            "push_enabled" to true
+        )
+
+        resultDeviceAttributes shouldBeEqualTo expectedDeviceAttributes
     }
 }

@@ -24,6 +24,7 @@ interface Queue {
 
 class QueueImpl internal constructor(
     private val dispatcher: CoroutineDispatcher,
+    private val uiDispatcher: CoroutineDispatcher,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
@@ -91,15 +92,22 @@ class QueueImpl internal constructor(
 
             this.run()
         } else {
-            // Not enough tasks in the queue yet to run it now, so let's schedule them to run in the future.
-            // It's expected that only 1 timer instance exists and is running in the SDK.
-            val didSchedule = queueTimer.scheduleIfNotAlready(numberSecondsToScheduleTimer) {
-                logger.info("queue timer: now running queue")
+            // created a coroutine scope on UI thread because Android's CountdownTimer in SimpleTimer class must be
+            // created and started on the UI thread or it will crash the SDK.
+            // TODO refactor this code to exist in the SimpleTimer class for easy encapsulation
+            val job = CoroutineScope(uiDispatcher).launch {
+                // Not enough tasks in the queue yet to run it now, so let's schedule them to run in the future.
+                // It's expected that only 1 timer instance exists and is running in the SDK.
+                val didSchedule = queueTimer.scheduleIfNotAlready(numberSecondsToScheduleTimer) {
+                    logger.info("queue timer: now running queue")
 
-                this.run()
+                    this@QueueImpl.run()
+                }
+
+                if (didSchedule) logger.info("queue timer: scheduled to run queue in $numberSecondsToScheduleTimer seconds")
             }
 
-            if (didSchedule) logger.info("queue timer: scheduled to run queue in $numberSecondsToScheduleTimer seconds")
+            // TODO save job and cancel it when you run queueTimer.cancel()
         }
     }
 }

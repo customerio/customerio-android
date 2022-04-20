@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.common_test.DateUtilStub
 import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
@@ -49,6 +50,8 @@ class CustomerIOClientTest : BaseTest() {
         super.setup()
 
         customerIOClient = CustomerIOClient(
+            config = cioConfig,
+            deviceStore = deviceStore,
             preferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
             dateUtil = dateUtilStub,
@@ -95,7 +98,14 @@ class CustomerIOClientTest : BaseTest() {
             // Register needs to happen after identify added to queue as it has a blocking group set to new profile identified
             verify(backgroundQueueMock).addTask(
                 QueueTaskType.RegisterDeviceToken,
-                RegisterPushNotificationQueueTaskData(newIdentifier, givenDeviceToken, dateUtilStub.givenDate),
+                RegisterPushNotificationQueueTaskData(
+                    newIdentifier,
+                    Device(
+                        token = givenDeviceToken,
+                        lastUsed = dateUtilStub.givenDate,
+                        attributes = deviceStore.buildDeviceAttributes()
+                    )
+                ),
                 groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
                 blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(newIdentifier))
             )
@@ -152,7 +162,14 @@ class CustomerIOClientTest : BaseTest() {
 
             verify(backgroundQueueMock).addTask(
                 QueueTaskType.RegisterDeviceToken,
-                RegisterPushNotificationQueueTaskData(newIdentifier, givenDeviceToken, dateUtilStub.givenDate),
+                RegisterPushNotificationQueueTaskData(
+                    newIdentifier,
+                    Device(
+                        token = givenDeviceToken,
+                        lastUsed = dateUtilStub.givenDate,
+                        attributes = deviceStore.buildDeviceAttributes()
+                    )
+                ),
                 groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
                 blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(newIdentifier))
             )
@@ -205,7 +222,7 @@ class CustomerIOClientTest : BaseTest() {
     fun registerDeviceToken_givenNoIdentifiedProfile_expectDoNotAddTaskToBackgroundQueue_expectSaveToken() {
         val givenDeviceToken = String.random
 
-        customerIOClient.registerDeviceToken(givenDeviceToken)
+        customerIOClient.registerDeviceToken(givenDeviceToken, emptyMap())
 
         verifyNoInteractions(backgroundQueueMock)
         prefRepository.getDeviceToken() shouldBeEqualTo givenDeviceToken
@@ -215,13 +232,21 @@ class CustomerIOClientTest : BaseTest() {
     fun registerDeviceToken_givenIdentifiedProfile_expectAddTaskToQueue_expectSaveToken() {
         val givenIdentifier = String.random
         val givenDeviceToken = String.random
+        val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
 
-        customerIOClient.registerDeviceToken(givenDeviceToken)
+        customerIOClient.registerDeviceToken(givenDeviceToken, givenAttributes)
 
         verify(backgroundQueueMock).addTask(
             QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(givenIdentifier, givenDeviceToken, dateUtilStub.givenDate),
+            RegisterPushNotificationQueueTaskData(
+                givenIdentifier,
+                Device(
+                    token = givenDeviceToken,
+                    lastUsed = dateUtilStub.givenDate,
+                    attributes = deviceStore.buildDeviceAttributes() + givenAttributes
+                )
+            ),
             groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
             blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
         )

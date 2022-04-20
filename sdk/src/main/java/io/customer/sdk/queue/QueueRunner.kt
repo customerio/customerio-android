@@ -1,7 +1,6 @@
 package io.customer.sdk.queue
 
 import io.customer.sdk.api.TrackingHttpClient
-import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.Metric
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
@@ -61,10 +60,7 @@ internal class QueueRunnerImpl(
 
         return cioHttpClient.registerDevice(
             taskData.profileIdentified,
-            Device(
-                token = taskData.deviceToken,
-                lastUsed = taskData.lastUsed
-            )
+            taskData.device
         )
     }
 

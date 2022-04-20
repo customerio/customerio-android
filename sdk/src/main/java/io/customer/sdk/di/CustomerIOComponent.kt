@@ -65,7 +65,7 @@ class CustomerIOComponent(
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
+            QueueImpl(dispatcher = Dispatchers.IO, uiDispatcher = Dispatchers.Main, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
         }
 
     val queueQueryRunner: QueueQueryRunner
@@ -94,6 +94,8 @@ class CustomerIOComponent(
 
     internal fun buildApi(): CustomerIOApi {
         return override() ?: CustomerIOClient(
+            config = sdkConfig,
+            deviceStore = buildStore().deviceStore,
             preferenceRepository = sharedPreferenceRepository,
             backgroundQueue = queue,
             dateUtil = dateUtil,

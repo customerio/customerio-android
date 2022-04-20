@@ -45,6 +45,7 @@ dependencies {
     implementation Dependencies.moshi
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
+    implementation Dependencies.androidxCoreKtx
 
     kapt(Dependencies.moshiCodeGen)
     kaptTest(Dependencies.moshiCodeGen)

@@ -7,7 +7,7 @@ internal interface CustomerIOApi {
     fun identify(identifier: String, attributes: CustomAttributes)
     fun track(name: String, attributes: CustomAttributes)
     fun clearIdentify()
-    fun registerDeviceToken(deviceToken: String)
+    fun registerDeviceToken(deviceToken: String, attributes: CustomAttributes)
     fun deleteDeviceToken()
     fun trackMetric(deliveryID: String, event: MetricEvent, deviceToken: String)
     fun screen(name: String, attributes: CustomAttributes)

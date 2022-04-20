@@ -1,6 +1,7 @@
 package io.customer.sdk.data.store
 
 import android.os.Build
+import java.util.*
 
 interface BuildStore {
 
@@ -15,6 +16,9 @@ interface BuildStore {
 
     // Android SDK Version: 21
     val deviceOSVersion: Int
+
+    // Device locale: en-US
+    val deviceLocale: String
 }
 
 internal class BuildStoreImp : BuildStore {
@@ -27,4 +31,6 @@ internal class BuildStoreImp : BuildStore {
         get() = Build.MANUFACTURER
     override val deviceOSVersion: Int
         get() = Build.VERSION.SDK_INT
+    override val deviceLocale: String
+        get() = Locale.getDefault().toLanguageTag()
 }

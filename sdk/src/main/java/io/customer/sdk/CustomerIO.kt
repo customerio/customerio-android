@@ -86,7 +86,7 @@ class CustomerIO internal constructor(
         }
     }
 
-    class Builder(
+    class Builder @JvmOverloads constructor(
         private val siteId: String,
         private val apiKey: String,
         private var region: Region = Region.US,
@@ -95,6 +95,7 @@ class CustomerIO internal constructor(
         private var timeout = 6000L
         private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
+        private var autoTrackDeviceAttributes: Boolean = true
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -110,6 +111,11 @@ class CustomerIO internal constructor(
 
         fun autoTrackScreenViews(shouldRecordScreenViews: Boolean): Builder {
             this.shouldAutoRecordScreenViews = shouldRecordScreenViews
+            return this
+        }
+
+        fun autoTrackDeviceAttributes(shouldTrackDeviceAttributes: Boolean): Builder {
+            this.autoTrackDeviceAttributes = shouldTrackDeviceAttributes
             return this
         }
 
@@ -140,6 +146,7 @@ class CustomerIO internal constructor(
                 timeout = timeout,
                 urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
+                autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0
             )
@@ -263,7 +270,7 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken)
+    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token
@@ -282,6 +289,12 @@ class CustomerIO internal constructor(
         event = event,
         deviceToken = deviceToken
     )
+
+    /**
+     * Use to provide additional and custom device attributes
+     * apart from the ones the SDK is programmed to send to customer workspace.
+     */
+    val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

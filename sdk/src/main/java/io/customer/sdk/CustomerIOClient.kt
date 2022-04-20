@@ -4,9 +4,11 @@ import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.model.verify
+import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
@@ -24,6 +26,8 @@ import java.util.*
  * repositories and `CustomerIo` class
  */
 internal class CustomerIOClient(
+    private val config: CustomerIOConfig,
+    private val deviceStore: DeviceStore,
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
     private val dateUtil: DateUtil,
@@ -75,7 +79,7 @@ internal class CustomerIOClient(
 
             preferenceRepository.getDeviceToken()?.let {
                 logger.debug("automatically registering device token to newly identified profile")
-                registerDeviceToken(it)
+                registerDeviceToken(it, emptyMap()) // no new attributes but default ones to pass so pass empty.
             }
         }
     }
@@ -119,8 +123,10 @@ internal class CustomerIOClient(
         return track(EventType.screen, name, attributes)
     }
 
-    override fun registerDeviceToken(deviceToken: String) {
-        logger.info("registering device token $deviceToken")
+    override fun registerDeviceToken(deviceToken: String, attributes: CustomAttributes) {
+        val attributes = createDeviceAttributes(attributes)
+
+        logger.info("registering device token $deviceToken, attributes: $attributes")
 
         logger.debug("storing device token to device storage $deviceToken")
         preferenceRepository.saveDeviceToken(deviceToken)
@@ -131,12 +137,26 @@ internal class CustomerIOClient(
             return
         }
 
+        val device = Device(
+            token = deviceToken,
+            lastUsed = dateUtil.now,
+            attributes = attributes
+        )
+
         backgroundQueue.addTask(
             QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(identifiedProfileId, deviceToken, dateUtil.now),
+            RegisterPushNotificationQueueTaskData(identifiedProfileId, device),
             groupStart = QueueTaskGroup.RegisterPushToken(deviceToken),
             blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifiedProfileId))
         )
+    }
+
+    private fun createDeviceAttributes(customAddedAttributes: CustomAttributes): Map<String, Any> {
+        if (!config.autoTrackDeviceAttributes) return customAddedAttributes
+
+        val defaultAttributes = deviceStore.buildDeviceAttributes()
+
+        return defaultAttributes + customAddedAttributes // order matters! allow customer to override default values if they wish.
     }
 
     override fun deleteDeviceToken() {

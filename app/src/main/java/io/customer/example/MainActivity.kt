@@ -14,7 +14,21 @@ class MainActivity : AppCompatActivity() {
         makeIdentifyRequest()
 
         // log events
-        makeEventsRequests()
+//        makeEventsRequests()
+
+        // add custom attributes
+        makeAddCustomDeviceAttributesRequest()
+
+        // register device
+        makeRegisterDeviceRequest()
+    }
+
+    private fun makeAddCustomDeviceAttributesRequest() {
+        CustomerIO.instance().deviceAttributes.putAll(mapOf("bingo" to "heyaa"))
+    }
+
+    private fun makeRegisterDeviceRequest() {
+        CustomerIO.instance().registerDeviceToken("token")
     }
 
     data class Fol(val a: String, val c: Int)

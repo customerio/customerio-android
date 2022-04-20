@@ -14,15 +14,15 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.abs
 
-class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
+internal class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
 
     companion object {
         private const val TAG = "NotificationHandler:"
@@ -36,7 +36,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         const val BODY_KEY = "body"
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
-
     }
 
     private val bundle: Bundle by lazy {
@@ -70,7 +69,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
                     deliveryID = deliveryId,
                     deviceToken = deliveryToken,
                     event = MetricEvent.delivered
-                ).enqueue()
+                )
             } catch (exception: Exception) {
                 Log.e(TAG, "Error while handling message: ${exception.message}")
             }
@@ -86,7 +85,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
 
         return true
     }
-
 
     @SuppressLint("LaunchActivityFromNotification")
     private fun handleNotification(
@@ -135,7 +133,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
 
-
         val channelName = "$applicationName Notifications"
 
         // Since android Oreo notification channel is needed.
@@ -165,7 +162,6 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
         notificationManager.notify(requestCode, notification)
     }
 
-
     private fun addImage(
         imageUrl: String,
         builder: NotificationCompat.Builder,
@@ -188,6 +184,4 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
             builder.setStyle(style)
         }
     }
-
-
 }

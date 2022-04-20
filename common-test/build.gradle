@@ -1,0 +1,42 @@
+import io.customer.android.Dependencies
+
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
+}
+
+apply from: "${rootDir}/scripts/android-config.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
+
+android {
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_6
+        targetCompatibility JavaVersion.VERSION_1_6
+    }
+    kotlinOptions {
+        jvmTarget = '1.6'
+    }
+}
+
+dependencies {
+    // since all modules in project inherit the base tracking SDK, add it here to our shared testing module as all modules in project should have access to this module.
+    api project(':sdk')
+
+    // Non-testing tools that all modules use.
+    api Dependencies.retrofit
+    api Dependencies.moshi
+
+    // Testing tools that source code in this module require to compile.
+    api Dependencies.androidxTestJunit
+    api Dependencies.androidxTestRunner
+    api Dependencies.androidxTestRules
+
+    api Dependencies.mockito
+    api Dependencies.mockitoKotlin
+    api Dependencies.robolectric
+
+    api Dependencies.kluent
+    api Dependencies.okhttpMockWebserver
+
+    api Dependencies.junit4
+}

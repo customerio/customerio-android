@@ -15,6 +15,10 @@ import io.customer.sdk.di.CustomerIOComponent
  * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
  */
 interface CustomerIOInstance {
+    val siteId: String
+    val sdkVersion: String
+    // For security reasons, do not expose the SDK config as anyone can get the API key from the SDK including 3rd parties.
+
     fun identify(identifier: String)
 
     fun identify(
@@ -154,6 +158,12 @@ class CustomerIO internal constructor(
 
     private val api: CustomerIOApi
         get() = diGraph.buildApi()
+
+    override val siteId: String
+        get() = diGraph.sdkConfig.siteId
+
+    override val sdkVersion: String
+        get() = Version.version
 
     /**
      * Identify a customer (aka: Add or update a profile).

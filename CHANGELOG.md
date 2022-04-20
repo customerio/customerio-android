@@ -1,3 +1,14 @@
+## [2.0.0-alpha.1](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.3...2.0.0-alpha.1) (2022-04-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* create background queue to make API synchronous
+
+### Features
+
+* create background queue to make API synchronous ([2524460](https://github.com/customerio/customerio-android/commit/2524460e84531150b61647acc0d5156cd9a4b3b9))
+
 ## [1.1.0-alpha.3](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.2...1.1.0-alpha.3) (2022-04-19)
 
 

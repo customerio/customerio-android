@@ -19,7 +19,7 @@ interface DeviceStore : BuildStore, ApplicationStore {
     fun buildDeviceAttributes(): Map<String, Any>
 }
 
-internal class DeviceStoreImp(
+class DeviceStoreImp(
     private val buildStore: BuildStore,
     private val applicationStore: ApplicationStore,
     private val version: String

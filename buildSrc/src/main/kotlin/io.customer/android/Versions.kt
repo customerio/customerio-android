@@ -3,6 +3,8 @@ package io.customer.android
 object Versions {
     internal const val ANDROID_GRADLE_PLUGIN = "7.0.3"
     internal const val ANDROIDX_TEST_JUNIT = "1.1.3"
+    internal const val ANDROIDX_TEST_RUNNER = "1.4.0"
+    internal const val ANDROIDX_TEST_RULES = "1.4.0"
     internal const val ANDROIDX_APPCOMPAT = "1.3.1"
     internal const val ANDROIDX_KTX = "1.6.0"
     internal const val ANDROIDX_ANNOTATIONS = "1.2.0"

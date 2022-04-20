@@ -5,15 +5,16 @@ import android.app.Application.ActivityLifecycleCallbacks
 import android.os.Bundle
 
 class CustomerIOActivityLifecycleCallbacks internal constructor(
-    private val customerIO: CustomerIO
+    private val customerIO: CustomerIO,
+    private val config: CustomerIOConfig
 ) : ActivityLifecycleCallbacks {
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {
     }
 
     override fun onActivityStarted(activity: Activity) {
-        if (customerIO.config.autoTrackScreenViews) {
-            customerIO.screen(activity).enqueue()
+        if (config.autoTrackScreenViews) {
+            customerIO.screen(activity)
         }
     }
 

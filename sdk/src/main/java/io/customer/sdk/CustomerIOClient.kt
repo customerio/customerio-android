@@ -108,7 +108,7 @@ internal class CustomerIOClient(
 
         backgroundQueue.addTask(
             QueueTaskType.TrackEvent,
-            TrackEventQueueTaskData(name, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)),
+            TrackEventQueueTaskData(identifier, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)),
             blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifier))
         )
     }

@@ -15,11 +15,10 @@ ext {
 apply from: "${rootDir}/scripts/publish-module.gradle"
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
-
     defaultConfig {
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
     }
 
@@ -36,13 +35,6 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
-
-    testOptions {
-        unitTests {
-            // From: http://robolectric.org/getting-started/
-            includeAndroidResources = true
-        }
-    }
 }
 
 dependencies {
@@ -57,16 +49,7 @@ dependencies {
     implementation Dependencies.androidxCoreKtx
 
     kapt(Dependencies.moshiCodeGen)
-
-    testImplementation Dependencies.androidxTestJunit
-
-    testImplementation Dependencies.mockito
-    testImplementation Dependencies.mockitoKotlin
-
-    testImplementation Dependencies.kluent
-    testImplementation Dependencies.okhttpMockWebserver
-
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.junit4
+    kaptTest(Dependencies.moshiCodeGen)
+    kaptAndroidTest(Dependencies.moshiCodeGen)
 }
 

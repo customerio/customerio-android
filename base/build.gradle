@@ -24,4 +24,5 @@ dependencies {
     implementation Dependencies.androidxAnnotations
 
     testImplementation Dependencies.junit4
+    testImplementation Dependencies.kluentJava
 }

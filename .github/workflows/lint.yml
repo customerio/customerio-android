@@ -41,7 +41,9 @@ jobs:
         java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
     - name: Install ktlint
       uses: nbadal/action-ktlint-setup@v1
+    - name: What version of ktlint are we using?
+      run: ktlint --version 
     
     # The task will simply fail if it does not pass. It would be better if we make a comment on the PR telling the PR author to install git hooks but that scenario should not happen often (at least I don't think so) so for now, let's lean on assuming it will not happen and if it does happen a lot, we will improve this. 
     - name: Run ktlint
-      run: ktlint --android "**/src/**/*.kt" 2> /dev/null 
+      run: make lint 

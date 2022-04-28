@@ -14,15 +14,15 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.abs
 
-class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
+internal class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
 
     companion object {
         private const val TAG = "NotificationHandler:"
@@ -69,7 +69,7 @@ class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage
                     deliveryID = deliveryId,
                     deviceToken = deliveryToken,
                     event = MetricEvent.delivered
-                ).enqueue()
+                )
             } catch (exception: Exception) {
                 Log.e(TAG, "Error while handling message: ${exception.message}")
             }

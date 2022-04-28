@@ -17,7 +17,8 @@ jobs:
 
       # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
       - name: Add MODULE_VERSION env property
-        run: echo "MODULE_VERSION=${{ github.event.pull_request.head.ref }}-SNAPSHOT" >> $GITHUB_ENV
+        # Get the current branch name and replace all / characters with - as / is invalid in gradle names. 
+        run: echo "MODULE_VERSION=$(git branch --show-current | sed -r 's/\//-/g')-SNAPSHOT" >> $GITHUB_ENV
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

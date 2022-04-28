@@ -1,10 +1,6 @@
 name: Publish Snapshot builds
 
-# Only run after a pull request has been merged into develop. This is because
-# bot account runs write operations on the github repo to push a tag. 
-on:
-  push:
-    branches: [ develop ] 
+on: [push, pull_request]
 
 jobs:
   publish:
@@ -19,29 +15,8 @@ jobs:
           distribution: adopt
           java-version: 11
 
-      # Get just version number for semantic snapshot release. It would just dry run and not publish, release
-      - name: Run semantic release to get version
-        uses: cycjimmy/semantic-release-action@v2
-        id: semantic
-        with:
-          # version numbers below can be in many forms: M, M.m, M.m.p
-          semantic_version: 18
-          extra_plugins: |
-            @semantic-release/changelog@6
-            @semantic-release/git@10
-            @semantic-release/github@8
-            @semantic-release/exec@6
-        env:
-          GITHUB_TOKEN: ${{ secrets.WRITE_ACCESS_BOT_TOKEN }}
-
-      - name: Release build
-        # assembleRelease for all modules, excluding non-library modules: app, docs
-        run: ./gradlew assembleRelease -x :app:assembleRelease
-      - name: Source jar and dokka
-        run: ./gradlew androidSourcesJar javadocJar
-
       - name: Add MODULE_VERSION env property
-        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
+        run: echo "MODULE_VERSION=$(git rev-parse --short=10 HEAD)-SNAPSHOT" >> $GITHUB_ENV
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

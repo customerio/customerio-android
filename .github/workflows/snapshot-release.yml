@@ -19,7 +19,7 @@ jobs:
       - name: Set snapshot version 
         id: set-snapshot-version
         # Get the current branch name and replace all / characters with - as / is invalid in gradle names. 
-        run: echo "::set-output name=VERSION::$(git branch --show-current | sed -r 's/\//-/g')-SNAPSHOT"
+        run: echo "::set-output name=VERSION::$(echo '${{ github.event.pull_request.head.ref }}' | sed -r 's/\//-/g')-SNAPSHOT"
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

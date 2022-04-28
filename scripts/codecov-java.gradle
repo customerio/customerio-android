@@ -1,0 +1,14 @@
+apply from: "${rootDir}/scripts/codecov-common.gradle"
+
+// make sure name of task is identical for java and Android so CI script can use the same name for running both. 
+task runJacocoTestReport(type: JacocoReport) {
+    dependsOn 'test' // run tests before generating report 
+    dependsOn 'jacocoTestReport' // Java based projects have a gradle task to generate code coverage already! Just run it. 
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true 
+        html.required = true 
+    }
+}

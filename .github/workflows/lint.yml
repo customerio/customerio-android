@@ -6,8 +6,8 @@ jobs:
   android-lint:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        module: [app, sdk]
+      matrix:      
+        module: [sdk, messagingpush] # android modules 
     name: Android Lint (${{ matrix.module }})
     steps:
     - uses: actions/checkout@v2

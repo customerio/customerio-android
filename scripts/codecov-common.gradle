@@ -1,0 +1,7 @@
+// Configuration common to both Java and Android for generating code coverage 
+
+apply plugin: 'jacoco'
+
+// Specify the version to avoid errors such as:
+// https://github.com/jacoco/jacoco/issues/1187
+jacoco.toolVersion = "0.8.7"

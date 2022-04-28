@@ -17,8 +17,7 @@ jobs:
 
       # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
       - name: Add MODULE_VERSION env property
-        id: set-snapshot-version
-        run: echo '::set-output name=VERSION::${{ github.event.pull_request.pull_request.head.ref }}-SNAPSHOT'
+        run: echo "MODULE_VERSION=${{ github.event.pull_request.pull_request.head.ref }}-SNAPSHOT" >> $GITHUB_ENV
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
@@ -29,7 +28,6 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
-          MODULE_VERSION: ${{ steps.set-snapshot-version.outputs.VERSION }}
           SNAPSHOT: true
 
       - name: Find Comment
@@ -47,6 +45,6 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             Build available to test
-            Version: `${{ steps.set-snapshot-version.outputs.VERSION }}`
+            Version: `${{ env.MODULE_VERSION }}`
             Repository: `https://s01.oss.sonatype.org/content/repositories/snapshots/`
           edit-mode: replace

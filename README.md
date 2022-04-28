@@ -7,6 +7,7 @@
 
 ![min Android SDK version is 21](https://img.shields.io/badge/min%20Android%20SDK-21-green)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking)
+[![codecov](https://codecov.io/gh/customerio/customerio-android/branch/develop/graph/badge.svg?token=PYV1XQTKGO)](https://codecov.io/gh/customerio/customerio-android)
 
 # Customer.io Android SDK
 

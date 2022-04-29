@@ -1,0 +1,13 @@
+# Configuration for CodeCov.io service. 
+# https://docs.codecov.com/docs/codecov-yaml
+# https://docs.codecov.com/docs/common-recipe-list
+
+coverage:
+  status:
+    # rules applied to only changes in a pull request. Not changes to the test coverage of the entire project. 
+    patch: 
+      default:
+        # Do not fail CI server if pull request doesn't introduce very many tests in it. It's annoying to make a pull request blocked because 
+        # it does not contain very many tests in it. We care more about the test coverage of the whole project. For small pull requests that only 
+        # change a couple lines of code, 'patch' check is common to fail and can be more annoying then useful. 
+        informational: true 

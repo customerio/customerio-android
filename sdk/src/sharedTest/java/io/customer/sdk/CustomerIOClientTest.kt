@@ -309,7 +309,7 @@ class CustomerIOClientTest : BaseTest() {
 
         verify(backgroundQueueMock).addTask(
             QueueTaskType.TrackEvent,
-            TrackEventQueueTaskData(givenTrackEventName, Event(givenTrackEventName, EventType.event, givenAttributes, dateUtilStub.givenDateMillis)),
+            TrackEventQueueTaskData(givenIdentifier, Event(givenTrackEventName, EventType.event, givenAttributes, dateUtilStub.givenDateMillis)),
             blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
         )
     }

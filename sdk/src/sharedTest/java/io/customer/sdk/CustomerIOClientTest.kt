@@ -2,7 +2,6 @@ package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
-import io.customer.common_test.DateUtilStub
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.Event
@@ -40,7 +39,6 @@ class CustomerIOClientTest : BaseTest() {
     private val prefRepository: PreferenceRepository
         get() = di.sharedPreferenceRepository
     private val backgroundQueueMock: Queue = mock()
-    private val dateUtilStub = DateUtilStub()
     private val loggerMock: Logger = mock()
 
     private lateinit var customerIOClient: CustomerIOClient

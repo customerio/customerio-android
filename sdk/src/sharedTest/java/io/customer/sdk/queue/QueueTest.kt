@@ -33,7 +33,7 @@ class QueueTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        queue = QueueImpl(testDispatcher, testDispatcher, storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger)
+        queue = QueueImpl(testDispatcher, testDispatcher, storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger, dateUtilStub)
     }
 
     // our indicator if queue started to run the queue

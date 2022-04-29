@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Note: This is only used to allow localhost connections for UI tests to allow connecting to localhost for MockWebServer. This file should only be referred to in the *debug* manifest file. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>

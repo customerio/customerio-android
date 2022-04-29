@@ -65,7 +65,7 @@ class CustomerIOComponent(
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatcher = Dispatchers.IO, uiDispatcher = Dispatchers.Main, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
+            QueueImpl(dispatcher = Dispatchers.IO, uiDispatcher = Dispatchers.Main, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
 
     val queueQueryRunner: QueueQueryRunner
@@ -122,10 +122,10 @@ class CustomerIOComponent(
         )
     }
 
-    inline fun <reified T> buildRetrofitApi(): T {
+    private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
-            sdkConfig.region.baseUrl,
+            sdkConfig.trackingApiHostname,
             sdkConfig.timeout,
         ).create(apiClass)
     }

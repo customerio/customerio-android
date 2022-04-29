@@ -64,7 +64,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
 
-
         private fun handleMessageReceived(
             context: Context,
             remoteMessage: RemoteMessage,
@@ -73,7 +72,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
             return handler.handleMessage(context, handleNotificationTrigger)
         }
-
     }
 
     override fun onNewToken(token: String) {

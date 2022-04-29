@@ -14,6 +14,5 @@ internal class StringExtensionsTest {
         "ItemsListActivity".getScreenNameFromActivity() shouldBeEqualTo "Items"
         "ItemsDialogActivity".getScreenNameFromActivity() shouldBeEqualTo "Items"
         "MapFragmentActivity".getScreenNameFromActivity() shouldBeEqualTo "Map"
-
     }
 }

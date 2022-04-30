@@ -13,6 +13,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.CustomerIOStore
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.extensions.getScreenNameFromActivity
 
 /**
 Welcome to the Customer.io Android SDK!
@@ -205,7 +206,11 @@ class CustomerIO internal constructor(
                 activity.componentName, PackageManager.GET_META_DATA
             )
             val activityLabel = info.loadLabel(packageManager)
-            screen(activityLabel.toString(), attributes)
+
+            val screenName = activityLabel.toString().ifEmpty {
+                activity::class.java.simpleName.getScreenNameFromActivity()
+            }
+            screen(screenName, attributes)
         } catch (e: PackageManager.NameNotFoundException) {
             ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
         } catch (e: Exception) {

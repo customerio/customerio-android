@@ -40,4 +40,3 @@ interface Action<T : Any> {
         fun onResult(result: Result<T>)
     }
 }
-

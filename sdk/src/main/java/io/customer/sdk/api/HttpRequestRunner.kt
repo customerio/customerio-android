@@ -40,6 +40,7 @@ class HttpRequestRunnerImpl(
             response = makeRequest()
         } catch (e: Throwable) {
             // HTTP request was not able to be made. Probably an Internet connection issue
+            logger.debug("HTTP request failed. Error: ${e.message}")
         }
 
         if (response == null) {

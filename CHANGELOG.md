@@ -1,3 +1,11 @@
+## [2.0.0-alpha.2](https://github.com/customerio/customerio-android/compare/2.0.0-alpha.1...2.0.0-alpha.2) (2022-05-02)
+
+
+### Bug Fixes
+
+* events are tracked to identified customer ([71634ed](https://github.com/customerio/customerio-android/commit/71634edf4c36538d459f8140c0c05a426b4f21b2))
+* register device tokens http request ([b1c6872](https://github.com/customerio/customerio-android/commit/b1c68724ccb5218bfcd3e8b25743e309ddf83b26))
+
 ## [2.0.0-alpha.1](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.3...2.0.0-alpha.1) (2022-04-20)
 
 

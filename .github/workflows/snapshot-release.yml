@@ -1,10 +1,6 @@
 name: Publish Snapshot builds
 
-# Only run after a pull request has been merged into develop. This is because
-# bot account runs write operations on the github repo to push a tag. 
-on:
-  push:
-    branches: [ develop ] 
+on: [pull_request]
 
 jobs:
   publish:
@@ -19,29 +15,11 @@ jobs:
           distribution: adopt
           java-version: 11
 
-      # Get just version number for semantic snapshot release. It would just dry run and not publish, release
-      - name: Run semantic release to get version
-        uses: cycjimmy/semantic-release-action@v2
-        id: semantic
-        with:
-          # version numbers below can be in many forms: M, M.m, M.m.p
-          semantic_version: 18
-          extra_plugins: |
-            @semantic-release/changelog@6
-            @semantic-release/git@10
-            @semantic-release/github@8
-            @semantic-release/exec@6
-        env:
-          GITHUB_TOKEN: ${{ secrets.WRITE_ACCESS_BOT_TOKEN }}
-
-      - name: Release build
-        # assembleRelease for all modules, excluding non-library modules: app, docs
-        run: ./gradlew assembleRelease -x :app:assembleRelease
-      - name: Source jar and dokka
-        run: ./gradlew androidSourcesJar javadocJar
-
-      - name: Add MODULE_VERSION env property
-        run: echo "MODULE_VERSION=`echo ${{ steps.semantic.outputs.new_release_version }}`-SNAPSHOT" >> $GITHUB_ENV
+      # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
+      - name: Set snapshot version 
+        id: set-snapshot-version
+        # Get the current branch name and replace all / characters with - as / is invalid in gradle names. 
+        run: echo "::set-output name=VERSION::$(echo '${{ github.event.pull_request.head.ref }}' | sed -r 's/\//-/g')-SNAPSHOT"
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
@@ -52,4 +30,24 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
+          MODULE_VERSION: ${{ steps.set-snapshot-version.outputs.VERSION }}
           SNAPSHOT: true
+
+      - name: Find old comment to update comment for
+        uses: peter-evans/find-comment@v2
+        id: find-previous-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Build available to test
+
+      - name: Inform pull request on build of SDK available to test 
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Build available to test
+            Version: `${{ steps.set-snapshot-version.outputs.VERSION }}`
+            Repository: `https://s01.oss.sonatype.org/content/repositories/snapshots/`
+          edit-mode: replace

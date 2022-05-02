@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [app, sdk]
+        module: [sdk, messagingpush, base] 
     name: Unit tests (${{ matrix.module }})
     steps:
     - uses: actions/checkout@v2
@@ -20,7 +20,15 @@ jobs:
       uses: android-actions/setup-android@v2
 
     - name: Run unit tests (${{ matrix.module }})
-      run: ./gradlew :${{ matrix.module }}:testDebugUnitTest
+      run: ./gradlew :${{ matrix.module }}:runJacocoTestReport
+    
+    - name: Upload code coverage report 
+      uses: codecov/codecov-action@v2
+      with: 
+        token: ${{ secrets.CODECOV_UPLOAD_TOKEN }} # not required for public repos, but sometimes uploads fail without it so include it anyway
+        fail_ci_if_error: true # fail if upload fails so we can catch it and fix it right away. 
+        verbose: true 
+        files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml        
 
     - name: Publish test results (${{ matrix.module }})
       uses: mikepenz/action-junit-report@v2      

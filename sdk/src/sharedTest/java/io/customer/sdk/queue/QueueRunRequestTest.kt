@@ -35,7 +35,7 @@ class QueueRunRequestTest : BaseTest() {
     }
 
     @Test
-    fun test_start_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
+    fun test_run_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.success(Unit))
@@ -49,7 +49,7 @@ class QueueRunRequestTest : BaseTest() {
     }
 
     @Test
-    fun test_start_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
+    fun test_run_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(http500Error))
@@ -64,7 +64,7 @@ class QueueRunRequestTest : BaseTest() {
     }
 
     @Test
-    fun test_start_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
+    fun test_run_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         val givenTaskId2 = String.random

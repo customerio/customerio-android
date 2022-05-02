@@ -69,7 +69,7 @@ class CustomerIOComponent(
         }
 
     val queueQueryRunner: QueueQueryRunner
-        get() = override() ?: QueueQueryRunnerImpl()
+        get() = override() ?: QueueQueryRunnerImpl(logger)
 
     val queueRunRequest: QueueRunRequest
         get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)

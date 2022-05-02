@@ -10,7 +10,13 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class FileStorageTest : BaseTest() {
 
-    private val fileStorage = FileStorage(cioConfig, context)
+    private lateinit var fileStorage: FileStorage
+
+    override fun setup() {
+        super.setup()
+
+        fileStorage = FileStorage(cioConfig, context)
+    }
 
     @Test
     fun get_givenNoExistingInventory_expectNull() {

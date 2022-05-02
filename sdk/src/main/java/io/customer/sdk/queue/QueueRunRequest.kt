@@ -26,6 +26,9 @@ class QueueRunRequestImpl internal constructor(
         val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
         if (nextTaskToRunInventoryItem == null) {
             logger.debug("queue done running tasks")
+
+            queryRunner.reset()
+
             return
         }
 

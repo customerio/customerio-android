@@ -19,7 +19,7 @@ class QueueQueryRunnerTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        queryRunner = QueueQueryRunnerImpl()
+        queryRunner = QueueQueryRunnerImpl(di.logger)
     }
 
     @Test

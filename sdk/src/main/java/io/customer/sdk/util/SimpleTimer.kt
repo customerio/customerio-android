@@ -2,6 +2,10 @@ package io.customer.sdk.util
 
 import android.os.CountDownTimer
 import io.customer.sdk.utils.random
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Wrapper around an OS timer that gives us the ability to mock timers in tests to make them run faster.
@@ -15,10 +19,12 @@ interface SimpleTimer {
 }
 
 class AndroidSimpleTimer(
-    private val logger: Logger
+    private val logger: Logger,
+    private val uiDispatcher: CoroutineDispatcher
 ) : SimpleTimer {
 
     @Volatile private var countdownTimer: CountDownTimer? = null
+    @Volatile private var startTimerMainThreadJob: Job? = null
     @Volatile private var timerAlreadyScheduled = false
     private val instanceIdentifier = String.random
 
@@ -40,7 +46,12 @@ class AndroidSimpleTimer(
             }
         }
 
-        newTimer.start()
+        // Must start a timer on the main UI thread or Android will throw an exception saying the current thread doesn't have a Looper.
+        // Because we are starting a new coroutine, there is a chance that there could be a delay in starting the timer. This is OK because
+        // this function is designed to be async anyway so the logic from the caller has not changed.
+        startTimerMainThreadJob = CoroutineScope(uiDispatcher).launch {
+            newTimer.start()
+        }
     }
 
     override fun scheduleIfNotAlready(seconds: Seconds, block: () -> Unit): Boolean {
@@ -75,6 +86,12 @@ class AndroidSimpleTimer(
 
     // cancel without having a mutex lock. Call within a synchronized{} block
     private fun unsafeCancel() {
+        try {
+            startTimerMainThreadJob?.cancel()
+        } catch (e: Throwable) {
+            // cancel() throws an exception. We want to cancel so ignore the error thrown.
+        }
+
         countdownTimer?.cancel()
         countdownTimer = null
     }

@@ -5,7 +5,7 @@ import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 
 interface QueueRunRequest {
-    suspend fun start()
+    suspend fun run()
 }
 
 class QueueRunRequestImpl internal constructor(
@@ -15,7 +15,7 @@ class QueueRunRequestImpl internal constructor(
     private val queryRunner: QueueQueryRunner
 ) : QueueRunRequest {
 
-    override suspend fun start() {
+    override suspend fun run() {
         logger.debug("queue starting to run tasks...")
         val inventory = queueStorage.getInventory()
 

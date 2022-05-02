@@ -43,7 +43,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.delete(eq(givenTaskId))).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
     }
@@ -57,7 +57,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.update(eq(givenTaskId), any())).thenReturn(true)
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock, never()).delete(givenTaskId)
         verify(storageMock).update(eq(givenTaskId), any())
@@ -80,7 +80,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId2))).thenReturn(givenQueueTask2)
         whenever(storageMock.delete(any())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
         verify(storageMock).delete(givenTaskId2)

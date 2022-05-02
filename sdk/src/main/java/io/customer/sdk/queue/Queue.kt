@@ -44,7 +44,6 @@ interface Queue {
 
 class QueueImpl internal constructor(
     private val dispatcher: CoroutineDispatcher,
-    private val uiDispatcher: CoroutineDispatcher,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
@@ -87,19 +86,21 @@ class QueueImpl internal constructor(
     }
 
     override suspend fun run() {
-        // TODO cancel timers
-
         synchronized(this) {
+            queueTimer.cancel()
+
             val isQueueRunningRequest = isRunningRequest
             if (isQueueRunningRequest) return
 
             isRunningRequest = true
         }
 
-        runRequest.start()
+        runRequest.run()
 
-        // reset queue to be able to run again
-        isRunningRequest = false
+        synchronized(this) {
+            // reset queue to be able to run again
+            isRunningRequest = false
+        }
     }
 
     internal fun runAsync() {
@@ -115,26 +116,17 @@ class QueueImpl internal constructor(
         if (isManyTasksInQueue) {
             logger.info("queue met criteria to run automatically")
 
-            queueTimer.cancel()
-
             runAsync()
         } else {
-            // created a coroutine scope on UI thread because Android's CountdownTimer in SimpleTimer class must be
-            // created and started on the UI thread or it will crash the SDK.
-            // TODO refactor this code to exist in the SimpleTimer class for easy encapsulation
-            val job = CoroutineScope(uiDispatcher).launch {
-                // Not enough tasks in the queue yet to run it now, so let's schedule them to run in the future.
-                // It's expected that only 1 timer instance exists and is running in the SDK.
-                val didSchedule = queueTimer.scheduleIfNotAlready(numberSecondsToScheduleTimer) {
-                    logger.info("queue timer: now running queue")
+            // Not enough tasks in the queue yet to run it now, so let's schedule them to run in the future.
+            // It's expected that only 1 timer instance exists and is running in the SDK.
+            val didSchedule = queueTimer.scheduleIfNotAlready(numberSecondsToScheduleTimer) {
+                logger.info("queue timer: now running queue")
 
-                    runAsync()
-                }
-
-                if (didSchedule) logger.info("queue timer: scheduled to run queue in $numberSecondsToScheduleTimer seconds")
+                runAsync()
             }
 
-            // TODO save job and cancel it when you run queueTimer.cancel()
+            if (didSchedule) logger.info("queue timer: scheduled to run queue in $numberSecondsToScheduleTimer seconds")
         }
     }
 
@@ -206,7 +198,7 @@ class QueueImpl internal constructor(
 
         // If SDK previously identified profile X and X is being identified again, no use blocking the queue with a queue group.
         val queueGroupStart = if (isFirstTimeIdentifying || isChangingIdentifiedProfile) QueueTaskGroup.IdentifyProfile(newIdentifier) else null
-        // If there was a previously identified profile, or, we are just adding attributes to an existing profile, we need to block
+        // If there was a previously identified profile, or, we are just adding attributes to an existing profile, we need to wait for
         // this operation until the previous identify runs successfully.
         val blockingGroups = if (!isFirstTimeIdentifying) listOf(QueueTaskGroup.IdentifyProfile(oldIdentifier!!)) else null
 

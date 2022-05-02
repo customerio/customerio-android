@@ -11,7 +11,7 @@ interface QueueQueryRunner {
 class QueueQueryRunnerImpl(
     private val logger: Logger
 ) : QueueQueryRunner {
-    private val queryCriteria = QueueQueryCriteria()
+    internal val queryCriteria = QueueQueryCriteria()
 
     override fun getNextTask(queue: List<QueueTaskMetadata>, lastFailedTask: QueueTaskMetadata?): QueueTaskMetadata? {
         if (queue.isEmpty()) return null
@@ -23,7 +23,7 @@ class QueueQueryRunnerImpl(
         return queue.firstOrNull { doesTaskPassCriteria(it) }
     }
 
-    private fun updateCriteria(lastFailedTask: QueueTaskMetadata) {
+    internal fun updateCriteria(lastFailedTask: QueueTaskMetadata) {
         lastFailedTask.groupStart?.let { queueGroupName ->
             queryCriteria.excludeGroups.add(queueGroupName)
         }
@@ -53,7 +53,7 @@ class QueueQueryRunnerImpl(
         queryCriteria.reset()
     }
 
-    private data class QueueQueryCriteria(
+    internal data class QueueQueryCriteria(
         val excludeGroups: MutableSet<String> = mutableSetOf()
     ) {
         fun reset() {

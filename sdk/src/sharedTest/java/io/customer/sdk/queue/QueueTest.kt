@@ -11,8 +11,8 @@ import io.customer.sdk.util.SimpleTimer
 import io.customer.sdk.utils.random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineDispatcher
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,24 +27,22 @@ class QueueTest : BaseTest() {
     val runRequestMock: QueueRunRequest = mock()
     val queueTimerMock: SimpleTimer = mock()
 
-    private val testDispatcher = TestCoroutineDispatcher()
-
     @Before
     override fun setup() {
         super.setup()
 
-        queue = QueueImpl(testDispatcher, testDispatcher, storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger, dateUtilStub)
+        queue = QueueImpl(testDispatcher, storageMock, runRequestMock, di.jsonAdapter, di.sdkConfig, queueTimerMock, di.logger, dateUtilStub)
     }
 
     // our indicator if queue started to run the queue
     private suspend fun assertDidStartARun(didRun: Boolean) {
         if (didRun) {
-            verify(runRequestMock).start()
+            verify(runRequestMock).run()
 
             // good idea to check that a run request always sets this to false for the next run attempt after a run did run.
             queue.isRunningRequest shouldBeEqualTo false
         } else {
-            verify(runRequestMock, never()).start()
+            verify(runRequestMock, never()).run()
         }
     }
 
@@ -96,6 +94,70 @@ class QueueTest : BaseTest() {
     }
 
     // TODO test queue timer
+
+    @Test
+    fun queueIdentifyProfile_givenFirstTimeIdentifying_expectAddGroupStart_expectNoBlockingGroups() {
+        val givenNewIdentifier = String.random
+        val givenAttributes = mapOf(String.random to String.random)
+        whenever(storageMock.create(any(), anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        queue.queueIdentifyProfile(
+            newIdentifier = givenNewIdentifier,
+            oldIdentifier = null,
+            attributes = givenAttributes
+        )
+
+        val groupStartArgument = nullableArgumentCaptor<QueueTaskGroup>()
+        val blockingGroupsArgument = nullableArgumentCaptor<List<QueueTaskGroup>>()
+
+        verify(storageMock).create(anyOrNull(), anyOrNull(), groupStartArgument.capture(), blockingGroupsArgument.capture())
+
+        groupStartArgument.firstValue shouldBeEqualTo QueueTaskGroup.IdentifyProfile(givenNewIdentifier)
+        blockingGroupsArgument.firstValue.shouldBeNull()
+    }
+
+    @Test
+    fun queueIdentifyProfile_givenIdentifyingNewProfile_expectAddGroupStart_expectAddBlockingGroups() {
+        val givenNewIdentifier = String.random
+        val givenOldIdentifier = String.random
+        val givenAttributes = mapOf(String.random to String.random)
+        whenever(storageMock.create(any(), anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        queue.queueIdentifyProfile(
+            newIdentifier = givenNewIdentifier,
+            oldIdentifier = givenOldIdentifier,
+            attributes = givenAttributes
+        )
+
+        val groupStartArgument = nullableArgumentCaptor<QueueTaskGroup>()
+        val blockingGroupsArgument = nullableArgumentCaptor<List<QueueTaskGroup>>()
+
+        verify(storageMock).create(anyOrNull(), anyOrNull(), groupStartArgument.capture(), blockingGroupsArgument.capture())
+
+        groupStartArgument.firstValue shouldBeEqualTo QueueTaskGroup.IdentifyProfile(givenNewIdentifier)
+        blockingGroupsArgument.firstValue shouldBeEqualTo listOf(QueueTaskGroup.IdentifyProfile(givenOldIdentifier))
+    }
+
+    @Test
+    fun queueIdentifyProfile_givenReIdentifyExistingProfile_expectAddGroupStart_expectAddBlockingGroups() {
+        val givenSameIdentifier = String.random
+        val givenAttributes = mapOf(String.random to String.random)
+        whenever(storageMock.create(any(), anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        queue.queueIdentifyProfile(
+            newIdentifier = givenSameIdentifier,
+            oldIdentifier = givenSameIdentifier,
+            attributes = givenAttributes
+        )
+
+        val groupStartArgument = nullableArgumentCaptor<QueueTaskGroup>()
+        val blockingGroupsArgument = nullableArgumentCaptor<List<QueueTaskGroup>>()
+
+        verify(storageMock).create(anyOrNull(), anyOrNull(), groupStartArgument.capture(), blockingGroupsArgument.capture())
+
+        groupStartArgument.firstValue.shouldBeNull()
+        blockingGroupsArgument.firstValue shouldBeEqualTo listOf(QueueTaskGroup.IdentifyProfile(givenSameIdentifier))
+    }
 
     @JsonClass(generateAdapter = true)
     data class TestQueueTaskData(val foo: String = String.random, val bar: Boolean = true)

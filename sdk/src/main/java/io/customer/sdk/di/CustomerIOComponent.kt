@@ -65,7 +65,7 @@ class CustomerIOComponent(
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatcher = Dispatchers.IO, uiDispatcher = Dispatchers.Main, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
+            QueueImpl(dispatcher = Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
 
     val queueQueryRunner: QueueQueryRunner
@@ -90,7 +90,7 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = AndroidSimpleTimer(logger)
+        get() = AndroidSimpleTimer(logger, uiDispatcher = Dispatchers.Main)
 
     internal fun buildApi(): CustomerIOApi {
         return override() ?: CustomerIOClient(

@@ -6,6 +6,7 @@ import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,5 +80,29 @@ class QueueQueryRunnerTest : BaseTest() {
         val actual = queryRunner.getNextTask(givenQueue, givenFailedTask)
 
         actual.shouldBeNull()
+    }
+
+    @Test
+    fun reset_givenCriteriaEmpty_expectCriteriaToRemainEmpty() {
+        assertQueryCriteriaEmpty(isEmpty = true)
+
+        queryRunner.reset()
+
+        assertQueryCriteriaEmpty(isEmpty = true)
+    }
+
+    @Test
+    fun reset_givenCriteriaNotEmpty_expectCriteriaToBecomeEmpty() {
+        queryRunner.updateCriteria(QueueTaskMetadata.random.copy(groupStart = String.random))
+        assertQueryCriteriaEmpty(isEmpty = false)
+
+        queryRunner.reset()
+
+        assertQueryCriteriaEmpty(isEmpty = true)
+    }
+
+    private fun assertQueryCriteriaEmpty(isEmpty: Boolean) {
+        if (isEmpty) queryRunner.queryCriteria shouldBeEqualTo QueueQueryRunnerImpl.QueueQueryCriteria()
+        else queryRunner.queryCriteria shouldNotBeEqualTo QueueQueryRunnerImpl.QueueQueryCriteria()
     }
 }

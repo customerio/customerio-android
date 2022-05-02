@@ -154,7 +154,7 @@ class CustomerIOComponent(
         val okHttpClient = clientBuilder(timeout).build()
         return override() ?: Retrofit.Builder()
             .baseUrl(endpoint)
-            .addConverterFactory(MoshiConverterFactory.create())
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
             .client(okHttpClient)
             .build()
     }

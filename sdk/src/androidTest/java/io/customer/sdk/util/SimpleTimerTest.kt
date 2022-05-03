@@ -10,6 +10,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Tests must be executed on Android device, only. Running on robolectric gave false positive results.
+ */
 @RunWith(AndroidJUnit4::class)
 class SimpleTimerTest : BaseTest() {
 

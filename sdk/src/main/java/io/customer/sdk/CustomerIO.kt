@@ -96,6 +96,7 @@ class CustomerIO internal constructor(
         private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
+        private var modules: MutableMap<String, CustomerIOModule> = mutableMapOf()
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -129,6 +130,11 @@ class CustomerIO internal constructor(
             return this
         }
 
+        fun addCustomerIOModule(module: CustomerIOModule): Builder {
+            modules[module.moduleName] = module
+            return this
+        }
+
         fun build(): CustomerIO {
 
             if (apiKey.isEmpty()) {
@@ -158,6 +164,10 @@ class CustomerIO internal constructor(
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
+
+            modules.forEach {
+                it.value.initialize(client, diGraph)
+            }
 
             return client
         }

@@ -48,7 +48,6 @@ abstract class BaseTest {
             context = this@BaseTest.context
         )
         di.fileStorage.deleteAllSdkFiles()
-
         di.sharedPreferenceRepository.clearAll()
     }
 }

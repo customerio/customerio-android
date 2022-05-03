@@ -77,7 +77,7 @@ class QueueRunRequestImpl internal constructor(
 
     private suspend fun goToNextTask(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata?) {
         val newInventory = inventory.toMutableList()
-        newInventory.removeFirst()
+        newInventory.removeFirstOrNull()
         runTasks(newInventory, totalNumberOfTasksToRun, lastFailedTask)
     }
 }

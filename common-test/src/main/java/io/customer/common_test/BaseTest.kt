@@ -10,6 +10,7 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.JsonAdapter
 import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.After
 import org.junit.Before
 import retrofit2.HttpException
 import retrofit2.Response
@@ -51,4 +52,7 @@ abstract class BaseTest {
 
         di.sharedPreferenceRepository.clearAll()
     }
+
+    @After
+    open fun teardown() {}
 }

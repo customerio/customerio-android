@@ -98,7 +98,7 @@ internal class CustomAttributesAdapter(moshi: Moshi) :
             }
         }
 
-        val validMap = HashMap<String, Any>()
+        val validMap = mutableMapOf<String, Any>()
         value.entries.forEach {
             validMap[it.key] = getValidValue(it.value)
         }

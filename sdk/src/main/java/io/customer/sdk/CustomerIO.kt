@@ -159,6 +159,7 @@ class CustomerIO internal constructor(
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
             val client = CustomerIO(diGraph)
+            val logger = diGraph.logger
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
@@ -166,6 +167,7 @@ class CustomerIO internal constructor(
             instance = client
 
             modules.forEach {
+                logger.debug("initializing SDK module ${it.value.moduleName}...")
                 it.value.initialize(client, diGraph)
             }
 

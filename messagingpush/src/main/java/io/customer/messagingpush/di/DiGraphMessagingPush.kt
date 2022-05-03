@@ -11,4 +11,4 @@ The use of extensions was chosen over creating a separate graph class for each m
  */
 
 internal val CustomerIOComponent.fcmTokenProvider: FCMTokenProvider
-    get() = override() ?: FCMTokenProviderImpl()
+    get() = override() ?: FCMTokenProviderImpl(logger)

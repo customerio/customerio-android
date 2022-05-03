@@ -3,7 +3,6 @@ package io.customer.sdk
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.data.model.verify
 import io.customer.sdk.data.request.Device
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.Metric
@@ -93,10 +92,6 @@ internal class CustomerIOClient(
 
         logger.info("$eventTypeDescription $name")
         logger.debug("$eventTypeDescription $name attributes: $attributes")
-
-        // Clean-up attributes before any JSON parsing.
-        // TODO implement implementation tests for background queue and provide invalid attributes to make sure that we remembered to call this function.
-        val attributes = attributes.verify()
 
         val identifier = preferenceRepository.getIdentifier()
         if (identifier == null) {

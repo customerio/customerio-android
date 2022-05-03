@@ -2,16 +2,19 @@ package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
+import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTask
 import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.utils.random
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -60,7 +63,21 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.start()
 
         verify(storageMock, never()).delete(givenTaskId)
-        verify(storageMock).update(eq(givenTaskId), any())
+        verify(storageMock).update(givenTaskId, QueueTaskRunResults(totalRuns = 1))
+    }
+
+    @Test
+    fun test_start_givenHttpRequestsPaused_expectDontDeleteTask_expectDontUpdateTask(): Unit = runBlocking {
+        val givenTaskId = String.random
+        val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.HttpRequestsPaused()))
+        whenever(storageMock.getInventory()).thenReturn(listOf(QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)))
+        whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
+
+        runRequest.start()
+
+        verify(storageMock, never()).delete(anyOrNull())
+        verify(storageMock, never()).update(anyOrNull(), anyOrNull())
     }
 
     @Test

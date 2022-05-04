@@ -13,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 
 @RunWith(AndroidJUnit4::class)
 class CustomerIOTest : BaseTest() {
@@ -51,5 +52,14 @@ class CustomerIOTest : BaseTest() {
         actual.region shouldBeEqualTo Region.EU
         actual.urlHandler.shouldNotBeNull()
         actual.autoTrackScreenViews shouldBeEqualTo true
+    }
+
+    @Test
+    fun deviceAttributes_givenSetValue_expectMakeRequestToAddAttributes() {
+        val givenAttributes = mapOf(String.random to String.random)
+
+        customerIO.deviceAttributes = givenAttributes
+
+        verify(apiMock).addCustomDeviceAttributes(givenAttributes)
     }
 }

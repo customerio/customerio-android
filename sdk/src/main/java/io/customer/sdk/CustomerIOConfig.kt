@@ -2,6 +2,7 @@ package io.customer.sdk
 
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.util.CioLogLevel
 
 data class CustomerIOConfig(
     val siteId: String,
@@ -21,6 +22,6 @@ data class CustomerIOConfig(
      * The number of seconds to delay running queue after a task has been added to it.
      * We do not recommend modifying this value because it impacts battery life of mobile device.
      */
-    val backgroundQueueSecondsDelay: Double
-
+    val backgroundQueueSecondsDelay: Double,
+    val logLevel: CioLogLevel
 )

@@ -75,7 +75,7 @@ class CustomerIOComponent(
         get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
 
     val logger: Logger
-        get() = override() ?: LogcatLogger()
+        get() = override() ?: LogcatLogger(sdkConfig)
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)

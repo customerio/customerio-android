@@ -291,6 +291,36 @@ class CustomerIOClientTest : BaseTest() {
         )
     }
 
+    // addCustomProfileAttributes
+
+    @Test
+    fun addCustomProfileAttributes_givenProfileIdentified_expectDoNotIdentifyProfile() {
+        val givenAttributes = mapOf(String.random to String.random)
+
+        customerIOClient.addCustomProfileAttributes(givenAttributes)
+
+        // do not identify profile
+        verifyNoInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun addCustomProfileAttributes_givenExistingProfileIdentified_expectAddAttributesToProfile() {
+        val givenAttributes = mapOf(String.random to String.random)
+        val givenIdentifier = String.random
+        prefRepository.saveIdentifier(givenIdentifier)
+        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        customerIOClient.addCustomProfileAttributes(givenAttributes)
+
+        // assert that attributes have been added to a profile
+        verify(backgroundQueueMock).addTask(
+            QueueTaskType.IdentifyProfile,
+            IdentifyProfileQueueTaskData(givenIdentifier, givenAttributes),
+            groupStart = null,
+            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        )
+    }
+
     // deleteDeviceToken
 
     @Test

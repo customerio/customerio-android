@@ -62,4 +62,13 @@ class CustomerIOTest : BaseTest() {
 
         verify(apiMock).addCustomDeviceAttributes(givenAttributes)
     }
+
+    @Test
+    fun profileAttributes_givenSetValue_expectMakeRequestToAddAttributes() {
+        val givenAttributes = mapOf(String.random to String.random)
+
+        customerIO.profileAttributes = givenAttributes
+
+        verify(apiMock).addCustomProfileAttributes(givenAttributes)
+    }
 }

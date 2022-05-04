@@ -4,8 +4,8 @@ import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.sdk.api.CustomerIOApi
-import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
@@ -116,6 +116,15 @@ class CustomerIO internal constructor(
 
         fun autoTrackDeviceAttributes(shouldTrackDeviceAttributes: Boolean): Builder {
             this.autoTrackDeviceAttributes = shouldTrackDeviceAttributes
+            return this
+        }
+
+        /**
+         * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
+         * If you override this value, `Region` set when initializing the SDK will be ignored.
+         */
+        fun setTrackingApiURL(trackingApiUrl: String): Builder {
+            this.region = Region.Custom(trackingApiUrl)
             return this
         }
 
@@ -270,7 +279,8 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) =
+        api.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token

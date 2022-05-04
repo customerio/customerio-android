@@ -1,8 +1,8 @@
 package io.customer.sdk
 
 import android.net.Uri
-import io.customer.common_test.BaseTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.common_test.BaseTest
 import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
@@ -34,14 +34,16 @@ class CustomerIOTest : BaseTest() {
     fun verifySDKConfigurationSetAfterBuild() {
         val givenSiteId = String.random
         val givenApiKey = String.random
-        val client = CustomerIO.Builder(
+        val builder = CustomerIO.Builder(
             siteId = givenSiteId,
             apiKey = givenApiKey,
             region = Region.EU,
             appContext = application
         ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
             override fun handleCustomerIOUrl(uri: Uri): Boolean = false
-        }).autoTrackScreenViews(true).build()
+        }).autoTrackScreenViews(true)
+
+        val client = builder.build()
 
         val actual = client.diGraph.sdkConfig
 
@@ -51,5 +53,14 @@ class CustomerIOTest : BaseTest() {
         actual.region shouldBeEqualTo Region.EU
         actual.urlHandler.shouldNotBeNull()
         actual.autoTrackScreenViews shouldBeEqualTo true
+
+        builder.setTrackingApiURL("https://local/track")
+
+        val updatedClient = builder.build()
+
+        val updatedConfig = updatedClient.diGraph.sdkConfig
+
+        (updatedConfig.region is Region.Custom) shouldBeEqualTo true
+        updatedConfig.region.baseUrl shouldBeEqualTo "https://local/track"
     }
 }

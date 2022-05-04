@@ -12,9 +12,9 @@ data class CustomerIOConfig(
     val autoTrackScreenViews: Boolean,
     val autoTrackDeviceAttributes: Boolean,
     /**
-     Number of tasks in the background queue before the queue begins operating.
-     This is mostly used during development to test configuration is setup. We do not recommend
-     modifying this value because it impacts battery life of mobile device.
+     * Number of tasks in the background queue before the queue begins operating.
+     * This is mostly used during development to test configuration is setup. We do not recommend
+     * modifying this value because it impacts battery life of mobile device.
      */
     val backgroundQueueMinNumberOfTasks: Int,
     /**
@@ -22,5 +22,4 @@ data class CustomerIOConfig(
      * We do not recommend modifying this value because it impacts battery life of mobile device.
      */
     val backgroundQueueSecondsDelay: Double
-
 )

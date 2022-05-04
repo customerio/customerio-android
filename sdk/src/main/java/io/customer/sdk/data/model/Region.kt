@@ -11,5 +11,7 @@ sealed class Region(val code: String, val baseUrl: String) {
     // to find the correct hostname for what you're trying to do.
     object US : Region(code = "us", baseUrl = "https://track-sdk.customer.io/")
     object EU : Region(code = "eu", baseUrl = "https://track-sdk-eu.customer.io/")
+
+    // Utilise custom `baseUrl` provided and ignore `code`
     class Custom(baseUrl: String) : Region(code = "", baseUrl = baseUrl)
 }

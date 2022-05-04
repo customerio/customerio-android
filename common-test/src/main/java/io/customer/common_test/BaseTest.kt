@@ -9,6 +9,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.JsonAdapter
 import kotlinx.coroutines.test.TestCoroutineDispatcher
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -31,6 +32,7 @@ abstract class BaseTest {
 
     protected val application: Application
         get() = ApplicationProvider.getApplicationContext()
+
 
     protected lateinit var cioConfig: CustomerIOConfig
 

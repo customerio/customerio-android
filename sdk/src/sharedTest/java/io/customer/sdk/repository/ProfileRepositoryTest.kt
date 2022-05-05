@@ -1,17 +1,12 @@
-package io.customer.sdk
+package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
-import io.customer.sdk.data.model.EventType
-import io.customer.sdk.data.request.Device
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
-import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
-import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
@@ -20,30 +15,28 @@ import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
-class CustomerIOClientTest : BaseTest() {
+class ProfileRepositoryTest : BaseTest() {
 
     private val prefRepository: PreferenceRepository
         get() = di.sharedPreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
+    private val deviceRepositoryMock: DeviceRepository = mock()
 
-    private lateinit var customerIOClient: CustomerIOClient
+    private lateinit var repository: ProfileRepository
 
     @Before
     override fun setup() {
         super.setup()
 
-        customerIOClient = CustomerIOClient(
-            config = cioConfig,
-            deviceStore = deviceStore,
+        repository = ProfileRepositoryImpl(
+            deviceRepository = deviceRepositoryMock,
             preferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
-            dateUtil = dateUtilStub,
             logger = loggerMock
         )
     }
@@ -56,7 +49,7 @@ class CustomerIOClientTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
-        customerIOClient.identify(newIdentifier, givenAttributes)
+        repository.identify(newIdentifier, givenAttributes)
 
         verify(backgroundQueueMock).queueIdentifyProfile(
             newIdentifier = newIdentifier,
@@ -74,23 +67,16 @@ class CustomerIOClientTest : BaseTest() {
         prefRepository.saveDeviceToken(givenDeviceToken)
         whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
-        customerIOClient.identify(newIdentifier, givenAttributes)
+        repository.identify(newIdentifier, givenAttributes)
 
-        inOrder(backgroundQueueMock).apply {
+        inOrder(backgroundQueueMock, deviceRepositoryMock).apply {
             verify(backgroundQueueMock).queueIdentifyProfile(
                 newIdentifier = newIdentifier,
                 oldIdentifier = null,
                 attributes = givenAttributes
             )
             // Register needs to happen after identify added to queue as it has a blocking group set to new profile identified
-            verify(backgroundQueueMock).queueRegisterDevice(
-                newIdentifier,
-                Device(
-                    token = givenDeviceToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = deviceStore.buildDeviceAttributes()
-                )
-            )
+            verify(deviceRepositoryMock).registerDeviceToken(givenDeviceToken, emptyMap())
         }
         verifyNoMoreInteractions(backgroundQueueMock)
     }
@@ -103,7 +89,7 @@ class CustomerIOClientTest : BaseTest() {
         prefRepository.saveIdentifier(givenIdentifier)
         whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
-        customerIOClient.identify(newIdentifier, givenAttributes)
+        repository.identify(newIdentifier, givenAttributes)
 
         verify(backgroundQueueMock).queueIdentifyProfile(
             newIdentifier = newIdentifier,
@@ -123,15 +109,12 @@ class CustomerIOClientTest : BaseTest() {
         prefRepository.saveDeviceToken(givenDeviceToken)
         whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
-        customerIOClient.identify(newIdentifier, givenAttributes)
+        repository.identify(newIdentifier, givenAttributes)
 
-        inOrder(backgroundQueueMock).apply {
+        inOrder(backgroundQueueMock, deviceRepositoryMock).apply {
             // order of adding tasks to queue matter to prevent locking running background queue tasks. Some tasks may belong to a group and that group needs to exist in the queue!
 
-            verify(backgroundQueueMock).queueDeletePushToken(
-                givenIdentifier,
-                givenDeviceToken
-            )
+            verify(deviceRepositoryMock).deleteDeviceToken()
 
             verify(backgroundQueueMock).queueIdentifyProfile(
                 newIdentifier = newIdentifier,
@@ -139,14 +122,7 @@ class CustomerIOClientTest : BaseTest() {
                 attributes = givenAttributes
             )
 
-            verify(backgroundQueueMock).queueRegisterDevice(
-                newIdentifier,
-                Device(
-                    token = givenDeviceToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = deviceStore.buildDeviceAttributes()
-                )
-            )
+            verify(deviceRepositoryMock).registerDeviceToken(givenDeviceToken, emptyMap())
         }
         verifyNoMoreInteractions(backgroundQueueMock)
     }
@@ -160,7 +136,7 @@ class CustomerIOClientTest : BaseTest() {
         prefRepository.saveDeviceToken(givenDeviceToken)
         whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
-        customerIOClient.identify(givenIdentifier, givenAttributes)
+        repository.identify(givenIdentifier, givenAttributes)
 
         verify(backgroundQueueMock).queueIdentifyProfile(
             newIdentifier = givenIdentifier,
@@ -177,120 +153,15 @@ class CustomerIOClientTest : BaseTest() {
         val givenIdentifier = String.random
         prefRepository.saveIdentifier(givenIdentifier)
 
-        customerIOClient.clearIdentify()
+        repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
     }
 
     @Test
     fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest() {
-        customerIOClient.clearIdentify()
+        repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
-    }
-
-    // registerDeviceToken
-
-    @Test
-    fun registerDeviceToken_givenNoIdentifiedProfile_expectDoNotAddTaskToBackgroundQueue_expectSaveToken() {
-        val givenDeviceToken = String.random
-
-        customerIOClient.registerDeviceToken(givenDeviceToken, emptyMap())
-
-        verifyNoInteractions(backgroundQueueMock)
-        prefRepository.getDeviceToken() shouldBeEqualTo givenDeviceToken
-    }
-
-    @Test
-    fun registerDeviceToken_givenIdentifiedProfile_expectAddTaskToQueue_expectSaveToken() {
-        val givenIdentifier = String.random
-        val givenDeviceToken = String.random
-        val givenAttributes = mapOf("name" to String.random)
-        prefRepository.saveIdentifier(givenIdentifier)
-
-        customerIOClient.registerDeviceToken(givenDeviceToken, givenAttributes)
-
-        verify(backgroundQueueMock).queueRegisterDevice(
-            givenIdentifier,
-            Device(
-                token = givenDeviceToken,
-                lastUsed = dateUtilStub.givenDate,
-                attributes = deviceStore.buildDeviceAttributes() + givenAttributes
-            )
-        )
-        prefRepository.getDeviceToken() shouldBeEqualTo givenDeviceToken
-    }
-
-    // deleteDeviceToken
-
-    @Test
-    fun deleteDeviceToken_givenNoDeviceToken_expectDoNotAddTaskToBackgroundQueue() {
-        prefRepository.saveIdentifier(String.random)
-
-        customerIOClient.deleteDeviceToken()
-
-        verifyNoInteractions(backgroundQueueMock)
-    }
-
-    @Test
-    fun deleteDeviceToken_givenNoProfileIdentified_expectDoNotAddTaskToBackgroundQueue() {
-        prefRepository.saveDeviceToken(String.random)
-
-        customerIOClient.deleteDeviceToken()
-
-        verifyNoInteractions(backgroundQueueMock)
-    }
-
-    @Test
-    fun deleteDeviceToken_givenDeviceTokenAndIdentifiedProfile_expectAddTaskToBackgroundQueue() {
-        val givenDeviceToken = String.random
-        val givenIdentifier = String.random
-        prefRepository.saveDeviceToken(givenDeviceToken)
-        prefRepository.saveIdentifier(givenIdentifier)
-
-        customerIOClient.deleteDeviceToken()
-
-        verify(backgroundQueueMock).queueDeletePushToken(givenIdentifier, givenDeviceToken)
-    }
-
-    // track
-
-    @Test
-    fun track_givenNoProfileIdentified_expectDoNotAddTaskBackgroundQueue() {
-        customerIOClient.track(EventType.event, String.random, emptyMap())
-
-        verifyNoInteractions(backgroundQueueMock)
-    }
-
-    @Test
-    fun track_givenProfileIdentified_expectAddTaskBackgroundQueue() {
-        val givenIdentifier = String.random
-        val givenTrackEventName = String.random
-        val givenAttributes = mapOf("foo" to String.random)
-        prefRepository.saveIdentifier(givenIdentifier)
-
-        customerIOClient.track(EventType.event, givenTrackEventName, givenAttributes)
-
-        verify(backgroundQueueMock).queueTrack(
-            givenIdentifier,
-            givenTrackEventName,
-            EventType.event,
-            givenAttributes
-        )
-    }
-
-    @Test
-    fun trackMetric_expectAddEventToBackgroundQueue() {
-        val givenDeliveryId = String.random
-        val givenEvent = MetricEvent.opened
-        val givenDeviceToken = String.random
-
-        customerIOClient.trackMetric(givenDeliveryId, givenEvent, givenDeviceToken)
-
-        verify(backgroundQueueMock).queueTrackMetric(
-            givenDeliveryId,
-            givenDeviceToken,
-            givenEvent
-        )
     }
 }

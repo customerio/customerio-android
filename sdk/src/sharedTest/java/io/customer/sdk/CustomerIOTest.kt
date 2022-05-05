@@ -3,7 +3,6 @@ package io.customer.sdk
 import android.net.Uri
 import io.customer.common_test.BaseTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.utils.random
@@ -12,20 +11,15 @@ import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
 
 @RunWith(AndroidJUnit4::class)
 class CustomerIOTest : BaseTest() {
-
-    private val apiMock: CustomerIOApi = mock()
 
     private lateinit var customerIO: CustomerIO
 
     @Before
     fun setUp() {
         super.setup()
-
-        di.overrideDependency(CustomerIOApi::class.java, apiMock)
 
         customerIO = CustomerIO(di)
     }

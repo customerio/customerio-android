@@ -5,17 +5,9 @@ import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.model.verify
 import io.customer.sdk.data.request.Device
-import io.customer.sdk.data.request.Event
-import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.queue.Queue
-import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
-import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
-import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
-import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
-import io.customer.sdk.queue.type.QueueTaskGroup
-import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
@@ -52,18 +44,7 @@ internal class CustomerIOClient(
             }
         }
 
-        // If SDK previously identified profile X and X is being identified again, no use blocking the queue with a queue group.
-        val queueGroupStart = if (isFirstTimeIdentifying || isChangingIdentifiedProfile) QueueTaskGroup.IdentifyProfile(identifier) else null
-        // If there was a previously identified profile, or, we are just adding attributes to an existing profile, we need to block
-        // this operation until the previous identify runs successfully.
-        val blockingGroups = if (currentlyIdentifiedProfileIdentifier != null) listOf(QueueTaskGroup.IdentifyProfile(currentlyIdentifiedProfileIdentifier)) else null
-
-        val queueStatus = backgroundQueue.addTask(
-            QueueTaskType.IdentifyProfile,
-            IdentifyProfileQueueTaskData(identifier, attributes),
-            groupStart = queueGroupStart,
-            blockingGroups = blockingGroups
-        )
+        val queueStatus = backgroundQueue.queueIdentifyProfile(identifier, currentlyIdentifiedProfileIdentifier, attributes)
 
         // don't modify the state of the SDK until we confirm we added a queue task successfully.
         if (!queueStatus.success) {
@@ -106,11 +87,7 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(
-            QueueTaskType.TrackEvent,
-            TrackEventQueueTaskData(identifier, Event(name, eventType, attributes, dateUtil.nowUnixTimestamp)),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifier))
-        )
+        backgroundQueue.queueTrack(identifier, name, eventType, attributes)
     }
 
     override fun clearIdentify() {
@@ -143,12 +120,7 @@ internal class CustomerIOClient(
             attributes = attributes
         )
 
-        backgroundQueue.addTask(
-            QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(identifiedProfileId, device),
-            groupStart = QueueTaskGroup.RegisterPushToken(deviceToken),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(identifiedProfileId))
-        )
+        backgroundQueue.queueRegisterDevice(identifiedProfileId, device)
     }
 
     private fun createDeviceAttributes(customAddedAttributes: CustomAttributes): Map<String, Any> {
@@ -177,12 +149,7 @@ internal class CustomerIOClient(
             return
         }
 
-        backgroundQueue.addTask(
-            QueueTaskType.DeletePushToken,
-            DeletePushNotificationQueueTaskData(identifiedProfileId, existingDeviceToken),
-            // only delete a device token after it has successfully been registered.
-            blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(existingDeviceToken))
-        )
+        backgroundQueue.queueDeletePushToken(identifiedProfileId, existingDeviceToken)
     }
 
     override fun trackMetric(
@@ -193,15 +160,6 @@ internal class CustomerIOClient(
         logger.info("push metric ${event.name}")
         logger.debug("delivery id $deliveryID device token $deviceToken")
 
-        backgroundQueue.addTask(
-            QueueTaskType.TrackPushMetric,
-            Metric(
-                deliveryID = deliveryID,
-                deviceToken = deviceToken,
-                event = event,
-                timestamp = dateUtil.now
-            ),
-            blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(deviceToken))
-        )
+        backgroundQueue.queueTrackMetric(deliveryID, deviceToken, event)
     }
 }

@@ -2,21 +2,12 @@ package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
-import io.customer.common_test.DateUtilStub
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.Device
-import io.customer.sdk.data.request.Event
-import io.customer.sdk.data.request.Metric
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.queue.Queue
-import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
-import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
-import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
-import io.customer.sdk.queue.taskdata.TrackEventQueueTaskData
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
-import io.customer.sdk.queue.type.QueueTaskGroup
-import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.repository.PreferenceRepository
 import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
@@ -25,7 +16,6 @@ import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -40,7 +30,6 @@ class CustomerIOClientTest : BaseTest() {
     private val prefRepository: PreferenceRepository
         get() = di.sharedPreferenceRepository
     private val backgroundQueueMock: Queue = mock()
-    private val dateUtilStub = DateUtilStub()
     private val loggerMock: Logger = mock()
 
     private lateinit var customerIOClient: CustomerIOClient
@@ -65,15 +54,14 @@ class CustomerIOClientTest : BaseTest() {
     fun identify_givenFirstTimeIdentify_givenNoDeviceTokenRegistered_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectDoNotRegisterToken() {
         val newIdentifier = String.random
         val givenAttributes = mapOf("name" to String.random)
-        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         customerIOClient.identify(newIdentifier, givenAttributes)
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.IdentifyProfile,
-            IdentifyProfileQueueTaskData(newIdentifier, givenAttributes),
-            groupStart = QueueTaskGroup.IdentifyProfile(newIdentifier),
-            blockingGroups = null
+        verify(backgroundQueueMock).queueIdentifyProfile(
+            newIdentifier = newIdentifier,
+            oldIdentifier = null,
+            attributes = givenAttributes
         )
         verifyNoMoreInteractions(backgroundQueueMock)
     }
@@ -84,30 +72,24 @@ class CustomerIOClientTest : BaseTest() {
         val givenDeviceToken = String.random
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         customerIOClient.identify(newIdentifier, givenAttributes)
 
         inOrder(backgroundQueueMock).apply {
-            verify(backgroundQueueMock).addTask(
-                QueueTaskType.IdentifyProfile,
-                IdentifyProfileQueueTaskData(newIdentifier, givenAttributes),
-                groupStart = QueueTaskGroup.IdentifyProfile(newIdentifier),
-                blockingGroups = null
+            verify(backgroundQueueMock).queueIdentifyProfile(
+                newIdentifier = newIdentifier,
+                oldIdentifier = null,
+                attributes = givenAttributes
             )
             // Register needs to happen after identify added to queue as it has a blocking group set to new profile identified
-            verify(backgroundQueueMock).addTask(
-                QueueTaskType.RegisterDeviceToken,
-                RegisterPushNotificationQueueTaskData(
-                    newIdentifier,
-                    Device(
-                        token = givenDeviceToken,
-                        lastUsed = dateUtilStub.givenDate,
-                        attributes = deviceStore.buildDeviceAttributes()
-                    )
-                ),
-                groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
-                blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(newIdentifier))
+            verify(backgroundQueueMock).queueRegisterDevice(
+                newIdentifier,
+                Device(
+                    token = givenDeviceToken,
+                    lastUsed = dateUtilStub.givenDate,
+                    attributes = deviceStore.buildDeviceAttributes()
+                )
             )
         }
         verifyNoMoreInteractions(backgroundQueueMock)
@@ -119,15 +101,14 @@ class CustomerIOClientTest : BaseTest() {
         val newIdentifier = String.random
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
-        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         customerIOClient.identify(newIdentifier, givenAttributes)
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.IdentifyProfile,
-            IdentifyProfileQueueTaskData(newIdentifier, givenAttributes),
-            groupStart = QueueTaskGroup.IdentifyProfile(newIdentifier),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        verify(backgroundQueueMock).queueIdentifyProfile(
+            newIdentifier = newIdentifier,
+            oldIdentifier = givenIdentifier,
+            attributes = givenAttributes
         )
         verifyNoMoreInteractions(backgroundQueueMock)
     }
@@ -140,38 +121,31 @@ class CustomerIOClientTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         customerIOClient.identify(newIdentifier, givenAttributes)
 
         inOrder(backgroundQueueMock).apply {
             // order of adding tasks to queue matter to prevent locking running background queue tasks. Some tasks may belong to a group and that group needs to exist in the queue!
 
-            verify(backgroundQueueMock).addTask(
-                QueueTaskType.DeletePushToken,
-                DeletePushNotificationQueueTaskData(givenIdentifier, givenDeviceToken),
-                blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(givenDeviceToken))
+            verify(backgroundQueueMock).queueDeletePushToken(
+                givenIdentifier,
+                givenDeviceToken
             )
 
-            verify(backgroundQueueMock).addTask(
-                QueueTaskType.IdentifyProfile,
-                IdentifyProfileQueueTaskData(newIdentifier, givenAttributes),
-                groupStart = QueueTaskGroup.IdentifyProfile(newIdentifier),
-                blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+            verify(backgroundQueueMock).queueIdentifyProfile(
+                newIdentifier = newIdentifier,
+                oldIdentifier = givenIdentifier,
+                attributes = givenAttributes
             )
 
-            verify(backgroundQueueMock).addTask(
-                QueueTaskType.RegisterDeviceToken,
-                RegisterPushNotificationQueueTaskData(
-                    newIdentifier,
-                    Device(
-                        token = givenDeviceToken,
-                        lastUsed = dateUtilStub.givenDate,
-                        attributes = deviceStore.buildDeviceAttributes()
-                    )
-                ),
-                groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
-                blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(newIdentifier))
+            verify(backgroundQueueMock).queueRegisterDevice(
+                newIdentifier,
+                Device(
+                    token = givenDeviceToken,
+                    lastUsed = dateUtilStub.givenDate,
+                    attributes = deviceStore.buildDeviceAttributes()
+                )
             )
         }
         verifyNoMoreInteractions(backgroundQueueMock)
@@ -184,15 +158,14 @@ class CustomerIOClientTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         customerIOClient.identify(givenIdentifier, givenAttributes)
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.IdentifyProfile,
-            IdentifyProfileQueueTaskData(givenIdentifier, givenAttributes),
-            groupStart = null,
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        verify(backgroundQueueMock).queueIdentifyProfile(
+            newIdentifier = givenIdentifier,
+            oldIdentifier = givenIdentifier,
+            attributes = givenAttributes
         )
         verifyNoMoreInteractions(backgroundQueueMock)
     }
@@ -237,18 +210,13 @@ class CustomerIOClientTest : BaseTest() {
 
         customerIOClient.registerDeviceToken(givenDeviceToken, givenAttributes)
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(
-                givenIdentifier,
-                Device(
-                    token = givenDeviceToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = deviceStore.buildDeviceAttributes() + givenAttributes
-                )
-            ),
-            groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        verify(backgroundQueueMock).queueRegisterDevice(
+            givenIdentifier,
+            Device(
+                token = givenDeviceToken,
+                lastUsed = dateUtilStub.givenDate,
+                attributes = deviceStore.buildDeviceAttributes() + givenAttributes
+            )
         )
         prefRepository.getDeviceToken() shouldBeEqualTo givenDeviceToken
     }
@@ -282,11 +250,7 @@ class CustomerIOClientTest : BaseTest() {
 
         customerIOClient.deleteDeviceToken()
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.DeletePushToken,
-            DeletePushNotificationQueueTaskData(givenIdentifier, givenDeviceToken),
-            blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(givenDeviceToken))
-        )
+        verify(backgroundQueueMock).queueDeletePushToken(givenIdentifier, givenDeviceToken)
     }
 
     // track
@@ -307,10 +271,11 @@ class CustomerIOClientTest : BaseTest() {
 
         customerIOClient.track(EventType.event, givenTrackEventName, givenAttributes)
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.TrackEvent,
-            TrackEventQueueTaskData(givenIdentifier, Event(givenTrackEventName, EventType.event, givenAttributes, dateUtilStub.givenDateMillis)),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        verify(backgroundQueueMock).queueTrack(
+            givenIdentifier,
+            givenTrackEventName,
+            EventType.event,
+            givenAttributes
         )
     }
 
@@ -322,15 +287,10 @@ class CustomerIOClientTest : BaseTest() {
 
         customerIOClient.trackMetric(givenDeliveryId, givenEvent, givenDeviceToken)
 
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.TrackPushMetric,
-            Metric(
-                deliveryID = givenDeliveryId,
-                deviceToken = givenDeviceToken,
-                event = givenEvent,
-                timestamp = dateUtilStub.givenDate
-            ),
-            blockingGroups = listOf(QueueTaskGroup.RegisterPushToken(givenDeviceToken))
+        verify(backgroundQueueMock).queueTrackMetric(
+            givenDeliveryId,
+            givenDeviceToken,
+            givenEvent
         )
     }
 }

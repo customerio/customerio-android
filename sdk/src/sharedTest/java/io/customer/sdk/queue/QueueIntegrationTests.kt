@@ -5,6 +5,7 @@ import io.customer.common_test.BaseTest
 import io.customer.common_test.extensions.enqueueNoInternetConnection
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.utils.random
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import org.amshove.kluent.shouldBeEqualTo
@@ -24,6 +25,10 @@ class QueueIntegrationTests : BaseTest() {
 
         queue = di.queue // Since this is an integration test, we want real instances in our test.
         queueStorage = di.queueStorage
+
+        // because adding tasks to queue triggers starting a new timer, we need to use a real main thread so the Timer doesn't throw an exception for not creating the timer on a Looper thread.
+        dispatchersProviderStub.overrideMain = Dispatchers.Main
+        dispatchersProviderStub.overrideBackground = Dispatchers.IO
     }
 
     @Test

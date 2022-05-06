@@ -130,7 +130,7 @@ class QueueStorageImpl internal constructor(
         // important to lock the queue storage until entire process is complete to avoid race conditions with querying and deleting tasks.
         synchronized(this) {
             val tasksToDelete: MutableSet<QueueTaskMetadata> = mutableSetOf()
-            val queueTaskExpiredThreshold = dateUtil.now.subtract(sdkConfig.backgroundQueueExpiredSeconds.toSeconds().toMilliseconds.value, TimeUnit.MILLISECONDS)
+            val queueTaskExpiredThreshold = Date().subtract(sdkConfig.backgroundQueueExpiredSeconds.toSeconds().toMilliseconds.value, TimeUnit.MILLISECONDS)
 
             getInventory().filter {
                 // Do not delete tasks that are at the start of a group of tasks.

@@ -149,7 +149,7 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun deleteExpired_givenTasksNotExpired_expectDeleteNoTasks() {
-        dateUtilStub.givenDateMillis = Date().time // make newly created tasks not expired
+        dateUtilStub.givenDate = Date() // make newly created tasks not expired
         queueStorage.create(String.random, String.random, null, null)
 
         val tasksDeleted = queueStorage.deleteExpired()
@@ -159,7 +159,7 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun deleteExpired_givenTasksStartOfGroupAndExpired_expectDeleteNoTasks() {
-        dateUtilStub.givenDateMillis = Date().subtract(10, TimeUnit.DAYS).time // make newly created tasks expired
+        dateUtilStub.givenDate = Date().subtract(10, TimeUnit.DAYS) // make newly created tasks expired
         queueStorage.create(String.random, String.random, QueueTaskGroup.IdentifyProfile(String.random), null)
 
         val tasksDeleted = queueStorage.deleteExpired()
@@ -170,7 +170,7 @@ class QueueStorageIntegrationTest : BaseTest() {
     @Test
     fun deleteExpired_givenTasksNoStartOfGroupAndExpired_expectDeleteTasksExpired() {
         val givenGroupOfTasks = QueueTaskGroup.IdentifyProfile(String.random)
-        dateUtilStub.givenDateMillis = Date().subtract(10, TimeUnit.DAYS).time // make newly created tasks expired
+        dateUtilStub.givenDate = Date().subtract(10, TimeUnit.DAYS) // make newly created tasks expired
         queueStorage.create(String.random, String.random, givenGroupOfTasks, null)
         val expectedNotDeleted = queueStorage.getInventory()[0]
         queueStorage.create(String.random, String.random, null, listOf(givenGroupOfTasks))

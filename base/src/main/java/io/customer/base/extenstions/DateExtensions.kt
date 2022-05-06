@@ -28,5 +28,5 @@ fun Date.hasPassed(): Boolean {
 }
 
 fun Date.isOlderThan(otherDate: Date): Boolean {
-    return this.time > otherDate.time
+    return this.time < otherDate.time
 }

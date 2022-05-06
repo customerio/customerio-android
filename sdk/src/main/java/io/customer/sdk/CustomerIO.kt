@@ -314,7 +314,12 @@ class CustomerIO internal constructor(
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
+    var deviceAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            field = value
+
+            api.addCustomDeviceAttributes(value)
+        }
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

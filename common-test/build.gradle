@@ -39,4 +39,6 @@ dependencies {
     api Dependencies.okhttpMockWebserver
 
     api Dependencies.junit4
+
+    api Dependencies.coroutinesTest
 }

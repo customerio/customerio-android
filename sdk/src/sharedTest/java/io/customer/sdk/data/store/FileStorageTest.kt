@@ -15,7 +15,7 @@ class FileStorageTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        fileStorage = FileStorage(cioConfig, context)
+        fileStorage = FileStorage(cioConfig, context, di.logger)
     }
 
     @Test

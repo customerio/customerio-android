@@ -53,13 +53,13 @@ class CustomerIOComponent(
 ) : DiGraph() {
 
     val fileStorage: FileStorage
-        get() = override() ?: FileStorage(sdkConfig, context)
+        get() = override() ?: FileStorage(sdkConfig, context, logger)
 
     val jsonAdapter: JsonAdapter
         get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, dateUtil)
+        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, dateUtil, logger)
 
     val queueRunner: QueueRunner
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)

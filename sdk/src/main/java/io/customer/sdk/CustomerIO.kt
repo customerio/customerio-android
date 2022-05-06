@@ -4,8 +4,8 @@ import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.sdk.api.CustomerIOApi
-import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
@@ -103,6 +103,7 @@ class CustomerIO internal constructor(
         private var autoTrackDeviceAttributes: Boolean = true
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
+        private var trackingApiUrl: String? = null
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -128,6 +129,15 @@ class CustomerIO internal constructor(
 
         fun setLogLevel(level: CioLogLevel): Builder {
             this.logLevel = level
+            return this
+        }
+
+        /**
+         * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
+         * If you override this value, `Region` set when initializing the SDK will be ignored.
+         */
+        fun setTrackingApiURL(trackingApiUrl: String): Builder {
+            this.trackingApiUrl = trackingApiUrl
             return this
         }
 
@@ -162,7 +172,8 @@ class CustomerIO internal constructor(
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
                 backgroundQueueExpiredSeconds = Seconds.fromDays(3).value,
-                logLevel = logLevel
+                logLevel = logLevel,
+                trackingApiUrl = trackingApiUrl
             )
 
             val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
@@ -296,7 +307,8 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) =
+        api.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token
@@ -320,7 +332,12 @@ class CustomerIO internal constructor(
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
+    var deviceAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            field = value
+
+            api.addCustomDeviceAttributes(value)
+        }
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

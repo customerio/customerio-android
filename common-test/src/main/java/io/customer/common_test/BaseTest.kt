@@ -52,7 +52,7 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
-        cioConfig = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0, 10000.0, CioLogLevel.DEBUG)
+        cioConfig = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0, Seconds.fromDays(3).value, CioLogLevel.DEBUG, null)
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.
         mockWebServer = MockWebServer().apply {

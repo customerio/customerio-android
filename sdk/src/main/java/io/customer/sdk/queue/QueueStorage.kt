@@ -15,6 +15,7 @@ import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.toSeconds
+import io.customer.sdk.util.Logger
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -32,7 +33,8 @@ class QueueStorageImpl internal constructor(
     private val sdkConfig: CustomerIOConfig,
     private val fileStorage: FileStorage,
     private val jsonAdapter: JsonAdapter,
-    private val dateUtil: DateUtil
+    private val dateUtil: DateUtil,
+    private val logger: Logger
 ) : QueueStorage {
 
     override fun getInventory(): QueueInventory {
@@ -63,6 +65,7 @@ class QueueStorageImpl internal constructor(
             val newQueueTask = QueueTask(newTaskStorageId, type, data, QueueTaskRunResults(0))
 
             if (!update(newQueueTask)) {
+                logger.error("error trying to add new queue task to queue. $newQueueTask")
                 return QueueModifyResult(false, beforeCreateQueueStatus)
             }
 
@@ -81,6 +84,7 @@ class QueueStorageImpl internal constructor(
             val afterCreateQueueStatus = QueueStatus(sdkConfig.siteId, updatedInventoryCount)
 
             if (!saveInventory(existingInventory)) {
+                logger.error("error trying to add new queue task to inventory. task: $newQueueTask, inventory item: $newInventoryItem")
                 return QueueModifyResult(false, beforeCreateQueueStatus)
             }
 
@@ -114,6 +118,7 @@ class QueueStorageImpl internal constructor(
             existingInventory.removeAll { it.taskPersistedId == taskStorageId }
 
             if (!saveInventory(existingInventory) || !fileStorage.delete(FileType.QueueTask(taskStorageId))) {
+                logger.error("error trying to delete task with storage id: $taskStorageId from queue")
                 return QueueModifyResult(false, queueStatusBeforeModifyInventory)
             }
 

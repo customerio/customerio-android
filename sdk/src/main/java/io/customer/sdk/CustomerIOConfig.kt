@@ -13,15 +13,16 @@ data class CustomerIOConfig(
     val autoTrackScreenViews: Boolean,
     val autoTrackDeviceAttributes: Boolean,
     /**
-     Number of tasks in the background queue before the queue begins operating.
-     This is mostly used during development to test configuration is setup. We do not recommend
-     modifying this value because it impacts battery life of mobile device.
+     * Number of tasks in the background queue before the queue begins operating.
+     * This is mostly used during development to test configuration is setup. We do not recommend
+     * modifying this value because it impacts battery life of mobile device.
      */
     val backgroundQueueMinNumberOfTasks: Int,
     /**
      * The number of seconds to delay running queue after a task has been added to it.
      * We do not recommend modifying this value because it impacts battery life of mobile device.
      */
+
     val backgroundQueueSecondsDelay: Double,
     /**
      * The number of seconds old a queue task is when it is "expired" and should be deleted.
@@ -29,11 +30,7 @@ data class CustomerIOConfig(
      */
     val backgroundQueueExpiredSeconds: Double,
     val logLevel: CioLogLevel,
-    /**
-     * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
-     If you override this value, `Region` set when initializing the SDK will be ignored.
-     */
-    var trackingApiUrl: String? = null
+    var trackingApiUrl: String?,
 ) {
     internal val trackingApiHostname: String
         get() {

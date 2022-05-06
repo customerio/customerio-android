@@ -73,6 +73,8 @@ class QueueImpl internal constructor(
 
             val taskDataString = jsonAdapter.toJson(data)
 
+            // What do we do if a queue task doesn't successfully get added to the queue?
+            //
             val createTaskResult = storage.create(
                 type = type.name,
                 data = taskDataString,

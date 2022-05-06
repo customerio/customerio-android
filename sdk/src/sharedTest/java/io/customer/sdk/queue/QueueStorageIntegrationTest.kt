@@ -27,7 +27,7 @@ class QueueStorageIntegrationTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        queueStorage = QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter, di.logger, dateUtilStub)
+        queueStorage = QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter, dateUtilStub, di.logger)
     }
 
     @Test

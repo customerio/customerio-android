@@ -67,10 +67,9 @@ class CustomerIOComponent(
     val dispatchersProvider: DispatchersProvider
         get() = override() ?: SdkDispatchers()
 
-    val queue: Queue
-        get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
-        }
+    val queue: Queue by lazy {
+        override() ?: QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
+    }
 
     internal val cleanupRepository: CleanupRepository
         get() = override() ?: CleanupRepositoryImpl(queue)

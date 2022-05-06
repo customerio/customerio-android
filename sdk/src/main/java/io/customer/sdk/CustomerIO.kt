@@ -9,7 +9,11 @@ import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.util.CioLogLevel
+import io.customer.sdk.util.Seconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
@@ -98,6 +102,7 @@ class CustomerIO internal constructor(
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
         private var logLevel = CioLogLevel.ERROR
+        internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -156,16 +161,19 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
+                backgroundQueueExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel
             )
 
-            val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
+            val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
             val client = CustomerIO(diGraph)
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
+
+            client.postInitialize()
 
             return client
         }
@@ -179,6 +187,16 @@ class CustomerIO internal constructor(
 
     override val sdkVersion: String
         get() = Version.version
+
+    private val cleanupRepository: CleanupRepository
+        get() = diGraph.cleanupRepository
+
+    private fun postInitialize() {
+        // run cleanup asynchronously in background to prevent taking up the main/UI thread
+        CoroutineScope(diGraph.dispatchersProvider.background).launch {
+            cleanupRepository.cleanup()
+        }
+    }
 
     /**
      * Identify a customer (aka: Add or update a profile).

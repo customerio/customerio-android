@@ -23,6 +23,11 @@ data class CustomerIOConfig(
      * We do not recommend modifying this value because it impacts battery life of mobile device.
      */
     val backgroundQueueSecondsDelay: Double,
+    /**
+     * The number of seconds old a queue task is when it is "expired" and should be deleted.
+     * We do not recommend modifying this value because it risks losing data or taking up too much space on the user's device.
+     */
+    val backgroundQueueExpiredSeconds: Double,
     val logLevel: CioLogLevel,
     /**
      * Base URL to use for the Customer.io track API. You will more then likely not modify this value.

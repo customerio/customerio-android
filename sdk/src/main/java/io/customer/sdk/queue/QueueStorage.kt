@@ -1,5 +1,7 @@
 package io.customer.sdk.queue
 
+import io.customer.base.extenstions.isOlderThan
+import io.customer.base.extenstions.subtract
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType
@@ -10,8 +12,11 @@ import io.customer.sdk.queue.type.QueueTask
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
+import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.toSeconds
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 interface QueueStorage {
     fun getInventory(): QueueInventory
@@ -20,12 +25,14 @@ interface QueueStorage {
     fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
+    fun deleteExpired(): List<QueueTaskMetadata>
 }
 
 class QueueStorageImpl internal constructor(
     private val sdkConfig: CustomerIOConfig,
     private val fileStorage: FileStorage,
-    private val jsonAdapter: JsonAdapter
+    private val jsonAdapter: JsonAdapter,
+    private val dateUtil: DateUtil
 ) : QueueStorage {
 
     override fun getInventory(): QueueInventory {
@@ -66,7 +73,7 @@ class QueueStorageImpl internal constructor(
                 // Usually, we do not convert data types to a string before converting to a JSON string. We left the JSON parser to take care of the conversion for us. For groups, a String data type works good for use in the background queue.
                 groupStart?.toString(),
                 blockingGroups?.map { it.toString() },
-                Date()
+                dateUtil.now
             )
             existingInventory.add(newInventoryItem)
 
@@ -111,6 +118,39 @@ class QueueStorageImpl internal constructor(
             }
 
             return QueueModifyResult(true, QueueStatus(sdkConfig.siteId, existingInventory.count()))
+        }
+    }
+
+    override fun deleteExpired(): List<QueueTaskMetadata> {
+        // important to lock the queue storage until entire process is complete to avoid race conditions with querying and deleting tasks.
+        synchronized(this) {
+            val tasksToDelete: MutableSet<QueueTaskMetadata> = mutableSetOf()
+            val queueTaskExpiredThreshold = dateUtil.now.subtract(sdkConfig.backgroundQueueExpiredSeconds.toSeconds().toMilliseconds.value, TimeUnit.MILLISECONDS)
+
+            getInventory().filter {
+                // Do not delete tasks that are at the start of a group of tasks.
+                // Wy? Take for example Identifying a profile. If we identify profile X in an app today, we expire the Identify queue task and delete the
+                // queue task, and then profile X stays logged into an app for 6 months, that means we run the risk of almost 6 months of data never
+                // successfully being sent to the API. That is a lot of data loss.
+                // Also, queue tasks such as Identifying a profile are more rare queue tasks compared to tracking of events. So, it should rarely
+                // be a scenario when there are thousands of "expired" Identifying a profile tasks sitting in a queue. It's the queue tasks such as
+                // tracking that are taking up a large majority of the queue inventory. Those we should be deleting more of.
+                it.groupStart == null
+            }.forEach { taskInventoryItem ->
+                val isItemTooOld = taskInventoryItem.createdAt.isOlderThan(queueTaskExpiredThreshold)
+
+                if (isItemTooOld) {
+                    tasksToDelete.add(taskInventoryItem)
+                }
+            }
+
+            tasksToDelete.forEach {
+                // Because the queue tasks we are deleting are not the start of a group, if deleting a task is not successful, we can ignore that
+                // because it doesn't negatively effect the state of the SDK or the queue.
+                this.delete(it.taskPersistedId)
+            }
+
+            return tasksToDelete.toList()
         }
     }
 

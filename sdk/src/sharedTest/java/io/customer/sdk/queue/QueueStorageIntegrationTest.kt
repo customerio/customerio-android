@@ -1,6 +1,7 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.base.extenstions.subtract
 import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
@@ -13,6 +14,8 @@ import org.amshove.kluent.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.*
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class QueueStorageIntegrationTest : BaseTest() {
@@ -24,7 +27,7 @@ class QueueStorageIntegrationTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        queueStorage = QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter)
+        queueStorage = QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter, dateUtilStub)
     }
 
     @Test
@@ -135,5 +138,53 @@ class QueueStorageIntegrationTest : BaseTest() {
         createdTask shouldNotBeEqualTo createdTaskAfterUpdate
 
         createdTaskAfterUpdate!!.runResults shouldBeEqualTo givenRunResults
+    }
+
+    @Test
+    fun deleteExpired_givenNoTasksInQueue_expectDeleteNoTasks() {
+        val tasksDeleted = queueStorage.deleteExpired()
+
+        tasksDeleted.count() shouldBeEqualTo 0
+    }
+
+    @Test
+    fun deleteExpired_givenTasksNotExpired_expectDeleteNoTasks() {
+        dateUtilStub.givenDateMillis = Date().time // make newly created tasks not expired
+        queueStorage.create(String.random, String.random, null, null)
+
+        val tasksDeleted = queueStorage.deleteExpired()
+
+        tasksDeleted.count() shouldBeEqualTo 0
+    }
+
+    @Test
+    fun deleteExpired_givenTasksStartOfGroupAndExpired_expectDeleteNoTasks() {
+        dateUtilStub.givenDateMillis = Date().subtract(10, TimeUnit.DAYS).time // make newly created tasks expired
+        queueStorage.create(String.random, String.random, QueueTaskGroup.IdentifyProfile(String.random), null)
+
+        val tasksDeleted = queueStorage.deleteExpired()
+
+        tasksDeleted.count() shouldBeEqualTo 0
+    }
+
+    @Test
+    fun deleteExpired_givenTasksNoStartOfGroupAndExpired_expectDeleteTasksExpired() {
+        val givenGroupOfTasks = QueueTaskGroup.IdentifyProfile(String.random)
+        dateUtilStub.givenDateMillis = Date().subtract(10, TimeUnit.DAYS).time // make newly created tasks expired
+        queueStorage.create(String.random, String.random, givenGroupOfTasks, null)
+        val expectedNotDeleted = queueStorage.getInventory()[0]
+        queueStorage.create(String.random, String.random, null, listOf(givenGroupOfTasks))
+        val expectedDeleted = queueStorage.getInventory()[1]
+        expectedNotDeleted.taskPersistedId shouldNotBeEqualTo expectedDeleted.taskPersistedId
+
+        val tasksDeleted = queueStorage.deleteExpired()
+
+        tasksDeleted.count() shouldBeEqualTo 1
+        tasksDeleted[0] shouldBeEqualTo expectedDeleted
+
+        queueStorage.getInventory().apply {
+            count() shouldBeEqualTo 1
+            get(0) shouldBeEqualTo expectedNotDeleted
+        }
     }
 }

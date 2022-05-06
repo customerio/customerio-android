@@ -26,3 +26,7 @@ fun Date.subtract(unit: Long, type: TimeUnit): Date {
 fun Date.hasPassed(): Boolean {
     return this.time < Date().time
 }
+
+fun Date.isOlderThan(otherDate: Date): Boolean {
+    return this.time > otherDate.time
+}

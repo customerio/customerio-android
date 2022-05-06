@@ -16,12 +16,12 @@ import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
 import io.customer.sdk.util.Seconds
 import io.customer.sdk.util.SimpleTimer
 import io.customer.sdk.util.Singleton
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -40,10 +40,12 @@ interface Queue {
     ): QueueModifyResult
 
     suspend fun run()
+
+    fun deleteExpiredTasks()
 }
 
 class QueueImpl internal constructor(
-    private val dispatcher: CoroutineDispatcher,
+    private val dispatchersProvider: DispatchersProvider,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
@@ -104,7 +106,7 @@ class QueueImpl internal constructor(
     }
 
     internal fun runAsync() {
-        CoroutineScope(dispatcher).launch {
+        CoroutineScope(dispatchersProvider.background).launch {
             run()
         }
     }
@@ -208,5 +210,10 @@ class QueueImpl internal constructor(
             groupStart = queueGroupStart,
             blockingGroups = blockingGroups
         )
+    }
+
+    // recommended to call from non-UI thread
+    override fun deleteExpiredTasks() {
+        storage.deleteExpired()
     }
 }

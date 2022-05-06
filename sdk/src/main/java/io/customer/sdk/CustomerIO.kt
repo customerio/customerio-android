@@ -98,6 +98,7 @@ class CustomerIO internal constructor(
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
         private var logLevel = CioLogLevel.ERROR
+        private var trackingApiUrl: String? = null
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -131,7 +132,7 @@ class CustomerIO internal constructor(
          * If you override this value, `Region` set when initializing the SDK will be ignored.
          */
         fun setTrackingApiURL(trackingApiUrl: String): Builder {
-            this.region = Region.Custom(trackingApiUrl)
+            this.trackingApiUrl = trackingApiUrl
             return this
         }
 
@@ -165,7 +166,8 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
-                logLevel = logLevel
+                logLevel = logLevel,
+                trackingApiUrl = trackingApiUrl
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)

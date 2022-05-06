@@ -53,6 +53,29 @@ class CustomerIOTest : BaseTest() {
         actual.region shouldBeEqualTo Region.EU
         actual.urlHandler.shouldNotBeNull()
         actual.autoTrackScreenViews shouldBeEqualTo true
+        actual.trackingApiUrl shouldBeEqualTo null
+        actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
+    }
+
+    @Test
+    fun verifyTrackingApiHostnameUpdateAfterUpdatingTrackingApiUrl() {
+        val givenSiteId = String.random
+        val givenApiKey = String.random
+        val builder = CustomerIO.Builder(
+            siteId = givenSiteId,
+            apiKey = givenApiKey,
+            region = Region.EU,
+            appContext = application
+        ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
+            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
+        }).autoTrackScreenViews(true)
+
+        val client = builder.build()
+
+        val actual = client.diGraph.sdkConfig
+        actual.region shouldBeEqualTo Region.EU
+        actual.trackingApiUrl shouldBeEqualTo null
+        actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
 
         builder.setTrackingApiURL("https://local/track")
 
@@ -60,7 +83,9 @@ class CustomerIOTest : BaseTest() {
 
         val updatedConfig = updatedClient.diGraph.sdkConfig
 
-        (updatedConfig.region is Region.Custom) shouldBeEqualTo true
-        updatedConfig.region.baseUrl shouldBeEqualTo "https://local/track"
+        // region stays the same but doesn't effect trackingApiHostname
+        updatedConfig.region shouldBeEqualTo Region.EU
+        updatedConfig.trackingApiUrl shouldBeEqualTo "https://local/track"
+        updatedConfig.trackingApiHostname shouldBeEqualTo "https://local/track"
     }
 }

@@ -25,11 +25,7 @@ data class CustomerIOConfig(
 
     val backgroundQueueSecondsDelay: Double,
     val logLevel: CioLogLevel,
-    /**
-     * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
-     If you override this value, `Region` set when initializing the SDK will be ignored.
-     */
-    var trackingApiUrl: String? = null
+    var trackingApiUrl: String?,
 ) {
     internal val trackingApiHostname: String
         get() {

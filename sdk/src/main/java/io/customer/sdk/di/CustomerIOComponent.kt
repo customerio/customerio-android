@@ -65,17 +65,17 @@ class CustomerIOComponent(
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatcher = Dispatchers.IO, uiDispatcher = Dispatchers.Main, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
+            QueueImpl(dispatcher = Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
 
     val queueQueryRunner: QueueQueryRunner
-        get() = override() ?: QueueQueryRunnerImpl()
+        get() = override() ?: QueueQueryRunnerImpl(logger)
 
     val queueRunRequest: QueueRunRequest
         get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
 
     val logger: Logger
-        get() = override() ?: LogcatLogger()
+        get() = override() ?: LogcatLogger(sdkConfig)
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
@@ -90,7 +90,7 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = AndroidSimpleTimer(logger)
+        get() = AndroidSimpleTimer(logger, uiDispatcher = Dispatchers.Main)
 
     internal fun buildApi(): CustomerIOApi {
         return override() ?: CustomerIOClient(
@@ -122,10 +122,10 @@ class CustomerIOComponent(
         )
     }
 
-    inline fun <reified T> buildRetrofitApi(): T {
+    private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
-            sdkConfig.region.baseUrl,
+            sdkConfig.trackingApiHostname,
             sdkConfig.timeout,
         ).create(apiClass)
     }

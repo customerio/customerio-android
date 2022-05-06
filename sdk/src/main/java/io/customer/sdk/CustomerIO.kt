@@ -9,6 +9,7 @@ import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.util.CioLogLevel
 
 /**
  * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
@@ -96,6 +97,7 @@ class CustomerIO internal constructor(
         private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
+        private var logLevel = CioLogLevel.ERROR
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -116,6 +118,11 @@ class CustomerIO internal constructor(
 
         fun autoTrackDeviceAttributes(shouldTrackDeviceAttributes: Boolean): Builder {
             this.autoTrackDeviceAttributes = shouldTrackDeviceAttributes
+            return this
+        }
+
+        fun setLogLevel(level: CioLogLevel): Builder {
+            this.logLevel = level
             return this
         }
 
@@ -157,7 +164,8 @@ class CustomerIO internal constructor(
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
-                backgroundQueueSecondsDelay = 30.0
+                backgroundQueueSecondsDelay = 30.0,
+                logLevel = logLevel
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)

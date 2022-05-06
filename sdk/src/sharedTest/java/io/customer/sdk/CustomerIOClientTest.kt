@@ -244,18 +244,13 @@ class CustomerIOClientTest : BaseTest() {
         customerIOClient.addCustomDeviceAttributes(givenAttributes)
 
         // a token got registered
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(
-                givenIdentifier,
-                Device(
-                    token = givenDeviceToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = deviceStore.buildDeviceAttributes() + givenAttributes
-                )
-            ),
-            groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        verify(backgroundQueueMock).queueRegisterDevice(
+            givenIdentifier,
+            Device(
+                token = givenDeviceToken,
+                lastUsed = dateUtilStub.givenDate,
+                attributes = deviceStore.buildDeviceAttributes() + givenAttributes
+            )
         )
     }
 

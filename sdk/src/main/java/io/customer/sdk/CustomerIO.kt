@@ -4,8 +4,8 @@ import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.sdk.api.CustomerIOApi
-import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
@@ -98,6 +98,7 @@ class CustomerIO internal constructor(
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
         private var logLevel = CioLogLevel.ERROR
+        private var trackingApiUrl: String? = null
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -123,6 +124,15 @@ class CustomerIO internal constructor(
 
         fun setLogLevel(level: CioLogLevel): Builder {
             this.logLevel = level
+            return this
+        }
+
+        /**
+         * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
+         * If you override this value, `Region` set when initializing the SDK will be ignored.
+         */
+        fun setTrackingApiURL(trackingApiUrl: String): Builder {
+            this.trackingApiUrl = trackingApiUrl
             return this
         }
 
@@ -156,7 +166,8 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
-                logLevel = logLevel
+                logLevel = logLevel,
+                trackingApiUrl = trackingApiUrl
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
@@ -278,7 +289,8 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) =
+        api.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token

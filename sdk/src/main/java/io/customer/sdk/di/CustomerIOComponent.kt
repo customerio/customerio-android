@@ -3,11 +3,9 @@ package io.customer.sdk.di
 import android.content.Context
 import com.squareup.moshi.Moshi
 import io.customer.sdk.BuildConfig
-import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
 import io.customer.sdk.api.TrackingHttpClient
-import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.api.CustomerIOApiRetryPolicy
 import io.customer.sdk.api.HttpRequestRunner
 import io.customer.sdk.api.HttpRequestRunnerImpl
@@ -52,30 +50,30 @@ class CustomerIOComponent(
 ) : DiGraph() {
 
     val fileStorage: FileStorage
-        get() = override() ?: FileStorage(sdkConfig, context)
+        get() = override() ?: FileStorage(sdkConfig, context, logger)
 
     val jsonAdapter: JsonAdapter
         get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter)
+        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, logger)
 
     val queueRunner: QueueRunner
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatcher = Dispatchers.IO, uiDispatcher = Dispatchers.Main, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger)
+            QueueImpl(dispatcher = Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
 
     val queueQueryRunner: QueueQueryRunner
-        get() = override() ?: QueueQueryRunnerImpl()
+        get() = override() ?: QueueQueryRunnerImpl(logger)
 
     val queueRunRequest: QueueRunRequest
         get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
 
     val logger: Logger
-        get() = override() ?: LogcatLogger()
+        get() = override() ?: LogcatLogger(sdkConfig)
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
@@ -90,18 +88,16 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = AndroidSimpleTimer(logger)
+        get() = override() ?: AndroidSimpleTimer(logger, uiDispatcher = Dispatchers.Main)
 
-    internal fun buildApi(): CustomerIOApi {
-        return override() ?: CustomerIOClient(
-            config = sdkConfig,
-            deviceStore = buildStore().deviceStore,
-            preferenceRepository = sharedPreferenceRepository,
-            backgroundQueue = queue,
-            dateUtil = dateUtil,
-            logger = logger
-        )
-    }
+    val trackRepository: TrackRepository
+        get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)
+
+    val profileRepository: ProfileRepository
+        get() = override() ?: ProfileRepositoryImpl(deviceRepository, sharedPreferenceRepository, queue, logger)
+
+    val deviceRepository: DeviceRepository
+        get() = override() ?: DeviceRepositoryImpl(sdkConfig, buildStore().deviceStore, sharedPreferenceRepository, queue, dateUtil, logger)
 
     fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {
@@ -122,10 +118,10 @@ class CustomerIOComponent(
         )
     }
 
-    inline fun <reified T> buildRetrofitApi(): T {
+    private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
-            sdkConfig.region.baseUrl,
+            sdkConfig.trackingApiHostname,
             sdkConfig.timeout,
         ).create(apiClass)
     }

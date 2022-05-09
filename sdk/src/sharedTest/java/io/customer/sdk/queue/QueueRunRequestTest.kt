@@ -38,7 +38,7 @@ class QueueRunRequestTest : BaseTest() {
     }
 
     @Test
-    fun test_start_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
+    fun test_run_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.success(Unit))
@@ -46,13 +46,13 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.delete(eq(givenTaskId))).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
     }
 
     @Test
-    fun test_start_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
+    fun test_run_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(http500Error))
@@ -60,7 +60,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.update(eq(givenTaskId), any())).thenReturn(true)
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock, never()).delete(givenTaskId)
         verify(storageMock).update(givenTaskId, QueueTaskRunResults(totalRuns = 1))
@@ -74,14 +74,14 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.getInventory()).thenReturn(listOf(QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)))
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock, never()).delete(anyOrNull())
         verify(storageMock, never()).update(anyOrNull(), anyOrNull())
     }
 
     @Test
-    fun test_start_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
+    fun test_run_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         val givenTaskId2 = String.random
@@ -97,7 +97,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId2))).thenReturn(givenQueueTask2)
         whenever(storageMock.delete(any())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
         verify(storageMock).delete(givenTaskId2)

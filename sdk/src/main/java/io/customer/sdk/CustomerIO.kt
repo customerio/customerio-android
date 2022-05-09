@@ -3,12 +3,15 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.repository.DeviceRepository
+import io.customer.sdk.repository.ProfileRepository
+import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.util.CioLogLevel
 
 /**
  * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
@@ -18,6 +21,9 @@ interface CustomerIOInstance {
     val siteId: String
     val sdkVersion: String
     // For security reasons, do not expose the SDK config as anyone can get the API key from the SDK including 3rd parties.
+
+    var profileAttributes: CustomAttributes
+    var deviceAttributes: CustomAttributes
 
     fun identify(identifier: String)
 
@@ -96,6 +102,8 @@ class CustomerIO internal constructor(
         private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
+        private var logLevel = CioLogLevel.ERROR
+        private var trackingApiUrl: String? = null
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -116,6 +124,20 @@ class CustomerIO internal constructor(
 
         fun autoTrackDeviceAttributes(shouldTrackDeviceAttributes: Boolean): Builder {
             this.autoTrackDeviceAttributes = shouldTrackDeviceAttributes
+            return this
+        }
+
+        fun setLogLevel(level: CioLogLevel): Builder {
+            this.logLevel = level
+            return this
+        }
+
+        /**
+         * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
+         * If you override this value, `Region` set when initializing the SDK will be ignored.
+         */
+        fun setTrackingApiURL(trackingApiUrl: String): Builder {
+            this.trackingApiUrl = trackingApiUrl
             return this
         }
 
@@ -148,7 +170,9 @@ class CustomerIO internal constructor(
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
-                backgroundQueueSecondsDelay = 30.0
+                backgroundQueueSecondsDelay = 30.0,
+                logLevel = logLevel,
+                trackingApiUrl = trackingApiUrl
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
@@ -163,8 +187,14 @@ class CustomerIO internal constructor(
         }
     }
 
-    private val api: CustomerIOApi
-        get() = diGraph.buildApi()
+    private val trackRepository: TrackRepository
+        get() = diGraph.trackRepository
+
+    private val deviceRepository: DeviceRepository
+        get() = diGraph.deviceRepository
+
+    private val profileRepository: ProfileRepository
+        get() = diGraph.profileRepository
 
     override val siteId: String
         get() = diGraph.sdkConfig.siteId
@@ -198,7 +228,7 @@ class CustomerIO internal constructor(
     override fun identify(
         identifier: String,
         attributes: CustomAttributes
-    ) = api.identify(identifier, attributes)
+    ) = profileRepository.identify(identifier, attributes)
 
     /**
      * Track an event
@@ -217,7 +247,7 @@ class CustomerIO internal constructor(
     override fun track(
         name: String,
         attributes: CustomAttributes
-    ) = api.track(name, attributes)
+    ) = trackRepository.track(name, attributes)
 
     /**
      * Track screen
@@ -235,7 +265,7 @@ class CustomerIO internal constructor(
     override fun screen(
         name: String,
         attributes: CustomAttributes
-    ) = api.screen(name, attributes)
+    ) = trackRepository.screen(name, attributes)
 
     /**
      * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
@@ -263,19 +293,19 @@ class CustomerIO internal constructor(
      * If no profile has been identified yet, this function will ignore your request.
      */
     override fun clearIdentify() {
-        api.clearIdentify()
+        profileRepository.clearIdentify()
     }
 
     /**
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = api.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) = deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token
      */
-    override fun deleteDeviceToken() = api.deleteDeviceToken()
+    override fun deleteDeviceToken() = deviceRepository.deleteDeviceToken()
 
     /**
      * Track a push metric
@@ -284,17 +314,32 @@ class CustomerIO internal constructor(
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String,
-    ) = api.trackMetric(
+    ) = trackRepository.trackMetric(
         deliveryID = deliveryID,
         event = event,
         deviceToken = deviceToken
     )
 
     /**
+     * Use to provide attributes to the currently identified profile.
+     *
+     * Note: If there is not a profile identified, this request will be ignored.
+     */
+    override var profileAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            profileRepository.addCustomProfileAttributes(value)
+        }
+
+    /**
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
+    override var deviceAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            field = value
+
+            deviceRepository.addCustomDeviceAttributes(value)
+        }
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

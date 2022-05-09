@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeAddCustomDeviceAttributesRequest() {
-        CustomerIO.instance().deviceAttributes.putAll(mapOf("bingo" to "heyaa"))
+        CustomerIO.instance().deviceAttributes = mapOf("bingo" to "heyaa")
     }
 
     private fun makeRegisterDeviceRequest() {

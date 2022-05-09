@@ -11,6 +11,7 @@ import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -163,5 +164,30 @@ class ProfileRepositoryTest : BaseTest() {
         repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
+    }
+
+    // addCustomProfileAttributes
+
+    @Test
+    fun addCustomProfileAttributes_givenProfileIdentified_expectDoNotIdentifyProfile() {
+        val givenAttributes = mapOf(String.random to String.random)
+
+        repository.addCustomProfileAttributes(givenAttributes)
+
+        // do not identify profile
+        verifyNoInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun addCustomProfileAttributes_givenExistingProfileIdentified_expectAddAttributesToProfile() {
+        val givenAttributes = mapOf(String.random to String.random)
+        val givenIdentifier = String.random
+        prefRepository.saveIdentifier(givenIdentifier)
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        repository.addCustomProfileAttributes(givenAttributes)
+
+        // assert that attributes have been added to a profile
+        verify(backgroundQueueMock).queueIdentifyProfile(givenIdentifier, givenIdentifier, givenAttributes)
     }
 }

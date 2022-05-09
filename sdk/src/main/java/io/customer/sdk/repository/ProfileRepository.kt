@@ -7,6 +7,7 @@ import io.customer.sdk.util.Logger
 interface ProfileRepository {
     fun identify(identifier: String, attributes: CustomAttributes)
     fun clearIdentify()
+    fun addCustomProfileAttributes(attributes: CustomAttributes)
 }
 
 class ProfileRepositoryImpl(
@@ -36,7 +37,9 @@ class ProfileRepositoryImpl(
 
         val queueStatus = backgroundQueue.queueIdentifyProfile(identifier, currentlyIdentifiedProfileIdentifier, attributes)
 
-        // don't modify the state of the SDK until we confirm we added a queue task successfully.
+        // Don't modify the state of the SDK's data until we confirm we added a queue task successfully. This could put the Customer.io API
+        // out-of-sync with the SDK's state and cause many future HTTP errors.
+        // Therefore, if adding the task to the queue failed, ignore the request and fail early.
         if (!queueStatus.success) {
             logger.debug("failed to add identify task to queue")
             return
@@ -53,6 +56,19 @@ class ProfileRepositoryImpl(
                 deviceRepository.registerDeviceToken(it, emptyMap()) // no new attributes but default ones to pass so pass empty.
             }
         }
+    }
+
+    override fun addCustomProfileAttributes(attributes: CustomAttributes) {
+        logger.debug("adding profile attributes request made")
+
+        val currentlyIdentifiedProfileId = preferenceRepository.getIdentifier()
+
+        if (currentlyIdentifiedProfileId == null) {
+            logger.debug("no profile is currently identified. ignoring request to add attributes to a profile")
+            return
+        }
+
+        identify(currentlyIdentifiedProfileId, attributes)
     }
 
     override fun clearIdentify() {

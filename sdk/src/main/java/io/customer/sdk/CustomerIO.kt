@@ -22,6 +22,9 @@ interface CustomerIOInstance {
     val sdkVersion: String
     // For security reasons, do not expose the SDK config as anyone can get the API key from the SDK including 3rd parties.
 
+    var profileAttributes: CustomAttributes
+    var deviceAttributes: CustomAttributes
+
     fun identify(identifier: String)
 
     fun identify(
@@ -100,6 +103,7 @@ class CustomerIO internal constructor(
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
         private var logLevel = CioLogLevel.ERROR
+        private var trackingApiUrl: String? = null
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -125,6 +129,15 @@ class CustomerIO internal constructor(
 
         fun setLogLevel(level: CioLogLevel): Builder {
             this.logLevel = level
+            return this
+        }
+
+        /**
+         * Base URL to use for the Customer.io track API. You will more then likely not modify this value.
+         * If you override this value, `Region` set when initializing the SDK will be ignored.
+         */
+        fun setTrackingApiURL(trackingApiUrl: String): Builder {
+            this.trackingApiUrl = trackingApiUrl
             return this
         }
 
@@ -158,7 +171,8 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
-                logLevel = logLevel
+                logLevel = logLevel,
+                trackingApiUrl = trackingApiUrl
             )
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
@@ -307,10 +321,25 @@ class CustomerIO internal constructor(
     )
 
     /**
+     * Use to provide attributes to the currently identified profile.
+     *
+     * Note: If there is not a profile identified, this request will be ignored.
+     */
+    override var profileAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            profileRepository.addCustomProfileAttributes(value)
+        }
+
+    /**
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    val deviceAttributes: MutableMap<String, Any> = mutableMapOf()
+    override var deviceAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            field = value
+
+            deviceRepository.addCustomDeviceAttributes(value)
+        }
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

@@ -101,4 +101,36 @@ class DeviceRepositoryTest : BaseTest() {
 
         verify(backgroundQueueMock).queueDeletePushToken(givenIdentifier, givenDeviceToken)
     }
+
+    // addCustomDeviceAttributes
+
+    @Test
+    fun addCustomDeviceAttributes_givenNoPushToken_expectDoNotRegisterPushToken() {
+        val givenAttributes = mapOf(String.random to String.random)
+
+        repository.addCustomDeviceAttributes(givenAttributes)
+
+        // no token registered
+        verifyNoInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun addCustomDeviceAttributes_givenExistingPushToken_expectRegisterPushTokenAndAttributes() {
+        val givenAttributes = mapOf(String.random to String.random)
+        val givenDeviceToken = String.random
+        val givenIdentifier = String.random
+        prefRepository.saveDeviceToken(givenDeviceToken)
+        prefRepository.saveIdentifier(givenIdentifier)
+
+        repository.addCustomDeviceAttributes(givenAttributes)
+
+        verify(backgroundQueueMock).queueRegisterDevice(
+            givenIdentifier,
+            Device(
+                token = givenDeviceToken,
+                lastUsed = dateUtilStub.givenDate,
+                attributes = deviceStore.buildDeviceAttributes() + givenAttributes
+            )
+        )
+    }
 }

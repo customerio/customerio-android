@@ -29,27 +29,27 @@ class AndroidSimpleTimer(
     private val instanceIdentifier = String.random
 
     override fun scheduleAndCancelPrevious(seconds: Seconds, block: () -> Unit) {
-        val newTimer: CountDownTimer = synchronized(this) {
-            timerAlreadyScheduled = true
-            unsafeCancel()
-
-            log("making a timer for $seconds")
-
-            object : CountDownTimer(seconds.toMilliseconds.value, 1) {
-                override fun onTick(millisUntilFinished: Long) {}
-                override fun onFinish() {
-                    timerDone() // reset timer before calling block as block might be synchronous and if it tries to start a new timer, it will not succeed because we need to reset the timer.
-                    block()
-                }
-            }.also {
-                this.countdownTimer = it
-            }
-        }
-
-        // Must start a timer on the main UI thread or Android will throw an exception saying the current thread doesn't have a Looper.
+        // Must start and create timer on the main UI thread or Android will throw an exception saying the current thread doesn't have a Looper.
         // Because we are starting a new coroutine, there is a chance that there could be a delay in starting the timer. This is OK because
         // this function is designed to be async anyway so the logic from the caller has not changed.
         startTimerMainThreadJob = CoroutineScope(uiDispatcher).launch {
+            val newTimer: CountDownTimer = synchronized(this) {
+                timerAlreadyScheduled = true
+                unsafeCancel()
+
+                log("making a timer for $seconds")
+
+                object : CountDownTimer(seconds.toMilliseconds.value, 1) {
+                    override fun onTick(millisUntilFinished: Long) {}
+                    override fun onFinish() {
+                        timerDone() // reset timer before calling block as block might be synchronous and if it tries to start a new timer, it will not succeed because we need to reset the timer.
+                        block()
+                    }
+                }
+            }
+
+            this@AndroidSimpleTimer.countdownTimer = newTimer
+
             newTimer.start()
         }
     }

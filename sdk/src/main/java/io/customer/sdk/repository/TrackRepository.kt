@@ -45,6 +45,7 @@ class TrackRepositoryImpl(
             return
         }
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueTrack(identifier, name, eventType, attributes)
     }
 
@@ -56,6 +57,7 @@ class TrackRepositoryImpl(
         logger.info("push metric ${event.name}")
         logger.debug("delivery id $deliveryID device token $deviceToken")
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueTrackMetric(deliveryID, deviceToken, event)
     }
 }

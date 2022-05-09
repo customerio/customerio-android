@@ -11,6 +11,7 @@ import io.customer.sdk.util.Logger
 interface DeviceRepository {
     fun registerDeviceToken(deviceToken: String, attributes: CustomAttributes)
     fun deleteDeviceToken()
+    fun addCustomDeviceAttributes(attributes: CustomAttributes)
 }
 
 class DeviceRepositoryImpl(
@@ -27,6 +28,8 @@ class DeviceRepositoryImpl(
 
         logger.info("registering device token $deviceToken, attributes: $attributes")
 
+        // persist the device token for use later on such as automatically registering device token with a profile
+        // that gets identified later on.
         logger.debug("storing device token to device storage $deviceToken")
         preferenceRepository.saveDeviceToken(deviceToken)
 
@@ -42,7 +45,21 @@ class DeviceRepositoryImpl(
             attributes = attributes
         )
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueRegisterDevice(identifiedProfileId, device)
+    }
+
+    override fun addCustomDeviceAttributes(attributes: CustomAttributes) {
+        logger.debug("adding custom device attributes request made")
+
+        val existingDeviceToken = preferenceRepository.getDeviceToken()
+
+        if (existingDeviceToken == null) {
+            logger.debug("no device token yet registered. ignoring request to add custom device attributes")
+            return
+        }
+
+        registerDeviceToken(existingDeviceToken, attributes)
     }
 
     private fun createDeviceAttributes(customAddedAttributes: CustomAttributes): Map<String, Any> {
@@ -71,6 +88,7 @@ class DeviceRepositoryImpl(
             return
         }
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueDeletePushToken(identifiedProfileId, existingDeviceToken)
     }
 }

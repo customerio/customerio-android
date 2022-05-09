@@ -6,7 +6,7 @@ import io.customer.sdk.data.model.CustomAttributes
 import java.util.*
 
 @JsonClass(generateAdapter = true)
-internal data class Device(
+data class Device(
     @field:Json(name = "id") val token: String,
     val platform: String = "android",
     val lastUsed: Date,

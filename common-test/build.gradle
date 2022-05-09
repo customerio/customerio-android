@@ -39,4 +39,10 @@ dependencies {
     api Dependencies.okhttpMockWebserver
 
     api Dependencies.junit4
+
+    // compile time bug when trying to run Android tests: https://github.com/Kotlin/kotlinx.coroutines/issues/2023
+    // Solution from: https://github.com/Kotlin/kotlinx.coroutines/tree/master/kotlinx-coroutines-debug#debug-agent-and-android
+    api(Dependencies.coroutinesTest) {
+        exclude group: "org.jetbrains.kotlinx", module: "kotlinx-coroutines-debug"
+    }
 }

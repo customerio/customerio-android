@@ -1,22 +1,29 @@
 package io.customer.sdk.queue
 
 import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.util.Logger
 
 interface QueueQueryRunner {
     fun getNextTask(queue: List<QueueTaskMetadata>, lastFailedTask: QueueTaskMetadata?): QueueTaskMetadata?
+    fun reset()
 }
 
-class QueueQueryRunnerImpl : QueueQueryRunner {
-    private val queryCriteria = QueueQueryCriteria()
+class QueueQueryRunnerImpl(
+    private val logger: Logger
+) : QueueQueryRunner {
+    internal val queryCriteria = QueueQueryCriteria()
 
     override fun getNextTask(queue: List<QueueTaskMetadata>, lastFailedTask: QueueTaskMetadata?): QueueTaskMetadata? {
         if (queue.isEmpty()) return null
         if (lastFailedTask != null) updateCriteria(lastFailedTask)
 
+        // log *after* updating the criteria
+        logger.debug("queue querying next task. criteria: $queryCriteria")
+
         return queue.firstOrNull { doesTaskPassCriteria(it) }
     }
 
-    private fun updateCriteria(lastFailedTask: QueueTaskMetadata) {
+    internal fun updateCriteria(lastFailedTask: QueueTaskMetadata) {
         lastFailedTask.groupStart?.let { queueGroupName ->
             queryCriteria.excludeGroups.add(queueGroupName)
         }
@@ -40,7 +47,17 @@ class QueueQueryRunnerImpl : QueueQueryRunner {
         return false
     }
 
-    private data class QueueQueryCriteria(
+    override fun reset() {
+        logger.debug("resetting queue tasks query criteria")
+
+        queryCriteria.reset()
+    }
+
+    internal data class QueueQueryCriteria(
         val excludeGroups: MutableSet<String> = mutableSetOf()
-    )
+    ) {
+        fun reset() {
+            excludeGroups.clear()
+        }
+    }
 }

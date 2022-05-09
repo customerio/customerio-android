@@ -46,7 +46,9 @@ internal class CustomerIOClient(
 
         val queueStatus = backgroundQueue.queueIdentifyProfile(identifier, currentlyIdentifiedProfileIdentifier, attributes)
 
-        // don't modify the state of the SDK until we confirm we added a queue task successfully.
+        // Don't modify the state of the SDK's data until we confirm we added a queue task successfully. This could put the Customer.io API
+        // out-of-sync with the SDK's state and cause many future HTTP errors.
+        // Therefore, if adding the task to the queue failed, ignore the request and fail early.
         if (!queueStatus.success) {
             logger.debug("failed to add identify task to queue")
             return
@@ -87,6 +89,7 @@ internal class CustomerIOClient(
             return
         }
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueTrack(identifier, name, eventType, attributes)
     }
 
@@ -105,6 +108,8 @@ internal class CustomerIOClient(
 
         logger.info("registering device token $deviceToken, attributes: $attributes")
 
+        // persist the device token for use later on such as automatically registering device token with a profile
+        // that gets identified later on.
         logger.debug("storing device token to device storage $deviceToken")
         preferenceRepository.saveDeviceToken(deviceToken)
 
@@ -120,6 +125,7 @@ internal class CustomerIOClient(
             attributes = attributes
         )
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueRegisterDevice(identifiedProfileId, device)
     }
 
@@ -175,6 +181,7 @@ internal class CustomerIOClient(
             return
         }
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueDeletePushToken(identifiedProfileId, existingDeviceToken)
     }
 
@@ -186,6 +193,7 @@ internal class CustomerIOClient(
         logger.info("push metric ${event.name}")
         logger.debug("delivery id $deliveryID device token $deviceToken")
 
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueTrackMetric(deliveryID, deviceToken, event)
     }
 }

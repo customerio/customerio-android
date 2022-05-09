@@ -3,9 +3,10 @@ package io.customer.sdk
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
-import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.repository.DeviceRepository
+import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
@@ -18,7 +19,8 @@ import org.mockito.kotlin.verify
 @RunWith(AndroidJUnit4::class)
 class CustomerIOTest : BaseTest() {
 
-    private val apiMock: CustomerIOApi = mock()
+    private val deviceRepositoryMock: DeviceRepository = mock()
+    private val profileRepositoryMock: ProfileRepository = mock()
 
     private lateinit var customerIO: CustomerIO
 
@@ -26,7 +28,8 @@ class CustomerIOTest : BaseTest() {
     fun setUp() {
         super.setup()
 
-        di.overrideDependency(CustomerIOApi::class.java, apiMock)
+        di.overrideDependency(DeviceRepository::class.java, deviceRepositoryMock)
+        di.overrideDependency(ProfileRepository::class.java, profileRepositoryMock)
 
         customerIO = CustomerIO(di)
     }
@@ -96,7 +99,7 @@ class CustomerIOTest : BaseTest() {
 
         customerIO.deviceAttributes = givenAttributes
 
-        verify(apiMock).addCustomDeviceAttributes(givenAttributes)
+        verify(deviceRepositoryMock).addCustomDeviceAttributes(givenAttributes)
     }
 
     @Test
@@ -105,6 +108,6 @@ class CustomerIOTest : BaseTest() {
 
         customerIO.profileAttributes = givenAttributes
 
-        verify(apiMock).addCustomProfileAttributes(givenAttributes)
+        verify(profileRepositoryMock).addCustomProfileAttributes(givenAttributes)
     }
 }

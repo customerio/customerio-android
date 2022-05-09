@@ -3,12 +3,14 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.sdk.api.CustomerIOApi
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.repository.DeviceRepository
+import io.customer.sdk.repository.ProfileRepository
+import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.util.CioLogLevel
 
 /**
@@ -185,8 +187,14 @@ class CustomerIO internal constructor(
         }
     }
 
-    private val api: CustomerIOApi
-        get() = diGraph.buildApi()
+    private val trackRepository: TrackRepository
+        get() = diGraph.trackRepository
+
+    private val deviceRepository: DeviceRepository
+        get() = diGraph.deviceRepository
+
+    private val profileRepository: ProfileRepository
+        get() = diGraph.profileRepository
 
     override val siteId: String
         get() = diGraph.sdkConfig.siteId
@@ -220,7 +228,7 @@ class CustomerIO internal constructor(
     override fun identify(
         identifier: String,
         attributes: CustomAttributes
-    ) = api.identify(identifier, attributes)
+    ) = profileRepository.identify(identifier, attributes)
 
     /**
      * Track an event
@@ -239,7 +247,7 @@ class CustomerIO internal constructor(
     override fun track(
         name: String,
         attributes: CustomAttributes
-    ) = api.track(name, attributes)
+    ) = trackRepository.track(name, attributes)
 
     /**
      * Track screen
@@ -257,7 +265,7 @@ class CustomerIO internal constructor(
     override fun screen(
         name: String,
         attributes: CustomAttributes
-    ) = api.screen(name, attributes)
+    ) = trackRepository.screen(name, attributes)
 
     /**
      * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
@@ -285,20 +293,19 @@ class CustomerIO internal constructor(
      * If no profile has been identified yet, this function will ignore your request.
      */
     override fun clearIdentify() {
-        api.clearIdentify()
+        profileRepository.clearIdentify()
     }
 
     /**
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) =
-        api.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) = deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token
      */
-    override fun deleteDeviceToken() = api.deleteDeviceToken()
+    override fun deleteDeviceToken() = deviceRepository.deleteDeviceToken()
 
     /**
      * Track a push metric
@@ -307,7 +314,7 @@ class CustomerIO internal constructor(
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String,
-    ) = api.trackMetric(
+    ) = trackRepository.trackMetric(
         deliveryID = deliveryID,
         event = event,
         deviceToken = deviceToken
@@ -320,7 +327,7 @@ class CustomerIO internal constructor(
      */
     override var profileAttributes: CustomAttributes = emptyMap()
         set(value) {
-            api.addCustomProfileAttributes(value)
+            profileRepository.addCustomProfileAttributes(value)
         }
 
     /**
@@ -331,7 +338,7 @@ class CustomerIO internal constructor(
         set(value) {
             field = value
 
-            api.addCustomDeviceAttributes(value)
+            deviceRepository.addCustomDeviceAttributes(value)
         }
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {

@@ -28,7 +28,7 @@ internal class ModuleMessagingPushFCMTest : BaseTest() {
 
         di.overrideDependency(FCMTokenProvider::class.java, fcmTokenProviderMock)
 
-        module = ModuleMessagingPushFCM()
+        module = ModuleMessagingPushFCM(overrideCustomerIO = customerIOMock, overrideDiGraph = di)
     }
 
     @Test
@@ -38,7 +38,7 @@ internal class ModuleMessagingPushFCMTest : BaseTest() {
             callback(null)
         }
 
-        module.initialize(customerIOMock, di)
+        module.initialize()
 
         verify(customerIOMock, never()).registerDeviceToken(anyOrNull())
     }
@@ -52,7 +52,7 @@ internal class ModuleMessagingPushFCMTest : BaseTest() {
             callback(givenToken)
         }
 
-        module.initialize(customerIOMock, di)
+        module.initialize()
 
         verify(customerIOMock).registerDeviceToken(givenToken)
     }

@@ -1,7 +1,5 @@
 package io.customer.sdk
 
-import io.customer.sdk.di.CustomerIOComponent
-
 /**
  * A module is optional Customer.io SDK that you can install in your app.
  *
@@ -9,5 +7,5 @@ import io.customer.sdk.di.CustomerIOComponent
  */
 interface CustomerIOModule {
     val moduleName: String
-    fun initialize(customerIO: CustomerIOInstance, dependencies: CustomerIOComponent)
+    fun initialize()
 }

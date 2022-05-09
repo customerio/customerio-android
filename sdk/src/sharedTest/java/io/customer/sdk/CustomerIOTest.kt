@@ -125,7 +125,7 @@ class CustomerIOTest : BaseTest() {
             appContext = application
         ).addCustomerIOModule(givenModule).build()
 
-        verify(givenModule).initialize(client, client.diGraph)
+        verify(givenModule).initialize()
     }
 
     @Test
@@ -146,8 +146,8 @@ class CustomerIOTest : BaseTest() {
             .addCustomerIOModule(givenModule2)
             .build()
 
-        verify(givenModule1).initialize(client, client.diGraph)
-        verify(givenModule2).initialize(client, client.diGraph)
+        verify(givenModule1).initialize()
+        verify(givenModule2).initialize()
     }
 
     @Test
@@ -168,7 +168,7 @@ class CustomerIOTest : BaseTest() {
             .addCustomerIOModule(givenModule2)
             .build()
 
-        verify(givenModule1, never()).initialize(client, client.diGraph)
-        verify(givenModule2).initialize(client, client.diGraph)
+        verify(givenModule1, never()).initialize()
+        verify(givenModule2).initialize()
     }
 }

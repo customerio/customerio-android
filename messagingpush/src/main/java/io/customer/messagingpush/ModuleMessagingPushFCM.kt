@@ -1,24 +1,29 @@
 package io.customer.messagingpush
 
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.CustomerIOModule
 import io.customer.sdk.di.CustomerIOComponent
 
-class ModuleMessagingPushFCM : CustomerIOModule {
+class ModuleMessagingPushFCM internal constructor(
+    private val overrideCustomerIO: CustomerIOInstance?,
+    private val overrideDiGraph: CustomerIOComponent?
+) : CustomerIOModule {
 
-    internal lateinit var customerIO: CustomerIOInstance
-    internal lateinit var diGraph: CustomerIOComponent
+    constructor() : this(overrideCustomerIO = null, overrideDiGraph = null)
+
+    private val customerIO: CustomerIOInstance
+        get() = overrideCustomerIO ?: CustomerIO.instance()
+    private val diGraph: CustomerIOComponent
+        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
 
     private val fcmTokenProvider by lazy { diGraph.fcmTokenProvider }
 
     override val moduleName: String
         get() = "MessagingPushFCM"
 
-    override fun initialize(customerIO: CustomerIOInstance, dependencies: CustomerIOComponent) {
-        this.diGraph = dependencies
-        this.customerIO = customerIO
-
+    override fun initialize() {
         getCurrentFcmToken()
     }
 

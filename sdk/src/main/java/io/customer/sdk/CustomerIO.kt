@@ -192,7 +192,7 @@ class CustomerIO internal constructor(
 
             modules.forEach {
                 logger.debug("initializing SDK module ${it.value.moduleName}...")
-                it.value.initialize(client, diGraph)
+                it.value.initialize()
             }
 
             return client

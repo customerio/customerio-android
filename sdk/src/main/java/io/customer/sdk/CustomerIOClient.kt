@@ -136,19 +136,6 @@ internal class CustomerIOClient(
         registerDeviceToken(existingDeviceToken, attributes)
     }
 
-    override fun addCustomDeviceAttributes(attributes: CustomAttributes) {
-        logger.debug("adding custom device attributes request made")
-
-        val existingDeviceToken = preferenceRepository.getDeviceToken()
-
-        if (existingDeviceToken == null) {
-            logger.debug("no device token yet registered. ignoring request to add custom device attributes")
-            return
-        }
-
-        registerDeviceToken(existingDeviceToken, attributes)
-    }
-
     override fun addCustomProfileAttributes(attributes: CustomAttributes) {
         logger.debug("adding profile attributes request made")
 

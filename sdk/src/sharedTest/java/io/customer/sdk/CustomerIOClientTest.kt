@@ -243,57 +243,13 @@ class CustomerIOClientTest : BaseTest() {
 
         customerIOClient.addCustomDeviceAttributes(givenAttributes)
 
-        // a token got registered
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(
-                givenIdentifier,
-                Device(
-                    token = givenDeviceToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = deviceStore.buildDeviceAttributes() + givenAttributes
-                )
-            ),
-            groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
-        )
-    }
-
-    // addCustomDeviceAttributes
-
-    @Test
-    fun addCustomDeviceAttributes_givenNoPushToken_expectDoNotRegisterPushToken() {
-        val givenAttributes = mapOf(String.random to String.random)
-
-        customerIOClient.addCustomDeviceAttributes(givenAttributes)
-
-        // no token registered
-        verifyNoInteractions(backgroundQueueMock)
-    }
-
-    @Test
-    fun addCustomDeviceAttributes_givenExistingPushToken_expectRegisterPushTokenAndAttributes() {
-        val givenAttributes = mapOf(String.random to String.random)
-        val givenDeviceToken = String.random
-        val givenIdentifier = String.random
-        prefRepository.saveDeviceToken(givenDeviceToken)
-        prefRepository.saveIdentifier(givenIdentifier)
-
-        customerIOClient.addCustomDeviceAttributes(givenAttributes)
-
-        // a token got registered
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.RegisterDeviceToken,
-            RegisterPushNotificationQueueTaskData(
-                givenIdentifier,
-                Device(
-                    token = givenDeviceToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = deviceStore.buildDeviceAttributes() + givenAttributes
-                )
-            ),
-            groupStart = QueueTaskGroup.RegisterPushToken(givenDeviceToken),
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
+        verify(backgroundQueueMock).queueRegisterDevice(
+            givenIdentifier,
+            Device(
+                token = givenDeviceToken,
+                lastUsed = dateUtilStub.givenDate,
+                attributes = deviceStore.buildDeviceAttributes() + givenAttributes
+            )
         )
     }
 
@@ -314,17 +270,12 @@ class CustomerIOClientTest : BaseTest() {
         val givenAttributes = mapOf(String.random to String.random)
         val givenIdentifier = String.random
         prefRepository.saveIdentifier(givenIdentifier)
-        whenever(backgroundQueueMock.addTask(any(), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         customerIOClient.addCustomProfileAttributes(givenAttributes)
 
         // assert that attributes have been added to a profile
-        verify(backgroundQueueMock).addTask(
-            QueueTaskType.IdentifyProfile,
-            IdentifyProfileQueueTaskData(givenIdentifier, givenAttributes),
-            groupStart = null,
-            blockingGroups = listOf(QueueTaskGroup.IdentifyProfile(givenIdentifier))
-        )
+        verify(backgroundQueueMock).queueIdentifyProfile(givenIdentifier, givenIdentifier, givenAttributes)
     }
 
     // deleteDeviceToken

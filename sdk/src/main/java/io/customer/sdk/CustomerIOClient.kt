@@ -142,6 +142,19 @@ internal class CustomerIOClient(
         registerDeviceToken(existingDeviceToken, attributes)
     }
 
+    override fun addCustomProfileAttributes(attributes: CustomAttributes) {
+        logger.debug("adding profile attributes request made")
+
+        val currentlyIdentifiedProfileId = preferenceRepository.getIdentifier()
+
+        if (currentlyIdentifiedProfileId == null) {
+            logger.debug("no profile is currently identified. ignoring request to add attributes to a profile")
+            return
+        }
+
+        identify(currentlyIdentifiedProfileId, attributes)
+    }
+
     private fun createDeviceAttributes(customAddedAttributes: CustomAttributes): Map<String, Any> {
         if (!config.autoTrackDeviceAttributes) return customAddedAttributes
 

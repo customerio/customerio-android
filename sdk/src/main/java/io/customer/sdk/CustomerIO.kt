@@ -20,6 +20,9 @@ interface CustomerIOInstance {
     val sdkVersion: String
     // For security reasons, do not expose the SDK config as anyone can get the API key from the SDK including 3rd parties.
 
+    var profileAttributes: CustomAttributes
+    var deviceAttributes: CustomAttributes
+
     fun identify(identifier: String)
 
     fun identify(
@@ -311,10 +314,20 @@ class CustomerIO internal constructor(
     )
 
     /**
+     * Use to provide attributes to the currently identified profile.
+     *
+     * Note: If there is not a profile identified, this request will be ignored.
+     */
+    override var profileAttributes: CustomAttributes = emptyMap()
+        set(value) {
+            api.addCustomProfileAttributes(value)
+        }
+
+    /**
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    var deviceAttributes: CustomAttributes = emptyMap()
+    override var deviceAttributes: CustomAttributes = emptyMap()
         set(value) {
             field = value
 

@@ -243,7 +243,6 @@ class CustomerIOClientTest : BaseTest() {
 
         customerIOClient.addCustomDeviceAttributes(givenAttributes)
 
-        // a token got registered
         verify(backgroundQueueMock).queueRegisterDevice(
             givenIdentifier,
             Device(
@@ -252,6 +251,31 @@ class CustomerIOClientTest : BaseTest() {
                 attributes = deviceStore.buildDeviceAttributes() + givenAttributes
             )
         )
+    }
+
+    // addCustomProfileAttributes
+
+    @Test
+    fun addCustomProfileAttributes_givenProfileIdentified_expectDoNotIdentifyProfile() {
+        val givenAttributes = mapOf(String.random to String.random)
+
+        customerIOClient.addCustomProfileAttributes(givenAttributes)
+
+        // do not identify profile
+        verifyNoInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun addCustomProfileAttributes_givenExistingProfileIdentified_expectAddAttributesToProfile() {
+        val givenAttributes = mapOf(String.random to String.random)
+        val givenIdentifier = String.random
+        prefRepository.saveIdentifier(givenIdentifier)
+        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        customerIOClient.addCustomProfileAttributes(givenAttributes)
+
+        // assert that attributes have been added to a profile
+        verify(backgroundQueueMock).queueIdentifyProfile(givenIdentifier, givenIdentifier, givenAttributes)
     }
 
     // deleteDeviceToken

@@ -14,7 +14,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 class CustomerIOTest : BaseTest() {
@@ -109,5 +111,64 @@ class CustomerIOTest : BaseTest() {
         customerIO.profileAttributes = givenAttributes
 
         verify(profileRepositoryMock).addCustomProfileAttributes(givenAttributes)
+    }
+
+    @Test
+    fun build_givenModule_expectInitializeModule() {
+        val givenModule: CustomerIOModule = mock<CustomerIOModule>().apply {
+            whenever(this.moduleName).thenReturn(String.random)
+        }
+
+        val client = CustomerIO.Builder(
+            siteId = String.random,
+            apiKey = String.random,
+            appContext = application
+        ).addCustomerIOModule(givenModule).build()
+
+        verify(givenModule).initialize()
+    }
+
+    @Test
+    fun build_givenMultipleModules_expectInitializeAllModules() {
+        val givenModule1: CustomerIOModule = mock<CustomerIOModule>().apply {
+            whenever(this.moduleName).thenReturn(String.random)
+        }
+        val givenModule2: CustomerIOModule = mock<CustomerIOModule>().apply {
+            whenever(this.moduleName).thenReturn(String.random)
+        }
+
+        val client = CustomerIO.Builder(
+            siteId = String.random,
+            apiKey = String.random,
+            appContext = application
+        )
+            .addCustomerIOModule(givenModule1)
+            .addCustomerIOModule(givenModule2)
+            .build()
+
+        verify(givenModule1).initialize()
+        verify(givenModule2).initialize()
+    }
+
+    @Test
+    fun build_givenMultipleModulesOfSameType_expectOnlyInitializeOneModuleInstance() {
+        val givenModule1: CustomerIOModule = mock<CustomerIOModule>().apply {
+            whenever(this.moduleName).thenReturn("shared-module-name")
+        }
+        val givenModule2: CustomerIOModule = mock<CustomerIOModule>().apply {
+            whenever(this.moduleName).thenReturn("shared-module-name")
+        }
+
+        val client = CustomerIO.Builder(
+            siteId = String.random,
+            apiKey = String.random,
+            appContext = application
+        )
+            .addCustomerIOModule(givenModule1)
+            .addCustomerIOModule(givenModule2)
+            .build()
+
+        verify(givenModule1, never()).initialize()
+        verify(givenModule2).initialize()
     }
 }

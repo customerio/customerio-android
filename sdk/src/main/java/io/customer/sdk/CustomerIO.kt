@@ -102,6 +102,7 @@ class CustomerIO internal constructor(
         private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
+        private var modules: MutableMap<String, CustomerIOModule> = mutableMapOf()
         private var logLevel = CioLogLevel.ERROR
         private var trackingApiUrl: String? = null
 
@@ -151,6 +152,11 @@ class CustomerIO internal constructor(
             return this
         }
 
+        fun addCustomerIOModule(module: CustomerIOModule): Builder {
+            modules[module.moduleName] = module
+            return this
+        }
+
         fun build(): CustomerIO {
 
             if (apiKey.isEmpty()) {
@@ -177,11 +183,17 @@ class CustomerIO internal constructor(
 
             val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
             val client = CustomerIO(diGraph)
+            val logger = diGraph.logger
 
             activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
+
+            modules.forEach {
+                logger.debug("initializing SDK module ${it.value.moduleName}...")
+                it.value.initialize()
+            }
 
             return client
         }

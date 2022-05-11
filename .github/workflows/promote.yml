@@ -9,8 +9,9 @@ jobs:
     runs-on: ubuntu-latest 
     steps:
       - name: Prepare for release 
+        # Find private email address that github uses for CI account at: https://github.com/settings/emails
         run: |
-          git config --global user.email "frontend@customer.io"
+          git config --global user.email "21171259+ami-ci@users.noreply.github.com"
           git config --global user.name "Ami CI"
       - name: Promote release 
         uses: levibostian/action-promote-semantic-release@v1

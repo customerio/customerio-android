@@ -2,7 +2,6 @@ package io.customer.sdk.repository
 
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.data.model.verify
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.util.Logger
@@ -32,10 +31,6 @@ class TrackRepositoryImpl(
 
         logger.info("$eventTypeDescription $name")
         logger.debug("$eventTypeDescription $name attributes: $attributes")
-
-        // Clean-up attributes before any JSON parsing.
-        // TODO implement implementation tests for background queue and provide invalid attributes to make sure that we remembered to call this function.
-        val attributes = attributes.verify()
 
         val identifier = preferenceRepository.getIdentifier()
         if (identifier == null) {

@@ -82,18 +82,40 @@ class QueueTest : BaseTest() {
     }
 
     @Test
-    fun addTask_givenLotsOfTasksInQueue_expectStartRunningQueue() {
+    fun addTask_givenLotsOfTasksInQueue_expectStartRunningQueue(): Unit = runBlocking {
         val givenTaskType = QueueTaskType.TrackEvent
         val givenTaskData = TestQueueTaskData()
 
+        // trigger the queue to run if the queue status has lots of items in it's queue
         whenever(storageMock.create(eq(givenTaskType.name), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus("", 30)))
 
         queue.addTask(givenTaskType, givenTaskData)
 
-        // TODO check if queue started running.n
+        assertQueueRan()
     }
 
-    // TODO test queue timer
+    @Test
+    fun addTask_givenQueueTimerFinished_expectStartRunningQueue(): Unit = runBlocking {
+        val givenTaskType = QueueTaskType.TrackEvent
+        val givenTaskData = TestQueueTaskData()
+
+        // do not trigger the queue to run when lots of items are in queue so return a small number
+        whenever(storageMock.create(eq(givenTaskType.name), any(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus("", 1)))
+        whenever(queueTimerMock.scheduleIfNotAlready(any(), any())).thenAnswer {
+            val callback = it.getArgument<() -> Unit>(1)
+            callback()
+            true
+        }
+
+        queue.addTask(givenTaskType, givenTaskData)
+
+        verify(queueTimerMock).scheduleIfNotAlready(any(), any()) // assert timer ran or this test is testing the wrong code
+        assertQueueRan()
+    }
+
+    private suspend fun assertQueueRan() {
+        verify(runRequestMock).run()
+    }
 
     @Test
     fun queueIdentifyProfile_givenFirstTimeIdentifying_expectAddGroupStart_expectNoBlockingGroups() {

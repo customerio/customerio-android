@@ -1,6 +1,7 @@
 package io.customer.sdk.data.moshi.adapter
 
 import com.squareup.moshi.*
+import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.data.model.CustomAttributes
 import java.lang.reflect.Type
 import java.math.BigDecimal
@@ -59,6 +60,8 @@ internal class CustomAttributesAdapter(moshi: Moshi) :
         if (value == null) {
             throw NullPointerException("value was null! Wrap in .nullSafe() to write nullable values.")
         }
+        val value = verifyCustomAttributes(value)
+
         writer.beginObject()
 
         value.forEach {
@@ -81,5 +84,24 @@ internal class CustomAttributesAdapter(moshi: Moshi) :
         }
 
         writer.endObject()
+    }
+
+    /**
+     * Convert data types of the Map to data types the Customer.io API can understand. We want to run this function before Moshi converts our Map into a JSON string that then gets sent to theAPI.
+     */
+    private fun verifyCustomAttributes(value: CustomAttributes): CustomAttributes {
+        fun getValidValue(any: Any): Any {
+            return when (any) {
+                is Date -> any.getUnixTimestamp() // The API expects dates to be in Unix time format.
+                is Enum<*> -> any.name // Convert Enum data types to String.
+                else -> any
+            }
+        }
+
+        val validMap = mutableMapOf<String, Any>()
+        value.entries.forEach {
+            validMap[it.key] = getValidValue(it.value)
+        }
+        return validMap.toMap()
     }
 }

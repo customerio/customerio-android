@@ -2,6 +2,7 @@ package io.customer.sdk.data.store
 
 import android.content.Context
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.util.Logger
 import java.io.File
 
 /*
@@ -28,7 +29,8 @@ import java.io.File
  */
 class FileStorage internal constructor(
     private val config: CustomerIOConfig,
-    private val context: Context
+    private val context: Context,
+    private val logger: Logger
 ) {
 
     val sdkRootDirectoryPath = File(context.filesDir, "io.customer") // All files in the SDK exist in here.
@@ -44,8 +46,7 @@ class FileStorage internal constructor(
             filePath.createNewFile()
             filePath.writeText(contents)
         } catch (e: Throwable) {
-            // log error
-
+            logger.error("error while saving file $type. path ${filePath.absolutePath}. message: ${e.message}")
             return false
         }
 
@@ -71,8 +72,7 @@ class FileStorage internal constructor(
         return try {
             filePath.delete()
         } catch (e: Throwable) {
-            // log error
-
+            logger.error("error while deleting file $type. path ${filePath.absolutePath}. message: ${e.message}")
             false
         }
     }

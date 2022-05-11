@@ -1,11 +1,12 @@
 package io.customer.sdk.queue
 
+import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 
 interface QueueRunRequest {
-    suspend fun start()
+    suspend fun run()
 }
 
 class QueueRunRequestImpl internal constructor(
@@ -15,7 +16,7 @@ class QueueRunRequestImpl internal constructor(
     private val queryRunner: QueueQueryRunner
 ) : QueueRunRequest {
 
-    override suspend fun start() {
+    override suspend fun run() {
         logger.debug("queue starting to run tasks...")
         val inventory = queueStorage.getInventory()
 
@@ -26,6 +27,9 @@ class QueueRunRequestImpl internal constructor(
         val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
         if (nextTaskToRunInventoryItem == null) {
             logger.debug("queue done running tasks")
+
+            queryRunner.reset()
+
             return
         }
 
@@ -56,22 +60,27 @@ class QueueRunRequestImpl internal constructor(
                 val error = result.exceptionOrNull()
                 logger.debug("queue task $nextTaskStorageId run failed $error")
 
-                // TODO implement pauses in HTTP requests
-                // TODO parse the error to see if it was because of paused HTTP requests
-                val previousRunResults = nextTaskToRun.runResults
-                val newRunResults = nextTaskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
+                val customerIOError = error as? CustomerIOError
+                return if (customerIOError is CustomerIOError.HttpRequestsPaused) {
+                    // When HTTP requests are paused, don't increment metadata about the tasks to create inaccurate data
+                    logger.info("queue is quitting early because all HTTP requests are paused.")
 
-                logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
-                queueStorage.update(nextTaskStorageId, newRunResults)
+                    goToNextTask(emptyList(), totalNumberOfTasksToRun, null)
+                } else {
+                    val previousRunResults = nextTaskToRun.runResults
+                    val newRunResults = nextTaskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
+                    logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
+                    queueStorage.update(nextTaskStorageId, newRunResults)
 
-                return goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
+                    goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
+                }
             }
         }
     }
 
     private suspend fun goToNextTask(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata?) {
         val newInventory = inventory.toMutableList()
-        newInventory.removeFirst()
+        newInventory.removeFirstOrNull()
         runTasks(newInventory, totalNumberOfTasksToRun, lastFailedTask)
     }
 }

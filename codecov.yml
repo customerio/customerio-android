@@ -7,7 +7,10 @@ coverage:
     # rules applied to only changes in a pull request. Not changes to the test coverage of the entire project. 
     patch: 
       default:
-        # Do not fail CI server if pull request doesn't introduce very many tests in it. It's annoying to make a pull request blocked because 
-        # it does not contain very many tests in it. We care more about the test coverage of the whole project. For small pull requests that only 
-        # change a couple lines of code, 'patch' check is common to fail and can be more annoying then useful. 
+        # Do not fail CI server if pull request doesn't introduce very many tests in it. Some pull requests are small. Some are refactors where the 
+        # code coverage decreases a small amount without causing harm to the code base. 
+        # informational will generate a report and present it in the PR but will not block the PR from being merged. 
+        informational: true 
+    project:
+      default:
         informational: true 

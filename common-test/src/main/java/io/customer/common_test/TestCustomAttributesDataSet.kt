@@ -10,7 +10,6 @@ import java.util.*
  * This is a data set that a test function can loop through with given [TestCustomAttributesDataSet.expected] and [TestCustomAttributesDataSet.actual] values to make sure that
  * the feature is always verifying the attributes before sending up to the API.
  */
-// TODO use in integration tests with the background queue in milestone 4 of 4 of background queue.
 enum class TestCustomAttributesDataSet {
     String,
     Long,
@@ -70,7 +69,7 @@ enum class TestCustomAttributesDataSet {
             Long -> mapOf("long" to 394949L.toBigDecimal())
             NestedAttributes -> mapOf("nested" to mapOf("nested-key" to "nested-value"))
             Date -> mapOf("date" to 1646410611L.toBigDecimal())
-            // TODO this might be a bug? When we go from BigDecimal to JSON string and then attempt to take that JSON string and go back to BigDecimal, the Map<String, Any> JSONAdapter takes the BigDecimal string and leaves it as a string as seen below. What I expect to happen is that the JSONAdapter doesn't convert to a String but back to a BigDecimal. As of now, I don't see the use case happening where we need to go from BigDecimal -> Json string -> BigDecimal -> Json string but if we needed to, I can see this being the actual behavior in that use case: BigDecimal -> Json string -> String -> String.
+            // this might be a bug? When we go from BigDecimal to JSON string and then attempt to take that JSON string and go back to BigDecimal, the Map<String, Any> JSONAdapter takes the BigDecimal string and leaves it as a string as seen below. What I expect to happen is that the JSONAdapter doesn't convert to a String but back to a BigDecimal. As of now, I don't see the use case happening where we need to go from BigDecimal -> Json string -> BigDecimal -> Json string but if we needed to, I can see this being the actual behavior in that use case: BigDecimal -> Json string -> String -> String....
             BigDecimal -> mapOf("big-decimal" to "179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368")
             Enum -> mapOf("ENUM-key" to "ENUM", "enum-key" to "enum").toSortedMap()
             DataClass -> mapOf()

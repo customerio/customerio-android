@@ -2,16 +2,19 @@ package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
+import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTask
 import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.utils.random
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -35,7 +38,7 @@ class QueueRunRequestTest : BaseTest() {
     }
 
     @Test
-    fun test_start_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
+    fun test_run_givenRunTaskSuccess_expectDeleteTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.success(Unit))
@@ -43,13 +46,13 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.delete(eq(givenTaskId))).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
     }
 
     @Test
-    fun test_start_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
+    fun test_run_givenRunTaskFailure_expectDontDeleteTask_expectUpdateTask(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(http500Error))
@@ -57,14 +60,28 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
         whenever(storageMock.update(eq(givenTaskId), any())).thenReturn(true)
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock, never()).delete(givenTaskId)
-        verify(storageMock).update(eq(givenTaskId), any())
+        verify(storageMock).update(givenTaskId, QueueTaskRunResults(totalRuns = 1))
     }
 
     @Test
-    fun test_start_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
+    fun test_start_givenHttpRequestsPaused_expectDontDeleteTask_expectDontUpdateTask(): Unit = runBlocking {
+        val givenTaskId = String.random
+        val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.HttpRequestsPaused()))
+        whenever(storageMock.getInventory()).thenReturn(listOf(QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)))
+        whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
+
+        runRequest.run()
+
+        verify(storageMock, never()).delete(anyOrNull())
+        verify(storageMock, never()).update(anyOrNull(), anyOrNull())
+    }
+
+    @Test
+    fun test_run_givenTasksToRun_expectToRunTask_expectToCompleteAfterRunningAllTasks(): Unit = runBlocking {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
         val givenTaskId2 = String.random
@@ -80,7 +97,7 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.get(eq(givenTaskId2))).thenReturn(givenQueueTask2)
         whenever(storageMock.delete(any())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 0)))
 
-        runRequest.start()
+        runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
         verify(storageMock).delete(givenTaskId2)

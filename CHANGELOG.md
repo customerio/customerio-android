@@ -1,3 +1,24 @@
+## [2.0.0-alpha.3](https://github.com/customerio/customerio-android/compare/2.0.0-alpha.2...2.0.0-alpha.3) (2022-05-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* get current FCM token on SDK startup
+* register device attributes when set
+
+### Features
+
+* add device and profile attribute setters ([789f09f](https://github.com/customerio/customerio-android/commit/789f09f0c58e21cb3200ad933a269c40e9f530dc))
+* added support for custom track url ([b61a64b](https://github.com/customerio/customerio-android/commit/b61a64b1f17c6b7d98ec1a743ffd07bef6819a4f))
+* get current FCM token on SDK startup ([dda443d](https://github.com/customerio/customerio-android/commit/dda443d5f5d1f92edafe7e2f19a3e948d4d5d8f5))
+* register device attributes when set ([0f5159e](https://github.com/customerio/customerio-android/commit/0f5159ef5848b6bcd7641351bae90e2938ee5677))
+* set log level via SDK config ([81eea4e](https://github.com/customerio/customerio-android/commit/81eea4e00c518499f0de8052ec31aa87dd0ee31c))
+
+
+### Bug Fixes
+
+* queue attempts to run all tasks on each run ([e180dea](https://github.com/customerio/customerio-android/commit/e180dea2e4fd8c334b0fe24185c179f42d6e8027))
+
 ## [2.0.0-alpha.2](https://github.com/customerio/customerio-android/compare/2.0.0-alpha.1...2.0.0-alpha.2) (2022-05-02)
 
 

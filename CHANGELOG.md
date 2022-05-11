@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/customerio/customerio-android/compare/1.0.4...1.0.5) (2022-04-30)
+
+
+### Bug Fixes
+
+* added alternative route to fetch screen name for automatic tracking ([#92](https://github.com/customerio/customerio-android/issues/92)) ([37a20b5](https://github.com/customerio/customerio-android/commit/37a20b59da8778e9eba3baf067c9276ca878806d))
+
 ## [1.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/1.0.4...1.1.0-alpha.1) (2022-03-24)
 
 

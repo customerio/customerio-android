@@ -72,8 +72,17 @@ class ProfileRepositoryImpl(
     }
 
     override fun clearIdentify() {
-        preferenceRepository.getIdentifier()?.let { identifier ->
-            preferenceRepository.removeIdentifier(identifier)
+        logger.debug("clearing identified profile request made")
+
+        val currentlyIdentifiedProfileId = preferenceRepository.getIdentifier()
+
+        if (currentlyIdentifiedProfileId == null) {
+            logger.info("no profile is currently identified. ignoring request to clear identified profile")
+            return
         }
+
+        logger.debug("clearing profile from device storage and removing device token if there is one")
+        preferenceRepository.removeIdentifier(currentlyIdentifiedProfileId)
+        deviceRepository.deleteDeviceToken()
     }
 }

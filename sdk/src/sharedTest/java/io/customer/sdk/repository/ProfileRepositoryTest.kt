@@ -15,6 +15,7 @@ import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
@@ -150,20 +151,22 @@ class ProfileRepositoryTest : BaseTest() {
     // clearIdentify
 
     @Test
-    fun clearIdentify_verifyWhenCustomerIdentifyIsClearedItsRemovedInPrefsRepo() {
+    fun clearIdentify_verifyWhenCustomerIdentifyIsClearedItsRemovedInPrefsRepo_expectDeleteDeviceToken() {
         val givenIdentifier = String.random
         prefRepository.saveIdentifier(givenIdentifier)
 
         repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
+        verify(deviceRepositoryMock).deleteDeviceToken()
     }
 
     @Test
-    fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest() {
+    fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest_expectDontDeleteDeviceToken() {
         repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
+        verify(deviceRepositoryMock, never()).deleteDeviceToken()
     }
 
     // addCustomProfileAttributes

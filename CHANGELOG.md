@@ -1,3 +1,11 @@
+## [2.0.0-alpha.4](https://github.com/customerio/customerio-android/compare/2.0.0-alpha.3...2.0.0-alpha.4) (2022-05-13)
+
+
+### Bug Fixes
+
+* added alternative route to fetch screen name for automatic tracking ([#92](https://github.com/customerio/customerio-android/issues/92)) ([37a20b5](https://github.com/customerio/customerio-android/commit/37a20b59da8778e9eba3baf067c9276ca878806d))
+* delete device token when clear identify ([72f9753](https://github.com/customerio/customerio-android/commit/72f9753a721ea9de80cb63edf036f1daaf66f9ca))
+
 ## [2.0.0-alpha.3](https://github.com/customerio/customerio-android/compare/2.0.0-alpha.2...2.0.0-alpha.3) (2022-05-11)
 
 

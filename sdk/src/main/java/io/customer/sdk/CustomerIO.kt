@@ -8,6 +8,7 @@ import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.extensions.getScreenNameFromActivity
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
@@ -360,7 +361,11 @@ class CustomerIO internal constructor(
                 activity.componentName, PackageManager.GET_META_DATA
             )
             val activityLabel = info.loadLabel(packageManager)
-            screen(activityLabel.toString(), attributes)
+
+            val screenName = activityLabel.toString().ifEmpty {
+                activity::class.java.simpleName.getScreenNameFromActivity()
+            }
+            screen(screenName, attributes)
         } catch (e: PackageManager.NameNotFoundException) {
             // if `PackageManager.NameNotFoundException` is thrown, is that a bug in the SDK or a problem with the customer's app?
             // We may want to decide to log this as an SDK error, log it so customer notices it to fix it themselves, or we do nothing because this exception might not be a big issue.

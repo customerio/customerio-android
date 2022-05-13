@@ -27,6 +27,13 @@
 * events are tracked to identified customer ([71634ed](https://github.com/customerio/customerio-android/commit/71634edf4c36538d459f8140c0c05a426b4f21b2))
 * register device tokens http request ([b1c6872](https://github.com/customerio/customerio-android/commit/b1c68724ccb5218bfcd3e8b25743e309ddf83b26))
 
+## [1.0.5](https://github.com/customerio/customerio-android/compare/1.0.4...1.0.5) (2022-04-30)
+
+
+### Bug Fixes
+
+* added alternative route to fetch screen name for automatic tracking ([#92](https://github.com/customerio/customerio-android/issues/92)) ([37a20b5](https://github.com/customerio/customerio-android/commit/37a20b59da8778e9eba3baf067c9276ca878806d))
+
 ## [2.0.0-alpha.1](https://github.com/customerio/customerio-android/compare/1.1.0-alpha.3...2.0.0-alpha.1) (2022-04-20)
 
 
@@ -66,6 +73,7 @@
 ### Features
 
 * added support for device attributes ([#71](https://github.com/customerio/customerio-android/issues/71)) ([5fedf26](https://github.com/customerio/customerio-android/commit/5fedf26f251259601ab89c15b5cd691361c30e9d))
+* support for custom device attributes and config ([#77](https://github.com/customerio/customerio-android/issues/77)) ([a7dbaba](https://github.com/customerio/customerio-android/commit/a7dbaba4d82e5e7378f590425ee8b911072036a8))
 
 
 ### Bug Fixes

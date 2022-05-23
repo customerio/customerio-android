@@ -9,6 +9,7 @@ import io.customer.sdk.util.Logger
 interface TrackRepository {
     fun track(name: String, attributes: CustomAttributes)
     fun trackMetric(deliveryID: String, event: MetricEvent, deviceToken: String)
+    fun trackInAppMetric(deliveryID: String, event: MetricEvent)
     fun screen(name: String, attributes: CustomAttributes)
 }
 
@@ -27,7 +28,8 @@ class TrackRepositoryImpl(
     }
 
     private fun track(eventType: EventType, name: String, attributes: CustomAttributes) {
-        val eventTypeDescription = if (eventType == EventType.screen) "track screen view event" else "track event"
+        val eventTypeDescription =
+            if (eventType == EventType.screen) "track screen view event" else "track event"
 
         logger.info("$eventTypeDescription $name")
         logger.debug("$eventTypeDescription $name attributes: $attributes")
@@ -54,5 +56,16 @@ class TrackRepositoryImpl(
 
         // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         backgroundQueue.queueTrackMetric(deliveryID, deviceToken, event)
+    }
+
+    override fun trackInAppMetric(
+        deliveryID: String,
+        event: MetricEvent,
+    ) {
+        logger.info("in-app metric ${event.name}")
+        logger.debug("delivery id $deliveryID")
+
+        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
+        backgroundQueue.queueTrackInAppMetric(deliveryID, event)
     }
 }

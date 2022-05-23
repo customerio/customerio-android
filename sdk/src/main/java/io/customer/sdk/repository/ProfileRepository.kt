@@ -1,6 +1,8 @@
 package io.customer.sdk.repository
 
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.util.Logger
 
@@ -14,7 +16,8 @@ class ProfileRepositoryImpl(
     private val deviceRepository: DeviceRepository,
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
-    private val logger: Logger
+    private val logger: Logger,
+    private val hooksManager: HooksManager,
 ) : ProfileRepository {
 
     override fun identify(identifier: String, attributes: CustomAttributes) {
@@ -23,7 +26,8 @@ class ProfileRepositoryImpl(
 
         val currentlyIdentifiedProfileIdentifier = preferenceRepository.getIdentifier()
         // The SDK calls identify() with the already identified profile for changing profile attributes.
-        val isChangingIdentifiedProfile = currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
+        val isChangingIdentifiedProfile =
+            currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
         val isFirstTimeIdentifying = currentlyIdentifiedProfileIdentifier == null
 
         currentlyIdentifiedProfileIdentifier?.let { currentlyIdentifiedProfileIdentifier ->
@@ -35,7 +39,11 @@ class ProfileRepositoryImpl(
             }
         }
 
-        val queueStatus = backgroundQueue.queueIdentifyProfile(identifier, currentlyIdentifiedProfileIdentifier, attributes)
+        val queueStatus = backgroundQueue.queueIdentifyProfile(
+            identifier,
+            currentlyIdentifiedProfileIdentifier,
+            attributes
+        )
 
         // Don't modify the state of the SDK's data until we confirm we added a queue task successfully. This could put the Customer.io API
         // out-of-sync with the SDK's state and cause many future HTTP errors.
@@ -53,7 +61,10 @@ class ProfileRepositoryImpl(
 
             preferenceRepository.getDeviceToken()?.let {
                 logger.debug("automatically registering device token to newly identified profile")
-                deviceRepository.registerDeviceToken(it, emptyMap()) // no new attributes but default ones to pass so pass empty.
+                deviceRepository.registerDeviceToken(
+                    it,
+                    emptyMap()
+                ) // no new attributes but default ones to pass so pass empty.
             }
         }
     }
@@ -80,6 +91,13 @@ class ProfileRepositoryImpl(
             logger.info("no profile is currently identified. ignoring request to clear identified profile")
             return
         }
+
+        // notify hooks about identifier being cleared
+        hooksManager.onHookUpdate(
+            ModuleHook.BeforeProfileStoppedBeingIdentified(
+                currentlyIdentifiedProfileId
+            )
+        )
 
         // delete token from profile to prevent sending the profile pushes when they are not identified in the SDK.
         deviceRepository.deleteDeviceToken()

@@ -5,35 +5,17 @@ import com.squareup.moshi.Moshi
 import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.TrackingHttpClient
-import io.customer.sdk.api.CustomerIOApiRetryPolicy
-import io.customer.sdk.api.HttpRequestRunner
-import io.customer.sdk.api.HttpRequestRunnerImpl
-import io.customer.sdk.api.HttpRetryPolicy
-import io.customer.sdk.api.RetrofitTrackingHttpClient
+import io.customer.sdk.api.*
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
-import io.customer.sdk.queue.Queue
-import io.customer.sdk.queue.QueueImpl
-import io.customer.sdk.queue.QueueQueryRunner
-import io.customer.sdk.queue.QueueQueryRunnerImpl
-import io.customer.sdk.queue.QueueRunRequest
-import io.customer.sdk.queue.QueueRunRequestImpl
-import io.customer.sdk.queue.QueueRunner
-import io.customer.sdk.queue.QueueRunnerImpl
-import io.customer.sdk.queue.QueueStorage
-import io.customer.sdk.queue.QueueStorageImpl
+import io.customer.sdk.hooks.CioHooksManager
+import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.queue.*
 import io.customer.sdk.repository.*
-import io.customer.sdk.util.AndroidSimpleTimer
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.DateUtilImpl
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.LogcatLogger
-import io.customer.sdk.util.Logger
-import io.customer.sdk.util.SimpleTimer
+import io.customer.sdk.util.*
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -59,27 +41,48 @@ class CustomerIOComponent(
         get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, logger)
 
     val queueRunner: QueueRunner
-        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
+        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger, hooksManager)
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatcher = Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
+            QueueImpl(
+                dispatcher = Dispatchers.IO,
+                queueStorage,
+                queueRunRequest,
+                jsonAdapter,
+                sdkConfig,
+                timer,
+                logger,
+                dateUtil
+            )
         }
 
     val queueQueryRunner: QueueQueryRunner
         get() = override() ?: QueueQueryRunnerImpl(logger)
 
     val queueRunRequest: QueueRunRequest
-        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
+        get() = override() ?: QueueRunRequestImpl(
+            queueRunner,
+            queueStorage,
+            logger,
+            queueQueryRunner
+        )
 
     val logger: Logger
         get() = override() ?: LogcatLogger(sdkConfig)
+
+    val hooksManager: HooksManager by lazy { override() ?: CioHooksManager() }
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
 
     private val httpRequestRunner: HttpRequestRunner
-        get() = HttpRequestRunnerImpl(sharedPreferenceRepository, logger, cioHttpRetryPolicy, jsonAdapter)
+        get() = HttpRequestRunnerImpl(
+            sharedPreferenceRepository,
+            logger,
+            cioHttpRetryPolicy,
+            jsonAdapter
+        )
 
     val cioHttpRetryPolicy: HttpRetryPolicy
         get() = override() ?: CustomerIOApiRetryPolicy()
@@ -94,10 +97,23 @@ class CustomerIOComponent(
         get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)
 
     val profileRepository: ProfileRepository
-        get() = override() ?: ProfileRepositoryImpl(deviceRepository, sharedPreferenceRepository, queue, logger)
+        get() = override() ?: ProfileRepositoryImpl(
+            deviceRepository,
+            sharedPreferenceRepository,
+            queue,
+            logger,
+            hooksManager
+        )
 
     val deviceRepository: DeviceRepository
-        get() = override() ?: DeviceRepositoryImpl(sdkConfig, buildStore().deviceStore, sharedPreferenceRepository, queue, dateUtil, logger)
+        get() = override() ?: DeviceRepositoryImpl(
+            sdkConfig,
+            buildStore().deviceStore,
+            sharedPreferenceRepository,
+            queue,
+            dateUtil,
+            logger
+        )
 
     fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {

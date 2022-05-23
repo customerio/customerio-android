@@ -2,6 +2,7 @@ package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
+import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
@@ -12,13 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.verifyNoInteractions
-import org.mockito.kotlin.anyOrNull
-import org.mockito.kotlin.inOrder
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoMoreInteractions
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
 class ProfileRepositoryTest : BaseTest() {
@@ -27,6 +22,7 @@ class ProfileRepositoryTest : BaseTest() {
         get() = di.sharedPreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
+    private val hooksManager: HooksManager = mock()
     private val deviceRepositoryMock: DeviceRepository = mock()
 
     private lateinit var repository: ProfileRepository
@@ -39,7 +35,8 @@ class ProfileRepositoryTest : BaseTest() {
             deviceRepository = deviceRepositoryMock,
             preferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
-            logger = loggerMock
+            logger = loggerMock,
+            hooksManager = hooksManager
         )
     }
 
@@ -49,7 +46,13 @@ class ProfileRepositoryTest : BaseTest() {
     fun identify_givenFirstTimeIdentify_givenNoDeviceTokenRegistered_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectDoNotRegisterToken() {
         val newIdentifier = String.random
         val givenAttributes = mapOf("name" to String.random)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -67,7 +70,13 @@ class ProfileRepositoryTest : BaseTest() {
         val givenDeviceToken = String.random
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -89,7 +98,13 @@ class ProfileRepositoryTest : BaseTest() {
         val newIdentifier = String.random
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -109,7 +124,13 @@ class ProfileRepositoryTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -136,7 +157,13 @@ class ProfileRepositoryTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(givenIdentifier, givenAttributes)
 
@@ -186,11 +213,21 @@ class ProfileRepositoryTest : BaseTest() {
         val givenAttributes = mapOf(String.random to String.random)
         val givenIdentifier = String.random
         prefRepository.saveIdentifier(givenIdentifier)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.addCustomProfileAttributes(givenAttributes)
 
         // assert that attributes have been added to a profile
-        verify(backgroundQueueMock).queueIdentifyProfile(givenIdentifier, givenIdentifier, givenAttributes)
+        verify(backgroundQueueMock).queueIdentifyProfile(
+            givenIdentifier,
+            givenIdentifier,
+            givenAttributes
+        )
     }
 }

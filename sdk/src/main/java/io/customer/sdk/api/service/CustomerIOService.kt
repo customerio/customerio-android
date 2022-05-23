@@ -1,6 +1,7 @@
 package io.customer.sdk.api.service
 
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.request.DeliveryEvent
 import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.Metric
@@ -27,6 +28,12 @@ internal interface CustomerIOService {
     @POST("push/events")
     suspend fun trackMetric(
         @Body body: Metric,
+    ): Response<Unit>
+
+    @JvmSuppressWildcards
+    @POST("api/v1/cio_deliveries/events")
+    suspend fun trackDeliveryEvents(
+        @Body body: DeliveryEvent,
     ): Response<Unit>
 
     @JvmSuppressWildcards

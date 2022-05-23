@@ -18,17 +18,22 @@ class FCMTokenProviderImpl(private val logger: Logger) : FCMTokenProvider {
     override fun getCurrentToken(onComplete: (String?) -> Unit) {
         logger.debug("getting current FCM device token...")
 
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val existingDeviceToken = task.result
-                logger.debug("got current FCM token: $existingDeviceToken")
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val existingDeviceToken = task.result
+                    logger.debug("got current FCM token: $existingDeviceToken")
 
-                onComplete(existingDeviceToken)
-            } else {
-                logger.debug("got current FCM token: null")
+                    onComplete(existingDeviceToken)
+                } else {
+                    logger.debug("got current FCM token: null")
 
-                onComplete(null)
+                    onComplete(null)
+                }
             }
+        } catch (exception: Throwable) {
+            logger.error(exception.message ?: "error while getting FCM token")
+            onComplete(null)
         }
     }
 }

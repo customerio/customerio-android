@@ -6,6 +6,7 @@ import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.hooks.HookModules
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.hooks.ModuleHookProvider
@@ -50,19 +51,22 @@ class ModuleMessagingInApp internal constructor(
     }
 
     private fun setupHooks() {
-        hooksManager.add(object : ModuleHookProvider() {
-            override fun profileIdentifiedHook(hook: ModuleHook.ProfileIdentifiedHook) {
-                gistProvider.setUserToken(hook.identifier)
-            }
+        hooksManager.add(
+            HookModules.MessagingInApp,
+            object : ModuleHookProvider() {
+                override fun profileIdentifiedHook(hook: ModuleHook.ProfileIdentifiedHook) {
+                    gistProvider.setUserToken(hook.identifier)
+                }
 
-            override fun screenTrackedHook(hook: ModuleHook.ScreenTrackedHook) {
-                gistProvider.setCurrentRoute(hook.screen)
-            }
+                override fun screenTrackedHook(hook: ModuleHook.ScreenTrackedHook) {
+                    gistProvider.setCurrentRoute(hook.screen)
+                }
 
-            override fun beforeProfileStoppedBeingIdentified(hook: ModuleHook.BeforeProfileStoppedBeingIdentified) {
-                gistProvider.clearUserToken()
+                override fun beforeProfileStoppedBeingIdentified(hook: ModuleHook.BeforeProfileStoppedBeingIdentified) {
+                    gistProvider.clearUserToken()
+                }
             }
-        })
+        )
     }
 
     private fun initializeGist(organizationId: String) {

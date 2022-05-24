@@ -56,6 +56,10 @@ class ProfileRepositoryImpl(
         logger.debug("storing identifier on device storage $identifier")
         preferenceRepository.saveIdentifier(identifier)
 
+        hooksManager.onHookUpdate(
+            hook = ModuleHook.ProfileIdentifiedHook(identifier)
+        )
+
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")
 

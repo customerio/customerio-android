@@ -41,7 +41,7 @@ class CustomerIOComponent(
         get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, logger)
 
     val queueRunner: QueueRunner
-        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger, hooksManager)
+        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
     val queue: Queue
         get() = override() ?: QueueImpl.getInstanceOrCreate {
@@ -71,7 +71,8 @@ class CustomerIOComponent(
     val logger: Logger
         get() = override() ?: LogcatLogger(sdkConfig)
 
-    val hooksManager: HooksManager by lazy { override() ?: CioHooksManager() }
+    val hooksManager: HooksManager
+        get() = override() ?: CioHooksManager.getInstanceOrCreate { CioHooksManager() }
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
@@ -94,7 +95,12 @@ class CustomerIOComponent(
         get() = override() ?: AndroidSimpleTimer(logger, uiDispatcher = Dispatchers.Main)
 
     val trackRepository: TrackRepository
-        get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)
+        get() = override() ?: TrackRepositoryImpl(
+            sharedPreferenceRepository,
+            queue,
+            logger,
+            hooksManager
+        )
 
     val profileRepository: ProfileRepository
         get() = override() ?: ProfileRepositoryImpl(

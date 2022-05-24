@@ -1,27 +1,35 @@
 package io.customer.sdk.hooks
 
+import io.customer.sdk.util.Singleton
+
 interface HooksManager {
-    fun add(subscriber: ModuleHookProvider)
+    fun add(modules: HookModules, subscriber: ModuleHookProvider)
     fun onHookUpdate(hook: ModuleHook)
+}
+
+enum class HookModules {
+    MessagingPush, MessagingInApp
 }
 
 internal class CioHooksManager : HooksManager {
 
-    val list: MutableList<ModuleHookProvider> = mutableListOf()
+    companion object SingletonHolder : Singleton<HooksManager>()
 
-    override fun add(subscriber: ModuleHookProvider) {
-        list.add(subscriber)
+    private val map: MutableMap<HookModules, ModuleHookProvider> = mutableMapOf()
+
+    override fun add(modules: HookModules, subscriber: ModuleHookProvider) {
+        map[modules] = subscriber
     }
 
     override fun onHookUpdate(hook: ModuleHook) {
         when (hook) {
-            is ModuleHook.ProfileIdentifiedHook -> list.forEach {
+            is ModuleHook.ProfileIdentifiedHook -> map.values.forEach {
                 it.profileIdentifiedHook(hook)
             }
-            is ModuleHook.BeforeProfileStoppedBeingIdentified -> list.forEach {
+            is ModuleHook.BeforeProfileStoppedBeingIdentified -> map.values.forEach {
                 it.beforeProfileStoppedBeingIdentified(hook)
             }
-            is ModuleHook.ScreenTrackedHook -> list.forEach {
+            is ModuleHook.ScreenTrackedHook -> map.values.forEach {
                 it.screenTrackedHook(hook)
             }
         }

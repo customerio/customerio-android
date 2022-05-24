@@ -43,6 +43,7 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.retrofit
+    implementation Dependencies.gist
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
     testImplementation Dependencies.androidxTestJunit

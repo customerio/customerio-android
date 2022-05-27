@@ -3,11 +3,13 @@ package io.customer.sdk.repository
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
+import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
@@ -90,6 +92,29 @@ class ProfileRepositoryTest : BaseTest() {
             verify(deviceRepositoryMock).registerDeviceToken(givenDeviceToken, emptyMap())
         }
         verifyNoMoreInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun identify_givenFirstTimeIdentify_givenNoDeviceTokenRegistered_expectProfileIdentifiedHookUpdateWithCorrectIdentifier() {
+        val givenIdentifier = String.random
+        val newIdentifier = String.random
+        val givenAttributes = mapOf("name" to String.random)
+        prefRepository.saveIdentifier(givenIdentifier)
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        repository.identify(newIdentifier, givenAttributes)
+
+        val argumentCaptor = nullableArgumentCaptor<ModuleHook.ProfileIdentifiedHook>()
+
+        verify(hooksManager, times(1)).onHookUpdate(argumentCaptor.capture())
+
+        assertEquals(newIdentifier, argumentCaptor.firstValue?.identifier)
     }
 
     @Test
@@ -189,11 +214,33 @@ class ProfileRepositoryTest : BaseTest() {
     }
 
     @Test
-    fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest_expectDontDeleteDeviceToken() {
+    fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest_expectDontDeleteDeviceToken_expectDontUpdateHook() {
         repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
+
         verify(deviceRepositoryMock, never()).deleteDeviceToken()
+        verify(hooksManager, never()).onHookUpdate(any())
+    }
+
+    @Test
+    fun clearIdentify_givenPreviouslyIdentifiedProfile_expectHookUpdate() {
+        val givenIdentifier = String.random
+        prefRepository.saveIdentifier(givenIdentifier)
+
+        repository.clearIdentify()
+
+        prefRepository.getIdentifier().shouldBeNull()
+
+        val argumentCaptor =
+            nullableArgumentCaptor<ModuleHook.BeforeProfileStoppedBeingIdentified>()
+
+        verify(hooksManager, times(1)).onHookUpdate(
+            argumentCaptor.capture() ?: ModuleHook.BeforeProfileStoppedBeingIdentified(
+                givenIdentifier
+            )
+        )
+        assertEquals(givenIdentifier, argumentCaptor.firstValue?.identifier)
     }
 
     // addCustomProfileAttributes

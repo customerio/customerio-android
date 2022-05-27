@@ -35,6 +35,8 @@ class ModuleMessagingInApp internal constructor(
 
     private val gistProvider by lazy { diGraph.gistProvider }
 
+    private val logger by lazy { diGraph.logger }
+
     override fun initialize() {
         initializeGist(organizationId)
         setupHooks()
@@ -42,12 +44,22 @@ class ModuleMessagingInApp internal constructor(
     }
 
     private fun setupGistCallbacks() {
-        gistProvider.subscribeToEvents { deliveryID ->
-            trackRepository.trackInAppMetric(
-                deliveryID = deliveryID,
-                event = MetricEvent.opened
-            )
-        }
+        gistProvider.subscribeToEvents(
+            onMessageShown = { deliveryID ->
+                trackRepository.trackInAppMetric(
+                    deliveryID = deliveryID,
+                    event = MetricEvent.opened
+                )
+            },
+            onAction = { deliveryID: String, _: String, _: String ->
+                trackRepository.trackInAppMetric(
+                    deliveryID = deliveryID,
+                    event = MetricEvent.clicked
+                )
+            }, onError = { error ->
+                logger.error("in-app message error occurred $error")
+            }
+        )
     }
 
     private fun setupHooks() {

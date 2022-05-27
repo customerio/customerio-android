@@ -14,7 +14,11 @@ internal interface InAppMessagesProvider {
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
     fun clearUserToken()
-    fun subscribeToEvents(onMessageShown: (String) -> Unit)
+    fun subscribeToEvents(
+        onMessageShown: (deliveryId: String) -> Unit,
+        onAction: (deliveryId: String, currentRoute: String, action: String) -> Unit,
+        onError: (message: String) -> Unit
+    )
 }
 
 internal class GistInAppMessagesProvider : InAppMessagesProvider {
@@ -38,15 +42,24 @@ internal class GistInAppMessagesProvider : InAppMessagesProvider {
         GistSdk.clearUserToken()
     }
 
-    override fun subscribeToEvents(onMessageShown: (String) -> Unit) {
+    override fun subscribeToEvents(
+        onMessageShown: (String) -> Unit,
+        onAction: (deliveryId: String, currentRoute: String, action: String) -> Unit,
+        onError: (message: String) -> Unit
+    ) {
         GistSdk.addListener(object : GistListener {
             override fun embedMessage(message: Message, elementId: String) {
             }
 
             override fun onAction(message: Message, currentRoute: String, action: String) {
+                val deliveryID = GistMessageProperties.getGistProperties(message).campaignId
+                if (deliveryID != null && action != "gist://close") {
+                    onAction(deliveryID, currentRoute, action)
+                }
             }
 
             override fun onError(message: Message) {
+                onError(message.toString())
             }
 
             override fun onMessageDismissed(message: Message) {

@@ -3,7 +3,7 @@ package io.customer.sdk.hooks
 import io.customer.sdk.util.Singleton
 
 interface HooksManager {
-    fun add(modules: HookModule, subscriber: ModuleHookProvider)
+    fun add(module: HookModule, subscriber: ModuleHookProvider)
     fun onHookUpdate(hook: ModuleHook?)
 }
 

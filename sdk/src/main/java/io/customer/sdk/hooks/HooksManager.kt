@@ -3,11 +3,11 @@ package io.customer.sdk.hooks
 import io.customer.sdk.util.Singleton
 
 interface HooksManager {
-    fun add(modules: HookModules, subscriber: ModuleHookProvider)
+    fun add(modules: HookModule, subscriber: ModuleHookProvider)
     fun onHookUpdate(hook: ModuleHook?)
 }
 
-enum class HookModules {
+enum class HookModule {
     MessagingPush, MessagingInApp
 }
 
@@ -15,10 +15,10 @@ internal class CioHooksManager : HooksManager {
 
     companion object SingletonHolder : Singleton<HooksManager>()
 
-    private val map: MutableMap<HookModules, ModuleHookProvider> = mutableMapOf()
+    private val map: MutableMap<HookModule, ModuleHookProvider> = mutableMapOf()
 
-    override fun add(modules: HookModules, subscriber: ModuleHookProvider) {
-        map[modules] = subscriber
+    override fun add(module: HookModule, subscriber: ModuleHookProvider) {
+        map[module] = subscriber
     }
 
     override fun onHookUpdate(hook: ModuleHook?) {

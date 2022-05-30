@@ -45,7 +45,6 @@ class TrackRepositoryImpl(
             return
         }
 
-        // if task doesn't successfully get added to the queue, it does not break the SDK's state. So, we can ignore the result of adding task to queue.
         val queueStatus = backgroundQueue.queueTrack(identifier, name, eventType, attributes)
 
         if (queueStatus.success && eventType == EventType.screen) {

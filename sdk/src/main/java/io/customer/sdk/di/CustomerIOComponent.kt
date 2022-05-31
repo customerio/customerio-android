@@ -68,7 +68,7 @@ class CustomerIOComponent(
         get() = override() ?: SdkDispatchers()
 
     val queue: Queue
-        get() = override() ?: QueueImpl.getInstanceOrCreate {
+        get() = override() ?: getSingletonInstanceCreate {
             QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
 

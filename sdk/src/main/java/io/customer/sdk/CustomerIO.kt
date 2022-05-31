@@ -12,6 +12,8 @@ import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
@@ -202,9 +204,9 @@ class CustomerIO internal constructor(
 
     private fun postInitialize() {
         // run cleanup asynchronously in background to prevent taking up the main/UI thread
-//        CoroutineScope(diGraph.dispatchersProvider.background).launch {
-//            cleanupRepository.cleanup()
-//        }
+        CoroutineScope(diGraph.dispatchersProvider.background).launch {
+            cleanupRepository.cleanup()
+        }
     }
 
     /**

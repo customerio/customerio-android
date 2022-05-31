@@ -27,4 +27,19 @@ abstract class DiGraph {
      * Or you may not be able to successfully mock in test functions.
      */
     inline fun <reified DEP> override(): DEP? = overrides[DEP::class.java.simpleName] as? DEP
+
+    val singletons: MutableMap<String, Any> = mutableMapOf()
+
+    inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {
+        val singletonKey = INST::class.java.simpleName
+
+        return singletons[singletonKey] as? INST ?: newInstanceCreator().also {
+            singletons[singletonKey] = it
+        }
+    }
+
+    fun reset() {
+        overrides.clear()
+        singletons.clear()
+    }
 }

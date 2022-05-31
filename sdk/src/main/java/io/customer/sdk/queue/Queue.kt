@@ -21,7 +21,6 @@ import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
 import io.customer.sdk.util.Seconds
 import io.customer.sdk.util.SimpleTimer
-import io.customer.sdk.util.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -54,8 +53,6 @@ class QueueImpl internal constructor(
     private val logger: Logger,
     private val dateUtil: DateUtil
 ) : Queue {
-
-    companion object SingletonHolder : Singleton<Queue>()
 
     private val numberSecondsToScheduleTimer: Seconds
         get() = Seconds(sdkConfig.backgroundQueueSecondsDelay)

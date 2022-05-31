@@ -11,6 +11,7 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Seconds
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -76,12 +77,13 @@ abstract class BaseTest {
             di.overrideDependency(DateUtil::class.java, it)
         }
         dispatchersProviderStub = DispatchersProviderStub().also {
-            // di.overrideDependency(DispatchersProvider::class.java, it)
+            di.overrideDependency(DispatchersProvider::class.java, it)
         }
     }
 
     @After
     open fun teardown() {
         mockWebServer.shutdown()
+        di.reset()
     }
 }

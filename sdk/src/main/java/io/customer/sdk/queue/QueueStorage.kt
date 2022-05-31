@@ -130,7 +130,7 @@ class QueueStorageImpl internal constructor(
         // important to lock the queue storage until entire process is complete to avoid race conditions with querying and deleting tasks.
         synchronized(this) {
             logger.debug("deleting expired tasks from the queue")
-            
+
             val tasksToDelete: MutableSet<QueueTaskMetadata> = mutableSetOf()
             val queueTaskExpiredThreshold = Date().subtract(sdkConfig.backgroundQueueExpiredSeconds.toSeconds().value, TimeUnit.SECONDS)
             logger.debug("deleting tasks older then $queueTaskExpiredThreshold, current time is: ${Date()}")

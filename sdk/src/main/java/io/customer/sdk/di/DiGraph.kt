@@ -28,8 +28,21 @@ abstract class DiGraph {
      */
     inline fun <reified DEP> override(): DEP? = overrides[DEP::class.java.simpleName] as? DEP
 
+    /**
+     * We prefer to have all of the SDK's singleton instances held in the dependency injection graph. This makes it easier for automated tests to be able to delete all
+     * singletons between each test function and prevent test flakiness.
+     */
     val singletons: MutableMap<String, Any> = mutableMapOf()
 
+    /**
+     * In the graph, if you have any dependency that should be a singleton:
+     * ```
+     * val queue: Queue
+     *   get() = override() ?: getSingletonInstanceCreate {
+     *     QueueImpl(...)
+     *   }
+     * ```
+     */
     inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {
         val singletonKey = INST::class.java.simpleName
 
@@ -38,6 +51,9 @@ abstract class DiGraph {
         }
     }
 
+    /**
+     * Call to delete instances held by the graph. This is meant to be called in between automated tests but can also be called to reset that state of the SDK at runtime.
+     */
     fun reset() {
         overrides.clear()
         singletons.clear()

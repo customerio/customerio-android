@@ -53,7 +53,6 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
-        // TODO turn this logic into SDK defaults that we override to prevent making so many duplicate code
         cioConfig = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0, Seconds.fromDays(3).value, CioLogLevel.DEBUG, null)
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.

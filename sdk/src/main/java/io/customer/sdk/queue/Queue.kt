@@ -211,7 +211,6 @@ class QueueImpl internal constructor(
         )
     }
 
-    // recommended to call from non-UI thread
     override fun deleteExpiredTasks() {
         storage.deleteExpired()
     }

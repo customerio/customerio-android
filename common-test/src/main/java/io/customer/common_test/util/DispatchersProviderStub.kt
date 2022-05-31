@@ -3,6 +3,7 @@ package io.customer.common_test.util
 import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.SdkDispatchers
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineDispatcher
 
 class DispatchersProviderStub : DispatchersProvider {
@@ -18,8 +19,11 @@ class DispatchersProviderStub : DispatchersProvider {
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override val background: CoroutineDispatcher
         get() = overrideBackground ?: TestCoroutineDispatcher()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     override val main: CoroutineDispatcher
         get() = overrideMain ?: TestCoroutineDispatcher()
 }

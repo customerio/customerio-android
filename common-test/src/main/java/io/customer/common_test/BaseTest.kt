@@ -69,7 +69,6 @@ abstract class BaseTest {
             sdkConfig = cioConfig,
             context = this@BaseTest.context
         )
-
         di.fileStorage.deleteAllSdkFiles()
         di.sharedPreferenceRepository.clearAll()
 

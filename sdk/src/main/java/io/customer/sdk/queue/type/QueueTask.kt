@@ -12,6 +12,6 @@ data class QueueTask(
 ) {
     companion object {
         val random: QueueTask
-            get() = QueueTask(String.random, String.random, String.random, QueueTaskRunResults(Int.random(0, 10)))
+            get() = QueueTask(String.random, String.random, String.random, QueueTaskRunResults(0))
     }
 }

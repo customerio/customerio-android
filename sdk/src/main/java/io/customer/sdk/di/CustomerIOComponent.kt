@@ -3,11 +3,9 @@ package io.customer.sdk.di
 import android.content.Context
 import com.squareup.moshi.Moshi
 import io.customer.sdk.BuildConfig
-import io.customer.sdk.CustomerIOClient
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
 import io.customer.sdk.api.TrackingHttpClient
-import io.customer.sdk.api.CustomerIOApi
 import io.customer.sdk.api.CustomerIOApiRetryPolicy
 import io.customer.sdk.api.HttpRequestRunner
 import io.customer.sdk.api.HttpRequestRunnerImpl
@@ -97,18 +95,16 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = AndroidSimpleTimer(logger, dispatchersProvider)
+        get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)
 
-    internal fun buildApi(): CustomerIOApi {
-        return override() ?: CustomerIOClient(
-            config = sdkConfig,
-            deviceStore = buildStore().deviceStore,
-            preferenceRepository = sharedPreferenceRepository,
-            backgroundQueue = queue,
-            dateUtil = dateUtil,
-            logger = logger
-        )
-    }
+    val trackRepository: TrackRepository
+        get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)
+
+    val profileRepository: ProfileRepository
+        get() = override() ?: ProfileRepositoryImpl(deviceRepository, sharedPreferenceRepository, queue, logger)
+
+    val deviceRepository: DeviceRepository
+        get() = override() ?: DeviceRepositoryImpl(sdkConfig, buildStore().deviceStore, sharedPreferenceRepository, queue, dateUtil, logger)
 
     fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {

@@ -3,6 +3,7 @@ package io.customer.messaginginapp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.messaginginapp.provider.InAppMessagesProvider
+import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
 import org.junit.Before
 import org.junit.Test
@@ -30,7 +31,7 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     }
 
     @Test
-    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId() {
+    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId_expectModuleHookToBeAdded_expectSubscriptionOfGistCallbacks() {
 
         module.initialize()
 
@@ -38,7 +39,7 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         verify(gistInAppMessagesProvider).initProvider(any(), eq("test"))
 
         // verify hook was added
-        verify(hooksManager).add(any(), any())
+        verify(hooksManager).add(eq(HookModule.MessagingInApp), any())
 
         // verify events
         verify(gistInAppMessagesProvider).subscribeToEvents(any(), any(), any())

@@ -4,7 +4,7 @@ import io.customer.sdk.util.Singleton
 
 interface HooksManager {
     fun add(module: HookModule, subscriber: ModuleHookProvider)
-    fun onHookUpdate(hook: ModuleHook?)
+    fun onHookUpdate(hook: ModuleHook)
 }
 
 enum class HookModule {
@@ -21,7 +21,7 @@ internal class CioHooksManager : HooksManager {
         map[module] = subscriber
     }
 
-    override fun onHookUpdate(hook: ModuleHook?) {
+    override fun onHookUpdate(hook: ModuleHook) {
         when (hook) {
             is ModuleHook.ProfileIdentifiedHook -> map.values.forEach {
                 it.profileIdentifiedHook(hook)

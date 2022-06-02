@@ -8,6 +8,7 @@ import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.hooks.ModuleHookProvider
 import io.customer.sdk.utils.random
 import org.amshove.kluent.internal.assertEquals
+import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,20 +36,27 @@ internal class HookManagerTest : BaseTest() {
         val screen = String.random
         val screenTrackedHook = ModuleHook.ScreenTrackedHook(screen)
 
+        var didProfileIdentifyHookGetCalled = false
+        var didBeforeProfileStoppedBeingIdentifiedGetCalled = false
+        var didScreenTrackedHookGetCalled = false
+
         cioHooksManager.add(
             HookModule.MessagingInApp,
             object : ModuleHookProvider() {
                 override fun profileIdentifiedHook(hook: ModuleHook.ProfileIdentifiedHook) {
+                    didProfileIdentifyHookGetCalled = true
                     assertEquals(hook, profileIdentifiedHook)
                     assertEquals(hook.identifier, identifier)
                 }
 
                 override fun beforeProfileStoppedBeingIdentified(hook: ModuleHook.BeforeProfileStoppedBeingIdentified) {
+                    didBeforeProfileStoppedBeingIdentifiedGetCalled = true
                     assertEquals(hook, beforeProfileStoppedBeingIdentifiedHook)
                     assertEquals(hook.identifier, identifier)
                 }
 
                 override fun screenTrackedHook(hook: ModuleHook.ScreenTrackedHook) {
+                    didScreenTrackedHookGetCalled = true
                     assertEquals(hook, screenTrackedHook)
                     assertEquals(hook.screen, screen)
                 }
@@ -58,5 +66,9 @@ internal class HookManagerTest : BaseTest() {
         cioHooksManager.onHookUpdate(profileIdentifiedHook)
         cioHooksManager.onHookUpdate(beforeProfileStoppedBeingIdentifiedHook)
         cioHooksManager.onHookUpdate(screenTrackedHook)
+
+        didProfileIdentifyHookGetCalled shouldBeEqualTo true
+        didBeforeProfileStoppedBeingIdentifiedGetCalled shouldBeEqualTo true
+        didScreenTrackedHookGetCalled shouldBeEqualTo true
     }
 }

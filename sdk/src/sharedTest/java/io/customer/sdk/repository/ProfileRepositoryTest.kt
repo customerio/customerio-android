@@ -67,7 +67,7 @@ class ProfileRepositoryTest : BaseTest() {
     }
 
     @Test
-    fun identify_givenFirstTimeIdentify_givenDeviceTokenExists_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectRegisterDeviceToken() {
+    fun identify_givenFirstTimeIdentify_givenDeviceTokenExists_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectProfileIdentifiedHookUpdateWithCorrectIdentifier_expectRegisterDeviceToken() {
         val newIdentifier = String.random
         val givenDeviceToken = String.random
         val givenAttributes = mapOf("name" to String.random)
@@ -82,6 +82,11 @@ class ProfileRepositoryTest : BaseTest() {
 
         repository.identify(newIdentifier, givenAttributes)
 
+        argumentCaptor<ModuleHook.ProfileIdentifiedHook>().apply {
+            verify(hooksManager, times(1)).onHookUpdate(capture())
+            assertEquals(newIdentifier, firstValue.identifier)
+        }
+
         inOrder(backgroundQueueMock, deviceRepositoryMock).apply {
             verify(backgroundQueueMock).queueIdentifyProfile(
                 newIdentifier = newIdentifier,
@@ -92,29 +97,6 @@ class ProfileRepositoryTest : BaseTest() {
             verify(deviceRepositoryMock).registerDeviceToken(givenDeviceToken, emptyMap())
         }
         verifyNoMoreInteractions(backgroundQueueMock)
-    }
-
-    @Test
-    fun identify_givenFirstTimeIdentify_givenNoDeviceTokenRegistered_expectProfileIdentifiedHookUpdateWithCorrectIdentifier() {
-        val givenIdentifier = String.random
-        val newIdentifier = String.random
-        val givenAttributes = mapOf("name" to String.random)
-        prefRepository.saveIdentifier(givenIdentifier)
-        whenever(
-            backgroundQueueMock.queueIdentifyProfile(
-                anyOrNull(),
-                anyOrNull(),
-                anyOrNull()
-            )
-        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
-
-        repository.identify(newIdentifier, givenAttributes)
-
-        val argumentCaptor = nullableArgumentCaptor<ModuleHook.ProfileIdentifiedHook>()
-
-        verify(hooksManager, times(1)).onHookUpdate(argumentCaptor.capture())
-
-        assertEquals(newIdentifier, argumentCaptor.firstValue?.identifier)
     }
 
     @Test
@@ -233,14 +215,12 @@ class ProfileRepositoryTest : BaseTest() {
         prefRepository.getIdentifier().shouldBeNull()
 
         val argumentCaptor =
-            nullableArgumentCaptor<ModuleHook.BeforeProfileStoppedBeingIdentified>()
+            argumentCaptor<ModuleHook.BeforeProfileStoppedBeingIdentified>()
 
         verify(hooksManager, times(1)).onHookUpdate(
-            argumentCaptor.capture() ?: ModuleHook.BeforeProfileStoppedBeingIdentified(
-                givenIdentifier
-            )
+            argumentCaptor.capture()
         )
-        assertEquals(givenIdentifier, argumentCaptor.firstValue?.identifier)
+        assertEquals(givenIdentifier, argumentCaptor.firstValue.identifier)
     }
 
     // addCustomProfileAttributes

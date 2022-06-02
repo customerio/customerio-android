@@ -1,15 +1,15 @@
 package io.customer.sdk.util
 
 import android.os.Bundle
-import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.repository.TrackRepository
 
 interface PushTrackingUtil {
     fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean
 }
 
 class PushTrackingUtilImpl(
-    private val customerIOInstance: CustomerIOInstance
+    private val trackRepository: TrackRepository
 ) : PushTrackingUtil {
 
     companion object {
@@ -23,7 +23,7 @@ class PushTrackingUtilImpl(
 
         if (deliveryId == null || deliveryToken == null) return false
 
-        customerIOInstance.trackMetric(
+        trackRepository.trackMetric(
             deliveryID = deliveryId,
             deviceToken = deliveryToken,
             event = MetricEvent.opened

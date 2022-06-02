@@ -13,6 +13,7 @@ import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.util.CioLogLevel
+import io.customer.sdk.util.PushTrackingUtilImpl
 
 /**
  * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
@@ -186,7 +187,7 @@ class CustomerIO internal constructor(
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
+            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config, PushTrackingUtilImpl(client))
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client

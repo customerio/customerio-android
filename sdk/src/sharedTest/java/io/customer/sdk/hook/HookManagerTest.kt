@@ -31,7 +31,8 @@ internal class HookManagerTest : BaseTest() {
         val identifier = String.random
         val profileIdentifiedHook = ModuleHook.ProfileIdentifiedHook(identifier)
 
-        val beforeProfileStoppedBeingIdentifiedHook = ModuleHook.BeforeProfileStoppedBeingIdentified(identifier)
+        val beforeProfileStoppedBeingIdentifiedHook =
+            ModuleHook.BeforeProfileStoppedBeingIdentified(identifier)
 
         val screen = String.random
         val screenTrackedHook = ModuleHook.ScreenTrackedHook(screen)
@@ -63,9 +64,25 @@ internal class HookManagerTest : BaseTest() {
             }
         )
 
-        cioHooksManager.onHookUpdate(profileIdentifiedHook)
-        cioHooksManager.onHookUpdate(beforeProfileStoppedBeingIdentifiedHook)
-        cioHooksManager.onHookUpdate(screenTrackedHook)
+        val availableHooks = listOf(
+            profileIdentifiedHook,
+            beforeProfileStoppedBeingIdentifiedHook,
+            screenTrackedHook
+        )
+
+        availableHooks.forEach {
+            when (it) {
+                is ModuleHook.BeforeProfileStoppedBeingIdentified -> {
+                    cioHooksManager.onHookUpdate(profileIdentifiedHook)
+                }
+                is ModuleHook.ProfileIdentifiedHook -> {
+                    cioHooksManager.onHookUpdate(beforeProfileStoppedBeingIdentifiedHook)
+                }
+                is ModuleHook.ScreenTrackedHook -> {
+                    cioHooksManager.onHookUpdate(screenTrackedHook)
+                }
+            }
+        }
 
         didProfileIdentifyHookGetCalled shouldBeEqualTo true
         didBeforeProfileStoppedBeingIdentifiedGetCalled shouldBeEqualTo true

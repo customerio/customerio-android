@@ -70,6 +70,7 @@ internal class HookManagerTest : BaseTest() {
             screenTrackedHook
         )
 
+        // its enum so whenever a new enum gets added, test would need updating as well
         availableHooks.forEach {
             when (it) {
                 is ModuleHook.BeforeProfileStoppedBeingIdentified -> {

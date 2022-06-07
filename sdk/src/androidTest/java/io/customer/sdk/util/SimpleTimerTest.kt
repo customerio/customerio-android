@@ -22,7 +22,7 @@ class SimpleTimerTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        timer = AndroidSimpleTimer(di.logger)
+        timer = AndroidSimpleTimer(di.logger, testDispatcher)
     }
 
     @After

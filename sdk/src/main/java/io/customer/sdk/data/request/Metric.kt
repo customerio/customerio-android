@@ -6,7 +6,7 @@ import java.util.*
 
 @JsonClass(generateAdapter = false)
 enum class MetricEvent {
-    delivered, opened, converted;
+    delivered, opened, converted, clicked;
 }
 
 @JsonClass(generateAdapter = true)

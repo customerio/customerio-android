@@ -3,6 +3,8 @@ package io.customer.messaginginapp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.messaginginapp.provider.InAppMessagesProvider
+import io.customer.sdk.hooks.HookModule
+import io.customer.sdk.hooks.HooksManager
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,21 +18,30 @@ internal class ModuleMessagingInAppTest : BaseTest() {
 
     private lateinit var module: ModuleMessagingInApp
     private val gistInAppMessagesProvider: InAppMessagesProvider = mock()
+    private val hooksManager: HooksManager = mock()
 
     @Before
     override fun setup() {
         super.setup()
 
         di.overrideDependency(InAppMessagesProvider::class.java, gistInAppMessagesProvider)
+        di.overrideDependency(HooksManager::class.java, hooksManager)
 
         module = ModuleMessagingInApp(overrideDiGraph = di, organizationId = "test")
     }
 
     @Test
-    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId() {
+    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId_expectModuleHookToBeAdded_expectSubscriptionOfGistCallbacks() {
 
         module.initialize()
 
+        // verify gist is initialized
         verify(gistInAppMessagesProvider).initProvider(any(), eq("test"))
+
+        // verify hook was added
+        verify(hooksManager).add(eq(HookModule.MessagingInApp), any())
+
+        // verify events
+        verify(gistInAppMessagesProvider).subscribeToEvents(any(), any(), any())
     }
 }

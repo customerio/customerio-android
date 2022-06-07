@@ -1,6 +1,7 @@
 package io.customer.sdk.queue
 
 import io.customer.sdk.api.TrackingHttpClient
+import io.customer.sdk.data.request.DeliveryEvent
 import io.customer.sdk.data.request.Metric
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
@@ -29,8 +30,10 @@ internal class QueueRunnerImpl(
             QueueTaskType.RegisterDeviceToken -> registerDeviceToken(task)
             QueueTaskType.DeletePushToken -> deleteDeviceToken(task)
             QueueTaskType.TrackPushMetric -> trackPushMetrics(task)
+            QueueTaskType.TrackDeliveryEvent -> trackDeliveryEvents(task)
             null -> {
-                val errorMessage = "Queue task ${task.type} could not find an enum to map to. Could not run task."
+                val errorMessage =
+                    "Queue task ${task.type} could not find an enum to map to. Could not run task."
                 logger.error(errorMessage)
                 return Result.failure(RuntimeException(errorMessage))
             }
@@ -68,5 +71,11 @@ internal class QueueRunnerImpl(
         val taskData: Metric = jsonAdapter.fromJson(task.data)
 
         return cioHttpClient.trackPushMetrics(taskData)
+    }
+
+    private suspend fun trackDeliveryEvents(task: QueueTask): QueueRunTaskResult {
+        val taskData: DeliveryEvent = jsonAdapter.fromJson(task.data)
+
+        return cioHttpClient.trackDeliveryEvents(taskData)
     }
 }

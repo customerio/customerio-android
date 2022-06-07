@@ -3,10 +3,7 @@ package io.customer.sdk.queue
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.data.request.Device
-import io.customer.sdk.data.request.Event
-import io.customer.sdk.data.request.Metric
-import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.request.*
 import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
 import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
@@ -15,22 +12,34 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.Logger
-import io.customer.sdk.util.Seconds
-import io.customer.sdk.util.SimpleTimer
-import io.customer.sdk.util.Singleton
+import io.customer.sdk.util.*
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 interface Queue {
-    fun queueIdentifyProfile(newIdentifier: String, oldIdentifier: String?, attributes: CustomAttributes): QueueModifyResult
-    fun queueTrack(identifiedProfileId: String, name: String, eventType: EventType, attributes: CustomAttributes): QueueModifyResult
+    fun queueIdentifyProfile(
+        newIdentifier: String,
+        oldIdentifier: String?,
+        attributes: CustomAttributes
+    ): QueueModifyResult
+
+    fun queueTrack(
+        identifiedProfileId: String,
+        name: String,
+        eventType: EventType,
+        attributes: CustomAttributes
+    ): QueueModifyResult
+
     fun queueRegisterDevice(identifiedProfileId: String, device: Device): QueueModifyResult
     fun queueDeletePushToken(identifiedProfileId: String, deviceToken: String): QueueModifyResult
-    fun queueTrackMetric(deliveryId: String, deviceToken: String, event: MetricEvent): QueueModifyResult
+    fun queueTrackMetric(
+        deliveryId: String,
+        deviceToken: String,
+        event: MetricEvent
+    ): QueueModifyResult
+
+    fun queueTrackInAppMetric(deliveryId: String, event: MetricEvent): QueueModifyResult
 
     fun <TaskType : Enum<*>, TaskData : Any> addTask(
         type: TaskType,
@@ -58,7 +67,8 @@ class QueueImpl internal constructor(
     private val numberSecondsToScheduleTimer: Seconds
         get() = Seconds(sdkConfig.backgroundQueueSecondsDelay)
 
-    @Volatile var isRunningRequest: Boolean = false
+    @Volatile
+    var isRunningRequest: Boolean = false
 
     override fun <TaskType : Enum<*>, TaskData : Any> addTask(
         type: TaskType,
@@ -113,7 +123,8 @@ class QueueImpl internal constructor(
 
     private fun processQueueStatus(queueStatus: QueueStatus) {
         logger.debug("processing queue status $queueStatus")
-        val isManyTasksInQueue = queueStatus.numTasksInQueue >= sdkConfig.backgroundQueueMinNumberOfTasks
+        val isManyTasksInQueue =
+            queueStatus.numTasksInQueue >= sdkConfig.backgroundQueueMinNumberOfTasks
 
         if (isManyTasksInQueue) {
             logger.info("queue met criteria to run automatically")
@@ -144,7 +155,10 @@ class QueueImpl internal constructor(
         )
     }
 
-    override fun queueDeletePushToken(identifiedProfileId: String, deviceToken: String): QueueModifyResult {
+    override fun queueDeletePushToken(
+        identifiedProfileId: String,
+        deviceToken: String
+    ): QueueModifyResult {
         return addTask(
             QueueTaskType.DeletePushToken,
             DeletePushNotificationQueueTaskData(identifiedProfileId, deviceToken),
@@ -190,6 +204,24 @@ class QueueImpl internal constructor(
         )
     }
 
+    override fun queueTrackInAppMetric(
+        deliveryId: String,
+        event: MetricEvent
+    ): QueueModifyResult {
+        return addTask(
+            QueueTaskType.TrackDeliveryEvent,
+            DeliveryEvent(
+                type = DeliveryType.in_app,
+                payload = DeliveryPayload(
+                    deliveryID = deliveryId,
+                    event = event,
+                    timestamp = dateUtil.now
+                )
+            ),
+            blockingGroups = emptyList()
+        )
+    }
+
     override fun queueIdentifyProfile(
         newIdentifier: String,
         oldIdentifier: String?,
@@ -199,10 +231,14 @@ class QueueImpl internal constructor(
         val isChangingIdentifiedProfile = oldIdentifier != null && oldIdentifier != newIdentifier
 
         // If SDK previously identified profile X and X is being identified again, no use blocking the queue with a queue group.
-        val queueGroupStart = if (isFirstTimeIdentifying || isChangingIdentifiedProfile) QueueTaskGroup.IdentifyProfile(newIdentifier) else null
+        val queueGroupStart =
+            if (isFirstTimeIdentifying || isChangingIdentifiedProfile) QueueTaskGroup.IdentifyProfile(
+                newIdentifier
+            ) else null
         // If there was a previously identified profile, or, we are just adding attributes to an existing profile, we need to wait for
         // this operation until the previous identify runs successfully.
-        val blockingGroups = if (!isFirstTimeIdentifying) listOf(QueueTaskGroup.IdentifyProfile(oldIdentifier!!)) else null
+        val blockingGroups =
+            if (!isFirstTimeIdentifying) listOf(QueueTaskGroup.IdentifyProfile(oldIdentifier!!)) else null
 
         return addTask(
             QueueTaskType.IdentifyProfile,

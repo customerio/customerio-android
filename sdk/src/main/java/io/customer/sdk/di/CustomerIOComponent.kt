@@ -30,11 +30,12 @@ import io.customer.sdk.repository.*
 import io.customer.sdk.util.AndroidSimpleTimer
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DateUtilImpl
+import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.SdkDispatchers
 import io.customer.sdk.util.SimpleTimer
-import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -56,15 +57,21 @@ class CustomerIOComponent(
         get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, logger)
+        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, dateUtil, logger)
 
     val queueRunner: QueueRunner
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
+    val dispatchersProvider: DispatchersProvider
+        get() = override() ?: SdkDispatchers()
+
     val queue: Queue
-        get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(dispatcher = Dispatchers.IO, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
+        get() = override() ?: getSingletonInstanceCreate {
+            QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
+
+    internal val cleanupRepository: CleanupRepository
+        get() = override() ?: CleanupRepositoryImpl(queue)
 
     val queueQueryRunner: QueueQueryRunner
         get() = override() ?: QueueQueryRunnerImpl(logger)
@@ -88,7 +95,7 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = override() ?: AndroidSimpleTimer(logger, uiDispatcher = Dispatchers.Main)
+        get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)
 
     val trackRepository: TrackRepository
         get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)

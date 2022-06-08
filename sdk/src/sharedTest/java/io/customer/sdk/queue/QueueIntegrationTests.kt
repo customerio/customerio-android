@@ -31,6 +31,7 @@ class QueueIntegrationTests : BaseTest() {
         val givenIdentifier = String.random
         queue.queueIdentifyProfile(givenIdentifier, null, emptyMap())
         queue.queueTrack(givenIdentifier, String.random, EventType.event, emptyMap())
+        queueStorage.getInventory().count() shouldBeEqualTo 2
 
         mockWebServer.enqueueNoInternetConnection()
         queue.run()

@@ -8,11 +8,15 @@ import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.extensions.getScreenNameFromActivity
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.util.CioLogLevel
+import io.customer.sdk.util.Seconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
@@ -105,6 +109,7 @@ class CustomerIO internal constructor(
         private var autoTrackDeviceAttributes: Boolean = true
         private var modules: MutableMap<String, CustomerIOModule> = mutableMapOf()
         private var logLevel = CioLogLevel.ERROR
+        internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
@@ -178,15 +183,16 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
+                backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl
             )
 
-            val diGraph = CustomerIOComponent(sdkConfig = config, context = appContext)
+            val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config)
+            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config, diGraph.pushTrackingUtil)
             appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
 
             instance = client
@@ -195,6 +201,8 @@ class CustomerIO internal constructor(
                 logger.debug("initializing SDK module ${it.value.moduleName}...")
                 it.value.initialize()
             }
+
+            client.postInitialize()
 
             return client
         }
@@ -214,6 +222,16 @@ class CustomerIO internal constructor(
 
     override val sdkVersion: String
         get() = Version.version
+
+    private val cleanupRepository: CleanupRepository
+        get() = diGraph.cleanupRepository
+
+    private fun postInitialize() {
+        // run cleanup asynchronously in background to prevent taking up the main/UI thread
+        CoroutineScope(diGraph.dispatchersProvider.background).launch {
+            cleanupRepository.cleanup()
+        }
+    }
 
     /**
      * Identify a customer (aka: Add or update a profile).

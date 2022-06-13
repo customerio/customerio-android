@@ -7,13 +7,13 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DEEP_LINK_KEY
-import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_ID
-import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DELIVERY_TOKEN
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOTIFICATION_REQUEST_CODE
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
+import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 
 internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
@@ -40,8 +40,8 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         mNotificationManager.cancel(requestCode)
 
         val bundle = intent.extras
-        val deliveryId = bundle?.getString(DELIVERY_ID)
-        val deliveryToken = bundle?.getString(DELIVERY_TOKEN)
+        val deliveryId = bundle?.getString(DELIVERY_ID_KEY)
+        val deliveryToken = bundle?.getString(DELIVERY_TOKEN_KEY)
 
         if (deliveryId != null && deliveryToken != null) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)

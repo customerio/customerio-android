@@ -2,7 +2,6 @@ package io.customer.sdk.util
 
 import android.os.CountDownTimer
 import io.customer.sdk.utils.random
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -20,7 +19,7 @@ interface SimpleTimer {
 
 class AndroidSimpleTimer(
     private val logger: Logger,
-    private val uiDispatcher: CoroutineDispatcher
+    private val dispatchersProvider: DispatchersProvider
 ) : SimpleTimer {
 
     @Volatile private var countdownTimer: CountDownTimer? = null
@@ -29,10 +28,10 @@ class AndroidSimpleTimer(
     private val instanceIdentifier = String.random
 
     override fun scheduleAndCancelPrevious(seconds: Seconds, block: () -> Unit) {
-        // Must start and create timer on the main UI thread or Android will throw an exception saying the current thread doesn't have a Looper.
+        // Must create and start timer on the main UI thread or Android will throw an exception saying the current thread doesn't have a Looper.
         // Because we are starting a new coroutine, there is a chance that there could be a delay in starting the timer. This is OK because
         // this function is designed to be async anyway so the logic from the caller has not changed.
-        startTimerMainThreadJob = CoroutineScope(uiDispatcher).launch {
+        startTimerMainThreadJob = CoroutineScope(dispatchersProvider.main).launch {
             val newTimer: CountDownTimer = synchronized(this) {
                 timerAlreadyScheduled = true
                 unsafeCancel()

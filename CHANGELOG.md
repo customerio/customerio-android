@@ -1,3 +1,10 @@
+### [2.0.1](https://github.com/customerio/customerio-android/compare/2.0.0...2.0.1) (2022-06-13)
+
+
+### Bug Fixes
+
+* track opens fcm notification payload ([ab3cd18](https://github.com/customerio/customerio-android/commit/ab3cd18416463935ad6c09c869bc1e895d08a4b2))
+
 ## [2.0.0](https://github.com/customerio/customerio-android/compare/1.0.5...2.0.0) (2022-06-01)
 
 

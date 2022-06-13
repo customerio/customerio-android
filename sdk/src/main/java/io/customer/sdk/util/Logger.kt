@@ -64,6 +64,12 @@ class LogcatLogger(
     private fun log(level: Int, message: String) {
         Log.println(level, tag, message)
 
+        if (sdkConfig.developerMode) {
+            logMessageToFile(level, message)
+        }
+    }
+
+    private fun logMessageToFile(level: Int, message: String) {
         // Writing to external storage on Android has changed a lot over the many versions of the OS. Therefore, there are
         // many use cases where an exception can be thrown and crash the app. This code is not critical to the functionality
         // of the SDK so we wrap all of it's logic in a try/catch to prevent crashing the app.

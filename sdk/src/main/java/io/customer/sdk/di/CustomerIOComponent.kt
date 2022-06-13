@@ -34,6 +34,8 @@ import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.PushTrackingUtil
+import io.customer.sdk.util.PushTrackingUtilImpl
 import io.customer.sdk.util.SdkDispatchers
 import io.customer.sdk.util.SimpleTimer
 import okhttp3.OkHttpClient
@@ -49,6 +51,9 @@ class CustomerIOComponent(
     val context: Context,
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
+
+    val pushTrackingUtil: PushTrackingUtil
+        get() = override() ?: PushTrackingUtilImpl(trackRepository)
 
     val fileStorage: FileStorage
         get() = override() ?: FileStorage(sdkConfig, context, logger)

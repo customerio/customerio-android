@@ -71,6 +71,7 @@ class CustomerIOTest : BaseTest() {
     fun verifyTrackingApiHostnameUpdateAfterUpdatingTrackingApiUrl() {
         val givenSiteId = String.random
         val givenApiKey = String.random
+        val givenTrackingApiUrl = "https://local/track/"
         val builder = CustomerIO.Builder(
             siteId = givenSiteId,
             apiKey = givenApiKey,
@@ -87,7 +88,7 @@ class CustomerIOTest : BaseTest() {
         actual.trackingApiUrl shouldBeEqualTo null
         actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
 
-        builder.setTrackingApiURL("https://local/track")
+        builder.setTrackingApiURL(givenTrackingApiUrl)
 
         val updatedClient = builder.build()
 
@@ -95,8 +96,8 @@ class CustomerIOTest : BaseTest() {
 
         // region stays the same but doesn't effect trackingApiHostname
         updatedConfig.region shouldBeEqualTo Region.EU
-        updatedConfig.trackingApiUrl shouldBeEqualTo "https://local/track"
-        updatedConfig.trackingApiHostname shouldBeEqualTo "https://local/track"
+        updatedConfig.trackingApiUrl shouldBeEqualTo givenTrackingApiUrl
+        updatedConfig.trackingApiHostname shouldBeEqualTo givenTrackingApiUrl
     }
 
     @Test

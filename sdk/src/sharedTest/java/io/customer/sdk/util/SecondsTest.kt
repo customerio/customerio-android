@@ -24,6 +24,16 @@ class SecondsTest : BaseTest() {
 
         expected shouldBeEqualTo actual
     }
+
+    @Test
+    fun fromDays_given0_expect0Seconds() {
+        Seconds.fromDays(0).value shouldBeEqualTo 0.0
+    }
+
+    @Test
+    fun fromDays_givenNumberOfDays_expectNumberOfSeconds() {
+        Seconds.fromDays(3).value shouldBeEqualTo 259200.0
+    }
 }
 
 @RunWith(AndroidJUnit4::class)

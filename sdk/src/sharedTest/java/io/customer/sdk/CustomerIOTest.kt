@@ -5,9 +5,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.utils.random
+import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
@@ -21,6 +23,7 @@ import org.mockito.kotlin.whenever
 @RunWith(AndroidJUnit4::class)
 class CustomerIOTest : BaseTest() {
 
+    private val cleanupRepositoryMock: CleanupRepository = mock()
     private val deviceRepositoryMock: DeviceRepository = mock()
     private val profileRepositoryMock: ProfileRepository = mock()
 
@@ -30,6 +33,7 @@ class CustomerIOTest : BaseTest() {
     fun setUp() {
         super.setup()
 
+        di.overrideDependency(CleanupRepository::class.java, cleanupRepositoryMock)
         di.overrideDependency(DeviceRepository::class.java, deviceRepositoryMock)
         di.overrideDependency(ProfileRepository::class.java, profileRepositoryMock)
 
@@ -170,5 +174,21 @@ class CustomerIOTest : BaseTest() {
 
         verify(givenModule1, never()).initialize()
         verify(givenModule2).initialize()
+    }
+
+    @Test
+    fun initializeSdk_expectRunCleanup(): Unit = runBlocking {
+        getRandomCustomerIOBuilder().build()
+
+        verify(cleanupRepositoryMock).cleanup()
+    }
+
+    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(
+        siteId = String.random,
+        apiKey = String.random,
+        region = Region.EU,
+        appContext = application
+    ).apply {
+        this.overrideDiGraph = di
     }
 }

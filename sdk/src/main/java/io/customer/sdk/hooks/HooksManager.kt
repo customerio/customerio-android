@@ -1,7 +1,5 @@
 package io.customer.sdk.hooks
 
-import io.customer.sdk.util.Singleton
-
 interface HooksManager {
     fun add(module: HookModule, subscriber: ModuleHookProvider)
     fun onHookUpdate(hook: ModuleHook)
@@ -12,8 +10,6 @@ enum class HookModule {
 }
 
 internal class CioHooksManager : HooksManager {
-
-    companion object SingletonHolder : Singleton<HooksManager>()
 
     private val map: MutableMap<HookModule, ModuleHookProvider> = mutableMapOf()
 

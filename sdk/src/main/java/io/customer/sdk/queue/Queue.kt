@@ -12,8 +12,12 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.util.*
-import kotlinx.coroutines.CoroutineDispatcher
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
+import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.Logger
+import io.customer.sdk.util.Seconds
+import io.customer.sdk.util.SimpleTimer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -49,10 +53,12 @@ interface Queue {
     ): QueueModifyResult
 
     suspend fun run()
+
+    fun deleteExpiredTasks()
 }
 
 class QueueImpl internal constructor(
-    private val dispatcher: CoroutineDispatcher,
+    private val dispatchersProvider: DispatchersProvider,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val jsonAdapter: JsonAdapter,
@@ -61,8 +67,6 @@ class QueueImpl internal constructor(
     private val logger: Logger,
     private val dateUtil: DateUtil
 ) : Queue {
-
-    companion object SingletonHolder : Singleton<Queue>()
 
     private val numberSecondsToScheduleTimer: Seconds
         get() = Seconds(sdkConfig.backgroundQueueSecondsDelay)
@@ -116,7 +120,7 @@ class QueueImpl internal constructor(
     }
 
     internal fun runAsync() {
-        CoroutineScope(dispatcher).launch {
+        CoroutineScope(dispatchersProvider.background).launch {
             run()
         }
     }
@@ -246,5 +250,9 @@ class QueueImpl internal constructor(
             groupStart = queueGroupStart,
             blockingGroups = blockingGroups
         )
+    }
+
+    override fun deleteExpiredTasks() {
+        storage.deleteExpired()
     }
 }

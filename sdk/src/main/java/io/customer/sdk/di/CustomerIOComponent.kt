@@ -16,7 +16,6 @@ import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.*
 import io.customer.sdk.repository.*
 import io.customer.sdk.util.*
-import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -31,6 +30,9 @@ class CustomerIOComponent(
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
 
+    val pushTrackingUtil: PushTrackingUtil
+        get() = override() ?: PushTrackingUtilImpl(trackRepository)
+
     val fileStorage: FileStorage
         get() = override() ?: FileStorage(sdkConfig, context, logger)
 
@@ -38,24 +40,21 @@ class CustomerIOComponent(
         get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, logger)
+        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, dateUtil, logger)
 
     val queueRunner: QueueRunner
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
+    val dispatchersProvider: DispatchersProvider
+        get() = override() ?: SdkDispatchers()
+
     val queue: Queue
-        get() = override() ?: QueueImpl.getInstanceOrCreate {
-            QueueImpl(
-                dispatcher = Dispatchers.IO,
-                queueStorage,
-                queueRunRequest,
-                jsonAdapter,
-                sdkConfig,
-                timer,
-                logger,
-                dateUtil
-            )
+        get() = override() ?: getSingletonInstanceCreate {
+            QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
         }
+
+    internal val cleanupRepository: CleanupRepository
+        get() = override() ?: CleanupRepositoryImpl(queue)
 
     val queueQueryRunner: QueueQueryRunner
         get() = override() ?: QueueQueryRunnerImpl(logger)
@@ -72,7 +71,7 @@ class CustomerIOComponent(
         get() = override() ?: LogcatLogger(sdkConfig)
 
     val hooksManager: HooksManager
-        get() = override() ?: CioHooksManager.getInstanceOrCreate { CioHooksManager() }
+        get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
@@ -92,7 +91,7 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = override() ?: AndroidSimpleTimer(logger, uiDispatcher = Dispatchers.Main)
+        get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)
 
     val trackRepository: TrackRepository
         get() = override() ?: TrackRepositoryImpl(

@@ -9,8 +9,11 @@ data class Seconds(
     val value: Double
 ) {
     companion object {
-        // used for automated tests. Value that is small to make tests run fast, but long enough to test code's logic.
-        fun testValue(): Seconds = Seconds(0.01)
+        fun fromDays(numDays: Int): Seconds {
+            val secondsIn24Hours = 86400.0
+
+            return Seconds(numDays * secondsIn24Hours)
+        }
     }
 
     val toMilliseconds: Milliseconds

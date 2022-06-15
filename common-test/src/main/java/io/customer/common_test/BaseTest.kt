@@ -4,14 +4,16 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import io.customer.common_test.util.DispatchersProviderStub
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.JsonAdapter
-import kotlinx.coroutines.test.TestCoroutineDispatcher
+import io.customer.sdk.util.Seconds
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -36,9 +38,7 @@ abstract class BaseTest {
     protected lateinit var cioConfig: CustomerIOConfig
 
     protected val deviceStore: DeviceStore = DeviceStoreStub().deviceStore
-
-    // when you need a CoroutineDispatcher in a test function, use this as it runs your tests synchronous.
-    protected val testDispatcher = TestCoroutineDispatcher()
+    protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter
@@ -53,13 +53,16 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
-        cioConfig = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0, CioLogLevel.DEBUG, null)
+        cioConfig = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0, Seconds.fromDays(3).value, CioLogLevel.DEBUG, null)
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.
         mockWebServer = MockWebServer().apply {
             start()
         }
         cioConfig.trackingApiUrl = mockWebServer.url("/").toString()
+        if (!cioConfig.trackingApiUrl!!.contains("localhost")) {
+            throw RuntimeException("server didnt' start ${cioConfig.trackingApiUrl}")
+        }
 
         di = CustomerIOComponent(
             sdkConfig = cioConfig,
@@ -71,10 +74,14 @@ abstract class BaseTest {
         dateUtilStub = DateUtilStub().also {
             di.overrideDependency(DateUtil::class.java, it)
         }
+        dispatchersProviderStub = DispatchersProviderStub().also {
+            di.overrideDependency(DispatchersProvider::class.java, it)
+        }
     }
 
     @After
     open fun teardown() {
         mockWebServer.shutdown()
+        di.reset()
     }
 }

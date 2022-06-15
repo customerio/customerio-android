@@ -16,6 +16,8 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
+import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -26,9 +28,6 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
     companion object {
         private const val TAG = "NotificationHandler:"
-
-        const val DELIVERY_ID = "CIO-Delivery-ID"
-        const val DELIVERY_TOKEN = "CIO-Delivery-Token"
 
         const val DEEP_LINK_KEY = "link"
         const val IMAGE_KEY = "image"
@@ -60,19 +59,15 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         // Customer.io push notifications include data regarding the push
         // message in the data part of the payload which can be used to send
         // feedback into our system.
-        val deliveryId = bundle.getString(DELIVERY_ID)
-        val deliveryToken = bundle.getString(DELIVERY_TOKEN)
+        val deliveryId = bundle.getString(DELIVERY_ID_KEY)
+        val deliveryToken = bundle.getString(DELIVERY_TOKEN_KEY)
 
         if (deliveryId != null && deliveryToken != null) {
-            try {
-                CustomerIO.instance().trackMetric(
-                    deliveryID = deliveryId,
-                    deviceToken = deliveryToken,
-                    event = MetricEvent.delivered
-                )
-            } catch (exception: Exception) {
-                Log.e(TAG, "Error while handling message: ${exception.message}")
-            }
+            CustomerIO.instance().trackMetric(
+                deliveryID = deliveryId,
+                deviceToken = deliveryToken,
+                event = MetricEvent.delivered
+            )
         } else {
             // not a CIO push notification
             return false

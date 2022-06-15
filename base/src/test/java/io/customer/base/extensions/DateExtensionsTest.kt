@@ -3,9 +3,12 @@ package io.customer.base.extensions
 import io.customer.base.extenstions.add
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.base.extenstions.hasPassed
+import io.customer.base.extenstions.isOlderThan
 import io.customer.base.extenstions.subtract
 import io.customer.base.extenstions.unixTimeToDate
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
+import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 import java.text.SimpleDateFormat
 import java.util.*
@@ -60,5 +63,15 @@ class DateExtensionsTest {
     @Test
     fun hasPassed_givenDateInFuture_expectFalse() {
         Date().add(1, TimeUnit.MINUTES).hasPassed() shouldBeEqualTo false
+    }
+
+    @Test
+    fun isOlderThan_givenDateThatIsOlder_expectTrue() {
+        Date().subtract(2, TimeUnit.DAYS).isOlderThan(Date().subtract(1, TimeUnit.DAYS)).shouldBeTrue()
+    }
+
+    @Test
+    fun isOlderThan_givenDateThatIsNewer_expectFalse() {
+        Date().subtract(1, TimeUnit.DAYS).isOlderThan(Date().subtract(2, TimeUnit.DAYS)).shouldBeFalse()
     }
 }

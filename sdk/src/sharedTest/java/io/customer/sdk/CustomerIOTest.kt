@@ -5,9 +5,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.common_test.BaseTest
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.utils.random
+import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
@@ -21,6 +23,7 @@ import org.mockito.kotlin.whenever
 @RunWith(AndroidJUnit4::class)
 class CustomerIOTest : BaseTest() {
 
+    private val cleanupRepositoryMock: CleanupRepository = mock()
     private val deviceRepositoryMock: DeviceRepository = mock()
     private val profileRepositoryMock: ProfileRepository = mock()
 
@@ -30,6 +33,7 @@ class CustomerIOTest : BaseTest() {
     fun setUp() {
         super.setup()
 
+        di.overrideDependency(CleanupRepository::class.java, cleanupRepositoryMock)
         di.overrideDependency(DeviceRepository::class.java, deviceRepositoryMock)
         di.overrideDependency(ProfileRepository::class.java, profileRepositoryMock)
 
@@ -67,6 +71,7 @@ class CustomerIOTest : BaseTest() {
     fun verifyTrackingApiHostnameUpdateAfterUpdatingTrackingApiUrl() {
         val givenSiteId = String.random
         val givenApiKey = String.random
+        val givenTrackingApiUrl = "https://local/track/"
         val builder = CustomerIO.Builder(
             siteId = givenSiteId,
             apiKey = givenApiKey,
@@ -83,7 +88,7 @@ class CustomerIOTest : BaseTest() {
         actual.trackingApiUrl shouldBeEqualTo null
         actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
 
-        builder.setTrackingApiURL("https://local/track")
+        builder.setTrackingApiURL(givenTrackingApiUrl)
 
         val updatedClient = builder.build()
 
@@ -91,8 +96,8 @@ class CustomerIOTest : BaseTest() {
 
         // region stays the same but doesn't effect trackingApiHostname
         updatedConfig.region shouldBeEqualTo Region.EU
-        updatedConfig.trackingApiUrl shouldBeEqualTo "https://local/track"
-        updatedConfig.trackingApiHostname shouldBeEqualTo "https://local/track"
+        updatedConfig.trackingApiUrl shouldBeEqualTo givenTrackingApiUrl
+        updatedConfig.trackingApiHostname shouldBeEqualTo givenTrackingApiUrl
     }
 
     @Test
@@ -170,5 +175,21 @@ class CustomerIOTest : BaseTest() {
 
         verify(givenModule1, never()).initialize()
         verify(givenModule2).initialize()
+    }
+
+    @Test
+    fun initializeSdk_expectRunCleanup(): Unit = runBlocking {
+        getRandomCustomerIOBuilder().build()
+
+        verify(cleanupRepositoryMock).cleanup()
+    }
+
+    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(
+        siteId = String.random,
+        apiKey = String.random,
+        region = Region.EU,
+        appContext = application
+    ).apply {
+        this.overrideDiGraph = di
     }
 }

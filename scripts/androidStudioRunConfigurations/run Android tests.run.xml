@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="run Android tests" type="AndroidTestRunConfigurationType" factoryName="Android Instrumented Tests">
+  <configuration default="false" name="run Android tests" type="AndroidTestRunConfigurationType" factoryName="Android Instrumented Tests" singleton="true">
     <module name="Customer.io_SDK.sdk" />
     <option name="TESTING_TYPE" value="1" />
     <option name="METHOD_NAME" value="" />
@@ -11,9 +11,9 @@
     <option name="RETENTION_ENABLED" value="No" />
     <option name="RETENTION_MAX_SNAPSHOTS" value="2" />
     <option name="RETENTION_COMPRESS_SNAPSHOTS" value="false" />
-    <option name="CLEAR_LOGCAT" value="false" />
+    <option name="CLEAR_LOGCAT" value="true" />
     <option name="SHOW_LOGCAT_AUTOMATICALLY" value="false" />
-    <option name="SKIP_NOOP_APK_INSTALLATIONS" value="true" />
+    <option name="SKIP_NOOP_APK_INSTALLATIONS" value="false" />
     <option name="FORCE_STOP_RUNNING_APP" value="true" />
     <option name="INSPECTION_WITHOUT_ACTIVITY_RESTART" value="false" />
     <option name="TARGET_SELECTION_MODE" value="DEVICE_AND_SNAPSHOT_COMBO_BOX" />

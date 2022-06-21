@@ -8,9 +8,9 @@ import android.net.Uri
 import android.util.Log
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.DEEP_LINK_KEY
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOTIFICATION_REQUEST_CODE
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
@@ -29,9 +29,9 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         get() = diGraph.sdkConfig
 
     override fun onReceive(context: Context?, intent: Intent?) {
-
-        if (context == null || intent == null)
+        if (context == null || intent == null) {
             return
+        }
 
         // Dismiss the notification
         val requestCode = intent.getIntExtra(NOTIFICATION_REQUEST_CODE, 0)

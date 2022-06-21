@@ -1,4 +1,4 @@
-package io.customer.common_test.extensions
+package io.customer.commonTest.extensions
 
 import io.customer.sdk.util.JsonAdapter
 import okhttp3.MediaType.Companion.toMediaType

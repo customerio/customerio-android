@@ -2,10 +2,10 @@ package io.customer.sdk.util
 
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commonTest.BaseTest
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.TrackRepository
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test

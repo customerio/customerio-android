@@ -1,3 +1,4 @@
+// ktlint-disable filename
 package io.customer.sdk.extensions
 
 fun String.getScreenNameFromActivity(): String {

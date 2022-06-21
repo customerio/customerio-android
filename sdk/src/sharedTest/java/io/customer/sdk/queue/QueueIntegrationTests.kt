@@ -1,10 +1,10 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
-import io.customer.common_test.extensions.enqueueNoInternetConnection
+import io.customer.commonTest.BaseTest
+import io.customer.commonTest.extensions.enqueueNoInternetConnection
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import org.amshove.kluent.shouldBeEqualTo

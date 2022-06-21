@@ -143,7 +143,7 @@ class CustomerIOComponent(
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
             sdkConfig.trackingApiHostname,
-            sdkConfig.timeout,
+            sdkConfig.timeout
         ).create(apiClass)
     }
 
@@ -181,7 +181,7 @@ class CustomerIOComponent(
     private fun baseClientBuilder(): OkHttpClient.Builder = override() ?: baseClient.newBuilder()
 
     private fun clientBuilder(
-        timeout: Long,
+        timeout: Long
     ): OkHttpClient.Builder {
         return override() ?: baseClientBuilder()
             // timeouts

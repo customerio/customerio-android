@@ -1,7 +1,7 @@
 package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commonTest.BaseTest
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
 import io.customer.messaginginapp.provider.InAppMessagesProvider
@@ -28,7 +28,6 @@ internal class InAppMessagesProviderTest : BaseTest() {
 
     @Test
     fun whenSubscribedToEvents_expectMessageShownWithDeliveryId() {
-
         whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
             (invocation.arguments[0] as (deliveryId: String) -> Unit).invoke("test-deliveryId")
         }
@@ -57,10 +56,11 @@ internal class InAppMessagesProviderTest : BaseTest() {
 
     @Test
     fun whenSubscribedToEvents_expectOnActionWithDeliveryIdCurrentRouteAndAction() {
-
         whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
             (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String) -> Unit).invoke(
-                "test-deliveryId", "test-route", "test-action"
+                "test-deliveryId",
+                "test-route",
+                "test-action"
             )
         }
 
@@ -90,10 +90,11 @@ internal class InAppMessagesProviderTest : BaseTest() {
 
     @Test
     fun whenSubscribedToEvents_expectOnActionWithCloseAction_expectOnActionCallbackToBeIgnored() {
-
         whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
             (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String) -> Unit).invoke(
-                "test-deliveryId", "test-route", "gist://close"
+                "test-deliveryId",
+                "test-route",
+                "gist://close"
             )
         }
 
@@ -121,7 +122,6 @@ internal class InAppMessagesProviderTest : BaseTest() {
 
     @Test
     fun whenSubscribedToEvents_expectOnError() {
-
         whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
             (invocation.arguments[2] as (errorMessage: String) -> Unit).invoke("test-error-message")
         }

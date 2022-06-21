@@ -1,10 +1,10 @@
 package io.customer.messagingpush
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commonTest.BaseTest
 import io.customer.messagingpush.provider.FCMTokenProvider
 import io.customer.sdk.CustomerIOInstance
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith

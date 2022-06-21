@@ -1,14 +1,14 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commonTest.BaseTest
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.Logger
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeNull
 import org.junit.Before

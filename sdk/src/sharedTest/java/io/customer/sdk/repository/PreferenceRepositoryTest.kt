@@ -2,7 +2,7 @@ package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.unixTimeToDate
-import io.customer.common_test.BaseTest
+import io.customer.commonTest.BaseTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull

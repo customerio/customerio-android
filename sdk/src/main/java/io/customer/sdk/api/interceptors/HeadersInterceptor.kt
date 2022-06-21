@@ -12,7 +12,6 @@ internal class HeadersInterceptor(
     private val config: CustomerIOConfig
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-
         val token by lazy { "Basic ${getBasicAuthHeaderString()}" }
         val userAgent by lazy { store.deviceStore.buildUserAgent() }
 

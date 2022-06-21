@@ -1,14 +1,14 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commonTest.BaseTest
 import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTask
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test

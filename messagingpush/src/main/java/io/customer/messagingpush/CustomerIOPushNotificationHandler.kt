@@ -115,6 +115,10 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             .setSound(defaultSoundUri)
             .setTicker(applicationName)
 
+        // This is custom logic to add images to a push notification. Some image URLs have not 
+        // been able to display an image in a push. https://github.com/customerio/issues/issues/7293
+        // Instead, we recommend customers use `notification.image` in the FCM payload to bypass 
+        // our logic and use the logic from FCM's SDK for image handling instead. 
         try {
             // check for image
             val notificationImage = bundle.getString(IMAGE_KEY)

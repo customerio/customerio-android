@@ -1,7 +1,25 @@
 package io.customer.base.extenstions
 
+import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+
+enum class DateFormat {
+    DATE_NO_TIME,
+    ISO8601_MILLISECONDS;
+
+    val formatString: String
+        get() {
+            return when (this) {
+                DATE_NO_TIME -> "yyyy-MM-dd"
+                ISO8601_MILLISECONDS -> "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+            }
+        }
+}
+
+fun Date.toString(format: DateFormat): String {
+    return SimpleDateFormat(format.formatString, Locale.US).format(this)
+}
 
 fun Date.getUnixTimestamp(): Long {
     return TimeUnit.MILLISECONDS.toSeconds(this.time)

@@ -30,7 +30,11 @@ data class CustomerIOConfig(
      */
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
-    var trackingApiUrl: String?,
+    val trackingApiUrl: String?,
+    /**
+     * Enables features in the SDK helpful during development of your app. It's recommended to enable this for non-production builds of your app.
+     */
+    val developerMode: Boolean
 ) {
     internal val trackingApiHostname: String
         get() {

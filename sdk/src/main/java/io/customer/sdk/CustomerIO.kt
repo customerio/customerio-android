@@ -111,6 +111,7 @@ class CustomerIO internal constructor(
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
+        private var developerMode: Boolean = false
 
         private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
@@ -163,8 +164,12 @@ class CustomerIO internal constructor(
             return this
         }
 
-        fun build(): CustomerIO {
+        fun setDeveloperMode(enable: Boolean): Builder {
+            this.developerMode = enable
+            return this
+        }
 
+        fun build(): CustomerIO {
             if (apiKey.isEmpty()) {
                 throw IllegalStateException("apiKey is not defined in " + this::class.java.simpleName)
             }
@@ -185,7 +190,8 @@ class CustomerIO internal constructor(
                 backgroundQueueSecondsDelay = 30.0,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
-                trackingApiUrl = trackingApiUrl
+                trackingApiUrl = trackingApiUrl,
+                developerMode = developerMode
             )
 
             val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)

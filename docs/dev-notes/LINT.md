@@ -25,7 +25,7 @@ Let's say that you see this lint error:
 customerio-android/sdk/src/main/java/io/customer/sdk/data/model/Fruit.kt:7:5: Enum entry name should be uppercase underscore-separated names like "ENUM_ENTRY" or upper camel-case like "EnumEntry" (cannot be auto-corrected) (enum-entry-name-case)
 ```
 
-This error message is telling you that on line 7 of the file `sdk/src/main/java/io/customer/sdk/data/model/Fruit.kt`, there is an enum class where the cases are *not* named in the format: `ENUM_ENTRY` or `EnumEntry`. Let's say you open the file `EventType` and see this enum class:
+This error message is telling you that on line 7 of the file `sdk/src/main/java/io/customer/sdk/data/model/Fruit.kt`, there is an enum class where the cases are *not* named in the format: `ENUM_ENTRY` or `EnumEntry`. Let's say you open the file `Fruit.kt` and see this enum class:
 
 ```kotlin
 enum class Fruit {
@@ -58,7 +58,7 @@ This method is the preferred method because ktlint rules are meant to prevent bu
 
 2. **Disable the lint rule for that specific code**
 
-Sometimes your code breaks a lint rule for a specific use case. Is there a reason that the `Fruit` enum's cases are lowercase? If so, it might be a good solution to disable the ktlint error only for the `Fruit` enum. 
+Sometimes your code breaks a lint rule for a specific use case. Is there a reason that the `Fruit` enum's cases are lowercase? If so, it might be a good solution to disable the ktlint error only for the `Fruit` enum.
 
 There are [many ways to disable a lint rule for specific code](https://github.com/pinterest/ktlint#how-do-i-suppress-an-errors-for-a-lineblockfile=). 
 
@@ -67,8 +67,8 @@ There are [many ways to disable a lint rule for specific code](https://github.co
 enum class Fruit {    
     apple, banana; // ktlint-disable enum-entry-name-case (enum cases used as JSON values)
 }
-// Note: it's good documentation to give a reason why a ktlint rule is being disabled. 
-// add a reason why as the example above: `(enum cases used as JSON values)`
+// Note: it's recommended to give a reason why a ktlint rule is being disabled. 
+// Add documentation after disabling the rule like the example above does: `(enum cases used as JSON values)`
 
 
 // This method will disable a block of code in between "disable" and "enable"
@@ -80,8 +80,8 @@ enum class Fruit {
     banana; 
     /* ktlint-enable enum-entry-name-case */
 }
-// Note: it's good documentation to give a reason why a ktlint rule is being disabled. 
-// add a reason why as the example above: `// enum cases used as JSON values` 
+// Note: it's recommended to give a reason why a ktlint rule is being disabled. 
+// Add documentation after disabling the rule like the example above does: `// enum cases used as JSON values` 
 ```
 
 Disabling a lint rule requires: (1) The line of code that break the kotlin rule and (2) the name of the kotlin rule that is broken. 

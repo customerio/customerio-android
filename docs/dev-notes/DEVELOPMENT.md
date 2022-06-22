@@ -30,8 +30,6 @@ SYNCING
 SERVED HOOKS: pre-commit, prepare-commit-msg
 ```
 
-* Install `ktlint` Kotlin linting CLI tool. The easiest way is `brew install ktlint` but if you are not on a Mac, [find another way to install](https://ktlint.github.io/#getting-started) on your machine. 
-
 # Lint
 
 See [LINT](LINT.md) to learn more about linting in this project.

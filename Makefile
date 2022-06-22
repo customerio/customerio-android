@@ -11,13 +11,19 @@ lint-error-message:
 # trigger the CI server to show an error for linting. 
 # If there are no lint errors, the command will succeed and not show any error messages. 
 lint-no-format: 
-	ktlint --android "**/src/**/*.kt" 2> /dev/null || (make lint-error-message && false)
+	./ktlint --android "**/src/**/*.kt" 2> /dev/null || (make lint-error-message && false)
 
 # Run ktlint formatter to automatically fix many lint errors. Good to run this before checking for lint errors as this formatting might fix many issues. 
 format:
-	ktlint --format --android "**/src/**/*.kt" 2> /dev/null 
+	./ktlint --format --android "**/src/**/*.kt" 2> /dev/null 
 
 # Designed for manually running linter on your computer during development. 
 # format first, and then show lint errors that are left over. 
 lint:
-	make format && make lint-no-format 
+	make lint-install 
+	make format
+	make lint-no-format 
+
+# How we install ktlint in the team. 
+lint-install:
+	./scripts/get-ktlint.sh 

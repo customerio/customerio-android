@@ -22,7 +22,7 @@ install_ktlint() {
 }
 
 # checks if ktlint has never been downloaded before. 
-if [[ -f "$INSTALL_PATH/ktlint" ]]; then 
+if [ -f "$INSTALL_PATH/ktlint" ]; then 
     echo "ktlint is installed in $INSTALL_PATH. Checking if it's the expected version of $KTLINT_VERSION..."
     # Attempts to get the version of installed ktlint to make sure it's the same as rest of team is using. 
     INSTALLED_VERSION=$("$INSTALL_PATH/ktlint" --version)

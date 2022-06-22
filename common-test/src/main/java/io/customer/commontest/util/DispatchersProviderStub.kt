@@ -1,4 +1,4 @@
-package io.customer.common_test.util
+package io.customer.commontest.util
 
 import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.SdkDispatchers

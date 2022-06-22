@@ -6,7 +6,7 @@ import java.util.*
 
 @JsonClass(generateAdapter = false)
 enum class MetricEvent {
-    delivered, opened, converted;
+    delivered, opened, converted; // ktlint-disable enum-entry-name-case (enum cases used for JSON values)
 }
 
 @JsonClass(generateAdapter = true)

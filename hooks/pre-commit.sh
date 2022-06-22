@@ -12,4 +12,4 @@ if ! [ -x "$(command -v ktlint)" ]; then
     exit 1
 fi
 
-make format 
+make lint

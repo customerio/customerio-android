@@ -1,3 +1,4 @@
+/* ktlint-disable filename */ // until this extension file 2+ functions in it, we will disable this ktlint rule.
 package io.customer.sdk.extensions
 
 /**

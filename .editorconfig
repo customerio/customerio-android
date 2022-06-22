@@ -1,9 +1,14 @@
+# Config file used to configure ktlint. 
+# Learn more: https://github.com/pinterest/ktlint#editorconfig=
+
 [*.{kt, kts}]
-# possible values: number (e.g. 2), "unset" (makes ktlint ignore indentation completely)  
 indent_size = 4
-# true (recommended) / false
 insert_final_newline = true
 # possible values: number (e.g. 120) (package name, imports & comments are ignored), "off"
 # it's automatically set to 100 on `ktlint --android ...` (per Android Kotlin Style Guide)
 max_line_length = off
-disabled_rules = no-wildcard-imports, import-ordering
+# Globally disabled ktlint rules. 
+# 
+# Reasons why a rule is disabled globally:
+# * no-wildcard-imports - allow wildcard imports statements. This is because by default, intellij automatically adds wildcard imports
+disabled_rules = no-wildcard-imports

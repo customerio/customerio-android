@@ -5,12 +5,12 @@ import com.squareup.moshi.Moshi
 import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.api.CustomerIOApiRetryPolicy
 import io.customer.sdk.api.HttpRequestRunner
 import io.customer.sdk.api.HttpRequestRunnerImpl
 import io.customer.sdk.api.HttpRetryPolicy
 import io.customer.sdk.api.RetrofitTrackingHttpClient
+import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
@@ -134,7 +134,7 @@ class CustomerIOComponent(
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
             sdkConfig.trackingApiHostname,
-            sdkConfig.timeout,
+            sdkConfig.timeout
         ).create(apiClass)
     }
 
@@ -172,7 +172,7 @@ class CustomerIOComponent(
     private fun baseClientBuilder(): OkHttpClient.Builder = override() ?: baseClient.newBuilder()
 
     private fun clientBuilder(
-        timeout: Long,
+        timeout: Long
     ): OkHttpClient.Builder {
         return override() ?: baseClientBuilder()
             // timeouts

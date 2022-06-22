@@ -52,6 +52,10 @@ After this task runs successfully, if you look in the `~/.m2/repository/io/custo
 
 That is all you need to do on the SDK side. Next, view the [Remote Habits docs](https://github.com/customerio/RemoteHabits-Android/blob/main/docs/dev-notes/DEVELOPMENT.md#work-on-sdk-locally) for next steps on getting Remote Habits to install the SDK from your local machine's `~/.m2/` directory. 
 
+# Lint
+
+See [LINT](LINT.md) to learn more about linting in this project. 
+
 ### Deployment 
 
 See file [GIT-WORKFLOW](GIT-WORKFLOW.md) to learn about how code is deployed in this project. 

@@ -79,5 +79,5 @@ enum class TestCustomAttributesDataSet {
 data class CustomAttributesTestDataClass(val foo: String)
 
 enum class CustomAttributesTestEnum {
-    enum, ENUM; // ktlint-disable enum-entry-name-case (we want to test upper and lower case values.)
+    enum, ENUM;
 }

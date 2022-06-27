@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 interface SimpleTimer {
     // after block is called, timer is reset to be ready to use again
     fun scheduleAndCancelPrevious(seconds: Seconds, block: () -> Unit)
+
     // after block is called, timer is reset to be ready to use again
     fun scheduleIfNotAlready(seconds: Seconds, block: () -> Unit): Boolean
     fun cancel()
@@ -23,7 +24,9 @@ class AndroidSimpleTimer(
 ) : SimpleTimer {
 
     @Volatile private var countdownTimer: CountDownTimer? = null
+
     @Volatile private var startTimerMainThreadJob: Job? = null
+
     @Volatile private var timerAlreadyScheduled = false
     private val instanceIdentifier = String.random
 

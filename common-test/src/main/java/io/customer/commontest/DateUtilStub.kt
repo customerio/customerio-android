@@ -1,4 +1,4 @@
-package io.customer.common_test
+package io.customer.commontest
 
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.util.DateUtil

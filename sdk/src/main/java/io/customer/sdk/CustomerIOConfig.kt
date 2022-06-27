@@ -30,7 +30,7 @@ data class CustomerIOConfig(
      */
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
-    var trackingApiUrl: String?,
+    var trackingApiUrl: String?
 ) {
     internal val trackingApiHostname: String
         get() {

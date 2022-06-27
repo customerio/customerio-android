@@ -1,8 +1,8 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
-import io.customer.common_test.extensions.enqueueNoInternetConnection
+import io.customer.commontest.BaseTest
+import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.utils.random
 import kotlinx.coroutines.runBlocking

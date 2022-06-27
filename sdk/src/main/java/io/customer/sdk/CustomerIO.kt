@@ -3,13 +3,13 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.extensions.getScreenNameFromActivity
+import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
@@ -164,7 +164,6 @@ class CustomerIO internal constructor(
         }
 
         fun build(): CustomerIO {
-
             if (apiKey.isEmpty()) {
                 throw IllegalStateException("apiKey is not defined in " + this::class.java.simpleName)
             }
@@ -344,7 +343,7 @@ class CustomerIO internal constructor(
     override fun trackMetric(
         deliveryID: String,
         event: MetricEvent,
-        deviceToken: String,
+        deviceToken: String
     ) = trackRepository.trackMetric(
         deliveryID = deliveryID,
         event = event,
@@ -376,7 +375,8 @@ class CustomerIO internal constructor(
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(
-                activity.componentName, PackageManager.GET_META_DATA
+                activity.componentName,
+                PackageManager.GET_META_DATA
             )
             val activityLabel = info.loadLabel(packageManager)
 

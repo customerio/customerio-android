@@ -14,8 +14,8 @@ import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.toSeconds
 import io.customer.sdk.util.Logger
+import io.customer.sdk.util.toSeconds
 import java.util.*
 import java.util.concurrent.TimeUnit
 

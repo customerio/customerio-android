@@ -2,7 +2,7 @@ package io.customer.sdk
 
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.repository.CleanupRepository

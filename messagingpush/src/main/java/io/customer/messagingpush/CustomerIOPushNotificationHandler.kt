@@ -14,8 +14,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +49,6 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         context: Context,
         handleNotificationTrigger: Boolean = true
     ): Boolean {
-
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
             Log.d(TAG, "Message data payload: $bundle")
@@ -85,7 +84,6 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     private fun handleNotification(
         context: Context
     ) {
-
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
 
         val requestCode = abs(System.currentTimeMillis().toInt())
@@ -115,10 +113,10 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             .setSound(defaultSoundUri)
             .setTicker(applicationName)
 
-        // This is custom logic to add images to a push notification. Some image URLs have not 
+        // This is custom logic to add images to a push notification. Some image URLs have not
         // been able to display an image in a push. https://github.com/customerio/issues/issues/7293
-        // Instead, we recommend customers use `notification.image` in the FCM payload to bypass 
-        // our logic and use the logic from FCM's SDK for image handling instead. 
+        // Instead, we recommend customers use `notification.image` in the FCM payload to bypass
+        // our logic and use the logic from FCM's SDK for image handling instead.
         try {
             // check for image
             val notificationImage = bundle.getString(IMAGE_KEY)

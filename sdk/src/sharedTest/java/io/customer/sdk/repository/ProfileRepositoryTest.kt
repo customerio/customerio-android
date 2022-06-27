@@ -1,7 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus

@@ -2,7 +2,7 @@ package io.customer.sdk.util
 
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.utils.random

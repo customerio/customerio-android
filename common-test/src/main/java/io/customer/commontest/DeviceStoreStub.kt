@@ -1,4 +1,4 @@
-package io.customer.common_test
+package io.customer.commontest
 
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.BuildStore

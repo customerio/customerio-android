@@ -77,6 +77,7 @@ enum class TestCustomAttributesDataSet {
 }
 
 data class CustomAttributesTestDataClass(val foo: String)
+
 enum class CustomAttributesTestEnum {
-    enum, ENUM
+    enum, ENUM;
 }

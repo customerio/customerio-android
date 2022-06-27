@@ -17,13 +17,13 @@ internal open class Initializers {
         val apiClass = T::class.java
         return buildRetrofit(
             "base-url-with-region",
-            1L,
+            1L
         ).create(apiClass)
     }
 
     private fun buildRetrofit(
         endpoint: String,
-        timeout: Long,
+        timeout: Long
     ): Retrofit {
         val okHttpClient = clientBuilder(timeout).build()
 

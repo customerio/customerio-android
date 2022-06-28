@@ -19,7 +19,7 @@ class TrackRepositoryImpl(
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
     private val logger: Logger,
-    private val hooksManager: HooksManager,
+    private val hooksManager: HooksManager
 ) : TrackRepository {
 
     override fun track(name: String, attributes: CustomAttributes) {
@@ -68,7 +68,7 @@ class TrackRepositoryImpl(
 
     override fun trackInAppMetric(
         deliveryID: String,
-        event: MetricEvent,
+        event: MetricEvent
     ) {
         logger.info("in-app metric ${event.name}")
         logger.debug("delivery id $deliveryID")

@@ -33,7 +33,7 @@ internal interface CustomerIOService {
     @JvmSuppressWildcards
     @POST("api/v1/cio_deliveries/events")
     suspend fun trackDeliveryEvents(
-        @Body body: DeliveryEvent,
+        @Body body: DeliveryEvent
     ): Response<Unit>
 
     @JvmSuppressWildcards

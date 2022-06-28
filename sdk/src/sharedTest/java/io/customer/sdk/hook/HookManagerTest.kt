@@ -27,7 +27,6 @@ internal class HookManagerTest : BaseTest() {
 
     @Test
     fun subscribeToUpdate_givenSubscribedToHooksManager_expectGetHookUpdate() {
-
         val identifier = String.random
         val profileIdentifiedHook = ModuleHook.ProfileIdentifiedHook(identifier)
 

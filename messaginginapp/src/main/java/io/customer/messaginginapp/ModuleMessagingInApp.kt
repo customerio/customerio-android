@@ -57,7 +57,8 @@ class ModuleMessagingInApp internal constructor(
                     deliveryID = deliveryID,
                     event = MetricEvent.clicked
                 )
-            }, onError = { errorMessage ->
+            },
+            onError = { errorMessage ->
                 logger.error("in-app message error occurred $errorMessage")
             }
         )

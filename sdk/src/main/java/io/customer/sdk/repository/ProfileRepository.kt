@@ -17,7 +17,7 @@ class ProfileRepositoryImpl(
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
     private val logger: Logger,
-    private val hooksManager: HooksManager,
+    private val hooksManager: HooksManager
 ) : ProfileRepository {
 
     override fun identify(identifier: String, attributes: CustomAttributes) {

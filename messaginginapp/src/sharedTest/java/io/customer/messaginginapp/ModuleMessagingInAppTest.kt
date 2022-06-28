@@ -32,7 +32,6 @@ internal class ModuleMessagingInAppTest : BaseTest() {
 
     @Test
     fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId_expectModuleHookToBeAdded_expectSubscriptionOfGistCallbacks() {
-
         module.initialize()
 
         // verify gist is initialized

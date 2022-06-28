@@ -4,8 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.add
 import io.customer.base.extenstions.hasPassed
 import io.customer.base.extenstions.subtract
-import io.customer.common_test.BaseTest
-import io.customer.common_test.extensions.toResponseBody
+import io.customer.commontest.BaseTest
+import io.customer.commontest.extensions.toResponseBody
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
@@ -22,7 +22,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever

@@ -14,20 +14,20 @@ internal interface CustomerIOService {
     @PUT("api/v1/customers/{identifier}")
     suspend fun identifyCustomer(
         @Path("identifier") identifier: String,
-        @Body body: CustomAttributes,
+        @Body body: CustomAttributes
     ): Response<Unit>
 
     @JvmSuppressWildcards
     @POST("api/v1/customers/{identifier}/events")
     suspend fun track(
         @Path("identifier") identifier: String,
-        @Body body: Event,
+        @Body body: Event
     ): Response<Unit>
 
     @JvmSuppressWildcards
     @POST("push/events")
     suspend fun trackMetric(
-        @Body body: Metric,
+        @Body body: Metric
     ): Response<Unit>
 
     @JvmSuppressWildcards
@@ -40,13 +40,13 @@ internal interface CustomerIOService {
     @PUT("api/v1/customers/{identifier}/devices")
     suspend fun addDevice(
         @Path("identifier") identifier: String,
-        @Body body: DeviceRequest,
+        @Body body: DeviceRequest
     ): Response<Unit>
 
     @JvmSuppressWildcards
     @DELETE("api/v1/customers/{identifier}/devices/{token}")
     suspend fun removeDevice(
         @Path("identifier") identifier: String,
-        @Path("token") token: String,
+        @Path("token") token: String
     ): Response<Unit>
 }

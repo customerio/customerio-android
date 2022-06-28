@@ -1,7 +1,7 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo

@@ -1,7 +1,7 @@
 package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
 import io.customer.messaginginapp.provider.InAppMessagesProvider

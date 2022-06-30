@@ -49,5 +49,4 @@ dependencies {
     androidTestImplementation Dependencies.junit4
 
     api Dependencies.firebaseMessaging
-    implementation Dependencies.googlePlayServicesBase
 }

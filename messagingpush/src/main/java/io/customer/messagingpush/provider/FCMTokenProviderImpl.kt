@@ -46,7 +46,7 @@ class FCMTokenProviderImpl(
                     onComplete(existingDeviceToken)
                 } else {
                     logger.debug("got current FCM token: null")
-
+                    logger.error(task.exception?.message ?: "error while getting FCM token")
                     onComplete(null)
                 }
             }

@@ -57,7 +57,7 @@ interface Queue {
     fun deleteExpiredTasks()
 }
 
-class QueueImpl internal constructor(
+internal class QueueImpl internal constructor(
     private val dispatchersProvider: DispatchersProvider,
     private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,

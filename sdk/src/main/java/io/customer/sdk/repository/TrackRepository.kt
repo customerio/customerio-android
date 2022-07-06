@@ -15,7 +15,7 @@ interface TrackRepository {
     fun screen(name: String, attributes: CustomAttributes)
 }
 
-class TrackRepositoryImpl(
+internal class TrackRepositoryImpl(
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,
     private val logger: Logger,

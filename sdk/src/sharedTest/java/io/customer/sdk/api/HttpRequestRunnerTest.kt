@@ -9,8 +9,8 @@ import io.customer.commontest.extensions.toResponseBody
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
+import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.PreferenceRepository
-import io.customer.sdk.utils.random
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.amshove.kluent.shouldBeEqualTo

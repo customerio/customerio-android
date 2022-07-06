@@ -9,7 +9,7 @@ interface QueueRunRequest {
     suspend fun run()
 }
 
-class QueueRunRequestImpl internal constructor(
+internal class QueueRunRequestImpl internal constructor(
     private val runner: QueueRunner,
     private val queueStorage: QueueStorage,
     private val logger: Logger,

@@ -8,7 +8,7 @@ interface HttpRetryPolicy {
     fun reset()
 }
 
-class CustomerIOApiRetryPolicy : HttpRetryPolicy {
+internal class CustomerIOApiRetryPolicy : HttpRetryPolicy {
 
     companion object {
         internal val retryPolicy: List<Seconds> = listOf(

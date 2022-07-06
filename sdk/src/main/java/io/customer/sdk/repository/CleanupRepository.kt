@@ -9,7 +9,7 @@ internal interface CleanupRepository {
     suspend fun cleanup()
 }
 
-class CleanupRepositoryImpl(
+internal class CleanupRepositoryImpl(
     private val queue: Queue
 ) : CleanupRepository {
 

@@ -1,7 +1,7 @@
 package io.customer.sdk.queue.type
 
 import com.squareup.moshi.JsonClass
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 
 @JsonClass(generateAdapter = true)
 data class QueueTask(

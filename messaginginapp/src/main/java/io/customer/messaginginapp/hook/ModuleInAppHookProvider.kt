@@ -7,7 +7,7 @@ import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.hooks.ModuleHookProvider
 
-class ModuleInAppHookProvider : ModuleHookProvider() {
+internal class ModuleInAppHookProvider : ModuleHookProvider() {
 
     private val diGraph: CustomerIOComponent
         get() = CustomerIO.instance().diGraph

@@ -25,7 +25,7 @@ enum class CioLogLevel {
     }
 }
 
-class LogcatLogger(
+internal class LogcatLogger(
     private val sdkConfig: CustomerIOConfig
 ) : Logger {
 

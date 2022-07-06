@@ -2,7 +2,7 @@ package io.customer.sdk.utils
 
 import io.customer.base.extenstions.unixTimeToDate
 import io.customer.sdk.data.model.CustomAttributes
-import java.math.BigDecimal
+import io.customer.sdk.extensions.random
 import java.util.*
 
 /**

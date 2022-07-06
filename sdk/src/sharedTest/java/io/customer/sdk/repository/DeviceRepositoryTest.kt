@@ -3,9 +3,9 @@ package io.customer.sdk.repository
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.request.Device
+import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.util.Logger
-import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test

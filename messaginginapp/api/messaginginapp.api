@@ -1,0 +1,6 @@
+public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/sdk/CustomerIOModule {
+	public fun <init> (Ljava/lang/String;)V
+	public fun getModuleName ()Ljava/lang/String;
+	public fun initialize ()V
+}
+

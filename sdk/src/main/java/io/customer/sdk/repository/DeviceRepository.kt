@@ -14,7 +14,7 @@ interface DeviceRepository {
     fun addCustomDeviceAttributes(attributes: CustomAttributes)
 }
 
-class DeviceRepositoryImpl(
+internal class DeviceRepositoryImpl(
     private val config: CustomerIOConfig,
     private val deviceStore: DeviceStore,
     private val preferenceRepository: PreferenceRepository,

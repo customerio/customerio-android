@@ -12,7 +12,7 @@ interface ProfileRepository {
     fun addCustomProfileAttributes(attributes: CustomAttributes)
 }
 
-class ProfileRepositoryImpl(
+internal class ProfileRepositoryImpl(
     private val deviceRepository: DeviceRepository,
     private val preferenceRepository: PreferenceRepository,
     private val backgroundQueue: Queue,

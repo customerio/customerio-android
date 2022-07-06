@@ -26,4 +26,8 @@ lint:
 
 # How we install ktlint in the team. 
 lint-install:
-	./scripts/get-ktlint.sh 
+	./scripts/get-ktlint.sh
+
+# Run kotlin binary validator
+run-binary-validator:
+	./scripts/binary-validation.sh

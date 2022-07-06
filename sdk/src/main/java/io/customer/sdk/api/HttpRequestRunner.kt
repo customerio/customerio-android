@@ -13,14 +13,14 @@ import retrofit2.Response
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-interface HttpRequestRunner {
+internal interface HttpRequestRunner {
     suspend fun <R> performAndProcessRequest(makeRequest: suspend () -> Response<R>): Result<R>
 }
 
 /**
  * Where HTTP response processing occurs.
  */
-class HttpRequestRunnerImpl(
+internal class HttpRequestRunnerImpl(
     private val prefsRepository: PreferenceRepository,
     private val logger: Logger,
     private val retryPolicy: HttpRetryPolicy,

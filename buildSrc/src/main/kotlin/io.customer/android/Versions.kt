@@ -17,6 +17,7 @@ object Versions {
     internal const val GRADLE_VERSIONS_PLUGIN = "0.39.0"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "17.6.0"
     internal const val KLUENT = "1.68"
+    internal const val KOTLIN_BINARY_VALIDATOR = "0.10.1"
     internal const val KOTLIN = "1.5.31"
     internal const val MATERIAL_COMPONENTS = "1.4.0"
     internal const val MOCKITO_KOTLIN = "4.0.0"

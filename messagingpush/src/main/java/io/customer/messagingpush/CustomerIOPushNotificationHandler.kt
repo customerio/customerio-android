@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.notification.PushNotificationPayload
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
@@ -105,13 +106,17 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         val channelId = context.packageName
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val attributes =
+            CustomerIOPushNotificationService.pushNotificationListener?.onNotificationPreCompose(
+                payload = PushNotificationPayload(bundle = bundle)
+            )
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(icon)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setAutoCancel(true)
-            .setSound(defaultSoundUri)
-            .setTicker(applicationName)
+            .setSmallIcon(attributes?.iconResId ?: icon)
+            .setContentTitle(attributes?.titleText ?: title)
+            .setContentText(attributes?.bodyText ?: body)
+            .setAutoCancel(attributes?.autoCancel ?: true)
+            .setSound(attributes?.soundUri ?: defaultSoundUri)
+            .setTicker(attributes?.tickerText ?: applicationName)
 
         try {
             // check for image

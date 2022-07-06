@@ -2,23 +2,20 @@ package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
+import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.Logger
 import io.customer.sdk.utils.random
+import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.verifyNoInteractions
-import org.mockito.kotlin.anyOrNull
-import org.mockito.kotlin.inOrder
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoMoreInteractions
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
 class ProfileRepositoryTest : BaseTest() {
@@ -27,6 +24,7 @@ class ProfileRepositoryTest : BaseTest() {
         get() = di.sharedPreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
+    private val hooksManager: HooksManager = mock()
     private val deviceRepositoryMock: DeviceRepository = mock()
 
     private lateinit var repository: ProfileRepository
@@ -39,7 +37,8 @@ class ProfileRepositoryTest : BaseTest() {
             deviceRepository = deviceRepositoryMock,
             preferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
-            logger = loggerMock
+            logger = loggerMock,
+            hooksManager = hooksManager
         )
     }
 
@@ -49,7 +48,13 @@ class ProfileRepositoryTest : BaseTest() {
     fun identify_givenFirstTimeIdentify_givenNoDeviceTokenRegistered_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectDoNotRegisterToken() {
         val newIdentifier = String.random
         val givenAttributes = mapOf("name" to String.random)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -62,14 +67,25 @@ class ProfileRepositoryTest : BaseTest() {
     }
 
     @Test
-    fun identify_givenFirstTimeIdentify_givenDeviceTokenExists_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectRegisterDeviceToken() {
+    fun identify_givenFirstTimeIdentify_givenDeviceTokenExists_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectProfileIdentifiedHookUpdateWithCorrectIdentifier_expectRegisterDeviceToken() {
         val newIdentifier = String.random
         val givenDeviceToken = String.random
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
+
+        argumentCaptor<ModuleHook.ProfileIdentifiedHook>().apply {
+            verify(hooksManager, times(1)).onHookUpdate(capture())
+            assertEquals(newIdentifier, firstValue.identifier)
+        }
 
         inOrder(backgroundQueueMock, deviceRepositoryMock).apply {
             verify(backgroundQueueMock).queueIdentifyProfile(
@@ -89,7 +105,13 @@ class ProfileRepositoryTest : BaseTest() {
         val newIdentifier = String.random
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -109,7 +131,13 @@ class ProfileRepositoryTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(newIdentifier, givenAttributes)
 
@@ -136,7 +164,13 @@ class ProfileRepositoryTest : BaseTest() {
         val givenAttributes = mapOf("name" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
         prefRepository.saveDeviceToken(givenDeviceToken)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.identify(givenIdentifier, givenAttributes)
 
@@ -162,11 +196,31 @@ class ProfileRepositoryTest : BaseTest() {
     }
 
     @Test
-    fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest_expectDontDeleteDeviceToken() {
+    fun clearIdentify_givenNoPreviouslyIdentifiedProfile_expectIgnoreRequest_expectDontDeleteDeviceToken_expectDontUpdateHook() {
         repository.clearIdentify()
 
         prefRepository.getIdentifier().shouldBeNull()
+
         verify(deviceRepositoryMock, never()).deleteDeviceToken()
+        verify(hooksManager, never()).onHookUpdate(any())
+    }
+
+    @Test
+    fun clearIdentify_givenPreviouslyIdentifiedProfile_expectHookUpdate() {
+        val givenIdentifier = String.random
+        prefRepository.saveIdentifier(givenIdentifier)
+
+        repository.clearIdentify()
+
+        prefRepository.getIdentifier().shouldBeNull()
+
+        val argumentCaptor =
+            argumentCaptor<ModuleHook.BeforeProfileStoppedBeingIdentified>()
+
+        verify(hooksManager, times(1)).onHookUpdate(
+            argumentCaptor.capture()
+        )
+        assertEquals(givenIdentifier, argumentCaptor.firstValue.identifier)
     }
 
     // addCustomProfileAttributes
@@ -186,11 +240,21 @@ class ProfileRepositoryTest : BaseTest() {
         val givenAttributes = mapOf(String.random to String.random)
         val givenIdentifier = String.random
         prefRepository.saveIdentifier(givenIdentifier)
-        whenever(backgroundQueueMock.queueIdentifyProfile(anyOrNull(), anyOrNull(), anyOrNull())).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.addCustomProfileAttributes(givenAttributes)
 
         // assert that attributes have been added to a profile
-        verify(backgroundQueueMock).queueIdentifyProfile(givenIdentifier, givenIdentifier, givenAttributes)
+        verify(backgroundQueueMock).queueIdentifyProfile(
+            givenIdentifier,
+            givenIdentifier,
+            givenAttributes
+        )
     }
 }

@@ -1,7 +1,7 @@
 package io.customer.android
 
 object Versions {
-    internal const val ANDROID_GRADLE_PLUGIN = "7.0.3"
+    internal const val ANDROID_GRADLE_PLUGIN = "7.2.0"
     internal const val ANDROIDX_TEST_JUNIT = "1.1.3"
     internal const val ANDROIDX_TEST_RUNNER = "1.4.0"
     internal const val ANDROIDX_TEST_RULES = "1.4.0"
@@ -15,6 +15,7 @@ object Versions {
     internal const val FIREBASE_MESSAGING = "22.0.0"
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "1.1.0"
     internal const val GRADLE_VERSIONS_PLUGIN = "0.39.0"
+    internal const val GIST = "2.1.3"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "17.6.0"
     internal const val KLUENT = "1.68"
     internal const val KOTLIN_BINARY_VALIDATOR = "0.10.1"
@@ -22,7 +23,7 @@ object Versions {
     internal const val MATERIAL_COMPONENTS = "1.4.0"
     internal const val MOCKITO_KOTLIN = "4.0.0"
     internal const val MOCKITO = "3.11.2"
-    internal const val MOSHI = "1.12.0"
+    internal const val MOSHI = "1.13.0"
     internal const val TIMBER = "5.0.0"
     internal const val ROBOLECTRIC = "4.6.1"
     internal const val OKHTTP = "4.9.1"

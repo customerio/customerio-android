@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [sdk, messagingpush, base] 
+        module: [sdk, messagingpush, messaginginapp, base]
     name: Unit tests (${{ matrix.module }})
     steps:
     - uses: actions/checkout@v2

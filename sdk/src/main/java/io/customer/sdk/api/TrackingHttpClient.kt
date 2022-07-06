@@ -2,7 +2,8 @@ package io.customer.sdk.api
 
 import io.customer.sdk.api.service.CustomerIOService
 import io.customer.sdk.data.model.CustomAttributes
-import io.customer.sdk.data.request.Device
+import io.customer.sdk.data.request.*
+import io.customer.sdk.data.request.DeliveryEvent
 import io.customer.sdk.data.request.DeviceRequest
 import io.customer.sdk.data.request.Event
 import io.customer.sdk.data.request.Metric
@@ -16,6 +17,7 @@ internal interface TrackingHttpClient {
     suspend fun registerDevice(identifier: String, device: Device): Result<Unit>
     suspend fun deleteDevice(identifier: String, deviceToken: String): Result<Unit>
     suspend fun trackPushMetrics(metric: Metric): Result<Unit>
+    suspend fun trackDeliveryEvents(event: DeliveryEvent): Result<Unit>
 }
 
 internal class RetrofitTrackingHttpClient(
@@ -23,7 +25,10 @@ internal class RetrofitTrackingHttpClient(
     private val httpRequestRunner: HttpRequestRunner
 ) : TrackingHttpClient {
 
-    override suspend fun identifyProfile(identifier: String, attributes: CustomAttributes): Result<Unit> {
+    override suspend fun identifyProfile(
+        identifier: String,
+        attributes: CustomAttributes
+    ): Result<Unit> {
         return httpRequestRunner.performAndProcessRequest {
             retrofitService.identifyCustomer(identifier, attributes)
         }
@@ -50,6 +55,12 @@ internal class RetrofitTrackingHttpClient(
     override suspend fun trackPushMetrics(metric: Metric): Result<Unit> {
         return httpRequestRunner.performAndProcessRequest {
             retrofitService.trackMetric(metric)
+        }
+    }
+
+    override suspend fun trackDeliveryEvents(event: DeliveryEvent): Result<Unit> {
+        return httpRequestRunner.performAndProcessRequest {
+            retrofitService.trackDeliveryEvents(event)
         }
     }
 }

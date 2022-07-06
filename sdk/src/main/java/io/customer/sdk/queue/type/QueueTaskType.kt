@@ -6,5 +6,6 @@ internal enum class QueueTaskType {
     TrackEvent,
     RegisterDeviceToken,
     DeletePushToken,
-    TrackPushMetric
+    TrackPushMetric,
+    TrackDeliveryEvent
 }

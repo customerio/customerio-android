@@ -4,12 +4,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.util.Logger
-import io.customer.sdk.utils.random
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith

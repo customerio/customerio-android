@@ -1,4 +1,4 @@
-package io.customer.sdk.utils
+package io.customer.sdk.extensions
 
 import java.util.*
 

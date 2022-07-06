@@ -40,15 +40,26 @@ task clean(type: Delete) {
 
 apiValidation {
     ignoredPackages += [
-            'io/customer/base/extenstions/',
+            'io/customer/base/extenstions',
+            'io/customer/sdk/api',
             'io/customer/sdk/data/store',
             'io/customer/sdk/queue',
+            'io/customer/sdk/extensions',
+            'io/customer/sdk/util',
     ]
 
     ignoredProjects += [
             'common-test',
             'app',
     ]
+
+    /**
+     * Classes (fully qualified) that are excluded from public API dumps even if they
+     * contain public API.
+     */
+    ignoredClasses.add("io.customer.messagingpush.BuildConfig")
+    ignoredClasses.add("io.customer.messaginginapp.BuildConfig")
+    ignoredClasses.add("io.customer.sdk.BuildConfig")
 }
 
 apply from: "${rootDir}/scripts/publish-root.gradle"

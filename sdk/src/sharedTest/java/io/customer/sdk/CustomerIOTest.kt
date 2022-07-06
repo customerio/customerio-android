@@ -5,10 +5,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
-import io.customer.sdk.utils.random
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull

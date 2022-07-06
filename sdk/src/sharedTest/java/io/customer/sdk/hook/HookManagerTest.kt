@@ -2,11 +2,11 @@ package io.customer.sdk.hook
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
+import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.CioHooksManager
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.hooks.ModuleHookProvider
-import io.customer.sdk.utils.random
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before

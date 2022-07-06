@@ -13,7 +13,7 @@ internal interface FCMTokenProvider {
 /**
  * This class should be as small as possible as possible because it can't be tested with automated tests. QA testing, only.
  */
-class FCMTokenProviderImpl(private val logger: Logger) : FCMTokenProvider {
+internal class FCMTokenProviderImpl(private val logger: Logger) : FCMTokenProvider {
 
     override fun getCurrentToken(onComplete: (String?) -> Unit) {
         logger.debug("getting current FCM device token...")

@@ -1,7 +1,7 @@
 package io.customer.sdk.util
 
 import android.os.CountDownTimer
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch

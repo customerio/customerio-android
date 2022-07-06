@@ -8,7 +8,7 @@ interface QueueQueryRunner {
     fun reset()
 }
 
-class QueueQueryRunnerImpl(
+internal class QueueQueryRunnerImpl(
     private val logger: Logger
 ) : QueueQueryRunner {
     internal val queryCriteria = QueueQueryCriteria()

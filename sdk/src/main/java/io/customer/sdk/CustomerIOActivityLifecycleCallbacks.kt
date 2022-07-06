@@ -5,7 +5,7 @@ import android.app.Application.ActivityLifecycleCallbacks
 import android.os.Bundle
 import io.customer.sdk.util.PushTrackingUtil
 
-class CustomerIOActivityLifecycleCallbacks internal constructor(
+internal class CustomerIOActivityLifecycleCallbacks internal constructor(
     private val customerIO: CustomerIO,
     private val config: CustomerIOConfig,
     private val pushTrackingUtil: PushTrackingUtil

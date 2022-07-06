@@ -18,7 +18,7 @@ interface SimpleTimer {
     fun cancel()
 }
 
-class AndroidSimpleTimer(
+internal class AndroidSimpleTimer(
     private val logger: Logger,
     private val dispatchersProvider: DispatchersProvider
 ) : SimpleTimer {

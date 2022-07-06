@@ -1,4 +1,4 @@
-name: Lint
+name: Binary-validation
 # only run on PRs and when push a commit on a branch that we don't deploy on. 
 on: [push, pull_request]
 

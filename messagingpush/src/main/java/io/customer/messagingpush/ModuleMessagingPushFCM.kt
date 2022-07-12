@@ -35,7 +35,7 @@ class ModuleMessagingPushFCM internal constructor(
      */
     private fun getCurrentFcmToken() {
         fcmTokenProvider.getCurrentToken { token ->
-            token?.let { token -> customerIO.registerDeviceToken(token) }
+            token?.let { customerIO.registerDeviceToken(token) }
         }
     }
 }

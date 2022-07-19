@@ -106,17 +106,13 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         val channelId = context.packageName
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val attributes =
-            CustomerIOPushNotificationService.pushNotificationListener?.onNotificationPreCompose(
-                payload = PushNotificationPayload(bundle = bundle)
-            )
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(attributes?.iconResId ?: icon)
-            .setContentTitle(attributes?.titleText ?: title)
-            .setContentText(attributes?.bodyText ?: body)
-            .setAutoCancel(attributes?.autoCancel ?: true)
-            .setSound(attributes?.soundUri ?: defaultSoundUri)
-            .setTicker(attributes?.tickerText ?: applicationName)
+            .setSmallIcon(icon)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setAutoCancel(true)
+            .setSound(defaultSoundUri)
+            .setTicker(applicationName)
 
         try {
             // check for image
@@ -142,6 +138,12 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             )
             notificationManager.createNotificationChannel(channel)
         }
+
+        // allow the user to update notification attributes
+        CustomerIOPushNotificationService.pushNotificationListener?.onNotificationComposed(
+            payload = PushNotificationPayload(bundle = Bundle(bundle)),
+            builder = notificationBuilder
+        )
 
         // set pending intent
         val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)

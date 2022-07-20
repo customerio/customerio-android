@@ -2,12 +2,12 @@
 
 # Script that updates the Kotlin file in the SDK that contains the semantic version of the SDK.
 #
-# Use script: ./update_version.sh 0.1.1 sdk/src/main/java/io/customer/sdk/Version.kt
+# Use script: ./scripts/update-version.sh "0.1.1"
 
 set -e
 
 NEW_VERSION="$1"
-KOTLIN_SOURCE_FILE="$2"
+KOTLIN_SOURCE_FILE="sdk/src/main/java/io/customer/sdk/Version.kt"
 
 # Given line: `    static let version: String = "0.1.1"`
 # Regex string will match the line of the file that we can then substitute.
@@ -24,3 +24,5 @@ echo "Done! New version: "
 
 # print the line (/p) that is matched in the file to show the change.
 sed -n "/$LINE_PATTERN/p" $KOTLIN_SOURCE_FILE
+
+echo "\n\n Done!\n Dont forget to commit your changes. A good commit message is: \"chore: prepare for $NEW_VERSION\""

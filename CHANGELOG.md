@@ -1,3 +1,10 @@
+## [2.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0-alpha.1) (2022-07-25)
+
+
+### Features
+
+* delete expired background queue tasks ([8dca8b7](https://github.com/customerio/customerio-android/commit/8dca8b719f634d06c86628f154b2ff45d1bd6c79))
+
 ### [2.0.1](https://github.com/customerio/customerio-android/compare/2.0.0...2.0.1) (2022-06-13)
 
 

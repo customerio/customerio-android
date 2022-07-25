@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.notification.PushNotificationPayload
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
@@ -137,6 +138,12 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             )
             notificationManager.createNotificationChannel(channel)
         }
+
+        // allow the user to update notification attributes
+        CustomerIOPushNotificationService.pushNotificationListener?.onNotificationComposed(
+            payload = PushNotificationPayload(bundle = Bundle(bundle)),
+            builder = notificationBuilder
+        )
 
         // set pending intent
         val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)

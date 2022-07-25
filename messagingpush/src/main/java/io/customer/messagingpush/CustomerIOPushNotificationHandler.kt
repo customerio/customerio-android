@@ -166,7 +166,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             PendingIntent.FLAG_UPDATE_CURRENT
         }
 
-        val pushContentIntents = sdkConfig.urlHandler?.handleCustomerIOLink(deepLink)
+        val pushContentIntents = sdkConfig.urlHandler?.createIntentsForLink(deepLink)
             ?: deepLinkUtil.createIntentsForLink(context, deepLink)
         pushContentIntents.forEach { it.putExtras(bundle) }
 

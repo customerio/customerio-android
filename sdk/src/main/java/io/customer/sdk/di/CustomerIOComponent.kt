@@ -30,6 +30,8 @@ import io.customer.sdk.repository.*
 import io.customer.sdk.util.AndroidSimpleTimer
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DateUtilImpl
+import io.customer.sdk.util.DeepLinkUtil
+import io.customer.sdk.util.DeepLinkUtilImpl
 import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.LogcatLogger
@@ -98,6 +100,9 @@ class CustomerIOComponent(
 
     val dateUtil: DateUtil
         get() = override() ?: DateUtilImpl()
+
+    val deepLinkUtil: DeepLinkUtil
+        get() = override() ?: DeepLinkUtilImpl()
 
     val timer: SimpleTimer
         get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)

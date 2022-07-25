@@ -6,8 +6,17 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import androidx.core.app.TaskStackBuilder
 
 interface DeepLinkUtil {
+    /**
+     * Creates list of intents for the provided link for the provided link.
+     *
+     * @param context reference to application context
+     * @param deepLink link to create intent for
+     * @return list of intents to add in [TaskStackBuilder] for the provided
+     * link, empty if no matching intent found
+     */
     fun createIntentsForLink(context: Context, deepLink: String?): List<Intent>
 }
 

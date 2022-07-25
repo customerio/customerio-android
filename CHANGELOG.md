@@ -1,3 +1,10 @@
+## [2.1.0-alpha.2](https://github.com/customerio/customerio-android/compare/2.1.0-alpha.1...2.1.0-alpha.2) (2022-07-25)
+
+
+### Bug Fixes
+
+* deploy code script commands ([#124](https://github.com/customerio/customerio-android/issues/124)) ([fe817d1](https://github.com/customerio/customerio-android/commit/fe817d10ee00ec5694d3b3e2caa8658c7cc9a1b1))
+
 ## [2.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0-alpha.1) (2022-07-25)
 
 

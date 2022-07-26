@@ -16,28 +16,11 @@ import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
-import io.customer.sdk.queue.Queue
-import io.customer.sdk.queue.QueueImpl
-import io.customer.sdk.queue.QueueQueryRunner
-import io.customer.sdk.queue.QueueQueryRunnerImpl
-import io.customer.sdk.queue.QueueRunRequest
-import io.customer.sdk.queue.QueueRunRequestImpl
-import io.customer.sdk.queue.QueueRunner
-import io.customer.sdk.queue.QueueRunnerImpl
-import io.customer.sdk.queue.QueueStorage
-import io.customer.sdk.queue.QueueStorageImpl
+import io.customer.sdk.hooks.CioHooksManager
+import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.queue.*
 import io.customer.sdk.repository.*
-import io.customer.sdk.util.AndroidSimpleTimer
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.DateUtilImpl
-import io.customer.sdk.util.DispatchersProvider
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.LogcatLogger
-import io.customer.sdk.util.Logger
-import io.customer.sdk.util.PushTrackingUtil
-import io.customer.sdk.util.PushTrackingUtilImpl
-import io.customer.sdk.util.SdkDispatchers
-import io.customer.sdk.util.SimpleTimer
+import io.customer.sdk.util.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -82,16 +65,29 @@ class CustomerIOComponent(
         get() = override() ?: QueueQueryRunnerImpl(logger)
 
     val queueRunRequest: QueueRunRequest
-        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
+        get() = override() ?: QueueRunRequestImpl(
+            queueRunner,
+            queueStorage,
+            logger,
+            queueQueryRunner
+        )
 
     val logger: Logger
         get() = override() ?: LogcatLogger(sdkConfig)
+
+    val hooksManager: HooksManager
+        get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }
 
     internal val cioHttpClient: TrackingHttpClient
         get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
 
     private val httpRequestRunner: HttpRequestRunner
-        get() = HttpRequestRunnerImpl(sharedPreferenceRepository, logger, cioHttpRetryPolicy, jsonAdapter)
+        get() = HttpRequestRunnerImpl(
+            sharedPreferenceRepository,
+            logger,
+            cioHttpRetryPolicy,
+            jsonAdapter
+        )
 
     val cioHttpRetryPolicy: HttpRetryPolicy
         get() = override() ?: CustomerIOApiRetryPolicy()
@@ -103,13 +99,31 @@ class CustomerIOComponent(
         get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)
 
     val trackRepository: TrackRepository
-        get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)
+        get() = override() ?: TrackRepositoryImpl(
+            sharedPreferenceRepository,
+            queue,
+            logger,
+            hooksManager
+        )
 
     val profileRepository: ProfileRepository
-        get() = override() ?: ProfileRepositoryImpl(deviceRepository, sharedPreferenceRepository, queue, logger)
+        get() = override() ?: ProfileRepositoryImpl(
+            deviceRepository,
+            sharedPreferenceRepository,
+            queue,
+            logger,
+            hooksManager
+        )
 
     val deviceRepository: DeviceRepository
-        get() = override() ?: DeviceRepositoryImpl(sdkConfig, buildStore().deviceStore, sharedPreferenceRepository, queue, dateUtil, logger)
+        get() = override() ?: DeviceRepositoryImpl(
+            sdkConfig,
+            buildStore().deviceStore,
+            sharedPreferenceRepository,
+            queue,
+            dateUtil,
+            logger
+        )
 
     fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {

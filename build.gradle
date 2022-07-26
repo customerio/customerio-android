@@ -25,6 +25,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // added for gist SDK
+        maven {
+            url 'https://maven.gist.build'
+        }
     }    
 }
 

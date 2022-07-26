@@ -21,7 +21,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param remoteMessage Remote message received from Firebase in
          * [FirebaseMessagingService.onMessageReceived]
          * @param handleNotificationTrigger indicating if the local notification should be triggered
-         * @param errorCallback callback containing any error occurred
          * @return Boolean indicating whether this will be handled by CustomerIo
          */
         @JvmOverloads
@@ -37,7 +36,6 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * Call this from [FirebaseMessagingService] to register the new device token
          *
          * @param token new or refreshed token
-         * @param errorCallback callback containing any error occurred
          */
         @JvmOverloads
         fun onNewToken(

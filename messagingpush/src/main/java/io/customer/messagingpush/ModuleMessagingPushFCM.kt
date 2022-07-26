@@ -17,7 +17,6 @@ class ModuleMessagingPushFCM internal constructor(
         get() = overrideCustomerIO ?: CustomerIO.instance()
     private val diGraph: CustomerIOComponent
         get() = overrideDiGraph ?: CustomerIO.instance().diGraph
-
     private val fcmTokenProvider by lazy { diGraph.fcmTokenProvider }
 
     override val moduleName: String
@@ -36,7 +35,7 @@ class ModuleMessagingPushFCM internal constructor(
      */
     private fun getCurrentFcmToken() {
         fcmTokenProvider.getCurrentToken { token ->
-            token?.let { token -> customerIO.registerDeviceToken(token) }
+            token?.let { customerIO.registerDeviceToken(token) }
         }
     }
 }

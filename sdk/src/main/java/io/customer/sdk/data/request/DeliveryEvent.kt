@@ -5,14 +5,19 @@ import com.squareup.moshi.JsonClass
 import java.util.*
 
 @JsonClass(generateAdapter = false)
-enum class MetricEvent {
-    delivered, opened, converted, clicked;
+internal enum class DeliveryType {
+    in_app
 }
 
 @JsonClass(generateAdapter = true)
-internal data class Metric(
+internal data class DeliveryPayload(
     @field:Json(name = "delivery_id") val deliveryID: String,
-    @field:Json(name = "device_id") val deviceToken: String,
     val event: MetricEvent,
     val timestamp: Date
+)
+
+@JsonClass(generateAdapter = true)
+internal data class DeliveryEvent(
+    val type: DeliveryType,
+    val payload: DeliveryPayload
 )

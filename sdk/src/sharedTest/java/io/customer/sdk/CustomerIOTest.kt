@@ -1,6 +1,6 @@
 package io.customer.sdk
 
-import android.net.Uri
+import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
@@ -50,7 +50,7 @@ class CustomerIOTest : BaseTest() {
             region = Region.EU,
             appContext = application
         ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
+            override fun createIntentForLink(url: String?): Intent? = null
         }).autoTrackScreenViews(true)
 
         val client = builder.build()
@@ -78,7 +78,7 @@ class CustomerIOTest : BaseTest() {
             region = Region.EU,
             appContext = application
         ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
+            override fun createIntentForLink(url: String?): Intent? = null
         }).autoTrackScreenViews(true)
 
         val client = builder.build()

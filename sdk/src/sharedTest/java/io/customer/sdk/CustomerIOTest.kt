@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.sdk.data.model.CustomerIOParsedPushPayload
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
@@ -50,7 +51,7 @@ class CustomerIOTest : BaseTest() {
             region = Region.EU,
             appContext = application
         ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun createIntentForLink(url: String?): Intent? = null
+            override fun createIntentForLink(payload: CustomerIOParsedPushPayload): Intent? = null
         }).autoTrackScreenViews(true)
 
         val client = builder.build()
@@ -78,7 +79,7 @@ class CustomerIOTest : BaseTest() {
             region = Region.EU,
             appContext = application
         ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun createIntentForLink(url: String?): Intent? = null
+            override fun createIntentForLink(payload: CustomerIOParsedPushPayload): Intent? = null
         }).autoTrackScreenViews(true)
 
         val client = builder.build()

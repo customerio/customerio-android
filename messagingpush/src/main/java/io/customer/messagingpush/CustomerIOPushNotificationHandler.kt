@@ -4,20 +4,22 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.data.model.CustomerIOParsedPushPayload
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.DeepLinkUtil
+import io.customer.sdk.util.Logger
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 import kotlinx.coroutines.Dispatchers
@@ -29,8 +31,6 @@ import kotlin.math.abs
 internal class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
 
     companion object {
-        private const val TAG = "NotificationHandler:"
-
         const val DEEP_LINK_KEY = "link"
         const val IMAGE_KEY = "image"
         const val TITLE_KEY = "title"
@@ -48,6 +48,9 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     private val deepLinkUtil: DeepLinkUtil
         get() = diGraph.deepLinkUtil
 
+    private val logger: Logger
+        get() = diGraph.logger
+
     private val bundle: Bundle by lazy {
         Bundle().apply {
             remoteMessage.data.forEach { entry ->
@@ -62,7 +65,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     ): Boolean {
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
-            Log.d(TAG, "Message data payload: $bundle")
+            logger.debug("Message data payload: $bundle")
             return false
         }
 
@@ -85,14 +88,15 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         // Check if message contains a notification payload.
         if (handleNotificationTrigger) {
-            handleNotification(context)
+            handleNotification(context, deliveryId)
         }
 
         return true
     }
 
     private fun handleNotification(
-        context: Context
+        context: Context,
+        deliveryId: String
     ) {
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
 
@@ -142,10 +146,16 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         }
 
         // set pending intent
+        val payload = CustomerIOParsedPushPayload(
+            deepLink = bundle.getString(DEEP_LINK_KEY),
+            cioDeliveryId = deliveryId,
+            title = title,
+            body = body
+        )
         createIntentFromLink(
             context,
             requestCode,
-            bundle.getString(DEEP_LINK_KEY)
+            payload
         )?.let { pendingIntent ->
             notificationBuilder.setContentIntent(pendingIntent)
         }
@@ -157,7 +167,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     private fun createIntentFromLink(
         context: Context,
         requestCode: Int,
-        deepLink: String?
+        payload: CustomerIOParsedPushPayload
     ): PendingIntent? {
         // In Android 12, you must specify the mutability of each PendingIntent
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -166,8 +176,9 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             PendingIntent.FLAG_UPDATE_CURRENT
         }
 
-        val pushContentIntents = sdkConfig.urlHandler?.createIntentsForLink(deepLink)
-            ?: deepLinkUtil.createIntentsForLink(context, deepLink)
+        val pushContentIntents = sdkConfig.urlHandler?.createIntentsForLink(payload)
+            ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
+            ?: listOfNotNull(createDefaultOpenAppIntent(context))
         pushContentIntents.forEach { it.putExtras(bundle) }
 
         if (pushContentIntents.isNotEmpty()) {
@@ -178,6 +189,10 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             return notificationClickedIntent
         }
         return null
+    }
+
+    private fun createDefaultOpenAppIntent(context: Context): Intent? {
+        return context.packageManager.getLaunchIntentForPackage(context.packageName)
     }
 
     private fun addImage(

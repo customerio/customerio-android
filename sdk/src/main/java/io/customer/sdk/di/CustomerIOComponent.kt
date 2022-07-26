@@ -96,7 +96,7 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val deepLinkUtil: DeepLinkUtil
-        get() = override() ?: DeepLinkUtilImpl()
+        get() = override() ?: DeepLinkUtilImpl(logger)
 
     val timer: SimpleTimer
         get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)

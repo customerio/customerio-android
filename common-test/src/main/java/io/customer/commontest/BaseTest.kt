@@ -53,7 +53,21 @@ abstract class BaseTest {
 
     @Before
     open fun setup() {
-        cioConfig = CustomerIOConfig(siteId, "xyz", Region.EU, 100, null, true, true, 10, 30.0, Seconds.fromDays(3).value, CioLogLevel.DEBUG, null)
+        cioConfig = CustomerIOConfig(
+            siteId = siteId,
+            apiKey = "xyz",
+            region = Region.EU,
+            timeout = 100,
+            autoTrackScreenViews = true,
+            autoTrackDeviceAttributes = true,
+            backgroundQueueMinNumberOfTasks = 10,
+            backgroundQueueSecondsDelay = 30.0,
+            backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
+            logLevel = CioLogLevel.DEBUG,
+            trackingApiUrl = null,
+            targetSdkVersion = android.os.Build.VERSION_CODES.R,
+            configurations = emptyMap()
+        )
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.
         mockWebServer = MockWebServer().apply {

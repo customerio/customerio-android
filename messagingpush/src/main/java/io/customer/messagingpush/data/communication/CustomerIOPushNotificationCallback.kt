@@ -1,10 +1,10 @@
-package io.customer.sdk.data.communication
+package io.customer.messagingpush.data.communication
 
 import android.content.Intent
 import androidx.core.app.TaskStackBuilder
-import io.customer.sdk.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 
-interface CustomerIOUrlHandler {
+interface CustomerIOPushNotificationCallback {
 
     /**
      * Callback called when deeplink action is performed.
@@ -24,5 +24,5 @@ interface CustomerIOUrlHandler {
      */
     fun createIntentsForLink(payload: CustomerIOParsedPushPayload): List<Intent>? = listOfNotNull(
         createIntentForLink(payload)
-    )
+    ).takeIf { list -> list.isNotEmpty() }
 }

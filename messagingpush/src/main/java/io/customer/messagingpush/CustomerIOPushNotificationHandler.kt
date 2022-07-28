@@ -13,12 +13,14 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.deepLinkUtil
+import io.customer.messagingpush.di.moduleConfig
+import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.data.model.CustomerIOParsedPushPayload
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.util.DeepLinkUtil
 import io.customer.sdk.util.Logger
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
@@ -45,6 +47,9 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     private val sdkConfig: CustomerIOConfig
         get() = diGraph.sdkConfig
 
+    private val moduleConfig: MessagingPushModuleConfig
+        get() = diGraph.moduleConfig
+
     private val deepLinkUtil: DeepLinkUtil
         get() = diGraph.deepLinkUtil
 
@@ -63,9 +68,10 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         context: Context,
         handleNotificationTrigger: Boolean = true
     ): Boolean {
+        logger.debug("Handling push message. Bundle: $bundle")
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
-            logger.debug("Message data payload: $bundle")
+            logger.debug("Push message received is empty")
             return false
         }
 
@@ -147,6 +153,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         // set pending intent
         val payload = CustomerIOParsedPushPayload(
+            extras = Bundle(bundle),
             deepLink = bundle.getString(DEEP_LINK_KEY),
             cioDeliveryId = deliveryId,
             title = title,
@@ -175,20 +182,32 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
+        if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
+            val pushContentIntents: List<Intent> =
+                moduleConfig.notificationCallback?.createIntentsForLink(payload)
+                    ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
+                    ?: listOfNotNull(createDefaultOpenAppIntent(context))
+            pushContentIntents.forEach { it.putExtras(bundle) }
 
-        val pushContentIntents = sdkConfig.urlHandler?.createIntentsForLink(payload)
-            ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
-            ?: listOfNotNull(createDefaultOpenAppIntent(context))
-        pushContentIntents.forEach { it.putExtras(bundle) }
+            return if (pushContentIntents.isNotEmpty()) {
+                val notificationClickedIntent = TaskStackBuilder.create(context).run {
+                    pushContentIntents.forEach { addNextIntentWithParentStack(it) }
+                    getPendingIntent(requestCode, flags)
+                }
+                notificationClickedIntent
+            } else null
+        } else {
+            val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)
+            pushContentIntent.setClass(context, CustomerIOPushReceiver::class.java)
 
-        if (pushContentIntents.isNotEmpty()) {
-            val notificationClickedIntent: PendingIntent? = TaskStackBuilder.create(context).run {
-                pushContentIntents.forEach { addNextIntentWithParentStack(it) }
-                getPendingIntent(requestCode, flags)
-            }
-            return notificationClickedIntent
+            pushContentIntent.putExtra(CustomerIOPushReceiver.PUSH_PAYLOAD_KEY, payload)
+            return PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                pushContentIntent,
+                flags
+            )
         }
-        return null
     }
 
     private fun createDefaultOpenAppIntent(context: Context): Intent? {

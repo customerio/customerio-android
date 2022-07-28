@@ -13,6 +13,15 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Action receiver for push interactions -->
+        <receiver
+            android:name=".CustomerIOPushReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="io.customer.messagingpush.PUSH_ACTION" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <queries>

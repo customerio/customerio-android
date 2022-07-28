@@ -40,7 +40,7 @@ class QueueStorageImpl internal constructor(
     @Synchronized
     override fun getInventory(): QueueInventory {
         val dataFromFile = fileStorage.get(FileType.QueueInventory()) ?: return emptyList()
-        return jsonAdapter.fromJsonList(dataFromFile)
+        return jsonAdapter.fromJsonListOrNull(dataFromFile) ?: emptyList()
     }
 
     @Synchronized

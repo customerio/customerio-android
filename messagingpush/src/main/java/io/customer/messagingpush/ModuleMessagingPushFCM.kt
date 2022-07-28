@@ -3,15 +3,21 @@ package io.customer.messagingpush
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOInstance
-import io.customer.sdk.CustomerIOModule
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.module.CustomerIOModule
 
 class ModuleMessagingPushFCM internal constructor(
+    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig(),
     private val overrideCustomerIO: CustomerIOInstance?,
     private val overrideDiGraph: CustomerIOComponent?
-) : CustomerIOModule {
+) : CustomerIOModule<MessagingPushModuleConfig> {
 
-    constructor() : this(overrideCustomerIO = null, overrideDiGraph = null)
+    @JvmOverloads
+    constructor(config: MessagingPushModuleConfig = MessagingPushModuleConfig()) : this(
+        moduleConfig = config,
+        overrideCustomerIO = null,
+        overrideDiGraph = null
+    )
 
     private val customerIO: CustomerIOInstance
         get() = overrideCustomerIO ?: CustomerIO.instance()
@@ -20,7 +26,7 @@ class ModuleMessagingPushFCM internal constructor(
     private val fcmTokenProvider by lazy { diGraph.fcmTokenProvider }
 
     override val moduleName: String
-        get() = "MessagingPushFCM"
+        get() = MODULE_NAME
 
     override fun initialize() {
         getCurrentFcmToken()
@@ -37,5 +43,9 @@ class ModuleMessagingPushFCM internal constructor(
         fcmTokenProvider.getCurrentToken { token ->
             token?.let { customerIO.registerDeviceToken(token) }
         }
+    }
+
+    companion object {
+        internal const val MODULE_NAME = "MessagingPushFCM"
     }
 }

@@ -1,6 +1,10 @@
 package io.customer.messagingpush.di
 
+import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
+import io.customer.messagingpush.util.DeepLinkUtil
+import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.di.CustomerIOComponent
 
@@ -12,3 +16,9 @@ The use of extensions was chosen over creating a separate graph class for each m
 
 internal val CustomerIOComponent.fcmTokenProvider: DeviceTokenProvider
     get() = override() ?: FCMTokenProviderImpl(logger = logger, context = context)
+
+internal val CustomerIOComponent.moduleConfig: MessagingPushModuleConfig
+    get() = sdkConfig.configurations[ModuleMessagingPushFCM.MODULE_NAME] as MessagingPushModuleConfig
+
+val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
+    get() = override() ?: DeepLinkUtilImpl(moduleConfig, logger)

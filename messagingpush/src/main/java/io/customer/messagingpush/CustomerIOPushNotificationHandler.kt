@@ -1,6 +1,5 @@
 package io.customer.messagingpush
 
-import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -10,12 +9,19 @@ import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.TaskStackBuilder
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.deepLinkUtil
+import io.customer.messagingpush.di.moduleConfig
+import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.util.Logger
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
 import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +33,6 @@ import kotlin.math.abs
 internal class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
 
     companion object {
-        private const val TAG = "NotificationHandler:"
-
         const val DEEP_LINK_KEY = "link"
         const val IMAGE_KEY = "image"
         const val TITLE_KEY = "title"
@@ -36,6 +40,21 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
     }
+
+    private val diGraph: CustomerIOComponent
+        get() = CustomerIO.instance().diGraph
+
+    private val logger: Logger
+        get() = diGraph.logger
+
+    private val sdkConfig: CustomerIOConfig
+        get() = diGraph.sdkConfig
+
+    private val moduleConfig: MessagingPushModuleConfig
+        get() = diGraph.moduleConfig
+
+    private val deepLinkUtil: DeepLinkUtil
+        get() = diGraph.deepLinkUtil
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
@@ -49,9 +68,10 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         context: Context,
         handleNotificationTrigger: Boolean = true
     ): Boolean {
+        logger.debug("Handling push message. Bundle: $bundle")
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
-            Log.d(TAG, "Message data payload: $bundle")
+            logger.debug("Push message received is empty")
             return false
         }
 
@@ -74,28 +94,21 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         // Check if message contains a notification payload.
         if (handleNotificationTrigger) {
-            handleNotification(context)
+            handleNotification(context, deliveryId)
         }
 
         return true
     }
 
-    @SuppressLint("LaunchActivityFromNotification")
     private fun handleNotification(
-        context: Context
+        context: Context,
+        deliveryId: String
     ) {
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
 
         val requestCode = abs(System.currentTimeMillis().toInt())
 
         bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
-
-        // In Android 12, you must specify the mutability of each PendingIntent
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
 
         val icon = context.applicationInfo.icon
 
@@ -139,20 +152,66 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         }
 
         // set pending intent
-        val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)
-        pushContentIntent.setClass(context, CustomerIOPushReceiver::class.java)
-
-        pushContentIntent.putExtras(bundle)
-        val notificationClickedIntent = PendingIntent.getBroadcast(
+        val payload = CustomerIOParsedPushPayload(
+            extras = Bundle(bundle),
+            deepLink = bundle.getString(DEEP_LINK_KEY),
+            cioDeliveryId = deliveryId,
+            title = title,
+            body = body
+        )
+        createIntentFromLink(
             context,
             requestCode,
-            pushContentIntent,
-            flags
-        )
-        notificationBuilder.setContentIntent(notificationClickedIntent)
+            payload
+        )?.let { pendingIntent ->
+            notificationBuilder.setContentIntent(pendingIntent)
+        }
 
         val notification = notificationBuilder.build()
         notificationManager.notify(requestCode, notification)
+    }
+
+    private fun createIntentFromLink(
+        context: Context,
+        requestCode: Int,
+        payload: CustomerIOParsedPushPayload
+    ): PendingIntent? {
+        // In Android 12, you must specify the mutability of each PendingIntent
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
+            val pushContentIntents: List<Intent> =
+                moduleConfig.notificationCallback?.createContentIntentsFromPayload(payload)
+                    ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
+                    ?: listOfNotNull(createDefaultOpenAppIntent(context))
+            pushContentIntents.forEach { it.putExtras(bundle) }
+
+            return if (pushContentIntents.isNotEmpty()) {
+                val notificationClickedIntent = TaskStackBuilder.create(context).run {
+                    pushContentIntents.forEach { addNextIntentWithParentStack(it) }
+                    getPendingIntent(requestCode, flags)
+                }
+                notificationClickedIntent
+            } else null
+        } else {
+            val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)
+            pushContentIntent.setClass(context, CustomerIOPushReceiver::class.java)
+
+            pushContentIntent.putExtra(CustomerIOPushReceiver.PUSH_PAYLOAD_KEY, payload)
+            return PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                pushContentIntent,
+                flags
+            )
+        }
+    }
+
+    private fun createDefaultOpenAppIntent(context: Context): Intent? {
+        return context.packageManager.getLaunchIntentForPackage(context.packageName)
     }
 
     private fun addImage(

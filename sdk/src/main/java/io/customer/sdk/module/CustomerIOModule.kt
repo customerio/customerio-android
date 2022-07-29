@@ -1,11 +1,14 @@
-package io.customer.sdk
+package io.customer.sdk.module
 
 /**
  * A module is optional Customer.io SDK that you can install in your app.
  *
  * This interface allows the base SDK to initialize all of the SDKs installed in an app and begin to communicate with them.
+
+ * @param Config generic type of configurations required by the module
  */
-interface CustomerIOModule {
+interface CustomerIOModule<Config : CustomerIOModuleConfig> {
     val moduleName: String
+    val moduleConfig: Config
     fun initialize()
 }

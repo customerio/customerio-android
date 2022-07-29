@@ -9,6 +9,7 @@ import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DispatchersProvider
@@ -51,23 +52,41 @@ abstract class BaseTest {
     protected lateinit var mockWebServer: MockWebServer
     protected lateinit var dateUtilStub: DateUtilStub
 
+    protected fun createConfig(
+        siteId: String = this.siteId,
+        apiKey: String = "xyz",
+        region: Region = Region.EU,
+        timeout: Long = 100,
+        autoTrackScreenViews: Boolean = true,
+        autoTrackDeviceAttributes: Boolean = true,
+        backgroundQueueMinNumberOfTasks: Int = 10,
+        backgroundQueueSecondsDelay: Double = 30.0,
+        backgroundQueueTaskExpiredSeconds: Double = Seconds.fromDays(3).value,
+        logLevel: CioLogLevel = CioLogLevel.DEBUG,
+        trackingApiUrl: String? = null,
+        targetSdkVersion: Int = android.os.Build.VERSION_CODES.R,
+        configurations: Map<String, CustomerIOModuleConfig> = emptyMap()
+    ) = CustomerIOConfig(
+        siteId = siteId,
+        apiKey = apiKey,
+        region = region,
+        timeout = timeout,
+        autoTrackScreenViews = autoTrackScreenViews,
+        autoTrackDeviceAttributes = autoTrackDeviceAttributes,
+        backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
+        backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
+        backgroundQueueTaskExpiredSeconds = backgroundQueueTaskExpiredSeconds,
+        logLevel = logLevel,
+        trackingApiUrl = trackingApiUrl,
+        targetSdkVersion = targetSdkVersion,
+        configurations = configurations
+    )
+
+    protected open fun setupConfig() = createConfig()
+
     @Before
     open fun setup() {
-        cioConfig = CustomerIOConfig(
-            siteId = siteId,
-            apiKey = "xyz",
-            region = Region.EU,
-            timeout = 100,
-            autoTrackScreenViews = true,
-            autoTrackDeviceAttributes = true,
-            backgroundQueueMinNumberOfTasks = 10,
-            backgroundQueueSecondsDelay = 30.0,
-            backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
-            logLevel = CioLogLevel.DEBUG,
-            trackingApiUrl = null,
-            targetSdkVersion = android.os.Build.VERSION_CODES.R,
-            configurations = emptyMap()
-        )
+        cioConfig = setupConfig()
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.
         mockWebServer = MockWebServer().apply {

@@ -57,7 +57,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
     private fun handleDeepLink(context: Context, payload: CustomerIOParsedPushPayload) {
         // check if host app overrides the handling of deeplink
-        val deepLinkIntents = moduleConfig.notificationCallback?.createIntentsForLink(payload)
+        val deepLinkIntents = moduleConfig.notificationCallback?.createContentIntentsFromPayload(payload)
             // check if the deep links are handled within the host app
             ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
 

@@ -44,6 +44,9 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     private val diGraph: CustomerIOComponent
         get() = CustomerIO.instance().diGraph
 
+    private val logger: Logger
+        get() = diGraph.logger
+
     private val sdkConfig: CustomerIOConfig
         get() = diGraph.sdkConfig
 
@@ -52,9 +55,6 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
     private val deepLinkUtil: DeepLinkUtil
         get() = diGraph.deepLinkUtil
-
-    private val logger: Logger
-        get() = diGraph.logger
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
@@ -184,7 +184,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         }
         if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
             val pushContentIntents: List<Intent> =
-                moduleConfig.notificationCallback?.createIntentsForLink(payload)
+                moduleConfig.notificationCallback?.createContentIntentsFromPayload(payload)
                     ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
                     ?: listOfNotNull(createDefaultOpenAppIntent(context))
             pushContentIntents.forEach { it.putExtras(bundle) }

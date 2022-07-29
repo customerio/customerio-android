@@ -7,9 +7,9 @@ import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCa
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.provider.FCMTokenProvider
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
-import io.customer.sdk.utils.random
+import io.customer.sdk.module.CustomerIOModuleConfig
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
@@ -26,6 +26,11 @@ internal class ModuleMessagingConfigTest : BaseTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
     private val fcmTokenProviderMock: FCMTokenProvider = mock()
+    private val configurations = hashMapOf<String, CustomerIOModuleConfig>()
+
+    override fun setupConfig(): CustomerIOConfig = createConfig(
+        configurations = configurations
+    )
 
     @Before
     override fun setup() {
@@ -44,11 +49,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
             overrideDiGraph = di
         )
 
-        CustomerIO.Builder(
-            siteId = String.random,
-            apiKey = String.random,
-            appContext = application
-        ).addCustomerIOModule(module).build()
+        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldBeNull()
@@ -64,11 +65,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
             overrideDiGraph = di
         )
 
-        CustomerIO.Builder(
-            siteId = String.random,
-            apiKey = String.random,
-            appContext = application
-        ).addCustomerIOModule(module).build()
+        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldBeNull()
@@ -81,7 +78,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         val module = ModuleMessagingPushFCM(
             moduleConfig = MessagingPushModuleConfig(
                 notificationCallback = object : CustomerIOPushNotificationCallback {
-                    override fun createIntentForLink(payload: CustomerIOParsedPushPayload): Intent? {
+                    override fun createContentIntentFromPayload(payload: CustomerIOParsedPushPayload): Intent? {
                         return null
                     }
                 },
@@ -92,11 +89,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
             overrideDiGraph = di
         )
 
-        CustomerIO.Builder(
-            siteId = String.random,
-            apiKey = String.random,
-            appContext = application
-        ).addCustomerIOModule(module).build()
+        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldNotBeNull()

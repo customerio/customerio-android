@@ -22,8 +22,8 @@ interface DeepLinkUtil {
 }
 
 class DeepLinkUtilImpl(
-    private val moduleConfig: MessagingPushModuleConfig,
-    private val logger: Logger
+    private val logger: Logger,
+    private val moduleConfig: MessagingPushModuleConfig
 ) : DeepLinkUtil {
     private val notificationIntentFlags: Int = Intent.FLAG_ACTIVITY_NEW_TASK or
         Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -37,10 +37,8 @@ class DeepLinkUtilImpl(
             return null
         }
 
-        var intent: Intent? = null
         val linkUri = Uri.parse(deepLink)
-
-        queryDeepLinksForHostApp(context, linkUri)
+        var intent: Intent? = queryDeepLinksForHostApp(context, linkUri)
         if (intent == null && moduleConfig.redirectDeepLinksToThirdPartyApps) {
             intent = queryDeepLinksForThirdPartyApps(context, linkUri)
         }

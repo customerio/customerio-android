@@ -21,4 +21,4 @@ internal val CustomerIOComponent.moduleConfig: MessagingPushModuleConfig
     get() = sdkConfig.configurations[ModuleMessagingPushFCM.MODULE_NAME] as MessagingPushModuleConfig
 
 val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
-    get() = override() ?: DeepLinkUtilImpl(moduleConfig, logger)
+    get() = override() ?: DeepLinkUtilImpl(logger, moduleConfig)

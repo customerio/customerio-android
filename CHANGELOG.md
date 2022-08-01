@@ -1,3 +1,10 @@
+### [2.1.1](https://github.com/customerio/customerio-android/compare/2.1.0...2.1.1) (2022-08-01)
+
+
+### Bug Fixes
+
+* parsing exception for expired tasks ([440bb13](https://github.com/customerio/customerio-android/commit/440bb134a4a234f2bc15354dc0ad6ca90a1b5da8))
+
 ## [2.1.0](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0) (2022-08-01)
 
 

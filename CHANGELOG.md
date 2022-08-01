@@ -1,3 +1,15 @@
+## [2.1.0](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0) (2022-08-01)
+
+
+### Features
+
+* delete expired background queue tasks ([8dca8b7](https://github.com/customerio/customerio-android/commit/8dca8b719f634d06c86628f154b2ff45d1bd6c79))
+
+
+### Bug Fixes
+
+* deploy code script commands ([#124](https://github.com/customerio/customerio-android/issues/124)) ([fe817d1](https://github.com/customerio/customerio-android/commit/fe817d10ee00ec5694d3b3e2caa8658c7cc9a1b1))
+
 ## [2.1.0-beta.1](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0-beta.1) (2022-08-01)
 
 

@@ -4,16 +4,15 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.CustomerIOPushNotificationHandler.Companion.NOTIFICATION_REQUEST_CODE
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.util.DeepLinkUtil
+import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 
 internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
@@ -57,15 +56,28 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
     private fun handleDeepLink(context: Context, payload: CustomerIOParsedPushPayload) {
         // check if host app overrides the handling of deeplink
-        val deepLinkIntents = moduleConfig.notificationCallback?.createContentIntentsFromPayload(payload)
-            // check if the deep links are handled within the host app
-            ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
+        val taskStackBuilder =
+            moduleConfig.notificationCallback?.createTaskStackFromPayload(payload)
+        if (taskStackBuilder != null) {
+            taskStackBuilder.startActivities()
+            return
+        }
 
-        if (!deepLinkIntents.isNullOrEmpty()) {
-            TaskStackBuilder.create(context).run {
-                deepLinkIntents.forEach { addNextIntentWithParentStack(it) }
-                startActivities()
-            }
+        val deepLinkIntent = deepLinkUtil.createDeepLinkHostAppIntent(
+            // check if the deep links are handled within the host app
+            context,
+            payload.deepLink
+        ) ?: payload.deepLink?.let { link ->
+            // check if the deep links can be opened outside the host app
+            deepLinkUtil.createDeepLinkExternalIntent(
+                context = context,
+                link = link,
+                startingFromService = true
+            )
+        }
+
+        deepLinkIntent?.let { intent ->
+            context.startActivity(intent)
         }
     }
 }

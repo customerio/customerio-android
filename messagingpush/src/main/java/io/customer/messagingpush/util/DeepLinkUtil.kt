@@ -5,20 +5,35 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.util.Patterns
-import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.sdk.util.Logger
 
 interface DeepLinkUtil {
     /**
-     * Creates list of intents for the provided link for the provided link.
+     * Creates intent from host app activities matching the provided link.
      *
      * @param context reference to application context
-     * @param deepLink link to create intent for
-     * @return list of intents to add in [TaskStackBuilder] for the provided
-     * link, empty if no matching intent found
+     * @param link link to create intent for
+     * @return intent matching the link in traditional Android way; null if no
+     * matching intents found
      */
-    fun createDefaultDeepLinkHandlerIntents(context: Context, deepLink: String?): List<Intent>?
+    fun createDeepLinkHostAppIntent(context: Context, link: String?): Intent?
+
+    /**
+     * Creates intent outside the host app that can open the provided link.
+     *
+     * @param context reference to application context
+     * @param link link to create intent for
+     * @param startingFromService flag to indicate if the intent is to be
+     * started from service so required flags can be added
+     * @return intent that can open the link outside the host app; null if no
+     * matching intent found
+     */
+    fun createDeepLinkExternalIntent(
+        context: Context,
+        link: String,
+        startingFromService: Boolean
+    ): Intent?
 }
 
 class DeepLinkUtilImpl(
@@ -28,31 +43,53 @@ class DeepLinkUtilImpl(
     private val notificationIntentFlags: Int = Intent.FLAG_ACTIVITY_NEW_TASK or
         Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
 
-    override fun createDefaultDeepLinkHandlerIntents(
-        context: Context,
-        deepLink: String?
-    ): List<Intent>? {
-        if (deepLink.isNullOrBlank()) {
+    override fun createDeepLinkHostAppIntent(context: Context, link: String?): Intent? {
+        if (link.isNullOrBlank()) {
             logger.debug("No link received in push notification content")
             return null
         }
 
-        val linkUri = Uri.parse(deepLink)
-        var intent: Intent? = queryDeepLinksForHostApp(context, linkUri)
-        if (intent == null && moduleConfig.redirectDeepLinksToThirdPartyApps) {
-            intent = queryDeepLinksForThirdPartyApps(context, linkUri)
+        val intent: Intent? = queryDeepLinksForHostApp(context, Uri.parse(link))
+        return if (intent != null) intent
+        else {
+            logger.info(
+                "No supporting activity found in host app for link received in" +
+                    " push notification $link"
+            )
+            null
+        }
+    }
+
+    override fun createDeepLinkExternalIntent(
+        context: Context,
+        link: String,
+        startingFromService: Boolean
+    ): Intent? {
+        val linkUri = Uri.parse(link)
+        var intent: Intent? = null
+
+        if (moduleConfig.redirectDeepLinksToThirdPartyApps) {
+            intent = queryDeepLinksForThirdPartyApps(
+                context = context,
+                uri = linkUri,
+                startingFromService = startingFromService
+            )
         }
         if (intent == null && moduleConfig.redirectDeepLinksToHttpBrowser) {
-            intent = queryDeepLinksForBrowser(context, linkUri)
+            intent = queryDeepLinksForBrowser(
+                context = context,
+                uri = linkUri,
+                startingFromService = startingFromService
+            )
         }
 
         if (intent == null) {
             logger.info(
                 "No supporting application found for link received in push " +
-                    "notification $deepLink"
+                    "notification $link"
             )
         }
-        return listOfNotNull(intent)
+        return intent
     }
 
     private fun queryDeepLinksForHostApp(context: Context, uri: Uri): Intent? {
@@ -68,11 +105,14 @@ class DeepLinkUtilImpl(
 
     private fun queryDeepLinksForThirdPartyApps(
         context: Context,
-        uri: Uri
+        uri: Uri,
+        startingFromService: Boolean
     ): Intent? {
         // check if the deep link is handled by any app outside the host app
         val intent = Intent(Intent.ACTION_VIEW, uri)
-        intent.flags = notificationIntentFlags
+        if (startingFromService) {
+            intent.flags = notificationIntentFlags
+        }
 
         val resolveInfo = context.packageManager.queryIntentActivities(intent, 0)
         resolveInfo.firstOrNull()?.let { item ->
@@ -82,14 +122,20 @@ class DeepLinkUtilImpl(
         return intent.takeIf { component -> component.resolveActivity(context.packageManager) != null }
     }
 
-    private fun queryDeepLinksForBrowser(context: Context, uri: Uri): Intent? {
+    private fun queryDeepLinksForBrowser(
+        context: Context,
+        uri: Uri,
+        startingFromService: Boolean
+    ): Intent? {
         // check if the deep link is valid browser url
         if (!Patterns.WEB_URL.matcher(uri.toString()).matches()) {
             return null
         }
 
         val intent = Intent(Intent.ACTION_VIEW, uri)
-        intent.flags = notificationIntentFlags
+        if (startingFromService) {
+            intent.flags = notificationIntentFlags
+        }
         return intent.takeIf { component -> component.resolveActivity(context.packageManager) != null }
     }
 }

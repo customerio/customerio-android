@@ -1,29 +1,19 @@
 package io.customer.messagingpush.data.communication
 
-import android.content.Intent
 import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 
 interface CustomerIOPushNotificationCallback {
     /**
-     * Callback called when deeplink action is performed.
+     * Callback to notify host app when deeplink click action is performed.
      *
-     * @param payload payload data received for the notification
-     * @return intent to launch on notification click; null to let the SDK handle this
-     */
-    fun createContentIntentFromPayload(payload: CustomerIOParsedPushPayload): Intent?
-
-    /**
-     * Callback called when deeplink action is performed, this can be used to
-     * open activities stack for the link.
+     * @param payload data received for the notification
+     * @return [TaskStackBuilder] to launch activities on notification click;
+     * null to let the SDK handle this
      *
-     * @param payload payload data received for the notification
-     * @return list of intents to add to [TaskStackBuilder]; null to let the SDK
-     * handle this, and empty to do nothing
+     * NOTE: If your app is targeting Android 12 or greater, be careful of
+     * launching intents outside the app as it can affect the notification
+     * open metrics tracking
      */
-    fun createContentIntentsFromPayload(
-        payload: CustomerIOParsedPushPayload
-    ): List<Intent>? = listOfNotNull(
-        createContentIntentFromPayload(payload)
-    ).takeIf { list -> list.isNotEmpty() }
+    fun createTaskStackFromPayload(payload: CustomerIOParsedPushPayload): TaskStackBuilder?
 }

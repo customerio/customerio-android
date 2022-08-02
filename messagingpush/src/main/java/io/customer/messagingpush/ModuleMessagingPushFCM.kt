@@ -1,6 +1,9 @@
 package io.customer.messagingpush
 
+import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.pushTrackingUtil
+import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.di.CustomerIOComponent
@@ -30,6 +33,9 @@ class ModuleMessagingPushFCM internal constructor(
 
     override fun initialize() {
         getCurrentFcmToken()
+        diGraph.activityLifecycleCallbacks.registerCallback(
+            MessagingPushLifecycleCallback(diGraph.deepLinkUtil, diGraph.pushTrackingUtil)
+        )
     }
 
     /**

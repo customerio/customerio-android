@@ -1,4 +1,4 @@
-package io.customer.sdk.util
+package io.customer.messagingpush.util
 
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -45,8 +45,8 @@ class PushTrackingUtilTest : BaseTest() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
         val givenBundle = Bundle().apply {
-            putString(PushTrackingUtilImpl.DELIVERY_ID_KEY, givenDeliveryId)
-            putString(PushTrackingUtilImpl.DELIVERY_TOKEN_KEY, givenDeviceToken)
+            putString(PushTrackingUtil.DELIVERY_ID_KEY, givenDeliveryId)
+            putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
 
         val result = util.parseLaunchedActivityForTracking(givenBundle)

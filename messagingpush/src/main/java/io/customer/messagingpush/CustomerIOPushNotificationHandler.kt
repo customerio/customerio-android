@@ -16,14 +16,15 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
+import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.messagingpush.util.DeepLinkUtil
+import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
+import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.Logger
-import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_ID_KEY
-import io.customer.sdk.util.PushTrackingUtilImpl.Companion.DELIVERY_TOKEN_KEY
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -182,20 +183,25 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
-        if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
-            val pushContentIntents: List<Intent> =
-                moduleConfig.notificationCallback?.createContentIntentsFromPayload(payload)
-                    ?: deepLinkUtil.createDefaultDeepLinkHandlerIntents(context, payload.deepLink)
-                    ?: listOfNotNull(createDefaultOpenAppIntent(context))
-            pushContentIntents.forEach { it.putExtras(bundle) }
 
-            return if (pushContentIntents.isNotEmpty()) {
-                val notificationClickedIntent = TaskStackBuilder.create(context).run {
-                    pushContentIntents.forEach { addNextIntentWithParentStack(it) }
-                    getPendingIntent(requestCode, flags)
+        if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
+            val taskStackBuilder = moduleConfig.notificationCallback?.createTaskStackFromPayload(
+                payload
+            ) ?: kotlin.run {
+                val pushContentIntent: Intent? = deepLinkUtil.createDeepLinkHostAppIntent(
+                    context,
+                    payload.deepLink
+                ) ?: createDefaultHostAppIntent(context, payload.deepLink)
+                pushContentIntent?.putExtras(bundle)
+
+                return@run pushContentIntent?.let { intent ->
+                    TaskStackBuilder.create(context).run {
+                        addNextIntentWithParentStack(intent)
+                    }
                 }
-                notificationClickedIntent
-            } else null
+            }
+
+            return taskStackBuilder?.getPendingIntent(requestCode, flags)
         } else {
             val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)
             pushContentIntent.setClass(context, CustomerIOPushReceiver::class.java)
@@ -210,8 +216,11 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         }
     }
 
-    private fun createDefaultOpenAppIntent(context: Context): Intent? {
-        return context.packageManager.getLaunchIntentForPackage(context.packageName)
+    private fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent? {
+        return context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+            // Add pending link to open outside host app so open tracking metrics are not affected
+            putExtra(MessagingPushLifecycleCallback.PENDING_CONTENT_ACTION_LINK, contentActionLink)
+        }
     }
 
     private fun addImage(

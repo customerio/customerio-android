@@ -5,6 +5,8 @@ import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
+import io.customer.messagingpush.util.PushTrackingUtil
+import io.customer.messagingpush.util.PushTrackingUtilImpl
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.di.CustomerIOComponent
 
@@ -18,7 +20,12 @@ internal val CustomerIOComponent.fcmTokenProvider: DeviceTokenProvider
     get() = override() ?: FCMTokenProviderImpl(logger = logger, context = context)
 
 internal val CustomerIOComponent.moduleConfig: MessagingPushModuleConfig
-    get() = sdkConfig.configurations[ModuleMessagingPushFCM.MODULE_NAME] as MessagingPushModuleConfig
+    get() = override() ?: sdkConfig.configurations[
+        ModuleMessagingPushFCM.MODULE_NAME
+    ] as MessagingPushModuleConfig
 
-val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
+internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
     get() = override() ?: DeepLinkUtilImpl(logger, moduleConfig)
+
+internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
+    get() = override() ?: PushTrackingUtilImpl(trackRepository)

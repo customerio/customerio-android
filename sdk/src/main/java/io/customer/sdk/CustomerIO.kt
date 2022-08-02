@@ -112,8 +112,6 @@ class CustomerIO internal constructor(
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
 
-        private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
-
         fun setRegion(region: Region): Builder {
             this.region = region
             return this
@@ -182,11 +180,9 @@ class CustomerIO internal constructor(
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config, diGraph.pushTrackingUtil)
-            appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
-
             instance = client
 
+            appContext.registerActivityLifecycleCallbacks(diGraph.activityLifecycleCallbacks)
             modules.forEach {
                 logger.debug("initializing SDK module ${it.value.moduleName}...")
                 it.value.initialize()

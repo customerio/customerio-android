@@ -6,9 +6,23 @@ import android.net.Uri
 import android.os.Build
 import android.util.Patterns
 import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.util.Logger
 
 interface DeepLinkUtil {
+    /**
+     * Creates default launcher intent for host app.
+     *
+     * @param context reference to application context
+     * @param contentActionLink action link to add to extras so it can be
+     * opened after launcher activity has been created. This helps opening
+     * external links without affecting open metrics on Android 12 and
+     * onwards.
+     * @return launcher intent for host app; null if fail to resolve
+     * default launcher intent
+     */
+    fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent?
+
     /**
      * Creates intent from host app activities matching the provided link.
      *
@@ -42,6 +56,13 @@ class DeepLinkUtilImpl(
 ) : DeepLinkUtil {
     private val notificationIntentFlags: Int = Intent.FLAG_ACTIVITY_NEW_TASK or
         Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+    override fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent? {
+        return context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+            // Add pending link to open outside host app so open tracking metrics are not affected
+            putExtra(MessagingPushLifecycleCallback.PENDING_CONTENT_ACTION_LINK, contentActionLink)
+        }
+    }
 
     override fun createDeepLinkHostAppIntent(context: Context, link: String?): Intent? {
         if (link.isNullOrBlank()) {

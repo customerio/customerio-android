@@ -1,6 +1,6 @@
 package io.customer.messagingpush
 
-import android.content.Intent
+import androidx.core.app.TaskStackBuilder
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
@@ -78,7 +78,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         val module = ModuleMessagingPushFCM(
             moduleConfig = MessagingPushModuleConfig(
                 notificationCallback = object : CustomerIOPushNotificationCallback {
-                    override fun createContentIntentFromPayload(payload: CustomerIOParsedPushPayload): Intent? {
+                    override fun createTaskStackFromPayload(payload: CustomerIOParsedPushPayload): TaskStackBuilder? {
                         return null
                     }
                 },

@@ -74,7 +74,10 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
                 link = link,
                 startingFromService = true
             )
-        }
+        } ?: deepLinkUtil.createDefaultHostAppIntent(
+            context = context,
+            contentActionLink = null
+        )
 
         deepLinkIntent?.let { intent ->
             context.startActivity(intent)

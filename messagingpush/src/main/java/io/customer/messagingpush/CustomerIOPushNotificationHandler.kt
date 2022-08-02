@@ -16,7 +16,6 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
-import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
@@ -191,7 +190,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
                 val pushContentIntent: Intent? = deepLinkUtil.createDeepLinkHostAppIntent(
                     context,
                     payload.deepLink
-                ) ?: createDefaultHostAppIntent(context, payload.deepLink)
+                ) ?: deepLinkUtil.createDefaultHostAppIntent(context, payload.deepLink)
                 pushContentIntent?.putExtras(bundle)
 
                 return@run pushContentIntent?.let { intent ->
@@ -213,13 +212,6 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
                 pushContentIntent,
                 flags
             )
-        }
-    }
-
-    private fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent? {
-        return context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            // Add pending link to open outside host app so open tracking metrics are not affected
-            putExtra(MessagingPushLifecycleCallback.PENDING_CONTENT_ACTION_LINK, contentActionLink)
         }
     }
 

@@ -2,9 +2,9 @@ package io.customer.messagingpush.util
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.util.Patterns
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.util.Logger
@@ -89,39 +89,40 @@ class DeepLinkUtilImpl(
         val linkUri = Uri.parse(link)
         var intent: Intent? = null
 
-        if (moduleConfig.redirectDeepLinksToThirdPartyApps) {
+        if (moduleConfig.redirectDeepLinksToOtherApps) {
             intent = queryDeepLinksForThirdPartyApps(
                 context = context,
                 uri = linkUri,
                 startingFromService = startingFromService
             )
-        }
-        if (intent == null && moduleConfig.redirectDeepLinksToHttpBrowser) {
-            intent = queryDeepLinksForBrowser(
-                context = context,
-                uri = linkUri,
-                startingFromService = startingFromService
-            )
+
+            if (intent == null) {
+                logger.info(
+                    "No supporting application found for link received in " +
+                        "push notification: $link"
+                )
+            }
         }
 
-        if (intent == null) {
-            logger.info(
-                "No supporting application found for link received in push " +
-                    "notification $link"
-            )
-        }
         return intent
+    }
+
+    private fun Intent.takeIfResolvable(packageManager: PackageManager): Intent? {
+        return takeIf { intent ->
+            intent.resolveActivity(packageManager) != null
+        }
     }
 
     private fun queryDeepLinksForHostApp(context: Context, uri: Uri): Intent? {
         // check if the deep link is handled within the host app
-        val intent = Intent(Intent.ACTION_VIEW, uri)
-        intent.setPackage(context.packageName)
+        val hostAppIntent = Intent(Intent.ACTION_VIEW, uri)
+        hostAppIntent.setPackage(context.packageName)
 
-        intent.flags = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) notificationIntentFlags
-        else notificationIntentFlags or Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER
+        hostAppIntent.flags =
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) notificationIntentFlags
+            else notificationIntentFlags or Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER
 
-        return intent.takeIf { component -> component.resolveActivity(context.packageManager) != null }
+        return hostAppIntent.takeIfResolvable(context.packageManager)
     }
 
     private fun queryDeepLinksForThirdPartyApps(
@@ -129,34 +130,17 @@ class DeepLinkUtilImpl(
         uri: Uri,
         startingFromService: Boolean
     ): Intent? {
-        // check if the deep link is handled by any app outside the host app
-        val intent = Intent(Intent.ACTION_VIEW, uri)
+        // check if the deep link can be opened by any other app
+        val browsableIntent = Intent(Intent.ACTION_VIEW, uri)
         if (startingFromService) {
-            intent.flags = notificationIntentFlags
+            browsableIntent.flags = notificationIntentFlags
         }
 
-        val resolveInfo = context.packageManager.queryIntentActivities(intent, 0)
-        resolveInfo.firstOrNull()?.let { item ->
-            intent.setPackage(item.activityInfo.packageName)
+        val resolveInfo = context.packageManager.queryIntentActivities(browsableIntent, 0)
+        if (resolveInfo.isNotEmpty()) {
+            browsableIntent.setPackage(resolveInfo.first().activityInfo.packageName)
         }
 
-        return intent.takeIf { component -> component.resolveActivity(context.packageManager) != null }
-    }
-
-    private fun queryDeepLinksForBrowser(
-        context: Context,
-        uri: Uri,
-        startingFromService: Boolean
-    ): Intent? {
-        // check if the deep link is valid browser url
-        if (!Patterns.WEB_URL.matcher(uri.toString()).matches()) {
-            return null
-        }
-
-        val intent = Intent(Intent.ACTION_VIEW, uri)
-        if (startingFromService) {
-            intent.flags = notificationIntentFlags
-        }
-        return intent.takeIf { component -> component.resolveActivity(context.packageManager) != null }
+        return browsableIntent.takeIfResolvable(context.packageManager)
     }
 }

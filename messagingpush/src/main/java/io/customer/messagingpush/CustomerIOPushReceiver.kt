@@ -1,6 +1,7 @@
 package io.customer.messagingpush
 
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -13,6 +14,7 @@ import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.util.Logger
 
 internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
@@ -23,6 +25,9 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
     private val diGraph: CustomerIOComponent
         get() = CustomerIO.instance().diGraph
+
+    private val logger: Logger
+        get() = diGraph.logger
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.moduleConfig
@@ -57,7 +62,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
     private fun handleDeepLink(context: Context, payload: CustomerIOParsedPushPayload) {
         // check if host app overrides the handling of deeplink
         val taskStackBuilder =
-            moduleConfig.notificationCallback?.createTaskStackFromPayload(payload)
+            moduleConfig.notificationCallback?.createTaskStackFromPayload(context, payload)
         if (taskStackBuilder != null) {
             taskStackBuilder.startActivities()
             return
@@ -80,7 +85,11 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         )
 
         deepLinkIntent?.let { intent ->
-            context.startActivity(intent)
+            try {
+                context.startActivity(intent)
+            } catch (ex: ActivityNotFoundException) {
+                logger.error("Unable to start activity for notification action $payload; ${ex.message}")
+            }
         }
     }
 }

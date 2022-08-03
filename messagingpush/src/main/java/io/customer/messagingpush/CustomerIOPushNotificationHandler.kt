@@ -185,6 +185,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
             val taskStackBuilder = moduleConfig.notificationCallback?.createTaskStackFromPayload(
+                context,
                 payload
             ) ?: kotlin.run {
                 val pushContentIntent: Intent? = deepLinkUtil.createDeepLinkHostAppIntent(

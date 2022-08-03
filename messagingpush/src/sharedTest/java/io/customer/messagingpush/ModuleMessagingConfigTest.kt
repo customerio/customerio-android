@@ -53,8 +53,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldBeNull()
-        moduleConfig.redirectDeepLinksToThirdPartyApps.shouldBeTrue()
-        moduleConfig.redirectDeepLinksToHttpBrowser.shouldBeTrue()
+        moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
     }
 
     @Test
@@ -69,8 +68,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldBeNull()
-        moduleConfig.redirectDeepLinksToThirdPartyApps.shouldBeTrue()
-        moduleConfig.redirectDeepLinksToHttpBrowser.shouldBeTrue()
+        moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
     }
 
     @Test
@@ -82,8 +80,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
                         return null
                     }
                 },
-                redirectDeepLinksToThirdPartyApps = false,
-                redirectDeepLinksToHttpBrowser = false
+                redirectDeepLinksToOtherApps = false
             ),
             overrideCustomerIO = customerIOMock,
             overrideDiGraph = di
@@ -93,7 +90,6 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldNotBeNull()
-        moduleConfig.redirectDeepLinksToThirdPartyApps.shouldBeFalse()
-        moduleConfig.redirectDeepLinksToHttpBrowser.shouldBeFalse()
+        moduleConfig.redirectDeepLinksToOtherApps.shouldBeFalse()
     }
 }

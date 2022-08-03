@@ -7,9 +7,9 @@ import io.customer.commontest.BaseTest
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.moduleConfig
-import io.customer.messagingpush.provider.FCMTokenProvider
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.module.CustomerIOModuleConfig
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
@@ -26,7 +26,7 @@ import org.mockito.kotlin.whenever
 internal class ModuleMessagingConfigTest : BaseTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
-    private val fcmTokenProviderMock: FCMTokenProvider = mock()
+    private val fcmTokenProviderMock: DeviceTokenProvider = mock()
     private val configurations = hashMapOf<String, CustomerIOModuleConfig>()
 
     override fun setupConfig(): CustomerIOConfig = createConfig(
@@ -36,7 +36,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
     @Before
     override fun setup() {
         super.setup()
-        di.overrideDependency(FCMTokenProvider::class.java, fcmTokenProviderMock)
+        di.overrideDependency(DeviceTokenProvider::class.java, fcmTokenProviderMock)
         whenever(fcmTokenProviderMock.getCurrentToken(any())).thenAnswer {
             val callback = it.getArgument<(String?) -> Unit>(0)
             callback(null)

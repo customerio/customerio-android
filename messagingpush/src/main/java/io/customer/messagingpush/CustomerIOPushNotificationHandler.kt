@@ -125,6 +125,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             .setAutoCancel(true)
             .setSound(defaultSoundUri)
             .setTicker(applicationName)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
 
         try {
             // check for image

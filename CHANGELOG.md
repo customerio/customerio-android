@@ -1,3 +1,10 @@
+## [2.2.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.1.1...2.2.0-alpha.1) (2022-08-03)
+
+
+### Features
+
+* in app sdk ([1036c80](https://github.com/customerio/customerio-android/commit/1036c8030259eaef1472e8c004636aee02d1af8a))
+
 ### [2.1.1](https://github.com/customerio/customerio-android/compare/2.1.0...2.1.1) (2022-08-01)
 
 

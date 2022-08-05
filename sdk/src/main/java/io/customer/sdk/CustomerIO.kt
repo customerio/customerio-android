@@ -111,6 +111,9 @@ class CustomerIO internal constructor(
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
+        private var autoTrackPushEvents: Boolean = true
+        private var backgroundQueueMinNumberOfTasks: Int = 10
+        private var backgroundQueueSecondsDelay: Double = 30.0
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -146,6 +149,40 @@ class CustomerIO internal constructor(
             return this
         }
 
+        /**
+         * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
+         * opened and delivered metrics for push notifications sent by Customer.io without
+         * any additional code
+         *
+         * @param autoTrackPushEvents true to enable auto tracking, false otherwise; default true
+         */
+        fun setAutoTrackPushEvents(autoTrackPushEvents: Boolean): Builder {
+            this.autoTrackPushEvents = autoTrackPushEvents
+            return this
+        }
+
+        /**
+         * Sets the number of tasks in the background queue before the queue begins operating.
+         * This is mostly used during development to test configuration is setup. We do not recommend
+         * modifying this value because it impacts battery life of mobile device.
+         *
+         * @param backgroundQueueMinNumberOfTasks the minimum number of tasks in background queue; default 10
+         */
+        fun setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks: Int): Builder {
+            this.backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks
+            return this
+        }
+
+        /**
+         * Sets the number of seconds to delay running queue after a task has been added to it
+         *
+         * @param backgroundQueueSecondsDelay time in seconds to delay events; default 30
+         */
+        fun setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay: Double): Builder {
+            this.backgroundQueueSecondsDelay = backgroundQueueSecondsDelay
+            return this
+        }
+
         fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): Builder {
             modules[module.moduleName] = module
             return this
@@ -167,8 +204,9 @@ class CustomerIO internal constructor(
                 timeout = timeout,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
-                backgroundQueueMinNumberOfTasks = 10,
-                backgroundQueueSecondsDelay = 30.0,
+                autoTrackPushEvents = autoTrackPushEvents,
+                backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
+                backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl,

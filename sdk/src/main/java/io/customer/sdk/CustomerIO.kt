@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.extensions.getScreenNameFromActivity
 import io.customer.sdk.module.CustomerIOModule
@@ -104,6 +105,7 @@ class CustomerIO internal constructor(
         private var region: Region = Region.US,
         private val appContext: Application
     ) {
+        private var client: Client = Client.Android
         private var timeout = 6000L
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
@@ -114,6 +116,11 @@ class CustomerIO internal constructor(
         private var autoTrackPushEvents: Boolean = true
         private var backgroundQueueMinNumberOfTasks: Int = 10
         private var backgroundQueueSecondsDelay: Double = 30.0
+
+        fun setClient(client: Client): Builder {
+            this.client = client
+            return this
+        }
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -198,6 +205,7 @@ class CustomerIO internal constructor(
             }
 
             val config = CustomerIOConfig(
+                client = client,
                 siteId = siteId,
                 apiKey = apiKey,
                 region = region,

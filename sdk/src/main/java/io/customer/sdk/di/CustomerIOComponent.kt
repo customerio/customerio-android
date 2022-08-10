@@ -132,6 +132,7 @@ class CustomerIOComponent(
         return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
                 DeviceStoreImp(
+                    sdkConfig,
                     BuildStoreImp(),
                     ApplicationStoreImp(context),
                     Version.version

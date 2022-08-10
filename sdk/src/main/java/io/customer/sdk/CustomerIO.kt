@@ -3,12 +3,13 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.extensions.getScreenNameFromActivity
+import io.customer.sdk.module.CustomerIOModule
+import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
@@ -104,15 +105,12 @@ class CustomerIO internal constructor(
         private val appContext: Application
     ) {
         private var timeout = 6000L
-        private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
-        private var modules: MutableMap<String, CustomerIOModule> = mutableMapOf()
+        private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> = mutableMapOf()
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
-
-        private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -148,17 +146,7 @@ class CustomerIO internal constructor(
             return this
         }
 
-        /**
-         * Override url/deep link handling
-         *
-         * @param urlHandler callback called when deeplink push action is performed.
-         */
-        fun setCustomerIOUrlHandler(urlHandler: CustomerIOUrlHandler): Builder {
-            this.urlHandler = urlHandler
-            return this
-        }
-
-        fun addCustomerIOModule(module: CustomerIOModule): Builder {
+        fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): Builder {
             modules[module.moduleName] = module
             return this
         }
@@ -177,25 +165,24 @@ class CustomerIO internal constructor(
                 apiKey = apiKey,
                 region = region,
                 timeout = timeout,
-                urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = 10,
                 backgroundQueueSecondsDelay = 30.0,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
-                trackingApiUrl = trackingApiUrl
+                trackingApiUrl = trackingApiUrl,
+                targetSdkVersion = appContext.applicationInfo.targetSdkVersion,
+                configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
             )
 
             val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config, diGraph.pushTrackingUtil)
-            appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
-
             instance = client
 
+            appContext.registerActivityLifecycleCallbacks(diGraph.activityLifecycleCallbacks)
             modules.forEach {
                 logger.debug("initializing SDK module ${it.value.moduleName}...")
                 it.value.initialize()

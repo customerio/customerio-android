@@ -23,7 +23,7 @@ data class CustomerIOParsedPushPayload(
     val body: String
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
-        extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle.EMPTY,
+        extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle(),
         deepLink = parcel.readString(),
         cioDeliveryId = parcel.readString().orEmpty(),
         cioDeliveryToken = parcel.readString().orEmpty(),

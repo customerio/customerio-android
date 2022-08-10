@@ -94,7 +94,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         // Check if message contains a notification payload.
         if (handleNotificationTrigger) {
-            handleNotification(context, deliveryId)
+            handleNotification(context, deliveryId, deliveryToken)
         }
 
         return true
@@ -102,7 +102,8 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
     private fun handleNotification(
         context: Context,
-        deliveryId: String
+        deliveryId: String,
+        deliveryToken: String
     ) {
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
 
@@ -157,6 +158,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             extras = Bundle(bundle),
             deepLink = bundle.getString(DEEP_LINK_KEY),
             cioDeliveryId = deliveryId,
+            cioDeliveryToken = deliveryToken,
             title = title,
             body = body
         )

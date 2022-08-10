@@ -10,7 +10,6 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.util.DeepLinkUtil
-import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
@@ -48,7 +47,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
         val payload: CustomerIOParsedPushPayload? = intent.extras?.getParcelable(PUSH_PAYLOAD_KEY)
         val deliveryId = payload?.cioDeliveryId
-        val deliveryToken = payload?.extras?.getString(DELIVERY_TOKEN_KEY)
+        val deliveryToken = payload?.cioDeliveryToken
 
         if (deliveryId != null && deliveryToken != null) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)

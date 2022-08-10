@@ -10,6 +10,7 @@ import android.os.Parcelable
  * @property extras data received in notification payload
  * @property deepLink url received in notification data
  * @property cioDeliveryId Customer.io message delivery id
+ * @property cioDeliveryToken Customer.io message delivery token
  * @property title notification content title text
  * @property body notification content body text
  */
@@ -17,13 +18,15 @@ data class CustomerIOParsedPushPayload(
     val extras: Bundle,
     val deepLink: String?,
     val cioDeliveryId: String,
+    val cioDeliveryToken: String,
     val title: String,
     val body: String
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
-        extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle(),
+        extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle.EMPTY,
         deepLink = parcel.readString(),
         cioDeliveryId = parcel.readString().orEmpty(),
+        cioDeliveryToken = parcel.readString().orEmpty(),
         title = parcel.readString().orEmpty(),
         body = parcel.readString().orEmpty()
     )
@@ -32,6 +35,7 @@ data class CustomerIOParsedPushPayload(
         parcel.writeBundle(extras)
         parcel.writeString(deepLink)
         parcel.writeString(cioDeliveryId)
+        parcel.writeString(cioDeliveryToken)
         parcel.writeString(title)
         parcel.writeString(body)
     }

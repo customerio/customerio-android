@@ -113,7 +113,6 @@ class CustomerIO internal constructor(
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
-        private var autoTrackPushEvents: Boolean = true
         private var backgroundQueueMinNumberOfTasks: Int = 10
         private var backgroundQueueSecondsDelay: Double = 30.0
 
@@ -153,18 +152,6 @@ class CustomerIO internal constructor(
          */
         fun setTrackingApiURL(trackingApiUrl: String): Builder {
             this.trackingApiUrl = trackingApiUrl
-            return this
-        }
-
-        /**
-         * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
-         * opened and delivered metrics for push notifications sent by Customer.io without
-         * any additional code
-         *
-         * @param autoTrackPushEvents true to enable auto tracking, false otherwise; default true
-         */
-        fun setAutoTrackPushEvents(autoTrackPushEvents: Boolean): Builder {
-            this.autoTrackPushEvents = autoTrackPushEvents
             return this
         }
 
@@ -212,7 +199,6 @@ class CustomerIO internal constructor(
                 timeout = timeout,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
-                autoTrackPushEvents = autoTrackPushEvents,
                 backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
                 backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,

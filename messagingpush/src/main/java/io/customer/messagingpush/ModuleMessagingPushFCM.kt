@@ -10,13 +10,13 @@ import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.module.CustomerIOModule
 
 class ModuleMessagingPushFCM internal constructor(
-    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig(),
+    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default(),
     private val overrideCustomerIO: CustomerIOInstance?,
     private val overrideDiGraph: CustomerIOComponent?
 ) : CustomerIOModule<MessagingPushModuleConfig> {
 
     @JvmOverloads
-    constructor(config: MessagingPushModuleConfig = MessagingPushModuleConfig()) : this(
+    constructor(config: MessagingPushModuleConfig = MessagingPushModuleConfig.default()) : this(
         moduleConfig = config,
         overrideCustomerIO = null,
         overrideDiGraph = null
@@ -34,7 +34,11 @@ class ModuleMessagingPushFCM internal constructor(
     override fun initialize() {
         getCurrentFcmToken()
         diGraph.activityLifecycleCallbacks.registerCallback(
-            MessagingPushLifecycleCallback(diGraph.deepLinkUtil, diGraph.pushTrackingUtil)
+            MessagingPushLifecycleCallback(
+                moduleConfig = moduleConfig,
+                deepLinkUtil = diGraph.deepLinkUtil,
+                pushTrackingUtil = diGraph.pushTrackingUtil
+            )
         )
     }
 

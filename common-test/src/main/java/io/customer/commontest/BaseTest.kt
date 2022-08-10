@@ -7,14 +7,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.module.CustomerIOModuleConfig
-import io.customer.sdk.util.CioLogLevel
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.DispatchersProvider
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.Seconds
+import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -38,7 +35,7 @@ abstract class BaseTest {
 
     protected lateinit var cioConfig: CustomerIOConfig
 
-    protected val deviceStore: DeviceStore = DeviceStoreStub().deviceStore
+    protected lateinit var deviceStore: DeviceStore
     protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
     protected lateinit var di: CustomerIOComponent
@@ -53,6 +50,7 @@ abstract class BaseTest {
     protected lateinit var dateUtilStub: DateUtilStub
 
     protected fun createConfig(
+        client: Client = Client.Android,
         siteId: String = this.siteId,
         apiKey: String = "xyz",
         region: Region = Region.EU,
@@ -67,6 +65,7 @@ abstract class BaseTest {
         targetSdkVersion: Int = android.os.Build.VERSION_CODES.R,
         configurations: Map<String, CustomerIOModuleConfig> = emptyMap()
     ) = CustomerIOConfig(
+        client = client,
         siteId = siteId,
         apiKey = apiKey,
         region = region,
@@ -107,6 +106,7 @@ abstract class BaseTest {
         dateUtilStub = DateUtilStub().also {
             di.overrideDependency(DateUtil::class.java, it)
         }
+        deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
         dispatchersProviderStub = DispatchersProviderStub().also {
             di.overrideDependency(DispatchersProvider::class.java, it)
         }

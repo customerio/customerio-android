@@ -12,7 +12,7 @@ import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 
 class ModuleMessagingInApp internal constructor(
-    override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig(),
+    override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
     private val overrideDiGraph: CustomerIOComponent?,
     private val organizationId: String
 ) : CustomerIOModule<MessagingInAppModuleConfig> {
@@ -20,7 +20,7 @@ class ModuleMessagingInApp internal constructor(
     @JvmOverloads
     constructor(
         organizationId: String,
-        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig()
+        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
     ) : this(
         moduleConfig = config,
         overrideDiGraph = null,

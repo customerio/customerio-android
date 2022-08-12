@@ -1,3 +1,19 @@
+## [3.0.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.2.0-alpha.1...3.0.0-alpha.1) (2022-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* android 12 deep link fix
+
+### Features
+
+* changes for react native package ([2f20ac3](https://github.com/customerio/customerio-android/commit/2f20ac3dd1c1ba6be215d5206b22c143e37efe94))
+
+
+### Bug Fixes
+
+* android 12 deep link fix ([fd7ae28](https://github.com/customerio/customerio-android/commit/fd7ae288a9c85d8ba397419e1d20f58883f83020))
+
 ## [2.2.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.1.1...2.2.0-alpha.1) (2022-08-03)
 
 

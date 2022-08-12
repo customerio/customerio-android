@@ -49,7 +49,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         val deliveryId = payload?.cioDeliveryId
         val deliveryToken = payload?.cioDeliveryToken
 
-        if (deliveryId != null && deliveryToken != null) {
+        if (deliveryId != null && deliveryToken != null && moduleConfig.autoTrackPushEvents) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
         }
 

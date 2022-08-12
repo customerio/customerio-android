@@ -27,7 +27,7 @@ internal class ModuleMessagingPushFCMTest : BaseTest() {
         super.setup()
 
         di.overrideDependency(DeviceTokenProvider::class.java, fcmTokenProviderMock)
-        di.overrideDependency(MessagingPushModuleConfig::class.java, MessagingPushModuleConfig())
+        di.overrideDependency(MessagingPushModuleConfig::class.java, MessagingPushModuleConfig.default())
 
         module = ModuleMessagingPushFCM(overrideCustomerIO = customerIOMock, overrideDiGraph = di)
     }

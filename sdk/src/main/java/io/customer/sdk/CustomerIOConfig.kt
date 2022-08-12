@@ -1,10 +1,12 @@
 package io.customer.sdk
 
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.util.CioLogLevel
 
 data class CustomerIOConfig(
+    val client: Client,
     val siteId: String,
     val apiKey: String,
     val region: Region,

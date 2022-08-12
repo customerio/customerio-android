@@ -4,11 +4,13 @@ import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
+import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.lifecycle.LifecycleCallback
 
 internal class MessagingPushLifecycleCallback internal constructor(
+    private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
     private val pushTrackingUtil: PushTrackingUtil
 ) : LifecycleCallback {
@@ -19,7 +21,9 @@ internal class MessagingPushLifecycleCallback internal constructor(
             Lifecycle.Event.ON_CREATE -> {
                 val intentArguments = activity.intent.extras ?: return
 
-                pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                if (moduleConfig.autoTrackPushEvents) {
+                    pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                }
                 launchContentAction(
                     activity,
                     intentArguments.getString(PENDING_CONTENT_ACTION_LINK)

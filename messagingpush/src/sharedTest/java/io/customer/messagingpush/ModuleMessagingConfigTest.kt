@@ -60,7 +60,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
     @Test
     fun initialize_givenEmptyConfig_expectDefaultValues() {
         val module = ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig(),
+            moduleConfig = MessagingPushModuleConfig.default(),
             overrideCustomerIO = customerIOMock,
             overrideDiGraph = di
         )
@@ -68,6 +68,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
         val moduleConfig = di.moduleConfig
 
+        moduleConfig.autoTrackPushEvents.shouldBeTrue()
         moduleConfig.notificationCallback.shouldBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
     }
@@ -75,15 +76,18 @@ internal class ModuleMessagingConfigTest : BaseTest() {
     @Test
     fun initialize_givenCustomConfig_expectCustomValues() {
         val module = ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig(
-                notificationCallback = object : CustomerIOPushNotificationCallback {
-                    override fun createTaskStackFromPayload(
-                        context: Context,
-                        payload: CustomerIOParsedPushPayload
-                    ): TaskStackBuilder? = null
-                },
-                redirectDeepLinksToOtherApps = false
-            ),
+            moduleConfig = MessagingPushModuleConfig.Builder().apply {
+                setAutoTrackPushEvents(false)
+                setNotificationCallback(
+                    object : CustomerIOPushNotificationCallback {
+                        override fun createTaskStackFromPayload(
+                            context: Context,
+                            payload: CustomerIOParsedPushPayload
+                        ): TaskStackBuilder? = null
+                    }
+                )
+                setRedirectDeepLinksToOtherApps(false)
+            }.build(),
             overrideCustomerIO = customerIOMock,
             overrideDiGraph = di
         )
@@ -91,6 +95,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
         val moduleConfig = di.moduleConfig
 
+        moduleConfig.autoTrackPushEvents.shouldBeFalse()
         moduleConfig.notificationCallback.shouldNotBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeFalse()
     }

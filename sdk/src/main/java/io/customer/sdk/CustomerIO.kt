@@ -3,12 +3,14 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.extensions.getScreenNameFromActivity
+import io.customer.sdk.module.CustomerIOModule
+import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
@@ -103,16 +105,21 @@ class CustomerIO internal constructor(
         private var region: Region = Region.US,
         private val appContext: Application
     ) {
+        private var client: Client = Client.Android
         private var timeout = 6000L
-        private var urlHandler: CustomerIOUrlHandler? = null
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
-        private var modules: MutableMap<String, CustomerIOModule> = mutableMapOf()
+        private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> = mutableMapOf()
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
+        private var backgroundQueueMinNumberOfTasks: Int = 10
+        private var backgroundQueueSecondsDelay: Double = 30.0
 
-        private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
+        fun setClient(client: Client): Builder {
+            this.client = client
+            return this
+        }
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -149,16 +156,28 @@ class CustomerIO internal constructor(
         }
 
         /**
-         * Override url/deep link handling
+         * Sets the number of tasks in the background queue before the queue begins operating.
+         * This is mostly used during development to test configuration is setup. We do not recommend
+         * modifying this value because it impacts battery life of mobile device.
          *
-         * @param urlHandler callback called when deeplink push action is performed.
+         * @param backgroundQueueMinNumberOfTasks the minimum number of tasks in background queue; default 10
          */
-        fun setCustomerIOUrlHandler(urlHandler: CustomerIOUrlHandler): Builder {
-            this.urlHandler = urlHandler
+        fun setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks: Int): Builder {
+            this.backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks
             return this
         }
 
-        fun addCustomerIOModule(module: CustomerIOModule): Builder {
+        /**
+         * Sets the number of seconds to delay running queue after a task has been added to it
+         *
+         * @param backgroundQueueSecondsDelay time in seconds to delay events; default 30
+         */
+        fun setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay: Double): Builder {
+            this.backgroundQueueSecondsDelay = backgroundQueueSecondsDelay
+            return this
+        }
+
+        fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): Builder {
             modules[module.moduleName] = module
             return this
         }
@@ -173,29 +192,29 @@ class CustomerIO internal constructor(
             }
 
             val config = CustomerIOConfig(
+                client = client,
                 siteId = siteId,
                 apiKey = apiKey,
                 region = region,
                 timeout = timeout,
-                urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
-                backgroundQueueMinNumberOfTasks = 10,
-                backgroundQueueSecondsDelay = 30.0,
+                backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
+                backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
-                trackingApiUrl = trackingApiUrl
+                trackingApiUrl = trackingApiUrl,
+                targetSdkVersion = appContext.applicationInfo.targetSdkVersion,
+                configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
             )
 
             val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config, diGraph.pushTrackingUtil)
-            appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
-
             instance = client
 
+            appContext.registerActivityLifecycleCallbacks(diGraph.activityLifecycleCallbacks)
             modules.forEach {
                 logger.debug("initializing SDK module ${it.value.moduleName}...")
                 it.value.initialize()

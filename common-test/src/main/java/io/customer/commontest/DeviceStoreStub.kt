@@ -1,5 +1,6 @@
 package io.customer.commontest
 
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.BuildStore
 import io.customer.sdk.data.store.DeviceStore
@@ -8,8 +9,9 @@ import java.util.*
 
 class DeviceStoreStub {
 
-    val deviceStore: DeviceStore
-        get() = DeviceStoreImp(
+    fun getDeviceStore(cioConfig: CustomerIOConfig): DeviceStore {
+        return DeviceStoreImp(
+            sdkConfig = cioConfig,
             buildStore = object : BuildStore {
                 override val deviceBrand: String
                     get() = "Google"
@@ -34,4 +36,5 @@ class DeviceStoreStub {
             },
             version = "1.0.0-alpha.6"
         )
+    }
 }

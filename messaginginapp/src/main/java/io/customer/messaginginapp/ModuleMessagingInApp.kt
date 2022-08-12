@@ -4,19 +4,25 @@ import android.app.Application
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 
 class ModuleMessagingInApp internal constructor(
+    override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
     private val overrideDiGraph: CustomerIOComponent?,
     private val organizationId: String
-) : CustomerIOModule {
+) : CustomerIOModule<MessagingInAppModuleConfig> {
 
-    constructor(organizationId: String) : this(
+    @JvmOverloads
+    constructor(
+        organizationId: String,
+        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
+    ) : this(
+        moduleConfig = config,
         overrideDiGraph = null,
         organizationId = organizationId
     )

@@ -92,6 +92,12 @@ class CustomerIO internal constructor(
     companion object {
         private var instance: CustomerIO? = null
 
+        fun instanceOrNull(): CustomerIO? = try {
+            instance()
+        } catch (ex: Exception) {
+            null
+        }
+
         @JvmStatic
         fun instance(): CustomerIO {
             return instance

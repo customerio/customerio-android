@@ -1,11 +1,8 @@
 package io.customer.messagingpush
 
-import android.content.Context
-import androidx.core.app.TaskStackBuilder
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
-import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
@@ -78,14 +75,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         val module = ModuleMessagingPushFCM(
             moduleConfig = MessagingPushModuleConfig.Builder().apply {
                 setAutoTrackPushEvents(false)
-                setNotificationCallback(
-                    object : CustomerIOPushNotificationCallback {
-                        override fun createTaskStackFromPayload(
-                            context: Context,
-                            payload: CustomerIOParsedPushPayload
-                        ): TaskStackBuilder? = null
-                    }
-                )
+                setNotificationCallback(object : CustomerIOPushNotificationCallback {})
                 setRedirectDeepLinksToOtherApps(false)
             }.build(),
             overrideCustomerIO = customerIOMock,

@@ -162,6 +162,11 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             title = title,
             body = body
         )
+
+        moduleConfig.notificationCallback?.onNotificationComposed(
+            payload = payload,
+            builder = notificationBuilder
+        )
         createIntentFromLink(
             context,
             requestCode,

@@ -111,7 +111,7 @@ class CustomerIO internal constructor(
         private var region: Region = Region.US,
         private val appContext: Application
     ) {
-        private var client: Client = Client.android(Version.version)
+        private var client: Client = Client.Android(Version.version)
         private var timeout = 6000L
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true

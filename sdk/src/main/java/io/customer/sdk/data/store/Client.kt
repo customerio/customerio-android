@@ -4,7 +4,7 @@ package io.customer.sdk.data.store
  * Sealed class to hold information about the SDK wrapper and package that the
  * client app is using.
  *
- * @property source name of the client source to append with user-agent.
+ * @property source name of the client to append with user-agent.
  * @property sdkVersion version of the SDK used.
  */
 sealed class Client(

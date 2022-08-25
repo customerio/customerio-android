@@ -92,6 +92,16 @@ class CustomerIO internal constructor(
     companion object {
         private var instance: CustomerIO? = null
 
+        /**
+         * Safe method to get SDK instance that may be called before SDK initialization.
+         * e.g. services, classes triggered by other libraries or Android framework.
+         * <p/>
+         * This method should only be used when SDK initialization could be delayed.
+         * @see [instance] to be used otherwise.
+         *
+         * @return instance of SDK if initialized; null otherwise.
+         */
+        @JvmStatic
         fun instanceOrNull(): CustomerIO? = try {
             instance()
         } catch (ex: Exception) {

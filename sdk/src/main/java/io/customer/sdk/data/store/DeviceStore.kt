@@ -51,8 +51,7 @@ class DeviceStoreImp(
 
     override fun buildUserAgent(): String {
         return buildString {
-            append("Customer.io ${sdkConfig.client.source} Client/")
-            append(customerIOVersion)
+            append("Customer.io ${sdkConfig.client}")
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
             append(" $customerPackageName/${customerAppVersion ?: "0.0.0"}")
         }

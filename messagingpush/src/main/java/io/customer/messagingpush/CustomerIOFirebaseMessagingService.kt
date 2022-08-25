@@ -45,7 +45,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         private fun handleNewToken(token: String) {
-            CustomerIO.instance().registerDeviceToken(deviceToken = token)
+            CustomerIO.instanceOrNull()?.registerDeviceToken(deviceToken = token)
         }
 
         private fun handleMessageReceived(

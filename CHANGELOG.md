@@ -1,3 +1,11 @@
+## [3.0.0-alpha.2](https://github.com/customerio/customerio-android/compare/3.0.0-alpha.1...3.0.0-alpha.2) (2022-08-26)
+
+
+### Features
+
+* added option to customize push notification from app ([68010f8](https://github.com/customerio/customerio-android/commit/68010f84e39872dc5b0d8cfffda8f169efeaa472))
+* updated client to support react native user agent ([7588526](https://github.com/customerio/customerio-android/commit/7588526bef0e7bfc130b1b5a2cc8fd915bff3483))
+
 ## [3.0.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.2.0-alpha.1...3.0.0-alpha.1) (2022-08-12)
 
 

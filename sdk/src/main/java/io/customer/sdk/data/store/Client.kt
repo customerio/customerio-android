@@ -1,33 +1,41 @@
 package io.customer.sdk.data.store
 
-import java.util.*
-
 /**
- * Date class to hold information about the package client app is using.
+ * Sealed class to hold information about the SDK wrapper and package that the
+ * client app is using.
  *
- * This class only holds info that can have multiple values e.g. source
- * package type (Android, ReactNative, etc.) and not the information that
- * cannot be change (e.g. the SDK version)
- *
- * @property source name of the client source to append with user-agent
- * @property identifier name only used to identify client, can be anything;
- * default value is lowercase of the name
+ * @property source name of the client to append with user-agent.
+ * @property sdkVersion version of the SDK used.
  */
 sealed class Client(
     val source: String,
-    private val identifier: String? = source.lowercase(Locale.ENGLISH)
+    val sdkVersion: String
 ) {
-    object Android : Client(source = "Android")
-    object ReactNative : Client(source = "ReactNative")
-    object Expo : Client(source = "Expo")
-    class Other(value: String) : Client(source = value, identifier = null)
+    override fun toString(): String = "$source Client/$sdkVersion"
 
-    companion object {
-        fun fromSource(source: String): Client {
-            val identifier = source.lowercase(Locale.ENGLISH)
-            return listOf(Android, ReactNative, Expo).find { client ->
-                client.identifier == identifier
-            } ?: Other(value = source)
-        }
-    }
+    /**
+     * Simpler class for Android clients.
+     */
+    class Android(sdkVersion: String) : Client(source = "Android", sdkVersion = sdkVersion)
+
+    /**
+     * Simpler class for ReactNative clients.
+     */
+    class ReactNative(sdkVersion: String) : Client(source = "ReactNative", sdkVersion = sdkVersion)
+
+    /**
+     * Simpler class for Expo clients.
+     */
+    class Expo(sdkVersion: String) : Client(source = "Expo", sdkVersion = sdkVersion)
+
+    /**
+     * Other class to allow adding custom sources for clients that are not
+     * supported above.
+     * <p/>
+     * Use this only if the client platform is not available in the above list.
+     */
+    class Other(
+        source: String,
+        sdkVersion: String
+    ) : Client(source = source, sdkVersion = sdkVersion)
 }

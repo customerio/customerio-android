@@ -1,11 +1,10 @@
 package io.customer.sdk
 
-import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
+import io.customer.sdk.module.CustomerIOGenericModule
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
@@ -49,9 +48,7 @@ class CustomerIOTest : BaseTest() {
             apiKey = givenApiKey,
             region = Region.EU,
             appContext = application
-        ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
-        }).autoTrackScreenViews(true)
+        ).autoTrackScreenViews(true)
 
         val client = builder.build()
 
@@ -61,7 +58,6 @@ class CustomerIOTest : BaseTest() {
         actual.apiKey shouldBeEqualTo givenApiKey
         actual.timeout.shouldNotBeNull()
         actual.region shouldBeEqualTo Region.EU
-        actual.urlHandler.shouldNotBeNull()
         actual.autoTrackScreenViews shouldBeEqualTo true
         actual.trackingApiUrl shouldBeEqualTo null
         actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
@@ -77,9 +73,7 @@ class CustomerIOTest : BaseTest() {
             apiKey = givenApiKey,
             region = Region.EU,
             appContext = application
-        ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
-        }).autoTrackScreenViews(true)
+        ).autoTrackScreenViews(true)
 
         val client = builder.build()
 
@@ -120,7 +114,7 @@ class CustomerIOTest : BaseTest() {
 
     @Test
     fun build_givenModule_expectInitializeModule() {
-        val givenModule: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn(String.random)
         }
 
@@ -135,10 +129,10 @@ class CustomerIOTest : BaseTest() {
 
     @Test
     fun build_givenMultipleModules_expectInitializeAllModules() {
-        val givenModule1: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule1: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn(String.random)
         }
-        val givenModule2: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule2: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn(String.random)
         }
 
@@ -157,10 +151,10 @@ class CustomerIOTest : BaseTest() {
 
     @Test
     fun build_givenMultipleModulesOfSameType_expectOnlyInitializeOneModuleInstance() {
-        val givenModule1: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule1: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn("shared-module-name")
         }
-        val givenModule2: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule2: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn("shared-module-name")
         }
 

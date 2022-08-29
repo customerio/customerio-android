@@ -1,3 +1,48 @@
+### [2.1.1](https://github.com/customerio/customerio-android/compare/2.1.0...2.1.1) (2022-08-01)
+
+
+### Bug Fixes
+
+* parsing exception for expired tasks ([440bb13](https://github.com/customerio/customerio-android/commit/440bb134a4a234f2bc15354dc0ad6ca90a1b5da8))
+
+## [2.1.0](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0) (2022-08-01)
+
+
+### Features
+
+* delete expired background queue tasks ([8dca8b7](https://github.com/customerio/customerio-android/commit/8dca8b719f634d06c86628f154b2ff45d1bd6c79))
+
+
+### Bug Fixes
+
+* deploy code script commands ([#124](https://github.com/customerio/customerio-android/issues/124)) ([fe817d1](https://github.com/customerio/customerio-android/commit/fe817d10ee00ec5694d3b3e2caa8658c7cc9a1b1))
+
+## [2.1.0-beta.1](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0-beta.1) (2022-08-01)
+
+
+### Features
+
+* delete expired background queue tasks ([8dca8b7](https://github.com/customerio/customerio-android/commit/8dca8b719f634d06c86628f154b2ff45d1bd6c79))
+
+
+### Bug Fixes
+
+* deploy code script commands ([#124](https://github.com/customerio/customerio-android/issues/124)) ([fe817d1](https://github.com/customerio/customerio-android/commit/fe817d10ee00ec5694d3b3e2caa8658c7cc9a1b1))
+
+## [2.1.0-alpha.2](https://github.com/customerio/customerio-android/compare/2.1.0-alpha.1...2.1.0-alpha.2) (2022-07-25)
+
+
+### Bug Fixes
+
+* deploy code script commands ([#124](https://github.com/customerio/customerio-android/issues/124)) ([fe817d1](https://github.com/customerio/customerio-android/commit/fe817d10ee00ec5694d3b3e2caa8658c7cc9a1b1))
+
+## [2.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.0.1...2.1.0-alpha.1) (2022-07-25)
+
+
+### Features
+
+* delete expired background queue tasks ([8dca8b7](https://github.com/customerio/customerio-android/commit/8dca8b719f634d06c86628f154b2ff45d1bd6c79))
+
 ### [2.0.1](https://github.com/customerio/customerio-android/compare/2.0.0...2.0.1) (2022-06-13)
 
 

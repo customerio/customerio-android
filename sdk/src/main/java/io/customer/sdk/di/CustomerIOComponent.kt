@@ -3,6 +3,7 @@ package io.customer.sdk.di
 import android.content.Context
 import com.squareup.moshi.Moshi
 import io.customer.sdk.BuildConfig
+import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
 import io.customer.sdk.api.CustomerIOApiRetryPolicy
@@ -34,9 +35,6 @@ class CustomerIOComponent(
     val context: Context,
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
-
-    val pushTrackingUtil: PushTrackingUtil
-        get() = override() ?: PushTrackingUtilImpl(trackRepository)
 
     val fileStorage: FileStorage
         get() = override() ?: FileStorage(sdkConfig, context, logger)
@@ -125,10 +123,16 @@ class CustomerIOComponent(
             logger
         )
 
+    val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks
+        get() = override() ?: getSingletonInstanceCreate {
+            CustomerIOActivityLifecycleCallbacks(sdkConfig)
+        }
+
     fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
                 DeviceStoreImp(
+                    sdkConfig,
                     BuildStoreImp(),
                     ApplicationStoreImp(context),
                     Version.version

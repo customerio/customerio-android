@@ -70,6 +70,15 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
         return adapter.fromJson(json) as List<T>
     }
 
+    /**
+     * Use if you anticipate the json parsing to not work. You don't care about the exception. Else, use [fromJsonList].
+     */
+    inline fun <reified T : Any> fromJsonListOrNull(json: String): List<T>? = try {
+        fromJsonList(json)
+    } catch (ex: Exception) {
+        null
+    }
+
     fun <T : Any> toJson(data: T): String {
         val jsonAdapter = moshi.adapter<T>(data::class.java)
 

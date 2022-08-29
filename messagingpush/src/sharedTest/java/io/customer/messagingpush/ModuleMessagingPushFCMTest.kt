@@ -2,8 +2,8 @@ package io.customer.messagingpush
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
-import io.customer.messagingpush.provider.FCMTokenProvider
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.extensions.random
 import org.junit.Before
 import org.junit.Test
@@ -19,14 +19,15 @@ import org.mockito.kotlin.whenever
 internal class ModuleMessagingPushFCMTest : BaseTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
-    private val fcmTokenProviderMock: FCMTokenProvider = mock()
+    private val fcmTokenProviderMock: DeviceTokenProvider = mock()
     private lateinit var module: ModuleMessagingPushFCM
 
     @Before
     override fun setup() {
         super.setup()
 
-        di.overrideDependency(FCMTokenProvider::class.java, fcmTokenProviderMock)
+        di.overrideDependency(DeviceTokenProvider::class.java, fcmTokenProviderMock)
+        di.overrideDependency(MessagingPushModuleConfig::class.java, MessagingPushModuleConfig.default())
 
         module = ModuleMessagingPushFCM(overrideCustomerIO = customerIOMock, overrideDiGraph = di)
     }

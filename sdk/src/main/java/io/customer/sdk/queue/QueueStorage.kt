@@ -5,13 +5,7 @@ import io.customer.base.extenstions.subtract
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType
-import io.customer.sdk.queue.type.QueueInventory
-import io.customer.sdk.queue.type.QueueModifyResult
-import io.customer.sdk.queue.type.QueueStatus
-import io.customer.sdk.queue.type.QueueTask
-import io.customer.sdk.queue.type.QueueTaskGroup
-import io.customer.sdk.queue.type.QueueTaskMetadata
-import io.customer.sdk.queue.type.QueueTaskRunResults
+import io.customer.sdk.queue.type.*
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
@@ -22,7 +16,13 @@ import java.util.concurrent.TimeUnit
 interface QueueStorage {
     fun getInventory(): QueueInventory
     fun saveInventory(inventory: QueueInventory): Boolean
-    fun create(type: String, data: String, groupStart: QueueTaskGroup?, blockingGroups: List<QueueTaskGroup>?): QueueModifyResult
+    fun create(
+        type: String,
+        data: String,
+        groupStart: QueueTaskGroup?,
+        blockingGroups: List<QueueTaskGroup>?
+    ): QueueModifyResult
+
     fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
@@ -40,7 +40,7 @@ internal class QueueStorageImpl internal constructor(
     @Synchronized
     override fun getInventory(): QueueInventory {
         val dataFromFile = fileStorage.get(FileType.QueueInventory()) ?: return emptyList()
-        return jsonAdapter.fromJsonList(dataFromFile)
+        return jsonAdapter.fromJsonListOrNull(dataFromFile) ?: emptyList()
     }
 
     @Synchronized
@@ -108,11 +108,17 @@ internal class QueueStorageImpl internal constructor(
     override fun delete(taskStorageId: String): QueueModifyResult {
         // update inventory first so if any deletion operation is unsuccessful, at least the inventory will not contain the task so queue doesn't try running it.
         val existingInventory = getInventory().toMutableList()
-        val queueStatusBeforeModifyInventory = QueueStatus(sdkConfig.siteId, existingInventory.count())
+        val queueStatusBeforeModifyInventory =
+            QueueStatus(sdkConfig.siteId, existingInventory.count())
 
         existingInventory.removeAll { it.taskPersistedId == taskStorageId }
 
-        if (!saveInventory(existingInventory) || !fileStorage.delete(FileType.QueueTask(taskStorageId))) {
+        if (!saveInventory(existingInventory) || !fileStorage.delete(
+                FileType.QueueTask(
+                        taskStorageId
+                    )
+            )
+        ) {
             logger.error("error trying to delete task with storage id: $taskStorageId from queue")
             return QueueModifyResult(false, queueStatusBeforeModifyInventory)
         }
@@ -125,7 +131,10 @@ internal class QueueStorageImpl internal constructor(
         logger.debug("deleting expired tasks from the queue")
 
         val tasksToDelete: MutableSet<QueueTaskMetadata> = mutableSetOf()
-        val queueTaskExpiredThreshold = Date().subtract(sdkConfig.backgroundQueueTaskExpiredSeconds.toSeconds().value, TimeUnit.SECONDS)
+        val queueTaskExpiredThreshold = Date().subtract(
+            sdkConfig.backgroundQueueTaskExpiredSeconds.toSeconds().value,
+            TimeUnit.SECONDS
+        )
         logger.debug("deleting tasks older then $queueTaskExpiredThreshold, current time is: ${Date()}")
 
         getInventory().filter {

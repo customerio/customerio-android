@@ -51,6 +51,7 @@ apiValidation {
     ignoredProjects += [
             'common-test',
             'app',
+            'base'
     ]
 
     /**

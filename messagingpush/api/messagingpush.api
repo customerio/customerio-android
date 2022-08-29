@@ -12,9 +12,115 @@ public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService$
 	public final fun onNewToken (Ljava/lang/String;)V
 }
 
-public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/customer/sdk/CustomerIOModule {
+public final class io/customer/messagingpush/MessagingPushModuleConfig : io/customer/sdk/module/CustomerIOModuleConfig {
+	public static final field Companion Lio/customer/messagingpush/MessagingPushModuleConfig$Companion;
+	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAutoTrackPushEvents ()Z
+	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
+	public final fun getRedirectDeepLinksToOtherApps ()Z
+}
+
+public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder : io/customer/sdk/module/CustomerIOModuleConfig$Builder {
 	public fun <init> ()V
+	public fun build ()Lio/customer/messagingpush/MessagingPushModuleConfig;
+	public synthetic fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
+	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+	public final fun setRedirectDeepLinksToOtherApps (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+}
+
+public final class io/customer/messagingpush/MessagingPushModuleConfig$Companion {
+}
+
+public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/customer/sdk/module/CustomerIOModule {
+	public static final field Companion Lio/customer/messagingpush/ModuleMessagingPushFCM$Companion;
+	public fun <init> ()V
+	public fun <init> (Lio/customer/messagingpush/MessagingPushModuleConfig;)V
+	public synthetic fun <init> (Lio/customer/messagingpush/MessagingPushModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getModuleConfig ()Lio/customer/messagingpush/MessagingPushModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V
+}
+
+public final class io/customer/messagingpush/ModuleMessagingPushFCM$Companion {
+}
+
+public abstract interface class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback {
+	public abstract fun createTaskStackFromPayload (Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
+	public abstract fun onNotificationComposed (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
+}
+
+public final class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback$DefaultImpls {
+	public static fun createTaskStackFromPayload (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
+	public static fun onNotificationComposed (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
+}
+
+public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayload : android/os/Parcelable {
+	public static final field CREATOR Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload$CREATOR;
+	public fun <init> (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Landroid/os/Parcel;)V
+	public final fun component1 ()Landroid/os/Bundle;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
+	public fun describeContents ()I
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBody ()Ljava/lang/String;
+	public final fun getCioDeliveryId ()Ljava/lang/String;
+	public final fun getCioDeliveryToken ()Ljava/lang/String;
+	public final fun getDeepLink ()Ljava/lang/String;
+	public final fun getExtras ()Landroid/os/Bundle;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public fun writeToParcel (Landroid/os/Parcel;I)V
+}
+
+public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayload$CREATOR : android/os/Parcelable$Creator {
+	public fun createFromParcel (Landroid/os/Parcel;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
+	public synthetic fun createFromParcel (Landroid/os/Parcel;)Ljava/lang/Object;
+	public fun newArray (I)[Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
+	public synthetic fun newArray (I)[Ljava/lang/Object;
+}
+
+public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {
+	public fun <init> (Lio/customer/sdk/util/Logger;Landroid/content/Context;)V
+	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
+	public fun isValidForThisDevice (Landroid/content/Context;)Z
+}
+
+public abstract interface class io/customer/messagingpush/util/DeepLinkUtil {
+	public abstract fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;Z)Landroid/content/Intent;
+	public abstract fun createDeepLinkHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+	public abstract fun createDefaultHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+}
+
+public final class io/customer/messagingpush/util/DeepLinkUtilImpl : io/customer/messagingpush/util/DeepLinkUtil {
+	public fun <init> (Lio/customer/sdk/util/Logger;Lio/customer/messagingpush/MessagingPushModuleConfig;)V
+	public fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;Z)Landroid/content/Intent;
+	public fun createDeepLinkHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+	public fun createDefaultHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+}
+
+public abstract interface class io/customer/messagingpush/util/PushTrackingUtil {
+	public static final field Companion Lio/customer/messagingpush/util/PushTrackingUtil$Companion;
+	public static final field DELIVERY_ID_KEY Ljava/lang/String;
+	public static final field DELIVERY_TOKEN_KEY Ljava/lang/String;
+	public abstract fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
+}
+
+public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
+	public static final field DELIVERY_ID_KEY Ljava/lang/String;
+	public static final field DELIVERY_TOKEN_KEY Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
+	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
+	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
 }
 

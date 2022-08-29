@@ -10,6 +10,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstan
 	public fun identify (Ljava/lang/String;)V
 	public fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+	public static final fun instanceOrNull ()Lio/customer/sdk/CustomerIO;
 	public fun registerDeviceToken (Ljava/lang/String;)V
 	public fun screen (Landroid/app/Activity;)V
 	public fun screen (Landroid/app/Activity;Ljava/util/Map;)V
@@ -26,11 +27,13 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Landroid/app/Application;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun addCustomerIOModule (Lio/customer/sdk/CustomerIOModule;)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun addCustomerIOModule (Lio/customer/sdk/module/CustomerIOModule;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackDeviceAttributes (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackScreenViews (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun build ()Lio/customer/sdk/CustomerIO;
-	public final fun setCustomerIOUrlHandler (Lio/customer/sdk/data/communication/CustomerIOUrlHandler;)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun setBackgroundQueueMinNumberOfTasks (I)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun setBackgroundQueueSecondsDelay (D)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun setClient (Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setLogLevel (Lio/customer/sdk/util/CioLogLevel;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setRequestTimeout (J)Lio/customer/sdk/CustomerIO$Builder;
@@ -39,24 +42,38 @@ public final class io/customer/sdk/CustomerIO$Builder {
 
 public final class io/customer/sdk/CustomerIO$Companion {
 	public final fun instance ()Lio/customer/sdk/CustomerIO;
+	public final fun instanceOrNull ()Lio/customer/sdk/CustomerIO;
+}
+
+public final class io/customer/sdk/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
+	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityDestroyed (Landroid/app/Activity;)V
+	public fun onActivityPaused (Landroid/app/Activity;)V
+	public fun onActivityResumed (Landroid/app/Activity;)V
+	public fun onActivitySaveInstanceState (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityStarted (Landroid/app/Activity;)V
+	public fun onActivityStopped (Landroid/app/Activity;)V
+	public final fun registerCallback (Lio/customer/sdk/lifecycle/LifecycleCallback;)V
 }
 
 public final class io/customer/sdk/CustomerIOConfig {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JLio/customer/sdk/data/communication/CustomerIOUrlHandler;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
+	public fun <init> (Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;ILjava/util/Map;)V
+	public final fun component1 ()Lio/customer/sdk/data/store/Client;
 	public final fun component10 ()D
 	public final fun component11 ()Lio/customer/sdk/util/CioLogLevel;
 	public final fun component12 ()Ljava/lang/String;
+	public final fun component13 ()I
+	public final fun component14 ()Ljava/util/Map;
 	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Lio/customer/sdk/data/model/Region;
-	public final fun component4 ()J
-	public final fun component5 ()Lio/customer/sdk/data/communication/CustomerIOUrlHandler;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lio/customer/sdk/data/model/Region;
+	public final fun component5 ()J
 	public final fun component6 ()Z
 	public final fun component7 ()Z
 	public final fun component8 ()I
 	public final fun component9 ()D
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JLio/customer/sdk/data/communication/CustomerIOUrlHandler;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;)Lio/customer/sdk/CustomerIOConfig;
-	public static synthetic fun copy$default (Lio/customer/sdk/CustomerIOConfig;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JLio/customer/sdk/data/communication/CustomerIOUrlHandler;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/CustomerIOConfig;
+	public final fun copy (Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;ILjava/util/Map;)Lio/customer/sdk/CustomerIOConfig;
+	public static synthetic fun copy$default (Lio/customer/sdk/CustomerIOConfig;Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;ILjava/util/Map;ILjava/lang/Object;)Lio/customer/sdk/CustomerIOConfig;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getApiKey ()Ljava/lang/String;
 	public final fun getAutoTrackDeviceAttributes ()Z
@@ -64,12 +81,14 @@ public final class io/customer/sdk/CustomerIOConfig {
 	public final fun getBackgroundQueueMinNumberOfTasks ()I
 	public final fun getBackgroundQueueSecondsDelay ()D
 	public final fun getBackgroundQueueTaskExpiredSeconds ()D
+	public final fun getClient ()Lio/customer/sdk/data/store/Client;
+	public final fun getConfigurations ()Ljava/util/Map;
 	public final fun getLogLevel ()Lio/customer/sdk/util/CioLogLevel;
 	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
 	public final fun getSiteId ()Ljava/lang/String;
+	public final fun getTargetSdkVersion ()I
 	public final fun getTimeout ()J
 	public final fun getTrackingApiUrl ()Ljava/lang/String;
-	public final fun getUrlHandler ()Lio/customer/sdk/data/communication/CustomerIOUrlHandler;
 	public fun hashCode ()I
 	public final fun setTrackingApiUrl (Ljava/lang/String;)V
 	public fun toString ()Ljava/lang/String;
@@ -94,15 +113,6 @@ public abstract interface class io/customer/sdk/CustomerIOInstance {
 	public abstract fun track (Ljava/lang/String;)V
 	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
 	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
-}
-
-public abstract interface class io/customer/sdk/CustomerIOModule {
-	public abstract fun getModuleName ()Ljava/lang/String;
-	public abstract fun initialize ()V
-}
-
-public abstract interface class io/customer/sdk/data/communication/CustomerIOUrlHandler {
-	public abstract fun handleCustomerIOUrl (Landroid/net/Uri;)Z
 }
 
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
@@ -161,10 +171,16 @@ public final class io/customer/sdk/data/request/MetricEvent : java/lang/Enum {
 	public static fun values ()[Lio/customer/sdk/data/request/MetricEvent;
 }
 
+public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
+	public abstract fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
+	public abstract fun isValidForThisDevice (Landroid/content/Context;)Z
+}
+
 public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/DiGraph {
 	public fun <init> (Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
 	public final fun buildRetrofit (Ljava/lang/String;J)Lretrofit2/Retrofit;
 	public final fun buildStore ()Lio/customer/sdk/data/store/CustomerIOStore;
+	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/CustomerIOActivityLifecycleCallbacks;
 	public final fun getCioHttpRetryPolicy ()Lio/customer/sdk/api/HttpRetryPolicy;
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDateUtil ()Lio/customer/sdk/util/DateUtil;
@@ -176,7 +192,6 @@ public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/D
 	public final fun getLogger ()Lio/customer/sdk/util/Logger;
 	public final fun getMoshi ()Lcom/squareup/moshi/Moshi;
 	public final fun getProfileRepository ()Lio/customer/sdk/repository/ProfileRepository;
-	public final fun getPushTrackingUtil ()Lio/customer/sdk/util/PushTrackingUtil;
 	public final fun getQueue ()Lio/customer/sdk/queue/Queue;
 	public final fun getQueueQueryRunner ()Lio/customer/sdk/queue/QueueQueryRunner;
 	public final fun getQueueRunRequest ()Lio/customer/sdk/queue/QueueRunRequest;
@@ -231,6 +246,29 @@ public abstract class io/customer/sdk/hooks/ModuleHookProvider {
 	public fun beforeProfileStoppedBeingIdentified (Lio/customer/sdk/hooks/ModuleHook$BeforeProfileStoppedBeingIdentified;)V
 	public fun profileIdentifiedHook (Lio/customer/sdk/hooks/ModuleHook$ProfileIdentifiedHook;)V
 	public fun screenTrackedHook (Lio/customer/sdk/hooks/ModuleHook$ScreenTrackedHook;)V
+}
+
+public abstract interface class io/customer/sdk/lifecycle/LifecycleCallback {
+	public abstract fun getEventsToObserve ()Ljava/util/List;
+	public abstract fun onEventChanged (Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
+}
+
+public final class io/customer/sdk/lifecycle/LifecycleCallback$DefaultImpls {
+	public static fun onEventChanged (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
+	public static synthetic fun onEventChanged$default (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;ILjava/lang/Object;)V
+}
+
+public abstract interface class io/customer/sdk/module/CustomerIOModule {
+	public abstract fun getModuleConfig ()Lio/customer/sdk/module/CustomerIOModuleConfig;
+	public abstract fun getModuleName ()Ljava/lang/String;
+	public abstract fun initialize ()V
+}
+
+public abstract interface class io/customer/sdk/module/CustomerIOModuleConfig {
+}
+
+public abstract interface class io/customer/sdk/module/CustomerIOModuleConfig$Builder {
+	public abstract fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
 }
 
 public abstract interface class io/customer/sdk/repository/DeviceRepository {

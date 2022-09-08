@@ -4,7 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.device.DeviceTokenProvider
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith

@@ -31,6 +31,8 @@ object Dependencies {
         "com.github.ben-manes:gradle-versions-plugin:${Versions.GRADLE_VERSIONS_PLUGIN}"
     const val junit4 = "junit:junit:${Versions.JUNIT4}"
     const val kluent = "org.amshove.kluent:kluent-android:${Versions.KLUENT}"
+    const val kotlinBinaryValidator =
+        "org.jetbrains.kotlinx:binary-compatibility-validator:${Versions.KOTLIN_BINARY_VALIDATOR}"
     const val kluentJava = "org.amshove.kluent:kluent:${Versions.KLUENT}"
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val timber = "com.jakewharton.timber:timber:${Versions.TIMBER}"

@@ -1,6 +1,7 @@
 import io.customer.android.Dependencies
 
 apply plugin: 'io.github.gradle-nexus.publish-plugin'
+apply plugin: 'binary-compatibility-validator'
 apply plugin: 'org.jetbrains.dokka'
 
 buildscript {
@@ -13,6 +14,7 @@ buildscript {
     dependencies {
         classpath Dependencies.androidGradlePlugin
         classpath Dependencies.kotlinGradlePlugin
+        classpath Dependencies.kotlinBinaryValidator
         classpath Dependencies.gradleNexusPublishPlugin
         classpath Dependencies.dokka
         classpath Dependencies.kotlinGradlePlugin
@@ -34,6 +36,31 @@ allprojects {
 
 task clean(type: Delete) {
     delete rootProject.buildDir
+}
+
+apiValidation {
+    ignoredPackages += [
+            'io/customer/base/extenstions',
+            'io/customer/sdk/api',
+            'io/customer/sdk/data/store',
+            'io/customer/sdk/queue',
+            'io/customer/sdk/extensions',
+            'io/customer/sdk/util',
+    ]
+
+    ignoredProjects += [
+            'common-test',
+            'app',
+            'base'
+    ]
+
+    /**
+     * Classes (fully qualified) that are excluded from public API dumps even if they
+     * contain public API.
+     */
+    ignoredClasses.add("io.customer.messagingpush.BuildConfig")
+    ignoredClasses.add("io.customer.messaginginapp.BuildConfig")
+    ignoredClasses.add("io.customer.sdk.BuildConfig")
 }
 
 apply from: "${rootDir}/scripts/publish-root.gradle"

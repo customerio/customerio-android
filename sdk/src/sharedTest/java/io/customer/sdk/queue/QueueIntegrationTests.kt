@@ -4,7 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import org.amshove.kluent.shouldBeEqualTo

@@ -29,7 +29,7 @@ interface QueueStorage {
     fun deleteExpired(): List<QueueTaskMetadata>
 }
 
-class QueueStorageImpl internal constructor(
+internal class QueueStorageImpl internal constructor(
     private val sdkConfig: CustomerIOConfig,
     private val fileStorage: FileStorage,
     private val jsonAdapter: JsonAdapter,

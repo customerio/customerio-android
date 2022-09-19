@@ -19,6 +19,15 @@ java {
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+    kotlinOptions {
+        freeCompilerArgs += [
+                '-Xopt-in=kotlin.RequiresOptIn',
+                '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',
+        ]
+    }
+}
+
 dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.androidxAnnotations

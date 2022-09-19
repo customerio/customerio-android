@@ -10,6 +10,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstan
 	public fun identify (Ljava/lang/String;)V
 	public fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+	public static final fun instanceOrNull ()Lio/customer/sdk/CustomerIO;
 	public fun registerDeviceToken (Ljava/lang/String;)V
 	public fun screen (Landroid/app/Activity;)V
 	public fun screen (Landroid/app/Activity;Ljava/util/Map;)V
@@ -41,6 +42,7 @@ public final class io/customer/sdk/CustomerIO$Builder {
 
 public final class io/customer/sdk/CustomerIO$Companion {
 	public final fun instance ()Lio/customer/sdk/CustomerIO;
+	public final fun instanceOrNull ()Lio/customer/sdk/CustomerIO;
 }
 
 public final class io/customer/sdk/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {

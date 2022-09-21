@@ -119,17 +119,22 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
 
-        val applicationInfo = context.packageManager.getApplicationInfo(
-            context.packageName,
-            PackageManager.GET_META_DATA
-        )
-        val appMetaData = applicationInfo.metaData
+        val applicationInfo = try {
+            context.packageManager.getApplicationInfo(
+                context.packageName,
+                PackageManager.GET_META_DATA
+            )
+        } catch (ex: Exception) {
+            logger.error("Package not found ${ex.message}")
+            null
+        }
+        val appMetaData = applicationInfo?.metaData
 
         @DrawableRes
         val smallIcon: Int =
             remoteMessage.notification?.icon?.let { iconName -> context.getDrawableByName(iconName) }
                 ?: appMetaData?.getMetaDataResource(name = FCM_METADATA_DEFAULT_NOTIFICATION_ICON)
-                ?: applicationInfo.icon
+                ?: context.applicationInfo.icon
 
         @ColorInt
         val tintColor: Int? =

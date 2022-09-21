@@ -54,6 +54,10 @@ apiValidation {
             'base'
     ]
 
+    nonPublicMarkers += [
+            'io.customer.base.internal.InternalCustomerIOApi',
+    ]
+
     /**
      * Classes (fully qualified) that are excluded from public API dumps even if they
      * contain public API.

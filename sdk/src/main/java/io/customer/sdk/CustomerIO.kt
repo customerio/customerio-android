@@ -3,6 +3,7 @@ package io.customer.sdk
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
@@ -101,6 +102,7 @@ class CustomerIO internal constructor(
          *
          * @return instance of SDK if initialized; null otherwise.
          */
+        @InternalCustomerIOApi
         @JvmStatic
         fun instanceOrNull(): CustomerIO? = try {
             instance()

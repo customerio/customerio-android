@@ -5,10 +5,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
+import androidx.annotation.ColorInt
+import androidx.annotation.DrawableRes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -16,6 +19,7 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
+import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
@@ -39,6 +43,10 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         const val BODY_KEY = "body"
 
         const val NOTIFICATION_REQUEST_CODE = "requestCode"
+        private const val FCM_METADATA_DEFAULT_NOTIFICATION_ICON =
+            "com.google.firebase.messaging.default_notification_icon"
+        private const val FCM_METADATA_DEFAULT_NOTIFICATION_COLOR =
+            "com.google.firebase.messaging.default_notification_color"
     }
 
     private val diGraph: CustomerIOComponent
@@ -111,7 +119,30 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
 
         bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
 
-        val icon = context.applicationInfo.icon
+        val applicationInfo = try {
+            context.packageManager.getApplicationInfo(
+                context.packageName,
+                PackageManager.GET_META_DATA
+            )
+        } catch (ex: Exception) {
+            logger.error("Package not found ${ex.message}")
+            null
+        }
+        val appMetaData = applicationInfo?.metaData
+
+        @DrawableRes
+        val smallIcon: Int =
+            remoteMessage.notification?.icon?.let { iconName -> context.getDrawableByName(iconName) }
+                ?: appMetaData?.getMetaDataResource(name = FCM_METADATA_DEFAULT_NOTIFICATION_ICON)
+                ?: context.applicationInfo.icon
+
+        @ColorInt
+        val tintColor: Int? =
+            remoteMessage.notification?.color?.toColorOrNull()
+                ?: appMetaData?.getMetaDataResource(name = FCM_METADATA_DEFAULT_NOTIFICATION_COLOR)
+                    ?.let { id -> context.getColorOrNull(id) }
+                ?: appMetaData?.getMetaDataString(name = FCM_METADATA_DEFAULT_NOTIFICATION_COLOR)
+                    ?.toColorOrNull()
 
         // set title and body
         val title = bundle.getString(TITLE_KEY) ?: remoteMessage.notification?.title ?: ""
@@ -120,13 +151,14 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         val channelId = context.packageName
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(icon)
+            .setSmallIcon(smallIcon)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
             .setSound(defaultSoundUri)
             .setTicker(applicationName)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        tintColor?.let { color -> notificationBuilder.setColor(color) }
 
         try {
             // check for image

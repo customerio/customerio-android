@@ -6,12 +6,7 @@ import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.CustomerIOApiRetryPolicy
-import io.customer.sdk.api.HttpRequestRunner
-import io.customer.sdk.api.HttpRequestRunnerImpl
-import io.customer.sdk.api.HttpRetryPolicy
-import io.customer.sdk.api.RetrofitTrackingHttpClient
-import io.customer.sdk.api.TrackingHttpClient
+import io.customer.sdk.api.*
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
@@ -32,6 +27,7 @@ import java.util.concurrent.TimeUnit
  * Configuration class to configure/initialize low-level operations and objects.
  */
 class CustomerIOComponent(
+    private val sharedComponent: CustomerIOSharedComponent,
     val context: Context,
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
@@ -49,7 +45,7 @@ class CustomerIOComponent(
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
     val dispatchersProvider: DispatchersProvider
-        get() = override() ?: SdkDispatchers()
+        get() = sharedComponent.dispatchersProvider
 
     val queue: Queue
         get() = override() ?: getSingletonInstanceCreate {
@@ -71,7 +67,7 @@ class CustomerIOComponent(
         )
 
     val logger: Logger
-        get() = override() ?: LogcatLogger(sdkConfig)
+        get() = sharedComponent.logger
 
     val hooksManager: HooksManager
         get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }

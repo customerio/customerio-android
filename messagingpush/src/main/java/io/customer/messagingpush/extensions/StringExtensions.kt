@@ -3,12 +3,12 @@ package io.customer.messagingpush.extensions
 
 import android.graphics.Color
 import androidx.annotation.DrawableRes
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOShared
 
 @DrawableRes
 internal fun String.toColorOrNull(): Int? = try {
     Color.parseColor(this)
 } catch (ex: IllegalArgumentException) {
-    CustomerIO.instance().diGraph.logger.error("Invalid color string $this, ${ex.message}")
+    CustomerIOShared.instance().diGraph.logger.error("Invalid color string $this, ${ex.message}")
     null
 }

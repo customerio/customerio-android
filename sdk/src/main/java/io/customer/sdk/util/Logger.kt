@@ -1,7 +1,7 @@
 package io.customer.sdk.util
 
 import android.util.Log
-import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.BuildConfig
 
 interface Logger {
     fun info(message: String)
@@ -26,32 +26,40 @@ enum class CioLogLevel {
 }
 
 internal class LogcatLogger(
-    private val sdkConfig: CustomerIOConfig
+    private var preferredLogLevel: CioLogLevel? = null
 ) : Logger {
+    private val fallbackLogLevel = if (BuildConfig.DEBUG) CioLogLevel.DEBUG else CioLogLevel.ERROR
+    private val logLevel: CioLogLevel get() = preferredLogLevel ?: fallbackLogLevel
 
-    private val tag = "[CIO]"
+    fun setPreferredLogLevel(logLevel: CioLogLevel) {
+        preferredLogLevel = logLevel
+    }
 
     override fun info(message: String) {
         runIfMeetsLogLevelCriteria(CioLogLevel.INFO) {
-            Log.i(tag, message)
+            Log.i(TAG, message)
         }
     }
 
     override fun debug(message: String) {
         runIfMeetsLogLevelCriteria(CioLogLevel.DEBUG) {
-            Log.d(tag, message)
+            Log.d(TAG, message)
         }
     }
 
     override fun error(message: String) {
         runIfMeetsLogLevelCriteria(CioLogLevel.ERROR) {
-            Log.e(tag, message)
+            Log.e(TAG, message)
         }
     }
 
     private fun runIfMeetsLogLevelCriteria(levelForMessage: CioLogLevel, block: () -> Unit) {
-        val shouldLog = sdkConfig.logLevel.shouldLog(levelForMessage)
+        val shouldLog = logLevel.shouldLog(levelForMessage)
 
         if (shouldLog) block()
+    }
+
+    companion object {
+        const val TAG = "[CIO]"
     }
 }

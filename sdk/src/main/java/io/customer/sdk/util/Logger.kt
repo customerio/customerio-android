@@ -1,7 +1,7 @@
 package io.customer.sdk.util
 
 import android.util.Log
-import io.customer.sdk.BuildConfig
+import androidx.annotation.VisibleForTesting
 
 interface Logger {
     fun info(message: String)
@@ -10,10 +10,7 @@ interface Logger {
 }
 
 enum class CioLogLevel {
-    NONE,
-    ERROR,
-    INFO,
-    DEBUG;
+    NONE, ERROR, INFO, DEBUG;
 
     fun shouldLog(levelForMessage: CioLogLevel): Boolean {
         return when (this) {
@@ -26,10 +23,20 @@ enum class CioLogLevel {
 }
 
 internal class LogcatLogger(
-    private var preferredLogLevel: CioLogLevel? = null
+    private val staticSettingsProvider: StaticSettingsProvider
 ) : Logger {
-    private val fallbackLogLevel = if (BuildConfig.DEBUG) CioLogLevel.DEBUG else CioLogLevel.ERROR
-    private val logLevel: CioLogLevel get() = preferredLogLevel ?: fallbackLogLevel
+    // Log level defined by user in configurations
+    private var preferredLogLevel: CioLogLevel? = null
+
+    // Fallback log level to be used only if log level is not yet defined by the user
+    private val fallbackLogLevel
+        get() = if (staticSettingsProvider.isDebuggable) CioLogLevel.DEBUG
+        else CioLogLevel.ERROR
+
+    // Prefer user log level; fallback to default only till the user defined value is not received
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    val logLevel: CioLogLevel
+        get() = preferredLogLevel ?: fallbackLogLevel
 
     fun setPreferredLogLevel(logLevel: CioLogLevel) {
         preferredLogLevel = logLevel

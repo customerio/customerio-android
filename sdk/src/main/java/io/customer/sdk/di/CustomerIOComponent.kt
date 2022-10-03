@@ -2,7 +2,6 @@ package io.customer.sdk.di
 
 import android.content.Context
 import com.squareup.moshi.Moshi
-import io.customer.sdk.BuildConfig
 import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
@@ -154,7 +153,7 @@ class CustomerIOComponent(
 
     private val httpLoggingInterceptor by lazy {
         override() ?: HttpLoggingInterceptor().apply {
-            if (BuildConfig.DEBUG) {
+            if (sharedComponent.staticSettingsProvider.isDebuggable) {
                 level = HttpLoggingInterceptor.Level.BODY
             }
         }

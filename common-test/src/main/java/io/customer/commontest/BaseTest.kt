@@ -112,7 +112,7 @@ abstract class BaseTest {
         }
         deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
         dispatchersProviderStub = DispatchersProviderStub().also {
-            di.overrideDependency(DispatchersProvider::class.java, it)
+            sharedDI.overrideDependency(DispatchersProvider::class.java, it)
         }
     }
 

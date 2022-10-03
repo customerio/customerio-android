@@ -217,6 +217,7 @@ public final class io/customer/sdk/di/CustomerIOSharedComponent : io/customer/sd
 	public fun <init> ()V
 	public final fun getDispatchersProvider ()Lio/customer/sdk/util/DispatchersProvider;
 	public final fun getLogger ()Lio/customer/sdk/util/Logger;
+	public final fun getStaticSettingsProvider ()Lio/customer/sdk/util/StaticSettingsProvider;
 }
 
 public abstract class io/customer/sdk/di/DiGraph {

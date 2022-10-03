@@ -10,7 +10,10 @@ interface Logger {
 }
 
 enum class CioLogLevel {
-    NONE, ERROR, INFO, DEBUG;
+    NONE,
+    ERROR,
+    INFO,
+    DEBUG;
 
     fun shouldLog(levelForMessage: CioLogLevel): Boolean {
         return when (this) {

@@ -10,7 +10,7 @@ import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.extensions.random
-import io.customer.sdk.repository.PreferenceRepository
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.amshove.kluent.shouldBeEqualTo
@@ -36,8 +36,8 @@ class HttpRequestRunnerTest : BaseTest() {
     private lateinit var httpRunner: HttpRequestRunnerImpl
 
     private val retryPolicyMock: HttpRetryPolicy = mock()
-    private val prefsRepository: PreferenceRepository // use real instance as mocking can take more work and error-prone test functions
-        get() = di.sharedPreferenceRepository
+    private val prefsRepository: SitePreferenceRepository // use real instance as mocking can take more work and error-prone test functions
+        get() = di.sitePreferenceRepository
 
     @Before
     override fun setup() {

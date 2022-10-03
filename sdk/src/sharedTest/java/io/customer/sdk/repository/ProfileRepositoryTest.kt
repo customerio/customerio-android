@@ -8,6 +8,7 @@ import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeNull
@@ -20,8 +21,8 @@ import org.mockito.kotlin.*
 @RunWith(AndroidJUnit4::class)
 class ProfileRepositoryTest : BaseTest() {
 
-    private val prefRepository: PreferenceRepository
-        get() = di.sharedPreferenceRepository
+    private val prefRepository: SitePreferenceRepository
+        get() = di.sitePreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
     private val hooksManager: HooksManager = mock()
@@ -35,7 +36,7 @@ class ProfileRepositoryTest : BaseTest() {
 
         repository = ProfileRepositoryImpl(
             deviceRepository = deviceRepositoryMock,
-            preferenceRepository = prefRepository,
+            sitePreferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
             logger = loggerMock,
             hooksManager = hooksManager

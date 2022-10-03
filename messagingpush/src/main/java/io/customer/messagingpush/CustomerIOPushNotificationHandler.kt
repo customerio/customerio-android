@@ -24,9 +24,10 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.di.CustomerIOSharedStaticComponent
 import io.customer.sdk.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -34,7 +35,7 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.abs
 
-internal class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
+internal class CustomerIOPushNotificationHandler(private val context: Context, private val remoteMessage: RemoteMessage) {
 
     companion object {
         const val DEEP_LINK_KEY = "link"
@@ -49,20 +50,20 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             "com.google.firebase.messaging.default_notification_color"
     }
 
-    private val diGraph: CustomerIOComponent
-        get() = CustomerIO.instance().diGraph
+    private val diGraph: CustomerIOComponent?
+        get() = CustomerIO.instanceOrNull(context)?.diGraph
+
+    private val sharedGraph: CustomerIOSharedStaticComponent
+        get() = CustomerIOShared.instance().diSharedStaticGraph
 
     private val logger: Logger
-        get() = diGraph.logger
+        get() = sharedGraph.logger
 
-    private val sdkConfig: CustomerIOConfig
-        get() = diGraph.sdkConfig
+    private val moduleConfig: MessagingPushModuleConfig?
+        get() = diGraph?.moduleConfig
 
-    private val moduleConfig: MessagingPushModuleConfig
-        get() = diGraph.moduleConfig
-
-    private val deepLinkUtil: DeepLinkUtil
-        get() = diGraph.deepLinkUtil
+    private val deepLinkUtil: DeepLinkUtil?
+        get() = diGraph?.deepLinkUtil
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
@@ -195,7 +196,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             body = body
         )
 
-        moduleConfig.notificationCallback?.onNotificationComposed(
+        moduleConfig?.notificationCallback?.onNotificationComposed(
             payload = payload,
             builder = notificationBuilder
         )
@@ -223,15 +224,15 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             PendingIntent.FLAG_UPDATE_CURRENT
         }
 
-        if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
-            val taskStackBuilder = moduleConfig.notificationCallback?.createTaskStackFromPayload(
+        if (context.applicationInfo.targetSdkVersion > Build.VERSION_CODES.R) {
+            val taskStackBuilder = moduleConfig?.notificationCallback?.createTaskStackFromPayload(
                 context,
                 payload
             ) ?: kotlin.run {
-                val pushContentIntent: Intent? = deepLinkUtil.createDeepLinkHostAppIntent(
+                val pushContentIntent: Intent? = deepLinkUtil?.createDeepLinkHostAppIntent(
                     context,
                     payload.deepLink
-                ) ?: deepLinkUtil.createDefaultHostAppIntent(context, payload.deepLink)
+                ) ?: deepLinkUtil?.createDefaultHostAppIntent(context, payload.deepLink)
                 pushContentIntent?.putExtras(bundle)
 
                 return@run pushContentIntent?.let { intent ->

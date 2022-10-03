@@ -1,13 +1,12 @@
-package io.customer.sdk.repository
+package io.customer.sdk.repository.preference
 
 import android.content.Context
-import android.content.SharedPreferences
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.extensions.getDate
 import io.customer.sdk.extensions.putDate
 import java.util.*
 
-interface PreferenceRepository {
+interface SitePreferenceRepository {
     fun saveIdentifier(identifier: String)
     fun removeIdentifier(identifier: String)
     fun getIdentifier(): String?
@@ -20,12 +19,12 @@ interface PreferenceRepository {
     var httpRequestsPauseEnds: Date?
 }
 
-internal class PreferenceRepositoryImpl(
-    private val context: Context,
+internal class SitePreferenceRepositoryImpl(
+    context: Context,
     private val config: CustomerIOConfig
-) : PreferenceRepository {
+) : BasePreferenceRepository(context), SitePreferenceRepository {
 
-    private val prefsName: String by lazy {
+    override val prefsName: String by lazy {
         "io.customer.sdk.${context.packageName}.${config.siteId}"
     }
 
@@ -34,12 +33,6 @@ internal class PreferenceRepositoryImpl(
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_HTTP_PAUSE_ENDS = "http_pause_ends"
     }
-
-    private val prefs: SharedPreferences
-        get() = context.applicationContext.getSharedPreferences(
-            prefsName,
-            Context.MODE_PRIVATE
-        )
 
     override fun saveIdentifier(identifier: String) {
         prefs.edit().putString(KEY_IDENTIFIER, identifier).apply()
@@ -77,8 +70,4 @@ internal class PreferenceRepositoryImpl(
                 apply()
             }
         }
-
-    override fun clearAll() {
-        prefs.edit().clear().commit()
-    }
 }

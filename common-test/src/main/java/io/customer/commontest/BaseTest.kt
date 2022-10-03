@@ -10,7 +10,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.CustomerIOSharedComponent
+import io.customer.sdk.di.CustomerIOSharedStaticComponent
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -39,7 +39,7 @@ abstract class BaseTest {
     protected lateinit var deviceStore: DeviceStore
     protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
-    protected lateinit var sharedDI: CustomerIOSharedComponent
+    protected lateinit var sharedDI: CustomerIOSharedStaticComponent
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter
         get() = di.jsonAdapter
@@ -98,14 +98,14 @@ abstract class BaseTest {
             throw RuntimeException("server didnt' start ${cioConfig.trackingApiUrl}")
         }
 
-        sharedDI = CustomerIOSharedComponent()
+        sharedDI = CustomerIOSharedStaticComponent()
         di = CustomerIOComponent(
             sharedComponent = sharedDI,
             sdkConfig = cioConfig,
             context = application
         )
         di.fileStorage.deleteAllSdkFiles()
-        di.sharedPreferenceRepository.clearAll()
+        di.sitePreferenceRepository.clearAll()
 
         dateUtilStub = DateUtilStub().also {
             di.overrideDependency(DateUtil::class.java, it)

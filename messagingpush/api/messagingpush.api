@@ -6,10 +6,10 @@ public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService 
 }
 
 public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion {
-	public final fun onMessageReceived (Lcom/google/firebase/messaging/RemoteMessage;)Z
-	public final fun onMessageReceived (Lcom/google/firebase/messaging/RemoteMessage;Z)Z
-	public static synthetic fun onMessageReceived$default (Lio/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion;Lcom/google/firebase/messaging/RemoteMessage;ZILjava/lang/Object;)Z
-	public final fun onNewToken (Ljava/lang/String;)V
+	public final fun onMessageReceived (Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;)Z
+	public final fun onMessageReceived (Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;Z)Z
+	public static synthetic fun onMessageReceived$default (Lio/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion;Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;ZILjava/lang/Object;)Z
+	public final fun onNewToken (Landroid/content/Context;Ljava/lang/String;)V
 }
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig : io/customer/sdk/module/CustomerIOModuleConfig {

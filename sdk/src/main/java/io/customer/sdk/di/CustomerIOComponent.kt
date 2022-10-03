@@ -15,6 +15,8 @@ import io.customer.sdk.hooks.CioHooksManager
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.*
 import io.customer.sdk.repository.*
+import io.customer.sdk.repository.preference.SitePreferenceRepository
+import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
 import io.customer.sdk.util.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -26,7 +28,7 @@ import java.util.concurrent.TimeUnit
  * Configuration class to configure/initialize low-level operations and objects.
  */
 class CustomerIOComponent(
-    private val sharedComponent: CustomerIOSharedComponent,
+    private val sharedComponent: CustomerIOSharedStaticComponent,
     val context: Context,
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
@@ -38,7 +40,13 @@ class CustomerIOComponent(
         get() = override() ?: JsonAdapter(moshi)
 
     val queueStorage: QueueStorage
-        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, dateUtil, logger)
+        get() = override() ?: QueueStorageImpl(
+            sdkConfig,
+            fileStorage,
+            jsonAdapter,
+            dateUtil,
+            logger
+        )
 
     val queueRunner: QueueRunner
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
@@ -48,7 +56,16 @@ class CustomerIOComponent(
 
     val queue: Queue
         get() = override() ?: getSingletonInstanceCreate {
-            QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
+            QueueImpl(
+                dispatchersProvider,
+                queueStorage,
+                queueRunRequest,
+                jsonAdapter,
+                sdkConfig,
+                timer,
+                logger,
+                dateUtil
+            )
         }
 
     internal val cleanupRepository: CleanupRepository
@@ -76,7 +93,7 @@ class CustomerIOComponent(
 
     private val httpRequestRunner: HttpRequestRunner
         get() = HttpRequestRunnerImpl(
-            sharedPreferenceRepository,
+            sitePreferenceRepository,
             logger,
             cioHttpRetryPolicy,
             jsonAdapter
@@ -93,7 +110,7 @@ class CustomerIOComponent(
 
     val trackRepository: TrackRepository
         get() = override() ?: TrackRepositoryImpl(
-            sharedPreferenceRepository,
+            sitePreferenceRepository,
             queue,
             logger,
             hooksManager
@@ -102,7 +119,7 @@ class CustomerIOComponent(
     val profileRepository: ProfileRepository
         get() = override() ?: ProfileRepositoryImpl(
             deviceRepository,
-            sharedPreferenceRepository,
+            sitePreferenceRepository,
             queue,
             logger,
             hooksManager
@@ -112,7 +129,7 @@ class CustomerIOComponent(
         get() = override() ?: DeviceRepositoryImpl(
             sdkConfig,
             buildStore().deviceStore,
-            sharedPreferenceRepository,
+            sitePreferenceRepository,
             queue,
             dateUtil,
             logger
@@ -136,8 +153,8 @@ class CustomerIOComponent(
         }
     }
 
-    val sharedPreferenceRepository: PreferenceRepository by lazy {
-        override() ?: PreferenceRepositoryImpl(
+    val sitePreferenceRepository: SitePreferenceRepository by lazy {
+        override() ?: SitePreferenceRepositoryImpl(
             context = context,
             config = sdkConfig
         )

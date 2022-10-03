@@ -3,6 +3,8 @@ package io.customer.sdk.repository
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.unixTimeToDate
 import io.customer.commontest.BaseTest
+import io.customer.sdk.repository.preference.SitePreferenceRepository
+import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
@@ -14,13 +16,13 @@ import java.util.*
 @RunWith(AndroidJUnit4::class)
 class PreferenceRepositoryTest : BaseTest() {
 
-    private lateinit var prefRepository: PreferenceRepository
+    private lateinit var prefRepository: SitePreferenceRepository
 
     @Before
     override fun setup() {
         super.setup()
 
-        prefRepository = PreferenceRepositoryImpl(context, cioConfig)
+        prefRepository = SitePreferenceRepositoryImpl(context, cioConfig)
     }
 
     @Test

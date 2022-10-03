@@ -4,6 +4,7 @@ import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
 
 interface ProfileRepository {
@@ -14,7 +15,7 @@ interface ProfileRepository {
 
 internal class ProfileRepositoryImpl(
     private val deviceRepository: DeviceRepository,
-    private val preferenceRepository: PreferenceRepository,
+    private val sitePreferenceRepository: SitePreferenceRepository,
     private val backgroundQueue: Queue,
     private val logger: Logger,
     private val hooksManager: HooksManager
@@ -24,7 +25,7 @@ internal class ProfileRepositoryImpl(
         logger.info("identify profile $identifier")
         logger.debug("identify profile $identifier, $attributes")
 
-        val currentlyIdentifiedProfileIdentifier = preferenceRepository.getIdentifier()
+        val currentlyIdentifiedProfileIdentifier = sitePreferenceRepository.getIdentifier()
         // The SDK calls identify() with the already identified profile for changing profile attributes.
         val isChangingIdentifiedProfile =
             currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
@@ -54,7 +55,7 @@ internal class ProfileRepositoryImpl(
         }
 
         logger.debug("storing identifier on device storage $identifier")
-        preferenceRepository.saveIdentifier(identifier)
+        sitePreferenceRepository.saveIdentifier(identifier)
 
         hooksManager.onHookUpdate(
             hook = ModuleHook.ProfileIdentifiedHook(identifier)
@@ -63,7 +64,7 @@ internal class ProfileRepositoryImpl(
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")
 
-            preferenceRepository.getDeviceToken()?.let {
+            sitePreferenceRepository.getDeviceToken()?.let {
                 logger.debug("automatically registering device token to newly identified profile")
                 deviceRepository.registerDeviceToken(
                     it,
@@ -76,7 +77,7 @@ internal class ProfileRepositoryImpl(
     override fun addCustomProfileAttributes(attributes: CustomAttributes) {
         logger.debug("adding profile attributes request made")
 
-        val currentlyIdentifiedProfileId = preferenceRepository.getIdentifier()
+        val currentlyIdentifiedProfileId = sitePreferenceRepository.getIdentifier()
 
         if (currentlyIdentifiedProfileId == null) {
             logger.debug("no profile is currently identified. ignoring request to add attributes to a profile")
@@ -89,7 +90,7 @@ internal class ProfileRepositoryImpl(
     override fun clearIdentify() {
         logger.debug("clearing identified profile request made")
 
-        val currentlyIdentifiedProfileId = preferenceRepository.getIdentifier()
+        val currentlyIdentifiedProfileId = sitePreferenceRepository.getIdentifier()
 
         if (currentlyIdentifiedProfileId == null) {
             logger.info("no profile is currently identified. ignoring request to clear identified profile")
@@ -108,6 +109,6 @@ internal class ProfileRepositoryImpl(
 
         // delete identified from device storage to not associate future SDK calls to this profile
         logger.debug("clearing profile from device storage")
-        preferenceRepository.removeIdentifier(currentlyIdentifiedProfileId)
+        sitePreferenceRepository.removeIdentifier(currentlyIdentifiedProfileId)
     }
 }

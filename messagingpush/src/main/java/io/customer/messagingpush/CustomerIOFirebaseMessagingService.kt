@@ -1,18 +1,13 @@
 package io.customer.messagingpush
 
+import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.di.CustomerIOComponent
 
 class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
-        private const val TAG = "FirebaseMessaging:"
-
-        private val diGraph: CustomerIOComponent
-            get() = CustomerIO.instance().diGraph
-
         /**
          * Handles receiving an incoming push notification.
          *
@@ -25,10 +20,11 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          */
         @JvmOverloads
         fun onMessageReceived(
+            context: Context,
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            return handleMessageReceived(remoteMessage, handleNotificationTrigger)
+            return handleMessageReceived(context, remoteMessage, handleNotificationTrigger)
         }
 
         /**
@@ -39,29 +35,32 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          */
         @JvmOverloads
         fun onNewToken(
+            context: Context,
             token: String
         ) {
-            handleNewToken(token)
+            handleNewToken(context, token)
         }
 
-        private fun handleNewToken(token: String) {
-            CustomerIO.instanceOrNull()?.registerDeviceToken(deviceToken = token)
+        private fun handleNewToken(context: Context, token: String) {
+            CustomerIO.instanceOrNull(context)?.registerDeviceToken(deviceToken = token)
         }
 
         private fun handleMessageReceived(
+            context: Context,
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
-            return handler.handleMessage(diGraph.context, handleNotificationTrigger)
+            val handler =
+                CustomerIOPushNotificationHandler(context = context, remoteMessage = remoteMessage)
+            return handler.handleMessage(context, handleNotificationTrigger)
         }
     }
 
     override fun onNewToken(token: String) {
-        handleNewToken(token)
+        handleNewToken(context = this, token = token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        handleMessageReceived(remoteMessage)
+        handleMessageReceived(this, remoteMessage)
     }
 }

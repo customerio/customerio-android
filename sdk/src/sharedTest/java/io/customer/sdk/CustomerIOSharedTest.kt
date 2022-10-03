@@ -2,7 +2,7 @@ package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
-import io.customer.sdk.di.CustomerIOSharedComponent
+import io.customer.sdk.di.CustomerIOSharedStaticComponent
 import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.StaticSettingsProvider
 import org.amshove.kluent.shouldBeEqualTo
@@ -28,19 +28,19 @@ class CustomerIOSharedTest : BaseTest() {
             createInstance(diGraph = sharedDI)
         }
 
-        instance.diGraph shouldBeEqualTo sharedDI
+        instance.diSharedStaticGraph shouldBeEqualTo sharedDI
     }
 
     @Test
     fun verifyAttachedWithSDK_givenNoSpecificEnvironment_expectProvidedLogLevel() {
-        val diGraph = CustomerIOSharedComponent()
+        val diGraph = CustomerIOSharedStaticComponent()
         val staticSettingsProvider: StaticSettingsProvider = mock()
         diGraph.overrideDependency(StaticSettingsProvider::class.java, staticSettingsProvider)
         whenever(staticSettingsProvider.isDebuggable).thenReturn(false)
 
         val instance = CustomerIOShared.createInstance(diGraph = diGraph)
-        instance.attachSDKConfig(sdkConfig = cioConfig)
+        instance.attachSDKConfig(sdkConfig = cioConfig, context = context)
 
-        (instance.diGraph.logger as LogcatLogger).logLevel shouldBeEqualTo cioConfig.logLevel
+        (instance.diSharedStaticGraph.logger as LogcatLogger).logLevel shouldBeEqualTo cioConfig.logLevel
     }
 }

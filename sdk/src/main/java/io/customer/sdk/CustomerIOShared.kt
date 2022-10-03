@@ -1,9 +1,12 @@
 package io.customer.sdk
 
+import android.content.Context
 import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIOShared.Companion.instance
 import io.customer.sdk.di.CustomerIOSharedComponent
+import io.customer.sdk.di.CustomerIOSharedStaticComponent
+import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.util.LogcatLogger
 
 /**
@@ -19,14 +22,24 @@ import io.customer.sdk.util.LogcatLogger
  * - reduce challenges of communication when wrapping the SDK for non native
  * platforms
  *
- * @property diGraph instance of DI graph to satisfy dependencies
+ * @property diSharedStaticGraph instance of DI graph to satisfy dependencies
  */
 class CustomerIOShared private constructor(
-    val diGraph: CustomerIOSharedComponent
+    val diSharedStaticGraph: CustomerIOSharedStaticComponent
 ) {
+
+    var diSharedGraph: CustomerIOSharedComponent? = null
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    fun attachSDKConfig(sdkConfig: CustomerIOConfig) {
-        (diGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
+    fun attachSDKConfig(sdkConfig: CustomerIOConfig, context: Context) {
+        (diSharedStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
+        diSharedGraph = diSharedGraph ?: CustomerIOSharedComponent(context)
+        diSharedGraph?.sharedPreferenceRepository?.saveSettings(
+            CustomerIOStoredValues(
+                customerIOConfig = sdkConfig,
+                organizationId = ""
+            )
+        )
     }
 
     companion object {
@@ -40,9 +53,9 @@ class CustomerIOShared private constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun createInstance(
-            diGraph: CustomerIOSharedComponent? = null
+            diGraph: CustomerIOSharedStaticComponent? = null
         ): CustomerIOShared = INSTANCE ?: CustomerIOShared(
-            diGraph = diGraph ?: CustomerIOSharedComponent()
+            diSharedStaticGraph = diGraph ?: CustomerIOSharedStaticComponent()
         ).apply { INSTANCE = this }
 
         @InternalCustomerIOApi

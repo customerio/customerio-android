@@ -40,6 +40,7 @@ abstract class BaseTest {
     protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
     protected lateinit var sharedDI: CustomerIOSharedStaticComponent
+
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter
         get() = di.jsonAdapter

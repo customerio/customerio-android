@@ -34,6 +34,7 @@ class CustomerIOSharedTest : BaseTest() {
     @Test
     fun verifyAttachedWithSDK_givenNoSpecificEnvironment_expectProvidedLogLevel() {
         val diGraph = CustomerIOSharedStaticComponent()
+
         val staticSettingsProvider: StaticSettingsProvider = mock()
         diGraph.overrideDependency(StaticSettingsProvider::class.java, staticSettingsProvider)
         whenever(staticSettingsProvider.isDebuggable).thenReturn(false)

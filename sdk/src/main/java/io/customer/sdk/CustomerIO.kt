@@ -107,6 +107,9 @@ class CustomerIO internal constructor(
         fun instanceOrNull(): CustomerIO? = try {
             instance()
         } catch (ex: Exception) {
+            CustomerIOShared.instance().diGraph.logger.error(
+                "Customer.io instance not initialized: ${ex.message}"
+            )
             null
         }
 
@@ -123,6 +126,7 @@ class CustomerIO internal constructor(
         private var region: Region = Region.US,
         private val appContext: Application
     ) {
+        private val sharedInstance = CustomerIOShared.instance()
         private var client: Client = Client.Android(Version.version)
         private var timeout = 6000L
         private var shouldAutoRecordScreenViews: Boolean = false
@@ -226,7 +230,12 @@ class CustomerIO internal constructor(
                 configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
             )
 
-            val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
+            sharedInstance.attachSDKConfig(sdkConfig = config)
+            val diGraph = overrideDiGraph ?: CustomerIOComponent(
+                sharedComponent = sharedInstance.diGraph,
+                sdkConfig = config,
+                context = appContext
+            )
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 

@@ -10,6 +10,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -38,6 +39,7 @@ abstract class BaseTest {
     protected lateinit var deviceStore: DeviceStore
     protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
+    protected lateinit var sharedDI: CustomerIOSharedComponent
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter
         get() = di.jsonAdapter
@@ -96,7 +98,9 @@ abstract class BaseTest {
             throw RuntimeException("server didnt' start ${cioConfig.trackingApiUrl}")
         }
 
+        sharedDI = CustomerIOSharedComponent()
         di = CustomerIOComponent(
+            sharedComponent = sharedDI,
             sdkConfig = cioConfig,
             context = application
         )
@@ -108,7 +112,7 @@ abstract class BaseTest {
         }
         deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
         dispatchersProviderStub = DispatchersProviderStub().also {
-            di.overrideDependency(DispatchersProvider::class.java, it)
+            sharedDI.overrideDependency(DispatchersProvider::class.java, it)
         }
     }
 

@@ -7,7 +7,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOShared
 
 @DrawableRes
 internal fun Context.getDrawableByName(name: String?): Int? = if (name.isNullOrBlank()) null
@@ -20,6 +20,6 @@ else resources?.getIdentifier(name, "drawable", packageName)?.takeUnless { id ->
 internal fun Context.getColorOrNull(@ColorRes id: Int): Int? = try {
     ContextCompat.getColor(this, id)
 } catch (ex: Resources.NotFoundException) {
-    CustomerIO.instance().diGraph.logger.error("Invalid resource $id, ${ex.message}")
+    CustomerIOShared.instance().diGraph.logger.error("Invalid resource $id, ${ex.message}")
     null
 }

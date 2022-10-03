@@ -113,6 +113,18 @@ public abstract interface class io/customer/sdk/CustomerIOInstance {
 	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
 }
 
+public final class io/customer/sdk/CustomerIOShared {
+	public static final field Companion Lio/customer/sdk/CustomerIOShared$Companion;
+	public synthetic fun <init> (Lio/customer/sdk/di/CustomerIOSharedComponent;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attachSDKConfig (Lio/customer/sdk/CustomerIOConfig;)V
+	public final fun getDiGraph ()Lio/customer/sdk/di/CustomerIOSharedComponent;
+	public static final fun instance ()Lio/customer/sdk/CustomerIOShared;
+}
+
+public final class io/customer/sdk/CustomerIOShared$Companion {
+	public final fun instance ()Lio/customer/sdk/CustomerIOShared;
+}
+
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
 	public static final field event Lio/customer/sdk/data/model/EventType;
 	public static final field screen Lio/customer/sdk/data/model/EventType;
@@ -175,7 +187,7 @@ public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
 }
 
 public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/DiGraph {
-	public fun <init> (Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
+	public fun <init> (Lio/customer/sdk/di/CustomerIOSharedComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
 	public final fun buildRetrofit (Ljava/lang/String;J)Lretrofit2/Retrofit;
 	public final fun buildStore ()Lio/customer/sdk/data/store/CustomerIOStore;
 	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/CustomerIOActivityLifecycleCallbacks;
@@ -199,6 +211,13 @@ public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/D
 	public final fun getSharedPreferenceRepository ()Lio/customer/sdk/repository/PreferenceRepository;
 	public final fun getTimer ()Lio/customer/sdk/util/SimpleTimer;
 	public final fun getTrackRepository ()Lio/customer/sdk/repository/TrackRepository;
+}
+
+public final class io/customer/sdk/di/CustomerIOSharedComponent : io/customer/sdk/di/DiGraph {
+	public fun <init> ()V
+	public final fun getDispatchersProvider ()Lio/customer/sdk/util/DispatchersProvider;
+	public final fun getLogger ()Lio/customer/sdk/util/Logger;
+	public final fun getStaticSettingsProvider ()Lio/customer/sdk/util/StaticSettingsProvider;
 }
 
 public abstract class io/customer/sdk/di/DiGraph {

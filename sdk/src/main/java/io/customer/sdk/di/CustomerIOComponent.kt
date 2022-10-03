@@ -44,7 +44,7 @@ class CustomerIOComponent(
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
     val dispatchersProvider: DispatchersProvider
-        get() = sharedComponent.dispatchersProvider
+        get() = override() ?: sharedComponent.dispatchersProvider
 
     val queue: Queue
         get() = override() ?: getSingletonInstanceCreate {
@@ -66,7 +66,7 @@ class CustomerIOComponent(
         )
 
     val logger: Logger
-        get() = sharedComponent.logger
+        get() = override() ?: sharedComponent.logger
 
     val hooksManager: HooksManager
         get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }

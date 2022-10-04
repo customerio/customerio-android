@@ -1,3 +1,10 @@
+## [3.0.0-beta.2](https://github.com/customerio/customerio-android/compare/3.0.0-beta.1...3.0.0-beta.2) (2022-10-04)
+
+
+### Bug Fixes
+
+* version bump for gist sdk to resolve messaging not showing bug ([05dad42](https://github.com/customerio/customerio-android/commit/05dad421fc938431e459daadd6a83b6cc3b9d33e))
+
 ## [3.0.0-beta.1](https://github.com/customerio/customerio-android/compare/2.1.1...3.0.0-beta.1) (2022-09-01)
 
 

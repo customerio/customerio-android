@@ -15,7 +15,7 @@ object Versions {
     internal const val FIREBASE_MESSAGING = "22.0.0"
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "1.1.0"
     internal const val GRADLE_VERSIONS_PLUGIN = "0.39.0"
-    internal const val GIST = "2.1.3"
+    internal const val GIST = "2.1.4"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "17.6.0"
     internal const val KLUENT = "1.68"
     internal const val KOTLIN = "1.5.31"

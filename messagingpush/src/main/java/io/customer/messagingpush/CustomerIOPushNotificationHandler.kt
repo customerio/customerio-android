@@ -35,7 +35,14 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.abs
 
-internal class CustomerIOPushNotificationHandler(private val context: Context, private val remoteMessage: RemoteMessage) {
+/**
+ * Class to handle PushNotification.
+ *
+ * Make sure CustomerIO instance is always initialized before using this class.
+ */
+internal class CustomerIOPushNotificationHandler(
+    private val remoteMessage: RemoteMessage
+) {
 
     companion object {
         const val DEEP_LINK_KEY = "link"
@@ -50,8 +57,8 @@ internal class CustomerIOPushNotificationHandler(private val context: Context, p
             "com.google.firebase.messaging.default_notification_color"
     }
 
-    private val diGraph: CustomerIOComponent?
-        get() = CustomerIO.instanceOrNull(context)?.diGraph
+    private val diGraph: CustomerIOComponent
+        get() = CustomerIO.instance().diGraph
 
     private val sharedGraph: CustomerIOSharedStaticComponent
         get() = CustomerIOShared.instance().diSharedStaticGraph
@@ -59,11 +66,11 @@ internal class CustomerIOPushNotificationHandler(private val context: Context, p
     private val logger: Logger
         get() = sharedGraph.logger
 
-    private val moduleConfig: MessagingPushModuleConfig?
-        get() = diGraph?.moduleConfig
+    private val moduleConfig: MessagingPushModuleConfig
+        get() = diGraph.moduleConfig
 
-    private val deepLinkUtil: DeepLinkUtil?
-        get() = diGraph?.deepLinkUtil
+    private val deepLinkUtil: DeepLinkUtil
+        get() = diGraph.deepLinkUtil
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
@@ -91,7 +98,7 @@ internal class CustomerIOPushNotificationHandler(private val context: Context, p
         val deliveryToken = bundle.getString(DELIVERY_TOKEN_KEY)
 
         if (deliveryId != null && deliveryToken != null) {
-            CustomerIO.instance().trackMetric(
+            CustomerIO.instanceOrNull(context)?.trackMetric(
                 deliveryID = deliveryId,
                 deviceToken = deliveryToken,
                 event = MetricEvent.delivered
@@ -196,7 +203,7 @@ internal class CustomerIOPushNotificationHandler(private val context: Context, p
             body = body
         )
 
-        moduleConfig?.notificationCallback?.onNotificationComposed(
+        moduleConfig.notificationCallback?.onNotificationComposed(
             payload = payload,
             builder = notificationBuilder
         )
@@ -225,14 +232,14 @@ internal class CustomerIOPushNotificationHandler(private val context: Context, p
         }
 
         if (context.applicationInfo.targetSdkVersion > Build.VERSION_CODES.R) {
-            val taskStackBuilder = moduleConfig?.notificationCallback?.createTaskStackFromPayload(
+            val taskStackBuilder = moduleConfig.notificationCallback?.createTaskStackFromPayload(
                 context,
                 payload
             ) ?: kotlin.run {
-                val pushContentIntent: Intent? = deepLinkUtil?.createDeepLinkHostAppIntent(
+                val pushContentIntent: Intent? = deepLinkUtil.createDeepLinkHostAppIntent(
                     context,
                     payload.deepLink
-                ) ?: deepLinkUtil?.createDefaultHostAppIntent(context, payload.deepLink)
+                ) ?: deepLinkUtil.createDefaultHostAppIntent(context, payload.deepLink)
                 pushContentIntent?.putExtras(bundle)
 
                 return@run pushContentIntent?.let { intent ->

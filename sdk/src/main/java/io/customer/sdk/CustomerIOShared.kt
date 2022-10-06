@@ -31,6 +31,13 @@ class CustomerIOShared private constructor(
     var diSharedGraph: CustomerIOSharedComponent? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    fun initializeSharedComponent(context: Context): CustomerIOSharedComponent {
+        return diSharedGraph ?: CustomerIOSharedComponent(context).apply {
+            diSharedGraph = this
+        }
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     fun attachSDKConfig(sdkConfig: CustomerIOConfig, context: Context) {
         (diSharedStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
         diSharedGraph = diSharedGraph ?: CustomerIOSharedComponent(context)
@@ -46,7 +53,6 @@ class CustomerIOShared private constructor(
         private var INSTANCE: CustomerIOShared? = null
 
         @JvmStatic
-        @OptIn(InternalCustomerIOApi::class)
         fun instance(): CustomerIOShared = createInstance(diGraph = null)
 
         @Synchronized

@@ -10,7 +10,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.extensions.*
+import io.customer.sdk.extensions.getScreenNameFromActivity
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.CleanupRepository
@@ -107,24 +107,28 @@ class CustomerIO internal constructor(
          */
         @InternalCustomerIOApi
         @JvmStatic
+        @Synchronized
         fun instanceOrNull(context: Context): CustomerIO? {
             return try {
                 instance()
             } catch (ex: Exception) {
-                val storedValues =
-                    CustomerIOShared.instance().diSharedGraph?.sharedPreferenceRepository?.loadSettings()
-                if (storedValues?.doesExist() == true) {
-                    return initialize(storedValues, context)
+                val customerIOShared = CustomerIOShared.instance()
+                return customerIOShared.initializeSharedComponent(context).let {
+                    val storedValues = it.sharedPreferenceRepository.loadSettings()
+                    if (storedValues.doesExist()) {
+                        return@let createInstanceFromStoredValues(storedValues, context)
+                    } else {
+                        customerIOShared.diSharedStaticGraph.logger.error(
+                            "Customer.io instance not initialized: ${ex.message}"
+                        )
+                        return@let null
+                    }
                 }
-                CustomerIOShared.instance().diSharedStaticGraph.logger.error(
-                    "Customer.io instance not initialized: ${ex.message}"
-                )
-                null
             }
         }
 
         @Throws(IllegalArgumentException::class)
-        private fun initialize(
+        private fun createInstanceFromStoredValues(
             customerIOStoredValues: CustomerIOStoredValues,
             context: Context
         ): CustomerIO {

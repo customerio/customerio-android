@@ -119,6 +119,7 @@ public final class io/customer/sdk/CustomerIOShared {
 	public final fun attachSDKConfig (Lio/customer/sdk/CustomerIOConfig;Landroid/content/Context;)V
 	public final fun getDiSharedGraph ()Lio/customer/sdk/di/CustomerIOSharedComponent;
 	public final fun getDiSharedStaticGraph ()Lio/customer/sdk/di/CustomerIOSharedStaticComponent;
+	public final fun initializeSharedComponent (Landroid/content/Context;)Lio/customer/sdk/di/CustomerIOSharedComponent;
 	public static final fun instance ()Lio/customer/sdk/CustomerIOShared;
 	public final fun setDiSharedGraph (Lio/customer/sdk/di/CustomerIOSharedComponent;)V
 }

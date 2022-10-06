@@ -1,3 +1,80 @@
+## [3.0.0](https://github.com/customerio/customerio-android/compare/2.1.1...3.0.0) (2022-10-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* android 12 deep link fix
+
+### Features
+
+* added option to customize push notification from app ([68010f8](https://github.com/customerio/customerio-android/commit/68010f84e39872dc5b0d8cfffda8f169efeaa472))
+* changes for react native package ([2f20ac3](https://github.com/customerio/customerio-android/commit/2f20ac3dd1c1ba6be215d5206b22c143e37efe94))
+* in app sdk ([1036c80](https://github.com/customerio/customerio-android/commit/1036c8030259eaef1472e8c004636aee02d1af8a))
+* updated client to support react native user agent ([7588526](https://github.com/customerio/customerio-android/commit/7588526bef0e7bfc130b1b5a2cc8fd915bff3483))
+
+
+### Bug Fixes
+
+* android 12 deep link fix ([fd7ae28](https://github.com/customerio/customerio-android/commit/fd7ae288a9c85d8ba397419e1d20f58883f83020))
+* version bump for gist sdk to resolve messaging not showing bug ([05dad42](https://github.com/customerio/customerio-android/commit/05dad421fc938431e459daadd6a83b6cc3b9d33e))
+
+## [3.0.0-beta.2](https://github.com/customerio/customerio-android/compare/3.0.0-beta.1...3.0.0-beta.2) (2022-10-04)
+
+
+### Bug Fixes
+
+* version bump for gist sdk to resolve messaging not showing bug ([05dad42](https://github.com/customerio/customerio-android/commit/05dad421fc938431e459daadd6a83b6cc3b9d33e))
+
+## [3.0.0-beta.1](https://github.com/customerio/customerio-android/compare/2.1.1...3.0.0-beta.1) (2022-09-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* android 12 deep link fix
+
+### Features
+
+* added option to customize push notification from app ([68010f8](https://github.com/customerio/customerio-android/commit/68010f84e39872dc5b0d8cfffda8f169efeaa472))
+* changes for react native package ([2f20ac3](https://github.com/customerio/customerio-android/commit/2f20ac3dd1c1ba6be215d5206b22c143e37efe94))
+* in app sdk ([1036c80](https://github.com/customerio/customerio-android/commit/1036c8030259eaef1472e8c004636aee02d1af8a))
+* updated client to support react native user agent ([7588526](https://github.com/customerio/customerio-android/commit/7588526bef0e7bfc130b1b5a2cc8fd915bff3483))
+
+
+### Bug Fixes
+
+* android 12 deep link fix ([fd7ae28](https://github.com/customerio/customerio-android/commit/fd7ae288a9c85d8ba397419e1d20f58883f83020))
+
+## [3.0.0-alpha.2](https://github.com/customerio/customerio-android/compare/3.0.0-alpha.1...3.0.0-alpha.2) (2022-08-26)
+
+
+### Features
+
+* added option to customize push notification from app ([68010f8](https://github.com/customerio/customerio-android/commit/68010f84e39872dc5b0d8cfffda8f169efeaa472))
+* updated client to support react native user agent ([7588526](https://github.com/customerio/customerio-android/commit/7588526bef0e7bfc130b1b5a2cc8fd915bff3483))
+
+## [3.0.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.2.0-alpha.1...3.0.0-alpha.1) (2022-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* android 12 deep link fix
+
+### Features
+
+* changes for react native package ([2f20ac3](https://github.com/customerio/customerio-android/commit/2f20ac3dd1c1ba6be215d5206b22c143e37efe94))
+
+
+### Bug Fixes
+
+* android 12 deep link fix ([fd7ae28](https://github.com/customerio/customerio-android/commit/fd7ae288a9c85d8ba397419e1d20f58883f83020))
+
+## [2.2.0-alpha.1](https://github.com/customerio/customerio-android/compare/2.1.1...2.2.0-alpha.1) (2022-08-03)
+
+
+### Features
+
+* in app sdk ([1036c80](https://github.com/customerio/customerio-android/commit/1036c8030259eaef1472e8c004636aee02d1af8a))
+
 ### [2.1.1](https://github.com/customerio/customerio-android/compare/2.1.0...2.1.1) (2022-08-01)
 
 

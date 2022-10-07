@@ -101,7 +101,7 @@ internal class QueueStorageImpl internal constructor(
     @Synchronized
     override fun get(taskStorageId: String): QueueTask? {
         val fileContents = fileStorage.get(FileType.QueueTask(taskStorageId)) ?: return null
-        return jsonAdapter.fromJson(fileContents)
+        return jsonAdapter.fromJsonOrNull(fileContents)
     }
 
     @Synchronized

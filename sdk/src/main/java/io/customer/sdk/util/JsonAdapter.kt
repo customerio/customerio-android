@@ -37,9 +37,16 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
      * ```
      *
      * Moshi handles arrays differently: https://github.com/square/moshi#parse-json-arrays
+     *
+     * Parses data string to single objects. Using this method directly is
+     * discouraged as parsing json incorrectly can lead to crashes on client
+     * apps. Prefer safe parsing instead by using [fromJsonOrNull].
+     *
+     * @see [fromJsonOrNull] for safe parsing
      */
-    inline fun <reified T : Any> fromJson(json: String): T {
-        val json = json.trim()
+    @Throws(Exception::class)
+    inline fun <reified T : Any> fromJson(data: String): T {
+        val json = data.trim()
 
         if (json.isNotEmpty() && json[0] == '[') throw IllegalArgumentException("String is a list. Use `fromJsonList` instead.")
 
@@ -49,18 +56,25 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
     }
 
     /**
-     * Use if you anticipate the json parsing to not work. You don't care about the exception. Else, use [fromJson].
+     * Parses data string to a single objects or null if there is any exception
+     * e.g. malformed json, missing adapter, etc.
      */
-    inline fun <reified T : Any> fromJsonOrNull(json: String): T? {
-        return try {
-            fromJson(json)
-        } catch (e: Exception) {
-            null
-        }
+    inline fun <reified T : Any> fromJsonOrNull(json: String): T? = try {
+        fromJson(json)
+    } catch (ex: Exception) {
+        null
     }
 
-    inline fun <reified T : Any> fromJsonList(json: String): List<T> {
-        val json = json.trim()
+    /**
+     * Parses data string to list of objects. Using this method directly is
+     * discouraged as parsing json incorrectly can lead to crashes on client
+     * apps. Prefer safe parsing instead by using [fromJsonListOrNull].
+     *
+     * @see [fromJsonListOrNull] for safe parsing
+     */
+    @Throws(Exception::class)
+    inline fun <reified T : Any> fromJsonList(data: String): List<T> {
+        val json = data.trim()
 
         if (json.isNotEmpty() && json[0] != '[') throw IllegalArgumentException("String is not a list. Use `fromJson` instead.")
 
@@ -71,7 +85,8 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
     }
 
     /**
-     * Use if you anticipate the json parsing to not work. You don't care about the exception. Else, use [fromJsonList].
+     * Parses data string to list of objects or null if there is any exception
+     * e.g. malformed json, missing adapter, etc.
      */
     inline fun <reified T : Any> fromJsonListOrNull(json: String): List<T>? = try {
         fromJsonList(json)

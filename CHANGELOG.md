@@ -1,3 +1,17 @@
+## [3.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/3.0.0...3.1.0-alpha.1) (2022-10-10)
+
+
+### Features
+
+* added shared instance for independent components ([70fa8cd](https://github.com/customerio/customerio-android/commit/70fa8cd69079c94cd20d5e9bc02e563796c5e52a))
+* added support to modify notification small icon ([b93c2dc](https://github.com/customerio/customerio-android/commit/b93c2dc653c32d58da83e4a01afffef01b0fbfd1))
+
+
+### Bug Fixes
+
+* in-app messages stop delivering ([4027502](https://github.com/customerio/customerio-android/commit/40275020b73748864fab504234057170bd5b5561))
+* updated json adapter usage to safe parsing ([f72280b](https://github.com/customerio/customerio-android/commit/f72280b3435be18274d81aee71303ae6ca9fda01))
+
 ## [3.0.0](https://github.com/customerio/customerio-android/compare/2.1.1...3.0.0) (2022-10-05)
 
 

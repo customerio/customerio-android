@@ -2,6 +2,7 @@ package io.customer.sdk.repository.preference
 
 import android.content.Context
 import io.customer.sdk.extensions.toRegion
+import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.util.CioLogLevel
 
 interface SharedPreferenceRepository {
@@ -28,7 +29,7 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
             putString(ORGANIZATION_ID, it.organizationId)
             putString(TRACKING_API_URL, it.trackingApiUrl)
             putBoolean(AUTO_TRACK_DEVICE_ATTRIBUTES, it.autoTrackDeviceAttributes)
-            putInt(LOG_LEVEL, it.logLevel.ordinal)
+            putString(LOG_LEVEL, it.logLevel.name)
             putInt(BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS, it.backgroundQueueMinNumberOfTasks)
             putFloat(BACKGROUND_QUEUE_SECONDS_DELAY, it.backgroundQueueSecondsDelay.toFloat())
         }
@@ -44,8 +45,8 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
                 organizationId = getString(ORGANIZATION_ID, null),
                 trackingApiUrl = getString(TRACKING_API_URL, null),
                 autoTrackDeviceAttributes = getBoolean(AUTO_TRACK_DEVICE_ATTRIBUTES, true),
-                logLevel = CioLogLevel.values()
-                    .getOrElse(getInt(LOG_LEVEL, -1)) { CioLogLevel.ERROR },
+                logLevel = getString(LOG_LEVEL, null)?.let { valueOfOrNull<CioLogLevel>(it) }
+                    ?: CioLogLevel.ERROR,
                 backgroundQueueMinNumberOfTasks = getInt(BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS, 10),
                 backgroundQueueSecondsDelay = getFloat(
                     BACKGROUND_QUEUE_SECONDS_DELAY,
@@ -55,7 +56,7 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
         }
     }
 
-    companion object {
+    private companion object {
         const val SITE_ID = "siteId"
         const val API_KEY = "apiKey"
         const val REGION = "region"

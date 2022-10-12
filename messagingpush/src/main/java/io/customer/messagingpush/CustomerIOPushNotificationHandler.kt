@@ -27,7 +27,7 @@ import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.CustomerIOSharedStaticComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -38,7 +38,7 @@ import kotlin.math.abs
 /**
  * Class to handle PushNotification.
  *
- * Make sure CustomerIO instance is always initialized before using this class.
+ * Make sure [CustomerIO] instance is always initialized before using this class.
  */
 internal class CustomerIOPushNotificationHandler(
     private val remoteMessage: RemoteMessage
@@ -60,11 +60,11 @@ internal class CustomerIOPushNotificationHandler(
     private val diGraph: CustomerIOComponent
         get() = CustomerIO.instance().diGraph
 
-    private val sharedGraph: CustomerIOSharedStaticComponent
-        get() = CustomerIOShared.instance().diSharedStaticGraph
+    private val staticGraph: CustomerIOStaticComponent
+        get() = CustomerIOShared.instance().diStaticGraph
 
     private val logger: Logger
-        get() = sharedGraph.logger
+        get() = staticGraph.logger
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.moduleConfig

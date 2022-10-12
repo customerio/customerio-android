@@ -2,7 +2,7 @@ package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
-import io.customer.sdk.di.CustomerIOSharedStaticComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.util.LogcatLogger
 import io.customer.sdk.util.StaticSettingsProvider
 import org.amshove.kluent.shouldBeEqualTo
@@ -25,23 +25,23 @@ class CustomerIOSharedTest : BaseTest() {
     fun verifyDIGraphProvided_givenInstanceNotInitializedBefore_expectProvidedDIGraph() {
         val instance = with(CustomerIOShared) {
             clearInstance()
-            createInstance(diGraph = sharedDI)
+            createInstance(diStaticGraph = staticDIComponent)
         }
 
-        instance.diSharedStaticGraph shouldBeEqualTo sharedDI
+        instance.diStaticGraph shouldBeEqualTo staticDIComponent
     }
 
     @Test
     fun verifyAttachedWithSDK_givenNoSpecificEnvironment_expectProvidedLogLevel() {
-        val diGraph = CustomerIOSharedStaticComponent()
+        val diGraph = CustomerIOStaticComponent()
 
         val staticSettingsProvider: StaticSettingsProvider = mock()
         diGraph.overrideDependency(StaticSettingsProvider::class.java, staticSettingsProvider)
         whenever(staticSettingsProvider.isDebuggable).thenReturn(false)
 
-        val instance = CustomerIOShared.createInstance(diGraph = diGraph)
+        val instance = CustomerIOShared.createInstance(diStaticGraph = diGraph)
         instance.attachSDKConfig(sdkConfig = cioConfig, context = context)
 
-        (instance.diSharedStaticGraph.logger as LogcatLogger).logLevel shouldBeEqualTo cioConfig.logLevel
+        (instance.diStaticGraph.logger as LogcatLogger).logLevel shouldBeEqualTo cioConfig.logLevel
     }
 }

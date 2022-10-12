@@ -20,6 +20,6 @@ else resources?.getIdentifier(name, "drawable", packageName)?.takeUnless { id ->
 internal fun Context.getColorOrNull(@ColorRes id: Int): Int? = try {
     ContextCompat.getColor(this, id)
 } catch (ex: Resources.NotFoundException) {
-    CustomerIOShared.instance().diSharedStaticGraph.logger.error("Invalid resource $id, ${ex.message}")
+    CustomerIOShared.instance().diStaticGraph.logger.error("Invalid resource $id, ${ex.message}")
     null
 }

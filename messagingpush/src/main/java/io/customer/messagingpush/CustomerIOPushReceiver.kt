@@ -24,7 +24,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
     }
 
     private val logger: Logger
-        get() = CustomerIOShared.instance().diSharedStaticGraph.logger
+        get() = CustomerIOShared.instance().diStaticGraph.logger
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (context == null || intent == null) {
@@ -44,7 +44,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         val deliveryId = payload?.cioDeliveryId
         val deliveryToken = payload?.cioDeliveryToken
 
-        if (deliveryId != null && deliveryToken != null && moduleConfig?.autoTrackPushEvents == true) {
+        if (deliveryId != null && deliveryToken != null && moduleConfig?.autoTrackPushEvents != false) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
         }
 

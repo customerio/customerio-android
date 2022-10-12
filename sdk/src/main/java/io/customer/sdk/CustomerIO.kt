@@ -108,21 +108,19 @@ class CustomerIO internal constructor(
         @InternalCustomerIOApi
         @JvmStatic
         @Synchronized
-        fun instanceOrNull(context: Context): CustomerIO? {
-            return try {
-                instance()
-            } catch (ex: Exception) {
-                val customerIOShared = CustomerIOShared.instance()
-                return customerIOShared.initializeSharedComponent(context).let {
-                    val storedValues = it.sharedPreferenceRepository.loadSettings()
-                    if (storedValues.doesExist()) {
-                        return@let createInstanceFromStoredValues(storedValues, context)
-                    } else {
-                        customerIOShared.diSharedStaticGraph.logger.error(
-                            "Customer.io instance not initialized: ${ex.message}"
-                        )
-                        return@let null
-                    }
+        fun instanceOrNull(context: Context): CustomerIO? = try {
+            instance()
+        } catch (ex: Exception) {
+            val customerIOShared = CustomerIOShared.instance()
+            customerIOShared.initializeAndGetSharedComponent(context).let {
+                val storedValues = it.sharedPreferenceRepository.loadSettings()
+                if (storedValues.doesExist()) {
+                    return@let createInstanceFromStoredValues(storedValues, context)
+                } else {
+                    customerIOShared.diStaticGraph.logger.error(
+                        "Customer.io instance not initialized: ${ex.message}"
+                    )
+                    return@let null
                 }
             }
         }
@@ -260,13 +258,12 @@ class CustomerIO internal constructor(
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl,
-                targetSdkVersion = appContext.applicationInfo.targetSdkVersion,
                 configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
             )
 
             sharedInstance.attachSDKConfig(sdkConfig = config, context = appContext)
             val diGraph = overrideDiGraph ?: CustomerIOComponent(
-                sharedComponent = sharedInstance.diSharedStaticGraph,
+                staticComponent = sharedInstance.diStaticGraph,
                 sdkConfig = config,
                 context = appContext
             )

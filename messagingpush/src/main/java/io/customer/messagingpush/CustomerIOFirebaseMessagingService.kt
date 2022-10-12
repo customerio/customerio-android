@@ -50,6 +50,7 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             return handleMessageReceived(diGraph.context, remoteMessage, handleNotificationTrigger)
         }
 
+        // Only to be used by deprecated methods relying on DI graphs from CustomerIO instance, should be removed with deprecated methods
         private fun getInstanceOrNull(): CustomerIO? {
             return try {
                 CustomerIO.instance()

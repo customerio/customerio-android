@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
  * Configuration class to configure/initialize low-level operations and objects.
  */
 class CustomerIOComponent(
-    private val sharedComponent: CustomerIOSharedStaticComponent,
+    private val staticComponent: CustomerIOStaticComponent,
     val context: Context,
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
@@ -52,7 +52,7 @@ class CustomerIOComponent(
         get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
 
     val dispatchersProvider: DispatchersProvider
-        get() = override() ?: sharedComponent.dispatchersProvider
+        get() = override() ?: staticComponent.dispatchersProvider
 
     val queue: Queue
         get() = override() ?: getSingletonInstanceCreate {
@@ -83,7 +83,7 @@ class CustomerIOComponent(
         )
 
     val logger: Logger
-        get() = override() ?: sharedComponent.logger
+        get() = override() ?: staticComponent.logger
 
     val hooksManager: HooksManager
         get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }
@@ -170,7 +170,7 @@ class CustomerIOComponent(
 
     private val httpLoggingInterceptor by lazy {
         override() ?: HttpLoggingInterceptor().apply {
-            if (sharedComponent.staticSettingsProvider.isDebuggable) {
+            if (staticComponent.staticSettingsProvider.isDebuggable) {
                 level = HttpLoggingInterceptor.Level.BODY
             }
         }

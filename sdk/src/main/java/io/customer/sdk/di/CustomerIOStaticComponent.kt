@@ -12,7 +12,7 @@ import io.customer.sdk.util.*
  * - dependencies that are lightweight and are not dependent on SDK initialization
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class CustomerIOSharedStaticComponent : DiGraph() {
+class CustomerIOStaticComponent : DiGraph() {
     val staticSettingsProvider: StaticSettingsProvider by lazy {
         override() ?: StaticSettingsProviderImpl()
     }

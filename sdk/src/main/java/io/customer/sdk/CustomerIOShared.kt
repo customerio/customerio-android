@@ -5,7 +5,7 @@ import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIOShared.Companion.instance
 import io.customer.sdk.di.CustomerIOSharedComponent
-import io.customer.sdk.di.CustomerIOSharedStaticComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.util.LogcatLogger
 
@@ -22,16 +22,16 @@ import io.customer.sdk.util.LogcatLogger
  * - reduce challenges of communication when wrapping the SDK for non native
  * platforms
  *
- * @property diSharedStaticGraph instance of DI graph to satisfy dependencies
+ * @property diStaticGraph instance of DI graph to satisfy dependencies
  */
 class CustomerIOShared private constructor(
-    val diSharedStaticGraph: CustomerIOSharedStaticComponent
+    val diStaticGraph: CustomerIOStaticComponent
 ) {
 
     var diSharedGraph: CustomerIOSharedComponent? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    fun initializeSharedComponent(context: Context): CustomerIOSharedComponent {
+    fun initializeAndGetSharedComponent(context: Context): CustomerIOSharedComponent {
         return diSharedGraph ?: CustomerIOSharedComponent(context).apply {
             diSharedGraph = this
         }
@@ -39,12 +39,12 @@ class CustomerIOShared private constructor(
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     fun attachSDKConfig(sdkConfig: CustomerIOConfig, context: Context) {
-        (diSharedStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
-        diSharedGraph = diSharedGraph ?: CustomerIOSharedComponent(context)
+        (diStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
+        initializeAndGetSharedComponent(context)
         diSharedGraph?.sharedPreferenceRepository?.saveSettings(
             CustomerIOStoredValues(
                 customerIOConfig = sdkConfig,
-                organizationId = ""
+                organizationId = null
             )
         )
     }
@@ -53,15 +53,15 @@ class CustomerIOShared private constructor(
         private var INSTANCE: CustomerIOShared? = null
 
         @JvmStatic
-        fun instance(): CustomerIOShared = createInstance(diGraph = null)
+        fun instance(): CustomerIOShared = createInstance(diStaticGraph = null)
 
         @Synchronized
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun createInstance(
-            diGraph: CustomerIOSharedStaticComponent? = null
+            diStaticGraph: CustomerIOStaticComponent? = null
         ): CustomerIOShared = INSTANCE ?: CustomerIOShared(
-            diSharedStaticGraph = diGraph ?: CustomerIOSharedStaticComponent()
+            diStaticGraph = diStaticGraph ?: CustomerIOStaticComponent()
         ).apply { INSTANCE = this }
 
         @InternalCustomerIOApi

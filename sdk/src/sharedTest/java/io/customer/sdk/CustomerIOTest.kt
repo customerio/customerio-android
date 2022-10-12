@@ -118,7 +118,7 @@ class CustomerIOTest : BaseTest() {
             whenever(this.moduleName).thenReturn(String.random)
         }
 
-        val client = CustomerIO.Builder(
+        CustomerIO.Builder(
             siteId = String.random,
             apiKey = String.random,
             appContext = application

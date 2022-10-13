@@ -1,9 +1,12 @@
 package io.customer.sdk
 
+import android.content.Context
 import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIOShared.Companion.instance
 import io.customer.sdk.di.CustomerIOSharedComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
+import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.util.LogcatLogger
 
 /**
@@ -19,30 +22,43 @@ import io.customer.sdk.util.LogcatLogger
  * - reduce challenges of communication when wrapping the SDK for non native
  * platforms
  *
- * @property diGraph instance of DI graph to satisfy dependencies
+ * @property diStaticGraph instance of DI graph to satisfy dependencies
  */
 class CustomerIOShared private constructor(
-    val diGraph: CustomerIOSharedComponent
+    val diStaticGraph: CustomerIOStaticComponent
 ) {
+
+    var diSharedGraph: CustomerIOSharedComponent? = null
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
-    fun attachSDKConfig(sdkConfig: CustomerIOConfig) {
-        (diGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
+    fun initializeAndGetSharedComponent(context: Context): CustomerIOSharedComponent {
+        return diSharedGraph ?: CustomerIOSharedComponent(context).apply {
+            diSharedGraph = this
+        }
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    fun attachSDKConfig(sdkConfig: CustomerIOConfig, context: Context) {
+        (diStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
+        initializeAndGetSharedComponent(context)
+        diSharedGraph?.sharedPreferenceRepository?.saveSettings(
+            CustomerIOStoredValues(customerIOConfig = sdkConfig)
+        )
     }
 
     companion object {
         private var INSTANCE: CustomerIOShared? = null
 
         @JvmStatic
-        @OptIn(InternalCustomerIOApi::class)
-        fun instance(): CustomerIOShared = createInstance(diGraph = null)
+        fun instance(): CustomerIOShared = createInstance(diStaticGraph = null)
 
         @Synchronized
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun createInstance(
-            diGraph: CustomerIOSharedComponent? = null
+            diStaticGraph: CustomerIOStaticComponent? = null
         ): CustomerIOShared = INSTANCE ?: CustomerIOShared(
-            diGraph = diGraph ?: CustomerIOSharedComponent()
+            diStaticGraph = diStaticGraph ?: CustomerIOStaticComponent()
         ).apply { INSTANCE = this }
 
         @InternalCustomerIOApi

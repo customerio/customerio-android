@@ -1,25 +1,14 @@
 package io.customer.sdk.di
 
-import io.customer.sdk.util.*
+import android.content.Context
+import io.customer.sdk.repository.preference.SharedPreferenceRepository
+import io.customer.sdk.repository.preference.SharedPreferenceRepositoryImp
 
-/**
- * Static/shared component dependency graph to satisfy independent dependencies
- * from single place. All other graphs should never redefine dependencies defined
- * here unless extremely necessary.
- * <p/>
- * The class should only contain dependencies matching the following criteria:
- * - dependencies that may be required without SDK initialization
- * - dependencies that are lightweight and are not dependent on SDK initialization
- */
-@Suppress("MemberVisibilityCanBePrivate")
-class CustomerIOSharedComponent : DiGraph() {
-    val staticSettingsProvider: StaticSettingsProvider by lazy {
-        override() ?: StaticSettingsProviderImpl()
+class CustomerIOSharedComponent(context: Context) : DiGraph() {
+
+    val sharedPreferenceRepository: SharedPreferenceRepository by lazy {
+        override() ?: SharedPreferenceRepositoryImp(
+            context = context
+        )
     }
-
-    val logger: Logger by lazy {
-        override() ?: LogcatLogger(staticSettingsProvider = staticSettingsProvider)
-    }
-
-    val dispatchersProvider: DispatchersProvider by lazy { override() ?: SdkDispatchers() }
 }

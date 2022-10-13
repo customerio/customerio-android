@@ -9,6 +9,7 @@ import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
 import org.junit.Before
 import org.junit.Test
@@ -18,8 +19,8 @@ import org.mockito.kotlin.*
 @RunWith(AndroidJUnit4::class)
 class TrackRepositoryTest : BaseTest() {
 
-    private val prefRepository: PreferenceRepository
-        get() = di.sharedPreferenceRepository
+    private val prefRepository: SitePreferenceRepository
+        get() = di.sitePreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
 
@@ -31,7 +32,7 @@ class TrackRepositoryTest : BaseTest() {
         super.setup()
 
         repository = TrackRepositoryImpl(
-            preferenceRepository = prefRepository,
+            sitePreferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
             logger = loggerMock,
             hooksManager = hooksManager

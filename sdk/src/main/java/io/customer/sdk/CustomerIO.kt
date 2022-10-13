@@ -2,7 +2,9 @@ package io.customer.sdk
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.content.pm.PackageManager
+import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
@@ -16,6 +18,8 @@ import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.repository.preference.CustomerIOStoredValues
+import io.customer.sdk.repository.preference.doesExist
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.CoroutineScope
@@ -93,6 +97,12 @@ class CustomerIO internal constructor(
     companion object {
         private var instance: CustomerIO? = null
 
+        @InternalCustomerIOApi
+        @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+        fun clearInstance() {
+            instance = null
+        }
+
         /**
          * Safe method to get SDK instance that may be called before SDK initialization.
          * e.g. services, classes triggered by other libraries or Android framework.
@@ -100,17 +110,45 @@ class CustomerIO internal constructor(
          * This method should only be used when SDK initialization could be delayed.
          * @see [instance] to be used otherwise.
          *
-         * @return instance of SDK if initialized; null otherwise.
+         * @return instance of SDK if initialized, else a saved instance and null otherwise.
          */
         @InternalCustomerIOApi
         @JvmStatic
-        fun instanceOrNull(): CustomerIO? = try {
+        @Synchronized
+        fun instanceOrNull(context: Context): CustomerIO? = try {
             instance()
         } catch (ex: Exception) {
-            CustomerIOShared.instance().diGraph.logger.error(
-                "Customer.io instance not initialized: ${ex.message}"
-            )
-            null
+            val customerIOShared = CustomerIOShared.instance()
+            customerIOShared.initializeAndGetSharedComponent(context).let {
+                val storedValues = it.sharedPreferenceRepository.loadSettings()
+                if (storedValues.doesExist()) {
+                    return@let createInstanceFromStoredValues(storedValues, context)
+                } else {
+                    customerIOShared.diStaticGraph.logger.error(
+                        "Customer.io instance not initialized: ${ex.message}"
+                    )
+                    return@let null
+                }
+            }
+        }
+
+        @Throws(IllegalArgumentException::class)
+        private fun createInstanceFromStoredValues(
+            customerIOStoredValues: CustomerIOStoredValues,
+            context: Context
+        ): CustomerIO {
+            return Builder(
+                siteId = customerIOStoredValues.siteId,
+                apiKey = customerIOStoredValues.apiKey,
+                region = customerIOStoredValues.region,
+                appContext = context.applicationContext as Application
+            ).apply {
+                setLogLevel(level = customerIOStoredValues.logLevel)
+                customerIOStoredValues.trackingApiUrl?.let { setTrackingApiURL(trackingApiUrl = it) }
+                autoTrackDeviceAttributes(shouldTrackDeviceAttributes = customerIOStoredValues.autoTrackDeviceAttributes)
+                setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = customerIOStoredValues.backgroundQueueMinNumberOfTasks)
+                setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = customerIOStoredValues.backgroundQueueSecondsDelay)
+            }.build()
         }
 
         @JvmStatic
@@ -131,7 +169,8 @@ class CustomerIO internal constructor(
         private var timeout = 6000L
         private var shouldAutoRecordScreenViews: Boolean = false
         private var autoTrackDeviceAttributes: Boolean = true
-        private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> = mutableMapOf()
+        private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
+            mutableMapOf()
         private var logLevel = CioLogLevel.ERROR
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
@@ -226,13 +265,12 @@ class CustomerIO internal constructor(
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl,
-                targetSdkVersion = appContext.applicationInfo.targetSdkVersion,
                 configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
             )
 
-            sharedInstance.attachSDKConfig(sdkConfig = config)
+            sharedInstance.attachSDKConfig(sdkConfig = config, context = appContext)
             val diGraph = overrideDiGraph ?: CustomerIOComponent(
-                sharedComponent = sharedInstance.diGraph,
+                staticComponent = sharedInstance.diStaticGraph,
                 sdkConfig = config,
                 context = appContext
             )
@@ -376,7 +414,8 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) =
+        deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token

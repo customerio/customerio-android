@@ -6,6 +6,7 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
 
 interface TrackRepository {
@@ -16,7 +17,7 @@ interface TrackRepository {
 }
 
 internal class TrackRepositoryImpl(
-    private val preferenceRepository: PreferenceRepository,
+    private val sitePreferenceRepository: SitePreferenceRepository,
     private val backgroundQueue: Queue,
     private val logger: Logger,
     private val hooksManager: HooksManager
@@ -37,7 +38,7 @@ internal class TrackRepositoryImpl(
         logger.info("$eventTypeDescription $name")
         logger.debug("$eventTypeDescription $name attributes: $attributes")
 
-        val identifier = preferenceRepository.getIdentifier()
+        val identifier = sitePreferenceRepository.getIdentifier()
         if (identifier == null) {
             // when we have anonymous profiles implemented in the SDK, we can decide to not
             // ignore events when a profile is not logged in yet.

@@ -10,7 +10,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.CustomerIOSharedComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -39,7 +39,8 @@ abstract class BaseTest {
     protected lateinit var deviceStore: DeviceStore
     protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
-    protected lateinit var sharedDI: CustomerIOSharedComponent
+    protected lateinit var staticDIComponent: CustomerIOStaticComponent
+
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter
         get() = di.jsonAdapter
@@ -64,7 +65,6 @@ abstract class BaseTest {
         backgroundQueueTaskExpiredSeconds: Double = Seconds.fromDays(3).value,
         logLevel: CioLogLevel = CioLogLevel.DEBUG,
         trackingApiUrl: String? = null,
-        targetSdkVersion: Int = android.os.Build.VERSION_CODES.R,
         configurations: Map<String, CustomerIOModuleConfig> = emptyMap()
     ) = CustomerIOConfig(
         client = client,
@@ -79,7 +79,6 @@ abstract class BaseTest {
         backgroundQueueTaskExpiredSeconds = backgroundQueueTaskExpiredSeconds,
         logLevel = logLevel,
         trackingApiUrl = trackingApiUrl,
-        targetSdkVersion = targetSdkVersion,
         configurations = configurations
     )
 
@@ -98,21 +97,21 @@ abstract class BaseTest {
             throw RuntimeException("server didnt' start ${cioConfig.trackingApiUrl}")
         }
 
-        sharedDI = CustomerIOSharedComponent()
+        staticDIComponent = CustomerIOStaticComponent()
         di = CustomerIOComponent(
-            sharedComponent = sharedDI,
+            staticComponent = staticDIComponent,
             sdkConfig = cioConfig,
             context = application
         )
         di.fileStorage.deleteAllSdkFiles()
-        di.sharedPreferenceRepository.clearAll()
+        di.sitePreferenceRepository.clearAll()
 
         dateUtilStub = DateUtilStub().also {
             di.overrideDependency(DateUtil::class.java, it)
         }
         deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
         dispatchersProviderStub = DispatchersProviderStub().also {
-            sharedDI.overrideDependency(DispatchersProvider::class.java, it)
+            staticDIComponent.overrideDependency(DispatchersProvider::class.java, it)
         }
     }
 

@@ -5,7 +5,7 @@ import io.customer.base.extenstions.hasPassed
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
-import io.customer.sdk.repository.PreferenceRepository
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
 import kotlinx.coroutines.delay
@@ -21,7 +21,7 @@ internal interface HttpRequestRunner {
  * Where HTTP response processing occurs.
  */
 internal class HttpRequestRunnerImpl(
-    private val prefsRepository: PreferenceRepository,
+    private val prefsRepository: SitePreferenceRepository,
     private val logger: Logger,
     private val retryPolicy: HttpRetryPolicy,
     private val jsonAdapter: JsonAdapter

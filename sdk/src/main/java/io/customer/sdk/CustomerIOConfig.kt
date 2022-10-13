@@ -32,7 +32,6 @@ data class CustomerIOConfig(
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
     var trackingApiUrl: String?,
-    val targetSdkVersion: Int,
     val configurations: Map<String, CustomerIOModuleConfig>
 ) {
     internal val trackingApiHostname: String

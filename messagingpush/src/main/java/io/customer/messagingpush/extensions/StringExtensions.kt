@@ -9,6 +9,6 @@ import io.customer.sdk.CustomerIOShared
 internal fun String.toColorOrNull(): Int? = try {
     Color.parseColor(this)
 } catch (ex: IllegalArgumentException) {
-    CustomerIOShared.instance().diGraph.logger.error("Invalid color string $this, ${ex.message}")
+    CustomerIOShared.instance().diStaticGraph.logger.error("Invalid color string $this, ${ex.message}")
     null
 }

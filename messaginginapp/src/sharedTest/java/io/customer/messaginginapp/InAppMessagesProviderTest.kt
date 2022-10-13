@@ -131,7 +131,7 @@ internal class InAppMessagesProviderTest : BaseTest() {
         var wasOnErrorCalled = false
 
         gistInAppMessagesProvider.subscribeToEvents(
-            onMessageShown = { deliveryID ->
+            onMessageShown = {
                 wasOnMessageShownCalled = true
             },
             onAction = { _: String?, _: String, _: String ->

@@ -11,6 +11,7 @@ import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.util.Logger
@@ -22,22 +23,16 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         const val PUSH_PAYLOAD_KEY = "CIO-Push-Payload"
     }
 
-    private val diGraph: CustomerIOComponent
-        get() = CustomerIO.instance().diGraph
-
     private val logger: Logger
-        get() = diGraph.logger
-
-    private val moduleConfig: MessagingPushModuleConfig
-        get() = diGraph.moduleConfig
-
-    private val deepLinkUtil: DeepLinkUtil
-        get() = diGraph.deepLinkUtil
+        get() = CustomerIOShared.instance().diStaticGraph.logger
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (context == null || intent == null) {
             return
         }
+
+        val diGraph: CustomerIOComponent? = CustomerIO.instanceOrNull(context)?.diGraph
+        val moduleConfig: MessagingPushModuleConfig? = diGraph?.moduleConfig
 
         // Dismiss the notification
         val requestCode = intent.getIntExtra(NOTIFICATION_REQUEST_CODE, 0)
@@ -49,7 +44,7 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
         val deliveryId = payload?.cioDeliveryId
         val deliveryToken = payload?.cioDeliveryToken
 
-        if (deliveryId != null && deliveryToken != null && moduleConfig.autoTrackPushEvents) {
+        if (deliveryId != null && deliveryToken != null && moduleConfig?.autoTrackPushEvents != false) {
             CustomerIO.instance().trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
         }
 
@@ -60,25 +55,30 @@ internal class CustomerIOPushReceiver : BroadcastReceiver() {
 
     private fun handleDeepLink(context: Context, payload: CustomerIOParsedPushPayload) {
         // check if host app overrides the handling of deeplink
+        val diGraph: CustomerIOComponent? = CustomerIO.instanceOrNull(context)?.diGraph
+        val moduleConfig: MessagingPushModuleConfig? = diGraph?.moduleConfig
+
+        val deepLinkUtil: DeepLinkUtil? = diGraph?.deepLinkUtil
+
         val taskStackBuilder =
-            moduleConfig.notificationCallback?.createTaskStackFromPayload(context, payload)
+            moduleConfig?.notificationCallback?.createTaskStackFromPayload(context, payload)
         if (taskStackBuilder != null) {
             taskStackBuilder.startActivities()
             return
         }
 
-        val deepLinkIntent = deepLinkUtil.createDeepLinkHostAppIntent(
+        val deepLinkIntent = deepLinkUtil?.createDeepLinkHostAppIntent(
             // check if the deep links are handled within the host app
             context,
             payload.deepLink
         ) ?: payload.deepLink?.let { link ->
             // check if the deep links can be opened outside the host app
-            deepLinkUtil.createDeepLinkExternalIntent(
+            deepLinkUtil?.createDeepLinkExternalIntent(
                 context = context,
                 link = link,
                 startingFromService = true
             )
-        } ?: deepLinkUtil.createDefaultHostAppIntent(
+        } ?: deepLinkUtil?.createDefaultHostAppIntent(
             context = context,
             contentActionLink = null
         )

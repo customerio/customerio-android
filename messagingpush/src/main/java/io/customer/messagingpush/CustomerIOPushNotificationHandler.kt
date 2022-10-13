@@ -24,9 +24,10 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -34,7 +35,14 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.abs
 
-internal class CustomerIOPushNotificationHandler(private val remoteMessage: RemoteMessage) {
+/**
+ * Class to handle PushNotification.
+ *
+ * Make sure [CustomerIO] instance is always initialized before using this class.
+ */
+internal class CustomerIOPushNotificationHandler(
+    private val remoteMessage: RemoteMessage
+) {
 
     companion object {
         const val DEEP_LINK_KEY = "link"
@@ -52,11 +60,11 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
     private val diGraph: CustomerIOComponent
         get() = CustomerIO.instance().diGraph
 
-    private val logger: Logger
-        get() = diGraph.logger
+    private val staticGraph: CustomerIOStaticComponent
+        get() = CustomerIOShared.instance().diStaticGraph
 
-    private val sdkConfig: CustomerIOConfig
-        get() = diGraph.sdkConfig
+    private val logger: Logger
+        get() = staticGraph.logger
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.moduleConfig
@@ -90,7 +98,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
         val deliveryToken = bundle.getString(DELIVERY_TOKEN_KEY)
 
         if (deliveryId != null && deliveryToken != null) {
-            CustomerIO.instance().trackMetric(
+            CustomerIO.instanceOrNull(context)?.trackMetric(
                 deliveryID = deliveryId,
                 deviceToken = deliveryToken,
                 event = MetricEvent.delivered
@@ -223,7 +231,7 @@ internal class CustomerIOPushNotificationHandler(private val remoteMessage: Remo
             PendingIntent.FLAG_UPDATE_CURRENT
         }
 
-        if (sdkConfig.targetSdkVersion > Build.VERSION_CODES.R) {
+        if (context.applicationInfo.targetSdkVersion > Build.VERSION_CODES.R) {
             val taskStackBuilder = moduleConfig.notificationCallback?.createTaskStackFromPayload(
                 context,
                 payload

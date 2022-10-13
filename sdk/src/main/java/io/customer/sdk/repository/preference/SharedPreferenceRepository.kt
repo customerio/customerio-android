@@ -26,7 +26,6 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
             putString(SITE_ID, it.siteId)
             putString(API_KEY, it.apiKey)
             putString(REGION, it.region.code)
-            putString(ORGANIZATION_ID, it.organizationId)
             putString(TRACKING_API_URL, it.trackingApiUrl)
             putBoolean(AUTO_TRACK_DEVICE_ATTRIBUTES, it.autoTrackDeviceAttributes)
             putString(LOG_LEVEL, it.logLevel.name)
@@ -42,7 +41,6 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
                 siteId = getString(SITE_ID, null).orEmpty(),
                 apiKey = getString(API_KEY, null).orEmpty(),
                 region = getString(REGION, null).toRegion(),
-                organizationId = getString(ORGANIZATION_ID, null),
                 trackingApiUrl = getString(TRACKING_API_URL, null),
                 autoTrackDeviceAttributes = getBoolean(AUTO_TRACK_DEVICE_ATTRIBUTES, true),
                 logLevel = getString(LOG_LEVEL, null)?.let { valueOfOrNull<CioLogLevel>(it) }
@@ -60,7 +58,6 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
         const val SITE_ID = "siteId"
         const val API_KEY = "apiKey"
         const val REGION = "region"
-        const val ORGANIZATION_ID = "organizationId"
 
         const val TRACKING_API_URL = "trackingApiUrl"
         const val AUTO_TRACK_DEVICE_ATTRIBUTES = "autoTrackDeviceAttributes"

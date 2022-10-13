@@ -8,24 +8,30 @@ data class CustomerIOStoredValues(
     val siteId: String,
     val apiKey: String,
     val region: Region,
-    val organizationId: String? = null,
     val trackingApiUrl: String? = null,
     val autoTrackDeviceAttributes: Boolean = true,
     val logLevel: CioLogLevel = CioLogLevel.ERROR,
     val backgroundQueueMinNumberOfTasks: Int = 10,
     val backgroundQueueSecondsDelay: Double = 30.0
 ) {
-    constructor(customerIOConfig: CustomerIOConfig, organizationId: String?) : this(
+    constructor(customerIOConfig: CustomerIOConfig) : this(
         siteId = customerIOConfig.siteId,
         apiKey = customerIOConfig.apiKey,
         region = customerIOConfig.region,
-        organizationId = organizationId,
         trackingApiUrl = customerIOConfig.trackingApiUrl,
         autoTrackDeviceAttributes = customerIOConfig.autoTrackDeviceAttributes,
         logLevel = customerIOConfig.logLevel,
         backgroundQueueMinNumberOfTasks = customerIOConfig.backgroundQueueMinNumberOfTasks,
         backgroundQueueSecondsDelay = customerIOConfig.backgroundQueueSecondsDelay
     )
+
+    companion object {
+        val empty = CustomerIOStoredValues(
+            siteId = "",
+            apiKey = "",
+            region = Region.US
+        )
+    }
 }
 
 fun CustomerIOStoredValues.doesExist(): Boolean = this.siteId.isNotEmpty()

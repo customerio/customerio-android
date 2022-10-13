@@ -42,10 +42,7 @@ class CustomerIOShared private constructor(
         (diStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
         initializeAndGetSharedComponent(context)
         diSharedGraph?.sharedPreferenceRepository?.saveSettings(
-            CustomerIOStoredValues(
-                customerIOConfig = sdkConfig,
-                organizationId = null
-            )
+            CustomerIOStoredValues(customerIOConfig = sdkConfig)
         )
     }
 

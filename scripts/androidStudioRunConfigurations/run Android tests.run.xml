@@ -1,20 +1,18 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="run Android tests" type="AndroidTestRunConfigurationType" factoryName="Android Instrumented Tests" singleton="true">
-    <module name="Customer.io_SDK.sdk" />
+  <configuration default="false" name="run tracking tests" type="AndroidTestRunConfigurationType" factoryName="Android Instrumented Tests" singleton="true">
+    <module name="Customer.io_SDK.sdk.androidTest" />
     <option name="TESTING_TYPE" value="1" />
     <option name="METHOD_NAME" value="" />
     <option name="CLASS_NAME" value="" />
     <option name="PACKAGE_NAME" value="io.customer.sdk" />
+    <option name="TEST_NAME_REGEX" value="" />
     <option name="INSTRUMENTATION_RUNNER_CLASS" value="" />
     <option name="EXTRA_OPTIONS" value="" />
-    <option name="INCLUDE_GRADLE_EXTRA_OPTIONS" value="true" />
     <option name="RETENTION_ENABLED" value="No" />
     <option name="RETENTION_MAX_SNAPSHOTS" value="2" />
     <option name="RETENTION_COMPRESS_SNAPSHOTS" value="false" />
     <option name="CLEAR_LOGCAT" value="true" />
     <option name="SHOW_LOGCAT_AUTOMATICALLY" value="false" />
-    <option name="SKIP_NOOP_APK_INSTALLATIONS" value="false" />
-    <option name="FORCE_STOP_RUNNING_APP" value="true" />
     <option name="INSPECTION_WITHOUT_ACTIVITY_RESTART" value="false" />
     <option name="TARGET_SELECTION_MODE" value="DEVICE_AND_SNAPSHOT_COMBO_BOX" />
     <option name="SELECTED_CLOUD_MATRIX_CONFIGURATION_ID" value="-1" />
@@ -49,6 +47,7 @@
       <option name="STARTUP_CPU_PROFILING_CONFIGURATION_NAME" value="Java/Kotlin Method Sample (legacy)" />
       <option name="STARTUP_NATIVE_MEMORY_PROFILING_ENABLED" value="false" />
       <option name="NATIVE_MEMORY_SAMPLE_RATE_BYTES" value="2048" />
+      <option name="PROFILING_MODE" value="NOT_SET" />
     </Profilers>
     <method v="2">
       <option name="Android.Gradle.BeforeRunTask" enabled="true" />

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
@@ -95,6 +96,12 @@ class CustomerIO internal constructor(
 
     companion object {
         private var instance: CustomerIO? = null
+
+        @InternalCustomerIOApi
+        @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+        fun clearInstance() {
+            instance = null
+        }
 
         /**
          * Safe method to get SDK instance that may be called before SDK initialization.

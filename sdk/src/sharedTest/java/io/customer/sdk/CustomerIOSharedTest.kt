@@ -59,7 +59,7 @@ class CustomerIOSharedTest : BaseTest() {
     }
 
     @Test
-    fun verifyAttachedWithSDK_givenNoSpecificEnvironment_expectSharedComponentToBeInitialized_expectConfigValuesToBeStored() {
+    fun verifyAttachedWithSDK_givenNoSpecificEnvironment_expectSharedComponentToBeInitialized() {
         val diGraph = CustomerIOStaticComponent()
 
         val instance = CustomerIOShared.createInstance(diStaticGraph = diGraph)

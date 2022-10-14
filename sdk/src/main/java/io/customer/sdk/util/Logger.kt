@@ -2,6 +2,7 @@ package io.customer.sdk.util
 
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import io.customer.sdk.SDKConstants
 
 interface Logger {
     fun info(message: String)
@@ -34,7 +35,7 @@ internal class LogcatLogger(
     // Fallback log level to be used only if log level is not yet defined by the user
     private val fallbackLogLevel
         get() = if (staticSettingsProvider.isDebuggable) CioLogLevel.DEBUG
-        else CioLogLevel.ERROR
+        else SDKConstants.LOG_LEVEL_DEFAULT
 
     // Prefer user log level; fallback to default only till the user defined value is not received
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)

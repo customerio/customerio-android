@@ -83,7 +83,7 @@ Welcome to the Customer.io Android SDK!
 This class is where you begin to use the SDK.
 You must have an instance of `CustomerIO` to use the features of the SDK.
 Create your own instance using
-`CustomerIo.Builder(siteId: "XXX", apiKey: "XXX", region: Region.US, appContext: Application context)`
+`CustomerIO.Builder(siteId: "XXX", apiKey: "XXX", region: Region.US, appContext: Application context)`
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
@@ -166,16 +166,20 @@ class CustomerIO internal constructor(
     ) {
         private val sharedInstance = CustomerIOShared.instance()
         private var client: Client = Client.Android(Version.version)
-        private var timeout = 6000L
-        private var shouldAutoRecordScreenViews: Boolean = false
-        private var autoTrackDeviceAttributes: Boolean = true
+        private var timeout = AnalyticsConstants.HTTP_REQUEST_TIMEOUT
+        private var shouldAutoRecordScreenViews: Boolean =
+            AnalyticsConstants.SHOULD_AUTO_RECORD_SCREEN_VIEWS
+        private var autoTrackDeviceAttributes: Boolean =
+            AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
         private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
             mutableMapOf()
-        private var logLevel = CioLogLevel.ERROR
+        private var logLevel: CioLogLevel = SDKConstants.LOG_LEVEL_DEFAULT
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
-        private var backgroundQueueMinNumberOfTasks: Int = 10
-        private var backgroundQueueSecondsDelay: Double = 30.0
+        private var backgroundQueueMinNumberOfTasks: Int =
+            AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
+        private var backgroundQueueSecondsDelay: Double =
+            AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
 
         fun setClient(client: Client): Builder {
             this.client = client

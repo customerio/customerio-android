@@ -79,7 +79,7 @@ class ModuleMessagingInApp internal constructor(
 
     private fun initializeGist(organizationId: String) {
         gistProvider.initProvider(
-            application = diGraph.context as Application,
+            application = diGraph.context.applicationContext as Application,
             organizationId = organizationId
         )
     }

@@ -1,3 +1,10 @@
+## [3.1.0-alpha.2](https://github.com/customerio/customerio-android/compare/3.1.0-alpha.1...3.1.0-alpha.2) (2022-10-17)
+
+
+### Bug Fixes
+
+* in-app system link causes app reopen ([6349081](https://github.com/customerio/customerio-android/commit/6349081c74bf595b06dd1157a382c6c4b884ac55))
+
 ## [3.1.0-alpha.1](https://github.com/customerio/customerio-android/compare/3.0.0...3.1.0-alpha.1) (2022-10-10)
 
 

@@ -47,6 +47,13 @@ sealed class Client(
         internal const val SOURCE_REACT_NATIVE = "ReactNative"
         internal const val SOURCE_EXPO = "Expo"
 
+        /**
+         * Helper method to create client from raw values
+         *
+         * @param source raw string of client source (case insensitive)
+         * @param sdkVersion version of the SDK used
+         * @return [Client] created from provided values
+         */
         fun fromRawValue(source: String, sdkVersion: String): Client = when {
             source.equals(
                 other = SOURCE_ANDROID,

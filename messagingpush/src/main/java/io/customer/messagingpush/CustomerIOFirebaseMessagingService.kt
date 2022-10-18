@@ -12,11 +12,12 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * Handles receiving an incoming push notification.
          *
          * Call this from a custom [FirebaseMessagingService] to pass push messages to
-         * CustomerIo SDK for tracking and rendering
+         * CustomerIO SDK for tracking and rendering
+         * @param context reference to application context
          * @param remoteMessage Remote message received from Firebase in
          * [FirebaseMessagingService.onMessageReceived]
          * @param handleNotificationTrigger indicating if the local notification should be triggered
-         * @return Boolean indicating whether this will be handled by CustomerIo
+         * @return Boolean indicating whether this will be handled by CustomerIO
          */
         @JvmOverloads
         fun onMessageReceived(
@@ -78,12 +79,10 @@ class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * Handles new or refreshed token
          * Call this from [FirebaseMessagingService] to register the new device token
          *
+         * @param context reference to application context
          * @param token new or refreshed token
          */
-        fun onNewToken(
-            context: Context,
-            token: String
-        ) {
+        fun onNewToken(context: Context, token: String) {
             handleNewToken(context = context, token = token)
         }
 

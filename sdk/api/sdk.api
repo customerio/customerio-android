@@ -1,3 +1,12 @@
+public final class io/customer/sdk/AnalyticsConstants {
+	public static final field AUTO_TRACK_DEVICE_ATTRIBUTES Z
+	public static final field BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS I
+	public static final field BACKGROUND_QUEUE_SECONDS_DELAY D
+	public static final field HTTP_REQUEST_TIMEOUT J
+	public static final field INSTANCE Lio/customer/sdk/AnalyticsConstants;
+	public static final field SHOULD_AUTO_RECORD_SCREEN_VIEWS Z
+}
+
 public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstance {
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public fun clearIdentify ()V
@@ -126,6 +135,11 @@ public final class io/customer/sdk/CustomerIOShared$Companion {
 	public final fun instance ()Lio/customer/sdk/CustomerIOShared;
 }
 
+public final class io/customer/sdk/SDKConstants {
+	public static final field INSTANCE Lio/customer/sdk/SDKConstants;
+	public final fun getLOG_LEVEL_DEFAULT ()Lio/customer/sdk/util/CioLogLevel;
+}
+
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
 	public static final field event Lio/customer/sdk/data/model/EventType;
 	public static final field screen Lio/customer/sdk/data/model/EventType;
@@ -189,8 +203,6 @@ public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
 
 public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/DiGraph {
 	public fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
-	public final fun buildRetrofit (Ljava/lang/String;J)Lretrofit2/Retrofit;
-	public final fun buildStore ()Lio/customer/sdk/data/store/CustomerIOStore;
 	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/CustomerIOActivityLifecycleCallbacks;
 	public final fun getCioHttpRetryPolicy ()Lio/customer/sdk/api/HttpRetryPolicy;
 	public final fun getContext ()Landroid/content/Context;

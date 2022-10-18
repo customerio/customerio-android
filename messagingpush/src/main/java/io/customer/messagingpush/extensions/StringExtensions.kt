@@ -2,10 +2,10 @@
 package io.customer.messagingpush.extensions
 
 import android.graphics.Color
-import androidx.annotation.DrawableRes
+import androidx.annotation.ColorInt
 import io.customer.sdk.CustomerIOShared
 
-@DrawableRes
+@ColorInt
 internal fun String.toColorOrNull(): Int? = try {
     Color.parseColor(this)
 } catch (ex: IllegalArgumentException) {

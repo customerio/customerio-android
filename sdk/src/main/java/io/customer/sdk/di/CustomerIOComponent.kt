@@ -34,22 +34,26 @@ class CustomerIOComponent(
 ) : DiGraph() {
 
     val fileStorage: FileStorage
-        get() = override() ?: FileStorage(sdkConfig, context, logger)
+        get() = override() ?: FileStorage(config = sdkConfig, context = context, logger = logger)
 
     val jsonAdapter: JsonAdapter
-        get() = override() ?: JsonAdapter(moshi)
+        get() = override() ?: JsonAdapter(moshi = moshi)
 
     val queueStorage: QueueStorage
         get() = override() ?: QueueStorageImpl(
-            sdkConfig,
-            fileStorage,
-            jsonAdapter,
-            dateUtil,
-            logger
+            sdkConfig = sdkConfig,
+            fileStorage = fileStorage,
+            jsonAdapter = jsonAdapter,
+            dateUtil = dateUtil,
+            logger = logger
         )
 
     val queueRunner: QueueRunner
-        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
+        get() = override() ?: QueueRunnerImpl(
+            jsonAdapter = jsonAdapter,
+            cioHttpClient = cioHttpClient,
+            logger = logger
+        )
 
     val dispatchersProvider: DispatchersProvider
         get() = override() ?: staticComponent.dispatchersProvider
@@ -57,29 +61,29 @@ class CustomerIOComponent(
     val queue: Queue
         get() = override() ?: getSingletonInstanceCreate {
             QueueImpl(
-                dispatchersProvider,
-                queueStorage,
-                queueRunRequest,
-                jsonAdapter,
-                sdkConfig,
-                timer,
-                logger,
-                dateUtil
+                dispatchersProvider = dispatchersProvider,
+                storage = queueStorage,
+                runRequest = queueRunRequest,
+                jsonAdapter = jsonAdapter,
+                sdkConfig = sdkConfig,
+                queueTimer = timer,
+                logger = logger,
+                dateUtil = dateUtil
             )
         }
 
     internal val cleanupRepository: CleanupRepository
-        get() = override() ?: CleanupRepositoryImpl(queue)
+        get() = override() ?: CleanupRepositoryImpl(queue = queue)
 
     val queueQueryRunner: QueueQueryRunner
-        get() = override() ?: QueueQueryRunnerImpl(logger)
+        get() = override() ?: QueueQueryRunnerImpl(logger = logger)
 
     val queueRunRequest: QueueRunRequest
         get() = override() ?: QueueRunRequestImpl(
-            queueRunner,
-            queueStorage,
-            logger,
-            queueQueryRunner
+            runner = queueRunner,
+            queueStorage = queueStorage,
+            logger = logger,
+            queryRunner = queueQueryRunner
         )
 
     val logger: Logger
@@ -88,15 +92,18 @@ class CustomerIOComponent(
     val hooksManager: HooksManager
         get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }
 
-    internal val cioHttpClient: TrackingHttpClient
-        get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
+    private val cioHttpClient: TrackingHttpClient
+        get() = override() ?: RetrofitTrackingHttpClient(
+            retrofitService = buildRetrofitApi(),
+            httpRequestRunner = httpRequestRunner
+        )
 
     private val httpRequestRunner: HttpRequestRunner
         get() = HttpRequestRunnerImpl(
-            sitePreferenceRepository,
-            logger,
-            cioHttpRetryPolicy,
-            jsonAdapter
+            prefsRepository = sitePreferenceRepository,
+            logger = logger,
+            retryPolicy = cioHttpRetryPolicy,
+            jsonAdapter = jsonAdapter
         )
 
     val cioHttpRetryPolicy: HttpRetryPolicy
@@ -106,48 +113,51 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)
+        get() = override() ?: AndroidSimpleTimer(
+            logger = logger,
+            dispatchersProvider = dispatchersProvider
+        )
 
     val trackRepository: TrackRepository
         get() = override() ?: TrackRepositoryImpl(
-            sitePreferenceRepository,
-            queue,
-            logger,
-            hooksManager
+            sitePreferenceRepository = sitePreferenceRepository,
+            backgroundQueue = queue,
+            logger = logger,
+            hooksManager = hooksManager
         )
 
     val profileRepository: ProfileRepository
         get() = override() ?: ProfileRepositoryImpl(
-            deviceRepository,
-            sitePreferenceRepository,
-            queue,
-            logger,
-            hooksManager
+            deviceRepository = deviceRepository,
+            sitePreferenceRepository = sitePreferenceRepository,
+            backgroundQueue = queue,
+            logger = logger,
+            hooksManager = hooksManager
         )
 
     val deviceRepository: DeviceRepository
         get() = override() ?: DeviceRepositoryImpl(
-            sdkConfig,
-            buildStore().deviceStore,
-            sitePreferenceRepository,
-            queue,
-            dateUtil,
-            logger
+            config = sdkConfig,
+            deviceStore = buildStore().deviceStore,
+            sitePreferenceRepository = sitePreferenceRepository,
+            backgroundQueue = queue,
+            dateUtil = dateUtil,
+            logger = logger
         )
 
     val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks
         get() = override() ?: getSingletonInstanceCreate {
-            CustomerIOActivityLifecycleCallbacks(sdkConfig)
+            CustomerIOActivityLifecycleCallbacks(config = sdkConfig)
         }
 
-    fun buildStore(): CustomerIOStore {
+    private fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
                 DeviceStoreImp(
-                    sdkConfig,
-                    BuildStoreImp(),
-                    ApplicationStoreImp(context),
-                    Version.version
+                    sdkConfig = sdkConfig,
+                    buildStore = BuildStoreImp(),
+                    applicationStore = ApplicationStoreImp(context),
+                    version = Version.version
                 )
             }
         }
@@ -163,8 +173,8 @@ class CustomerIOComponent(
     private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
-            sdkConfig.trackingApiHostname,
-            sdkConfig.timeout
+            endpoint = sdkConfig.trackingApiHostname,
+            timeout = sdkConfig.timeout
         ).create(apiClass)
     }
 
@@ -185,7 +195,7 @@ class CustomerIOComponent(
             .build()
     }
 
-    fun buildRetrofit(
+    private fun buildRetrofit(
         endpoint: String,
         timeout: Long
     ): Retrofit {

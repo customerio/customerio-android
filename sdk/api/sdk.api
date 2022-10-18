@@ -228,7 +228,6 @@ public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/D
 
 public final class io/customer/sdk/di/CustomerIOSharedComponent : io/customer/sdk/di/DiGraph {
 	public fun <init> (Landroid/content/Context;)V
-	public final fun getSharedPreferenceRepository ()Lio/customer/sdk/repository/preference/SharedPreferenceRepository;
 }
 
 public final class io/customer/sdk/di/CustomerIOStaticComponent : io/customer/sdk/di/DiGraph {
@@ -323,47 +322,6 @@ public abstract interface class io/customer/sdk/repository/TrackRepository {
 	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
 	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;)V
 	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
-}
-
-public final class io/customer/sdk/repository/preference/CustomerIOStoredValues {
-	public static final field Companion Lio/customer/sdk/repository/preference/CustomerIOStoredValues$Companion;
-	public fun <init> (Lio/customer/sdk/CustomerIOConfig;)V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;ZLio/customer/sdk/util/CioLogLevel;ID)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;ZLio/customer/sdk/util/CioLogLevel;IDILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Lio/customer/sdk/data/model/Region;
-	public final fun component4 ()Ljava/lang/String;
-	public final fun component5 ()Z
-	public final fun component6 ()Lio/customer/sdk/util/CioLogLevel;
-	public final fun component7 ()I
-	public final fun component8 ()D
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;ZLio/customer/sdk/util/CioLogLevel;ID)Lio/customer/sdk/repository/preference/CustomerIOStoredValues;
-	public static synthetic fun copy$default (Lio/customer/sdk/repository/preference/CustomerIOStoredValues;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;ZLio/customer/sdk/util/CioLogLevel;IDILjava/lang/Object;)Lio/customer/sdk/repository/preference/CustomerIOStoredValues;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getApiKey ()Ljava/lang/String;
-	public final fun getAutoTrackDeviceAttributes ()Z
-	public final fun getBackgroundQueueMinNumberOfTasks ()I
-	public final fun getBackgroundQueueSecondsDelay ()D
-	public final fun getLogLevel ()Lio/customer/sdk/util/CioLogLevel;
-	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
-	public final fun getSiteId ()Ljava/lang/String;
-	public final fun getTrackingApiUrl ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/sdk/repository/preference/CustomerIOStoredValues$Companion {
-	public final fun getEmpty ()Lio/customer/sdk/repository/preference/CustomerIOStoredValues;
-}
-
-public final class io/customer/sdk/repository/preference/CustomerIOStoredValuesKt {
-	public static final fun doesExist (Lio/customer/sdk/repository/preference/CustomerIOStoredValues;)Z
-}
-
-public abstract interface class io/customer/sdk/repository/preference/SharedPreferenceRepository {
-	public abstract fun loadSettings ()Lio/customer/sdk/repository/preference/CustomerIOStoredValues;
-	public abstract fun saveSettings (Lio/customer/sdk/repository/preference/CustomerIOStoredValues;)V
 }
 
 public abstract interface class io/customer/sdk/repository/preference/SitePreferenceRepository {

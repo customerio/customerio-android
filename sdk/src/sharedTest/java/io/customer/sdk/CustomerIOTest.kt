@@ -15,6 +15,7 @@ import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
@@ -188,10 +189,9 @@ class CustomerIOTest : BaseTest() {
         val diGraph = CustomerIOStaticComponent()
         val diIOSharedComponent = CustomerIOSharedComponent(context)
 
-        val sharedPreferenceRepository: SharedPreferenceRepository =
-            mock<SharedPreferenceRepository>().apply {
-                whenever(this.loadSettings()).thenReturn(CustomerIOStoredValues.empty)
-            }
+        val sharedPreferenceRepository = mock<SharedPreferenceRepository>().apply {
+            whenever(this.loadSettings()).thenReturn(CustomerIOStoredValues.empty)
+        }
         diIOSharedComponent.overrideDependency(
             SharedPreferenceRepository::class.java,
             sharedPreferenceRepository
@@ -212,10 +212,9 @@ class CustomerIOTest : BaseTest() {
         val diGraph = CustomerIOStaticComponent()
         val diIOSharedComponent = CustomerIOSharedComponent(context)
 
-        val sharedPreferenceRepository: SharedPreferenceRepository =
-            mock<SharedPreferenceRepository>().apply {
-                whenever(this.loadSettings()).thenReturn(CustomerIOStoredValues(cioConfig))
-            }
+        val sharedPreferenceRepository = mock<SharedPreferenceRepository>().apply {
+            whenever(this.loadSettings()).thenReturn(CustomerIOStoredValues(cioConfig))
+        }
         diIOSharedComponent.overrideDependency(
             SharedPreferenceRepository::class.java,
             sharedPreferenceRepository
@@ -225,14 +224,18 @@ class CustomerIOTest : BaseTest() {
         instance.diSharedGraph = diIOSharedComponent
 
         val customerIO = CustomerIO.instanceOrNull(context)
-        customerIO?.diGraph?.sdkConfig?.siteId shouldBeEqualTo cioConfig.siteId
-        customerIO?.diGraph?.sdkConfig?.apiKey shouldBeEqualTo cioConfig.apiKey
-        customerIO?.diGraph?.sdkConfig?.region shouldBeEqualTo cioConfig.region
-        customerIO?.diGraph?.sdkConfig?.trackingApiUrl shouldBeEqualTo cioConfig.trackingApiUrl
-        customerIO?.diGraph?.sdkConfig?.autoTrackDeviceAttributes shouldBeEqualTo cioConfig.autoTrackDeviceAttributes
-        customerIO?.diGraph?.sdkConfig?.logLevel shouldBeEqualTo cioConfig.logLevel
-        customerIO?.diGraph?.sdkConfig?.backgroundQueueMinNumberOfTasks shouldBeEqualTo cioConfig.backgroundQueueMinNumberOfTasks
-        customerIO?.diGraph?.sdkConfig?.backgroundQueueSecondsDelay shouldBeEqualTo cioConfig.backgroundQueueSecondsDelay
+        customerIO shouldNotBe null
+
+        val sdkConfig = customerIO!!.diGraph.sdkConfig
+        sdkConfig.siteId shouldBeEqualTo cioConfig.siteId
+        sdkConfig.apiKey shouldBeEqualTo cioConfig.apiKey
+        sdkConfig.region shouldBeEqualTo cioConfig.region
+        sdkConfig.client.toString() shouldBeEqualTo cioConfig.client.toString()
+        sdkConfig.trackingApiUrl shouldBeEqualTo cioConfig.trackingApiUrl
+        sdkConfig.autoTrackDeviceAttributes shouldBeEqualTo cioConfig.autoTrackDeviceAttributes
+        sdkConfig.logLevel shouldBeEqualTo cioConfig.logLevel
+        sdkConfig.backgroundQueueMinNumberOfTasks shouldBeEqualTo cioConfig.backgroundQueueMinNumberOfTasks
+        sdkConfig.backgroundQueueSecondsDelay shouldBeEqualTo cioConfig.backgroundQueueSecondsDelay
     }
 
     private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(

@@ -9,6 +9,7 @@ import io.customer.sdk.util.CioLogLevel
 
 internal interface SharedPreferenceRepository {
     fun saveSettings(values: CustomerIOStoredValues)
+
     fun loadSettings(): CustomerIOStoredValues
 }
 

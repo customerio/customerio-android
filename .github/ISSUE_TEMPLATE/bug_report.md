@@ -1,20 +1,32 @@
 ---
 name: Bug report
-about: For reporting bugs with SDK. 
+about: Create a report to help us improve
 title: ''
 labels: ''
 assignees: ''
+
 ---
 
-Version(s) of SDK bug appears: <insert version(s) here>
+<!-- For time-sensitive or urgent requests, reach out to our Technical Support team at win@customer.io with the details below instead of submitting an issue here.  -->
 
-## Current Behavior
-<!-- What happens? -->
+**SDK version:** The SDK version that you're currently using.
 
-## Steps to Reproduce
-<!--- Provide a link to a live example, screenshots, or a clear set ot steps to reproduce this issue. If it's required or relevant, include code! -->
+**Environment:** Development or Production
 
-## Expected Behavior
-<!-- What should happen? -->
+**Are logs available?** 
+<!-- Enable logs by using `setLogLevel(CioLogLevel.DEBUG)` when initializing the CustomerIO SDK. Attach the logs to this issue (make sure to sanitize any keys and sensitive data before including) or send them to win@customer.io to help with troubleshooting (with a link to this issue for easy reference).-->
 
-**Any other info?**
+**Describe the bug**
+A clear and concise description of what the bug is.
+
+**To Reproduce**
+Steps to reproduce the behavior.
+
+**Expected behavior**
+A clear and concise description of what you expected to happen.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Additional context**
+Add any other context about the problem here, including links to any campaigns, broadcasts, or profiles related to this bug. If it's required or relevant, include code! 

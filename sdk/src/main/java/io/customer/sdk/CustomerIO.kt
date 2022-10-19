@@ -143,6 +143,7 @@ class CustomerIO internal constructor(
                 region = customerIOStoredValues.region,
                 appContext = context.applicationContext as Application
             ).apply {
+                setClient(client = customerIOStoredValues.client)
                 setLogLevel(level = customerIOStoredValues.logLevel)
                 customerIOStoredValues.trackingApiUrl?.let { setTrackingApiURL(trackingApiUrl = it) }
                 autoTrackDeviceAttributes(shouldTrackDeviceAttributes = customerIOStoredValues.autoTrackDeviceAttributes)

@@ -53,7 +53,7 @@ abstract class BaseTest {
     protected lateinit var dateUtilStub: DateUtilStub
 
     protected fun createConfig(
-        client: Client = Client.Android(sdkVersion = "1.0.0-alpha.6"),
+        client: Client = Client.fromRawValue(source = "AndroidTest", sdkVersion = "1.0.0-alpha.6"),
         siteId: String = this.siteId,
         apiKey: String = "xyz",
         region: Region = Region.EU,

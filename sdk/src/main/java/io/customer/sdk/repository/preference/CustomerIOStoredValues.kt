@@ -3,13 +3,16 @@ package io.customer.sdk.repository.preference
 import io.customer.sdk.AnalyticsConstants
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.SDKConstants
+import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.util.CioLogLevel
 
-data class CustomerIOStoredValues(
+internal data class CustomerIOStoredValues(
     val siteId: String,
     val apiKey: String,
     val region: Region,
+    val client: Client = Client.Android(sdkVersion = Version.version),
     val trackingApiUrl: String? = null,
     val autoTrackDeviceAttributes: Boolean = AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES,
     val logLevel: CioLogLevel = SDKConstants.LOG_LEVEL_DEFAULT,
@@ -20,6 +23,7 @@ data class CustomerIOStoredValues(
         siteId = customerIOConfig.siteId,
         apiKey = customerIOConfig.apiKey,
         region = customerIOConfig.region,
+        client = customerIOConfig.client,
         trackingApiUrl = customerIOConfig.trackingApiUrl,
         autoTrackDeviceAttributes = customerIOConfig.autoTrackDeviceAttributes,
         logLevel = customerIOConfig.logLevel,
@@ -36,4 +40,4 @@ data class CustomerIOStoredValues(
     }
 }
 
-fun CustomerIOStoredValues.doesExist(): Boolean = this.siteId.isNotEmpty()
+internal fun CustomerIOStoredValues.doesExist(): Boolean = this.siteId.isNotEmpty()

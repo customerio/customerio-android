@@ -6,7 +6,7 @@ import io.customer.sdk.repository.preference.SharedPreferenceRepositoryImp
 
 class CustomerIOSharedComponent(context: Context) : DiGraph() {
 
-    val sharedPreferenceRepository: SharedPreferenceRepository by lazy {
+    internal val sharedPreferenceRepository: SharedPreferenceRepository by lazy {
         override() ?: SharedPreferenceRepositoryImp(
             context = context
         )

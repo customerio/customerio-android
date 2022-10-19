@@ -1,12 +1,13 @@
 package io.customer.sdk.repository.preference
 
 import android.content.Context
+import io.customer.sdk.Version
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.extensions.toRegion
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.util.CioLogLevel
 
-interface SharedPreferenceRepository {
-
+internal interface SharedPreferenceRepository {
     fun saveSettings(values: CustomerIOStoredValues)
 
     fun loadSettings(): CustomerIOStoredValues
@@ -26,6 +27,8 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
             putString(SITE_ID, it.siteId)
             putString(API_KEY, it.apiKey)
             putString(REGION, it.region.code)
+            putString(CLIENT_SOURCE, it.client.source)
+            putString(CLIENT_SDK_VERSION, it.client.sdkVersion)
             putString(TRACKING_API_URL, it.trackingApiUrl)
             putBoolean(AUTO_TRACK_DEVICE_ATTRIBUTES, it.autoTrackDeviceAttributes)
             putString(LOG_LEVEL, it.logLevel.name)
@@ -41,6 +44,10 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
                 siteId = getString(SITE_ID, null).orEmpty(),
                 apiKey = getString(API_KEY, null).orEmpty(),
                 region = getString(REGION, null).toRegion(),
+                client = Client.fromRawValue(
+                    source = getString(CLIENT_SOURCE, null) ?: "Unknown",
+                    sdkVersion = getString(CLIENT_SDK_VERSION, null) ?: Version.version
+                ),
                 trackingApiUrl = getString(TRACKING_API_URL, null),
                 autoTrackDeviceAttributes = getBoolean(AUTO_TRACK_DEVICE_ATTRIBUTES, true),
                 logLevel = getString(LOG_LEVEL, null)?.let { valueOfOrNull<CioLogLevel>(it) }
@@ -58,6 +65,8 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
         const val SITE_ID = "siteId"
         const val API_KEY = "apiKey"
         const val REGION = "region"
+        const val CLIENT_SOURCE = "clientSource"
+        const val CLIENT_SDK_VERSION = "clientSdkVersion"
 
         const val TRACKING_API_URL = "trackingApiUrl"
         const val AUTO_TRACK_DEVICE_ATTRIBUTES = "autoTrackDeviceAttributes"

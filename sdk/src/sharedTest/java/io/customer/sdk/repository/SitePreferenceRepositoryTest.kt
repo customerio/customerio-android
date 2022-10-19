@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 import java.util.*
 
 @RunWith(AndroidJUnit4::class)
-class PreferenceRepositoryTest : BaseTest() {
+class SitePreferenceRepositoryTest : BaseTest() {
 
     private lateinit var prefRepository: SitePreferenceRepository
 

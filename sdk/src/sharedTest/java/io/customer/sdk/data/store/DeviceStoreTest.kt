@@ -28,7 +28,7 @@ class DeviceStoreTest : BaseTest() {
     @Test
     fun verifyUseragentIsCreatedCorrectly() {
         deviceStore.buildUserAgent() shouldBeEqualTo
-            "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) io.customer.sdk/1.0"
+            "Customer.io AndroidTest Client/1.0.0-alpha.6 (Google Pixel 6; 30) io.customer.sdk/1.0"
     }
 
     @Test

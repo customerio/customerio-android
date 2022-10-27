@@ -18,7 +18,7 @@ class CustomerIOStaticComponent : DiGraph() {
     }
 
     val logger: Logger by lazy {
-        override() ?: LogcatLogger(staticSettingsProvider = staticSettingsProvider)
+        override() ?: LogcatLogger(staticSettingsProvider = staticSettingsProvider, sdkConfig = null)
     }
 
     val dispatchersProvider: DispatchersProvider by lazy { override() ?: SdkDispatchers() }

@@ -2,14 +2,14 @@ package io.customer.sdk.util
 
 import android.os.Environment
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import io.customer.base.extenstions.DateFormat
 import io.customer.base.extenstions.toString
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.SDKConstants
 import java.io.File
 import java.io.FileWriter
 import java.util.*
-import androidx.annotation.VisibleForTesting
-import io.customer.sdk.SDKConstants
 
 interface Logger {
     fun info(message: String)
@@ -34,7 +34,8 @@ enum class CioLogLevel {
 }
 
 internal class LogcatLogger(
-    private val staticSettingsProvider: StaticSettingsProvider
+    private val staticSettingsProvider: StaticSettingsProvider,
+    private val sdkConfig: CustomerIOConfig? // logger can be used before SDK is initialized so config could be null
 ) : Logger {
     // Log level defined by user in configurations
     private var preferredLogLevel: CioLogLevel? = null
@@ -47,7 +48,7 @@ internal class LogcatLogger(
     // Prefer user log level; fallback to default only till the user defined value is not received
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     val logLevel: CioLogLevel
-        get() = preferredLogLevel ?: fallbackLogLevel
+        get() = sdkConfig?.logLevel ?: preferredLogLevel ?: fallbackLogLevel
 
     companion object {
         const val TAG = "[CIO]"
@@ -82,9 +83,9 @@ internal class LogcatLogger(
     }
 
     private fun log(level: Int, message: String) {
-        Log.println(level, tag, message)
+        Log.println(level, TAG, message)
 
-        if (sdkConfig.developerMode) {
+        if (sdkConfig != null && sdkConfig.developerMode) {
             logMessageToFile(level, message)
         }
     }

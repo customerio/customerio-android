@@ -1,7 +1,7 @@
 package io.customer.sdk.data.store
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,7 +28,7 @@ class DeviceStoreTest : BaseTest() {
     @Test
     fun verifyUseragentIsCreatedCorrectly() {
         deviceStore.buildUserAgent() shouldBeEqualTo
-            "Customer.io Android Client/1.0.0-alpha.6 (Google Pixel 6; 30) io.customer.sdk/1.0"
+            "Customer.io AndroidTest Client/1.0.0-alpha.6 (Google Pixel 6; 30) io.customer.sdk/1.0"
     }
 
     @Test

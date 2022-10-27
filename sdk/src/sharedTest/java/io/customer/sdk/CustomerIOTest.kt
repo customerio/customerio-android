@@ -1,16 +1,21 @@
 package io.customer.sdk
 
-import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
+import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.di.CustomerIOSharedComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
+import io.customer.sdk.extensions.random
+import io.customer.sdk.module.CustomerIOGenericModule
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
-import io.customer.sdk.utils.random
+import io.customer.sdk.repository.preference.CustomerIOStoredValues
+import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import kotlinx.coroutines.runBlocking
+import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
@@ -27,8 +32,6 @@ class CustomerIOTest : BaseTest() {
     private val deviceRepositoryMock: DeviceRepository = mock()
     private val profileRepositoryMock: ProfileRepository = mock()
 
-    private lateinit var customerIO: CustomerIO
-
     @Before
     fun setUp() {
         super.setup()
@@ -36,8 +39,6 @@ class CustomerIOTest : BaseTest() {
         di.overrideDependency(CleanupRepository::class.java, cleanupRepositoryMock)
         di.overrideDependency(DeviceRepository::class.java, deviceRepositoryMock)
         di.overrideDependency(ProfileRepository::class.java, profileRepositoryMock)
-
-        customerIO = CustomerIO(di)
     }
 
     @Test
@@ -49,9 +50,7 @@ class CustomerIOTest : BaseTest() {
             apiKey = givenApiKey,
             region = Region.EU,
             appContext = application
-        ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
-        }).autoTrackScreenViews(true)
+        ).autoTrackScreenViews(true)
 
         val client = builder.build()
 
@@ -61,7 +60,6 @@ class CustomerIOTest : BaseTest() {
         actual.apiKey shouldBeEqualTo givenApiKey
         actual.timeout.shouldNotBeNull()
         actual.region shouldBeEqualTo Region.EU
-        actual.urlHandler.shouldNotBeNull()
         actual.autoTrackScreenViews shouldBeEqualTo true
         actual.trackingApiUrl shouldBeEqualTo null
         actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
@@ -77,9 +75,7 @@ class CustomerIOTest : BaseTest() {
             apiKey = givenApiKey,
             region = Region.EU,
             appContext = application
-        ).setCustomerIOUrlHandler(object : CustomerIOUrlHandler {
-            override fun handleCustomerIOUrl(uri: Uri): Boolean = false
-        }).autoTrackScreenViews(true)
+        ).autoTrackScreenViews(true)
 
         val client = builder.build()
 
@@ -103,6 +99,7 @@ class CustomerIOTest : BaseTest() {
     @Test
     fun deviceAttributes_givenSetValue_expectMakeRequestToAddAttributes() {
         val givenAttributes = mapOf(String.random to String.random)
+        val customerIO = CustomerIO(di)
 
         customerIO.deviceAttributes = givenAttributes
 
@@ -112,7 +109,7 @@ class CustomerIOTest : BaseTest() {
     @Test
     fun profileAttributes_givenSetValue_expectMakeRequestToAddAttributes() {
         val givenAttributes = mapOf(String.random to String.random)
-
+        val customerIO = CustomerIO(di)
         customerIO.profileAttributes = givenAttributes
 
         verify(profileRepositoryMock).addCustomProfileAttributes(givenAttributes)
@@ -120,11 +117,11 @@ class CustomerIOTest : BaseTest() {
 
     @Test
     fun build_givenModule_expectInitializeModule() {
-        val givenModule: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn(String.random)
         }
 
-        val client = CustomerIO.Builder(
+        CustomerIO.Builder(
             siteId = String.random,
             apiKey = String.random,
             appContext = application
@@ -135,14 +132,14 @@ class CustomerIOTest : BaseTest() {
 
     @Test
     fun build_givenMultipleModules_expectInitializeAllModules() {
-        val givenModule1: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule1: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn(String.random)
         }
-        val givenModule2: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule2: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn(String.random)
         }
 
-        val client = CustomerIO.Builder(
+        CustomerIO.Builder(
             siteId = String.random,
             apiKey = String.random,
             appContext = application
@@ -157,14 +154,14 @@ class CustomerIOTest : BaseTest() {
 
     @Test
     fun build_givenMultipleModulesOfSameType_expectOnlyInitializeOneModuleInstance() {
-        val givenModule1: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule1: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn("shared-module-name")
         }
-        val givenModule2: CustomerIOModule = mock<CustomerIOModule>().apply {
+        val givenModule2: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
             whenever(this.moduleName).thenReturn("shared-module-name")
         }
 
-        val client = CustomerIO.Builder(
+        CustomerIO.Builder(
             siteId = String.random,
             apiKey = String.random,
             appContext = application
@@ -182,6 +179,63 @@ class CustomerIOTest : BaseTest() {
         getRandomCustomerIOBuilder().build()
 
         verify(cleanupRepositoryMock).cleanup()
+    }
+
+    @Test
+    fun givenCustomerIONotInitialized_andConfigValuesNotStored_expectNullAsInstance() {
+        // clear current instance
+        CustomerIO.clearInstance()
+
+        val diGraph = CustomerIOStaticComponent()
+        val diIOSharedComponent = CustomerIOSharedComponent(context)
+
+        val sharedPreferenceRepository = mock<SharedPreferenceRepository>().apply {
+            whenever(this.loadSettings()).thenReturn(CustomerIOStoredValues.empty)
+        }
+        diIOSharedComponent.overrideDependency(
+            SharedPreferenceRepository::class.java,
+            sharedPreferenceRepository
+        )
+
+        val instance = CustomerIOShared.createInstance(diStaticGraph = diGraph)
+        instance.diSharedGraph = diIOSharedComponent
+
+        val customerIO = CustomerIO.instanceOrNull(context)
+        customerIO shouldBe null
+    }
+
+    @Test
+    fun givenCustomerIONotInitialized_andConfigValuesStored_expectCorrectValuesFromInstance() {
+        // clear current instance
+        CustomerIO.clearInstance()
+
+        val diGraph = CustomerIOStaticComponent()
+        val diIOSharedComponent = CustomerIOSharedComponent(context)
+
+        val sharedPreferenceRepository = mock<SharedPreferenceRepository>().apply {
+            whenever(this.loadSettings()).thenReturn(CustomerIOStoredValues(cioConfig))
+        }
+        diIOSharedComponent.overrideDependency(
+            SharedPreferenceRepository::class.java,
+            sharedPreferenceRepository
+        )
+
+        val instance = CustomerIOShared.createInstance(diStaticGraph = diGraph)
+        instance.diSharedGraph = diIOSharedComponent
+
+        val customerIO = CustomerIO.instanceOrNull(context)
+        customerIO shouldNotBe null
+
+        val sdkConfig = customerIO!!.diGraph.sdkConfig
+        sdkConfig.siteId shouldBeEqualTo cioConfig.siteId
+        sdkConfig.apiKey shouldBeEqualTo cioConfig.apiKey
+        sdkConfig.region shouldBeEqualTo cioConfig.region
+        sdkConfig.client.toString() shouldBeEqualTo cioConfig.client.toString()
+        sdkConfig.trackingApiUrl shouldBeEqualTo cioConfig.trackingApiUrl
+        sdkConfig.autoTrackDeviceAttributes shouldBeEqualTo cioConfig.autoTrackDeviceAttributes
+        sdkConfig.logLevel shouldBeEqualTo cioConfig.logLevel
+        sdkConfig.backgroundQueueMinNumberOfTasks shouldBeEqualTo cioConfig.backgroundQueueMinNumberOfTasks
+        sdkConfig.backgroundQueueSecondsDelay shouldBeEqualTo cioConfig.backgroundQueueSecondsDelay
     }
 
     private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(

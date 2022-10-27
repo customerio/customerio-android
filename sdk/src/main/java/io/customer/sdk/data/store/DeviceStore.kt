@@ -1,5 +1,7 @@
 package io.customer.sdk.data.store
 
+import io.customer.sdk.CustomerIOConfig
+
 interface DeviceStore : BuildStore, ApplicationStore {
 
     // SDK version
@@ -20,6 +22,7 @@ interface DeviceStore : BuildStore, ApplicationStore {
 }
 
 class DeviceStoreImp(
+    private val sdkConfig: CustomerIOConfig,
     private val buildStore: BuildStore,
     private val applicationStore: ApplicationStore,
     private val version: String
@@ -48,8 +51,7 @@ class DeviceStoreImp(
 
     override fun buildUserAgent(): String {
         return buildString {
-            append("Customer.io Android Client/")
-            append(customerIOVersion)
+            append("Customer.io ${sdkConfig.client}")
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
             append(" $customerPackageName/${customerAppVersion ?: "0.0.0"}")
         }

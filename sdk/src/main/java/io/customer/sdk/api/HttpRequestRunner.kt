@@ -5,7 +5,7 @@ import io.customer.base.extenstions.hasPassed
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
-import io.customer.sdk.repository.PreferenceRepository
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
 import kotlinx.coroutines.delay
@@ -13,15 +13,15 @@ import retrofit2.Response
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-interface HttpRequestRunner {
+internal interface HttpRequestRunner {
     suspend fun <R> performAndProcessRequest(makeRequest: suspend () -> Response<R>): Result<R>
 }
 
 /**
  * Where HTTP response processing occurs.
  */
-class HttpRequestRunnerImpl(
-    private val prefsRepository: PreferenceRepository,
+internal class HttpRequestRunnerImpl(
+    private val prefsRepository: SitePreferenceRepository,
     private val logger: Logger,
     private val retryPolicy: HttpRetryPolicy,
     private val jsonAdapter: JsonAdapter

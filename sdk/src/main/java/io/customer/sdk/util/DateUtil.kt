@@ -11,7 +11,7 @@ interface DateUtil {
     val nowUnixTimestamp: Long
 }
 
-class DateUtilImpl : DateUtil {
+internal class DateUtilImpl : DateUtil {
     override val now: Date
         get() = Date()
 

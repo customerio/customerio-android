@@ -1,37 +1,41 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.extensions.random
+import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.type.QueueModifyResult
+import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
-import io.customer.sdk.utils.random
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
+import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
 class TrackRepositoryTest : BaseTest() {
 
-    private val prefRepository: PreferenceRepository
-        get() = di.sharedPreferenceRepository
+    private val prefRepository: SitePreferenceRepository
+        get() = di.sitePreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
 
     private lateinit var repository: TrackRepository
+    private val hooksManager: HooksManager = mock()
 
     @Before
     override fun setup() {
         super.setup()
 
         repository = TrackRepositoryImpl(
-            preferenceRepository = prefRepository,
+            sitePreferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
-            logger = loggerMock
+            logger = loggerMock,
+            hooksManager = hooksManager
         )
     }
 
@@ -50,6 +54,15 @@ class TrackRepositoryTest : BaseTest() {
         val givenTrackEventName = String.random
         val givenAttributes = mapOf("foo" to String.random)
         prefRepository.saveIdentifier(givenIdentifier)
+
+        whenever(
+            backgroundQueueMock.queueTrack(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
 
         repository.track(givenTrackEventName, givenAttributes)
 

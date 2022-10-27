@@ -1,0 +1,18 @@
+name: Binary-validation
+# only run on PRs and when push a commit on a branch that we don't deploy on. 
+on: [push, pull_request]
+
+jobs:
+  api_check:
+    name: API check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'adopt'
+        java-version: '11'
+    - name: API check
+      run: ./gradlew apiCheck
+            

@@ -21,14 +21,18 @@ If all went well, you should be able to build the Example app within Android Stu
 
 Now that you have gotten the app to successfully compile, it's time for you to finish setting up the rest of your development environment. 
 
-* Setup git hooks to lint your code for you:
+* Setup git hooks using the tool [lefthook](https://github.com/evilmartians/lefthook):
 
 ```
-$ ./hooks/autohook.sh install
-[Autohook] Scripts installed into .git/hooks
+$ brew install lefthook 
+$ lefthook install 
+SYNCING
+SERVED HOOKS: pre-commit, prepare-commit-msg
 ```
 
-* Install `ktlint` Kotlin linting CLI tool. The easiest way is `brew install ktlint` but if you are not on a Mac, [find another way to install](https://ktlint.github.io/#getting-started) on your machine. 
+# Lint
+
+See [LINT](LINT.md) to learn more about linting in this project.
 
 ### Development workflow 
 
@@ -50,7 +54,7 @@ After this task runs successfully, if you look in the `~/.m2/repository/io/custo
 
 > Note: Every time that you make an edit to the SDK code, you need to run `install local` and then rebuild the Remote Habits app. 
 
-That is all you need to do on the SDK side. Next, view the [Remote Habits docs](https://github.com/customerio/RemoteHabits-Android/blob/main/docs/dev-notes/DEVELOPMENT.md#work-on-sdk-locally) for next steps on getting Remote Habits to install the SDK from your local machine's `~/.m2/` directory. 
+That is all you need to do on the SDK side. Next, view the [Remote Habits docs](https://github.com/customerio/RemoteHabits-Android/blob/main/docs/dev-notes/DEVELOPMENT.md#work-on-sdk-locally) for next steps on getting Remote Habits to install the SDK from your local machine's `~/.m2/` directory.  
 
 ### Deployment 
 

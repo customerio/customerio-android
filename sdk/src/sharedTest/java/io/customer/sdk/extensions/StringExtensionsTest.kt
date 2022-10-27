@@ -7,7 +7,6 @@ internal class StringExtensionsTest {
 
     @Test
     fun verify_activityScreenFormatting_expectFormattedScreenName() {
-
         "HomeActivity".getScreenNameFromActivity() shouldBeEqualTo "Home"
         "ActivityHome".getScreenNameFromActivity() shouldBeEqualTo "Home"
         "ActivityHomeActivity".getScreenNameFromActivity() shouldBeEqualTo "Home"

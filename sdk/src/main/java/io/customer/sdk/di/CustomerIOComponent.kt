@@ -2,42 +2,22 @@ package io.customer.sdk.di
 
 import android.content.Context
 import com.squareup.moshi.Moshi
-import io.customer.sdk.BuildConfig
+import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
-import io.customer.sdk.api.TrackingHttpClient
-import io.customer.sdk.api.CustomerIOApiRetryPolicy
-import io.customer.sdk.api.HttpRequestRunner
-import io.customer.sdk.api.HttpRequestRunnerImpl
-import io.customer.sdk.api.HttpRetryPolicy
-import io.customer.sdk.api.RetrofitTrackingHttpClient
+import io.customer.sdk.api.*
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
 import io.customer.sdk.data.store.*
-import io.customer.sdk.queue.Queue
-import io.customer.sdk.queue.QueueImpl
-import io.customer.sdk.queue.QueueQueryRunner
-import io.customer.sdk.queue.QueueQueryRunnerImpl
-import io.customer.sdk.queue.QueueRunRequest
-import io.customer.sdk.queue.QueueRunRequestImpl
-import io.customer.sdk.queue.QueueRunner
-import io.customer.sdk.queue.QueueRunnerImpl
-import io.customer.sdk.queue.QueueStorage
-import io.customer.sdk.queue.QueueStorageImpl
+import io.customer.sdk.hooks.CioHooksManager
+import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.queue.*
 import io.customer.sdk.repository.*
-import io.customer.sdk.util.AndroidSimpleTimer
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.DateUtilImpl
-import io.customer.sdk.util.DispatchersProvider
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.LogcatLogger
-import io.customer.sdk.util.Logger
-import io.customer.sdk.util.PushTrackingUtil
-import io.customer.sdk.util.PushTrackingUtilImpl
-import io.customer.sdk.util.SdkDispatchers
-import io.customer.sdk.util.SimpleTimer
+import io.customer.sdk.repository.preference.SitePreferenceRepository
+import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
+import io.customer.sdk.util.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -48,50 +28,83 @@ import java.util.concurrent.TimeUnit
  * Configuration class to configure/initialize low-level operations and objects.
  */
 class CustomerIOComponent(
+    private val staticComponent: CustomerIOStaticComponent,
     val context: Context,
     val sdkConfig: CustomerIOConfig
 ) : DiGraph() {
 
-    val pushTrackingUtil: PushTrackingUtil
-        get() = override() ?: PushTrackingUtilImpl(trackRepository)
-
     val fileStorage: FileStorage
-        get() = override() ?: FileStorage(sdkConfig, context, logger)
+        get() = override() ?: FileStorage(config = sdkConfig, context = context, logger = logger)
 
     val jsonAdapter: JsonAdapter
-        get() = override() ?: JsonAdapter(moshi)
+        get() = override() ?: JsonAdapter(moshi = moshi)
 
     val queueStorage: QueueStorage
-        get() = override() ?: QueueStorageImpl(sdkConfig, fileStorage, jsonAdapter, dateUtil, logger)
+        get() = override() ?: QueueStorageImpl(
+            sdkConfig = sdkConfig,
+            fileStorage = fileStorage,
+            jsonAdapter = jsonAdapter,
+            dateUtil = dateUtil,
+            logger = logger
+        )
 
     val queueRunner: QueueRunner
-        get() = override() ?: QueueRunnerImpl(jsonAdapter, cioHttpClient, logger)
+        get() = override() ?: QueueRunnerImpl(
+            jsonAdapter = jsonAdapter,
+            cioHttpClient = cioHttpClient,
+            logger = logger
+        )
 
     val dispatchersProvider: DispatchersProvider
-        get() = override() ?: SdkDispatchers()
+        get() = override() ?: staticComponent.dispatchersProvider
 
     val queue: Queue
         get() = override() ?: getSingletonInstanceCreate {
-            QueueImpl(dispatchersProvider, queueStorage, queueRunRequest, jsonAdapter, sdkConfig, timer, logger, dateUtil)
+            QueueImpl(
+                dispatchersProvider = dispatchersProvider,
+                storage = queueStorage,
+                runRequest = queueRunRequest,
+                jsonAdapter = jsonAdapter,
+                sdkConfig = sdkConfig,
+                queueTimer = timer,
+                logger = logger,
+                dateUtil = dateUtil
+            )
         }
 
     internal val cleanupRepository: CleanupRepository
-        get() = override() ?: CleanupRepositoryImpl(queue)
+        get() = override() ?: CleanupRepositoryImpl(queue = queue)
 
     val queueQueryRunner: QueueQueryRunner
-        get() = override() ?: QueueQueryRunnerImpl(logger)
+        get() = override() ?: QueueQueryRunnerImpl(logger = logger)
 
     val queueRunRequest: QueueRunRequest
-        get() = override() ?: QueueRunRequestImpl(queueRunner, queueStorage, logger, queueQueryRunner)
+        get() = override() ?: QueueRunRequestImpl(
+            runner = queueRunner,
+            queueStorage = queueStorage,
+            logger = logger,
+            queryRunner = queueQueryRunner
+        )
 
     val logger: Logger
-        get() = override() ?: LogcatLogger(sdkConfig)
+        get() = override() ?: staticComponent.logger
 
-    internal val cioHttpClient: TrackingHttpClient
-        get() = override() ?: RetrofitTrackingHttpClient(buildRetrofitApi(), httpRequestRunner)
+    val hooksManager: HooksManager
+        get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }
+
+    private val cioHttpClient: TrackingHttpClient
+        get() = override() ?: RetrofitTrackingHttpClient(
+            retrofitService = buildRetrofitApi(),
+            httpRequestRunner = httpRequestRunner
+        )
 
     private val httpRequestRunner: HttpRequestRunner
-        get() = HttpRequestRunnerImpl(sharedPreferenceRepository, logger, cioHttpRetryPolicy, jsonAdapter)
+        get() = HttpRequestRunnerImpl(
+            prefsRepository = sitePreferenceRepository,
+            logger = logger,
+            retryPolicy = cioHttpRetryPolicy,
+            jsonAdapter = jsonAdapter
+        )
 
     val cioHttpRetryPolicy: HttpRetryPolicy
         get() = override() ?: CustomerIOApiRetryPolicy()
@@ -100,31 +113,58 @@ class CustomerIOComponent(
         get() = override() ?: DateUtilImpl()
 
     val timer: SimpleTimer
-        get() = override() ?: AndroidSimpleTimer(logger, dispatchersProvider)
+        get() = override() ?: AndroidSimpleTimer(
+            logger = logger,
+            dispatchersProvider = dispatchersProvider
+        )
 
     val trackRepository: TrackRepository
-        get() = override() ?: TrackRepositoryImpl(sharedPreferenceRepository, queue, logger)
+        get() = override() ?: TrackRepositoryImpl(
+            sitePreferenceRepository = sitePreferenceRepository,
+            backgroundQueue = queue,
+            logger = logger,
+            hooksManager = hooksManager
+        )
 
     val profileRepository: ProfileRepository
-        get() = override() ?: ProfileRepositoryImpl(deviceRepository, sharedPreferenceRepository, queue, logger)
+        get() = override() ?: ProfileRepositoryImpl(
+            deviceRepository = deviceRepository,
+            sitePreferenceRepository = sitePreferenceRepository,
+            backgroundQueue = queue,
+            logger = logger,
+            hooksManager = hooksManager
+        )
 
     val deviceRepository: DeviceRepository
-        get() = override() ?: DeviceRepositoryImpl(sdkConfig, buildStore().deviceStore, sharedPreferenceRepository, queue, dateUtil, logger)
+        get() = override() ?: DeviceRepositoryImpl(
+            config = sdkConfig,
+            deviceStore = buildStore().deviceStore,
+            sitePreferenceRepository = sitePreferenceRepository,
+            backgroundQueue = queue,
+            dateUtil = dateUtil,
+            logger = logger
+        )
 
-    fun buildStore(): CustomerIOStore {
+    val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks
+        get() = override() ?: getSingletonInstanceCreate {
+            CustomerIOActivityLifecycleCallbacks(config = sdkConfig)
+        }
+
+    private fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
                 DeviceStoreImp(
-                    BuildStoreImp(),
-                    ApplicationStoreImp(context),
-                    Version.version
+                    sdkConfig = sdkConfig,
+                    buildStore = BuildStoreImp(),
+                    applicationStore = ApplicationStoreImp(context),
+                    version = Version.version
                 )
             }
         }
     }
 
-    val sharedPreferenceRepository: PreferenceRepository by lazy {
-        override() ?: PreferenceRepositoryImpl(
+    val sitePreferenceRepository: SitePreferenceRepository by lazy {
+        override() ?: SitePreferenceRepositoryImpl(
             context = context,
             config = sdkConfig
         )
@@ -133,14 +173,14 @@ class CustomerIOComponent(
     private inline fun <reified T> buildRetrofitApi(): T {
         val apiClass = T::class.java
         return override() ?: buildRetrofit(
-            sdkConfig.trackingApiHostname,
-            sdkConfig.timeout,
+            endpoint = sdkConfig.trackingApiHostname,
+            timeout = sdkConfig.timeout
         ).create(apiClass)
     }
 
     private val httpLoggingInterceptor by lazy {
         override() ?: HttpLoggingInterceptor().apply {
-            if (BuildConfig.DEBUG) {
+            if (staticComponent.staticSettingsProvider.isDebuggable) {
                 level = HttpLoggingInterceptor.Level.BODY
             }
         }
@@ -155,7 +195,7 @@ class CustomerIOComponent(
             .build()
     }
 
-    fun buildRetrofit(
+    private fun buildRetrofit(
         endpoint: String,
         timeout: Long
     ): Retrofit {
@@ -172,7 +212,7 @@ class CustomerIOComponent(
     private fun baseClientBuilder(): OkHttpClient.Builder = override() ?: baseClient.newBuilder()
 
     private fun clientBuilder(
-        timeout: Long,
+        timeout: Long
     ): OkHttpClient.Builder {
         return override() ?: baseClientBuilder()
             // timeouts

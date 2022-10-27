@@ -2,17 +2,24 @@ package io.customer.sdk
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.content.pm.PackageManager
+import androidx.annotation.VisibleForTesting
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
-import io.customer.sdk.data.communication.CustomerIOUrlHandler
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.extensions.getScreenNameFromActivity
+import io.customer.sdk.module.CustomerIOModule
+import io.customer.sdk.module.CustomerIOModuleConfig
+import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.repository.preference.CustomerIOStoredValues
+import io.customer.sdk.repository.preference.doesExist
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.CoroutineScope
@@ -76,7 +83,7 @@ Welcome to the Customer.io Android SDK!
 This class is where you begin to use the SDK.
 You must have an instance of `CustomerIO` to use the features of the SDK.
 Create your own instance using
-`CustomerIo.Builder(siteId: "XXX", apiKey: "XXX", region: Region.US, appContext: Application context)`
+`CustomerIO.Builder(siteId: "XXX", apiKey: "XXX", region: Region.US, appContext: Application context)`
 It is recommended to initialize the client in the `Application::onCreate()` method.
 After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
@@ -89,6 +96,61 @@ class CustomerIO internal constructor(
 
     companion object {
         private var instance: CustomerIO? = null
+
+        @InternalCustomerIOApi
+        @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+        fun clearInstance() {
+            instance = null
+        }
+
+        /**
+         * Safe method to get SDK instance that may be called before SDK initialization.
+         * e.g. services, classes triggered by other libraries or Android framework.
+         * <p/>
+         * This method should only be used when SDK initialization could be delayed.
+         * @see [instance] to be used otherwise.
+         *
+         * @return instance of SDK if initialized, else a saved instance and null otherwise.
+         */
+        @InternalCustomerIOApi
+        @JvmStatic
+        @Synchronized
+        fun instanceOrNull(context: Context): CustomerIO? = try {
+            instance()
+        } catch (ex: Exception) {
+            val customerIOShared = CustomerIOShared.instance()
+            customerIOShared.initializeAndGetSharedComponent(context).let {
+                val storedValues = it.sharedPreferenceRepository.loadSettings()
+                if (storedValues.doesExist()) {
+                    return@let createInstanceFromStoredValues(storedValues, context)
+                } else {
+                    customerIOShared.diStaticGraph.logger.error(
+                        "Customer.io instance not initialized: ${ex.message}"
+                    )
+                    return@let null
+                }
+            }
+        }
+
+        @Throws(IllegalArgumentException::class)
+        private fun createInstanceFromStoredValues(
+            customerIOStoredValues: CustomerIOStoredValues,
+            context: Context
+        ): CustomerIO {
+            return Builder(
+                siteId = customerIOStoredValues.siteId,
+                apiKey = customerIOStoredValues.apiKey,
+                region = customerIOStoredValues.region,
+                appContext = context.applicationContext as Application
+            ).apply {
+                setClient(client = customerIOStoredValues.client)
+                setLogLevel(level = customerIOStoredValues.logLevel)
+                customerIOStoredValues.trackingApiUrl?.let { setTrackingApiURL(trackingApiUrl = it) }
+                autoTrackDeviceAttributes(shouldTrackDeviceAttributes = customerIOStoredValues.autoTrackDeviceAttributes)
+                setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = customerIOStoredValues.backgroundQueueMinNumberOfTasks)
+                setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = customerIOStoredValues.backgroundQueueSecondsDelay)
+            }.build()
+        }
 
         @JvmStatic
         fun instance(): CustomerIO {
@@ -103,17 +165,28 @@ class CustomerIO internal constructor(
         private var region: Region = Region.US,
         private val appContext: Application
     ) {
-        private var timeout = 6000L
-        private var urlHandler: CustomerIOUrlHandler? = null
-        private var shouldAutoRecordScreenViews: Boolean = false
-        private var autoTrackDeviceAttributes: Boolean = true
-        private var modules: MutableMap<String, CustomerIOModule> = mutableMapOf()
-        private var logLevel = CioLogLevel.ERROR
+        private val sharedInstance = CustomerIOShared.instance()
+        private var client: Client = Client.Android(Version.version)
+        private var timeout = AnalyticsConstants.HTTP_REQUEST_TIMEOUT
+        private var shouldAutoRecordScreenViews: Boolean =
+            AnalyticsConstants.SHOULD_AUTO_RECORD_SCREEN_VIEWS
+        private var autoTrackDeviceAttributes: Boolean =
+            AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
+        private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
+            mutableMapOf()
+        private var logLevel: CioLogLevel = SDKConstants.LOG_LEVEL_DEFAULT
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
         private var developerMode: Boolean = false
+        private var backgroundQueueMinNumberOfTasks: Int =
+            AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
+        private var backgroundQueueSecondsDelay: Double =
+            AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
 
-        private lateinit var activityLifecycleCallback: CustomerIOActivityLifecycleCallbacks
+        fun setClient(client: Client): Builder {
+            this.client = client
+            return this
+        }
 
         fun setRegion(region: Region): Builder {
             this.region = region
@@ -150,16 +223,28 @@ class CustomerIO internal constructor(
         }
 
         /**
-         * Override url/deep link handling
+         * Sets the number of tasks in the background queue before the queue begins operating.
+         * This is mostly used during development to test configuration is setup. We do not recommend
+         * modifying this value because it impacts battery life of mobile device.
          *
-         * @param urlHandler callback called when deeplink push action is performed.
+         * @param backgroundQueueMinNumberOfTasks the minimum number of tasks in background queue; default 10
          */
-        fun setCustomerIOUrlHandler(urlHandler: CustomerIOUrlHandler): Builder {
-            this.urlHandler = urlHandler
+        fun setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks: Int): Builder {
+            this.backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks
             return this
         }
 
-        fun addCustomerIOModule(module: CustomerIOModule): Builder {
+        /**
+         * Sets the number of seconds to delay running queue after a task has been added to it
+         *
+         * @param backgroundQueueSecondsDelay time in seconds to delay events; default 30
+         */
+        fun setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay: Double): Builder {
+            this.backgroundQueueSecondsDelay = backgroundQueueSecondsDelay
+            return this
+        }
+
+        fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): Builder {
             modules[module.moduleName] = module
             return this
         }
@@ -179,30 +264,34 @@ class CustomerIO internal constructor(
             }
 
             val config = CustomerIOConfig(
+                client = client,
                 siteId = siteId,
                 apiKey = apiKey,
                 region = region,
                 timeout = timeout,
-                urlHandler = urlHandler,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
-                backgroundQueueMinNumberOfTasks = 10,
-                backgroundQueueSecondsDelay = 30.0,
+                backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
+                backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl,
-                developerMode = developerMode
+                developerMode = developerMode,
+                configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
             )
 
-            val diGraph = overrideDiGraph ?: CustomerIOComponent(sdkConfig = config, context = appContext)
+            sharedInstance.attachSDKConfig(sdkConfig = config, context = appContext)
+            val diGraph = overrideDiGraph ?: CustomerIOComponent(
+                staticComponent = sharedInstance.diStaticGraph,
+                sdkConfig = config,
+                context = appContext
+            )
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            activityLifecycleCallback = CustomerIOActivityLifecycleCallbacks(client, config, diGraph.pushTrackingUtil)
-            appContext.registerActivityLifecycleCallbacks(activityLifecycleCallback)
-
             instance = client
 
+            appContext.registerActivityLifecycleCallbacks(diGraph.activityLifecycleCallbacks)
             modules.forEach {
                 logger.debug("initializing SDK module ${it.value.moduleName}...")
                 it.value.initialize()
@@ -337,7 +426,8 @@ class CustomerIO internal constructor(
      * Register a new device token with Customer.io, associated with the current active customer. If there
      * is no active customer, this will fail to register the device
      */
-    override fun registerDeviceToken(deviceToken: String) = deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
+    override fun registerDeviceToken(deviceToken: String) =
+        deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token
@@ -350,7 +440,7 @@ class CustomerIO internal constructor(
     override fun trackMetric(
         deliveryID: String,
         event: MetricEvent,
-        deviceToken: String,
+        deviceToken: String
     ) = trackRepository.trackMetric(
         deliveryID = deliveryID,
         event = event,
@@ -382,7 +472,8 @@ class CustomerIO internal constructor(
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(
-                activity.componentName, PackageManager.GET_META_DATA
+                activity.componentName,
+                PackageManager.GET_META_DATA
             )
             val activityLabel = info.loadLabel(packageManager)
 

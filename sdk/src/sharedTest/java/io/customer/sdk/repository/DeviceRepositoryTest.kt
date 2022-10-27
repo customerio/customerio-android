@@ -1,11 +1,12 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import io.customer.sdk.data.request.Device
+import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.Queue
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
-import io.customer.sdk.utils.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
@@ -17,8 +18,8 @@ import org.mockito.kotlin.verifyNoInteractions
 @RunWith(AndroidJUnit4::class)
 class DeviceRepositoryTest : BaseTest() {
 
-    private val prefRepository: PreferenceRepository
-        get() = di.sharedPreferenceRepository
+    private val prefRepository: SitePreferenceRepository
+        get() = di.sitePreferenceRepository
     private val backgroundQueueMock: Queue = mock()
     private val loggerMock: Logger = mock()
 
@@ -31,7 +32,7 @@ class DeviceRepositoryTest : BaseTest() {
         repository = DeviceRepositoryImpl(
             config = cioConfig,
             deviceStore = deviceStore,
-            preferenceRepository = prefRepository,
+            sitePreferenceRepository = prefRepository,
             backgroundQueue = backgroundQueueMock,
             dateUtil = dateUtilStub,
             logger = loggerMock

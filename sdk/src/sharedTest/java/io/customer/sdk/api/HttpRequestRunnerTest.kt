@@ -4,13 +4,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.add
 import io.customer.base.extenstions.hasPassed
 import io.customer.base.extenstions.subtract
-import io.customer.common_test.BaseTest
-import io.customer.common_test.extensions.toResponseBody
+import io.customer.commontest.BaseTest
+import io.customer.commontest.extensions.toResponseBody
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
-import io.customer.sdk.repository.PreferenceRepository
-import io.customer.sdk.utils.random
+import io.customer.sdk.extensions.random
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.amshove.kluent.shouldBeEqualTo
@@ -22,7 +22,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
@@ -37,8 +36,8 @@ class HttpRequestRunnerTest : BaseTest() {
     private lateinit var httpRunner: HttpRequestRunnerImpl
 
     private val retryPolicyMock: HttpRetryPolicy = mock()
-    private val prefsRepository: PreferenceRepository // use real instance as mocking can take more work and error-prone test functions
-        get() = di.sharedPreferenceRepository
+    private val prefsRepository: SitePreferenceRepository // use real instance as mocking can take more work and error-prone test functions
+        get() = di.sitePreferenceRepository
 
     @Before
     override fun setup() {

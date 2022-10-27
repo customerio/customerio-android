@@ -28,7 +28,7 @@
     [
       "@semantic-release/exec",
       {
-        "verifyReleaseCmd": "./update_version.sh ${nextRelease.version} sdk/src/main/java/io/customer/sdk/Version.kt"
+        "verifyReleaseCmd": "./scripts/update-version.sh ${nextRelease.version}"
       }
     ],
     [

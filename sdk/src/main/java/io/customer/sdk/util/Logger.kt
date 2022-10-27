@@ -8,6 +8,8 @@ import io.customer.sdk.CustomerIOConfig
 import java.io.File
 import java.io.FileWriter
 import java.util.*
+import androidx.annotation.VisibleForTesting
+import io.customer.sdk.SDKConstants
 
 interface Logger {
     fun info(message: String)
@@ -31,11 +33,29 @@ enum class CioLogLevel {
     }
 }
 
-class LogcatLogger(
-    private val sdkConfig: CustomerIOConfig
+internal class LogcatLogger(
+    private val staticSettingsProvider: StaticSettingsProvider
 ) : Logger {
+    // Log level defined by user in configurations
+    private var preferredLogLevel: CioLogLevel? = null
 
-    private val tag = "[CIO]"
+    // Fallback log level to be used only if log level is not yet defined by the user
+    private val fallbackLogLevel
+        get() = if (staticSettingsProvider.isDebuggable) CioLogLevel.DEBUG
+        else SDKConstants.LOG_LEVEL_DEFAULT
+
+    // Prefer user log level; fallback to default only till the user defined value is not received
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    val logLevel: CioLogLevel
+        get() = preferredLogLevel ?: fallbackLogLevel
+
+    companion object {
+        const val TAG = "[CIO]"
+    }
+
+    fun setPreferredLogLevel(logLevel: CioLogLevel) {
+        preferredLogLevel = logLevel
+    }
 
     override fun info(message: String) {
         runIfMeetsLogLevelCriteria(CioLogLevel.INFO) {
@@ -56,7 +76,7 @@ class LogcatLogger(
     }
 
     private fun runIfMeetsLogLevelCriteria(levelForMessage: CioLogLevel, block: () -> Unit) {
-        val shouldLog = sdkConfig.logLevel.shouldLog(levelForMessage)
+        val shouldLog = logLevel.shouldLog(levelForMessage)
 
         if (shouldLog) block()
     }

@@ -1,0 +1,23 @@
+public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/customer/sdk/module/CustomerIOModuleConfig {
+	public static final field Companion Lio/customer/messaginginapp/MessagingInAppModuleConfig$Companion;
+}
+
+public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder : io/customer/sdk/module/CustomerIOModuleConfig$Builder {
+	public fun <init> ()V
+	public fun build ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
+	public synthetic fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
+}
+
+public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Companion {
+}
+
+public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/sdk/module/CustomerIOModule {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/module/CustomerIOModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public fun initialize ()V
+}
+

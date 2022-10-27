@@ -2,7 +2,7 @@ package io.customer.sdk.util
 
 import androidx.test.annotation.UiThreadTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.common_test.BaseTest
+import io.customer.commontest.BaseTest
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.After
@@ -22,7 +22,7 @@ class SimpleTimerTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        timer = AndroidSimpleTimer(di.logger)
+        timer = AndroidSimpleTimer(di.logger, dispatchersProviderStub)
     }
 
     @After

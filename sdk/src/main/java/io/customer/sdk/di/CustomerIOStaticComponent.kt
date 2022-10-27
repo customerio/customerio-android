@@ -13,12 +13,13 @@ import io.customer.sdk.util.*
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class CustomerIOStaticComponent : DiGraph() {
+
     val staticSettingsProvider: StaticSettingsProvider by lazy {
         override() ?: StaticSettingsProviderImpl()
     }
 
     val logger: Logger by lazy {
-        override() ?: LogcatLogger(staticSettingsProvider = staticSettingsProvider, sdkConfig = null)
+        override() ?: PreInitializationLogcatLogger(staticSettingsProvider)
     }
 
     val dispatchersProvider: DispatchersProvider by lazy { override() ?: SdkDispatchers() }

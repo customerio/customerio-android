@@ -7,7 +7,7 @@ import io.customer.sdk.CustomerIOShared.Companion.instance
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
-import io.customer.sdk.util.LogcatLogger
+import io.customer.sdk.util.PreInitializationLogcatLogger
 
 /**
  * Singleton static instance of Customer.io SDK that is initialized exactly when
@@ -39,7 +39,7 @@ class CustomerIOShared private constructor(
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     fun attachSDKConfig(sdkConfig: CustomerIOConfig, context: Context) {
-        (diStaticGraph.logger as? LogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
+        (diStaticGraph.logger as? PreInitializationLogcatLogger)?.setPreferredLogLevel(logLevel = sdkConfig.logLevel)
         initializeAndGetSharedComponent(context)
         diSharedGraph?.sharedPreferenceRepository?.saveSettings(
             CustomerIOStoredValues(customerIOConfig = sdkConfig)

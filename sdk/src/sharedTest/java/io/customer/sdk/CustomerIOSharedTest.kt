@@ -6,7 +6,7 @@ import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
-import io.customer.sdk.util.LogcatLogger
+import io.customer.sdk.util.PreInitializationLogcatLogger
 import io.customer.sdk.util.StaticSettingsProvider
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBe
@@ -55,7 +55,7 @@ class CustomerIOSharedTest : BaseTest() {
         val instance = CustomerIOShared.createInstance(diStaticGraph = diGraph)
         instance.attachSDKConfig(sdkConfig = cioConfig, context = context)
 
-        (instance.diStaticGraph.logger as LogcatLogger).logLevel shouldBeEqualTo cioConfig.logLevel
+        (instance.diStaticGraph.logger as PreInitializationLogcatLogger).logLevel shouldBeEqualTo cioConfig.logLevel
     }
 
     @Test

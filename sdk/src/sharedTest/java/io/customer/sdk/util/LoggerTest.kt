@@ -9,7 +9,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
-class LoggerTest : BaseTest() {
+class BaseLogcatLoggerTest : BaseTest() {
 
     // Test log levels
 
@@ -71,48 +71,110 @@ class LoggerTest : BaseTest() {
         levelSetBySdkConfig.shouldLog(CioLogLevel.INFO) shouldBeEqualTo info
         levelSetBySdkConfig.shouldLog(CioLogLevel.DEBUG) shouldBeEqualTo debug
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+class PreInitializationLogcatLoggerTest : BaseTest() {
 
     @Test
-    fun verifySDKNotInitialized_givenDebugEnvironment_expectLogLevelDebug() {
-        val staticSettingsProvider: StaticSettingsProvider = mock()
-        whenever(staticSettingsProvider.isDebuggable).thenReturn(true)
+    fun logLevel_givenSdkNotInitialized_givenDebugEnvironment_expectLogLevelDebug() {
+        val givenStaticSettingsProvider = getStaticSettingsProvider(isDebugEnvironment = true)
 
-        val logger = LogcatLogger(staticSettingsProvider)
+        val logger = PreInitializationLogcatLogger(givenStaticSettingsProvider)
 
         logger.logLevel shouldBeEqualTo CioLogLevel.DEBUG
     }
 
     @Test
-    fun verifySDKNotInitialized_givenReleaseEnvironment_expectLogLevelErrors() {
-        val staticSettingsProvider: StaticSettingsProvider = mock()
-        whenever(staticSettingsProvider.isDebuggable).thenReturn(false)
+    fun logLevel_givenSdkNotInitialized_givenReleaseEnvironment_expectLogLevelError() {
+        val givenStaticSettingsProvider = getStaticSettingsProvider(isDebugEnvironment = false)
 
-        val logger = LogcatLogger(staticSettingsProvider)
+        val logger = PreInitializationLogcatLogger(givenStaticSettingsProvider)
 
         logger.logLevel shouldBeEqualTo CioLogLevel.ERROR
     }
 
     @Test
-    fun verifySDKInitialized_givenDebugEnvironment_expectLogLevelAsDefined() {
-        val staticSettingsProvider: StaticSettingsProvider = mock()
-        whenever(staticSettingsProvider.isDebuggable).thenReturn(true)
+    fun logLevel_givenSdkInitialized_givenDebugEnvironment_expectLogLevelGivenFromConfig() {
+        val givenStaticSettingsProvider = getStaticSettingsProvider(isDebugEnvironment = true)
         val givenLogLevel = CioLogLevel.INFO
 
-        val logger = LogcatLogger(staticSettingsProvider)
+        val logger = PreInitializationLogcatLogger(givenStaticSettingsProvider)
         logger.setPreferredLogLevel(givenLogLevel)
 
         logger.logLevel shouldBeEqualTo givenLogLevel
     }
 
     @Test
-    fun verifySDKInitialized_givenReleaseEnvironment_expectLogLevelAsDefined() {
-        val staticSettingsProvider: StaticSettingsProvider = mock()
-        whenever(staticSettingsProvider.isDebuggable).thenReturn(false)
+    fun logLevel_givenSdkInitialized_givenReleaseEnvironment_expectLogLevelGivenFromConfig() {
+        val givenStaticSettingsProvider = getStaticSettingsProvider(isDebugEnvironment = false)
         val givenLogLevel = CioLogLevel.NONE
 
-        val logger = LogcatLogger(staticSettingsProvider)
+        val logger = PreInitializationLogcatLogger(givenStaticSettingsProvider)
         logger.setPreferredLogLevel(givenLogLevel)
 
         logger.logLevel shouldBeEqualTo givenLogLevel
+    }
+
+    @Test
+    fun shouldLogMessagesToFile_givenDebugEnvironment_expectFalse() {
+        val givenStaticSettingsProvider = getStaticSettingsProvider(isDebugEnvironment = true)
+
+        val logger = PreInitializationLogcatLogger(givenStaticSettingsProvider)
+
+        logger.shouldLogMessagesToFile() shouldBeEqualTo false
+    }
+
+    @Test
+    fun shouldLogMessagesToFile_givenReleaseEnvironment_expectFalse() {
+        val givenStaticSettingsProvider = getStaticSettingsProvider(isDebugEnvironment = false)
+
+        val logger = PreInitializationLogcatLogger(givenStaticSettingsProvider)
+
+        logger.shouldLogMessagesToFile() shouldBeEqualTo false
+    }
+
+    private fun getStaticSettingsProvider(isDebugEnvironment: Boolean): StaticSettingsProvider {
+        return mock<StaticSettingsProvider>().apply {
+            whenever(isDebuggable).thenReturn(isDebugEnvironment)
+        }
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class PostInitializationLogcatLoggerTest : BaseTest() {
+
+    @Test
+    fun logLevel_givenLogLevelInSdkConfig_expectLogLevelSetFromSdkConfig() {
+        var givenLogLevel = CioLogLevel.INFO
+
+        var logger = PostInitializationLogcatLogger(createConfig(logLevel = givenLogLevel))
+
+        logger.logLevel shouldBeEqualTo givenLogLevel
+
+        // change log level to make sure the log level in Logger changes based on SDK config and isn't responding to a default value set in the Logger
+        givenLogLevel = CioLogLevel.DEBUG
+
+        logger = PostInitializationLogcatLogger(createConfig(logLevel = givenLogLevel))
+
+        logger.logLevel shouldBeEqualTo givenLogLevel
+    }
+
+    @Test
+    fun shouldLogMessageToFile_givenInDeveloperMode_expectTrue() {
+        val givenInDeveloperMode = true
+
+        val logger = PostInitializationLogcatLogger(createConfig(developerMode = givenInDeveloperMode))
+
+        logger.shouldLogMessagesToFile() shouldBeEqualTo true
+    }
+
+    @Test
+    fun shouldLogMessageToFile_givenNotInDeveloperMode_expectFalse() {
+        val givenInDeveloperMode = false
+
+        val logger = PostInitializationLogcatLogger(createConfig(developerMode = givenInDeveloperMode))
+
+        logger.shouldLogMessagesToFile() shouldBeEqualTo false
     }
 }

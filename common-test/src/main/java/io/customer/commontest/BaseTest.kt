@@ -64,6 +64,7 @@ abstract class BaseTest {
         backgroundQueueSecondsDelay: Double = 30.0,
         backgroundQueueTaskExpiredSeconds: Double = Seconds.fromDays(3).value,
         logLevel: CioLogLevel = CioLogLevel.DEBUG,
+        developerMode: Boolean = false,
         trackingApiUrl: String? = null,
         configurations: Map<String, CustomerIOModuleConfig> = emptyMap()
     ) = CustomerIOConfig(
@@ -78,6 +79,7 @@ abstract class BaseTest {
         backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
         backgroundQueueTaskExpiredSeconds = backgroundQueueTaskExpiredSeconds,
         logLevel = logLevel,
+        developerMode = developerMode,
         trackingApiUrl = trackingApiUrl,
         configurations = configurations
     )

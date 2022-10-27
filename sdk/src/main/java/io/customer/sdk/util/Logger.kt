@@ -2,7 +2,6 @@ package io.customer.sdk.util
 
 import android.os.Environment
 import android.util.Log
-import androidx.annotation.VisibleForTesting
 import io.customer.base.extenstions.DateFormat
 import io.customer.base.extenstions.toString
 import io.customer.sdk.CustomerIOConfig
@@ -33,10 +32,16 @@ enum class CioLogLevel {
     }
 }
 
-internal class LogcatLogger(
-    private val staticSettingsProvider: StaticSettingsProvider,
-    private val sdkConfig: CustomerIOConfig? // logger can be used before SDK is initialized so config could be null
-) : Logger {
+internal class PreInitializationLogcatLogger(
+    private val staticSettingsProvider: StaticSettingsProvider
+) : BaseLogcatLogger() {
+
+    override fun shouldLogMessagesToFile(): Boolean = false
+
+    override fun getCurrentlySetLogLevel(): CioLogLevel {
+        return preferredLogLevel ?: fallbackLogLevel
+    }
+
     // Log level defined by user in configurations
     private var preferredLogLevel: CioLogLevel? = null
 
@@ -45,17 +50,29 @@ internal class LogcatLogger(
         get() = if (staticSettingsProvider.isDebuggable) CioLogLevel.DEBUG
         else SDKConstants.LOG_LEVEL_DEFAULT
 
-    // Prefer user log level; fallback to default only till the user defined value is not received
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    // Call after SDK is initialized
+    fun setPreferredLogLevel(logLevel: CioLogLevel) {
+        preferredLogLevel = logLevel
+    }
+}
+
+internal class PostInitializationLogcatLogger(
+    private val sdkConfig: CustomerIOConfig
+) : BaseLogcatLogger() {
+    override fun shouldLogMessagesToFile(): Boolean = sdkConfig.developerMode
+    override fun getCurrentlySetLogLevel(): CioLogLevel = sdkConfig.logLevel
+}
+
+abstract class BaseLogcatLogger : Logger {
+
+    abstract fun getCurrentlySetLogLevel(): CioLogLevel
+    abstract fun shouldLogMessagesToFile(): Boolean
+
     val logLevel: CioLogLevel
-        get() = sdkConfig?.logLevel ?: preferredLogLevel ?: fallbackLogLevel
+        get() = getCurrentlySetLogLevel()
 
     companion object {
         const val TAG = "[CIO]"
-    }
-
-    fun setPreferredLogLevel(logLevel: CioLogLevel) {
-        preferredLogLevel = logLevel
     }
 
     override fun info(message: String) {
@@ -82,15 +99,15 @@ internal class LogcatLogger(
         if (shouldLog) block()
     }
 
-    private fun log(level: Int, message: String) {
+    protected fun log(level: Int, message: String) {
         Log.println(level, TAG, message)
 
-        if (sdkConfig != null && sdkConfig.developerMode) {
+        if (shouldLogMessagesToFile()) {
             logMessageToFile(level, message)
         }
     }
 
-    private fun logMessageToFile(level: Int, message: String) {
+    protected fun logMessageToFile(level: Int, message: String) {
         // Writing to external storage on Android has changed a lot over the many versions of the OS. Therefore, there are
         // many use cases where an exception can be thrown and crash the app. This code is not critical to the functionality
         // of the SDK so we wrap all of it's logic in a try/catch to prevent crashing the app.

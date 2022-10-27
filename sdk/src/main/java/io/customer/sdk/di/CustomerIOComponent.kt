@@ -87,7 +87,7 @@ class CustomerIOComponent(
         )
 
     val logger: Logger
-        get() = override() ?: LogcatLogger(staticSettingsProvider = staticComponent.staticSettingsProvider, sdkConfig = sdkConfig)
+        get() = override() ?: PostInitializationLogcatLogger(sdkConfig = sdkConfig)
 
     val hooksManager: HooksManager
         get() = override() ?: getSingletonInstanceCreate { CioHooksManager() }

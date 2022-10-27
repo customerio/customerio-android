@@ -24,10 +24,8 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -60,11 +58,8 @@ internal class CustomerIOPushNotificationHandler(
     private val diGraph: CustomerIOComponent
         get() = CustomerIO.instance().diGraph
 
-    private val staticGraph: CustomerIOStaticComponent
-        get() = CustomerIOShared.instance().diStaticGraph
-
     private val logger: Logger
-        get() = staticGraph.logger
+        get() = diGraph.logger
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.moduleConfig

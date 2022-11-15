@@ -34,7 +34,7 @@ class DeviceStoreStub {
                 override val isPushEnabled: Boolean
                     get() = true
             },
-            version = cioConfig.client.sdkVersion
+            version = "1.0.0-alpha.6"
         )
     }
 }

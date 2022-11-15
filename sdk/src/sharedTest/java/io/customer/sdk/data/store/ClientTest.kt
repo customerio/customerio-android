@@ -30,6 +30,13 @@ class ClientTest : BaseTest() {
     }
 
     @Test
+    fun initialize_givenFlutter_expectFlutterClient() {
+        val flutterClient = Client.Flutter(sdkVersion = "3.5.8")
+
+        flutterClient.toString().shouldBeEqualTo(expected = "Flutter Client/3.5.8")
+    }
+
+    @Test
     fun initialize_givenOther_expectOtherClient() {
         val iOSClient = Client.fromRawValue(source = "iOS", sdkVersion = "4.6.7")
 
@@ -73,6 +80,19 @@ class ClientTest : BaseTest() {
         upperCaseClient.toString().shouldBeEqualTo(expected = "Expo Client/2.3.4")
         titleCaseClient.toString().shouldBeEqualTo(expected = "Expo Client/3.4.5")
         mixedCaseClient.toString().shouldBeEqualTo(expected = "Expo Client/4.5.6")
+    }
+
+    @Test
+    fun initialize_givenRawValueFlutter_expectFlutterClient() {
+        val lowerCaseClient = Client.fromRawValue(source = "flutter", sdkVersion = "1.2.3")
+        val upperCaseClient = Client.fromRawValue(source = "FLUTTER", sdkVersion = "2.3.4")
+        val titleCaseClient = Client.fromRawValue(source = "Flutter", sdkVersion = "3.4.5")
+        val mixedCaseClient = Client.fromRawValue(source = "FlutTer", sdkVersion = "4.5.6")
+
+        lowerCaseClient.toString().shouldBeEqualTo(expected = "Flutter Client/1.2.3")
+        upperCaseClient.toString().shouldBeEqualTo(expected = "Flutter Client/2.3.4")
+        titleCaseClient.toString().shouldBeEqualTo(expected = "Flutter Client/3.4.5")
+        mixedCaseClient.toString().shouldBeEqualTo(expected = "Flutter Client/4.5.6")
     }
 
     @Test

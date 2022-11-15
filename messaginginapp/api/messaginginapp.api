@@ -24,6 +24,11 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun initialize ()V
 }
 
+public final class io/customer/messaginginapp/extension/GistExtensionsKt {
+	public static final fun getNewFromInApp (Lbuild/gist/data/model/Message;Lio/customer/messaginginapp/type/InAppMessage;)Lbuild/gist/data/model/Message;
+	public static final fun getNewRandom (Lbuild/gist/data/model/Message;)Lbuild/gist/data/model/Message;
+}
+
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {
 	public abstract fun errorWithMessage (Lio/customer/messaginginapp/type/InAppMessage;)V
 	public abstract fun messageActionTaken (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V

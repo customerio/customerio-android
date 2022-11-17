@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.extension
+package io.customer.messaginginapp.testutils.extension
 
 import build.gist.data.model.Message
 import io.customer.messaginginapp.type.InAppMessage

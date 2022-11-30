@@ -16,7 +16,7 @@ internal interface GistApi {
     fun clearUserToken()
     fun subscribeToEvents(
         onMessageShown: (deliveryId: String) -> Unit,
-        onAction: (deliveryId: String?, currentRoute: String, action: String) -> Unit,
+        onAction: (deliveryId: String?, currentRoute: String, action: String, name: String) -> Unit,
         onError: (errorMessage: String) -> Unit
     )
 }
@@ -43,16 +43,16 @@ internal class GistApiProvider : GistApi {
 
     override fun subscribeToEvents(
         onMessageShown: (String) -> Unit,
-        onAction: (deliveryId: String?, currentRoute: String, action: String) -> Unit,
+        onAction: (deliveryId: String?, currentRoute: String, action: String, name: String) -> Unit,
         onError: (message: String) -> Unit
     ) {
         GistSdk.addListener(object : GistListener {
             override fun embedMessage(message: Message, elementId: String) {
             }
 
-            override fun onAction(message: Message, currentRoute: String, action: String) {
+            override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
                 val deliveryID = GistMessageProperties.getGistProperties(message).campaignId
-                onAction(deliveryID, currentRoute, action)
+                onAction(deliveryID, currentRoute, action, name)
             }
 
             override fun onError(message: Message) {

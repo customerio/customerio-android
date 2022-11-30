@@ -41,7 +41,7 @@ internal class InAppMessagesProviderTest : BaseTest() {
                 wasOnMessageShownCalled = true
                 assertEquals("test-deliveryId", deliveryID)
             },
-            onAction = { _: String?, _: String, _: String ->
+            onAction = { _: String?, _: String, _: String, _: String ->
                 wasOnActionCalled = true
             },
             onError = {
@@ -57,10 +57,11 @@ internal class InAppMessagesProviderTest : BaseTest() {
     @Test
     fun whenSubscribedToEvents_expectOnActionWithDeliveryIdCurrentRouteAndAction() {
         whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
-            (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String) -> Unit).invoke(
+            (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit).invoke(
                 "test-deliveryId",
                 "test-route",
-                "test-action"
+                "test-action",
+                "test-name"
             )
         }
 
@@ -72,11 +73,12 @@ internal class InAppMessagesProviderTest : BaseTest() {
             onMessageShown = {
                 wasOnMessageShownCalled = true
             },
-            onAction = { deliveryID: String?, currentRoute: String, action: String ->
+            onAction = { deliveryID: String?, currentRoute: String, action: String, name: String ->
                 wasOnActionCalled = true
                 assertEquals("test-deliveryId", deliveryID)
                 assertEquals("test-route", currentRoute)
                 assertEquals("test-action", action)
+                assertEquals("test-name", name)
             },
             onError = {
                 wasOnErrorCalled = true
@@ -91,10 +93,11 @@ internal class InAppMessagesProviderTest : BaseTest() {
     @Test
     fun whenSubscribedToEvents_expectOnActionWithCloseAction_expectOnActionCallbackToBeIgnored() {
         whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
-            (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String) -> Unit).invoke(
+            (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit).invoke(
                 "test-deliveryId",
                 "test-route",
-                "gist://close"
+                "gist://close",
+                "test-name"
             )
         }
 
@@ -106,7 +109,7 @@ internal class InAppMessagesProviderTest : BaseTest() {
             onMessageShown = {
                 wasOnMessageShownCalled = true
             },
-            onAction = { _: String?, _: String, _: String ->
+            onAction = { _: String?, _: String, _: String, _: String ->
                 wasOnActionCalled = true
             },
             onError = {
@@ -134,7 +137,7 @@ internal class InAppMessagesProviderTest : BaseTest() {
             onMessageShown = {
                 wasOnMessageShownCalled = true
             },
-            onAction = { _: String?, _: String, _: String ->
+            onAction = { _: String?, _: String, _: String, _: String ->
                 wasOnActionCalled = true
             },
             onError = { errorMessage ->

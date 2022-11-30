@@ -36,6 +36,9 @@ jobs:
           payload: |
             {
               "text": "Android SDK deployed to Maven Central",
+              "username": "Android deployment bot",
+              "icon_url": "https://media.pocketgamer.com/artwork/na-qulrguj/android.jpg",
+              "channel": "#squad-mobile",
               "blocks": [
                   {
                       "type": "section",
@@ -70,6 +73,9 @@ jobs:
           payload: |
             {
               "text": "Android SDK deployment failure",
+              "username": "Android deployment bot",
+              "icon_url": "https://media.pocketgamer.com/artwork/na-qulrguj/android.jpg",
+              "channel": "#squad-mobile",
               "blocks": [
                   {
                       "type": "section",

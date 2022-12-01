@@ -61,6 +61,21 @@ jobs:
           # github access token to Ami CI shared github account. 
           # token scoped to just public repositories and is added as a collaborator to the project so it can push code. 
           githubToken: ${{ secrets.WRITE_ACCESS_BOT_TOKEN }}
+      
+      # After updating the develop branch, we also need to update alpha or beta branches if they already exist. 
+      # This is important as alpha and beta branches should always contain the production code in it. 
+      - name: Copy commits from main to alpha, if alpha branch exists
+        uses: levibostian/action-sync-branches@v1
+        with:
+          behind: alpha
+          ahead: main          
+          githubToken: ${{ secrets.WRITE_ACCESS_BOT_TOKEN }}
+      - name: Copy commits from main to beta, if beta branch exists
+        uses: levibostian/action-sync-branches@v1
+        with:
+          behind: beta
+          ahead: main          
+          githubToken: ${{ secrets.WRITE_ACCESS_BOT_TOKEN }}
 
       - name: Notify team of git tag being created 
         uses: slackapi/slack-github-action@v1.18.0        

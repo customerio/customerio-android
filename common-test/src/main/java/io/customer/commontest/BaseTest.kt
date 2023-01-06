@@ -83,6 +83,7 @@ abstract class BaseTest {
         configurations = configurations
     )
 
+    // override in test class to override SDK config for all test functions in the class.
     protected open fun setupConfig() = createConfig()
 
     // default @Before for tests using a default SDK config set
@@ -91,6 +92,7 @@ abstract class BaseTest {
         setup(cioConfig = setupConfig())
     }
 
+    // Call inside of test function to override the SDK config for just 1 test function.
     open fun setup(cioConfig: CustomerIOConfig) {
         this.cioConfig = cioConfig
 

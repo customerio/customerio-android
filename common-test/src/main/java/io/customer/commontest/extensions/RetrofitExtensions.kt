@@ -17,3 +17,16 @@ fun MockWebServer.enqueueNoInternetConnection() {
     // https://github.com/square/okhttp/issues/3533
     enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
 }
+
+fun MockWebServer.enqueue(code: Int, responseBody: String?) {
+    enqueue(
+        MockResponse().apply {
+            setResponseCode(code)
+            responseBody?.let { setBody(it) }
+        }
+    )
+}
+
+fun MockWebServer.enqueueSuccessful() {
+    enqueue(200, null)
+}

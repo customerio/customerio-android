@@ -14,12 +14,7 @@ import io.customer.sdk.extensions.random
  */
 abstract class BaseIntegrationTest : BaseTest() {
 
-    // Default for tests
-    override fun setup() {
-        setup(cioConfig = createConfig())
-    }
-
-    // Call this function again in your integration test if you need to modify the SDK configuration
+    // Call this function again in your integration test function if you need to modify the SDK configuration
     override fun setup(cioConfig: CustomerIOConfig) {
         super.setup(cioConfig)
 

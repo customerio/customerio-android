@@ -33,6 +33,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
     @Before
     override fun setup() {
         super.setup()
+
         di.overrideDependency(DeviceTokenProvider::class.java, fcmTokenProviderMock)
         whenever(fcmTokenProviderMock.getCurrentToken(any())).thenAnswer {
             val callback = it.getArgument<(String?) -> Unit>(0)

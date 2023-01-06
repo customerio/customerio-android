@@ -175,7 +175,7 @@ class CustomerIO internal constructor(
         private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
             mutableMapOf()
         private var logLevel: CioLogLevel = SDKConstants.LOG_LEVEL_DEFAULT
-        internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
+        public var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
         private var backgroundQueueMinNumberOfTasks: Int =
             AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS

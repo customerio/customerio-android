@@ -52,7 +52,7 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
 
         di.queue.run() // waits until all BQ tasks execute
 
-        di.queueStorage.getInventory().count() shouldBeEqualTo numberOfTasksToAddInQueue
+        di.queueStorage.getInventory().count() shouldBeEqualTo 0
 
         // If test runs through all tasks without crashing, we can assume the queue can handle X number of tasks successfully.
     }

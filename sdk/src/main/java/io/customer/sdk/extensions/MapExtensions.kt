@@ -2,8 +2,8 @@ package io.customer.sdk.extensions
 
 import android.app.Application
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOBuilderConfigKeys
 import io.customer.sdk.CustomerIOShared
-import io.customer.sdk.SharedWrapperKeys
 
 @Throws(IllegalArgumentException::class)
 inline fun <reified T> Map<String, Any?>.getPropertyUnsafe(key: String): T {
@@ -40,10 +40,10 @@ fun Map<String, Any?>.getString(key: String): String = try {
 
 fun Map<String, Any?>.getCustomerIOBuilder(application: Application): CustomerIO.Builder {
     val config = this
-    val siteId = config.getString(SharedWrapperKeys.Environment.SITE_ID)
-    val apiKey = config.getString(SharedWrapperKeys.Environment.API_KEY)
+    val siteId = config.getString(CustomerIOBuilderConfigKeys.Environment.SITE_ID)
+    val apiKey = config.getString(CustomerIOBuilderConfigKeys.Environment.API_KEY)
     val region = config.getProperty<String>(
-        SharedWrapperKeys.Environment.REGION
+        CustomerIOBuilderConfigKeys.Environment.REGION
     )?.takeIfNotBlank().toRegion()
 
     return CustomerIO.Builder(

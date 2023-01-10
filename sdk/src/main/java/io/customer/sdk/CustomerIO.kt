@@ -11,7 +11,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.extensions.getScreenNameFromActivity
+import io.customer.sdk.extensions.*
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.CleanupRepository
@@ -181,6 +181,26 @@ class CustomerIO internal constructor(
             AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
         private var backgroundQueueSecondsDelay: Double =
             AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+
+        fun setupConfig(config: Map<String, Any?>?): Builder {
+            if (config == null) return this
+
+            val logLevel = config.getProperty<String>(CustomerIOBuilderConfigKeys.Config.LOG_LEVEL).toCIOLogLevel()
+            setLogLevel(level = logLevel)
+            config.getProperty<String>(CustomerIOBuilderConfigKeys.Config.TRACKING_API_URL)?.takeIfNotBlank()?.let { value ->
+                setTrackingApiURL(value)
+            }
+            config.getProperty<Boolean>(CustomerIOBuilderConfigKeys.Config.AUTO_TRACK_DEVICE_ATTRIBUTES)?.let { value ->
+                autoTrackDeviceAttributes(shouldTrackDeviceAttributes = value)
+            }
+            config.getProperty<Int>(CustomerIOBuilderConfigKeys.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS)?.let { value ->
+                setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = value)
+            }
+            config.getProperty<Double>(CustomerIOBuilderConfigKeys.Config.BACKGROUND_QUEUE_SECONDS_DELAY)?.let { value ->
+                setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = value)
+            }
+            return this
+        }
 
         fun setClient(client: Client): Builder {
             this.client = client

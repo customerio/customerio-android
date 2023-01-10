@@ -46,6 +46,7 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setRequestTimeout (J)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setTrackingApiURL (Ljava/lang/String;)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun setupConfig (Ljava/util/Map;)Lio/customer/sdk/CustomerIO$Builder;
 }
 
 public final class io/customer/sdk/CustomerIO$Companion {
@@ -61,6 +62,27 @@ public final class io/customer/sdk/CustomerIOActivityLifecycleCallbacks : androi
 	public fun onActivityStarted (Landroid/app/Activity;)V
 	public fun onActivityStopped (Landroid/app/Activity;)V
 	public final fun registerCallback (Lio/customer/sdk/lifecycle/LifecycleCallback;)V
+}
+
+public final class io/customer/sdk/CustomerIOBuilderConfigKeys {
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOBuilderConfigKeys;
+}
+
+public final class io/customer/sdk/CustomerIOBuilderConfigKeys$Config {
+	public static final field AUTO_TRACK_DEVICE_ATTRIBUTES Ljava/lang/String;
+	public static final field AUTO_TRACK_PUSH_EVENTS Ljava/lang/String;
+	public static final field BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS Ljava/lang/String;
+	public static final field BACKGROUND_QUEUE_SECONDS_DELAY Ljava/lang/String;
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOBuilderConfigKeys$Config;
+	public static final field LOG_LEVEL Ljava/lang/String;
+	public static final field TRACKING_API_URL Ljava/lang/String;
+}
+
+public final class io/customer/sdk/CustomerIOBuilderConfigKeys$Environment {
+	public static final field API_KEY Ljava/lang/String;
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOBuilderConfigKeys$Environment;
+	public static final field REGION Ljava/lang/String;
+	public static final field SITE_ID Ljava/lang/String;
 }
 
 public final class io/customer/sdk/CustomerIOConfig {
@@ -138,33 +160,6 @@ public final class io/customer/sdk/CustomerIOShared$Companion {
 public final class io/customer/sdk/SDKConstants {
 	public static final field INSTANCE Lio/customer/sdk/SDKConstants;
 	public final fun getLOG_LEVEL_DEFAULT ()Lio/customer/sdk/util/CioLogLevel;
-}
-
-public final class io/customer/sdk/SharedWrapperKeys {
-	public static final field INSTANCE Lio/customer/sdk/SharedWrapperKeys;
-}
-
-public final class io/customer/sdk/SharedWrapperKeys$Config {
-	public static final field AUTO_TRACK_DEVICE_ATTRIBUTES Ljava/lang/String;
-	public static final field AUTO_TRACK_PUSH_EVENTS Ljava/lang/String;
-	public static final field BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS Ljava/lang/String;
-	public static final field BACKGROUND_QUEUE_SECONDS_DELAY Ljava/lang/String;
-	public static final field INSTANCE Lio/customer/sdk/SharedWrapperKeys$Config;
-	public static final field LOG_LEVEL Ljava/lang/String;
-	public static final field TRACKING_API_URL Ljava/lang/String;
-}
-
-public final class io/customer/sdk/SharedWrapperKeys$Environment {
-	public static final field API_KEY Ljava/lang/String;
-	public static final field INSTANCE Lio/customer/sdk/SharedWrapperKeys$Environment;
-	public static final field ORGANIZATION_ID Ljava/lang/String;
-	public static final field REGION Ljava/lang/String;
-	public static final field SITE_ID Ljava/lang/String;
-}
-
-public final class io/customer/sdk/SharedWrapperKeys$PackageConfig {
-	public static final field INSTANCE Lio/customer/sdk/SharedWrapperKeys$PackageConfig;
-	public static final field SOURCE_SDK_VERSION Ljava/lang/String;
 }
 
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {

@@ -34,8 +34,9 @@ internal class QueueRunnerImpl(
             QueueTaskType.TrackDeliveryEvent -> trackDeliveryEvents(task)
             null -> null
         }
-        return if (taskResult != null) taskResult
-        else {
+        return if (taskResult != null) {
+            taskResult
+        } else {
             val errorMessage =
                 "Queue task ${task.type} could not find an enum to map to. Could not run task."
             logger.error(errorMessage)

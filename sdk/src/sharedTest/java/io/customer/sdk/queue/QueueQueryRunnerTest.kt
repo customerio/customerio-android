@@ -102,7 +102,10 @@ class QueueQueryRunnerTest : BaseTest() {
     }
 
     private fun assertQueryCriteriaEmpty(isEmpty: Boolean) {
-        if (isEmpty) queryRunner.queryCriteria shouldBeEqualTo QueueQueryRunnerImpl.QueueQueryCriteria()
-        else queryRunner.queryCriteria shouldNotBeEqualTo QueueQueryRunnerImpl.QueueQueryCriteria()
+        if (isEmpty) {
+            queryRunner.queryCriteria shouldBeEqualTo QueueQueryRunnerImpl.QueueQueryCriteria()
+        } else {
+            queryRunner.queryCriteria shouldNotBeEqualTo QueueQueryRunnerImpl.QueueQueryCriteria()
+        }
     }
 }

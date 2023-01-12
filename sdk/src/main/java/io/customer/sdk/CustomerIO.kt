@@ -184,9 +184,9 @@ class CustomerIO internal constructor(
 
         fun setupConfig(config: Map<String, Any?>?): Builder {
             if (config == null) return this
-
-            val logLevel = config.getProperty<String>(CustomerIOBuilderConfigKeys.Config.LOG_LEVEL).toCIOLogLevel()
-            setLogLevel(level = logLevel)
+            config.getProperty<String>(CustomerIOBuilderConfigKeys.Config.LOG_LEVEL).toCIOLogLevel().let { logLevel ->
+                setLogLevel(level = logLevel)
+            }
             config.getProperty<String>(CustomerIOBuilderConfigKeys.Config.TRACKING_API_URL)?.takeIfNotBlank()?.let { value ->
                 setTrackingApiURL(value)
             }

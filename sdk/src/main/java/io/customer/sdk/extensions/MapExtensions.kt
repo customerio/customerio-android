@@ -1,10 +1,12 @@
 package io.customer.sdk.extensions
 
 import android.app.Application
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilderConfigKeys
 import io.customer.sdk.CustomerIOShared
 
+@InternalCustomerIOApi
 @Throws(IllegalArgumentException::class)
 inline fun <reified T> Map<String, Any?>.getPropertyUnsafe(key: String): T {
     val property = get(key)
@@ -17,6 +19,7 @@ inline fun <reified T> Map<String, Any?>.getPropertyUnsafe(key: String): T {
     return property
 }
 
+@InternalCustomerIOApi
 inline fun <reified T> Map<String, Any?>.getProperty(key: String): T? = try {
     getPropertyUnsafe(key)
 } catch (ex: IllegalArgumentException) {
@@ -26,6 +29,7 @@ inline fun <reified T> Map<String, Any?>.getProperty(key: String): T? = try {
     null
 }
 
+@InternalCustomerIOApi
 @Throws(IllegalArgumentException::class)
 fun Map<String, Any?>.getString(key: String): String = try {
     getPropertyUnsafe<String>(key).takeIfNotBlank() ?: throw IllegalArgumentException(

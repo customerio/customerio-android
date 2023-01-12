@@ -14,17 +14,23 @@ fun String.getScreenNameFromActivity(): String {
 }
 
 fun String?.toRegion(fallback: Region = Region.US): Region {
-    return if (this.isNullOrBlank()) fallback
-    else listOf(
-        Region.US,
-        Region.EU
-    ).find { value -> value.code.equals(this, ignoreCase = true) } ?: fallback
+    return if (this.isNullOrBlank()) {
+        fallback
+    } else {
+        listOf(
+            Region.US,
+            Region.EU
+        ).find { value -> value.code.equals(this, ignoreCase = true) } ?: fallback
+    }
 }
 
 fun String?.toMetricEvent(): MetricEvent? {
-    return if (this.isNullOrBlank()) null
-    else MetricEvent.values()
-        .find { value -> value.name.equals(this, ignoreCase = true) }
+    return if (this.isNullOrBlank()) {
+        null
+    } else {
+        MetricEvent.values()
+            .find { value -> value.name.equals(this, ignoreCase = true) }
+    }
 }
 
 fun String?.toCIOLogLevel(fallback: CioLogLevel = CioLogLevel.NONE): CioLogLevel {

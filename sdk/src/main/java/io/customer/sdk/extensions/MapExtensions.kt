@@ -1,9 +1,6 @@
 package io.customer.sdk.extensions
 
-import android.app.Application
 import io.customer.base.internal.InternalCustomerIOApi
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOBuilderConfigKeys
 import io.customer.sdk.CustomerIOShared
 
 @InternalCustomerIOApi
@@ -40,22 +37,4 @@ fun Map<String, Any?>.getString(key: String): String = try {
         ex.message ?: "getString($key) -> IllegalArgumentException"
     )
     throw ex
-}
-
-fun Map<String, Any?>.getCustomerIOBuilder(application: Application): CustomerIO.Builder {
-    val config = this
-    val siteId = config.getString(CustomerIOBuilderConfigKeys.Environment.SITE_ID)
-    val apiKey = config.getString(CustomerIOBuilderConfigKeys.Environment.API_KEY)
-    val region = config.getProperty<String>(
-        CustomerIOBuilderConfigKeys.Environment.REGION
-    )?.takeIfNotBlank().toRegion()
-
-    return CustomerIO.Builder(
-        siteId = siteId,
-        apiKey = apiKey,
-        region = region,
-        appContext = application
-    ).apply {
-        setupConfig(config)
-    }
 }

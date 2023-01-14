@@ -7,6 +7,16 @@ import java.util.*
 @JsonClass(generateAdapter = false)
 enum class MetricEvent {
     delivered, opened, converted, clicked;
+
+    companion object {
+        fun getEvent(event: String?): MetricEvent? {
+            return if (event.isNullOrBlank()) {
+                null
+            } else {
+                values().find { value -> value.name.equals(event, ignoreCase = true) }
+            }
+        }
+    }
 }
 
 @JsonClass(generateAdapter = true)

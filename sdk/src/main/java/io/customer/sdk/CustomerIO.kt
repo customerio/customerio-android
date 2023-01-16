@@ -183,6 +183,8 @@ class CustomerIO internal constructor(
         private var backgroundQueueSecondsDelay: Double =
             CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
 
+        // added a `config` in the secondary constructor so users stick to our advised primary constructor
+        // and this is used internally only.
         constructor(
             siteId: String,
             apiKey: String,

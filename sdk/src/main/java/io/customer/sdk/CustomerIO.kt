@@ -211,15 +211,10 @@ class CustomerIO internal constructor(
                 ?.let { value ->
                     autoTrackDeviceAttributes(shouldTrackDeviceAttributes = value)
                 }
-            config.getProperty<Int>(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS)
-                ?.let { value ->
-                    setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = value)
-                }
             config.getProperty<Double>(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_SECONDS_DELAY)
                 ?.let { value ->
                     setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = value)
                 }
-
             when (
                 val minNumberOfTasks =
                     config[CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]

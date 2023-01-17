@@ -2,8 +2,8 @@ package io.customer.sdk.repository.preference
 
 import android.content.Context
 import io.customer.sdk.Version
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
-import io.customer.sdk.extensions.toRegion
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.util.CioLogLevel
 
@@ -43,7 +43,7 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
             CustomerIOStoredValues(
                 siteId = getString(SITE_ID, null).orEmpty(),
                 apiKey = getString(API_KEY, null).orEmpty(),
-                region = getString(REGION, null).toRegion(),
+                region = Region.getRegion(getString(REGION, null)),
                 client = Client.fromRawValue(
                     source = getString(CLIENT_SOURCE, null) ?: "Unknown",
                     sdkVersion = getString(CLIENT_SDK_VERSION, null) ?: Version.version

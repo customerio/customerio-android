@@ -29,8 +29,11 @@ class HttpRetryPolicyTest : BaseTest() {
         var moreTimeToGet = true
         while (moreTimeToGet) {
             val nextSleepTime = retryPolicy.nextSleepTime
-            if (nextSleepTime == null) moreTimeToGet = false
-            else actual.add(nextSleepTime)
+            if (nextSleepTime == null) {
+                moreTimeToGet = false
+            } else {
+                actual.add(nextSleepTime)
+            }
         }
 
         expected shouldBeEqualTo actual

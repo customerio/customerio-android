@@ -1,8 +1,6 @@
 package io.customer.sdk.repository.preference
 
-import io.customer.sdk.AnalyticsConstants
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.SDKConstants
 import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
@@ -14,10 +12,10 @@ internal data class CustomerIOStoredValues(
     val region: Region,
     val client: Client = Client.Android(sdkVersion = Version.version),
     val trackingApiUrl: String? = null,
-    val autoTrackDeviceAttributes: Boolean = AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES,
-    val logLevel: CioLogLevel = SDKConstants.LOG_LEVEL_DEFAULT,
-    val backgroundQueueMinNumberOfTasks: Int = AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS,
-    val backgroundQueueSecondsDelay: Double = AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+    val autoTrackDeviceAttributes: Boolean = CustomerIOConfig.Companion.AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES,
+    val logLevel: CioLogLevel = CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT,
+    val backgroundQueueMinNumberOfTasks: Int = CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS,
+    val backgroundQueueSecondsDelay: Double = CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
 ) {
     constructor(customerIOConfig: CustomerIOConfig) : this(
         siteId = customerIOConfig.siteId,

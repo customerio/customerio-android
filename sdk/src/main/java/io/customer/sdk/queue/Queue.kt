@@ -236,9 +236,13 @@ internal class QueueImpl internal constructor(
 
         // If SDK previously identified profile X and X is being identified again, no use blocking the queue with a queue group.
         val queueGroupStart =
-            if (isFirstTimeIdentifying || isChangingIdentifiedProfile) QueueTaskGroup.IdentifyProfile(
-                newIdentifier
-            ) else null
+            if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
+                QueueTaskGroup.IdentifyProfile(
+                    newIdentifier
+                )
+            } else {
+                null
+            }
         // If there was a previously identified profile, or, we are just adding attributes to an existing profile, we need to wait for
         // this operation until the previous identify runs successfully.
         val blockingGroups =

@@ -4,7 +4,6 @@ import build.gist.data.model.GistMessageProperties
 import build.gist.data.model.Message
 
 data class InAppMessage(
-    val instanceId: String,
     val messageId: String,
     val deliveryId: String? // (Currently taken from Gist's campaignId property). Can be null when sending test in-app messages
 ) {
@@ -14,10 +13,21 @@ data class InAppMessage(
             val campaignId = gistProperties.campaignId
 
             return InAppMessage(
-                instanceId = gistMessage.instanceId,
                 messageId = gistMessage.messageId,
                 deliveryId = campaignId
             )
         }
     }
 }
+
+fun InAppMessage.getMessage(): Message = Message(
+    messageId = this.messageId,
+    properties = mapOf(
+        Pair(
+            "gist",
+            mapOf(
+                Pair("campaignId", this.deliveryId)
+            )
+        )
+    )
+)

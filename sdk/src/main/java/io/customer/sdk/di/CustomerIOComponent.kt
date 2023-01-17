@@ -4,7 +4,6 @@ import android.content.Context
 import com.squareup.moshi.Moshi
 import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.Version
 import io.customer.sdk.api.*
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
@@ -157,7 +156,7 @@ class CustomerIOComponent(
                     sdkConfig = sdkConfig,
                     buildStore = BuildStoreImp(),
                     applicationStore = ApplicationStoreImp(context),
-                    version = Version.version
+                    version = sdkConfig.client.sdkVersion
                 )
             }
         }

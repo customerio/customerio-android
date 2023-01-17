@@ -1,12 +1,3 @@
-public final class io/customer/sdk/AnalyticsConstants {
-	public static final field AUTO_TRACK_DEVICE_ATTRIBUTES Z
-	public static final field BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS I
-	public static final field BACKGROUND_QUEUE_SECONDS_DELAY D
-	public static final field HTTP_REQUEST_TIMEOUT J
-	public static final field INSTANCE Lio/customer/sdk/AnalyticsConstants;
-	public static final field SHOULD_AUTO_RECORD_SCREEN_VIEWS Z
-}
-
 public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstance {
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public fun clearIdentify ()V
@@ -35,6 +26,8 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Landroid/app/Application;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun addCustomerIOModule (Lio/customer/sdk/module/CustomerIOModule;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackDeviceAttributes (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackScreenViews (Z)Lio/customer/sdk/CustomerIO$Builder;
@@ -64,6 +57,7 @@ public final class io/customer/sdk/CustomerIOActivityLifecycleCallbacks : androi
 }
 
 public final class io/customer/sdk/CustomerIOConfig {
+	public static final field Companion Lio/customer/sdk/CustomerIOConfig$Companion;
 	public fun <init> (Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;Ljava/util/Map;)V
 	public final fun component1 ()Lio/customer/sdk/data/store/Client;
 	public final fun component10 ()D
@@ -97,6 +91,40 @@ public final class io/customer/sdk/CustomerIOConfig {
 	public fun hashCode ()I
 	public final fun setTrackingApiUrl (Ljava/lang/String;)V
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/CustomerIOConfig$Companion {
+}
+
+public final class io/customer/sdk/CustomerIOConfig$Companion$AnalyticsConstants {
+	public static final field AUTO_TRACK_DEVICE_ATTRIBUTES Z
+	public static final field BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS I
+	public static final field BACKGROUND_QUEUE_SECONDS_DELAY D
+	public static final field HTTP_REQUEST_TIMEOUT J
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOConfig$Companion$AnalyticsConstants;
+	public static final field SHOULD_AUTO_RECORD_SCREEN_VIEWS Z
+}
+
+public final class io/customer/sdk/CustomerIOConfig$Companion$Config {
+	public static final field AUTO_TRACK_DEVICE_ATTRIBUTES Ljava/lang/String;
+	public static final field AUTO_TRACK_PUSH_EVENTS Ljava/lang/String;
+	public static final field BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS Ljava/lang/String;
+	public static final field BACKGROUND_QUEUE_SECONDS_DELAY Ljava/lang/String;
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOConfig$Companion$Config;
+	public static final field LOG_LEVEL Ljava/lang/String;
+	public static final field TRACKING_API_URL Ljava/lang/String;
+}
+
+public final class io/customer/sdk/CustomerIOConfig$Companion$Environment {
+	public static final field API_KEY Ljava/lang/String;
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOConfig$Companion$Environment;
+	public static final field REGION Ljava/lang/String;
+	public static final field SITE_ID Ljava/lang/String;
+}
+
+public final class io/customer/sdk/CustomerIOConfig$Companion$SDKConstants {
+	public static final field INSTANCE Lio/customer/sdk/CustomerIOConfig$Companion$SDKConstants;
+	public final fun getLOG_LEVEL_DEFAULT ()Lio/customer/sdk/util/CioLogLevel;
 }
 
 public abstract interface class io/customer/sdk/CustomerIOInstance {
@@ -135,11 +163,6 @@ public final class io/customer/sdk/CustomerIOShared$Companion {
 	public final fun instance ()Lio/customer/sdk/CustomerIOShared;
 }
 
-public final class io/customer/sdk/SDKConstants {
-	public static final field INSTANCE Lio/customer/sdk/SDKConstants;
-	public final fun getLOG_LEVEL_DEFAULT ()Lio/customer/sdk/util/CioLogLevel;
-}
-
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
 	public static final field event Lio/customer/sdk/data/model/EventType;
 	public static final field screen Lio/customer/sdk/data/model/EventType;
@@ -148,8 +171,14 @@ public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
 }
 
 public abstract class io/customer/sdk/data/model/Region {
+	public static final field Companion Lio/customer/sdk/data/model/Region$Companion;
 	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCode ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/data/model/Region$Companion {
+	public final fun getRegion (Ljava/lang/String;Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/data/model/Region;
+	public static synthetic fun getRegion$default (Lio/customer/sdk/data/model/Region$Companion;Ljava/lang/String;Lio/customer/sdk/data/model/Region;ILjava/lang/Object;)Lio/customer/sdk/data/model/Region;
 }
 
 public final class io/customer/sdk/data/model/Region$EU : io/customer/sdk/data/model/Region {
@@ -188,12 +217,17 @@ public final class io/customer/sdk/data/request/DeviceJsonAdapter : com/squareup
 }
 
 public final class io/customer/sdk/data/request/MetricEvent : java/lang/Enum {
+	public static final field Companion Lio/customer/sdk/data/request/MetricEvent$Companion;
 	public static final field clicked Lio/customer/sdk/data/request/MetricEvent;
 	public static final field converted Lio/customer/sdk/data/request/MetricEvent;
 	public static final field delivered Lio/customer/sdk/data/request/MetricEvent;
 	public static final field opened Lio/customer/sdk/data/request/MetricEvent;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/data/request/MetricEvent;
 	public static fun values ()[Lio/customer/sdk/data/request/MetricEvent;
+}
+
+public final class io/customer/sdk/data/request/MetricEvent$Companion {
+	public final fun getEvent (Ljava/lang/String;)Lio/customer/sdk/data/request/MetricEvent;
 }
 
 public abstract interface class io/customer/sdk/device/DeviceTokenProvider {

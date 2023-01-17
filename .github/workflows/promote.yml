@@ -25,6 +25,9 @@ jobs:
           payload: |
             {
               "text": "Android SDK deployment failure",
+              "username": "Android deployment bot",
+              "icon_url": "https://media.pocketgamer.com/artwork/na-qulrguj/android.jpg",
+              "channel": "#mobile-deployments",
               "blocks": [
                   {
                       "type": "section",

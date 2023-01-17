@@ -11,7 +11,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.extensions.getScreenNameFromActivity
+import io.customer.sdk.extensions.*
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.CleanupRepository
@@ -167,20 +167,69 @@ class CustomerIO internal constructor(
     ) {
         private val sharedInstance = CustomerIOShared.instance()
         private var client: Client = Client.Android(Version.version)
-        private var timeout = AnalyticsConstants.HTTP_REQUEST_TIMEOUT
+        private var timeout = CustomerIOConfig.Companion.AnalyticsConstants.HTTP_REQUEST_TIMEOUT
         private var shouldAutoRecordScreenViews: Boolean =
-            AnalyticsConstants.SHOULD_AUTO_RECORD_SCREEN_VIEWS
+            CustomerIOConfig.Companion.AnalyticsConstants.SHOULD_AUTO_RECORD_SCREEN_VIEWS
         private var autoTrackDeviceAttributes: Boolean =
-            AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
+            CustomerIOConfig.Companion.AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
         private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
             mutableMapOf()
-        private var logLevel: CioLogLevel = SDKConstants.LOG_LEVEL_DEFAULT
+        private var logLevel: CioLogLevel =
+            CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT
         internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
         private var trackingApiUrl: String? = null
         private var backgroundQueueMinNumberOfTasks: Int =
-            AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
+            CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
         private var backgroundQueueSecondsDelay: Double =
-            AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+            CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+
+        // added a `config` in the secondary constructor so users stick to our advised primary constructor
+        // and this is used internally only.
+        constructor(
+            siteId: String,
+            apiKey: String,
+            region: Region = Region.US,
+            appContext: Application,
+            config: Map<String, Any?>
+        ) : this(siteId, apiKey, region, appContext) {
+            setupConfig(config)
+        }
+
+        private fun setupConfig(config: Map<String, Any?>?): Builder {
+            if (config == null) return this
+            when (val logLevel = config[CustomerIOConfig.Companion.Config.LOG_LEVEL]) {
+                is String -> {
+                    setLogLevel(level = CioLogLevel.getLogLevel(logLevel))
+                }
+                is Double -> {
+                    setLogLevel(level = CioLogLevel.getLogLevel(logLevel))
+                }
+            }
+            config.getProperty<String>(CustomerIOConfig.Companion.Config.TRACKING_API_URL)
+                ?.takeIfNotBlank()?.let { value ->
+                    setTrackingApiURL(value)
+                }
+            config.getProperty<Boolean>(CustomerIOConfig.Companion.Config.AUTO_TRACK_DEVICE_ATTRIBUTES)
+                ?.let { value ->
+                    autoTrackDeviceAttributes(shouldTrackDeviceAttributes = value)
+                }
+            config.getProperty<Double>(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_SECONDS_DELAY)
+                ?.let { value ->
+                    setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = value)
+                }
+            when (
+                val minNumberOfTasks =
+                    config[CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]
+            ) {
+                is Int -> {
+                    setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks)
+                }
+                is Double -> {
+                    setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks.toInt())
+                }
+            }
+            return this
+        }
 
         fun setClient(client: Client): Builder {
             this.client = client

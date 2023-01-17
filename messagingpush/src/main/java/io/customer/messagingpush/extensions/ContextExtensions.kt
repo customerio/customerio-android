@@ -10,10 +10,16 @@ import androidx.core.content.ContextCompat
 import io.customer.sdk.CustomerIOShared
 
 @DrawableRes
-internal fun Context.getDrawableByName(name: String?): Int? = if (name.isNullOrBlank()) null
-else resources?.getIdentifier(name, "drawable", packageName)?.takeUnless { id ->
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) id == Resources.ID_NULL
-    else id == 0
+internal fun Context.getDrawableByName(name: String?): Int? = if (name.isNullOrBlank()) {
+    null
+} else {
+    resources?.getIdentifier(name, "drawable", packageName)?.takeUnless { id ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            id == Resources.ID_NULL
+        } else {
+            id == 0
+        }
+    }
 }
 
 @ColorInt

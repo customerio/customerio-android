@@ -64,7 +64,7 @@ class ModuleMessagingInApp internal constructor(
                     event = MetricEvent.opened
                 )
             },
-            onAction = { deliveryID: String, _: String, _: String ->
+            onAction = { deliveryID: String, _: String, _: String, _: String ->
                 logger.debug("in-app message clicked $deliveryID")
                 trackRepository.trackInAppMetric(
                     deliveryID = deliveryID,

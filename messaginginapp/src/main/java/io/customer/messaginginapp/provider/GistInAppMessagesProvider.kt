@@ -14,7 +14,7 @@ internal interface InAppMessagesProvider {
     fun setListener(listener: InAppEventListener)
     fun subscribeToEvents(
         onMessageShown: (deliveryId: String) -> Unit,
-        onAction: (deliveryId: String, currentRoute: String, action: String) -> Unit,
+        onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
         onError: (errorMessage: String) -> Unit
     )
 }
@@ -53,16 +53,16 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
 
     override fun subscribeToEvents(
         onMessageShown: (String) -> Unit,
-        onAction: (deliveryId: String, currentRoute: String, action: String) -> Unit,
+        onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
         onError: (message: String) -> Unit
     ) {
         provider.subscribeToEvents(
             onMessageShown = { deliveryID ->
                 onMessageShown(deliveryID)
             },
-            onAction = { deliveryID: String?, currentRoute: String, action: String ->
+            onAction = { deliveryID: String?, currentRoute: String, action: String, name: String ->
                 if (deliveryID != null && action != "gist://close") {
-                    onAction(deliveryID, currentRoute, action)
+                    onAction(deliveryID, currentRoute, action, name)
                 }
             },
             onError = { errorMessage ->

@@ -32,6 +32,11 @@ sealed class Client(
     class Expo(sdkVersion: String) : Client(source = SOURCE_EXPO, sdkVersion = sdkVersion)
 
     /**
+     * Simpler class for Flutter clients.
+     */
+    class Flutter(sdkVersion: String) : Client(source = SOURCE_FLUTTER, sdkVersion = sdkVersion)
+
+    /**
      * Other class to allow adding custom sources for clients that are not
      * supported above.
      * <p/>
@@ -46,6 +51,7 @@ sealed class Client(
         internal const val SOURCE_ANDROID = "Android"
         internal const val SOURCE_REACT_NATIVE = "ReactNative"
         internal const val SOURCE_EXPO = "Expo"
+        internal const val SOURCE_FLUTTER = "Flutter"
 
         /**
          * Helper method to create client from raw values
@@ -67,6 +73,10 @@ sealed class Client(
                 other = SOURCE_EXPO,
                 ignoreCase = true
             ) -> Expo(sdkVersion = sdkVersion)
+            source.equals(
+                other = SOURCE_FLUTTER,
+                ignoreCase = true
+            ) -> Flutter(sdkVersion = sdkVersion)
             else -> Other(source = source, sdkVersion = sdkVersion)
         }
     }

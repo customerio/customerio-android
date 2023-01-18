@@ -45,7 +45,14 @@ class ModuleMessagingInApp internal constructor(
     override fun initialize() {
         initializeGist(organizationId)
         setupHooks()
+        configureSdkModule(moduleConfig)
         setupGistCallbacks()
+    }
+
+    private fun configureSdkModule(moduleConfig: MessagingInAppModuleConfig) {
+        moduleConfig.eventListener?.let { eventListener ->
+            gistProvider.setListener(eventListener)
+        }
     }
 
     private fun setupGistCallbacks() {

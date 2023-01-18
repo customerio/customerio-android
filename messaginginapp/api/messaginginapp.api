@@ -26,7 +26,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {
 	public abstract fun errorWithMessage (Lio/customer/messaginginapp/type/InAppMessage;)V
-	public abstract fun messageActionTaken (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun messageActionTaken (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun messageDismissed (Lio/customer/messaginginapp/type/InAppMessage;)V
 	public abstract fun messageShown (Lio/customer/messaginginapp/type/InAppMessage;)V
 }

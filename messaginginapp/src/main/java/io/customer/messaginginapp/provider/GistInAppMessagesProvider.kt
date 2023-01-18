@@ -74,7 +74,7 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
     override fun embedMessage(message: Message, elementId: String) {}
 
     override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
-        listener?.messageActionTaken(InAppMessage.getFromGistMessage(message), currentRoute = currentRoute, action = action, name = name)
+        listener?.messageActionTaken(InAppMessage.getFromGistMessage(message), action = action, name = name)
     }
 
     override fun onError(message: Message) {

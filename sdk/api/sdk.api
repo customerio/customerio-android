@@ -39,10 +39,12 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public final fun autoTrackDeviceAttributes (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackScreenViews (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun build ()Lio/customer/sdk/CustomerIO;
+	public final fun getOverrideDiGraph ()Lio/customer/sdk/di/CustomerIOComponent;
 	public final fun setBackgroundQueueMinNumberOfTasks (I)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setBackgroundQueueSecondsDelay (D)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setClient (Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setLogLevel (Lio/customer/sdk/util/CioLogLevel;)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun setOverrideDiGraph (Lio/customer/sdk/di/CustomerIOComponent;)V
 	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setRequestTimeout (J)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setTrackingApiURL (Ljava/lang/String;)Lio/customer/sdk/CustomerIO$Builder;

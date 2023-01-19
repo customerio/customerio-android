@@ -21,7 +21,8 @@ import retrofit2.HttpException
 import retrofit2.Response
 
 /**
- * Base class for test classes to subclass. Meant to provide convenience to test classes with properties and functions tests may use.
+ * Base class for a unit test class to subclass. If you want to create integration tests, use [BaseIntegrationTest].
+ * Meant to provide convenience to test classes with properties and functions tests may use.
  */
 abstract class BaseTest {
 
@@ -82,11 +83,18 @@ abstract class BaseTest {
         configurations = configurations
     )
 
+    // override in test class to override SDK config for all test functions in the class.
     protected open fun setupConfig() = createConfig()
 
+    // default @Before for tests using a default SDK config set
     @Before
     open fun setup() {
-        cioConfig = setupConfig()
+        setup(cioConfig = setupConfig())
+    }
+
+    // Call inside of test function to override the SDK config for just 1 test function.
+    open fun setup(cioConfig: CustomerIOConfig) {
+        this.cioConfig = cioConfig
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.
         mockWebServer = MockWebServer().apply {

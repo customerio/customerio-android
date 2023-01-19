@@ -174,9 +174,8 @@ class CustomerIO internal constructor(
             CustomerIOConfig.Companion.AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
         private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
             mutableMapOf()
-        private var logLevel: CioLogLevel =
-            CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT
-        internal var overrideDiGraph: CustomerIOComponent? = null // set for automated tests
+        private var logLevel: CioLogLevel = CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT
+        public var overrideDiGraph: CustomerIOComponent? = null // public for automated tests in non-tracking modules to override the di graph.
         private var trackingApiUrl: String? = null
         private var backgroundQueueMinNumberOfTasks: Int =
             CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS

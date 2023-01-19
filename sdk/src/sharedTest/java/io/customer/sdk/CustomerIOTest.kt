@@ -12,6 +12,7 @@ import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
+import io.customer.sdk.util.CioLogLevel
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -238,12 +239,36 @@ class CustomerIOTest : BaseTest() {
         sdkConfig.backgroundQueueSecondsDelay shouldBeEqualTo cioConfig.backgroundQueueSecondsDelay
     }
 
-    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(
-        siteId = String.random,
-        apiKey = String.random,
-        region = Region.EU,
-        appContext = application
-    ).apply {
-        this.overrideDiGraph = di
+    @Test
+    fun test_sdkConfigMapping_givenConfigParamsMap_expectCorrectlyMappedConfigValues() {
+        val givenConfigMap = mapOf<String, Any>(
+            Pair(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS, 3),
+            Pair(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_SECONDS_DELAY, 40.0),
+            Pair(CustomerIOConfig.Companion.Config.AUTO_TRACK_DEVICE_ATTRIBUTES, false),
+            Pair(CustomerIOConfig.Companion.Config.LOG_LEVEL, 1.0)
+        )
+        val builder = CustomerIO.Builder(
+            siteId = String.random,
+            apiKey = String.random,
+            region = Region.EU,
+            appContext = application,
+            config = givenConfigMap
+        ).build()
+
+        val actualConfig = builder.diGraph.sdkConfig
+        actualConfig.backgroundQueueMinNumberOfTasks shouldBeEqualTo 3
+        actualConfig.backgroundQueueSecondsDelay shouldBeEqualTo 40.0
+        actualConfig.autoTrackDeviceAttributes shouldBeEqualTo false
+        actualConfig.logLevel shouldBeEqualTo CioLogLevel.NONE
     }
+
+    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder =
+        CustomerIO.Builder(
+            siteId = String.random,
+            apiKey = String.random,
+            region = Region.EU,
+            appContext = application
+        ).apply {
+            this.overrideDiGraph = di
+        }
 }

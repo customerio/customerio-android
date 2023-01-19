@@ -71,8 +71,9 @@ class DeepLinkUtilImpl(
         }
 
         val intent: Intent? = queryDeepLinksForHostApp(context, Uri.parse(link))
-        return if (intent != null) intent
-        else {
+        return if (intent != null) {
+            intent
+        } else {
             logger.info(
                 "No supporting activity found in host app for link received in" +
                     " push notification $link"
@@ -119,8 +120,11 @@ class DeepLinkUtilImpl(
         hostAppIntent.setPackage(context.packageName)
 
         hostAppIntent.flags =
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) notificationIntentFlags
-            else notificationIntentFlags or Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                notificationIntentFlags
+            } else {
+                notificationIntentFlags or Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER
+            }
 
         return hostAppIntent.takeIfResolvable(context.packageManager)
     }

@@ -11,4 +11,17 @@ sealed class Region(val code: String) {
     // to find the correct hostname for what you're trying to do.
     object US : Region(code = "us")
     object EU : Region(code = "eu")
+
+    companion object {
+        fun getRegion(region: String?, fallback: Region = US): Region {
+            return if (region.isNullOrBlank()) {
+                fallback
+            } else {
+                listOf(
+                    US,
+                    EU
+                ).find { value -> value.code.equals(region, ignoreCase = true) } ?: fallback
+            }
+        }
+    }
 }

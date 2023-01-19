@@ -1,12 +1,17 @@
 package io.customer.messaginginapp.provider
 
 import android.app.Application
+import build.gist.data.model.Message
+import build.gist.presentation.GistListener
+import io.customer.messaginginapp.type.InAppEventListener
+import io.customer.messaginginapp.type.InAppMessage
 
 internal interface InAppMessagesProvider {
     fun initProvider(application: Application, organizationId: String)
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
     fun clearUserToken()
+    fun setListener(listener: InAppEventListener)
     fun subscribeToEvents(
         onMessageShown: (deliveryId: String) -> Unit,
         onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
@@ -18,7 +23,13 @@ internal interface InAppMessagesProvider {
  * Wrapper around Gist SDK
  */
 internal class GistInAppMessagesProvider(private val provider: GistApi) :
-    InAppMessagesProvider {
+    InAppMessagesProvider, GistListener {
+
+    private var listener: InAppEventListener? = null
+
+    init {
+        provider.addListener(this)
+    }
 
     override fun initProvider(application: Application, organizationId: String) {
         provider.initProvider(application, organizationId)
@@ -34,6 +45,10 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
 
     override fun clearUserToken() {
         provider.clearUserToken()
+    }
+
+    override fun setListener(listener: InAppEventListener) {
+        this.listener = listener
     }
 
     override fun subscribeToEvents(
@@ -54,5 +69,23 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
                 onError(errorMessage)
             }
         )
+    }
+
+    override fun embedMessage(message: Message, elementId: String) {}
+
+    override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
+        listener?.messageActionTaken(InAppMessage.getFromGistMessage(message), currentRoute = currentRoute, action = action, name = name)
+    }
+
+    override fun onError(message: Message) {
+        listener?.errorWithMessage(InAppMessage.getFromGistMessage(message))
+    }
+
+    override fun onMessageDismissed(message: Message) {
+        listener?.messageDismissed(InAppMessage.getFromGistMessage(message))
+    }
+
+    override fun onMessageShown(message: Message) {
+        listener?.messageShown(InAppMessage.getFromGistMessage(message))
     }
 }

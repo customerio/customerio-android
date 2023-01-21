@@ -36,9 +36,6 @@ class ModuleMessagingInApp internal constructor(
     private val trackRepository: TrackRepository
         get() = diGraph.trackRepository
 
-    private val identifier: String?
-        get() = diGraph.sitePreferenceRepository.getIdentifier()
-
     private val hooksManager: HooksManager by lazy { diGraph.hooksManager }
 
     private val gistProvider by lazy { diGraph.gistProvider }
@@ -92,8 +89,5 @@ class ModuleMessagingInApp internal constructor(
             application = diGraph.context.applicationContext as Application,
             organizationId = organizationId
         )
-
-        // if identifier is already present, set the userToken again
-        identifier?.let { gistProvider.setUserToken(it) }
     }
 }

@@ -93,7 +93,8 @@ class ModuleMessagingInApp internal constructor(
             organizationId = organizationId
         )
 
-        // if identifier is already present, set the userToken again
+        // if identifier is already present, set the userToken again so in case if the customer was already identified and
+        // module was added later on, we can notify gist about it.
         identifier?.let { gistProvider.setUserToken(it) }
     }
 }

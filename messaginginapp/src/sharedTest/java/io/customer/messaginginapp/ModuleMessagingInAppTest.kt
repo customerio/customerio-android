@@ -55,7 +55,7 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     }
 
     @Test
-    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId_expectGistToSetUserToken() {
+    fun initialize_givenProfilePreviouslyIdentified_expectGistToSetUserToken() {
         prefRepository.saveIdentifier("identifier")
 
         module.initialize()
@@ -68,7 +68,7 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     }
 
     @Test
-    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectOrganizationId_expectGistToNotSetUserToken() {
+    fun initialize_givenNoProfileIdentified_expectGistNoUserSet() {
         module.initialize()
 
         // verify gist is initialized

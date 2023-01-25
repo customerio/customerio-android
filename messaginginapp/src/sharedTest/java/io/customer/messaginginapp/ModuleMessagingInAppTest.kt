@@ -6,13 +6,11 @@ import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.repository.preference.SitePreferenceRepository
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
+import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
 internal class ModuleMessagingInAppTest : BaseTest() {
@@ -21,6 +19,8 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     private val gistInAppMessagesProvider: InAppMessagesProvider = mock()
     private val hooksManager: HooksManager = mock()
     private val eventListenerMock: InAppEventListener = mock()
+    private val prefRepository: SitePreferenceRepository
+        get() = di.sitePreferenceRepository
 
     @Before
     override fun setup() {
@@ -30,7 +30,8 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         di.overrideDependency(HooksManager::class.java, hooksManager)
 
         module = ModuleMessagingInApp(
-            moduleConfig = MessagingInAppModuleConfig.Builder().setEventListener(eventListenerMock).build(),
+            moduleConfig = MessagingInAppModuleConfig.Builder().setEventListener(eventListenerMock)
+                .build(),
             overrideDiGraph = di,
             organizationId = "test"
         )
@@ -51,5 +52,29 @@ internal class ModuleMessagingInAppTest : BaseTest() {
 
         // verify given event listener gets registered
         verify(gistInAppMessagesProvider).setListener(eventListenerMock)
+    }
+
+    @Test
+    fun initialize_givenProfilePreviouslyIdentified_expectGistToSetUserToken() {
+        prefRepository.saveIdentifier("identifier")
+
+        module.initialize()
+
+        // verify gist is initialized
+        verify(gistInAppMessagesProvider).initProvider(any(), eq("test"))
+
+        // verify gist sets userToken
+        verify(gistInAppMessagesProvider).setUserToken(eq("identifier"))
+    }
+
+    @Test
+    fun initialize_givenNoProfileIdentified_expectGistNoUserSet() {
+        module.initialize()
+
+        // verify gist is initialized
+        verify(gistInAppMessagesProvider).initProvider(any(), eq("test"))
+
+        // verify gist doesn't userToken
+        verify(gistInAppMessagesProvider, never()).setUserToken(any())
     }
 }

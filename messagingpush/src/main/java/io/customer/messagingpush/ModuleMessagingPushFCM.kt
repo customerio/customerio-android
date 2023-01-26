@@ -1,5 +1,7 @@
 package io.customer.messagingpush
 
+import androidx.annotation.VisibleForTesting
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
@@ -9,7 +11,10 @@ import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.module.CustomerIOModule
 
-class ModuleMessagingPushFCM internal constructor(
+class ModuleMessagingPushFCM
+@VisibleForTesting
+@InternalCustomerIOApi
+internal constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default(),
     private val overrideCustomerIO: CustomerIOInstance?,
     private val overrideDiGraph: CustomerIOComponent?

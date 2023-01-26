@@ -10,7 +10,7 @@ import build.gist.presentation.GistSdk
  * Wrapper around Gist Apis
  */
 internal interface GistApi {
-    fun initProvider(application: Application, organizationId: String)
+    fun initProvider(application: Application, siteId: String, dataCenter: String)
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
     fun clearUserToken()
@@ -23,10 +23,11 @@ internal interface GistApi {
 }
 
 internal class GistApiProvider : GistApi {
-    override fun initProvider(application: Application, organizationId: String) {
+    override fun initProvider(application: Application, siteId: String, dataCenter: String) {
         GistSdk.init(
             application = application,
-            organizationId = organizationId
+            siteId = siteId,
+            dataCenter = dataCenter
         )
     }
 

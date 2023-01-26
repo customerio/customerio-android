@@ -36,6 +36,15 @@ android {
     }
 }
 
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+    kotlinOptions {
+        freeCompilerArgs += [
+                '-Xopt-in=kotlin.RequiresOptIn',
+                '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',
+        ]
+    }
+}
+
 dependencies {
     api project(":base")
     api project(":sdk")

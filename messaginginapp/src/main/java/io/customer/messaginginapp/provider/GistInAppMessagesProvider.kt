@@ -7,7 +7,7 @@ import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 
 internal interface InAppMessagesProvider {
-    fun initProvider(application: Application, organizationId: String)
+    fun initProvider(application: Application, siteId: String, region: String)
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
     fun clearUserToken()
@@ -31,8 +31,8 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
         provider.addListener(this)
     }
 
-    override fun initProvider(application: Application, organizationId: String) {
-        provider.initProvider(application, organizationId)
+    override fun initProvider(application: Application, siteId: String, region: String) {
+        provider.initProvider(application, siteId, dataCenter = region)
     }
 
     override fun setUserToken(userToken: String) {
@@ -74,7 +74,11 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
     override fun embedMessage(message: Message, elementId: String) {}
 
     override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
-        listener?.messageActionTaken(InAppMessage.getFromGistMessage(message), action = action, name = name)
+        listener?.messageActionTaken(
+            InAppMessage.getFromGistMessage(message),
+            action = action,
+            name = name
+        )
     }
 
     override fun onError(message: Message) {

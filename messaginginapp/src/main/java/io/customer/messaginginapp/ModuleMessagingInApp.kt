@@ -1,9 +1,12 @@
 package io.customer.messaginginapp
 
 import android.app.Application
+import androidx.annotation.VisibleForTesting
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
@@ -11,20 +14,31 @@ import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 
-class ModuleMessagingInApp internal constructor(
+@VisibleForTesting
+class ModuleMessagingInApp @InternalCustomerIOApi internal constructor(
     override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
-    private val overrideDiGraph: CustomerIOComponent?,
-    private val organizationId: String
+    private val overrideDiGraph: CustomerIOComponent?
 ) : CustomerIOModule<MessagingInAppModuleConfig> {
 
     @JvmOverloads
+    @Deprecated(
+        "organizationId no longer being used and will be removed in future",
+        replaceWith = ReplaceWith("constructor(config: MessagingInAppModuleConfig)")
+    )
     constructor(
         organizationId: String,
         config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
     ) : this(
         moduleConfig = config,
-        overrideDiGraph = null,
-        organizationId = organizationId
+        overrideDiGraph = null
+    )
+
+    @JvmOverloads
+    constructor(
+        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
+    ) : this(
+        moduleConfig = config,
+        overrideDiGraph = null
     )
 
     override val moduleName: String
@@ -45,8 +59,11 @@ class ModuleMessagingInApp internal constructor(
 
     private val logger by lazy { diGraph.logger }
 
+    private val config: CustomerIOConfig
+        get() = diGraph.sdkConfig
+
     override fun initialize() {
-        initializeGist(organizationId)
+        initializeGist(config)
         setupHooks()
         configureSdkModule(moduleConfig)
         setupGistCallbacks()
@@ -59,25 +76,21 @@ class ModuleMessagingInApp internal constructor(
     }
 
     private fun setupGistCallbacks() {
-        gistProvider.subscribeToEvents(
-            onMessageShown = { deliveryID ->
-                logger.debug("in-app message shown $deliveryID")
-                trackRepository.trackInAppMetric(
-                    deliveryID = deliveryID,
-                    event = MetricEvent.opened
-                )
-            },
-            onAction = { deliveryID: String, _: String, _: String, _: String ->
+        gistProvider.subscribeToEvents(onMessageShown = { deliveryID ->
+            logger.debug("in-app message shown $deliveryID")
+            trackRepository.trackInAppMetric(
+                deliveryID = deliveryID,
+                event = MetricEvent.opened
+            )
+        }, onAction = { deliveryID: String, _: String, _: String, _: String ->
                 logger.debug("in-app message clicked $deliveryID")
                 trackRepository.trackInAppMetric(
                     deliveryID = deliveryID,
                     event = MetricEvent.clicked
                 )
-            },
-            onError = { errorMessage ->
+            }, onError = { errorMessage ->
                 logger.error("in-app message error occurred $errorMessage")
-            }
-        )
+            })
     }
 
     private fun setupHooks() {
@@ -87,10 +100,11 @@ class ModuleMessagingInApp internal constructor(
         )
     }
 
-    private fun initializeGist(organizationId: String) {
+    private fun initializeGist(config: CustomerIOConfig) {
         gistProvider.initProvider(
             application = diGraph.context.applicationContext as Application,
-            organizationId = organizationId
+            siteId = config.siteId,
+            region = config.region.code
         )
 
         // if identifier is already present, set the userToken again so in case if the customer was already identified and

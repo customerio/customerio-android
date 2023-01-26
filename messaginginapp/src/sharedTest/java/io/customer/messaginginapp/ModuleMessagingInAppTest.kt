@@ -25,8 +25,6 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     private val prefRepository: SitePreferenceRepository
         get() = di.sitePreferenceRepository
 
-    private val organizationIdUsedCount: Int = 0
-
     @Before
     override fun setup() {
         super.setup()
@@ -42,11 +40,15 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     }
 
     @Test
-    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectSiteIdAndRegion_expectModuleHookToBeAdded_expectSubscriptionOfGistCallbacks() {
+    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectValuesAndHooks() {
         module.initialize()
 
         // verify gist is initialized
-        verify(gistInAppMessagesProvider).initProvider(any(), eq(cioConfig.siteId), eq(cioConfig.region.code))
+        verify(gistInAppMessagesProvider).initProvider(
+            any(),
+            eq(cioConfig.siteId),
+            eq(cioConfig.region.code)
+        )
 
         // verify hook was added
         verify(hooksManager).add(eq(HookModule.MessagingInApp), any())
@@ -65,7 +67,11 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(gistInAppMessagesProvider).initProvider(any(), eq(cioConfig.siteId), eq(cioConfig.region.code))
+        verify(gistInAppMessagesProvider).initProvider(
+            any(),
+            eq(cioConfig.siteId),
+            eq(cioConfig.region.code)
+        )
 
         // verify gist sets userToken
         verify(gistInAppMessagesProvider).setUserToken(eq("identifier"))
@@ -76,7 +82,11 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(gistInAppMessagesProvider).initProvider(any(), eq(cioConfig.siteId), eq(cioConfig.region.code))
+        verify(gistInAppMessagesProvider).initProvider(
+            any(),
+            eq(cioConfig.siteId),
+            eq(cioConfig.region.code)
+        )
 
         // verify gist doesn't userToken
         verify(gistInAppMessagesProvider, never()).setUserToken(any())

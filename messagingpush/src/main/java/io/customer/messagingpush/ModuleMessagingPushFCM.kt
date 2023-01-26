@@ -11,9 +11,10 @@ import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.module.CustomerIOModule
 
+class ModuleMessagingPushFCM
 @VisibleForTesting
 @InternalCustomerIOApi
-class ModuleMessagingPushFCM internal constructor(
+internal constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default(),
     private val overrideCustomerIO: CustomerIOInstance?,
     private val overrideDiGraph: CustomerIOComponent?

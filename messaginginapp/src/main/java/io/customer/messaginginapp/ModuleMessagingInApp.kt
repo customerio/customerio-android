@@ -14,15 +14,17 @@ import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 
+class ModuleMessagingInApp
 @VisibleForTesting
-class ModuleMessagingInApp @InternalCustomerIOApi internal constructor(
+@InternalCustomerIOApi
+internal constructor(
     override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
     private val overrideDiGraph: CustomerIOComponent?
 ) : CustomerIOModule<MessagingInAppModuleConfig> {
 
     @JvmOverloads
     @Deprecated(
-        "organizationId no longer being used and will be removed in future",
+        "organizationId no longer required and will be removed in future",
         replaceWith = ReplaceWith("constructor(config: MessagingInAppModuleConfig)")
     )
     constructor(

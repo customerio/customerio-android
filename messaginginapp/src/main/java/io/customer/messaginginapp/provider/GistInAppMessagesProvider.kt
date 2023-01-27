@@ -76,8 +76,8 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
     override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
         listener?.messageActionTaken(
             InAppMessage.getFromGistMessage(message),
-            action_value = action,
-            action_name = name
+            actionValue = action,
+            actionName = name
         )
     }
 

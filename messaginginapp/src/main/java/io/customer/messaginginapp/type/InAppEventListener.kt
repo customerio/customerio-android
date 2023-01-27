@@ -4,5 +4,5 @@ interface InAppEventListener {
     fun messageShown(message: InAppMessage)
     fun messageDismissed(message: InAppMessage)
     fun errorWithMessage(message: InAppMessage)
-    fun messageActionTaken(message: InAppMessage, action_value: String, action_name: String)
+    fun messageActionTaken(message: InAppMessage, actionValue: String, actionName: String)
 }

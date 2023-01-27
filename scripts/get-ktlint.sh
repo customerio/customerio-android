@@ -12,7 +12,7 @@
 set -e
 
 INSTALL_PATH="$PWD"
-KTLINT_VERSION="0.46.1"
+KTLINT_VERSION="0.48.2"
 
 install_ktlint() {
     echo "Downloading ktlint CLI to path $INSTALL_PATH"

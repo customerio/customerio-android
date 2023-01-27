@@ -8,12 +8,12 @@ import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.repository.preference.SitePreferenceRepository
+import java.lang.reflect.Field
 import org.amshove.kluent.shouldBe
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.*
-import java.lang.reflect.Field
 
 @RunWith(AndroidJUnit4::class)
 internal class ModuleMessagingInAppTest : BaseTest() {

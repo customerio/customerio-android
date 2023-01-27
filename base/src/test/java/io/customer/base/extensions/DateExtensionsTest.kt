@@ -6,13 +6,13 @@ import io.customer.base.extenstions.hasPassed
 import io.customer.base.extenstions.isOlderThan
 import io.customer.base.extenstions.subtract
 import io.customer.base.extenstions.unixTimeToDate
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
-import java.text.SimpleDateFormat
-import java.util.*
-import java.util.concurrent.TimeUnit
 
 class DateExtensionsTest {
 

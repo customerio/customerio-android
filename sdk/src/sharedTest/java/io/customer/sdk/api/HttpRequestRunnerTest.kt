@@ -11,6 +11,9 @@ import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.preference.SitePreferenceRepository
+import java.io.IOException
+import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.amshove.kluent.shouldBeEqualTo
@@ -26,9 +29,6 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import retrofit2.Response
-import java.io.IOException
-import java.util.*
-import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class HttpRequestRunnerTest : BaseTest() {

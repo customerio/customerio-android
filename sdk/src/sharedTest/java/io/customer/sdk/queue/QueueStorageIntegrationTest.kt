@@ -10,12 +10,12 @@ import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.queue.type.QueueTaskRunResults
+import java.util.*
+import java.util.concurrent.TimeUnit
 import org.amshove.kluent.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.*
-import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class QueueStorageIntegrationTest : BaseTest() {

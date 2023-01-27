@@ -29,11 +29,11 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.util.Logger
+import java.net.URL
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import java.net.URL
-import kotlin.math.abs
 
 /**
  * Class to handle PushNotification.

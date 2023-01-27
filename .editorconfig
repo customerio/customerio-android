@@ -13,4 +13,5 @@ max_line_length = off
 # * no-wildcard-imports - allow wildcard imports statements. This is because by default, intellij automatically adds wildcard imports
 # * enum-entry-name-case - allow enum class "case" names to be in format: "lowercase_snakecase". We often use enum classes for
 #                          JSON values to send to the API. Currently, the majority of enums are used for this purpose.
-disabled_rules = no-wildcard-imports,enum-entry-name-case
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_enum-entry-name-case = disabled

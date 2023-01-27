@@ -17,11 +17,11 @@ import io.customer.sdk.repository.*
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
 import io.customer.sdk.util.*
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
-import java.util.concurrent.TimeUnit
 
 /**
  * Configuration class to configure/initialize low-level operations and objects.

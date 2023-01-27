@@ -5,13 +5,13 @@ import io.customer.base.extenstions.unixTimeToDate
 import io.customer.commontest.BaseTest
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
+import java.util.*
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.*
 
 @RunWith(AndroidJUnit4::class)
 class SitePreferenceRepositoryTest : BaseTest() {

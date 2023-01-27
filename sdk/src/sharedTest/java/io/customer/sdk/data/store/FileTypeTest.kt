@@ -3,10 +3,10 @@ package io.customer.sdk.data.store
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.extensions.random
+import java.io.File
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class FileTypeTest : BaseTest() {

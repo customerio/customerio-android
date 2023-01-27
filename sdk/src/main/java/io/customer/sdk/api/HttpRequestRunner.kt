@@ -8,10 +8,10 @@ import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
-import kotlinx.coroutines.delay
-import retrofit2.Response
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
+import retrofit2.Response
 
 internal interface HttpRequestRunner {
     suspend fun <R> performAndProcessRequest(makeRequest: suspend () -> Response<R>): Result<R>

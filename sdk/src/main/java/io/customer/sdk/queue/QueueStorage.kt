@@ -115,8 +115,8 @@ internal class QueueStorageImpl internal constructor(
 
         if (!saveInventory(existingInventory) || !fileStorage.delete(
                 FileType.QueueTask(
-                        taskStorageId
-                    )
+                    taskStorageId
+                )
             )
         ) {
             logger.error("error trying to delete task with storage id: $taskStorageId from queue")

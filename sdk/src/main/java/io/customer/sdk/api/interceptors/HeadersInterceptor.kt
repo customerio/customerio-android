@@ -3,9 +3,9 @@ package io.customer.sdk.api.interceptors
 import android.util.Base64
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.CustomerIOStore
+import java.nio.charset.StandardCharsets
 import okhttp3.Interceptor
 import okhttp3.Response
-import java.nio.charset.StandardCharsets
 
 internal class HeadersInterceptor(
     private val store: CustomerIOStore,

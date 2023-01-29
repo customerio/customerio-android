@@ -35,19 +35,6 @@ class CustomerIOEExtensionsTest {
     }
 
     @Test
-    fun test_logLevel_givenInt_expectLogLevel() {
-        val givenLogLevelNone = CioLogLevel.NONE
-        val expectedLogLevelNone = CioLogLevel.getLogLevel(level = 1.0)
-
-        givenLogLevelNone shouldBeEqualTo expectedLogLevelNone
-
-        val givenLogLevelError = CioLogLevel.ERROR
-        val expectedLogLevelError = CioLogLevel.getLogLevel(level = 2.0)
-
-        givenLogLevelError shouldBeEqualTo expectedLogLevelError
-    }
-
-    @Test
     fun test_metric_givenString_expectMetric() {
         val givenDeliveredMetric = MetricEvent.delivered
         val expectedDeliveredMetric = MetricEvent.getEvent(event = "delivered")

@@ -174,8 +174,10 @@ class CustomerIO internal constructor(
             CustomerIOConfig.Companion.AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
         private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
             mutableMapOf()
-        private var logLevel: CioLogLevel = CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT
-        public var overrideDiGraph: CustomerIOComponent? = null // public for automated tests in non-tracking modules to override the di graph.
+        private var logLevel: CioLogLevel =
+            CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT
+        public var overrideDiGraph: CustomerIOComponent? =
+            null // public for automated tests in non-tracking modules to override the di graph.
         private var trackingApiUrl: String? = null
         private var backgroundQueueMinNumberOfTasks: Int =
             CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
@@ -196,29 +198,34 @@ class CustomerIO internal constructor(
 
         private fun setupConfig(config: Map<String, Any?>?): Builder {
             if (config == null) return this
-            when (val logLevel = config[CustomerIOConfig.Companion.Config.LOG_LEVEL]) {
-                is String -> {
+            config.getProperty<String>(CustomerIOConfig.Companion.Keys.LOG_LEVEL)?.takeIfNotBlank()
+                ?.let { logLevel ->
                     setLogLevel(level = CioLogLevel.getLogLevel(logLevel))
                 }
-                is Double -> {
-                    setLogLevel(level = CioLogLevel.getLogLevel(logLevel))
-                }
-            }
-            config.getProperty<String>(CustomerIOConfig.Companion.Config.TRACKING_API_URL)
+            config.getProperty<String>(CustomerIOConfig.Companion.Keys.TRACKING_API_URL)
                 ?.takeIfNotBlank()?.let { value ->
                     setTrackingApiURL(value)
                 }
-            config.getProperty<Boolean>(CustomerIOConfig.Companion.Config.AUTO_TRACK_DEVICE_ATTRIBUTES)
+            config.getProperty<Boolean>(CustomerIOConfig.Companion.Keys.AUTO_TRACK_DEVICE_ATTRIBUTES)
                 ?.let { value ->
                     autoTrackDeviceAttributes(shouldTrackDeviceAttributes = value)
                 }
-            config.getProperty<Double>(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_SECONDS_DELAY)
+            config.getProperty<Double>(CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_SECONDS_DELAY)
                 ?.let { value ->
                     setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = value)
                 }
+            val source =
+                config.getProperty<String>(CustomerIOConfig.Companion.Keys.SOURCE_SDK_SOURCE)
+            val version =
+                config.getProperty<String>(CustomerIOConfig.Companion.Keys.SOURCE_SDK_VERSION)
+
+            if (!source.isNullOrBlank() && !version.isNullOrBlank()) {
+                setClient(Client.fromRawValue(source = source, sdkVersion = version))
+            }
+
             when (
                 val minNumberOfTasks =
-                    config[CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]
+                    config[CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]
             ) {
                 is Int -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks)

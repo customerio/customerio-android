@@ -3,6 +3,7 @@ package io.customer.sdk
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.extensions.random
@@ -144,10 +145,7 @@ class CustomerIOTest : BaseTest() {
             siteId = String.random,
             apiKey = String.random,
             appContext = application
-        )
-            .addCustomerIOModule(givenModule1)
-            .addCustomerIOModule(givenModule2)
-            .build()
+        ).addCustomerIOModule(givenModule1).addCustomerIOModule(givenModule2).build()
 
         verify(givenModule1).initialize()
         verify(givenModule2).initialize()
@@ -166,10 +164,7 @@ class CustomerIOTest : BaseTest() {
             siteId = String.random,
             apiKey = String.random,
             appContext = application
-        )
-            .addCustomerIOModule(givenModule1)
-            .addCustomerIOModule(givenModule2)
-            .build()
+        ).addCustomerIOModule(givenModule1).addCustomerIOModule(givenModule2).build()
 
         verify(givenModule1, never()).initialize()
         verify(givenModule2).initialize()
@@ -242,10 +237,12 @@ class CustomerIOTest : BaseTest() {
     @Test
     fun test_sdkConfigMapping_givenConfigParamsMap_expectCorrectlyMappedConfigValues() {
         val givenConfigMap = mapOf<String, Any>(
-            Pair(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS, 3),
-            Pair(CustomerIOConfig.Companion.Config.BACKGROUND_QUEUE_SECONDS_DELAY, 40.0),
-            Pair(CustomerIOConfig.Companion.Config.AUTO_TRACK_DEVICE_ATTRIBUTES, false),
-            Pair(CustomerIOConfig.Companion.Config.LOG_LEVEL, 1.0)
+            Pair(CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS, 3),
+            Pair(CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_SECONDS_DELAY, 40.0),
+            Pair(CustomerIOConfig.Companion.Keys.AUTO_TRACK_DEVICE_ATTRIBUTES, false),
+            Pair(CustomerIOConfig.Companion.Keys.LOG_LEVEL, 1.0),
+            Pair(CustomerIOConfig.Companion.Keys.SOURCE_SDK_SOURCE, "Flutter"),
+            Pair(CustomerIOConfig.Companion.Keys.SOURCE_SDK_VERSION, "1.0.0")
         )
         val builder = CustomerIO.Builder(
             siteId = String.random,
@@ -260,15 +257,17 @@ class CustomerIOTest : BaseTest() {
         actualConfig.backgroundQueueSecondsDelay shouldBeEqualTo 40.0
         actualConfig.autoTrackDeviceAttributes shouldBeEqualTo false
         actualConfig.logLevel shouldBeEqualTo CioLogLevel.NONE
+        val actualClient = Client.Flutter("1.0.0")
+        actualConfig.client.source shouldBeEqualTo actualClient.source
+        actualConfig.client.sdkVersion shouldBeEqualTo actualClient.sdkVersion
     }
 
-    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder =
-        CustomerIO.Builder(
-            siteId = String.random,
-            apiKey = String.random,
-            region = Region.EU,
-            appContext = application
-        ).apply {
-            this.overrideDiGraph = di
-        }
+    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(
+        siteId = String.random,
+        apiKey = String.random,
+        region = Region.EU,
+        appContext = application
+    ).apply {
+        this.overrideDiGraph = di
+    }
 }

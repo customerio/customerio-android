@@ -240,7 +240,7 @@ class CustomerIOTest : BaseTest() {
             Pair(CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS, 3),
             Pair(CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_SECONDS_DELAY, 40.0),
             Pair(CustomerIOConfig.Companion.Keys.AUTO_TRACK_DEVICE_ATTRIBUTES, false),
-            Pair(CustomerIOConfig.Companion.Keys.LOG_LEVEL, 1.0),
+            Pair(CustomerIOConfig.Companion.Keys.LOG_LEVEL, "none"),
             Pair(CustomerIOConfig.Companion.Keys.SOURCE_SDK_SOURCE, "Flutter"),
             Pair(CustomerIOConfig.Companion.Keys.SOURCE_SDK_VERSION, "1.0.0")
         )

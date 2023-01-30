@@ -1,6 +1,6 @@
 name: Publish Snapshot builds
 
-on: [pull_request]
+on: [push, pull_request]
 
 jobs:
   publish:
@@ -16,10 +16,17 @@ jobs:
           java-version: 11
 
       # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
-      - name: Set snapshot version 
+      - name: Set snapshot version if a git branch 
         id: set-snapshot-version
+        if: github.event.pull_request != null
         # Get the current branch name and replace all / characters with - as / is invalid in gradle names. 
         run: echo "::set-output name=VERSION::$(echo '${{ github.event.pull_request.head.ref }}' | sed -r 's/\//-/g')-SNAPSHOT"
+
+      # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
+      - name: Set snapshot version if a git push  
+        id: set-snapshot-version
+        if: github.event.push != null
+        run: echo "::set-output name=VERSION::$(echo '${{ github.event.push.base_ref }}')-SNAPSHOT"
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
@@ -36,6 +43,7 @@ jobs:
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v2
         id: find-previous-comment
+        if: github.event.pull_request != null
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
@@ -43,6 +51,7 @@ jobs:
 
       - name: Inform pull request on build of SDK available to test 
         uses: peter-evans/create-or-update-comment@v2
+        if: github.event.pull_request != null
         with:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}

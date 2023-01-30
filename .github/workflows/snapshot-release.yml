@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   publish-pr-snapshot:
-    name: Snapshot build and publish
+    name: Snapshot build and publish for pull request 
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -54,32 +54,28 @@ jobs:
           edit-mode: replace
   
   publish-push-snapshot:
-    name: Snapshot build and publish
+    name: Snapshot build and publish for push
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v3
 
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github.event) }}
-        run: |
-          echo "$GITHUB_CONTEXT"
-
       # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
+      # github.event.ref will give you the name of the current branch in format: "refs/heads/levi/snapshot-commits". We want to get "levi-snapshot-commits".
+      # We replace "refs/heads/" with "", then replace "/" with "-". 
       - name: Set snapshot version if a git push  
         id: set-snapshot-version
-        run: echo "::set-output name=VERSION::$(echo '${{ github.event.push.base_ref }}')-SNAPSHOT"
+        run: echo "::set-output name=VERSION::$(echo '${{ github.event.ref }}' | sed -r 's/refs\/heads\///g' | sed -r 's/\//-/g')-SNAPSHOT"
 
-      # - name: Publish to MavenCentral
-      #   run: ./gradlew publishReleasePublicationToSonatypeRepository
-      #   env:
-      #     OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
-      #     OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
-      #     SIGNING_KEY_ID: ${{ secrets.GRADLE_SIGNING_KEYID }}
-      #     SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
-      #     SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
-      #     SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
-      #     MODULE_VERSION: ${{ steps.set-snapshot-version.outputs.VERSION }}
-      #     SNAPSHOT: true
+      - name: Publish to MavenCentral
+        run: ./gradlew publishReleasePublicationToSonatypeRepository
+        env:
+          OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.GRADLE_SIGNING_KEYID }}
+          SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
+          SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
+          MODULE_VERSION: ${{ steps.set-snapshot-version.outputs.VERSION }}
+          SNAPSHOT: true

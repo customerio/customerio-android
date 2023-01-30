@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   publish-pr-snapshot:
     name: Snapshot build and publish
-    if: github.event.pull_request != null
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -55,7 +55,7 @@ jobs:
   
   publish-push-snapshot:
     name: Snapshot build and publish
-    if: github.event.push != null
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out code

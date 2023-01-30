@@ -26,14 +26,6 @@ enum class CioLogLevel {
     }
 
     companion object {
-        fun getLogLevel(level: Double?, fallback: CioLogLevel = NONE): CioLogLevel {
-            return if (level == null) {
-                fallback
-            } else {
-                values().getOrNull(index = level.toInt() - 1) ?: fallback
-            }
-        }
-
         fun getLogLevel(level: String?, fallback: CioLogLevel = CioLogLevel.NONE): CioLogLevel {
             return values().find { value -> value.name.equals(level, ignoreCase = true) }
                 ?: fallback

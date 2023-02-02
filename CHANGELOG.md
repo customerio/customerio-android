@@ -1,3 +1,16 @@
+## [3.2.0-beta.1](https://github.com/customerio/customerio-android/compare/3.1.1...3.2.0-beta.1) (2023-02-02)
+
+
+### Features
+
+* sdk initialization re-architecture ([9e21960](https://github.com/customerio/customerio-android/commit/9e219600c45554425841d55c8ccc97891514141f))
+
+
+### Bug Fixes
+
+* cio sdk version attribute using client value ([bb90f35](https://github.com/customerio/customerio-android/commit/bb90f35061a44c1adc2ed68ed90dfa7e1860f2a4))
+* user agent client support in preferences repo ([454a18e](https://github.com/customerio/customerio-android/commit/454a18eec3c4716cb809db6c91d505fa21ba5350))
+
 ## [3.2.0-alpha.2](https://github.com/customerio/customerio-android/compare/3.2.0-alpha.1...3.2.0-alpha.2) (2022-11-30)
 
 

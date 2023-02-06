@@ -1,3 +1,20 @@
+## [3.3.0-alpha.1](https://github.com/customerio/customerio-android/compare/3.2.0...3.3.0-alpha.1) (2023-02-06)
+
+
+### Features
+
+* add setting a in-app event listener ([#147](https://github.com/customerio/customerio-android/issues/147)) ([5fd9559](https://github.com/customerio/customerio-android/commit/5fd95590788b518c3fddcea60795c04e128c49a7))
+* in-app feature no longer requires orgId ([#163](https://github.com/customerio/customerio-android/issues/163)) ([fc2a08e](https://github.com/customerio/customerio-android/commit/fc2a08eda19a2f6387790aec442512fb115e0ea0))
+
+
+### Bug Fixes
+
+* moved shared wrapper code ([#158](https://github.com/customerio/customerio-android/issues/158)) ([51af98f](https://github.com/customerio/customerio-android/commit/51af98f13ec1ab26fbd2bbc160a817eb19ccb080))
+* remove currentRoute parameter in in-app event listener ([#159](https://github.com/customerio/customerio-android/issues/159)) ([688e4a5](https://github.com/customerio/customerio-android/commit/688e4a53a031b02a1ef81b61e328b1a35cd77381))
+* rename in app listener keys ([#164](https://github.com/customerio/customerio-android/issues/164)) ([f540eaf](https://github.com/customerio/customerio-android/commit/f540eaf10310ab97e57912fe5382f39319a565af))
+* set gist user token incase identifier exists ([#162](https://github.com/customerio/customerio-android/issues/162)) ([44cc4d1](https://github.com/customerio/customerio-android/commit/44cc4d11fc11a2e96fcdc0fa1b83f012fb25fbd5))
+* upgrade dependencies ([#146](https://github.com/customerio/customerio-android/issues/146)) ([6da8b8d](https://github.com/customerio/customerio-android/commit/6da8b8d3d16fa1c9c0acdb6012271a2252b30951))
+
 ## [3.2.0](https://github.com/customerio/customerio-android/compare/3.1.1...3.2.0) (2023-02-02)
 
 

@@ -1,8 +1,9 @@
 package io.customer.sdk.data.store
 
 import io.customer.sdk.CustomerIOConfig
+import io.customer.shared.device.UserAgentStore
 
-interface DeviceStore : BuildStore, ApplicationStore {
+interface DeviceStore : BuildStore, ApplicationStore, UserAgentStore {
 
     // SDK version
     val customerIOVersion: String
@@ -17,7 +18,7 @@ interface DeviceStore : BuildStore, ApplicationStore {
      * Otherwise will return
      * `Customer.io Android Client/1.0.0-alpha.6`
      */
-    fun buildUserAgent(): String
+    override fun buildUserAgent(): String
     fun buildDeviceAttributes(): Map<String, Any>
 }
 

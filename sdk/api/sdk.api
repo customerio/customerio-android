@@ -36,6 +36,7 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public final fun setBackgroundQueueMinNumberOfTasks (I)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setBackgroundQueueSecondsDelay (D)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setClient (Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun setCustomAttributeSerializer (Lio/customer/shared/serializer/CustomAttributeSerializer;)V
 	public final fun setLogLevel (Lio/customer/sdk/util/CioLogLevel;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setOverrideDiGraph (Lio/customer/sdk/di/CustomerIOComponent;)V
 	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIO$Builder;
@@ -233,7 +234,8 @@ public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
 }
 
 public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/DiGraph {
-	public fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
+	public fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;Lio/customer/shared/serializer/CustomAttributeSerializer;)V
+	public synthetic fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;Lio/customer/shared/serializer/CustomAttributeSerializer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/CustomerIOActivityLifecycleCallbacks;
 	public final fun getCioHttpRetryPolicy ()Lio/customer/sdk/api/HttpRetryPolicy;
 	public final fun getContext ()Landroid/content/Context;

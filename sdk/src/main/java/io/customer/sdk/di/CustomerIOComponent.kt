@@ -9,7 +9,8 @@ import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
-import io.customer.sdk.data.store.*
+import io.customer.sdk.data.store.CustomerIOStore
+import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.hooks.CioHooksManager
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.queue.*
@@ -17,6 +18,8 @@ import io.customer.sdk.repository.*
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
 import io.customer.sdk.util.*
+import io.customer.shared.di.KMMComponent
+import io.customer.shared.serializer.CustomAttributeSerializer
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -29,8 +32,17 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 class CustomerIOComponent(
     private val staticComponent: CustomerIOStaticComponent,
     val context: Context,
-    val sdkConfig: CustomerIOConfig
+    val sdkConfig: CustomerIOConfig,
+    customAttributeSerializer: CustomAttributeSerializer? = null
 ) : DiGraph() {
+    private val kmmSDKComponent = KMMSDKComponent(
+        appContext = context,
+        sdkConfig = sdkConfig,
+        customAttributeSerializer = customAttributeSerializer
+    )
+    private val kmmComponent = KMMComponent(
+        sdkComponent = kmmSDKComponent
+    )
 
     val fileStorage: FileStorage
         get() = override() ?: FileStorage(config = sdkConfig, context = context, logger = logger)
@@ -120,7 +132,7 @@ class CustomerIOComponent(
     val trackRepository: TrackRepository
         get() = override() ?: TrackRepositoryImpl(
             sitePreferenceRepository = sitePreferenceRepository,
-            backgroundQueue = queue,
+            backgroundQueue = kmmComponent.backgroundQueue,
             logger = logger,
             hooksManager = hooksManager
         )
@@ -129,7 +141,7 @@ class CustomerIOComponent(
         get() = override() ?: ProfileRepositoryImpl(
             deviceRepository = deviceRepository,
             sitePreferenceRepository = sitePreferenceRepository,
-            backgroundQueue = queue,
+            backgroundQueue = kmmComponent.backgroundQueue,
             logger = logger,
             hooksManager = hooksManager
         )
@@ -150,16 +162,7 @@ class CustomerIOComponent(
         }
 
     private fun buildStore(): CustomerIOStore {
-        return override() ?: object : CustomerIOStore {
-            override val deviceStore: DeviceStore by lazy {
-                DeviceStoreImp(
-                    sdkConfig = sdkConfig,
-                    buildStore = BuildStoreImp(),
-                    applicationStore = ApplicationStoreImp(context),
-                    version = sdkConfig.client.sdkVersion
-                )
-            }
-        }
+        return override() ?: kmmSDKComponent.buildStore()
     }
 
     val sitePreferenceRepository: SitePreferenceRepository by lazy {

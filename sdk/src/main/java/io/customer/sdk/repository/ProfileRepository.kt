@@ -3,9 +3,9 @@ package io.customer.sdk.repository
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
-import io.customer.sdk.queue.Queue
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
+import io.customer.shared.tracking.queue.BackgroundQueue
 
 interface ProfileRepository {
     fun identify(identifier: String, attributes: CustomAttributes)
@@ -16,7 +16,7 @@ interface ProfileRepository {
 internal class ProfileRepositoryImpl(
     private val deviceRepository: DeviceRepository,
     private val sitePreferenceRepository: SitePreferenceRepository,
-    private val backgroundQueue: Queue,
+    private val backgroundQueue: BackgroundQueue,
     private val logger: Logger,
     private val hooksManager: HooksManager
 ) : ProfileRepository {
@@ -31,45 +31,45 @@ internal class ProfileRepositoryImpl(
             currentlyIdentifiedProfileIdentifier != null && currentlyIdentifiedProfileIdentifier != identifier
         val isFirstTimeIdentifying = currentlyIdentifiedProfileIdentifier == null
 
-        currentlyIdentifiedProfileIdentifier?.let { currentlyIdentifiedProfileIdentifier ->
+        currentlyIdentifiedProfileIdentifier?.let { oldIdentifier ->
             if (isChangingIdentifiedProfile) {
-                logger.info("changing profile from id $currentlyIdentifiedProfileIdentifier to $identifier")
+                logger.info("changing profile from id $oldIdentifier to $identifier")
 
                 logger.debug("deleting device token before identifying new profile")
                 deviceRepository.deleteDeviceToken()
             }
         }
 
-        val queueStatus = backgroundQueue.queueIdentifyProfile(
+        backgroundQueue.queueIdentifyProfile(
             identifier,
-            currentlyIdentifiedProfileIdentifier,
             attributes
-        )
+        ) { queueStatus ->
 
-        // Don't modify the state of the SDK's data until we confirm we added a queue task successfully. This could put the Customer.io API
-        // out-of-sync with the SDK's state and cause many future HTTP errors.
-        // Therefore, if adding the task to the queue failed, ignore the request and fail early.
-        if (!queueStatus.success) {
-            logger.debug("failed to add identify task to queue")
-            return
-        }
+            // Don't modify the state of the SDK's data until we confirm we added a queue task successfully. This could put the Customer.io API
+            // out-of-sync with the SDK's state and cause many future HTTP errors.
+            // Therefore, if adding the task to the queue failed, ignore the request and fail early.
+            if (queueStatus.isFailure) {
+                logger.debug("failed to add identify task to queue")
+//            return
+            }
 
-        logger.debug("storing identifier on device storage $identifier")
-        sitePreferenceRepository.saveIdentifier(identifier)
+            logger.debug("storing identifier on device storage $identifier")
+            sitePreferenceRepository.saveIdentifier(identifier)
 
-        hooksManager.onHookUpdate(
-            hook = ModuleHook.ProfileIdentifiedHook(identifier)
-        )
+            hooksManager.onHookUpdate(
+                hook = ModuleHook.ProfileIdentifiedHook(identifier)
+            )
 
-        if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
-            logger.debug("first time identified or changing identified profile")
+            if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
+                logger.debug("first time identified or changing identified profile")
 
-            sitePreferenceRepository.getDeviceToken()?.let {
-                logger.debug("automatically registering device token to newly identified profile")
-                deviceRepository.registerDeviceToken(
-                    it,
-                    emptyMap()
-                ) // no new attributes but default ones to pass so pass empty.
+                sitePreferenceRepository.getDeviceToken()?.let {
+                    logger.debug("automatically registering device token to newly identified profile")
+                    deviceRepository.registerDeviceToken(
+                        it,
+                        emptyMap()
+                    ) // no new attributes but default ones to pass so pass empty.
+                }
             }
         }
     }

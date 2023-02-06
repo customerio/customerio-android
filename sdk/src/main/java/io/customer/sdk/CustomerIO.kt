@@ -22,6 +22,7 @@ import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.doesExist
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
+import io.customer.shared.serializer.CustomAttributeSerializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -303,6 +304,11 @@ class CustomerIO internal constructor(
             return this
         }
 
+        private var customAttributeSerializer: CustomAttributeSerializer? = null
+        fun setCustomAttributeSerializer(serializer: CustomAttributeSerializer) {
+            customAttributeSerializer = serializer
+        }
+
         fun build(): CustomerIO {
             if (apiKey.isEmpty()) {
                 throw IllegalStateException("apiKey is not defined in " + this::class.java.simpleName)
@@ -332,7 +338,8 @@ class CustomerIO internal constructor(
             val diGraph = overrideDiGraph ?: CustomerIOComponent(
                 staticComponent = sharedInstance.diStaticGraph,
                 sdkConfig = config,
-                context = appContext
+                context = appContext,
+                customAttributeSerializer = customAttributeSerializer
             )
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger

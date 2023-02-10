@@ -2,6 +2,9 @@ name: Publish Snapshot builds
 
 on: [pull_request]
 
+permissions:
+  pull-requests: write # Write access needed to create a comment.
+
 jobs:
   publish:
     name: Snapshot build and publish
@@ -51,3 +54,4 @@ jobs:
             Version: `${{ steps.set-snapshot-version.outputs.VERSION }}`
             Repository: `https://s01.oss.sonatype.org/content/repositories/snapshots/`
           edit-mode: replace
+          token: ${{ secrets.GITHUB_TOKEN }}

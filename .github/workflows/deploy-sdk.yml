@@ -122,7 +122,7 @@ jobs:
     if: needs.deploy-git-tag.outputs.new_release_published == 'true' # only run if a git tag was made.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up JDK
         uses: actions/setup-java@v2
         with:

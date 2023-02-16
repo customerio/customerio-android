@@ -1,3 +1,10 @@
+## [3.3.0-beta.3](https://github.com/customerio/customerio-android/compare/3.3.0-beta.2...3.3.0-beta.3) (2023-02-16)
+
+
+### Bug Fixes
+
+* use maven style dependency range syntax ([#171](https://github.com/customerio/customerio-android/issues/171)) ([ba83214](https://github.com/customerio/customerio-android/commit/ba83214ec1218b36bc824ddca355a6fd5041b65e))
+
 ## [3.3.0-beta.2](https://github.com/customerio/customerio-android/compare/3.3.0-beta.1...3.3.0-beta.2) (2023-02-16)
 
 

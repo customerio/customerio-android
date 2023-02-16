@@ -1,3 +1,10 @@
+## [3.3.0-beta.2](https://github.com/customerio/customerio-android/compare/3.3.0-beta.1...3.3.0-beta.2) (2023-02-16)
+
+
+### Bug Fixes
+
+* set gist dependency to use latest 3.X.Y version ([#170](https://github.com/customerio/customerio-android/issues/170)) ([a019c36](https://github.com/customerio/customerio-android/commit/a019c36cc1fd37e6180170d2d5f703e2ac8c48e8))
+
 ## [3.3.0-beta.1](https://github.com/customerio/customerio-android/compare/3.2.0...3.3.0-beta.1) (2023-02-07)
 
 

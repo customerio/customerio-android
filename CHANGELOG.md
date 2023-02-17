@@ -1,3 +1,10 @@
+## [3.3.0-beta.4](https://github.com/customerio/customerio-android/compare/3.3.0-beta.3...3.3.0-beta.4) (2023-02-17)
+
+
+### Bug Fixes
+
+* image not shown when image url in notification payload ([#172](https://github.com/customerio/customerio-android/issues/172)) ([0abdc85](https://github.com/customerio/customerio-android/commit/0abdc85ba5213f758e03a378d9374b89dd28d335))
+
 ## [3.3.0-beta.3](https://github.com/customerio/customerio-android/compare/3.3.0-beta.2...3.3.0-beta.3) (2023-02-16)
 
 

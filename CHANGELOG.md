@@ -1,3 +1,24 @@
+## [3.3.0](https://github.com/customerio/customerio-android/compare/3.2.0...3.3.0) (2023-02-22)
+
+
+### Features
+
+* add setting a in-app event listener ([#147](https://github.com/customerio/customerio-android/issues/147)) ([5fd9559](https://github.com/customerio/customerio-android/commit/5fd95590788b518c3fddcea60795c04e128c49a7))
+* in-app feature no longer requires orgId ([#163](https://github.com/customerio/customerio-android/issues/163)) ([fc2a08e](https://github.com/customerio/customerio-android/commit/fc2a08eda19a2f6387790aec442512fb115e0ea0))
+
+
+### Bug Fixes
+
+* image not shown when image url in notification payload ([#172](https://github.com/customerio/customerio-android/issues/172)) ([0abdc85](https://github.com/customerio/customerio-android/commit/0abdc85ba5213f758e03a378d9374b89dd28d335))
+* moved shared wrapper code ([#158](https://github.com/customerio/customerio-android/issues/158)) ([51af98f](https://github.com/customerio/customerio-android/commit/51af98f13ec1ab26fbd2bbc160a817eb19ccb080))
+* remove currentRoute parameter in in-app event listener ([#159](https://github.com/customerio/customerio-android/issues/159)) ([688e4a5](https://github.com/customerio/customerio-android/commit/688e4a53a031b02a1ef81b61e328b1a35cd77381))
+* rename in app listener keys ([#164](https://github.com/customerio/customerio-android/issues/164)) ([f540eaf](https://github.com/customerio/customerio-android/commit/f540eaf10310ab97e57912fe5382f39319a565af))
+* set gist dependency to use latest 3.X.Y version ([#170](https://github.com/customerio/customerio-android/issues/170)) ([a019c36](https://github.com/customerio/customerio-android/commit/a019c36cc1fd37e6180170d2d5f703e2ac8c48e8))
+* set gist user token incase identifier exists ([#162](https://github.com/customerio/customerio-android/issues/162)) ([44cc4d1](https://github.com/customerio/customerio-android/commit/44cc4d11fc11a2e96fcdc0fa1b83f012fb25fbd5))
+* update CustomerIOFirebaseMessagingService to open ([#174](https://github.com/customerio/customerio-android/issues/174)) ([edce7f5](https://github.com/customerio/customerio-android/commit/edce7f5b640a76b1fdfa029b9b0dabea281c677c))
+* upgrade dependencies ([#146](https://github.com/customerio/customerio-android/issues/146)) ([6da8b8d](https://github.com/customerio/customerio-android/commit/6da8b8d3d16fa1c9c0acdb6012271a2252b30951))
+* use maven style dependency range syntax ([#171](https://github.com/customerio/customerio-android/issues/171)) ([ba83214](https://github.com/customerio/customerio-android/commit/ba83214ec1218b36bc824ddca355a6fd5041b65e))
+
 ## [3.3.0-beta.5](https://github.com/customerio/customerio-android/compare/3.3.0-beta.4...3.3.0-beta.5) (2023-02-22)
 
 

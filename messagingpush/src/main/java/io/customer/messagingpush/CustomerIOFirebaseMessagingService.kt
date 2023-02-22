@@ -5,7 +5,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.sdk.CustomerIO
 
-class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
+open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         /**

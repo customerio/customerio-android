@@ -1,3 +1,10 @@
+## [3.3.0-beta.5](https://github.com/customerio/customerio-android/compare/3.3.0-beta.4...3.3.0-beta.5) (2023-02-22)
+
+
+### Bug Fixes
+
+* update CustomerIOFirebaseMessagingService to open ([#174](https://github.com/customerio/customerio-android/issues/174)) ([edce7f5](https://github.com/customerio/customerio-android/commit/edce7f5b640a76b1fdfa029b9b0dabea281c677c))
+
 ## [3.3.0-beta.4](https://github.com/customerio/customerio-android/compare/3.3.0-beta.3...3.3.0-beta.4) (2023-02-17)
 
 

@@ -57,7 +57,10 @@ internal class HttpRequestRunnerImpl(
         return processUnsuccessfulResponse(response, makeRequest)
     }
 
-    suspend fun <R> processUnsuccessfulResponse(response: Response<R>, makeRequest: suspend () -> Response<R>): Result<R> {
+    suspend fun <R> processUnsuccessfulResponse(
+        response: Response<R>,
+        makeRequest: suspend () -> Response<R>
+    ): Result<R> {
         when (val statusCode = response.code()) {
             in 500 until 600 -> {
                 val sleepTime = retryPolicy.nextSleepTime
@@ -79,19 +82,24 @@ internal class HttpRequestRunnerImpl(
 
                 return Result.failure(CustomerIOError.Unauthorized())
             }
+            400 -> {
+                return Result.failure(CustomerIOError.BadRequest())
+            }
             else -> {
                 var errorMessage = "No error body from API."
 
                 // by calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
                 response.errorBody()?.string()?.let { errorBodyString ->
-                    errorMessage = errorBodyString // if we can't parse the error body json, the raw response string is good to capture.
+                    errorMessage =
+                        errorBodyString // if we can't parse the error body json, the raw response string is good to capture.
 
                     parseCustomerIOErrorBody(errorBodyString)?.message?.let { parsedErrorMessage ->
                         errorMessage = parsedErrorMessage
                     }
                 }
 
-                val customerIOError = CustomerIOError.UnsuccessfulStatusCode(statusCode, errorMessage)
+                val customerIOError =
+                    CustomerIOError.UnsuccessfulStatusCode(statusCode, errorMessage)
 
                 logger.error("4xx HTTP status code response. Probably a bug? $errorMessage")
 

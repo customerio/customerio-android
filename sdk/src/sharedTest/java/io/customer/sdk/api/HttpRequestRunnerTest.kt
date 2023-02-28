@@ -193,6 +193,18 @@ class HttpRequestRunnerTest : BaseTest() {
     }
 
     @Test
+    fun performHttpRequest_given400_expectNotPausedHttpRequests_expectReturnFailure(): Unit = runBlocking {
+        val httpClientMock = HttpClientMock<Unit>(Response.error(400, "".toResponseBody()))
+
+        val actual = httpRunner.performAndProcessRequest {
+            httpClientMock.performRequest()
+        }
+
+        assertHttpRequestsPaused(false)
+        (actual.exceptionOrNull() is CustomerIOError.BadRequest).shouldBeTrue()
+    }
+
+    @Test
     fun parseCustomerIOErrorBody_givenInvalidErrorBody_expectNull() {
         httpRunner.parseCustomerIOErrorBody(String.random).shouldBeNull()
     }

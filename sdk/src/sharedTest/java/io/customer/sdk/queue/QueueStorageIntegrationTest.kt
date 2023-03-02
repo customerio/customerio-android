@@ -117,7 +117,8 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
         queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
 
-        queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        itemsDeleted.count() shouldBeEqualTo 3
         queueStorage.getInventory().count() shouldBeEqualTo 0
     }
 

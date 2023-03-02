@@ -110,7 +110,7 @@ class QueueStorageIntegrationTest : BaseTest() {
     }
 
     @Test
-    fun givenDeleteGroupTask_expectUpdateInventory() {
+    fun givenDeleteGroupTask_expectAllTasksInGroupToDelete() {
         val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
 
         queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
@@ -120,6 +120,36 @@ class QueueStorageIntegrationTest : BaseTest() {
         val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
         itemsDeleted.count() shouldBeEqualTo 3
         queueStorage.getInventory().count() shouldBeEqualTo 0
+    }
+
+    @Test
+    fun givenDeleteGroupTask_expectTasksNotInGroupNotDeleted() {
+        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+        val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
+
+        queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
+        queueStorage.create(String.random, String.random, null, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
+
+        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        itemsDeleted.count() shouldBeEqualTo 2
+        queueStorage.getInventory().count() shouldBeEqualTo 2
+    }
+
+    @Test
+    fun givenDeleteGroupTask_givenNoStartGroupPresentInInventory_expectTasksNotDeleted() {
+        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+
+        val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
+
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
+        queueStorage.create(String.random, String.random, null, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
+
+        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        itemsDeleted.count() shouldBeEqualTo 0
+        queueStorage.getInventory().count() shouldBeEqualTo 3
     }
 
     @Test

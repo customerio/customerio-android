@@ -108,11 +108,14 @@ internal class QueueStorageImpl internal constructor(
     override fun deleteGroup(groupStartTask: String): List<QueueTaskMetadata> {
         val inventory = getInventory()
 
+        // find the start of the group.
         val groupStart = inventory.filter { it.groupStart == groupStartTask }
+        // find all tasks that are blocked by the group.
         val groupMember = inventory.filter { task ->
             task.groupMember != null && groupStartTask in task.groupMember
         }
 
+        // delete all tasks in the group
         val tasksToBeDeleted = groupStart + groupMember
         tasksToBeDeleted.forEach { delete(it.taskPersistedId) }
 

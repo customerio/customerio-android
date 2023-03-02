@@ -78,7 +78,7 @@ class QueueRunRequestTest : BaseTest() {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
 
-        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest()))
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400()))
         whenever(storageMock.getInventory()).thenReturn(
             listOf(
                 QueueTaskMetadata.random.copy(
@@ -96,6 +96,32 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
+    }
+
+    @Test
+    fun test_run_givenRunGroupStartTask400Failure_expectDeleteGroup(): Unit = runBlocking {
+        val givenTaskId = String.random
+        val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
+
+        val givenGroupOfTasks = QueueTaskGroup.IdentifyProfile(String.random)
+
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400()))
+
+        val givenListOfQueueTaskMetadata = listOf(
+            QueueTaskMetadata.random.copy(
+                taskPersistedId = givenTaskId,
+                groupStart = givenGroupOfTasks.toString()
+            )
+        )
+
+        whenever(storageMock.getInventory()).thenReturn(givenListOfQueueTaskMetadata)
+
+        whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
+        whenever(storageMock.deleteGroup(eq(givenTaskId))).thenReturn(givenListOfQueueTaskMetadata)
+
+        runRequest.run()
+
+        verify(storageMock).deleteGroup(givenGroupOfTasks.toString())
     }
 
     @Test

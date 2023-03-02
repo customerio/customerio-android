@@ -110,6 +110,18 @@ class QueueStorageIntegrationTest : BaseTest() {
     }
 
     @Test
+    fun givenDeleteGroupTask_expectUpdateInventory() {
+        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+
+        queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
+
+        queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        queueStorage.getInventory().count() shouldBeEqualTo 0
+    }
+
+    @Test
     fun givenTaskNotCreated_expectIgnoreRequestToUpdate() {
         queueStorage.create(String.random, String.random, null, null)
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId

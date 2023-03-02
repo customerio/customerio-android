@@ -201,7 +201,7 @@ class HttpRequestRunnerTest : BaseTest() {
         }
 
         assertHttpRequestsPaused(false)
-        (actual.exceptionOrNull() is CustomerIOError.BadRequest).shouldBeTrue()
+        (actual.exceptionOrNull() is CustomerIOError.BadRequest400).shouldBeTrue()
     }
 
     @Test

@@ -83,7 +83,7 @@ internal class HttpRequestRunnerImpl(
                 return Result.failure(CustomerIOError.Unauthorized())
             }
             400 -> {
-                return Result.failure(CustomerIOError.BadRequest())
+                return Result.failure(CustomerIOError.BadRequest400())
             }
             else -> {
                 var errorMessage = "No error body from API."

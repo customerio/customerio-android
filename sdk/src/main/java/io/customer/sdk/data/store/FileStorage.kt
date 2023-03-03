@@ -59,8 +59,13 @@ class FileStorage internal constructor(
 
         if (!filePath.exists()) return null
 
-        val fileContents = filePath.readText()
-        if (fileContents.isBlank()) return null
+        val fileContents = try {
+            filePath.readText()
+        } catch (ex: Exception) {
+            logger.error("error while reading file $type. path ${filePath.absolutePath}. message: ${ex.message}")
+            null
+        }
+        if (fileContents.isNullOrBlank()) return null
 
         return fileContents
     }
@@ -80,7 +85,7 @@ class FileStorage internal constructor(
     // Used for tests to run between tests for a clean file system.
     fun deleteAllSdkFiles(path: File = sdkRootDirectoryPath) {
         if (path.isDirectory) {
-            path.list().forEach { child ->
+            path.list()?.forEach { child ->
                 deleteAllSdkFiles(File(path, child))
             }
         } else {

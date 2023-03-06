@@ -59,6 +59,9 @@ class FileStorage internal constructor(
 
         if (!filePath.exists()) return null
 
+        // Even though we check file existence before reading them, there were still a few instances reported where
+        // the files were deleted before they are read completely.
+        // Reading them in a try-catch block helps preventing crashes occurring in customer apps in such scenarios
         val fileContents = try {
             filePath.readText()
         } catch (ex: Exception) {

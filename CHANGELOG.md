@@ -1,3 +1,10 @@
+### [3.3.1](https://github.com/customerio/customerio-android/compare/3.3.0...3.3.1) (2023-03-07)
+
+
+### Bug Fixes
+
+* prevent crash for file not found exception ([#178](https://github.com/customerio/customerio-android/issues/178)) ([be8a2d9](https://github.com/customerio/customerio-android/commit/be8a2d9776114a2b8b86c6972c29dc6aec5e02f1))
+
 ## [3.3.0](https://github.com/customerio/customerio-android/compare/3.2.0...3.3.0) (2023-02-22)
 
 

@@ -4,12 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.subtract
 import io.customer.commontest.BaseTest
 import io.customer.sdk.extensions.random
-import io.customer.sdk.queue.type.QueueInventory
-import io.customer.sdk.queue.type.QueueModifyResult
-import io.customer.sdk.queue.type.QueueStatus
-import io.customer.sdk.queue.type.QueueTaskGroup
-import io.customer.sdk.queue.type.QueueTaskMetadata
-import io.customer.sdk.queue.type.QueueTaskRunResults
+import io.customer.sdk.queue.type.*
 import java.util.*
 import java.util.concurrent.TimeUnit
 import org.amshove.kluent.*
@@ -27,7 +22,8 @@ class QueueStorageIntegrationTest : BaseTest() {
     override fun setup() {
         super.setup()
 
-        queueStorage = QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter, dateUtilStub, di.logger)
+        queueStorage =
+            QueueStorageImpl(cioConfig, di.fileStorage, di.jsonAdapter, dateUtilStub, di.logger)
     }
 
     @Test
@@ -87,7 +83,10 @@ class QueueStorageIntegrationTest : BaseTest() {
     fun givenTaskNotCreated_expectNoFailureTryingToDeleteIt() {
         queueStorage.create(String.random, String.random, null, null)
 
-        queueStorage.delete("does-not-exist") shouldBeEqualTo QueueModifyResult(false, QueueStatus(siteId, 1))
+        queueStorage.delete("does-not-exist") shouldBeEqualTo QueueModifyResult(
+            false,
+            QueueStatus(siteId, 1)
+        )
     }
 
     @Test
@@ -95,7 +94,10 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.create(String.random, String.random, null, null)
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
 
-        queueStorage.delete(newlyCreatedTaskId) shouldBeEqualTo QueueModifyResult(true, QueueStatus(siteId, 0))
+        queueStorage.delete(newlyCreatedTaskId) shouldBeEqualTo QueueModifyResult(
+            true,
+            QueueStatus(siteId, 0)
+        )
     }
 
     @Test
@@ -132,9 +134,74 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.create(String.random, String.random, null, null)
         queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
 
+        val newlyCreatedInventoryItem3 = queueStorage.getInventory()[2]
+        val newlyCreatedInventoryItem4 = queueStorage.getInventory()[3]
+
         val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
         itemsDeleted.count() shouldBeEqualTo 2
-        queueStorage.getInventory().count() shouldBeEqualTo 2
+        val inventory = queueStorage.getInventory()
+        inventory.count() shouldBeEqualTo 2
+        inventory.map { it.taskPersistedId } shouldBeEqualTo listOf(
+            newlyCreatedInventoryItem3.taskPersistedId,
+            newlyCreatedInventoryItem4.taskPersistedId
+        )
+    }
+
+    @Test
+    fun givenDeleteGroupTask_givenMembersTasksBelongToDifferentGroups_expectAllStartTasksAndTheirMembersToBeDeleted() {
+        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+        val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
+
+        queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
+        queueStorage.create(
+            String.random,
+            String.random,
+            givenStartOfAnotherGroup,
+            listOf(givenStartOfTheGroup)
+        )
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
+
+        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        itemsDeleted.count() shouldBeEqualTo 4
+        queueStorage.getInventory().count() shouldBeEqualTo 0
+    }
+
+    @Test
+    fun givenDeleteGroupTask_givenMembersTasksBelongToDifferentGroups_givenDifferentOrder_expectAllStartTasksAndTheirMembersToBeDeleted() {
+        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+        val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
+
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
+        queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
+        queueStorage.create(String.random, String.random, null, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
+        queueStorage.create(
+            String.random,
+            String.random,
+            givenStartOfAnotherGroup,
+            listOf(givenStartOfTheGroup)
+        )
+
+        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        itemsDeleted.count() shouldBeEqualTo 4
+        queueStorage.getInventory().count() shouldBeEqualTo 1
+    }
+
+    @Test
+    fun givenDeleteGroupTask_givenIncorrectQueue_expectNotToGetInfiniteLoop() {
+        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+
+        queueStorage.create(
+            String.random,
+            String.random,
+            givenStartOfTheGroup,
+            listOf(givenStartOfTheGroup)
+        )
+
+        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
+        itemsDeleted.count() shouldBeEqualTo 1
+        queueStorage.getInventory().count() shouldBeEqualTo 0
     }
 
     @Test
@@ -158,7 +225,8 @@ class QueueStorageIntegrationTest : BaseTest() {
         val newlyCreatedTaskId = queueStorage.getInventory()[0].taskPersistedId
         val createdTask = queueStorage.get(newlyCreatedTaskId)
 
-        val didUpdate = queueStorage.update("does-not-exist", QueueTaskRunResults(Int.random(10, 30)))
+        val didUpdate =
+            queueStorage.update("does-not-exist", QueueTaskRunResults(Int.random(10, 30)))
         val createdTaskAfterUpdateRequest = queueStorage.get(newlyCreatedTaskId)
 
         didUpdate.shouldBeFalse()
@@ -202,8 +270,14 @@ class QueueStorageIntegrationTest : BaseTest() {
 
     @Test
     fun deleteExpired_givenTasksStartOfGroupAndExpired_expectDeleteNoTasks() {
-        dateUtilStub.givenDate = Date().subtract(10, TimeUnit.DAYS) // make newly created tasks expired
-        queueStorage.create(String.random, String.random, QueueTaskGroup.IdentifyProfile(String.random), null)
+        dateUtilStub.givenDate =
+            Date().subtract(10, TimeUnit.DAYS) // make newly created tasks expired
+        queueStorage.create(
+            String.random,
+            String.random,
+            QueueTaskGroup.IdentifyProfile(String.random),
+            null
+        )
 
         val tasksDeleted = queueStorage.deleteExpired()
 
@@ -213,7 +287,8 @@ class QueueStorageIntegrationTest : BaseTest() {
     @Test
     fun deleteExpired_givenTasksNoStartOfGroupAndExpired_expectDeleteTasksExpired() {
         val givenGroupOfTasks = QueueTaskGroup.IdentifyProfile(String.random)
-        dateUtilStub.givenDate = Date().subtract(10, TimeUnit.DAYS) // make newly created tasks expired
+        dateUtilStub.givenDate =
+            Date().subtract(10, TimeUnit.DAYS) // make newly created tasks expired
         queueStorage.create(String.random, String.random, givenGroupOfTasks, null)
         val expectedNotDeleted = queueStorage.getInventory()[0]
         queueStorage.create(String.random, String.random, null, listOf(givenGroupOfTasks))

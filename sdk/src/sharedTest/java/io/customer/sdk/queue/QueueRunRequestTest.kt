@@ -96,6 +96,7 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
+        verify(storageMock, never()).deleteGroup(anyOrNull())
     }
 
     @Test

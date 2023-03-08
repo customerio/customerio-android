@@ -74,17 +74,15 @@ internal class QueueRunRequestImpl internal constructor(
                     is CustomerIOError.BadRequest400 -> {
                         logger.debug("queue task $nextTaskStorageId failed with 400")
 
-                        logger.debug("queue deleting task $nextTaskStorageId because it will always fail")
+                        logger.error("queue task $nextTaskStorageId failed with 400, deleting task because it will always fail")
 
-                        // check if its a groupStart task, if so delete the group otherwise just delete the task
-                        if (nextTaskToRunInventoryItem.groupStart == null) {
-                            queueStorage.delete(nextTaskStorageId)
-                        } else {
+                        queueStorage.delete(nextTaskStorageId)
+                        // check if its a groupStart task, if so delete the group
+                        if (nextTaskToRunInventoryItem.groupStart != null) {
                             queueStorage.deleteGroup(groupStartTask = nextTaskToRunInventoryItem.groupStart)
                         }
 
-                        // since failed task isn't being saved, and the group is also deleted no need to update `lastFailedTask`
-                        goToNextTask(inventory, totalNumberOfTasksToRun, null)
+                        goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
                     }
                     else -> {
                         val previousRunResults = nextTaskToRun.runResults

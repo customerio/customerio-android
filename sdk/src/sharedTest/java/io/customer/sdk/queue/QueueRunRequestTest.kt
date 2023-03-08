@@ -147,6 +147,7 @@ class QueueRunRequestTest : BaseTest() {
             runRequest.run()
 
             verify(storageMock, never()).delete(anyOrNull())
+            verify(storageMock, never()).deleteGroup(anyOrNull())
             verify(storageMock, never()).update(anyOrNull(), anyOrNull())
         }
 

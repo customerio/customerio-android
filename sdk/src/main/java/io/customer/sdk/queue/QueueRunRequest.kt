@@ -77,7 +77,7 @@ internal class QueueRunRequestImpl internal constructor(
                         queueStorage.delete(nextTaskStorageId)
                         // check if its a groupStart task, if so delete the group
                         if (nextTaskToRunInventoryItem.groupStart != null) {
-                            queueStorage.deleteGroup(groupStartTask = nextTaskToRunInventoryItem.groupStart)
+                            queueStorage.deleteGroup(groupId = nextTaskToRunInventoryItem.groupStart)
                         }
 
                         goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)

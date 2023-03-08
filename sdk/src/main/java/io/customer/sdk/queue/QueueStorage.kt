@@ -26,7 +26,7 @@ interface QueueStorage {
     fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
-    fun deleteGroup(groupStartTask: String): List<QueueTaskMetadata>
+    fun deleteGroup(groupId: String): List<QueueTaskMetadata>
     fun deleteExpired(): List<QueueTaskMetadata>
 }
 
@@ -105,47 +105,25 @@ internal class QueueStorageImpl internal constructor(
         return jsonAdapter.fromJsonOrNull(fileContents)
     }
 
-    override fun deleteGroup(groupStartTask: String): List<QueueTaskMetadata> {
+    @Synchronized
+    override fun deleteGroup(groupId: String): List<QueueTaskMetadata> {
         val inventory = getInventory()
+        val listOfQueueTasksDeleted = mutableListOf<QueueTaskMetadata>()
 
-        // use a set to store the tasks to be deleted
-        val tasksToBeDeleted = mutableSetOf<QueueTaskMetadata>()
-        val groupsChecked = mutableSetOf<String>()
+        inventory.forEach { queueTaskMetadata ->
+            queueTaskMetadata.groupMember?.let { listOfGroupsTaskBelongsTo ->
+                if (listOfGroupsTaskBelongsTo.contains(groupId)) {
+                    this.delete(queueTaskMetadata.taskPersistedId)
+                    listOfQueueTasksDeleted.add(queueTaskMetadata)
 
-        // recursive function to find and delete tasks in the group
-        fun deleteGroupRecursively(groupStartTask: String) {
-            if (groupsChecked.contains(groupStartTask)) {
-                // if the group has already been checked
-                return
+                    queueTaskMetadata.groupStart?.let { groupIdQueueTaskStarts ->
+                        this.deleteGroup(groupIdQueueTaskStarts)
+                    }
+                }
             }
-
-            // find the start of the group. ignore if the group start is null because that is our default too for all tasks
-            val groupStart = inventory.filter { it.groupStart == groupStartTask }
-
-            // find all tasks that are blocked by the group.
-            val groupMember = inventory.filter { task ->
-                // check if group member is not null and the group start is in the group member
-                task.groupMember != null && groupStartTask in task.groupMember
-            }
-
-            // add the tasks to the set of tasks to be deleted
-            tasksToBeDeleted.addAll(groupStart)
-            tasksToBeDeleted.addAll(groupMember)
-
-            groupsChecked.add(groupStartTask)
-
-            // recursively delete group members
-            groupMember.forEach { it.groupStart?.let { start -> deleteGroupRecursively(start) } }
         }
 
-        // call the recursive function to find and mark the tasks for deletion
-        deleteGroupRecursively(groupStartTask)
-
-        // loop through the tasks to be deleted and actually delete them
-        tasksToBeDeleted.forEach { delete(it.taskPersistedId) }
-
-        // convert the set of tasks to an array and return it
-        return tasksToBeDeleted.toList()
+        return listOfQueueTasksDeleted
     }
 
     @Synchronized

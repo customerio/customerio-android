@@ -78,7 +78,7 @@ class QueueRunRequestTest : BaseTest() {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
 
-        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400()))
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400("")))
         whenever(storageMock.getInventory()).thenReturn(
             listOf(
                 QueueTaskMetadata.random.copy(
@@ -106,7 +106,7 @@ class QueueRunRequestTest : BaseTest() {
 
         val givenGroupOfTasks = QueueTaskGroup.IdentifyProfile(String.random)
 
-        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400()))
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400("")))
 
         val givenListOfQueueTaskMetadata = listOf(
             QueueTaskMetadata.random.copy(

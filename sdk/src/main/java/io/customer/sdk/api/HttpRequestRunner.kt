@@ -83,29 +83,33 @@ internal class HttpRequestRunnerImpl(
                 return Result.failure(CustomerIOError.Unauthorized())
             }
             400 -> {
-                return Result.failure(CustomerIOError.BadRequest400())
+                return Result.failure(CustomerIOError.BadRequest400(parseErrorMessageFromAPI(response)))
             }
             else -> {
-                var errorMessage = "No error body from API."
+                val errorMessageFromApi = parseErrorMessageFromAPI(response)
+                val customerIOError = CustomerIOError.UnsuccessfulStatusCode(statusCode, errorMessageFromApi)
 
-                // by calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
-                response.errorBody()?.string()?.let { errorBodyString ->
-                    errorMessage =
-                        errorBodyString // if we can't parse the error body json, the raw response string is good to capture.
-
-                    parseCustomerIOErrorBody(errorBodyString)?.message?.let { parsedErrorMessage ->
-                        errorMessage = parsedErrorMessage
-                    }
-                }
-
-                val customerIOError =
-                    CustomerIOError.UnsuccessfulStatusCode(statusCode, errorMessage)
-
-                logger.error("4xx HTTP status code response. Probably a bug? $errorMessage")
+                logger.error("4xx HTTP status code response. Probably a bug? $errorMessageFromApi")
 
                 return Result.failure(customerIOError)
             }
         }
+    }
+
+    internal fun parseErrorMessageFromAPI(response: Response<*>): String {
+        var errorMessage = "(none)"
+
+        // Note: calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
+        response.errorBody()?.string()?.let { errorBodyString ->
+            errorMessage =
+                errorBodyString // if we can't parse the error body json, the raw response string is good to capture.
+
+            parseCustomerIOErrorBody(errorBodyString)?.message?.let { parsedErrorMessage ->
+                errorMessage = parsedErrorMessage
+            }
+        }
+
+        return errorMessage
     }
 
     internal fun parseCustomerIOErrorBody(errorBody: String): Throwable? {

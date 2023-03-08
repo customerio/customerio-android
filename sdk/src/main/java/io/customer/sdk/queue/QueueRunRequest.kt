@@ -72,9 +72,7 @@ internal class QueueRunRequestImpl internal constructor(
                         goToNextTask(emptyList(), totalNumberOfTasksToRun, null)
                     }
                     is CustomerIOError.BadRequest400 -> {
-                        logger.debug("queue task $nextTaskStorageId failed with 400")
-
-                        logger.error("queue task $nextTaskStorageId failed with 400, deleting task because it will always fail")
+                        logger.error("Received HTTP 400 response while trying to run ${nextTaskToRun.type}. 400 responses never succeed and therefore, the SDK is deleting this SDK request and not retry. Error message from API: ${error.message}, request data sent: ${nextTaskToRun.data}")
 
                         queueStorage.delete(nextTaskStorageId)
                         // check if its a groupStart task, if so delete the group

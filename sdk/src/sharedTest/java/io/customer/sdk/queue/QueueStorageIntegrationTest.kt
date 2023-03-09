@@ -111,21 +111,25 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.getInventory().count() shouldBeEqualTo 0
     }
 
+    // deleteTasksMemberOfGroup
+
     @Test
-    fun givenDeleteGroupTask_expectAllTasksInGroupToDelete() {
-        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
+    fun deleteTasksMemberOfGroup_givenTasksMemberOfGroupToDelete_expectAllTasksInGroupToDelete() {
+        val givenGroupId = QueueTaskGroup.IdentifyProfile(String.random)
 
-        queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
-        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
-        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
+        queueStorage.create(String.random, String.random, givenGroupId, null)
+        queueStorage.create(String.random, String.random, null, listOf(givenGroupId))
+        queueStorage.create(String.random, String.random, null, listOf(givenGroupId))
 
-        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
-        itemsDeleted.count() shouldBeEqualTo 3
-        queueStorage.getInventory().count() shouldBeEqualTo 0
+        val expectedItemsNotDeleted = queueStorage.getInventory().slice(setOf(0))
+        val expectedItemsDeleted = queueStorage.getInventory().minus(expectedItemsNotDeleted)
+
+        expectedItemsDeleted shouldBeEqualTo queueStorage.deleteTasksMemberOfGroup(givenGroupId.toString())
+        expectedItemsNotDeleted shouldBeEqualTo queueStorage.getInventory()
     }
 
     @Test
-    fun givenDeleteGroupTask_expectTasksNotInGroupNotDeleted() {
+    fun deleteTasksMemberOfGroup_expectTasksNotInGroupNotDeleted() {
         val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
         val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
 
@@ -134,21 +138,15 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.create(String.random, String.random, null, null)
         queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
 
-        val newlyCreatedInventoryItem3 = queueStorage.getInventory()[2]
-        val newlyCreatedInventoryItem4 = queueStorage.getInventory()[3]
+        val expectedItemsNotDeleted = queueStorage.getInventory().slice(setOf(0, 2, 3))
+        val expectedItemsDeleted = queueStorage.getInventory().minus(expectedItemsNotDeleted)
 
-        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
-        itemsDeleted.count() shouldBeEqualTo 2
-        val inventory = queueStorage.getInventory()
-        inventory.count() shouldBeEqualTo 2
-        inventory.map { it.taskPersistedId } shouldBeEqualTo listOf(
-            newlyCreatedInventoryItem3.taskPersistedId,
-            newlyCreatedInventoryItem4.taskPersistedId
-        )
+        expectedItemsDeleted shouldBeEqualTo queueStorage.deleteTasksMemberOfGroup(givenStartOfTheGroup.toString())
+        expectedItemsNotDeleted shouldBeEqualTo queueStorage.getInventory()
     }
 
     @Test
-    fun givenDeleteGroupTask_givenMembersTasksBelongToDifferentGroups_expectAllStartTasksAndTheirMembersToBeDeleted() {
+    fun deleteTasksMemberOfGroup_givenDeletedTasksStartNewGroup_expectMultipleGroupsBeDeleted() {
         val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
         val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
 
@@ -162,34 +160,15 @@ class QueueStorageIntegrationTest : BaseTest() {
         )
         queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
 
-        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
-        itemsDeleted.count() shouldBeEqualTo 4
-        queueStorage.getInventory().count() shouldBeEqualTo 0
+        val expectedItemsNotDeleted = queueStorage.getInventory().slice(setOf(0))
+        val expectedItemsDeleted = queueStorage.getInventory().minus(expectedItemsNotDeleted)
+
+        expectedItemsDeleted shouldBeEqualTo queueStorage.deleteTasksMemberOfGroup(givenStartOfTheGroup.toString())
+        expectedItemsNotDeleted shouldBeEqualTo queueStorage.getInventory()
     }
 
     @Test
-    fun givenDeleteGroupTask_givenMembersTasksBelongToDifferentGroups_givenDifferentOrder_expectAllStartTasksAndTheirMembersToBeDeleted() {
-        val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
-        val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
-
-        queueStorage.create(String.random, String.random, null, listOf(givenStartOfTheGroup))
-        queueStorage.create(String.random, String.random, givenStartOfTheGroup, null)
-        queueStorage.create(String.random, String.random, null, null)
-        queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
-        queueStorage.create(
-            String.random,
-            String.random,
-            givenStartOfAnotherGroup,
-            listOf(givenStartOfTheGroup)
-        )
-
-        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
-        itemsDeleted.count() shouldBeEqualTo 4
-        queueStorage.getInventory().count() shouldBeEqualTo 1
-    }
-
-    @Test
-    fun givenDeleteGroupTask_givenIncorrectQueue_expectNotToGetInfiniteLoop() {
+    fun deleteTasksMemberOfGroup_givenTaskStartsAndBelongsToSameGroup_expectNotToGetInfiniteLoop() {
         val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
 
         queueStorage.create(
@@ -199,13 +178,14 @@ class QueueStorageIntegrationTest : BaseTest() {
             listOf(givenStartOfTheGroup)
         )
 
-        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
-        itemsDeleted.count() shouldBeEqualTo 1
+        val expectedTasksToDelete = queueStorage.getInventory()
+        expectedTasksToDelete shouldBeEqualTo queueStorage.deleteTasksMemberOfGroup(givenStartOfTheGroup.toString())
+
         queueStorage.getInventory().count() shouldBeEqualTo 0
     }
 
     @Test
-    fun givenDeleteGroupTask_givenNoStartGroupPresentInInventory_expectTasksNotDeleted() {
+    fun deleteTasksMemberOfGroup_givenNoStartGroupPresentInInventory_expectTasksNotDeleted() {
         val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
 
         val givenStartOfAnotherGroup = QueueTaskGroup.RegisterPushToken(String.random)
@@ -214,9 +194,11 @@ class QueueStorageIntegrationTest : BaseTest() {
         queueStorage.create(String.random, String.random, null, null)
         queueStorage.create(String.random, String.random, null, listOf(givenStartOfAnotherGroup))
 
-        val itemsDeleted = queueStorage.deleteGroup(givenStartOfTheGroup.toString())
-        itemsDeleted.count() shouldBeEqualTo 0
-        queueStorage.getInventory().count() shouldBeEqualTo 3
+        val expectedTasksToNotDelete = queueStorage.getInventory()
+        val expectedTasksToDelete = queueStorage.getInventory().minus(expectedTasksToNotDelete)
+
+        expectedTasksToDelete shouldBeEqualTo queueStorage.deleteTasksMemberOfGroup(givenStartOfTheGroup.toString())
+        expectedTasksToNotDelete shouldBeEqualTo queueStorage.getInventory()
     }
 
     @Test

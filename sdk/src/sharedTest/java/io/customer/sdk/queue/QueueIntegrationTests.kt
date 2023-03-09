@@ -70,7 +70,6 @@ class QueueIntegrationTests : BaseTest() {
     fun givenRunQueueAndFailWith400_expectNonGroupTasksNotToBeDeleted(): Unit = runBlocking {
         val givenIdentifier = String.random
         queue.queueIdentifyProfile(givenIdentifier, null, emptyMap())
-        queueStorage.getInventory().count() shouldBeEqualTo 1
         mockWebServer.enqueue(MockResponse().setResponseCode(200))
 
         queue.queueTrack(givenIdentifier, String.random, EventType.event, emptyMap())
@@ -79,19 +78,23 @@ class QueueIntegrationTests : BaseTest() {
         queue.queueTrack(givenIdentifier, String.random, EventType.event, emptyMap())
         mockWebServer.enqueue(MockResponse().setResponseCode(404))
 
+        queueStorage.getInventory().count() shouldBeEqualTo 3
+        val expectedTaskToNotDelete = queueStorage.getInventory().last()
+
         queue.run()
 
-        // expect tasks with 400 still present
-        queueStorage.getInventory().count() shouldBeEqualTo 1
+        // expect tasks with 404 still present
+        queueStorage.getInventory() shouldBeEqualTo listOf(expectedTaskToNotDelete)
         mockWebServer.requestCount shouldBeEqualTo 3
     }
 
     @Test
-    fun givenRunQueueAndMultipleTaskGroupsFailWith400Tasks_expectQueueToBeEmpty(): Unit =
+    fun givenMemberOfQueueGroupStartNewGroup_given400Response_expectQueueToBeEmpty(): Unit =
         runBlocking {
             val givenIdentifier = String.random
             val givenToken = String.random
             queue.queueIdentifyProfile(givenIdentifier, null, emptyMap())
+            // add a task to queue that is member of identify profile group and also starts a new group
             queue.queueRegisterDevice(
                 givenIdentifier,
                 Device(
@@ -100,14 +103,14 @@ class QueueIntegrationTests : BaseTest() {
                     attributes = emptyMap()
                 )
             )
+            // adding a task to queue that is a member of register device group and not identify profile group
             queue.queueTrackMetric(String.random, givenToken, MetricEvent.opened)
             queueStorage.getInventory().count() shouldBeEqualTo 3
 
             mockWebServer.enqueue(MockResponse().setResponseCode(400))
             queue.run()
 
-            // expect tasks to be deleted
             queueStorage.getInventory().count() shouldBeEqualTo 0
-//            mockWebServer.requestCount shouldBeEqualTo 3
+            mockWebServer.requestCount shouldBeEqualTo 1
         }
 }

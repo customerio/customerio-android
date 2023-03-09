@@ -26,7 +26,7 @@ interface QueueStorage {
     fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
-    fun deleteGroup(groupId: String): List<QueueTaskMetadata>
+    fun deleteTasksMemberOfGroup(groupId: String): List<QueueTaskMetadata>
     fun deleteExpired(): List<QueueTaskMetadata>
 }
 
@@ -106,18 +106,18 @@ internal class QueueStorageImpl internal constructor(
     }
 
     @Synchronized
-    override fun deleteGroup(groupId: String): List<QueueTaskMetadata> {
+    override fun deleteTasksMemberOfGroup(groupId: String): List<QueueTaskMetadata> {
         val inventory = getInventory()
         val listOfQueueTasksDeleted = mutableListOf<QueueTaskMetadata>()
 
         inventory.forEach { queueTaskMetadata ->
-            queueTaskMetadata.groupMember?.let { listOfGroupsTaskBelongsTo ->
-                if (listOfGroupsTaskBelongsTo.contains(groupId)) {
+            queueTaskMetadata.groupMember?.let { groupsQueueTaskIsMemberOf ->
+                if (groupsQueueTaskIsMemberOf.contains(groupId)) {
                     this.delete(queueTaskMetadata.taskPersistedId)
                     listOfQueueTasksDeleted.add(queueTaskMetadata)
 
                     queueTaskMetadata.groupStart?.let { groupIdQueueTaskStarts ->
-                        this.deleteGroup(groupIdQueueTaskStarts)
+                        listOfQueueTasksDeleted.addAll(this.deleteTasksMemberOfGroup(groupIdQueueTaskStarts))
                     }
                 }
             }

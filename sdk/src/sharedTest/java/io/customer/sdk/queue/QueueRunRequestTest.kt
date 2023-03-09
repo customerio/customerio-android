@@ -96,7 +96,7 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
-        verify(storageMock, never()).deleteGroup(anyOrNull())
+        verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
     }
 
     @Test
@@ -118,11 +118,11 @@ class QueueRunRequestTest : BaseTest() {
         whenever(storageMock.getInventory()).thenReturn(givenListOfQueueTaskMetadata)
 
         whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
-        whenever(storageMock.deleteGroup(eq(givenTaskId))).thenReturn(givenListOfQueueTaskMetadata)
+        whenever(storageMock.deleteTasksMemberOfGroup(eq(givenTaskId))).thenReturn(givenListOfQueueTaskMetadata)
 
         runRequest.run()
 
-        verify(storageMock).deleteGroup(givenGroupOfTasks.toString())
+        verify(storageMock).deleteTasksMemberOfGroup(givenGroupOfTasks.toString())
     }
 
     @Test
@@ -147,7 +147,7 @@ class QueueRunRequestTest : BaseTest() {
             runRequest.run()
 
             verify(storageMock, never()).delete(anyOrNull())
-            verify(storageMock, never()).deleteGroup(anyOrNull())
+            verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
             verify(storageMock, never()).update(anyOrNull(), anyOrNull())
         }
 

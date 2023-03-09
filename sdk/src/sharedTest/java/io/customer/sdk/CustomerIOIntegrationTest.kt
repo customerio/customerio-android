@@ -1,7 +1,6 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.filters.LargeTest
 import io.customer.commontest.BaseIntegrationTest
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.commontest.extensions.enqueueSuccessful
@@ -17,7 +16,6 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
     // The BQ should be able to handle N number of tasks inside of it without throwing an error.
     // This edge case mostly came from iOS having a stackoverflow during BQ execution.
     @Test
-    @LargeTest
     fun test_backgroundQueueExecuteLotsOfTasks_givenFailAllTasks_expectThrowNoError() = runTest {
         // A customer device could have tens of thousands of background queue tasks in it. There is no limit at this time so, this test function tries to
         // find a balance between keeping the test suite execution time low but being a quality test.
@@ -41,7 +39,6 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
     // The BQ should be able to handle N number of tasks inside of it without throwing an error.
     // This edge case mostly came from iOS having a stackoverflow during BQ execution.
     @Test
-    @LargeTest
     fun test_backgroundQueueExecuteLotsOfTasks_givenSuccessAllTasks_expectThrowNoError() = runTest {
         val numberOfTasksToAddInQueue = 5000
         setup(cioConfig = createConfig(backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1)) // set BQ to only be executed manually

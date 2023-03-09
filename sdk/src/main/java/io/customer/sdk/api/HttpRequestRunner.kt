@@ -61,6 +61,13 @@ internal class HttpRequestRunnerImpl(
         response: Response<R>,
         makeRequest: suspend () -> Response<R>
     ): Result<R> {
+        // Note: calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
+        // That's why we get the value here for the whole function body to use.
+        val httpResponseErrorBodyString = response.errorBody()?.string()
+
+        // parse the server response for use later.
+        val parsedCustomerIOServerResponse = parseCustomerIOErrorBody(httpResponseErrorBodyString)?.message ?: "(no helpful message from the API)"
+
         when (val statusCode = response.code()) {
             in 500 until 600 -> {
                 val sleepTime = retryPolicy.nextSleepTime
@@ -83,36 +90,21 @@ internal class HttpRequestRunnerImpl(
                 return Result.failure(CustomerIOError.Unauthorized())
             }
             400 -> {
-                return Result.failure(CustomerIOError.BadRequest400(parseErrorMessageFromAPI(response)))
+                return Result.failure(CustomerIOError.BadRequest400(parsedCustomerIOServerResponse))
             }
             else -> {
-                val errorMessageFromApi = parseErrorMessageFromAPI(response)
-                val customerIOError = CustomerIOError.UnsuccessfulStatusCode(statusCode, errorMessageFromApi)
+                val customerIOError = CustomerIOError.UnsuccessfulStatusCode(statusCode, parsedCustomerIOServerResponse)
 
-                logger.error("4xx HTTP status code response. Probably a bug? $errorMessageFromApi")
+                logger.error("4xx HTTP status code response. Probably a bug? $parsedCustomerIOServerResponse")
 
                 return Result.failure(customerIOError)
             }
         }
     }
 
-    internal fun parseErrorMessageFromAPI(response: Response<*>): String {
-        var errorMessage = "(none)"
+    internal fun parseCustomerIOErrorBody(errorBody: String?): Throwable? {
+        if (errorBody == null) return null
 
-        // Note: calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
-        response.errorBody()?.string()?.let { errorBodyString ->
-            errorMessage =
-                errorBodyString // if we can't parse the error body json, the raw response string is good to capture.
-
-            parseCustomerIOErrorBody(errorBodyString)?.message?.let { parsedErrorMessage ->
-                errorMessage = parsedErrorMessage
-            }
-        }
-
-        return errorMessage
-    }
-
-    internal fun parseCustomerIOErrorBody(errorBody: String): Throwable? {
         return jsonAdapter.fromJsonOrNull<CustomerIOApiErrorResponse>(errorBody)?.throwable
             ?: jsonAdapter.fromJsonOrNull<CustomerIOApiErrorsResponse>(errorBody)?.throwable
     }

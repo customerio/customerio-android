@@ -171,6 +171,7 @@ class QueueStorageIntegrationTest : BaseTest() {
     fun deleteTasksMemberOfGroup_givenTaskStartsAndBelongsToSameGroup_expectNotToGetInfiniteLoop() {
         val givenStartOfTheGroup = QueueTaskGroup.IdentifyProfile(String.random)
 
+        // because task is a member of group to delete, it should be deleted by function. But because it also is the start of the group with the same name, recursion should trigger and not cause an infinite loop.
         queueStorage.create(
             String.random,
             String.random,

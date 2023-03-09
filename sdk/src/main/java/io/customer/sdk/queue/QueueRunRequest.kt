@@ -75,12 +75,12 @@ internal class QueueRunRequestImpl internal constructor(
                         logger.error("Received HTTP 400 response while trying to run ${nextTaskToRun.type}. 400 responses never succeed and therefore, the SDK is deleting this SDK request and not retry. Error message from API: ${error.message}, request data sent: ${nextTaskToRun.data}")
 
                         queueStorage.delete(nextTaskStorageId)
-                        // check if its a groupStart task, if so delete the group
+                        // Because we deleted the queue task that starts a queue group, we can assume that all members of that group will also get HTTP failed responses. So, delete all members of the group.
                         if (nextTaskToRunInventoryItem.groupStart != null) {
                             queueStorage.deleteTasksMemberOfGroup(groupId = nextTaskToRunInventoryItem.groupStart)
                         }
 
-                        goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
+                        goToNextTask(inventory, totalNumberOfTasksToRun, lastFailedTask = nextTaskToRunInventoryItem)
                     }
                     else -> {
                         val previousRunResults = nextTaskToRun.runResults
@@ -89,7 +89,7 @@ internal class QueueRunRequestImpl internal constructor(
                         logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
                         queueStorage.update(nextTaskStorageId, newRunResults)
 
-                        goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
+                        goToNextTask(inventory, totalNumberOfTasksToRun, lastFailedTask = nextTaskToRunInventoryItem)
                     }
                 }
             }

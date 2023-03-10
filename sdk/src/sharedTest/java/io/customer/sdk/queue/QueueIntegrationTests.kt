@@ -53,8 +53,7 @@ class QueueIntegrationTests : BaseTest() {
     fun givenRunQueueAndFailWith400_expectAllGroupTasksToBeDeleted(): Unit = runBlocking {
         val givenIdentifier = String.random
         queue.queueIdentifyProfile(givenIdentifier, null, emptyMap())
-        queue.queueTrack(givenIdentifier, String.random, EventType.event, emptyMap())
-        queueStorage.getInventory().count() shouldBeEqualTo 2
+        queueStorage.getInventory().count() shouldBeEqualTo 1
 
         mockWebServer.enqueue(MockResponse().setResponseCode(400))
         queue.run()

@@ -66,7 +66,8 @@ internal class HttpRequestRunnerImpl(
         val httpResponseErrorBodyString = response.errorBody()?.string()
 
         // parse the server response for use later.
-        val parsedCustomerIOServerResponse = parseCustomerIOErrorBody(httpResponseErrorBodyString)?.message ?: "(no helpful message from the API)"
+        // First, try to get a parsed version of the HTTP response body. Then, use the raw JSON response. If that also fails, return a generic default message to the customer.
+        val parsedCustomerIOServerResponse = parseCustomerIOErrorBody(httpResponseErrorBodyString)?.message ?: httpResponseErrorBodyString ?: "(server did not give a response)"
 
         when (val statusCode = response.code()) {
             in 500 until 600 -> {

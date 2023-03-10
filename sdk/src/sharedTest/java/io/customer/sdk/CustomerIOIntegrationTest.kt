@@ -21,7 +21,7 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
     fun test_backgroundQueueExecuteLotsOfTasks_givenFailAllTasks_expectThrowNoError() = runTest {
         // A customer device could have tens of thousands of background queue tasks in it. There is no limit at this time so, this test function tries to
         // find a balance between keeping the test suite execution time low but being a quality test.
-        val numberOfTasksToAddInQueue = 5
+        val numberOfTasksToAddInQueue = 5000
         setup(cioConfig = createConfig(backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1)) // set BQ to only be executed manually
 
         for (i in 0 until numberOfTasksToAddInQueue) {
@@ -42,7 +42,7 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
     // This edge case mostly came from iOS having a stackoverflow during BQ execution.
     @Test
     fun test_backgroundQueueExecuteLotsOfTasks_givenSuccessAllTasks_expectThrowNoError() = runTest {
-        val numberOfTasksToAddInQueue = 5
+        val numberOfTasksToAddInQueue = 5000
         setup(cioConfig = createConfig(backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1)) // set BQ to only be executed manually
 
         for (i in 0 until numberOfTasksToAddInQueue) {

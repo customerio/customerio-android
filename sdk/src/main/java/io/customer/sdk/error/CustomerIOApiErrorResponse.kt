@@ -34,10 +34,10 @@ internal data class CustomerIOApiErrorsResponse(
 ) {
 
     // created property because Moshi cannot create adapter that extends Throwable
-    val throwable: Throwable = Throwable(meta.error.joinToString(", "))
+    val throwable: Throwable = Throwable(meta.errors.joinToString(", "))
 
     @JsonClass(generateAdapter = true)
     data class Meta(
-        val error: List<String>
+        val errors: List<String>
     )
 }

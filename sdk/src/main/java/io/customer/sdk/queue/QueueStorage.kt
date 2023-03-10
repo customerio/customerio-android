@@ -26,7 +26,6 @@ interface QueueStorage {
     fun update(taskStorageId: String, runResults: QueueTaskRunResults): Boolean
     fun get(taskStorageId: String): QueueTask?
     fun delete(taskStorageId: String): QueueModifyResult
-    fun deleteTasksMemberOfGroup(groupId: String): List<QueueTaskMetadata>
     fun deleteExpired(): List<QueueTaskMetadata>
 }
 
@@ -103,27 +102,6 @@ internal class QueueStorageImpl internal constructor(
     override fun get(taskStorageId: String): QueueTask? {
         val fileContents = fileStorage.get(FileType.QueueTask(taskStorageId)) ?: return null
         return jsonAdapter.fromJsonOrNull(fileContents)
-    }
-
-    @Synchronized
-    override fun deleteTasksMemberOfGroup(groupId: String): List<QueueTaskMetadata> {
-        val inventory = getInventory()
-        val listOfQueueTasksDeleted = mutableListOf<QueueTaskMetadata>()
-
-        inventory.forEach { queueTaskMetadata ->
-            queueTaskMetadata.groupMember?.let { groupsQueueTaskIsMemberOf ->
-                if (groupsQueueTaskIsMemberOf.contains(groupId)) {
-                    this.delete(queueTaskMetadata.taskPersistedId)
-                    listOfQueueTasksDeleted.add(queueTaskMetadata)
-
-                    queueTaskMetadata.groupStart?.let { groupIdQueueTaskStarts ->
-                        listOfQueueTasksDeleted.addAll(this.deleteTasksMemberOfGroup(groupIdQueueTaskStarts))
-                    }
-                }
-            }
-        }
-
-        return listOfQueueTasksDeleted
     }
 
     @Synchronized

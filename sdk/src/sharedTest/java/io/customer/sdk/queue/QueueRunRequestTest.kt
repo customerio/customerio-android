@@ -50,7 +50,6 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
-        verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
     }
 
     @Test
@@ -71,7 +70,6 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.run()
 
         verify(storageMock, never()).delete(givenTaskId)
-        verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
         verify(storageMock).update(givenTaskId, QueueTaskRunResults(totalRuns = 1))
     }
 
@@ -98,34 +96,6 @@ class QueueRunRequestTest : BaseTest() {
         runRequest.run()
 
         verify(storageMock).delete(givenTaskId)
-        verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
-    }
-
-    @Test
-    fun test_run_givenRunGroupStartTask400Failure_expectDeleteGroup(): Unit = runBlocking {
-        val givenTaskId = String.random
-        val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
-
-        val givenGroupOfTasks = QueueTaskGroup.IdentifyProfile(String.random)
-
-        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400("")))
-
-        val givenListOfQueueTaskMetadata = listOf(
-            QueueTaskMetadata.random.copy(
-                taskPersistedId = givenTaskId,
-                groupStart = givenGroupOfTasks.toString()
-            )
-        )
-
-        whenever(storageMock.getInventory()).thenReturn(givenListOfQueueTaskMetadata)
-
-        whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
-        whenever(storageMock.deleteTasksMemberOfGroup(eq(givenTaskId))).thenReturn(givenListOfQueueTaskMetadata)
-
-        runRequest.run()
-
-        verify(storageMock).delete(givenTaskId)
-        verify(storageMock).deleteTasksMemberOfGroup(givenGroupOfTasks.toString())
     }
 
     @Test
@@ -150,7 +120,6 @@ class QueueRunRequestTest : BaseTest() {
             runRequest.run()
 
             verify(storageMock, never()).delete(anyOrNull())
-            verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
             verify(storageMock, never()).update(anyOrNull(), anyOrNull())
         }
 
@@ -181,7 +150,6 @@ class QueueRunRequestTest : BaseTest() {
 
             verify(storageMock).delete(givenTaskId)
             verify(storageMock).delete(givenTaskId2)
-            verify(storageMock, never()).deleteTasksMemberOfGroup(anyOrNull())
             verify(runnerMock).runTask(givenQueueTask)
             verify(runnerMock).runTask(givenQueueTask2)
         }

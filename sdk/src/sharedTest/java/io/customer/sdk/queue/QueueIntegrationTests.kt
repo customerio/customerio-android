@@ -4,8 +4,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.data.request.Device
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
@@ -67,7 +65,7 @@ class QueueIntegrationTests : BaseTest() {
     }
 
     @Test
-    fun givenRunQueueAndFailWith400_expectNonGroupTasksNotToBeDeleted(): Unit = runBlocking {
+    fun givenRunQueueAndFailWith400_expectNon400ResponseTasksNotToBeDeleted(): Unit = runBlocking {
         val givenIdentifier = String.random
         queue.queueIdentifyProfile(givenIdentifier, null, emptyMap())
         mockWebServer.enqueue(MockResponse().setResponseCode(200))
@@ -87,30 +85,4 @@ class QueueIntegrationTests : BaseTest() {
         queueStorage.getInventory() shouldBeEqualTo listOf(expectedTaskToNotDelete)
         mockWebServer.requestCount shouldBeEqualTo 3
     }
-
-    @Test
-    fun givenMemberOfQueueGroupStartNewGroup_given400Response_expectQueueToBeEmpty(): Unit =
-        runBlocking {
-            val givenIdentifier = String.random
-            val givenToken = String.random
-            queue.queueIdentifyProfile(givenIdentifier, null, emptyMap())
-            // add a task to queue that is member of identify profile group and also starts a new group
-            queue.queueRegisterDevice(
-                givenIdentifier,
-                Device(
-                    token = givenToken,
-                    lastUsed = dateUtilStub.givenDate,
-                    attributes = emptyMap()
-                )
-            )
-            // adding a task to queue that is a member of register device group and not identify profile group
-            queue.queueTrackMetric(String.random, givenToken, MetricEvent.opened)
-            queueStorage.getInventory().count() shouldBeEqualTo 3
-
-            mockWebServer.enqueue(MockResponse().setResponseCode(400))
-            queue.run()
-
-            queueStorage.getInventory().count() shouldBeEqualTo 0
-            mockWebServer.requestCount shouldBeEqualTo 1
-        }
 }

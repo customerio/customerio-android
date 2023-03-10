@@ -1,3 +1,10 @@
+### [3.3.2](https://github.com/customerio/customerio-android/compare/3.3.1...3.3.2) (2023-03-10)
+
+
+### Bug Fixes
+
+* remove tasks from queue with 400 http response ([#177](https://github.com/customerio/customerio-android/issues/177)) ([3ed104a](https://github.com/customerio/customerio-android/commit/3ed104a65be9cb673e4ab694335adef5d0047b8d))
+
 ### [3.3.1](https://github.com/customerio/customerio-android/compare/3.3.0...3.3.1) (2023-03-07)
 
 

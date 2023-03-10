@@ -46,12 +46,13 @@ abstract class BaseTest {
     protected val jsonAdapter: JsonAdapter
         get() = di.jsonAdapter
 
-    // convenient HttpException for test functions to test a failed HTTP request
-    protected val http500Error: HttpException
-        get() = HttpException(Response.error<String>(500, "{}".toResponseBody()))
-
     protected lateinit var mockWebServer: MockWebServer
     protected lateinit var dateUtilStub: DateUtilStub
+
+    // convenient method for test functions to test a failed HTTP request
+    protected fun getHttpError(code: Int, body: String = "{}"): HttpException {
+        return HttpException(Response.error<String>(code, body.toResponseBody()))
+    }
 
     protected fun createConfig(
         client: Client = Client.fromRawValue(source = "AndroidTest", sdkVersion = "1.0.0-alpha.6"),

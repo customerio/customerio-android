@@ -57,7 +57,18 @@ internal class HttpRequestRunnerImpl(
         return processUnsuccessfulResponse(response, makeRequest)
     }
 
-    suspend fun <R> processUnsuccessfulResponse(response: Response<R>, makeRequest: suspend () -> Response<R>): Result<R> {
+    suspend fun <R> processUnsuccessfulResponse(
+        response: Response<R>,
+        makeRequest: suspend () -> Response<R>
+    ): Result<R> {
+        // Note: calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
+        // That's why we get the value here for the whole function body to use.
+        val httpResponseErrorBodyString = response.errorBody()?.string()
+
+        // parse the server response for use later.
+        // First, try to get a parsed version of the HTTP response body. Then, use the raw JSON response. If that also fails, return a generic default message to the customer.
+        val parsedCustomerIOServerResponse = parseCustomerIOErrorBody(httpResponseErrorBodyString)?.message ?: httpResponseErrorBodyString ?: "(server did not give a response)"
+
         when (val statusCode = response.code()) {
             in 500 until 600 -> {
                 val sleepTime = retryPolicy.nextSleepTime
@@ -79,28 +90,22 @@ internal class HttpRequestRunnerImpl(
 
                 return Result.failure(CustomerIOError.Unauthorized())
             }
+            400 -> {
+                return Result.failure(CustomerIOError.BadRequest400(parsedCustomerIOServerResponse))
+            }
             else -> {
-                var errorMessage = "No error body from API."
+                val customerIOError = CustomerIOError.UnsuccessfulStatusCode(statusCode, parsedCustomerIOServerResponse)
 
-                // by calling .string(), you are not able to get the error body again. retrofit clears the error body after calling .string()
-                response.errorBody()?.string()?.let { errorBodyString ->
-                    errorMessage = errorBodyString // if we can't parse the error body json, the raw response string is good to capture.
-
-                    parseCustomerIOErrorBody(errorBodyString)?.message?.let { parsedErrorMessage ->
-                        errorMessage = parsedErrorMessage
-                    }
-                }
-
-                val customerIOError = CustomerIOError.UnsuccessfulStatusCode(statusCode, errorMessage)
-
-                logger.error("4xx HTTP status code response. Probably a bug? $errorMessage")
+                logger.error("4xx HTTP status code response. Probably a bug? $parsedCustomerIOServerResponse")
 
                 return Result.failure(customerIOError)
             }
         }
     }
 
-    internal fun parseCustomerIOErrorBody(errorBody: String): Throwable? {
+    internal fun parseCustomerIOErrorBody(errorBody: String?): Throwable? {
+        if (errorBody == null) return null
+
         return jsonAdapter.fromJsonOrNull<CustomerIOApiErrorResponse>(errorBody)?.throwable
             ?: jsonAdapter.fromJsonOrNull<CustomerIOApiErrorsResponse>(errorBody)?.throwable
     }

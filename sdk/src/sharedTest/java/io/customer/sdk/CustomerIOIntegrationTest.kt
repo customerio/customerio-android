@@ -2,8 +2,10 @@ package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.extensions.enqueue
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.commontest.extensions.enqueueSuccessful
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
@@ -55,5 +57,30 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
         di.queueStorage.getInventory().count() shouldBeEqualTo 0
 
         // If test runs through all tasks without crashing, we can assume the queue can handle X number of tasks successfully.
+    }
+
+    // Testing 400 response from API scenario
+
+    @Test
+    fun test_givenSendTestPushNotification_givenHttp400Response_expectDeleteTaskAndNotRetry() = runTest {
+        val httpResponseBody = """
+            {
+              "meta": {
+                "errors": [
+                  "malformed delivery id: ."
+                ]
+              }
+            }
+        """.trimIndent()
+
+        mockWebServer.enqueue(400, httpResponseBody)
+
+        CustomerIO.instance().trackMetric("", MetricEvent.opened, String.random)
+
+        di.queueStorage.getInventory().count() shouldBeEqualTo 1
+        di.queue.run() // waits until all BQ tasks execute
+        di.queueStorage.getInventory().count() shouldBeEqualTo 0
+
+        mockWebServer.requestCount shouldBeEqualTo 1
     }
 }

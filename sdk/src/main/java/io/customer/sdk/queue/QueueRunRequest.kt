@@ -23,7 +23,11 @@ internal class QueueRunRequestImpl internal constructor(
         runTasks(inventory, inventory.count())
     }
 
-    private suspend fun runTasks(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata? = null) {
+    private suspend fun runTasks(
+        inventory: QueueInventory,
+        totalNumberOfTasksToRun: Int,
+        lastFailedTask: QueueTaskMetadata? = null
+    ) {
         val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
         if (nextTaskToRunInventoryItem == null) {
             logger.debug("queue done running tasks")
@@ -60,25 +64,39 @@ internal class QueueRunRequestImpl internal constructor(
                 val error = result.exceptionOrNull()
                 logger.debug("queue task $nextTaskStorageId run failed $error")
 
-                val customerIOError = error as? CustomerIOError
-                return if (customerIOError is CustomerIOError.HttpRequestsPaused) {
-                    // When HTTP requests are paused, don't increment metadata about the tasks to create inaccurate data
-                    logger.info("queue is quitting early because all HTTP requests are paused.")
+                return when (error as? CustomerIOError) {
+                    is CustomerIOError.HttpRequestsPaused -> {
+                        // When HTTP requests are paused, don't increment metadata about the tasks to create inaccurate data
+                        logger.info("queue is quitting early because all HTTP requests are paused.")
 
-                    goToNextTask(emptyList(), totalNumberOfTasksToRun, null)
-                } else {
-                    val previousRunResults = nextTaskToRun.runResults
-                    val newRunResults = nextTaskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
-                    logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
-                    queueStorage.update(nextTaskStorageId, newRunResults)
+                        goToNextTask(emptyList(), totalNumberOfTasksToRun, null)
+                    }
+                    is CustomerIOError.BadRequest400 -> {
+                        logger.error("Received HTTP 400 response while trying to run ${nextTaskToRun.type}. 400 responses never succeed and therefore, the SDK is deleting this SDK request and not retry. Error message from API: ${error.message}, request data sent: ${nextTaskToRun.data}")
 
-                    goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
+                        queueStorage.delete(nextTaskStorageId)
+
+                        goToNextTask(inventory, totalNumberOfTasksToRun, lastFailedTask = nextTaskToRunInventoryItem)
+                    }
+                    else -> {
+                        val previousRunResults = nextTaskToRun.runResults
+                        val newRunResults =
+                            nextTaskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
+                        logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
+                        queueStorage.update(nextTaskStorageId, newRunResults)
+
+                        goToNextTask(inventory, totalNumberOfTasksToRun, lastFailedTask = nextTaskToRunInventoryItem)
+                    }
                 }
             }
         }
     }
 
-    private suspend fun goToNextTask(inventory: QueueInventory, totalNumberOfTasksToRun: Int, lastFailedTask: QueueTaskMetadata?) {
+    private suspend fun goToNextTask(
+        inventory: QueueInventory,
+        totalNumberOfTasksToRun: Int,
+        lastFailedTask: QueueTaskMetadata?
+    ) {
         val newInventory = inventory.toMutableList()
         newInventory.removeFirstOrNull()
         runTasks(newInventory, totalNumberOfTasksToRun, lastFailedTask)

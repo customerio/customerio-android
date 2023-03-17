@@ -3,6 +3,7 @@ package io.customer.messagingpush
 import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.sdk.CustomerIO
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
@@ -96,11 +97,12 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             handleNotificationTrigger: Boolean = true
         ): Boolean {
             // if CustomerIO instance isn't initialized, we can't handle the notification
-            if (CustomerIO.instanceOrNull(context) == null) {
-                return false
+            val customerIOInstance = CustomerIO.instanceOrNull(context) ?: return false
+
+            return customerIOInstance.diGraph.pushMessageProcessor.onPushReceived(remoteMessage) {
+                val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
+                return@onPushReceived handler.handleMessage(context, handleNotificationTrigger)
             }
-            val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
-            return handler.handleMessage(context, handleNotificationTrigger)
         }
     }
 

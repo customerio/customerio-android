@@ -14,6 +14,7 @@ internal interface GistApi {
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
     fun clearUserToken()
+    fun dismiss()
     fun addListener(listener: GistListener)
     fun subscribeToEvents(
         onMessageShown: (deliveryId: String) -> Unit,
@@ -41,6 +42,10 @@ internal class GistApiProvider : GistApi {
 
     override fun clearUserToken() {
         GistSdk.clearUserToken()
+    }
+
+    override fun dismiss() {
+        GistSdk.dismissMessage()
     }
 
     override fun addListener(listener: GistListener) {

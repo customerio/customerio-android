@@ -76,6 +76,8 @@ interface CustomerIOInstance {
         event: MetricEvent,
         deviceToken: String
     )
+
+    fun dismiss()
 }
 
 /**
@@ -494,6 +496,9 @@ class CustomerIO internal constructor(
         event = event,
         deviceToken = deviceToken
     )
+
+    override fun dismiss() {
+    }
 
     /**
      * Use to provide attributes to the currently identified profile.

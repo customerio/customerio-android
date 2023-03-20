@@ -2,6 +2,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstan
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public fun clearIdentify ()V
 	public fun deleteDeviceToken ()V
+	public fun dismiss ()V
 	public fun getDeviceAttributes ()Ljava/util/Map;
 	public final fun getDiGraph ()Lio/customer/sdk/di/CustomerIOComponent;
 	public fun getProfileAttributes ()Ljava/util/Map;
@@ -127,6 +128,7 @@ public final class io/customer/sdk/CustomerIOConfig$Companion$SDKConstants {
 public abstract interface class io/customer/sdk/CustomerIOInstance {
 	public abstract fun clearIdentify ()V
 	public abstract fun deleteDeviceToken ()V
+	public abstract fun dismiss ()V
 	public abstract fun getDeviceAttributes ()Ljava/util/Map;
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
 	public abstract fun getSdkVersion ()Ljava/lang/String;
@@ -296,6 +298,10 @@ public final class io/customer/sdk/hooks/ModuleHook$BeforeProfileStoppedBeingIde
 	public final fun getIdentifier ()Ljava/lang/String;
 }
 
+public final class io/customer/sdk/hooks/ModuleHook$Dismiss : io/customer/sdk/hooks/ModuleHook {
+	public static final field INSTANCE Lio/customer/sdk/hooks/ModuleHook$Dismiss;
+}
+
 public final class io/customer/sdk/hooks/ModuleHook$ProfileIdentifiedHook : io/customer/sdk/hooks/ModuleHook {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun getIdentifier ()Ljava/lang/String;
@@ -309,6 +315,7 @@ public final class io/customer/sdk/hooks/ModuleHook$ScreenTrackedHook : io/custo
 public abstract class io/customer/sdk/hooks/ModuleHookProvider {
 	public fun <init> ()V
 	public fun beforeProfileStoppedBeingIdentified (Lio/customer/sdk/hooks/ModuleHook$BeforeProfileStoppedBeingIdentified;)V
+	public fun dismiss (Lio/customer/sdk/hooks/ModuleHook$Dismiss;)V
 	public fun profileIdentifiedHook (Lio/customer/sdk/hooks/ModuleHook$ProfileIdentifiedHook;)V
 	public fun screenTrackedHook (Lio/customer/sdk/hooks/ModuleHook$ScreenTrackedHook;)V
 }
@@ -351,8 +358,12 @@ public abstract interface class io/customer/sdk/repository/ProfileRepository {
 public abstract interface class io/customer/sdk/repository/TrackRepository {
 	public abstract fun screen (Ljava/lang/String;Ljava/util/Map;)V
 	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
-	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;)V
+	public abstract fun trackInAppMetric (Ljava/lang/String;Ljava/util/Map;Lio/customer/sdk/data/request/MetricEvent;)V
 	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
+}
+
+public final class io/customer/sdk/repository/TrackRepository$DefaultImpls {
+	public static synthetic fun trackInAppMetric$default (Lio/customer/sdk/repository/TrackRepository;Ljava/lang/String;Ljava/util/Map;Lio/customer/sdk/data/request/MetricEvent;ILjava/lang/Object;)V
 }
 
 public abstract interface class io/customer/sdk/repository/preference/SitePreferenceRepository {

@@ -96,9 +96,11 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            // if CustomerIO instance isn't initialized, we can't handle the notification
+            // If CustomerIO instance isn't initialized, we can't handle the notification
             val customerIOInstance = CustomerIO.instanceOrNull(context) ?: return false
 
+            // Do not handle the message directly, using PushMessageProcessor to make sure the
+            // notification is not processed multiple times.
             return customerIOInstance.diGraph.pushMessageProcessor.onPushReceived(remoteMessage) {
                 val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
                 return@onPushReceived handler.handleMessage(context, handleNotificationTrigger)

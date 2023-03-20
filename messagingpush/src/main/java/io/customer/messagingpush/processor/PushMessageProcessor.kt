@@ -6,6 +6,9 @@ import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 
+/**
+ * Helper file to hold all message processing tasks at a single place.
+ */
 @InternalCustomerIOApi
 class PushMessageProcessor(
     private val logger: Logger,
@@ -13,6 +16,17 @@ class PushMessageProcessor(
 ) {
     private val messageProcessingTimestamp = mutableMapOf<String, Long>()
 
+    /**
+     * Should be called whenever push notification is received. The method is
+     * responsible for making sure that a CIO notification is processed only one
+     * time even if the listeners are invoked multiple times.
+     *
+     * @param remoteMessage message received from FCM.
+     * @param handler callback to process the message, the call is ignored if the
+     * notification was processed previously.
+     * @return true if the notification was processed previously, else returns the
+     * value received from [handler].
+     */
     fun onPushReceived(
         remoteMessage: RemoteMessage,
         handler: () -> Boolean

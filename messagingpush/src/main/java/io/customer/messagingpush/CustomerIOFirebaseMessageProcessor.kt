@@ -7,7 +7,7 @@ import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.Logger
 
 /**
- * Helper file to hold all message processing tasks at a single place.
+ * Helper class to hold all message processing tasks at a single place.
  */
 @InternalCustomerIOApi
 interface CustomerIOFirebaseMessageProcessor {
@@ -49,6 +49,8 @@ internal class CustomerIOFirebaseMessageProcessorImpl(
         }
 
         val isHandled: Boolean
+        // Make sure to process same notification only one time irrespective of number of callbacks
+        // invoked for it
         synchronized(this) {
             val messageLastProcessedAt = messageProcessingTimestamp[cioDeliveryToken] ?: 0
             if (dateUtil.nowUnixTimestamp - messageLastProcessedAt > NOTIFICATION_PROCESSING_DEBOUNCE_TIME) {

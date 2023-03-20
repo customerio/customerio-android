@@ -13,7 +13,8 @@ internal enum class DeliveryType {
 internal data class DeliveryPayload(
     @field:Json(name = "delivery_id") val deliveryID: String,
     val event: MetricEvent,
-    val timestamp: Date
+    val timestamp: Date,
+    val metaData: Map<String, String>
 )
 
 @JsonClass(generateAdapter = true)

@@ -101,9 +101,9 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
             // Do not handle the message directly, using PushMessageProcessor to make sure the
             // notification is not processed multiple times.
-            return customerIOInstance.diGraph.pushMessageProcessor.onPushReceived(remoteMessage) {
+            return customerIOInstance.diGraph.pushMessageProcessor.onMessageReceived(remoteMessage) {
                 val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
-                return@onPushReceived handler.handleMessage(context, handleNotificationTrigger)
+                return@onMessageReceived handler.handleMessage(context, handleNotificationTrigger)
             }
         }
     }

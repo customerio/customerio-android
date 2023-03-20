@@ -1,8 +1,10 @@
 package io.customer.messagingpush.di
 
+import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messagingpush.CustomerIOFirebaseMessageProcessor
+import io.customer.messagingpush.CustomerIOFirebaseMessageProcessorImpl
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
-import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
@@ -33,5 +35,8 @@ internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
 internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
     get() = override() ?: PushTrackingUtilImpl(trackRepository)
 
-internal val CustomerIOComponent.pushMessageProcessor: PushMessageProcessor
-    get() = override() ?: getSingletonInstanceCreate { PushMessageProcessor(logger, dateUtil) }
+@InternalCustomerIOApi
+val CustomerIOComponent.pushMessageProcessor: CustomerIOFirebaseMessageProcessor
+    get() = override() ?: getSingletonInstanceCreate {
+        CustomerIOFirebaseMessageProcessorImpl(logger, dateUtil)
+    }

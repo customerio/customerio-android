@@ -11,7 +11,6 @@ import com.google.firebase.messaging.RemoteMessage
  */
 class CustomerIOFirebaseMessagingReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val remoteMessage = RemoteMessage(intent.extras)
-        CustomerIOFirebaseMessagingService.onMessageReceived(context, remoteMessage)
+        CustomerIOFirebaseMessagingService.onMessageReceived(context, RemoteMessage(intent.extras))
     }
 }

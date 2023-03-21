@@ -1,9 +1,10 @@
 package io.customer.messagingpush
 
+import android.content.Context
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.util.PushTrackingUtil
-import io.customer.sdk.util.DateUtil
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.util.Logger
 
 /**
@@ -12,27 +13,30 @@ import io.customer.sdk.util.Logger
 @InternalCustomerIOApi
 interface CustomerIOFirebaseMessageProcessor {
     /**
+     * @param handler callback to process the message, the call is ignored if the
+     * notification was processed previously.
+     */
+    /**
      * Should be called whenever push notification is received. The method is
      * responsible for making sure that a CIO notification is processed only one
      * time even if the listeners are invoked multiple times.
      *
+     * @param context reference to application context
      * @param remoteMessage message received from FCM.
-     * @param handler callback to process the message, the call is ignored if the
-     * notification was processed previously.
-     * @return true if the notification was processed previously, false if the
-     * notification is not from Customer.io; else returns the value received from
-     * [handler].
+     * @param handleNotificationTrigger indicating if the local notification should be triggered
+     * @return true if the notification was processed by the SDK either now or previously, false
+     * if the notification is not from Customer.io or SDK is not yet initialized.
      */
     fun onMessageReceived(
+        context: Context,
         remoteMessage: RemoteMessage,
-        handler: () -> Boolean
+        handleNotificationTrigger: Boolean = true
     ): Boolean
 }
 
 @InternalCustomerIOApi
 internal class CustomerIOFirebaseMessageProcessorImpl(
-    private val logger: Logger,
-    private val dateUtil: DateUtil
+    private val logger: Logger
 ) : CustomerIOFirebaseMessageProcessor {
     /**
      * Holds message id of last handled notification against CIO delivery token.
@@ -40,11 +44,15 @@ internal class CustomerIOFirebaseMessageProcessorImpl(
      */
     private val deliveryTokenToMessageId = mutableMapOf<String, String>()
 
-    override fun onMessageReceived(remoteMessage: RemoteMessage, handler: () -> Boolean): Boolean {
+    override fun onMessageReceived(context: Context, remoteMessage: RemoteMessage, handleNotificationTrigger: Boolean): Boolean {
         val cioDeliveryToken = remoteMessage.data[PushTrackingUtil.DELIVERY_TOKEN_KEY]
-        // Skip processing the notification if there isn't any Customer.io delivery token
         if (cioDeliveryToken.isNullOrBlank()) {
+            // Skip processing the notification if there isn't any Customer.io delivery token
             logger.info("Not a CIO push notification, skipping processing")
+            return false
+        } else if (CustomerIO.instanceOrNull(context) == null) {
+            // If CustomerIO instance isn't initialized, we can't handle the notification
+            logger.info("Customer.io SDK not yet initialized, skipping push notification")
             return false
         }
 
@@ -58,7 +66,8 @@ internal class CustomerIOFirebaseMessageProcessorImpl(
             // If the ID is null, we'll fallback to the behavior suggested by the config
             if (lastMessageId.isNullOrBlank() || lastMessageId != currentMessageId) {
                 logger.info("CIO push notification processing with token $cioDeliveryToken, message id: $currentMessageId")
-                isHandled = handler()
+                val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
+                isHandled = handler.handleMessage(context, handleNotificationTrigger)
                 if (!currentMessageId.isNullOrBlank()) {
                     deliveryTokenToMessageId[cioDeliveryToken] = currentMessageId
                 }

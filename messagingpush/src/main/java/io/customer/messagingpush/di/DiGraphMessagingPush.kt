@@ -12,6 +12,7 @@ import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.di.CustomerIOStaticComponent
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -36,7 +37,7 @@ internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
     get() = override() ?: PushTrackingUtilImpl(trackRepository)
 
 @InternalCustomerIOApi
-val CustomerIOComponent.pushMessageProcessor: CustomerIOFirebaseMessageProcessor
+val CustomerIOStaticComponent.pushMessageProcessor: CustomerIOFirebaseMessageProcessor
     get() = override() ?: getSingletonInstanceCreate {
-        CustomerIOFirebaseMessageProcessorImpl(logger, dateUtil)
+        CustomerIOFirebaseMessageProcessorImpl(logger)
     }

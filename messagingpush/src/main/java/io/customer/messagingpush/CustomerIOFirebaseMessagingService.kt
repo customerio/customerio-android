@@ -5,6 +5,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOShared
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -96,15 +97,10 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            // If CustomerIO instance isn't initialized, we can't handle the notification
-            val customerIOInstance = CustomerIO.instanceOrNull(context) ?: return false
-
             // Do not handle the message directly, using PushMessageProcessor to make sure the
             // notification is not processed multiple times.
-            return customerIOInstance.diGraph.pushMessageProcessor.onMessageReceived(remoteMessage) {
-                val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
-                return@onMessageReceived handler.handleMessage(context, handleNotificationTrigger)
-            }
+            val processor = CustomerIOShared.instance().diStaticGraph.pushMessageProcessor
+            return processor.onMessageReceived(context, remoteMessage, handleNotificationTrigger)
         }
     }
 

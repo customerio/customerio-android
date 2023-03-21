@@ -52,11 +52,13 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM$Companion {
 
 public abstract interface class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback {
 	public abstract fun createTaskStackFromPayload (Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
+	public abstract fun getDeepLinkIntentFlags (Landroid/content/Intent;Landroid/net/Uri;ZZ)Ljava/lang/Integer;
 	public abstract fun onNotificationComposed (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
 }
 
 public final class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback$DefaultImpls {
 	public static fun createTaskStackFromPayload (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
+	public static fun getDeepLinkIntentFlags (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Landroid/content/Intent;Landroid/net/Uri;ZZ)Ljava/lang/Integer;
 	public static fun onNotificationComposed (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
 }
 

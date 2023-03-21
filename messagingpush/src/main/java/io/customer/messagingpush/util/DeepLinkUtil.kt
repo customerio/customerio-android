@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.util.Logger
@@ -54,8 +53,6 @@ class DeepLinkUtilImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig
 ) : DeepLinkUtil {
-    private val notificationIntentFlags: Int = Intent.FLAG_ACTIVITY_NEW_TASK or
-        Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
 
     override fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent? {
         return context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
@@ -118,14 +115,14 @@ class DeepLinkUtilImpl(
         // check if the deep link is handled within the host app
         val hostAppIntent = Intent(Intent.ACTION_VIEW, uri)
         hostAppIntent.setPackage(context.packageName)
-
-        hostAppIntent.flags =
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                notificationIntentFlags
-            } else {
-                notificationIntentFlags or Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER
-            }
-
+        moduleConfig.notificationCallback?.getDeepLinkIntentFlags(
+            intent = hostAppIntent,
+            uri = uri,
+            /* The method always starts intents from service/broadcast so starting from service flag is always true */
+            startingFromService = true,
+            /* The method always resolved host app intents so third party flag is always false */
+            isThirdPartyIntent = false
+        )?.let { flags -> hostAppIntent.flags = flags }
         return hostAppIntent.takeIfResolvable(context.packageManager)
     }
 
@@ -136,9 +133,13 @@ class DeepLinkUtilImpl(
     ): Intent? {
         // check if the deep link can be opened by any other app
         val browsableIntent = Intent(Intent.ACTION_VIEW, uri)
-        if (startingFromService) {
-            browsableIntent.flags = notificationIntentFlags
-        }
+        moduleConfig.notificationCallback?.getDeepLinkIntentFlags(
+            intent = browsableIntent,
+            uri = uri,
+            startingFromService = startingFromService,
+            /* The method always resolved non-host app intents so third party flag is always true */
+            isThirdPartyIntent = true
+        )?.let { flags -> browsableIntent.flags = flags }
 
         val resolveInfo = context.packageManager.queryIntentActivities(browsableIntent, 0)
         if (resolveInfo.isNotEmpty()) {

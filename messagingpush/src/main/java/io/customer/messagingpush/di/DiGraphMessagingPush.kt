@@ -36,6 +36,10 @@ internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
 internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
     get() = override() ?: PushTrackingUtilImpl(trackRepository)
 
+/**
+ * Adding processor to static component makes it easier to access the instance
+ * even when the SDK is not yet initialized.
+ */
 @InternalCustomerIOApi
 val CustomerIOStaticComponent.pushMessageProcessor: CustomerIOFirebaseMessageProcessor
     get() = override() ?: getSingletonInstanceCreate {

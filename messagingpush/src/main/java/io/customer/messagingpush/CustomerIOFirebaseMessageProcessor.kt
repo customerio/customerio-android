@@ -13,10 +13,6 @@ import io.customer.sdk.util.Logger
 @InternalCustomerIOApi
 interface CustomerIOFirebaseMessageProcessor {
     /**
-     * @param handler callback to process the message, the call is ignored if the
-     * notification was processed previously.
-     */
-    /**
      * Should be called whenever push notification is received. The method is
      * responsible for making sure that a CIO notification is processed only one
      * time even if the listeners are invoked multiple times.
@@ -44,7 +40,11 @@ internal class CustomerIOFirebaseMessageProcessorImpl(
      */
     private val deliveryTokenToMessageId = mutableMapOf<String, String>()
 
-    override fun onMessageReceived(context: Context, remoteMessage: RemoteMessage, handleNotificationTrigger: Boolean): Boolean {
+    override fun onMessageReceived(
+        context: Context,
+        remoteMessage: RemoteMessage,
+        handleNotificationTrigger: Boolean
+    ): Boolean {
         val cioDeliveryToken = remoteMessage.data[PushTrackingUtil.DELIVERY_TOKEN_KEY]
         if (cioDeliveryToken.isNullOrBlank()) {
             // Skip processing the notification if there isn't any Customer.io delivery token

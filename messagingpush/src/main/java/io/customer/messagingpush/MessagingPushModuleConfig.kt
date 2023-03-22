@@ -14,16 +14,20 @@ import io.customer.sdk.module.CustomerIOModuleConfig
  * notifications
  * @property redirectDeepLinksToOtherApps flag to support opening urls from
  * notification to other native apps or browsers; default true
+ * @property ignoreMessageWithInvalidId flag to allow processing of push messages
+ * with invalid message id
  */
 class MessagingPushModuleConfig private constructor(
     val autoTrackPushEvents: Boolean,
     val notificationCallback: CustomerIOPushNotificationCallback?,
-    val redirectDeepLinksToOtherApps: Boolean
+    val redirectDeepLinksToOtherApps: Boolean,
+    val ignoreMessageWithInvalidId: Boolean
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var redirectDeepLinksToOtherApps: Boolean = true
+        private var ignoreMessageWithInvalidId: Boolean = true
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -62,11 +66,28 @@ class MessagingPushModuleConfig private constructor(
             return this
         }
 
+        /**
+         * Allows to enable/disable processing of push messages with invalid message id.
+         * FCM creates unique message id for every push which helps assuring a notification
+         * is processed only one time. Allowing messages with invalid id may result in showing
+         * multiple notifications on user device
+         * <p>
+         * true: push notifications with invalid message ids are ignored and not processed
+         * by Customer.io SDK (Default)
+         * false: push notifications with invalid message ids are processed by Customer.io
+         * SDK and may result in showing multiple notifications on user device
+         */
+        fun setIgnorePushWithInvalidMessageId(ignoreMessageWithInvalidId: Boolean): Builder {
+            this.ignoreMessageWithInvalidId = ignoreMessageWithInvalidId
+            return this
+        }
+
         override fun build(): MessagingPushModuleConfig {
             return MessagingPushModuleConfig(
                 autoTrackPushEvents = autoTrackPushEvents,
                 notificationCallback = notificationCallback,
-                redirectDeepLinksToOtherApps = redirectDeepLinksToOtherApps
+                redirectDeepLinksToOtherApps = redirectDeepLinksToOtherApps,
+                ignoreMessageWithInvalidId = ignoreMessageWithInvalidId
             )
         }
     }

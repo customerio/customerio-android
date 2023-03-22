@@ -4,6 +4,7 @@ abstract class ModuleHookProvider {
     open fun profileIdentifiedHook(hook: ModuleHook.ProfileIdentifiedHook) {}
     open fun beforeProfileStoppedBeingIdentified(hook: ModuleHook.BeforeProfileStoppedBeingIdentified) {}
     open fun screenTrackedHook(hook: ModuleHook.ScreenTrackedHook) {}
+    open fun dismiss(hook: ModuleHook.Dismiss) {}
 }
 
 sealed class ModuleHook {
@@ -16,4 +17,7 @@ sealed class ModuleHook {
 
     // Hook to notify when a screen is tracked in SDK.
     class ScreenTrackedHook(val screen: String) : ModuleHook()
+
+    // Dismiss the in-app message being shown
+    object Dismiss : ModuleHook()
 }

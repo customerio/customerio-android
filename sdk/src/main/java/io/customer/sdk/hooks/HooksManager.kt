@@ -28,6 +28,9 @@ internal class CioHooksManager : HooksManager {
             is ModuleHook.ScreenTrackedHook -> map.values.forEach {
                 it.screenTrackedHook(hook)
             }
+            is ModuleHook.Dismiss -> map.values.forEach {
+                it.dismiss(hook)
+            }
         }
     }
 }

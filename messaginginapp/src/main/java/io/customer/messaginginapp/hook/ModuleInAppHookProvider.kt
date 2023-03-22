@@ -26,4 +26,8 @@ internal class ModuleInAppHookProvider : ModuleHookProvider() {
     override fun beforeProfileStoppedBeingIdentified(hook: ModuleHook.BeforeProfileStoppedBeingIdentified) {
         gistProvider.clearUserToken()
     }
+
+    override fun dismiss(hook: ModuleHook.Dismiss) {
+        gistProvider.dismiss()
+    }
 }

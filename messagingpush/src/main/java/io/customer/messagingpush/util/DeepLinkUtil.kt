@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.util.Logger
@@ -72,8 +73,7 @@ class DeepLinkUtilImpl(
             intent
         } else {
             logger.info(
-                "No supporting activity found in host app for link received in" +
-                    " push notification $link"
+                "No supporting activity found in host app for link received in" + " push notification $link"
             )
             null
         }
@@ -96,8 +96,7 @@ class DeepLinkUtilImpl(
 
             if (intent == null) {
                 logger.info(
-                    "No supporting application found for link received in " +
-                        "push notification: $link"
+                    "No supporting application found for link received in push notification: $link"
                 )
             }
         }
@@ -115,14 +114,20 @@ class DeepLinkUtilImpl(
         // check if the deep link is handled within the host app
         val hostAppIntent = Intent(Intent.ACTION_VIEW, uri)
         hostAppIntent.setPackage(context.packageName)
-        moduleConfig.notificationCallback?.getDeepLinkIntentFlags(
+
+        val flags = moduleConfig.notificationCallback?.getDeepLinkIntentFlags(
             intent = hostAppIntent,
-            uri = uri,
+            uri = uri
+        ) ?: getDeepLinkIntentFlags(
             /* The method always starts intents from service/broadcast so starting from service flag is always true */
             startingFromService = true,
             /* The method always resolved host app intents so third party flag is always false */
             isThirdPartyIntent = false
-        )?.let { flags -> hostAppIntent.flags = flags }
+        )
+
+        if (flags != null) {
+            hostAppIntent.flags = flags or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
         return hostAppIntent.takeIfResolvable(context.packageManager)
     }
 
@@ -133,13 +138,18 @@ class DeepLinkUtilImpl(
     ): Intent? {
         // check if the deep link can be opened by any other app
         val browsableIntent = Intent(Intent.ACTION_VIEW, uri)
-        moduleConfig.notificationCallback?.getDeepLinkIntentFlags(
+
+        val flags = moduleConfig.notificationCallback?.getDeepLinkIntentFlags(
             intent = browsableIntent,
-            uri = uri,
+            uri = uri
+        ) ?: getDeepLinkIntentFlags(
             startingFromService = startingFromService,
             /* The method always resolved non-host app intents so third party flag is always true */
             isThirdPartyIntent = true
-        )?.let { flags -> browsableIntent.flags = flags }
+        )
+        if (flags != null) {
+            browsableIntent.flags = flags or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
 
         val resolveInfo = context.packageManager.queryIntentActivities(browsableIntent, 0)
         if (resolveInfo.isNotEmpty()) {
@@ -147,5 +157,29 @@ class DeepLinkUtilImpl(
         }
 
         return browsableIntent.takeIfResolvable(context.packageManager)
+    }
+
+    /**
+     * Internal implementation of setting flags for deep link intent.
+     *
+     * @param startingFromService flag to indicate whether the intent is launching intent from
+     * service or not. This will be true only in Android 12 and later for links outside the host
+     * app due to notification trampoline restrictions.
+     * @param isThirdPartyIntent flag to indicate whether the intent being launched is outside the
+     * the host app or not, true for non-host app intents, false otherwise.
+     * @return flags to be set for the intent; null to don't set any flags.
+     */
+    private fun getDeepLinkIntentFlags(
+        startingFromService: Boolean,
+        isThirdPartyIntent: Boolean
+    ): Int? {
+        val defaultFlags =
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+        return when {
+            !startingFromService -> null
+            !isThirdPartyIntent && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> defaultFlags or Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER
+            else -> defaultFlags
+        }
     }
 }

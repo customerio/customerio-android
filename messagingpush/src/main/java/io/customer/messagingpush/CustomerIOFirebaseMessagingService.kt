@@ -97,10 +97,18 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            // Do not handle the message directly, using PushMessageProcessor to make sure the
-            // notification is not processed multiple times.
-            val processor = CustomerIOShared.instance().diStaticGraph.pushMessageProcessor
-            return processor.onMessageReceived(context, remoteMessage, handleNotificationTrigger)
+            val sdkInstance = CustomerIO.instanceOrNull(context)
+            // If CustomerIO instance isn't initialized, we can't handle the notification
+            if (sdkInstance == null) {
+                val logger = CustomerIOShared.instance().diStaticGraph.logger
+                logger.info("Customer.io SDK not yet initialized, cannot process push notification")
+                return false
+            }
+
+            // Do not handle the message directly, use PushMessageProcessor to make sure the
+            // notification is processed depending on client needs.
+            val processor = sdkInstance.diGraph.pushMessageProcessor
+            return processor.onMessageReceived(remoteMessage, handleNotificationTrigger)
         }
     }
 

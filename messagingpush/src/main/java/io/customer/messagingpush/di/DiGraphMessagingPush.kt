@@ -1,18 +1,14 @@
 package io.customer.messagingpush.di
 
-import io.customer.base.internal.InternalCustomerIOApi
-import io.customer.messagingpush.CustomerIOFirebaseMessageProcessor
-import io.customer.messagingpush.CustomerIOFirebaseMessageProcessorImpl
-import io.customer.messagingpush.MessagingPushModuleConfig
-import io.customer.messagingpush.ModuleMessagingPushFCM
+import io.customer.messagingpush.*
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.CustomerIOStaticComponent
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -37,11 +33,20 @@ internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
     get() = override() ?: PushTrackingUtilImpl(trackRepository)
 
 /**
- * Adding processor to static component makes it easier to access the instance
- * even when the SDK is not yet initialized.
+ * Creates processor based on client so notification messages are processed depending on
+ * client needs and limitations.
  */
-@InternalCustomerIOApi
-val CustomerIOStaticComponent.pushMessageProcessor: CustomerIOFirebaseMessageProcessor
+internal val CustomerIOComponent.pushMessageProcessor: CustomerIOFirebaseMessageProcessor
     get() = override() ?: getSingletonInstanceCreate {
-        CustomerIOFirebaseMessageProcessorImpl(logger)
+        return when (sdkConfig.client) {
+            is Client.Android -> CustomerIOFirebaseMessageNativeProcessor(context)
+            is Client.Expo,
+            is Client.Flutter,
+            is Client.Other,
+            is Client.ReactNative -> CustomerIOFirebaseMessageWrapperProcessor(
+                context = context,
+                logger = logger,
+                moduleConfig = moduleConfig
+            )
+        }
     }

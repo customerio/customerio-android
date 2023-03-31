@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application.ActivityLifecycleCallbacks
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.lifecycle.LifecycleCallback
 
 class CustomerIOActivityLifecycleCallbacks internal constructor(
@@ -16,6 +17,23 @@ class CustomerIOActivityLifecycleCallbacks internal constructor(
         for (event in callback.eventsToObserve) {
             eventCallbacks.getOrPut(event) { mutableListOf() }.add(callback)
         }
+    }
+
+    /**
+     * In non-native/wrapper SDKs, module listeners are attached after the
+     * activity has been created which results in missing initial lifecycle
+     * events. This method helps completing any pending actions by emitting
+     * those events manually. This method should be called as soon as SDK is
+     * initialized in wrapper SDKs by client app.
+     */
+    @InternalCustomerIOApi
+    fun postDelayedEventsForNonNativeActivity(activity: Activity) {
+        val bundle = activity.intent?.extras
+        sendEventToCallbacks(
+            event = Lifecycle.Event.ON_CREATE,
+            activity = activity,
+            bundle = bundle
+        )
     }
 
     private fun sendEventToCallbacks(

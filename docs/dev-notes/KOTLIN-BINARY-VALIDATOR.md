@@ -10,7 +10,7 @@ For each module It generates `.api` files that describe the public API available
 
 ## Setup
 
-Since its a simple Gradle plugin, we just need to add this code to our top level `build.gradle` file:
+Since it is a simple Gradle plugin, we just need to add this code to our top level `build.gradle` file:
 
 ```groovy
 apply plugin: 'binary-compatibility-validator'
@@ -29,7 +29,7 @@ We can configure what we want to include in the `apiValidation` block.
 ```groovy
 apiValidation {  
   ignoredPackages += [  
-			 'io/customer/base/extenstions',  
+            'io/customer/base/extenstions',  
             'io/customer/sdk/api',  
             'io/customer/sdk/data/store',  
             'io/customer/sdk/queue',  
@@ -48,7 +48,7 @@ apiValidation {
 }
 ```
 
- - **ignoredPackages**  allows you to exclude some packages from validation.
+ - **ignoredPackages** allows you to exclude some packages from validation.
  - **ignoredProjects** allows you to exclude non-published modules
  - **ignoredClasses** allows you to exclude classes from public api dump
 
@@ -62,5 +62,5 @@ apiValidation {
 ## Integrations
 
 These `checks` are currently integrated with both 
-- `lefthook` -   Using a pre-commit from lefthook, it will run the  `apiCheck`  task (and automatically run  `apiDump`  for you if it fails) when you try to create a new commit in the repository.
+- `lefthook` - Using a pre-commit from lefthook, it will run the `apiCheck` task (and automatically run `apiDump` for you if it fails) when you try to create a new commit in the repository.
 - `github action` - to makes sure that the `api` files are up-to-date before we merge changes. 

@@ -96,7 +96,7 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             handleNotificationTrigger: Boolean = true
         ): Boolean {
             // if CustomerIO instance isn't initialized, we can't handle the notification
-            if (CustomerIO.instanceOrNull(context) == null) {
+            if (CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM())) == null) {
                 return false
             }
             val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)

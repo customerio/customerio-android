@@ -86,8 +86,19 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             handleNewToken(context = context, token = token)
         }
 
+        /**
+         * Gets initialized instance of SDK. If the SDK is not initialized, it
+         * attempts to initialize with messaging push module so the module classes
+         * are initialized as well.
+         */
+        private fun getSDKInstanceOrNull(context: Context): CustomerIO? = try {
+            CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM()))
+        } catch (e: Exception) {
+            null
+        }
+
         private fun handleNewToken(context: Context, token: String) {
-            CustomerIO.instanceOrNull(context)?.registerDeviceToken(deviceToken = token)
+            getSDKInstanceOrNull(context = context)?.registerDeviceToken(deviceToken = token)
         }
 
         private fun handleMessageReceived(
@@ -96,9 +107,8 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             handleNotificationTrigger: Boolean = true
         ): Boolean {
             // if CustomerIO instance isn't initialized, we can't handle the notification
-            if (CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM())) == null) {
-                return false
-            }
+            getSDKInstanceOrNull(context = context) ?: return false
+
             val handler = CustomerIOPushNotificationHandler(remoteMessage = remoteMessage)
             return handler.handleMessage(context, handleNotificationTrigger)
         }

@@ -337,6 +337,12 @@ class CustomerIO internal constructor(
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
+            // cleanups
+            instance?.let {
+                appContext.unregisterActivityLifecycleCallbacks(it.diGraph.activityLifecycleCallbacks)
+                instance = null
+            }
+
             instance = client
 
             appContext.registerActivityLifecycleCallbacks(diGraph.activityLifecycleCallbacks)

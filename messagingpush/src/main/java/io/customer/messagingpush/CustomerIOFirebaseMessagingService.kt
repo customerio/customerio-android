@@ -91,11 +91,9 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * attempts to initialize with messaging push module so the module classes
          * are initialized as well.
          */
-        private fun getSDKInstanceOrNull(context: Context): CustomerIO? = try {
-            CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM()))
-        } catch (e: Exception) {
-            null
-        }
+private fun getSDKInstanceOrNull(context: Context): CustomerIO? {
+    return CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM()))
+}
 
         private fun handleNewToken(context: Context, token: String) {
             getSDKInstanceOrNull(context = context)?.registerDeviceToken(deviceToken = token)

@@ -344,7 +344,8 @@ class CustomerIO internal constructor(
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
 
-            // cleanup of old reference if it exists
+            // cleanup of old reference if it exists, so that if the SDK is re-initialized (due to wrappers different lifecycle),
+            // the old instance is not kept in memory and any callbacks are unregistered
             instance?.let {
                 // we need to unregister the previous activity lifecycle because it doesn't get garbage collected
                 // and will continue to hold a reference to the previous app context and return callbacks

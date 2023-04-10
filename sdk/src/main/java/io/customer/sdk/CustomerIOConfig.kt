@@ -2,7 +2,7 @@ package io.customer.sdk
 
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
-import io.customer.sdk.module.CustomerIOModuleConfig
+import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.util.CioLogLevel
 
 data class CustomerIOConfig(
@@ -32,7 +32,7 @@ data class CustomerIOConfig(
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
     var trackingApiUrl: String?,
-    val configurations: Map<String, CustomerIOModuleConfig>
+    val modules: Map<String, CustomerIOModule<*>>
 ) {
     internal val trackingApiHostname: String
         get() {

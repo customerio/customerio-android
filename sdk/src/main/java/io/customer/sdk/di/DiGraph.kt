@@ -46,9 +46,11 @@ abstract class DiGraph {
     inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {
         val singletonKey = INST::class.java.simpleName
 
-        return singletons[singletonKey] as? INST ?: newInstanceCreator().also {
-            singletons[singletonKey] = it
-        }
+        return (
+            singletons[singletonKey] as? INST ?: newInstanceCreator().also {
+                singletons[singletonKey] = it
+            }
+            ) as INST
     }
 
     /**

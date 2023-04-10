@@ -15,8 +15,7 @@ import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 
 class ModuleMessagingInApp
-@VisibleForTesting
-@InternalCustomerIOApi
+@VisibleForTesting @InternalCustomerIOApi
 internal constructor(
     override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
     private val overrideDiGraph: CustomerIOComponent?
@@ -44,7 +43,7 @@ internal constructor(
     )
 
     override val moduleName: String
-        get() = "MessagingInApp"
+        get() = ModuleMessagingInApp.moduleName
 
     private val diGraph: CustomerIOComponent
         get() = overrideDiGraph ?: CustomerIO.instance().diGraph
@@ -63,6 +62,22 @@ internal constructor(
 
     private val config: CustomerIOConfig
         get() = diGraph.sdkConfig
+
+    companion object {
+
+        val moduleName: String
+            get() = "MessagingInApp"
+
+        @JvmStatic
+        fun getInstance(): ModuleMessagingInApp {
+            return CustomerIO.instance().diGraph.sdkConfig.modules[moduleName] as? ModuleMessagingInApp
+                ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
+        }
+    }
+
+    fun dismissMessage() {
+        gistProvider.dismissMessage()
+    }
 
     override fun initialize() {
         initializeGist(config)

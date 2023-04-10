@@ -84,8 +84,8 @@ public final class io/customer/sdk/CustomerIOConfig {
 	public final fun getBackgroundQueueSecondsDelay ()D
 	public final fun getBackgroundQueueTaskExpiredSeconds ()D
 	public final fun getClient ()Lio/customer/sdk/data/store/Client;
-	public final fun getConfigurations ()Ljava/util/Map;
 	public final fun getLogLevel ()Lio/customer/sdk/util/CioLogLevel;
+	public final fun getModules ()Ljava/util/Map;
 	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
 	public final fun getSiteId ()Ljava/lang/String;
 	public final fun getTimeout ()J

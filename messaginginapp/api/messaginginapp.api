@@ -16,6 +16,7 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Compani
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/sdk/module/CustomerIOModule {
 	public static final field Companion Lio/customer/messaginginapp/ModuleMessagingInApp$Companion;
+	public static final field moduleName Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
 	public synthetic fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -23,7 +24,6 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
 	public synthetic fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun dismissMessage ()V
-	public static final fun getInstance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
@@ -31,8 +31,10 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
-	public final fun getInstance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
-	public final fun getModuleName ()Ljava/lang/String;
+}
+
+public final class io/customer/messaginginapp/di/DIGraphMessaginIAppKt {
+	public static final fun inAppMessaging (Lio/customer/sdk/CustomerIO;)Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

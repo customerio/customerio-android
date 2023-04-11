@@ -42,8 +42,7 @@ internal constructor(
         overrideDiGraph = null
     )
 
-    override val moduleName: String
-        get() = ModuleMessagingInApp.moduleName
+    override val moduleName: String = ModuleMessagingInApp.moduleName
 
     private val diGraph: CustomerIOComponent
         get() = overrideDiGraph ?: CustomerIO.instance().diGraph
@@ -64,15 +63,7 @@ internal constructor(
         get() = diGraph.sdkConfig
 
     companion object {
-
-        val moduleName: String
-            get() = "MessagingInApp"
-
-        @JvmStatic
-        fun getInstance(): ModuleMessagingInApp {
-            return CustomerIO.instance().diGraph.sdkConfig.modules[moduleName] as? ModuleMessagingInApp
-                ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
-        }
+        const val moduleName: String = "MessagingInApp"
     }
 
     fun dismissMessage() {

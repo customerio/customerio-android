@@ -50,7 +50,7 @@ abstract class DiGraph {
             singletons[singletonKey] as? INST ?: newInstanceCreator().also {
                 singletons[singletonKey] = it
             }
-            ) as INST
+            )
     }
 
     /**

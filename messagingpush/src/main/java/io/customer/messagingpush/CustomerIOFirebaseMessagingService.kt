@@ -87,9 +87,14 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         /**
-         * Gets initialized instance of SDK. If the SDK is not initialized, it
-         * attempts to initialize with messaging push module so the module classes
-         * are initialized as well.
+         * Gets initialized instance of SDK. If the SDK is not initialized, we
+         * try to initialize the SDK and messaging push module earlier than requested
+         * by wrapper SDKs using stored values if available.
+         *
+         * By initializing the module early, we can register activity lifecycle callback
+         * required by messaging push module whenever we initialize the SDK using context.
+         * This helps us tracking metrics in wrapper SDKs for notifications received when
+         * app was in terminated state.
          */
         private fun getSDKInstanceOrNull(context: Context): CustomerIO? {
             return CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM()))

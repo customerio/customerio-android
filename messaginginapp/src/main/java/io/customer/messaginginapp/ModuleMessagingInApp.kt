@@ -84,11 +84,12 @@ internal constructor(
                 deliveryID = deliveryID,
                 event = MetricEvent.opened
             )
-        }, onAction = { deliveryID: String, _: String, _: String, _: String ->
+        }, onAction = { deliveryID: String, _: String, action: String, name: String ->
             logger.debug("in-app message clicked $deliveryID")
             trackRepository.trackInAppMetric(
                 deliveryID = deliveryID,
-                event = MetricEvent.clicked
+                event = MetricEvent.clicked,
+                metadata = mapOf("action_name" to name, "action_value" to action)
             )
         }, onError = { errorMessage ->
             logger.error("in-app message error occurred $errorMessage")

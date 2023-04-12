@@ -55,6 +55,8 @@ interface Queue {
     suspend fun run()
 
     fun deleteExpiredTasks()
+
+    fun cancelTimer()
 }
 
 internal class QueueImpl internal constructor(
@@ -258,5 +260,9 @@ internal class QueueImpl internal constructor(
 
     override fun deleteExpiredTasks() {
         storage.deleteExpired()
+    }
+
+    override fun cancelTimer() {
+        queueTimer.cancel()
     }
 }

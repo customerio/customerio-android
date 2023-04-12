@@ -350,6 +350,10 @@ class CustomerIO internal constructor(
                 // we need to unregister the previous activity lifecycle because it doesn't get garbage collected
                 // and will continue to hold a reference to the previous app context and return callbacks
                 appContext.unregisterActivityLifecycleCallbacks(it.diGraph.activityLifecycleCallbacks)
+                // Cancelling queue timer as the new queue timer will take care of running queue tasks.
+                // If we do not cancel old timer, it results in multiple timers being run and accessing
+                // the same tasks.
+                it.diGraph.queue.cancelTimer()
                 instance = null
             }
 

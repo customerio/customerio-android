@@ -186,6 +186,54 @@ public final class io/customer/sdk/data/model/Region$US : io/customer/sdk/data/m
 	public static final field INSTANCE Lio/customer/sdk/data/model/Region$US;
 }
 
+public final class io/customer/sdk/data/request/DeliveryPayload {
+	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Date;Lio/customer/sdk/data/request/DeliveryPayload$Metadata;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lio/customer/sdk/data/request/MetricEvent;
+	public final fun component3 ()Ljava/util/Date;
+	public final fun component4 ()Lio/customer/sdk/data/request/DeliveryPayload$Metadata;
+	public final fun copy (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Date;Lio/customer/sdk/data/request/DeliveryPayload$Metadata;)Lio/customer/sdk/data/request/DeliveryPayload;
+	public static synthetic fun copy$default (Lio/customer/sdk/data/request/DeliveryPayload;Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Date;Lio/customer/sdk/data/request/DeliveryPayload$Metadata;ILjava/lang/Object;)Lio/customer/sdk/data/request/DeliveryPayload;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryID ()Ljava/lang/String;
+	public final fun getEvent ()Lio/customer/sdk/data/request/MetricEvent;
+	public final fun getMetadata ()Lio/customer/sdk/data/request/DeliveryPayload$Metadata;
+	public final fun getTimestamp ()Ljava/util/Date;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/data/request/DeliveryPayload$Metadata {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/data/request/DeliveryPayload$Metadata;
+	public static synthetic fun copy$default (Lio/customer/sdk/data/request/DeliveryPayload$Metadata;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/data/request/DeliveryPayload$Metadata;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActionName ()Ljava/lang/String;
+	public final fun getActionValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/data/request/DeliveryPayloadJsonAdapter : com/squareup/moshi/JsonAdapter {
+	public fun <init> (Lcom/squareup/moshi/Moshi;)V
+	public fun fromJson (Lcom/squareup/moshi/JsonReader;)Lio/customer/sdk/data/request/DeliveryPayload;
+	public synthetic fun fromJson (Lcom/squareup/moshi/JsonReader;)Ljava/lang/Object;
+	public fun toJson (Lcom/squareup/moshi/JsonWriter;Lio/customer/sdk/data/request/DeliveryPayload;)V
+	public synthetic fun toJson (Lcom/squareup/moshi/JsonWriter;Ljava/lang/Object;)V
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/data/request/DeliveryPayload_MetadataJsonAdapter : com/squareup/moshi/JsonAdapter {
+	public fun <init> (Lcom/squareup/moshi/Moshi;)V
+	public fun fromJson (Lcom/squareup/moshi/JsonReader;)Lio/customer/sdk/data/request/DeliveryPayload$Metadata;
+	public synthetic fun fromJson (Lcom/squareup/moshi/JsonReader;)Ljava/lang/Object;
+	public fun toJson (Lcom/squareup/moshi/JsonWriter;Lio/customer/sdk/data/request/DeliveryPayload$Metadata;)V
+	public synthetic fun toJson (Lcom/squareup/moshi/JsonWriter;Ljava/lang/Object;)V
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/sdk/data/request/Device {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/util/Map;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -351,12 +399,12 @@ public abstract interface class io/customer/sdk/repository/ProfileRepository {
 public abstract interface class io/customer/sdk/repository/TrackRepository {
 	public abstract fun screen (Ljava/lang/String;Ljava/util/Map;)V
 	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
-	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;)V
+	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Lio/customer/sdk/data/request/DeliveryPayload$Metadata;)V
 	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
 }
 
 public final class io/customer/sdk/repository/TrackRepository$DefaultImpls {
-	public static synthetic fun trackInAppMetric$default (Lio/customer/sdk/repository/TrackRepository;Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;ILjava/lang/Object;)V
+	public static synthetic fun trackInAppMetric$default (Lio/customer/sdk/repository/TrackRepository;Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Lio/customer/sdk/data/request/DeliveryPayload$Metadata;ILjava/lang/Object;)V
 }
 
 public abstract interface class io/customer/sdk/repository/preference/SitePreferenceRepository {

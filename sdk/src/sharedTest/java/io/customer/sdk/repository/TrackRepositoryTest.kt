@@ -3,6 +3,7 @@ package io.customer.sdk.repository
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.request.DeliveryPayload
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HooksManager
@@ -96,7 +97,7 @@ class TrackRepositoryTest : BaseTest() {
     fun trackInAppMetric_expectAddEventToBackgroundQueue() {
         val givenDeliveryId = String.random
         val givenEvent = MetricEvent.opened
-        val givenMetadata = mapOf(String.random to String.random, String.random to String.random)
+        val givenMetadata = DeliveryPayload.Metadata(String.random, String.random)
 
         repository.trackInAppMetric(givenDeliveryId, givenEvent, givenMetadata)
 

@@ -7,6 +7,7 @@ import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.data.request.DeliveryPayload
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
@@ -89,7 +90,7 @@ internal constructor(
             trackRepository.trackInAppMetric(
                 deliveryID = deliveryID,
                 event = MetricEvent.clicked,
-                metadata = mapOf("action_name" to name, "action_value" to action)
+                metadata = DeliveryPayload.Metadata(actionName = name, actionValue = action)
             )
         }, onError = { errorMessage ->
             logger.error("in-app message error occurred $errorMessage")

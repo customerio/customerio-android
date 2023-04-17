@@ -41,7 +41,7 @@ interface Queue {
     fun queueTrackInAppMetric(
         deliveryId: String,
         event: MetricEvent,
-        metadata: Map<String, String>
+        metadata: DeliveryPayload.Metadata?
     ): QueueModifyResult
 
     fun <TaskType : Enum<*>, TaskData : Any> addTask(
@@ -210,7 +210,7 @@ internal class QueueImpl internal constructor(
     override fun queueTrackInAppMetric(
         deliveryId: String,
         event: MetricEvent,
-        metadata: Map<String, String>
+        metadata: DeliveryPayload.Metadata?
     ): QueueModifyResult {
         return addTask(
             QueueTaskType.TrackDeliveryEvent,
@@ -220,7 +220,7 @@ internal class QueueImpl internal constructor(
                     deliveryID = deliveryId,
                     event = event,
                     timestamp = dateUtil.now,
-                    metaData = metadata
+                    metadata = metadata
                 )
             ),
             blockingGroups = emptyList()

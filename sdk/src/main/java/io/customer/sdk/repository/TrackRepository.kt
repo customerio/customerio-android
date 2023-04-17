@@ -2,6 +2,7 @@ package io.customer.sdk.repository
 
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
+import io.customer.sdk.data.request.DeliveryPayload
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
@@ -15,7 +16,7 @@ interface TrackRepository {
     fun trackInAppMetric(
         deliveryID: String,
         event: MetricEvent,
-        metadata: Map<String, String> = emptyMap()
+        metadata: DeliveryPayload.Metadata? = null
     )
     fun screen(name: String, attributes: CustomAttributes)
 }
@@ -74,7 +75,7 @@ internal class TrackRepositoryImpl(
     override fun trackInAppMetric(
         deliveryID: String,
         event: MetricEvent,
-        metadata: Map<String, String>
+        metadata: DeliveryPayload.Metadata?
     ) {
         logger.info("in-app metric ${event.name}")
         logger.debug("delivery id $deliveryID")

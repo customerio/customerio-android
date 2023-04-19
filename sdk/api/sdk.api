@@ -351,8 +351,12 @@ public abstract interface class io/customer/sdk/repository/ProfileRepository {
 public abstract interface class io/customer/sdk/repository/TrackRepository {
 	public abstract fun screen (Ljava/lang/String;Ljava/util/Map;)V
 	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
-	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;)V
+	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;)V
 	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
+}
+
+public final class io/customer/sdk/repository/TrackRepository$DefaultImpls {
+	public static synthetic fun trackInAppMetric$default (Lio/customer/sdk/repository/TrackRepository;Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;ILjava/lang/Object;)V
 }
 
 public abstract interface class io/customer/sdk/repository/preference/SitePreferenceRepository {

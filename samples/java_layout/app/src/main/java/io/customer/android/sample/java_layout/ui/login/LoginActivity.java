@@ -6,7 +6,7 @@ import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
 
     @Override
-    protected ActivityLoginBinding generateViewBinding() {
+    protected ActivityLoginBinding inflateViewBinding() {
         return ActivityLoginBinding.inflate(getLayoutInflater());
     }
 }

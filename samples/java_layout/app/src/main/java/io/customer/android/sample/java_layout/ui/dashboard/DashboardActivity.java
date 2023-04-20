@@ -6,7 +6,7 @@ import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     @Override
-    protected ActivityDashboardBinding generateViewBinding() {
+    protected ActivityDashboardBinding inflateViewBinding() {
         return ActivityDashboardBinding.inflate(getLayoutInflater());
     }
 }

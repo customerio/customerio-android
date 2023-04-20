@@ -11,12 +11,12 @@ public abstract class BaseActivity<VB extends ViewBinding> extends AppCompatActi
 
     protected VB binding;
 
-    protected abstract VB generateViewBinding();
+    protected abstract VB inflateViewBinding();
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        binding = generateViewBinding();
+        binding = inflateViewBinding();
         setContentView(binding.getRoot());
         setupContent();
     }

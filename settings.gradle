@@ -5,3 +5,5 @@ include ':base'
 include ':messagingpush'
 include ':common-test'
 include ':messaginginapp'
+include ':samples:java_layout'
+project(':samples:java_layout').projectDir = new File(settingsDir, 'samples/java_layout/app')

@@ -1,3 +1,10 @@
+### [3.4.1](https://github.com/customerio/customerio-android/compare/3.4.0...3.4.1) (2023-04-20)
+
+
+### Bug Fixes
+
+* push opened metrics tracked on Android 12 ([#184](https://github.com/customerio/customerio-android/issues/184)) ([d2e52fa](https://github.com/customerio/customerio-android/commit/d2e52fa35be34cf0248d3c775614f487234cf8d4))
+
 ## [3.4.0](https://github.com/customerio/customerio-android/compare/3.3.2...3.4.0) (2023-04-19)
 
 

@@ -18,17 +18,11 @@ public abstract class BaseActivity<VB extends ViewBinding> extends AppCompatActi
         super.onCreate(savedInstanceState);
         binding = generateViewBinding();
         setContentView(binding.getRoot());
-        setupViews();
-        setupObservers();
+        setupContent();
     }
 
     @EmptySuper
-    protected void setupViews() {
-
-    }
-
-    @EmptySuper
-    protected void setupObservers() {
+    protected void setupContent() {
 
     }
 }

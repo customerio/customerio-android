@@ -1,3 +1,10 @@
+### [3.4.2](https://github.com/customerio/customerio-android/compare/3.4.1...3.4.2) (2023-04-22)
+
+
+### Bug Fixes
+
+* multiple Queue instances being created ([#190](https://github.com/customerio/customerio-android/issues/190)) ([406626c](https://github.com/customerio/customerio-android/commit/406626c467bb65616fd66184bc0fc5005b3b335b))
+
 ### [3.4.1](https://github.com/customerio/customerio-android/compare/3.4.0...3.4.1) (2023-04-20)
 
 

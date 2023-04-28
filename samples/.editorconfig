@@ -1,0 +1,5 @@
+[*.{kt, kts}]
+# Reasons why a rule is disabled in this package:
+# * package-name - ktlint does not allow "-" in package names but Kotlin styling docs do
+
+ktlint_standard_package-name = disabled

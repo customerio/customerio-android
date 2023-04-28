@@ -51,7 +51,8 @@ apiValidation {
     ignoredProjects += [
             'common-test',
             'app',
-            'base'
+            'base',
+            'kotlin_compose',
     ]
 
     nonPublicMarkers += [

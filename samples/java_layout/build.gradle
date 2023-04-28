@@ -30,20 +30,26 @@ android {
 }
 
 dependencies {
-    // Updating lifecycle version causes duplicate classes error because a large
-    // number of Lifecycle classes have been converted to Kotlin since 2.6
-    // see: https://developer.android.com/jetpack/androidx/releases/lifecycle#2.6.0
-    def lifecycle_version = "2.5.1"
-    //noinspection GradleDependency as updating version causes duplicate classes error
-    implementation "androidx.annotation:annotation:1.5.0"
+    def lifecycle_version = "2.6.1"
+    implementation "androidx.annotation:annotation:1.6.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.core:core-splashscreen:1.0.1"
-    //noinspection GradleDependency
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycle_version"
-    //noinspection GradleDependency
     implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
-    //noinspection GradleDependency
     implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
     implementation "com.google.android.material:material:1.8.0"
+
+    // If this block is removed, updating annotation from 1.5.0 and lifecycle version from 2.5.1
+    // causes duplicate classes error because a large number of Lifecycle classes have been
+    // converted to Kotlin since 2.6
+    // see: https://developer.android.com/jetpack/androidx/releases/lifecycle#2.6.0
+    constraints {
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.0") {
+            because("kotlin-stdlib-jdk7 is now a part of kotlin-stdlib")
+        }
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0") {
+            because("kotlin-stdlib-jdk8 is now a part of kotlin-stdlib")
+        }
+    }
 }

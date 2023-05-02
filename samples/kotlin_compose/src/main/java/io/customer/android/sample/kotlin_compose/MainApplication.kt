@@ -18,7 +18,6 @@ class MainApplication : Application() {
 
     @Inject
     lateinit var dataStore: DataStore<Preferences>
-
     override fun onCreate() {
         super.onCreate()
         val (trackingApiUrl, siteId, apiKey) = runBlocking {

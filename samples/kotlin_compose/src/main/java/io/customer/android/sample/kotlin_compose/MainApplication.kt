@@ -22,10 +22,11 @@ class MainApplication : Application() {
         super.onCreate()
         val (trackingApiUrl, siteId, apiKey) = runBlocking {
             return@runBlocking try {
+                val data = dataStore.data.first()
                 listOf(
-                    dataStore.data.first()[TRACK_API_URL_KEY],
-                    dataStore.data.first()[SITE_ID],
-                    dataStore.data.first()[API_KEY]
+                    data[TRACK_API_URL_KEY],
+                    data[SITE_ID],
+                    data[API_KEY]
                 )
             } catch (e: Exception) {
                 listOf(null, BuildConfig.SITE_ID, BuildConfig.API_KEY)

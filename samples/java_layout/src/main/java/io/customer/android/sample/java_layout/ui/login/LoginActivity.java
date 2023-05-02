@@ -43,7 +43,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
 
     private void setupViews() {
         binding.loginButton.setOnClickListener(view -> {
-            authViewModel.setLoggedInUser(new User("test@em.com", "Test User"));
+            authViewModel.setLoggedInUser(new User("test@em.com", "Test User", false));
         });
     }
 }

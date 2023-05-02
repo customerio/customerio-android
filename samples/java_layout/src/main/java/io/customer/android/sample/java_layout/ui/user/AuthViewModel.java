@@ -1,17 +1,14 @@
 package io.customer.android.sample.java_layout.ui.user;
 
-import android.annotation.SuppressLint;
 import android.os.Build;
 
-import androidx.annotation.RequiresApi;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.LiveDataReactiveStreams;
 import androidx.lifecycle.ViewModel;
 
-import java.util.Optional;
-
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.User;
+import io.customer.android.sample.java_layout.support.Optional;
 import io.reactivex.rxjava3.core.Flowable;
 
 public class AuthViewModel extends ViewModel {
@@ -19,7 +16,6 @@ public class AuthViewModel extends ViewModel {
     private final LiveData<User> userDataObservable;
     private final LiveData<Boolean> userLoggedInStateObservable;
 
-    @SuppressLint("NewApi")
     public AuthViewModel(PreferencesDataStore preferencesDataStore) {
         this.preferencesDataStore = preferencesDataStore;
         Flowable<Optional<User>> publisher = preferencesDataStore.userData().map(

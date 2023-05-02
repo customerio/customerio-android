@@ -26,9 +26,10 @@ public class PreferencesDataStore {
 
     @MainThread
     public void clearUserData() {
-        dataStore.updateDataAsync(preferences -> {
-            preferences.toMutablePreferences().clear();
-            return Single.just(preferences);
+        dataStore.updateDataAsync(prefs -> {
+            MutablePreferences mutable = prefs.toMutablePreferences();
+            mutable.clear();
+            return Single.just(mutable);
         });
     }
 

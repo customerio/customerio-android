@@ -52,6 +52,7 @@ apiValidation {
             'app',
             'base',
             'kotlin_compose',
+            'java_layout',
     ]
 
     nonPublicMarkers += [

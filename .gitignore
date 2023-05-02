@@ -1,5 +1,8 @@
 ktlint
 
+# OS files
+.DS_Store
+
 # Built application files
 *.apk
 *.aar

@@ -5,7 +5,7 @@ import androidx.annotation.Nullable;
 // Can be replaced with [java.util.Optional] once minSdk version is increased to 24
 public class OptionalImpl<T> implements Optional<T> {
     @Nullable
-    private T value;
+    private final T value;
 
     public OptionalImpl(@Nullable T value) {
         this.value = value;

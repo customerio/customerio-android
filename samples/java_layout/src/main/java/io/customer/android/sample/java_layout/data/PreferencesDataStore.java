@@ -2,57 +2,54 @@ package io.customer.android.sample.java_layout.data;
 
 
 import androidx.annotation.MainThread;
-import androidx.datastore.preferences.core.MutablePreferences;
 import androidx.datastore.preferences.core.Preferences;
-import androidx.datastore.preferences.core.PreferencesKeys;
 import androidx.datastore.preferences.rxjava3.RxPreferenceDataStoreBuilder;
 import androidx.datastore.rxjava3.RxDataStore;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.core.Single;
 
 public class PreferencesDataStore {
+    private static final String SDK_CONFIG_FILE = "sdk_config_prefs";
     private static final String USER_DATA_FILE = "user_data_prefs";
 
-    private final RxDataStore<Preferences> dataStore;
+    private final RxDataStore<Preferences> sdkDataStore;
+    private final RxDataStore<Preferences> userDataStore;
 
     public PreferencesDataStore(SampleApplication application) {
-        dataStore = new RxPreferenceDataStoreBuilder(application, USER_DATA_FILE).build();
+        sdkDataStore = new RxPreferenceDataStoreBuilder(application, SDK_CONFIG_FILE).build();
+        userDataStore = new RxPreferenceDataStoreBuilder(application, USER_DATA_FILE).build();
+    }
+
+    @MainThread
+    public void clearSDKConfig() {
+        PreferencesStoreUtils.clearData(sdkDataStore);
+    }
+
+    @MainThread
+    public void saveToSDKConfig(Map<String, String> bundle) {
+        PreferencesStoreUtils.saveData(sdkDataStore, bundle);
+    }
+
+    @MainThread
+    public Flowable<Map<String, String>> sdkConfig() {
+        return PreferencesStoreUtils.getDataAsFlowable(sdkDataStore);
     }
 
     @MainThread
     public void clearUserData() {
-        dataStore.updateDataAsync(prefs -> {
-            MutablePreferences mutable = prefs.toMutablePreferences();
-            mutable.clear();
-            return Single.just(mutable);
-        });
+        PreferencesStoreUtils.clearData(userDataStore);
     }
 
-    public Single<Preferences> saveToUserData(Map<String, String> bundle) {
-        return dataStore.updateDataAsync(prefs -> {
-            MutablePreferences mutable = prefs.toMutablePreferences();
-            for (Map.Entry<String, String> entry : bundle.entrySet()) {
-                mutable.set(PreferencesKeys.stringKey(entry.getKey()), entry.getValue());
-            }
-            return Single.just(mutable);
-        });
+    @MainThread
+    public void saveToUserData(Map<String, String> bundle) {
+        PreferencesStoreUtils.saveData(userDataStore, bundle);
     }
 
     @MainThread
     public Flowable<Map<String, String>> userData() {
-        return dataStore.data().map(prefs -> {
-            Map<Preferences.Key<?>, Object> prefsMap = prefs.asMap();
-            Map<String, String> bundle = new HashMap<>();
-            for (Map.Entry<Preferences.Key<?>, Object> entry : prefsMap.entrySet()) {
-                Object value = entry.getValue();
-                bundle.put(entry.getKey().getName(), value == null ? null : value.toString());
-            }
-            return bundle;
-        });
+        return PreferencesStoreUtils.getDataAsFlowable(userDataStore);
     }
 }

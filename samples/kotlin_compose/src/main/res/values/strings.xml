@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Kotlin_Compose</string>
+    <string name="database">sample_app_kotlin_db</string>
 </resources>

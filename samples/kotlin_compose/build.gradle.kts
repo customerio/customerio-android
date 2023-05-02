@@ -1,6 +1,17 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.kapt")
+}
+
+val localProperties = Properties()
+try {
+    localProperties.load(FileInputStream(rootProject.file("local.properties")))
+} catch (ex: Exception) {
+    println("$ex")
 }
 
 android {
@@ -18,6 +29,9 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "API_KEY", "\"" + localProperties["apiKey"] + "\"")
+        buildConfigField("String", "SITE_ID", "\"" + localProperties["siteId"] + "\"")
     }
 
     buildTypes {
@@ -49,6 +63,11 @@ android {
     }
 }
 
+val hiltVersion = "2.44.2"
+val composeVersion = "1.4.1"
+val coroutinesVersion = "1.5.2"
+val roomVersion = "2.4.2"
+
 dependencies {
 
     // compose compiler requires an updated version of kotlin
@@ -56,11 +75,33 @@ dependencies {
     implementation("androidx.core:core-ktx:1.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.activity:activity-compose:1.7.1")
-    implementation(platform("androidx.compose:compose-bom:2022.10.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+
+    implementation(platform("androidx.compose:compose-bom:2022.10.00"))
+
+    // SDK
+    implementation(project(":sdk"))
+    implementation(project(":messagingpush"))
+    implementation(project(":messaginginapp"))
+
+    // navigation
+    implementation("androidx.navigation:navigation-compose:2.6.0-beta01")
+
+    // di
+    implementation("com.google.dagger:hilt-android:$hiltVersion")
+    implementation("com.google.android.material:material:1.8.0")
+    kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
+
+    // persistence
+    implementation("androidx.room:room-ktx:$roomVersion")
+    kapt("androidx.room:room-compiler:$roomVersion")
+
+    implementation("androidx.datastore:datastore-core:1.0.0")
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

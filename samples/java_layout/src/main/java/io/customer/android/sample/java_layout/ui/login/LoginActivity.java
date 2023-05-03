@@ -33,6 +33,8 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     }
 
     private void setupObservers() {
+        // TODO: Fetch and set user agent here
+        binding.userAgentTextView.setText("User agent will be shown here");
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 startActivity(new Intent(LoginActivity.this, DashboardActivity.class));
@@ -42,7 +44,6 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     }
 
     private void setupViews() {
-        binding.userAgentTextView.setText("User agent will be shown here");
         binding.settingsButton.setOnClickListener(view -> {
             startActivity(new Intent(LoginActivity.this, SettingsActivity.class));
         });

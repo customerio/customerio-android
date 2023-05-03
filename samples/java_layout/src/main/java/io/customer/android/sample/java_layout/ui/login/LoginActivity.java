@@ -5,6 +5,7 @@ import android.text.TextUtils;
 import android.util.Patterns;
 
 import io.customer.android.sample.java_layout.R;
+import io.customer.android.sample.java_layout.core.Randoms;
 import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
@@ -68,7 +69,8 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
             }
         });
         binding.randomLoginButton.setOnClickListener(view -> {
-            authViewModel.setLoggedInUser(new User("test@em.com", "Test User", true));
+            Randoms randoms = new Randoms();
+            authViewModel.setLoggedInUser(new User(randoms.email(), randoms.displayName(), true));
         });
     }
 }

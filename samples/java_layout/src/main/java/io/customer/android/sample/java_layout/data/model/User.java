@@ -2,10 +2,12 @@ package io.customer.android.sample.java_layout.data.model;
 
 import android.text.TextUtils;
 
-import androidx.annotation.Nullable;
+import androidx.annotation.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import io.customer.android.sample.java_layout.support.Optional;
 
 public class User {
     private static class Keys {
@@ -14,15 +16,15 @@ public class User {
         static final String IS_GUEST = "is_guest";
     }
 
-    @Nullable
-    public static User fromMap(Map<String, String> bundle) {
+    @NonNull
+    public static Optional<User> fromMap(Map<String, String> bundle) {
         String email = bundle.get(Keys.EMAIL);
         String displayName = bundle.get(Keys.DISPLAY_NAME);
         if (TextUtils.isEmpty(email) || TextUtils.isEmpty(displayName)) {
-            return null;
+            return Optional.empty();
         }
         boolean isGuest = Boolean.parseBoolean(bundle.get(Keys.IS_GUEST));
-        return new User(email, displayName, isGuest);
+        return Optional.of(new User(email, displayName, isGuest));
     }
 
     private final String email;

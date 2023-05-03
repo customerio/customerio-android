@@ -1,10 +1,27 @@
 import java.util.Properties
 import java.io.FileInputStream
 
+val hiltVersion = "2.44.2"
+val composeVersion = "1.4.1"
+val coroutinesVersion = "1.5.2"
+val roomVersion = "2.4.2"
+
+//buildscript {
+//    repositories {
+//        google()
+//        mavenCentral()
+//    }
+//
+//    dependencies {
+//        classpath("com.google.dagger:hilt-android-gradle-plugin:2.44.2")
+//    }
+//}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
+//    id("dagger.hilt.android.plugin")
 }
 
 val localProperties = Properties()
@@ -63,13 +80,7 @@ android {
     }
 }
 
-val hiltVersion = "2.44.2"
-val composeVersion = "1.4.1"
-val coroutinesVersion = "1.5.2"
-val roomVersion = "2.4.2"
-
 dependencies {
-
     // compose compiler requires an updated version of kotlin
     implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.20"))
     implementation("androidx.core:core-ktx:1.10.0")
@@ -89,6 +100,7 @@ dependencies {
 
     // navigation
     implementation("androidx.navigation:navigation-compose:2.6.0-beta01")
+    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
 
     // di
     implementation("com.google.dagger:hilt-android:$hiltVersion")

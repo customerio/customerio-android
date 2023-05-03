@@ -20,6 +20,7 @@ object Dependencies {
         "org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.COROUTINES}"
     const val espressoCore = "androidx.test.espresso:espresso-core:${Versions.ESPRESSO}"
     const val dokka = "org.jetbrains.dokka:dokka-gradle-plugin:${Versions.DOKKA}"
+    const val hiltGradlePlugin = "com.google.dagger:hilt-android-gradle-plugin:${Versions.HILT}"
     const val firebaseMessaging =
         "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
     const val gist = "build:gist:${Versions.GIST}"

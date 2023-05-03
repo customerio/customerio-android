@@ -9,6 +9,7 @@ import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
+import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 
 public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
@@ -43,7 +44,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     private void setupViews() {
         binding.userAgentTextView.setText("User agent will be shown here");
         binding.settingsButton.setOnClickListener(view -> {
-//            startActivity(new Intent(LoginActivity.this, SettingsActivity.class));
+            startActivity(new Intent(LoginActivity.this, SettingsActivity.class));
         });
         binding.loginButton.setOnClickListener(view -> {
             boolean isFormValid = true;

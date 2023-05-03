@@ -2,6 +2,14 @@ plugins {
     id 'com.android.application'
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
 android {
     namespace 'io.customer.android.sample.java_layout'
     compileSdk 33
@@ -12,6 +20,9 @@ android {
         targetSdk 33
         versionCode 1
         versionName "1.0"
+
+        buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
+        buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
     }
 
     buildTypes {
@@ -30,13 +41,29 @@ android {
 }
 
 dependencies {
+    // TODO Replace this with generic implementation for all sample SDKs to referencing remote versions is easier
+    def cioSDKVersion = localProperties["sdkVersion"]
+    if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
+        implementation(project(":sdk"))
+        implementation(project(":messagingpush"))
+        implementation(project(":messaginginapp"))
+    } else {
+        implementation "io.customer.android:tracking:$cioSDKVersion"
+        implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
+        implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
+    }
+
+    def datastore_version = "1.0.0"
     def lifecycle_version = "2.6.1"
     implementation "androidx.annotation:annotation:1.6.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.core:core-splashscreen:1.0.1"
+    implementation "androidx.datastore:datastore-preferences:$datastore_version"
+    implementation "androidx.datastore:datastore-preferences-rxjava3:$datastore_version"
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-reactivestreams:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
     implementation "com.google.android.material:material:1.8.0"
 

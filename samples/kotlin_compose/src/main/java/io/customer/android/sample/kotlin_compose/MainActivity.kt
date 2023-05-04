@@ -12,7 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import io.customer.android.sample.kotlin_compose.navigation.AppNavGraph
 import io.customer.android.sample.kotlin_compose.ui.login.AuthenticationViewModel
-import io.customer.android.sample.kotlin_compose.ui.theme.CustomerioSDKTheme
+import io.customer.android.sample.kotlin_compose.ui.theme.CustomerIoSDKTheme
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CustomerioSDKTheme {
+            CustomerIoSDKTheme {
                 val navController = rememberNavController()
 
                 val navBackStackEntry by navController.currentBackStackEntryAsState()

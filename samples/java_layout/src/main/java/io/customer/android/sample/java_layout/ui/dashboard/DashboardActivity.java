@@ -45,9 +45,6 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                         }
 
                         content.getViewTreeObserver().removeOnPreDrawListener(this);
-                        if (isLoggedIn) {
-                            binding.progressIndicator.hide();
-                        }
                         return true;
                     }
                 }
@@ -75,6 +72,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         });
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
+                binding.progressIndicator.hide();
                 binding.content.setVisibility(View.VISIBLE);
             } else {
                 startActivity(new Intent(DashboardActivity.this, LoginActivity.class));

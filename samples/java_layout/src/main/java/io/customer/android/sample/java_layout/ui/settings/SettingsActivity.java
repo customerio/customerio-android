@@ -3,11 +3,14 @@ package io.customer.android.sample.java_layout.ui.settings;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.view.View;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivitySettingsBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
+import io.customer.messagingpush.provider.FCMTokenProviderImpl;
+import io.customer.sdk.CustomerIOShared;
+import io.customer.sdk.device.DeviceTokenProvider;
+import io.customer.sdk.util.Logger;
 
 public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
@@ -36,6 +39,12 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void setupObservers() {
-        binding.deviceTokenTextInput.setText("DeviceToken");
+        // TODO: Expose SDK method to get device token and replace here
+        Logger cioSdkLogger = CustomerIOShared.instance().getDiStaticGraph().getLogger();
+        DeviceTokenProvider fcmTokenProvider = new FCMTokenProviderImpl(cioSdkLogger, this);
+        fcmTokenProvider.getCurrentToken(token -> {
+            binding.deviceTokenTextInput.setText(token);
+            return null;
+        });
     }
 }

@@ -3,6 +3,7 @@ package io.customer.android.sample.kotlin_compose
 import android.app.Application
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.API_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.SITE_ID
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_API_URL_KEY
@@ -14,6 +15,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
+@HiltAndroidApp
 class MainApplication : Application() {
 
     @Inject

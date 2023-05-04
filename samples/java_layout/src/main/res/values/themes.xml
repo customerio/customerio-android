@@ -2,8 +2,8 @@
     <!-- Base application theme. -->
     <style name="Theme.SampleApp.Base" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/java_blue_500</item>
-        <item name="colorPrimaryVariant">@color/java_blue_700</item>
+        <item name="colorPrimary">@color/java_blue_700</item>
+        <item name="colorPrimaryVariant">@color/java_blue_500</item>
         <item name="colorOnPrimary">@color/white</item>
         <!-- Secondary brand color. -->
         <item name="colorSecondary">@color/java_orange_200</item>
@@ -31,6 +31,7 @@
 
     <style name="Widget.App.Button" parent="Widget.Material3.Button">
         <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
+        <item name="maxWidth">320dp</item>
     </style>
 
     <style name="Widget.App.Button.TextButton" parent="Widget.Material3.Button.TextButton">

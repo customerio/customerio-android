@@ -2,4 +2,6 @@
 <resources>
     <dimen name="margin_small">8dp</dimen>
     <dimen name="margin_default">16dp</dimen>
+    <dimen name="margin_large">32dp</dimen>
+    <dimen name="material_button_max_width">320dp</dimen>
 </resources>

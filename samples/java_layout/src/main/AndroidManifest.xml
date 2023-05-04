@@ -16,9 +16,6 @@
         tools:ignore="DataExtractionRules,UnusedAttribute">
 
         <activity
-            android:name=".ui.login.LoginActivity"
-            android:exported="false" />
-        <activity
             android:name=".ui.dashboard.DashboardActivity"
             android:exported="true">
             <intent-filter>
@@ -27,5 +24,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.login.LoginActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.settings.SettingsActivity"
+            android:exported="false" />
     </application>
 </manifest>

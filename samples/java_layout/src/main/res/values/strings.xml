@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">JavaLayout</string>
+    <string name="app_title">Java Layout Sample App</string>
+    <string name="display_name">First Name</string>
+    <string name="error_display_name">Name cannot be empty</string>
+    <string name="email">Email</string>
+    <string name="error_email">Please enter valid email</string>
+    <string name="login">Login</string>
+    <string name="generate_random_login">Generate Random Login</string>
 </resources>

@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.customer.android.sample.java_layout.core.StringUtils;
 import io.customer.android.sample.java_layout.support.Optional;
 
 public class User {
@@ -23,7 +24,7 @@ public class User {
         if (TextUtils.isEmpty(email) || TextUtils.isEmpty(displayName)) {
             return Optional.empty();
         }
-        boolean isGuest = Boolean.parseBoolean(bundle.get(Keys.IS_GUEST));
+        boolean isGuest = StringUtils.parseBoolean(bundle.get(Keys.IS_GUEST), false);
         return Optional.of(new User(email, displayName, isGuest));
     }
 
@@ -41,7 +42,7 @@ public class User {
         Map<String, String> bundle = new HashMap<>();
         bundle.put(Keys.EMAIL, email);
         bundle.put(Keys.DISPLAY_NAME, displayName);
-        bundle.put(Keys.IS_GUEST, Boolean.toString(isGuest));
+        bundle.put(Keys.IS_GUEST, StringUtils.fromBoolean(isGuest));
         return bundle;
     }
 

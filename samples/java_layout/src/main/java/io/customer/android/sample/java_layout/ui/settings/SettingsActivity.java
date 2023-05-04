@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
+import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.core.StringUtils;
 import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -88,8 +89,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                         featTrackDeviceAttributes,
                         featDebugMode);
                 disposables.add(settingsViewModel.updateConfigurations(config).subscribe(preferences -> {
-                    binding.progressIndicator.hide();
-                    Snackbar.make(binding.saveButton, R.string.settings_save_msg, Snackbar.LENGTH_SHORT).show();
+                    binding.content.post(() -> {
+                        binding.progressIndicator.hide();
+                        Snackbar.make(binding.saveButton, R.string.settings_save_msg, Snackbar.LENGTH_SHORT).show();
+                        ((SampleApplication) getApplication()).restart(SettingsActivity.this);
+                    });
                 }));
             }
         });

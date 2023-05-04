@@ -12,9 +12,9 @@ import io.customer.android.sample.java_layout.support.Optional;
 
 public class User {
     private static class Keys {
-        static final String DISPLAY_NAME = "display_name";
-        static final String EMAIL = "email";
-        static final String IS_GUEST = "is_guest";
+        static final String DISPLAY_NAME = "user_display_name";
+        static final String EMAIL = "user_email";
+        static final String IS_GUEST = "user_is_guest";
     }
 
     @NonNull

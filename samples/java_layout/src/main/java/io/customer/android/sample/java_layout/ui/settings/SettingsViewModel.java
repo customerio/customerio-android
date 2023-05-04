@@ -34,7 +34,7 @@ public class SettingsViewModel extends ViewModel {
         if (sdkConfig == null) {
             return preferencesDataStore.clearSDKConfig();
         } else {
-            return preferencesDataStore.saveToSDKConfig(sdkConfig.toMap());
+            return preferencesDataStore.saveToSDKConfig(CustomerIOSDKConfig.toMap(sdkConfig));
         }
     }
 }

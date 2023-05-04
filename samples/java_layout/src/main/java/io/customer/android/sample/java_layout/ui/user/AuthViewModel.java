@@ -38,6 +38,6 @@ public class AuthViewModel extends ViewModel {
     }
 
     public void setLoggedInUser(@NonNull User user) {
-        preferencesDataStore.saveToUserData(user.toMap());
+        preferencesDataStore.saveToUserData(User.toMap(user));
     }
 }

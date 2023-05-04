@@ -39,7 +39,7 @@ public class CustomerIOSDKConfig {
     }
 
     @NonNull
-    public static Optional<CustomerIOSDKConfig> fromMap(Map<String, String> bundle) {
+    public static Optional<CustomerIOSDKConfig> fromMap(@NonNull Map<String, String> bundle) {
         String siteId = bundle.get(Keys.SITE_ID);
         String apiKey = bundle.get(Keys.API_KEY);
         if (TextUtils.isEmpty(siteId) || TextUtils.isEmpty(apiKey)) {
@@ -65,6 +65,21 @@ public class CustomerIOSDKConfig {
                 deviceAttributesTrackingEnabled,
                 debugModeEnabled);
         return Optional.of(config);
+    }
+
+    @NonNull
+    public static Map<String, String> toMap(@NonNull CustomerIOSDKConfig config) {
+        Map<String, String> bundle = new HashMap<>();
+        bundle.put(Keys.SITE_ID, config.siteId);
+        bundle.put(Keys.API_KEY, config.apiKey);
+        bundle.put(Keys.TRACKING_URL, config.trackingURL);
+        bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromInteger(config.backgroundQueueSecondsDelay));
+        bundle.put(Keys.BQ_MIN_TASKS, StringUtils.fromInteger(config.backgroundQueueMinNumOfTasks));
+        bundle.put(Keys.ENABLE_IN_APP, StringUtils.fromBoolean(config.inAppEnabled));
+        bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(config.screenTrackingEnabled));
+        bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
+        bundle.put(Keys.DEBUG_MODE, StringUtils.fromBoolean(config.debugModeEnabled));
+        return bundle;
     }
 
     @NonNull
@@ -100,20 +115,6 @@ public class CustomerIOSDKConfig {
         this.screenTrackingEnabled = screenTrackingEnabled;
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
         this.debugModeEnabled = debugModeEnabled;
-    }
-
-    public Map<String, String> toMap() {
-        Map<String, String> bundle = new HashMap<>();
-        bundle.put(Keys.SITE_ID, siteId);
-        bundle.put(Keys.API_KEY, apiKey);
-        bundle.put(Keys.TRACKING_URL, trackingURL);
-        bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromInteger(backgroundQueueSecondsDelay));
-        bundle.put(Keys.BQ_MIN_TASKS, StringUtils.fromInteger(backgroundQueueMinNumOfTasks));
-        bundle.put(Keys.ENABLE_IN_APP, StringUtils.fromBoolean(inAppEnabled));
-        bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(screenTrackingEnabled));
-        bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(deviceAttributesTrackingEnabled));
-        bundle.put(Keys.DEBUG_MODE, StringUtils.fromBoolean(debugModeEnabled));
-        return bundle;
     }
 
     @NonNull

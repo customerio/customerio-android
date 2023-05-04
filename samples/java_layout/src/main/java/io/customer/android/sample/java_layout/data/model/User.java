@@ -18,7 +18,7 @@ public class User {
     }
 
     @NonNull
-    public static Optional<User> fromMap(Map<String, String> bundle) {
+    public static Optional<User> fromMap(@NonNull Map<String, String> bundle) {
         String email = bundle.get(Keys.EMAIL);
         String displayName = bundle.get(Keys.DISPLAY_NAME);
         if (TextUtils.isEmpty(email) || TextUtils.isEmpty(displayName)) {
@@ -26,6 +26,15 @@ public class User {
         }
         boolean isGuest = StringUtils.parseBoolean(bundle.get(Keys.IS_GUEST), false);
         return Optional.of(new User(email, displayName, isGuest));
+    }
+
+    @NonNull
+    public static Map<String, String> toMap(@NonNull User user) {
+        Map<String, String> bundle = new HashMap<>();
+        bundle.put(Keys.EMAIL, user.email);
+        bundle.put(Keys.DISPLAY_NAME, user.displayName);
+        bundle.put(Keys.IS_GUEST, StringUtils.fromBoolean(user.isGuest));
+        return bundle;
     }
 
     private final String email;
@@ -36,14 +45,6 @@ public class User {
         this.email = email;
         this.displayName = displayName;
         this.isGuest = isGuest;
-    }
-
-    public Map<String, String> toMap() {
-        Map<String, String> bundle = new HashMap<>();
-        bundle.put(Keys.EMAIL, email);
-        bundle.put(Keys.DISPLAY_NAME, displayName);
-        bundle.put(Keys.IS_GUEST, StringUtils.fromBoolean(isGuest));
-        return bundle;
     }
 
     public String getDisplayName() {

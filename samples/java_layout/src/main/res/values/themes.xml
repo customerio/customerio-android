@@ -19,6 +19,7 @@
         <item name="borderlessButtonStyle">@style/Widget.App.Button.TextButton</item>
         <item name="materialButtonStyle">@style/Widget.App.Button</item>
         <item name="textAppearanceLabelLarge">@style/TextAppearance.App.Button</item>
+        <item name="textInputStyle">@style/Widget.App.TextInputLayout</item>
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.App.SmallComponent</item>
     </style>
 
@@ -31,10 +32,11 @@
 
     <style name="Widget.App.Button" parent="Widget.Material3.Button">
         <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
-        <item name="maxWidth">320dp</item>
     </style>
 
     <style name="Widget.App.Button.TextButton" parent="Widget.Material3.Button.TextButton">
         <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
     </style>
+
+    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox" />
 </resources>

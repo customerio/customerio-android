@@ -17,6 +17,7 @@
             style="?attr/materialIconButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:contentDescription="@string/settings"
             app:icon="@drawable/ic_settings_24"
             app:iconTint="?attr/colorOnSecondary"
             app:layout_constraintEnd_toEndOf="parent"
@@ -35,14 +36,15 @@
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/display_name_input_layout"
-            style="?attr/textInputOutlinedStyle"
+            style="?attr/textInputStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             app:layout_constraintBottom_toTopOf="@id/email_input_layout"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_chainStyle="packed">
+            app:layout_constraintVertical_chainStyle="packed"
+            app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/display_name_text_input"
@@ -56,14 +58,15 @@
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/email_input_layout"
-            style="?attr/textInputOutlinedStyle"
+            style="?attr/textInputStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/margin_small"
             app:layout_constraintBottom_toTopOf="@id/login_button"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/display_name_input_layout">
+            app:layout_constraintTop_toBottomOf="@id/display_name_input_layout"
+            app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/email_text_input"
@@ -86,7 +89,8 @@
             app:layout_constraintBottom_toTopOf="@id/random_login_button"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/email_input_layout" />
+            app:layout_constraintTop_toBottomOf="@id/email_input_layout"
+            app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
         <Button
             android:id="@+id/random_login_button"
@@ -98,7 +102,8 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/login_button" />
+            app:layout_constraintTop_toBottomOf="@id/login_button"
+            app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
         <TextView
             android:id="@+id/user_agent_text_view"

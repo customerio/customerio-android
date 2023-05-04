@@ -29,13 +29,13 @@ public class CustomerIOSDKConfig {
     public static CustomerIOSDKConfig getDefaultConfigurations() {
         return new CustomerIOSDKConfig(BuildConfig.SITE_ID,
                 BuildConfig.API_KEY,
-                null,
-                null,
-                null,
-                false,
-                true,
-                true,
-                true);
+                BuildConfig.TRACKING_URL,
+                BuildConfig.BQ_SECONDS_DELAY,
+                BuildConfig.BQ_MIN_TASKS,
+                BuildConfig.ENABLE_IN_APP,
+                BuildConfig.TRACK_SCREENS,
+                BuildConfig.TRACK_DEVICE_ATTRIBUTES,
+                BuildConfig.DEBUG_MODE);
     }
 
     @NonNull

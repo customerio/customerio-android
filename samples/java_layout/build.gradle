@@ -5,8 +5,24 @@ plugins {
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+
+static String stringPropertyNullable(Properties properties, String key) {
+    String prop = properties[key]
+    if (prop == null) {
+        return null
+    } else {
+        return "\"${prop.toString()}\""
+    }
+}
+
+static String booleanProperty(Properties properties, String key, boolean fallback) {
+    String prop = properties[key]
+    if (prop == null) {
+        return fallback
+    } else {
+        return "${prop.toString()}"
     }
 }
 
@@ -23,6 +39,13 @@ android {
 
         buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
         buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
+        buildConfigField "String", "TRACKING_URL", "${stringPropertyNullable(localProperties, "trackingUrl")}"
+        buildConfigField "Integer", "BQ_SECONDS_DELAY", "${localProperties["bqSecondsDelay"]}"
+        buildConfigField "Integer", "BQ_MIN_TASKS", "${localProperties["bqMinTasks"]}"
+        buildConfigField "boolean", "ENABLE_IN_APP", "${booleanProperty(localProperties, "enableInApp", false)}"
+        buildConfigField "boolean", "TRACK_SCREENS", "${booleanProperty(localProperties, "trackScreens", true)}"
+        buildConfigField "boolean", "TRACK_DEVICE_ATTRIBUTES", "${booleanProperty(localProperties, "trackDeviceAttributes", true)}"
+        buildConfigField "boolean", "DEBUG_MODE", "${booleanProperty(localProperties, "debugMode", true)}"
     }
 
     buildTypes {

@@ -47,7 +47,6 @@ public class CustomerIOSDKConfig {
         }
 
         CustomerIOSDKConfig defaultConfig = getDefaultConfigurations();
-
         String trackingURL = bundle.get(Keys.TRACKING_URL);
         Integer bqSecondsDelay = StringUtils.parseInteger(bundle.get(Keys.BQ_SECONDS_DELAY), defaultConfig.backgroundQueueSecondsDelay);
         Integer bqMinTasks = StringUtils.parseInteger(bundle.get(Keys.BQ_MIN_TASKS), defaultConfig.backgroundQueueMinNumOfTasks);
@@ -55,6 +54,7 @@ public class CustomerIOSDKConfig {
         boolean featTrackScreens = StringUtils.parseBoolean(bundle.get(Keys.FEAT_TRACK_SCREENS), defaultConfig.featTrackScreens);
         boolean featTrackDeviceAttributes = StringUtils.parseBoolean(bundle.get(Keys.FEAT_TRACK_DEVICE_ATTRIBUTES), defaultConfig.featTrackDeviceAttributes);
         boolean featDebugMode = StringUtils.parseBoolean(bundle.get(Keys.FEAT_DEBUG_MODE), defaultConfig.featDebugMode);
+
         CustomerIOSDKConfig config = new CustomerIOSDKConfig(siteId,
                 apiKey,
                 trackingURL,

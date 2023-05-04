@@ -14,15 +14,15 @@ import io.customer.android.sample.java_layout.support.Optional;
 
 public class CustomerIOSDKConfig {
     private static class Keys {
-        static final String SITE_ID = "site_id";
-        static final String API_KEY = "api_key";
-        static final String TRACKING_URL = "tracking_url";
-        static final String BQ_SECONDS_DELAY = "bq_seconds_delay";
-        static final String BQ_MIN_TASKS = "bq_min_tasks";
-        static final String FEAT_IN_APP = "feat_in_app";
-        static final String FEAT_TRACK_SCREENS = "feat_track_screens";
-        static final String FEAT_TRACK_DEVICE_ATTRIBUTES = "feat_track_device_attributes";
-        static final String FEAT_DEBUG_MODE = "feat_debug_mode";
+        static final String SITE_ID = "cio_sdk_site_id";
+        static final String API_KEY = "cio_sdk_api_key";
+        static final String TRACKING_URL = "cio_sdk_tracking_url";
+        static final String BQ_SECONDS_DELAY = "cio_sdk_bq_seconds_delay";
+        static final String BQ_MIN_TASKS = "cio_sdk_bq_min_tasks";
+        static final String ENABLE_IN_APP = "cio_sdk_enable_in_app";
+        static final String TRACK_SCREENS = "cio_sdk_track_screens";
+        static final String TRACK_DEVICE_ATTRIBUTES = "cio_sdk_track_device_attributes";
+        static final String DEBUG_MODE = "cio_sdk_debug_mode";
     }
 
 
@@ -50,20 +50,20 @@ public class CustomerIOSDKConfig {
         String trackingURL = bundle.get(Keys.TRACKING_URL);
         Integer bqSecondsDelay = StringUtils.parseInteger(bundle.get(Keys.BQ_SECONDS_DELAY), defaultConfig.backgroundQueueSecondsDelay);
         Integer bqMinTasks = StringUtils.parseInteger(bundle.get(Keys.BQ_MIN_TASKS), defaultConfig.backgroundQueueMinNumOfTasks);
-        boolean featInApp = StringUtils.parseBoolean(bundle.get(Keys.FEAT_IN_APP), defaultConfig.featInApp);
-        boolean featTrackScreens = StringUtils.parseBoolean(bundle.get(Keys.FEAT_TRACK_SCREENS), defaultConfig.featTrackScreens);
-        boolean featTrackDeviceAttributes = StringUtils.parseBoolean(bundle.get(Keys.FEAT_TRACK_DEVICE_ATTRIBUTES), defaultConfig.featTrackDeviceAttributes);
-        boolean featDebugMode = StringUtils.parseBoolean(bundle.get(Keys.FEAT_DEBUG_MODE), defaultConfig.featDebugMode);
+        boolean inAppEnabled = StringUtils.parseBoolean(bundle.get(Keys.ENABLE_IN_APP), defaultConfig.inAppEnabled);
+        boolean screenTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_SCREENS), defaultConfig.screenTrackingEnabled);
+        boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
+        boolean debugModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.DEBUG_MODE), defaultConfig.debugModeEnabled);
 
         CustomerIOSDKConfig config = new CustomerIOSDKConfig(siteId,
                 apiKey,
                 trackingURL,
                 bqSecondsDelay,
                 bqMinTasks,
-                featInApp,
-                featTrackScreens,
-                featTrackDeviceAttributes,
-                featDebugMode);
+                inAppEnabled,
+                screenTrackingEnabled,
+                deviceAttributesTrackingEnabled,
+                debugModeEnabled);
         return Optional.of(config);
     }
 
@@ -77,29 +77,29 @@ public class CustomerIOSDKConfig {
     private final Integer backgroundQueueSecondsDelay;
     @Nullable
     private final Integer backgroundQueueMinNumOfTasks;
-    private final boolean featInApp;
-    private final boolean featTrackScreens;
-    private final boolean featTrackDeviceAttributes;
-    private final boolean featDebugMode;
+    private final boolean inAppEnabled;
+    private final boolean screenTrackingEnabled;
+    private final boolean deviceAttributesTrackingEnabled;
+    private final boolean debugModeEnabled;
 
     public CustomerIOSDKConfig(@NonNull String siteId,
                                @NonNull String apiKey,
                                @Nullable String trackingURL,
                                @Nullable Integer backgroundQueueSecondsDelay,
                                @Nullable Integer backgroundQueueMinNumOfTasks,
-                               boolean featInApp,
-                               boolean featTrackScreens,
-                               boolean featTrackDeviceAttributes,
-                               boolean featDebugMode) {
+                               boolean inAppEnabled,
+                               boolean screenTrackingEnabled,
+                               boolean deviceAttributesTrackingEnabled,
+                               boolean debugModeEnabled) {
         this.siteId = siteId;
         this.apiKey = apiKey;
         this.trackingURL = trackingURL;
         this.backgroundQueueSecondsDelay = backgroundQueueSecondsDelay;
         this.backgroundQueueMinNumOfTasks = backgroundQueueMinNumOfTasks;
-        this.featInApp = featInApp;
-        this.featTrackScreens = featTrackScreens;
-        this.featTrackDeviceAttributes = featTrackDeviceAttributes;
-        this.featDebugMode = featDebugMode;
+        this.inAppEnabled = inAppEnabled;
+        this.screenTrackingEnabled = screenTrackingEnabled;
+        this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
+        this.debugModeEnabled = debugModeEnabled;
     }
 
     public Map<String, String> toMap() {
@@ -109,10 +109,10 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.TRACKING_URL, trackingURL);
         bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromInteger(backgroundQueueSecondsDelay));
         bundle.put(Keys.BQ_MIN_TASKS, StringUtils.fromInteger(backgroundQueueMinNumOfTasks));
-        bundle.put(Keys.FEAT_IN_APP, StringUtils.fromBoolean(featInApp));
-        bundle.put(Keys.FEAT_TRACK_SCREENS, StringUtils.fromBoolean(featTrackScreens));
-        bundle.put(Keys.FEAT_TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(featTrackDeviceAttributes));
-        bundle.put(Keys.FEAT_DEBUG_MODE, StringUtils.fromBoolean(featDebugMode));
+        bundle.put(Keys.ENABLE_IN_APP, StringUtils.fromBoolean(inAppEnabled));
+        bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(screenTrackingEnabled));
+        bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(deviceAttributesTrackingEnabled));
+        bundle.put(Keys.DEBUG_MODE, StringUtils.fromBoolean(debugModeEnabled));
         return bundle;
     }
 
@@ -141,19 +141,19 @@ public class CustomerIOSDKConfig {
         return backgroundQueueMinNumOfTasks;
     }
 
-    public boolean isFeatInApp() {
-        return featInApp;
+    public boolean isInAppEnabled() {
+        return inAppEnabled;
     }
 
-    public boolean isFeatTrackScreens() {
-        return featTrackScreens;
+    public boolean isScreenTrackingEnabled() {
+        return screenTrackingEnabled;
     }
 
-    public boolean isFeatTrackDeviceAttributes() {
-        return featTrackDeviceAttributes;
+    public boolean isDeviceAttributesTrackingEnabled() {
+        return deviceAttributesTrackingEnabled;
     }
 
-    public boolean isFeatDebugMode() {
-        return featDebugMode;
+    public boolean isDebugModeEnabled() {
+        return debugModeEnabled;
     }
 }

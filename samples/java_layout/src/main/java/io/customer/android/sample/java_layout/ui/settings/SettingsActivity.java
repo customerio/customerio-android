@@ -10,7 +10,7 @@ import androidx.annotation.NonNull;
 import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.SampleApplication;
+import io.customer.android.sample.java_layout.core.OSUtils;
 import io.customer.android.sample.java_layout.core.StringUtils;
 import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -20,7 +20,10 @@ import io.customer.messagingpush.provider.FCMTokenProviderImpl;
 import io.customer.sdk.CustomerIOShared;
 import io.customer.sdk.device.DeviceTokenProvider;
 import io.customer.sdk.util.Logger;
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
@@ -88,13 +91,16 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                         featTrackScreens,
                         featTrackDeviceAttributes,
                         featDebugMode);
-                disposables.add(settingsViewModel.updateConfigurations(config).subscribe(preferences -> {
-                    binding.content.post(() -> {
-                        binding.progressIndicator.hide();
-                        Snackbar.make(binding.saveButton, R.string.settings_save_msg, Snackbar.LENGTH_SHORT).show();
-                        ((SampleApplication) getApplication()).restart(SettingsActivity.this);
-                    });
-                }));
+                Disposable disposable = settingsViewModel
+                        .updateConfigurations(config)
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(preferences -> {
+                            binding.progressIndicator.hide();
+                            Snackbar.make(binding.saveButton, R.string.settings_save_msg, Snackbar.LENGTH_SHORT).show();
+                            OSUtils.restartApp();
+                        });
+                disposables.add(disposable);
             }
         });
         binding.restoreDefaultsButton.setOnClickListener(view -> updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations()));

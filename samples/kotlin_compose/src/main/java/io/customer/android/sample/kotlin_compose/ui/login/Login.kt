@@ -102,8 +102,7 @@ fun ColumnScope.LoginSettings(onSettingsClick: () -> Unit) {
 fun LoginScreenHeader() {
     Text(
         text = stringResource(R.string.ami_app),
-        style = MaterialTheme.typography.headlineMedium,
-        modifier = Modifier.padding(top = 24.dp)
+        style = MaterialTheme.typography.titleLarge
     )
 }
 
@@ -119,15 +118,14 @@ fun LoginFieldsView(
     var email by remember { mutableStateOf("") }
 
     Column(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         OutlinedTextField(
             value = name,
             onValueChange = { newValue -> name = newValue },
             label = { Text(stringResource(R.string.name)) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(start = 0.dp, end = 0.dp),
             isError = nameErrorState.isNotEmpty(),
             supportingText = { Text(text = nameErrorState) }
         )
@@ -136,7 +134,7 @@ fun LoginFieldsView(
             value = email,
             onValueChange = { newValue -> email = newValue },
             label = { Text(stringResource(R.string.email)) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(start = 0.dp, end = 0.dp),
             isError = emailErrorState.isNotEmpty(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             supportingText = { Text(text = emailErrorState) }

@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.User
-import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
 import io.customer.sdk.CustomerIO
 import java.util.UUID
@@ -32,8 +31,7 @@ data class LoginUiState(
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val userRepository: UserRepository,
-    private val preferenceRepository: PreferenceRepository
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     // UI state exposed to the UI

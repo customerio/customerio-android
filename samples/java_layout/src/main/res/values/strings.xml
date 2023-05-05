@@ -31,6 +31,6 @@
     <string name="debug_mode">Debug Mode</string>
     <string name="save">Save</string>
     <string name="restore_defaults">Restore Defaults</string>
-    <string name="settings_post_save_msg_description">Please restart app after saving any modifications</string>
+    <string name="settings_post_save_msg_description">Saving settings will require an app restart</string>
     <string name="settings_save_msg">SDK configurations saved successfully</string>
 </resources>

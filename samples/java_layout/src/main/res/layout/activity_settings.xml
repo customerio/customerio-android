@@ -278,10 +278,11 @@
 
         <TextView
             android:id="@+id/post_save_msg_description"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="@dimen/margin_default"
             android:layout_marginBottom="@dimen/margin_default"
+            android:gravity="center"
             android:text="@string/settings_post_save_msg_description"
             android:textAppearance="@style/TextAppearance.Material3.BodySmall"
             app:layout_constraintBottom_toBottomOf="parent"

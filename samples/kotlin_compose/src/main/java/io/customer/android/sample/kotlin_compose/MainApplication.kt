@@ -1,12 +1,8 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import dagger.hilt.android.HiltAndroidApp
-import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.API_KEY
-import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.SITE_ID
-import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_API_URL_KEY
+import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
@@ -19,31 +15,35 @@ import kotlinx.coroutines.runBlocking
 class MainApplication : Application() {
 
     @Inject
-    lateinit var dataStore: DataStore<Preferences>
+    lateinit var preferences: PreferenceRepository
+
     override fun onCreate() {
         super.onCreate()
-        val (trackingApiUrl, siteId, apiKey) = runBlocking {
-            return@runBlocking try {
-                val data = dataStore.data.first()
-                listOf(
-                    data[TRACK_API_URL_KEY],
-                    data[SITE_ID],
-                    data[API_KEY]
-                )
-            } catch (e: Exception) {
-                listOf(null, BuildConfig.SITE_ID, BuildConfig.API_KEY)
-            }
+        val configuration = runBlocking {
+            preferences.getConfiguration().first()
         }
 
         CustomerIO.Builder(
-            siteId = siteId ?: BuildConfig.SITE_ID,
-            apiKey = apiKey ?: BuildConfig.API_KEY,
+            siteId = configuration.siteId,
+            apiKey = configuration.apiKey,
             appContext = this
         ).apply {
-            trackingApiUrl?.let { setTrackingApiURL(trackingApiUrl = it) }
+            configuration.trackUrl?.let {
+                setTrackingApiURL(trackingApiUrl = it)
+            }
+            setBackgroundQueueSecondsDelay(configuration.backgroundQueueSecondsDelay)
+            setBackgroundQueueMinNumberOfTasks(configuration.backgroundQueueMinNumTasks)
+            if (configuration.debugMode) {
+                setLogLevel(CioLogLevel.DEBUG)
+            } else {
+                setLogLevel(CioLogLevel.ERROR)
+            }
+            autoTrackDeviceAttributes(configuration.trackDeviceAttributes)
+            autoTrackScreenViews(configuration.trackScreen)
+
             addCustomerIOModule(ModuleMessagingInApp())
             addCustomerIOModule(ModuleMessagingPushFCM())
-            setLogLevel(CioLogLevel.DEBUG)
+
             build()
         }
     }

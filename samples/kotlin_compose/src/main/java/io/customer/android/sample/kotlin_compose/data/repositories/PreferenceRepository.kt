@@ -28,7 +28,7 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
         dataStore.edit { preferences ->
             preferences[SITE_ID] = configuration.siteId
             preferences[API_KEY] = configuration.apiKey
-            preferences[TRACK_API_URL_KEY] = configuration.trackUrl
+            configuration.trackUrl?.let { preferences[TRACK_API_URL_KEY] = it }
             preferences[BACKGROUND_QUEUE_SECONDS_DELAY] = configuration.backgroundQueueSecondsDelay
             preferences[BACKGROUND_QUEUE_MIN_NUM_TASKS] = configuration.backgroundQueueMinNumTasks
             preferences[TRACK_SCREEN] = configuration.trackScreen
@@ -42,7 +42,24 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
             return@map Configuration(
                 siteId = preferences[SITE_ID] ?: BuildConfig.SITE_ID,
                 apiKey = preferences[API_KEY] ?: BuildConfig.API_KEY
-            )
+            ).apply {
+                trackUrl = preferences[TRACK_API_URL_KEY]
+                preferences[BACKGROUND_QUEUE_SECONDS_DELAY]?.let {
+                    backgroundQueueSecondsDelay = it
+                }
+                preferences[BACKGROUND_QUEUE_MIN_NUM_TASKS]?.let {
+                    backgroundQueueMinNumTasks = it
+                }
+                preferences[TRACK_SCREEN]?.let {
+                    trackScreen = it
+                }
+                preferences[TRACK_DEVICE_ATTRIBUTES]?.let {
+                    trackDeviceAttributes = it
+                }
+                preferences[DEBUG_MODE]?.let {
+                    debugMode = it
+                }
+            }
         }
     }
 }

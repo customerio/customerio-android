@@ -4,7 +4,7 @@ data class Configuration(
     var siteId: String,
     var apiKey: String
 ) {
-    var trackUrl: String = ""
+    var trackUrl: String? = null
 
     var backgroundQueueSecondsDelay: Double = 30.0
     var backgroundQueueMinNumTasks: Int = 10

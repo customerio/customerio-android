@@ -6,8 +6,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.util.CioLogLevel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -44,24 +42,6 @@ class SettingsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             preferenceRepository.saveConfiguration(configuration)
-
-            CustomerIO.Builder(
-                siteId = configuration.siteId,
-                apiKey = configuration.apiKey,
-                appContext = application
-            ).apply {
-                setTrackingApiURL(trackingApiUrl = configuration.trackUrl)
-                setBackgroundQueueSecondsDelay(configuration.backgroundQueueSecondsDelay)
-                setBackgroundQueueMinNumberOfTasks(configuration.backgroundQueueMinNumTasks)
-                if (configuration.debugMode) {
-                    setLogLevel(CioLogLevel.DEBUG)
-                } else {
-                    setLogLevel(CioLogLevel.ERROR)
-                }
-                autoTrackDeviceAttributes(configuration.trackDeviceAttributes)
-                autoTrackScreenViews(configuration.trackScreen)
-            }.build()
-
             onComplete.invoke()
         }
     }

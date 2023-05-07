@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -72,10 +73,30 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
     ) {
         TopBar(onBackClick = onBackPressed)
-        EnvSettingsList(uiState = uiState, configuration = configuration)
-        WorkspaceSettingsList(uiState = uiState, configuration = configuration)
-        SDKSettingsList(uiState = uiState, configuration = configuration)
-        FeaturesList(configuration = configuration)
+        EnvSettingsList(
+            deviceToken = uiState.deviceToken,
+            trackUrl = uiState.configuration.trackUrl ?: "",
+            onTrackUrlChange = {
+                configuration.trackUrl = it
+            }
+        )
+        WorkspaceSettingsList(uiState = uiState, onSiteIdChange = {
+            configuration.siteId = it
+        }, onApiKeyChange = {
+            configuration.apiKey = it
+        })
+        SDKSettingsList(uiState = uiState, onBackgroundQueueMinNumTasksChange = {
+            configuration.backgroundQueueMinNumTasks = it
+        }, onBackgroundQueueSecondsDelayChange = {
+            configuration.backgroundQueueSecondsDelay = it
+        })
+        FeaturesList(configuration = uiState.configuration, onTrackScreenChange = {
+            configuration.trackScreen = it
+        }, onTrackDeviceAttributesChange = {
+            configuration.trackDeviceAttributes = it
+        }, onDebugModeChange = {
+            configuration.debugMode = it
+        })
         SaveSettings(onSaveClick = { onSave.invoke(configuration) })
     }
 }
@@ -106,11 +127,17 @@ fun SaveSettings(onSaveClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EnvSettingsList(uiState: SettingsUiState, configuration: Configuration) {
+fun EnvSettingsList(
+    deviceToken: String,
+    trackUrl: String,
+    onTrackUrlChange: (trackUrl: String) -> Unit
+) {
+    var trackUrlState by remember { mutableStateOf(trackUrl) }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = uiState.deviceToken,
+            value = deviceToken,
             readOnly = true,
             onValueChange = {},
             label = {
@@ -119,52 +146,63 @@ fun EnvSettingsList(uiState: SettingsUiState, configuration: Configuration) {
         )
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = uiState.configuration.trackUrl,
-            onValueChange = { configuration.trackUrl = it },
+            value = trackUrlState,
+            onValueChange = {
+                trackUrlState = it
+                onTrackUrlChange(it)
+            },
             label = {
                 Text(text = stringResource(id = R.string.cio_track_url))
-            }
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceSettingsList(uiState: SettingsUiState, configuration: Configuration) {
+fun WorkspaceSettingsList(
+    uiState: SettingsUiState,
+    onSiteIdChange: (siteId: String) -> Unit,
+    onApiKeyChange: (apiKey: String) -> Unit
+) {
+    var siteId by remember { mutableStateOf(uiState.configuration.siteId) }
+    var apiKey by remember { mutableStateOf(uiState.configuration.apiKey) }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = uiState.configuration.siteId,
-            onValueChange = {
-                configuration.siteId = it
-            },
-            label = {
-                Text(text = stringResource(id = R.string.site_id))
-            }
-        )
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = uiState.configuration.apiKey,
-            onValueChange = {
-                configuration.apiKey = it
-            },
-            label = {
-                Text(text = stringResource(id = R.string.api_key))
-            }
-        )
+        OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = siteId, onValueChange = {
+            siteId = it
+            onSiteIdChange(it)
+        }, label = {
+            Text(text = stringResource(id = R.string.site_id))
+        })
+        OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = apiKey, onValueChange = {
+            apiKey = it
+            onApiKeyChange(it)
+        }, label = {
+            Text(text = stringResource(id = R.string.api_key))
+        })
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SDKSettingsList(uiState: SettingsUiState, configuration: Configuration) {
+fun SDKSettingsList(
+    uiState: SettingsUiState,
+    onBackgroundQueueSecondsDelayChange: (delay: Double) -> Unit,
+    onBackgroundQueueMinNumTasksChange: (numTasks: Int) -> Unit
+) {
+    var secondsDelays by remember { mutableStateOf(uiState.configuration.backgroundQueueSecondsDelay) }
+    var minTasks by remember { mutableStateOf(uiState.configuration.backgroundQueueMinNumTasks) }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = uiState.configuration.backgroundQueueSecondsDelay.toString(),
+            value = secondsDelays.toString(),
             onValueChange = {
                 if (it.isNotEmpty()) {
-                    configuration.backgroundQueueSecondsDelay = it.toDouble()
+                    secondsDelays = it.toDouble()
+                    onBackgroundQueueSecondsDelayChange(it.toDouble())
                 }
             },
             label = {
@@ -174,9 +212,12 @@ fun SDKSettingsList(uiState: SettingsUiState, configuration: Configuration) {
         )
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = uiState.configuration.backgroundQueueMinNumTasks.toString(),
+            value = minTasks.toString(),
             onValueChange = {
-                configuration.backgroundQueueMinNumTasks = it.toInt()
+                if (it.isNotEmpty()) {
+                    minTasks = it.toInt()
+                    onBackgroundQueueMinNumTasksChange(it.toInt())
+                }
             },
             label = {
                 Text(text = stringResource(id = R.string.background_queue_min_tasks))
@@ -187,7 +228,16 @@ fun SDKSettingsList(uiState: SettingsUiState, configuration: Configuration) {
 }
 
 @Composable
-fun FeaturesList(configuration: Configuration) {
+fun FeaturesList(
+    configuration: Configuration,
+    onTrackScreenChange: (trackScreen: Boolean) -> Unit,
+    onTrackDeviceAttributesChange: (trackDeviceAttributes: Boolean) -> Unit,
+    onDebugModeChange: (debugMode: Boolean) -> Unit
+) {
+    var trackScreen by remember { mutableStateOf(configuration.trackScreen) }
+    var trackDeviceAttributes by remember { mutableStateOf(configuration.trackDeviceAttributes) }
+    var debugMode by remember { mutableStateOf(configuration.debugMode) }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -197,8 +247,9 @@ fun FeaturesList(configuration: Configuration) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.track_screen))
-            Switch(checked = configuration.trackScreen, onCheckedChange = {
-                configuration.trackScreen = it
+            Switch(checked = trackScreen, onCheckedChange = {
+                trackScreen = it
+                onTrackScreenChange(it)
             })
         }
         Row(
@@ -207,8 +258,9 @@ fun FeaturesList(configuration: Configuration) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.track_device_attributes))
-            Switch(checked = configuration.trackDeviceAttributes, onCheckedChange = {
-                configuration.trackDeviceAttributes = it
+            Switch(checked = trackDeviceAttributes, onCheckedChange = {
+                trackDeviceAttributes = it
+                onTrackDeviceAttributesChange(it)
             })
         }
         Row(
@@ -217,8 +269,9 @@ fun FeaturesList(configuration: Configuration) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.debug_mode))
-            Switch(checked = configuration.debugMode, onCheckedChange = {
-                configuration.debugMode = it
+            Switch(checked = debugMode, onCheckedChange = {
+                debugMode = it
+                onDebugModeChange(it)
             })
         }
     }

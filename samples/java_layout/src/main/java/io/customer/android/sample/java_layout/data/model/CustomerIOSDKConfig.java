@@ -25,17 +25,16 @@ public class CustomerIOSDKConfig {
         static final String DEBUG_MODE = "cio_sdk_debug_mode";
     }
 
-
     public static CustomerIOSDKConfig getDefaultConfigurations() {
         return new CustomerIOSDKConfig(BuildConfig.SITE_ID,
                 BuildConfig.API_KEY,
-                BuildConfig.TRACKING_URL,
-                BuildConfig.BQ_SECONDS_DELAY,
-                BuildConfig.BQ_MIN_TASKS,
-                BuildConfig.ENABLE_IN_APP,
-                BuildConfig.TRACK_SCREENS,
-                BuildConfig.TRACK_DEVICE_ATTRIBUTES,
-                BuildConfig.DEBUG_MODE);
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     @NonNull

@@ -17,7 +17,7 @@ static String stringPropertyNullable(Properties properties, String key) {
     }
 }
 
-static String booleanProperty(Properties properties, String key, boolean fallback) {
+static String booleanProperty(Properties properties, String key, Boolean fallback) {
     String prop = properties[key]
     if (prop == null) {
         return fallback
@@ -42,10 +42,10 @@ android {
         buildConfigField "String", "TRACKING_URL", "${stringPropertyNullable(localProperties, "trackingUrl")}"
         buildConfigField "Integer", "BQ_SECONDS_DELAY", "${localProperties["bqSecondsDelay"]}"
         buildConfigField "Integer", "BQ_MIN_TASKS", "${localProperties["bqMinTasks"]}"
-        buildConfigField "boolean", "ENABLE_IN_APP", "${booleanProperty(localProperties, "enableInApp", false)}"
-        buildConfigField "boolean", "TRACK_SCREENS", "${booleanProperty(localProperties, "trackScreens", true)}"
-        buildConfigField "boolean", "TRACK_DEVICE_ATTRIBUTES", "${booleanProperty(localProperties, "trackDeviceAttributes", true)}"
-        buildConfigField "boolean", "DEBUG_MODE", "${booleanProperty(localProperties, "debugMode", true)}"
+        buildConfigField "Boolean", "ENABLE_IN_APP", "${booleanProperty(localProperties, "enableInApp", null)}"
+        buildConfigField "Boolean", "TRACK_SCREENS", "${booleanProperty(localProperties, "trackScreens", null)}"
+        buildConfigField "Boolean", "TRACK_DEVICE_ATTRIBUTES", "${booleanProperty(localProperties, "trackDeviceAttributes", null)}"
+        buildConfigField "Boolean", "DEBUG_MODE", "${booleanProperty(localProperties, "debugMode", null)}"
     }
 
     buildTypes {

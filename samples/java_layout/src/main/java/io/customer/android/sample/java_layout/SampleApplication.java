@@ -42,7 +42,7 @@ public class SampleApplication extends Application {
         }
 
         CustomerIO.Builder builder = new CustomerIO.Builder(sdkConfig.getSiteId(), sdkConfig.getApiKey(), this);
-        if (sdkConfig.isDebugModeEnabled()) {
+        if (Boolean.TRUE.equals(sdkConfig.isDebugModeEnabled())) {
             builder.setLogLevel(CioLogLevel.DEBUG);
         }
 
@@ -60,10 +60,16 @@ public class SampleApplication extends Application {
             builder.setBackgroundQueueMinNumberOfTasks(bqMinTasks);
         }
 
-        builder.autoTrackScreenViews(sdkConfig.isScreenTrackingEnabled());
-        builder.autoTrackDeviceAttributes(sdkConfig.isDeviceAttributesTrackingEnabled());
+        Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
+        if (screenTrackingEnabled != null) {
+            builder.autoTrackScreenViews(screenTrackingEnabled);
+        }
+        Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
+        if (deviceAttributesTrackingEnabled != null) {
+            builder.autoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
+        }
 
-        if (sdkConfig.isInAppEnabled()) {
+        if (Boolean.TRUE.equals(sdkConfig.isInAppEnabled())) {
             builder.addCustomerIOModule(new ModuleMessagingInApp());
         }
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());

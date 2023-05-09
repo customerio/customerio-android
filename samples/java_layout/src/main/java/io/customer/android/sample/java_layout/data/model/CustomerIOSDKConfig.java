@@ -92,20 +92,24 @@ public class CustomerIOSDKConfig {
     private final Integer backgroundQueueSecondsDelay;
     @Nullable
     private final Integer backgroundQueueMinNumOfTasks;
-    private final boolean inAppEnabled;
-    private final boolean screenTrackingEnabled;
-    private final boolean deviceAttributesTrackingEnabled;
-    private final boolean debugModeEnabled;
+    @Nullable
+    private final Boolean inAppEnabled;
+    @Nullable
+    private final Boolean screenTrackingEnabled;
+    @Nullable
+    private final Boolean deviceAttributesTrackingEnabled;
+    @Nullable
+    private final Boolean debugModeEnabled;
 
     public CustomerIOSDKConfig(@NonNull String siteId,
                                @NonNull String apiKey,
                                @Nullable String trackingURL,
                                @Nullable Integer backgroundQueueSecondsDelay,
                                @Nullable Integer backgroundQueueMinNumOfTasks,
-                               boolean inAppEnabled,
-                               boolean screenTrackingEnabled,
-                               boolean deviceAttributesTrackingEnabled,
-                               boolean debugModeEnabled) {
+                               @Nullable Boolean inAppEnabled,
+                               @Nullable Boolean screenTrackingEnabled,
+                               @Nullable Boolean deviceAttributesTrackingEnabled,
+                               @Nullable Boolean debugModeEnabled) {
         this.siteId = siteId;
         this.apiKey = apiKey;
         this.trackingURL = trackingURL;
@@ -142,19 +146,23 @@ public class CustomerIOSDKConfig {
         return backgroundQueueMinNumOfTasks;
     }
 
-    public boolean isInAppEnabled() {
+    @Nullable
+    public Boolean isInAppEnabled() {
         return inAppEnabled;
     }
 
-    public boolean isScreenTrackingEnabled() {
+    @Nullable
+    public Boolean isScreenTrackingEnabled() {
         return screenTrackingEnabled;
     }
 
-    public boolean isDeviceAttributesTrackingEnabled() {
+    @Nullable
+    public Boolean isDeviceAttributesTrackingEnabled() {
         return deviceAttributesTrackingEnabled;
     }
 
-    public boolean isDebugModeEnabled() {
+    @Nullable
+    public Boolean isDebugModeEnabled() {
         return debugModeEnabled;
     }
 }

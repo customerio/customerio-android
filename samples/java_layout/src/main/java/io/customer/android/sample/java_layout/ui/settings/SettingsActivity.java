@@ -6,6 +6,7 @@ import android.content.Context;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.google.android.material.snackbar.Snackbar;
 
@@ -126,9 +127,17 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromInteger(config.getBackgroundQueueSecondsDelay()));
         ViewUtils.setTextWithSelectionIfFocused(binding.bqTasksTextInput, StringUtils.fromInteger(config.getBackgroundQueueMinNumOfTasks()));
-        binding.enableInAppSwitch.setChecked(config.isInAppEnabled());
-        binding.trackScreensSwitch.setChecked(config.isScreenTrackingEnabled());
-        binding.trackDeviceAttributesSwitch.setChecked(config.isDeviceAttributesTrackingEnabled());
-        binding.debugModeSwitch.setChecked(config.isDebugModeEnabled());
+        binding.enableInAppSwitch.setChecked(isFeatureEnabled(config.isInAppEnabled(), false));
+        binding.trackScreensSwitch.setChecked(isFeatureEnabled(config.isScreenTrackingEnabled(), true));
+        binding.trackDeviceAttributesSwitch.setChecked(isFeatureEnabled(config.isDeviceAttributesTrackingEnabled(), true));
+        binding.debugModeSwitch.setChecked(isFeatureEnabled(config.isDebugModeEnabled(), false));
+    }
+
+    private boolean isFeatureEnabled(@Nullable Boolean value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        } else {
+            return value;
+        }
     }
 }

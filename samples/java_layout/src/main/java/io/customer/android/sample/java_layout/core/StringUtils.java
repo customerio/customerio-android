@@ -22,12 +22,16 @@ public class StringUtils {
         return value == null ? null : value.toString();
     }
 
-    public static boolean parseBoolean(@Nullable String value, boolean defaultValue) {
+    public static Boolean parseBoolean(@Nullable String value, Boolean defaultValue) {
         if (TextUtils.isEmpty(value)) {
             return defaultValue;
         }
 
-        return Boolean.parseBoolean(value);
+        try {
+            return Boolean.valueOf(value);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
     }
 
     public static String fromBoolean(@Nullable Boolean value) {

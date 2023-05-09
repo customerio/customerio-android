@@ -16,4 +16,9 @@
     <string name="set_profile_attributes">Set Profile Attributes</string>
     <string name="view_logs">View Logs</string>
     <string name="log_out">Log Out</string>
+    <string name="screen_title_custom_event">Send Custom Event</string>
+    <string name="event_name">Event Name</string>
+    <string name="property_name">Property Name</string>
+    <string name="property_value">Property Value</string>
+    <string name="send_event">Send Event</string>
 </resources>

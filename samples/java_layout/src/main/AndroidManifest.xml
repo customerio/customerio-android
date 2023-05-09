@@ -30,5 +30,8 @@
         <activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.common.SimpleFragmentActivity"
+            android:exported="false" />
     </application>
 </manifest>

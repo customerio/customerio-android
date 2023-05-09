@@ -48,7 +48,20 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
             throw new IllegalStateException("FragmentName cannot be null");
         }
 
-        Fragment fragment = null;
+        final Fragment fragment;
+        switch (mFragmentName) {
+            case FRAGMENT_CUSTOM_TRACKING_EVENT:
+                fragment = CustomEventTrackingFragment.newInstance();
+                break;
+            case FRAGMENT_DEVICE_ATTRIBUTES:
+                fragment = AttributesTrackingFragment.newInstance(AttributesTrackingFragment.ATTRIBUTE_TYPE_DEVICE);
+                break;
+            case FRAGMENT_PROFILE_ATTRIBUTES:
+                fragment = AttributesTrackingFragment.newInstance(AttributesTrackingFragment.ATTRIBUTE_TYPE_PROFILE);
+                break;
+            default:
+                fragment = null;
+        }
 
         if (fragment == null) {
             throw new IllegalArgumentException("Invalid FragmentName provided");

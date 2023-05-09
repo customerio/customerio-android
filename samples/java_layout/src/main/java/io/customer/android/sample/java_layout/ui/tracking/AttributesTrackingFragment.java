@@ -2,9 +2,13 @@ package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.os.Bundle;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.FragmentAttributesTrackingBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseFragment;
+import io.customer.sdk.CustomerIO;
 
 public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesTrackingBinding> {
 
@@ -53,5 +57,20 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
                 binding.sendEventButton.setText(R.string.send_profile_attribute);
                 break;
         }
+
+        binding.sendEventButton.setOnClickListener(view -> {
+            Map<String, String> attributes = new HashMap<>();
+            attributes.put(binding.attributeNameTextInput.getText().toString().trim(),
+                    binding.attributeValueTextInput.getText().toString().trim());
+
+            switch (mAttributeType) {
+                case ATTRIBUTE_TYPE_DEVICE:
+                    CustomerIO.instance().setDeviceAttributes(attributes);
+                    break;
+                case ATTRIBUTE_TYPE_PROFILE:
+                    CustomerIO.instance().setProfileAttributes(attributes);
+                    break;
+            }
+        });
     }
 }

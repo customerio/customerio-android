@@ -1,11 +1,13 @@
 package io.customer.android.sample.java_layout.ui.dashboard;
 
 import android.content.Intent;
+import android.os.Bundle;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityDashboardBinding;
+import io.customer.android.sample.java_layout.ui.common.SimpleFragmentActivity;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
@@ -55,6 +57,17 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.settingsButton.setOnClickListener(view -> {
             startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
         });
+        binding.sendRandomEventButton.setOnClickListener(view -> {
+        });
+        binding.sendCustomEventButton.setOnClickListener(view -> {
+            startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_CUSTOM_TRACKING_EVENT);
+        });
+        binding.setDeviceAttributesButton.setOnClickListener(view -> {
+            startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_DEVICE_ATTRIBUTES);
+        });
+        binding.setProfileAttributesButton.setOnClickListener(view -> {
+            startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
+        });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
         });
@@ -79,5 +92,12 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                 finish();
             }
         });
+    }
+
+    private void startSimpleFragmentActivity(String fragmentName) {
+        Intent intent = new Intent(DashboardActivity.this, SimpleFragmentActivity.class);
+        Bundle extras = SimpleFragmentActivity.getExtras(fragmentName);
+        intent.putExtras(extras);
+        startActivity(intent);
     }
 }

@@ -17,7 +17,8 @@
 
         <activity
             android:name=".ui.dashboard.DashboardActivity"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/label_dashboard_activity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -26,12 +27,15 @@
         </activity>
         <activity
             android:name=".ui.login.LoginActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/label_login_activity" />
         <activity
             android:name=".ui.settings.SettingsActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/label_settings_activity" />
         <activity
             android:name=".ui.common.SimpleFragmentActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/label_simple_fragment_activity" />
     </application>
 </manifest>

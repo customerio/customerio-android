@@ -31,4 +31,8 @@
     <string name="attributes_tracked_msg_format">%1$s Attributes Track Successfully</string>
     <string name="device">Device</string>
     <string name="profile">Profile</string>
+    <string name="label_dashboard_activity">DashboardActivity</string>
+    <string name="label_login_activity">LoginActivity</string>
+    <string name="label_settings_activity">SettingsActivity</string>
+    <string name="label_simple_fragment_activity">SimpleFragmentActivity</string>
 </resources>

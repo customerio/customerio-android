@@ -5,13 +5,18 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import io.customer.android.sample.java_layout.R;
+import io.customer.android.sample.java_layout.core.Randoms;
 import io.customer.android.sample.java_layout.databinding.ActivityDashboardBinding;
 import io.customer.android.sample.java_layout.ui.common.SimpleFragmentActivity;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
+import io.customer.sdk.CustomerIO;
 
 public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
@@ -58,6 +63,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
         });
         binding.sendRandomEventButton.setOnClickListener(view -> {
+            sendRandomEvent();
         });
         binding.sendCustomEventButton.setOnClickListener(view -> {
             startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_CUSTOM_TRACKING_EVENT);
@@ -92,6 +98,17 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                 finish();
             }
         });
+    }
+
+    private void sendRandomEvent() {
+        Randoms randoms = new Randoms();
+        String eventName = randoms.eventName();
+        Map<String, Object> eventAttributes = randoms.eventAttributes();
+        Map<String, String> extras = new HashMap<>();
+        for (Map.Entry<String, Object> entry : eventAttributes.entrySet()) {
+            extras.put(entry.getKey(), String.valueOf(entry.getValue()));
+        }
+        CustomerIO.instance().track(eventName, extras);
     }
 
     private void startSimpleFragmentActivity(String fragmentName) {

@@ -1,6 +1,7 @@
 package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
@@ -62,30 +63,44 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
         }
 
         binding.sendEventButton.setOnClickListener(view -> {
-            Map<String, String> attributes = new HashMap<>();
-            attributes.put(binding.attributeNameTextInput.getText().toString().trim(),
-                    binding.attributeValueTextInput.getText().toString().trim());
+            boolean isFormValid = true;
+            String attributeName = binding.attributeNameTextInput.getText().toString().trim();
+            String attributeValue = binding.attributeValueTextInput.getText().toString().trim();
 
-            final String attributeType;
-            switch (mAttributeType) {
-                case ATTRIBUTE_TYPE_DEVICE:
-                    attributeType = getString(R.string.device);
-                    CustomerIO.instance().setDeviceAttributes(attributes);
-                    break;
-                case ATTRIBUTE_TYPE_PROFILE:
-                    attributeType = getString(R.string.profile);
-                    CustomerIO.instance().setProfileAttributes(attributes);
-                    break;
-                default:
-                    return;
+            if (TextUtils.isEmpty(attributeName)) {
+                binding.attributeNameInputLayout.setErrorEnabled(true);
+                binding.attributeNameInputLayout.setError(getString(R.string.error_attribute_name));
+                isFormValid = false;
+            } else {
+                binding.attributeNameInputLayout.setErrorEnabled(false);
+                binding.attributeNameInputLayout.setError(null);
             }
 
-            FragmentActivity activity = getActivity();
-            if (activity != null) {
-                Toast.makeText(activity,
-                        getString(R.string.attributes_tracked_msg_format, attributeType),
-                        Toast.LENGTH_SHORT).show();
-                activity.onBackPressed();
+            if (isFormValid) {
+                Map<String, String> attributes = new HashMap<>();
+                attributes.put(attributeName, attributeValue);
+
+                final String attributeType;
+                switch (mAttributeType) {
+                    case ATTRIBUTE_TYPE_DEVICE:
+                        attributeType = getString(R.string.device);
+                        CustomerIO.instance().setDeviceAttributes(attributes);
+                        break;
+                    case ATTRIBUTE_TYPE_PROFILE:
+                        attributeType = getString(R.string.profile);
+                        CustomerIO.instance().setProfileAttributes(attributes);
+                        break;
+                    default:
+                        return;
+                }
+
+                FragmentActivity activity = getActivity();
+                if (activity != null) {
+                    Toast.makeText(activity,
+                            getString(R.string.attributes_tracked_msg_format, attributeType),
+                            Toast.LENGTH_SHORT).show();
+                    activity.onBackPressed();
+                }
             }
         });
     }

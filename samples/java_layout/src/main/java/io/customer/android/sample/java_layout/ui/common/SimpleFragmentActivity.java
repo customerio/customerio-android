@@ -34,7 +34,8 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
     }
 
     @Override
-    protected void injectDependencies() {
+    public void onBackPressed() {
+        finish();
     }
 
     @Override
@@ -45,7 +46,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         }
 
         if (TextUtils.isEmpty(mFragmentName)) {
-            throw new IllegalStateException("FragmentName cannot be null");
+            throw new IllegalStateException("Fragment name cannot be null");
         }
 
         final Fragment fragment;
@@ -64,7 +65,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         }
 
         if (fragment == null) {
-            throw new IllegalArgumentException("Invalid FragmentName provided");
+            throw new IllegalArgumentException("Invalid fragment name provided");
         }
 
         FragmentManager fragmentManager = getSupportFragmentManager();

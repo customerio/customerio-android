@@ -27,4 +27,8 @@
     <string name="screen_title_profile_attributes">Set Custom Profile Attribute</string>
     <string name="send_device_attribute">Send Device Attributes</string>
     <string name="send_profile_attribute">Send Profile Attributes</string>
+    <string name="event_tracked_msg_format">%1$s Event Track Successfully</string>
+    <string name="attributes_tracked_msg_format">%1$s Attributes Track Successfully</string>
+    <string name="device">Device</string>
+    <string name="profile">Profile</string>
 </resources>

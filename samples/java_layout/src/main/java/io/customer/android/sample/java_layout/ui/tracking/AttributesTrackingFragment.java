@@ -1,6 +1,9 @@
 package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.os.Bundle;
+import android.widget.Toast;
+
+import androidx.fragment.app.FragmentActivity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,13 +66,26 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
             attributes.put(binding.attributeNameTextInput.getText().toString().trim(),
                     binding.attributeValueTextInput.getText().toString().trim());
 
+            final String attributeType;
             switch (mAttributeType) {
                 case ATTRIBUTE_TYPE_DEVICE:
+                    attributeType = getString(R.string.device);
                     CustomerIO.instance().setDeviceAttributes(attributes);
                     break;
                 case ATTRIBUTE_TYPE_PROFILE:
+                    attributeType = getString(R.string.profile);
                     CustomerIO.instance().setProfileAttributes(attributes);
                     break;
+                default:
+                    return;
+            }
+
+            FragmentActivity activity = getActivity();
+            if (activity != null) {
+                Toast.makeText(activity,
+                        getString(R.string.attributes_tracked_msg_format, attributeType),
+                        Toast.LENGTH_SHORT).show();
+                activity.onBackPressed();
             }
         });
     }

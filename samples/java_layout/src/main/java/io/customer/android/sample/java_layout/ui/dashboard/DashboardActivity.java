@@ -5,6 +5,8 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
+import com.google.android.material.snackbar.Snackbar;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -109,6 +111,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             extras.put(entry.getKey(), String.valueOf(entry.getValue()));
         }
         CustomerIO.instance().track(eventName, extras);
+        Snackbar.make(binding.sendRandomEventButton,
+                getString(R.string.event_tracked_msg_format, eventName),
+                Snackbar.LENGTH_SHORT).show();
     }
 
     private void startSimpleFragmentActivity(String fragmentName) {

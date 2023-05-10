@@ -17,8 +17,7 @@
 
         <activity
             android:name=".ui.dashboard.DashboardActivity"
-            android:exported="true"
-            android:label="@string/label_dashboard_activity">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -6,6 +6,7 @@ import android.util.Patterns;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.core.Randoms;
+import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
@@ -50,15 +51,13 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
         });
         binding.loginButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            //noinspection ConstantConditions
-            String displayName = binding.displayNameTextInput.getText().toString().trim();
+            String displayName = ViewUtils.getTextTrimmed(binding.displayNameTextInput);
             if (TextUtils.isEmpty(displayName)) {
                 binding.displayNameInputLayout.setError(getString(R.string.error_display_name));
                 isFormValid = false;
             }
 
-            //noinspection ConstantConditions
-            String email = binding.emailTextInput.getText().toString().trim();
+            String email = ViewUtils.getTextTrimmed(binding.emailTextInput);
             if (TextUtils.isEmpty(email) || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 binding.emailInputLayout.setError(getString(R.string.error_email));
                 isFormValid = false;

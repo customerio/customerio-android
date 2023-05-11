@@ -40,6 +40,12 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         return binding.getRoot();
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        binding = null;
+    }
+
     @EmptySuper
     protected void injectDependencies() {
     }

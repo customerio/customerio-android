@@ -3,6 +3,8 @@ package io.customer.android.sample.java_layout;
 import android.app.Application;
 import android.text.TextUtils;
 
+import androidx.annotation.NonNull;
+
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -27,25 +29,34 @@ public class SampleApplication extends Application {
     }
 
     private void initCustomerIOSDK() {
-        Optional<CustomerIOSDKConfig> sdkConfigOptional;
-        try {
-            Map<String, String> configBundle = appGraph.getPreferencesDataStore().sdkConfig().blockingFirst();
-            sdkConfigOptional = CustomerIOSDKConfig.fromMap(configBundle);
-        } catch (Exception ignored) {
-            sdkConfigOptional = Optional.empty();
-        }
-        final CustomerIOSDKConfig sdkConfig;
-        if (sdkConfigOptional.isPresent()) {
-            sdkConfig = sdkConfigOptional.get();
-        } else {
-            sdkConfig = CustomerIOSDKConfig.getDefaultConfigurations();
-        }
-
+        // Get desired SDK config, only required by sample app
+        final CustomerIOSDKConfig sdkConfig = getSdkConfig();
+        // Initialize Customer.io SDK builder
         CustomerIO.Builder builder = new CustomerIO.Builder(sdkConfig.getSiteId(), sdkConfig.getApiKey(), this);
+        // Enable detailed logging for debug builds.
         if (Boolean.TRUE.equals(sdkConfig.isDebugModeEnabled())) {
             builder.setLogLevel(CioLogLevel.DEBUG);
         }
+        // Enable optional features of the SDK by adding desired modules.
+        // Enables push notification
+        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+        // Enables in-app messages
+        if (Boolean.TRUE.equals(sdkConfig.isInAppEnabled())) {
+            builder.addCustomerIOModule(new ModuleMessagingInApp());
+        }
+        // Modify SDK settings for testing purposes only.
+        // If you don't need to override any of these settings, you can skip this line.
+        configureSdk(builder, sdkConfig);
+        // Finally, build to finish initializing the SDK.
+        builder.build();
+    }
 
+    /**
+     * Makes modifications to SDK configurations. It is mainly for testing
+     * purposes and may not be needed unless there is a need to override any
+     * default configuration from the SDK.
+     */
+    private void configureSdk(CustomerIO.Builder builder, final CustomerIOSDKConfig sdkConfig) {
         final String trackingApiUrl = sdkConfig.getTrackingURL();
         if (!TextUtils.isEmpty(trackingApiUrl)) {
             builder.setTrackingApiURL(trackingApiUrl);
@@ -68,11 +79,24 @@ public class SampleApplication extends Application {
         if (deviceAttributesTrackingEnabled != null) {
             builder.autoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
         }
+    }
 
-        if (Boolean.TRUE.equals(sdkConfig.isInAppEnabled())) {
-            builder.addCustomerIOModule(new ModuleMessagingInApp());
+    /**
+     * Retrieves SDK settings, only required by sample app.
+     */
+    @NonNull
+    private CustomerIOSDKConfig getSdkConfig() {
+        Optional<CustomerIOSDKConfig> sdkConfig;
+        try {
+            Map<String, String> configBundle = appGraph.getPreferencesDataStore().sdkConfig().blockingFirst();
+            sdkConfig = CustomerIOSDKConfig.fromMap(configBundle);
+        } catch (Exception ignored) {
+            sdkConfig = Optional.empty();
         }
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
-        builder.build();
+        if (sdkConfig.isPresent()) {
+            return sdkConfig.get();
+        } else {
+            return CustomerIOSDKConfig.getDefaultConfigurations();
+        }
     }
 }

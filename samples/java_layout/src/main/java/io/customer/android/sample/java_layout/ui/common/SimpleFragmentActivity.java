@@ -87,13 +87,13 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         Intent intent = getIntent();
         Uri deepLinkUrl = intent.getData();
 
-        // data contains URI if activity is launched from deep link or url from Customer.io push notification
+        // deepLinkUrl contains URI if activity is launched from deep link or url from Customer.io push notification
         // e.g.
         // java-layout://events/custom
         // java-layout://attributes/profile
-        if (data != null) {
-            String host = data.getHost();
-            String lastPathSegment = data.getLastPathSegment();
+        if (deepLinkUrl != null) {
+            String host = deepLinkUrl.getHost();
+            String lastPathSegment = deepLinkUrl.getLastPathSegment();
             switch (host) {
                 case "events":
                     if ("custom".equals(lastPathSegment)) {

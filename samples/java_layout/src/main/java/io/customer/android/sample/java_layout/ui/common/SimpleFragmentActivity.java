@@ -52,8 +52,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
     @Override
     protected void setupContent() {
         binding.topAppBar.setNavigationOnClickListener(view -> {
-            // For better user experience, navigate to launcher activity
-            // on navigate up button
+            // For better user experience, navigate to launcher activity on navigate up button
             if (isTaskRoot()) {
                 startActivity(new Intent(SimpleFragmentActivity.this, DashboardActivity.class));
             }
@@ -81,8 +80,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         Intent intent = getIntent();
         Uri data = intent.getData();
 
-        // data contains URI if activity is launched from deep link or
-        // url from Customer.io push notification
+        // data contains URI if activity is launched from deep link or url from Customer.io push notification
         // e.g.
         // java-layout://settings,
         // java-layout://events/custom

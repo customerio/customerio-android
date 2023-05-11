@@ -62,6 +62,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     private void setupViews() {
         binding.topAppBar.setNavigationOnClickListener(view -> {
+            // For better user experience, navigate to launcher activity on navigate up button
             if (isTaskRoot()) {
                 startActivity(new Intent(SettingsActivity.this, DashboardActivity.class));
             }

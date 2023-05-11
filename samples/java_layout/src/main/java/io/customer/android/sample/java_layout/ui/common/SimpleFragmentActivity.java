@@ -82,7 +82,6 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
         // data contains URI if activity is launched from deep link or url from Customer.io push notification
         // e.g.
-        // java-layout://settings,
         // java-layout://events/custom
         // java-layout://attributes/profile
         if (data != null) {

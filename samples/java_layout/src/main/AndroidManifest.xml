@@ -26,9 +26,15 @@
         </activity>
         <activity
             android:name=".ui.login.LoginActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/label_login_activity" />
         <activity
             android:name=".ui.settings.SettingsActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/label_settings_activity" />
+        <activity
+            android:name=".ui.common.SimpleFragmentActivity"
+            android:exported="false"
+            android:label="@string/label_simple_fragment_activity" />
     </application>
 </manifest>

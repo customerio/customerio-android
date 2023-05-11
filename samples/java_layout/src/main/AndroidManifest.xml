@@ -30,11 +30,35 @@
             android:label="@string/label_login_activity" />
         <activity
             android:name=".ui.settings.SettingsActivity"
-            android:exported="false"
-            android:label="@string/label_settings_activity" />
+            android:exported="true"
+            android:label="@string/label_settings_activity">
+            <intent-filter android:label="deep_linking_filter">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "java-layout://settings” -->
+                <data
+                    android:host="settings"
+                    android:scheme="java-layout" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".ui.common.SimpleFragmentActivity"
-            android:exported="false"
-            android:label="@string/label_simple_fragment_activity" />
+            android:exported="true"
+            android:label="@string/label_simple_fragment_activity">
+            <intent-filter android:label="deep_linking_filter">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "java-layout://*” -->
+                <data android:scheme="java-layout" />
+                <!-- Accepts URIs with host "*://events” -->
+                <data android:host="events" />
+                <!-- Accepts URIs with host "*://attributes” -->
+                <data android:host="attributes" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

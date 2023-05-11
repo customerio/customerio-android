@@ -3,6 +3,7 @@ package io.customer.android.sample.java_layout.ui.settings;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
@@ -17,6 +18,7 @@ import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
 import io.customer.android.sample.java_layout.databinding.ActivitySettingsBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
+import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.messagingpush.provider.FCMTokenProviderImpl;
 import io.customer.sdk.CustomerIOShared;
 import io.customer.sdk.device.DeviceTokenProvider;
@@ -37,6 +39,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     @Override
+    public void onBackPressed() {
+        finish();
+    }
+
+    @Override
     protected void injectDependencies() {
         settingsViewModel = viewModelProvider.get(SettingsViewModel.class);
     }
@@ -54,7 +61,13 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void setupViews() {
-        binding.topAppBar.setNavigationOnClickListener(view -> finish());
+        binding.topAppBar.setNavigationOnClickListener(view -> {
+            // For better user experience, navigate to launcher activity on navigate up button
+            if (isTaskRoot()) {
+                startActivity(new Intent(SettingsActivity.this, DashboardActivity.class));
+            }
+            onBackPressed();
+        });
         binding.deviceTokenInputLayout.setEndIconOnClickListener(view -> {
             String deviceToken = ViewUtils.getTextTrimmed(binding.deviceTokenTextInput);
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);

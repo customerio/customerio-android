@@ -52,15 +52,41 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
     @Override
     protected void setupContent() {
         binding.topAppBar.setNavigationOnClickListener(view -> {
+            // For better user experience, navigate to launcher activity
+            // on navigate up button
             if (isTaskRoot()) {
                 startActivity(new Intent(SimpleFragmentActivity.this, DashboardActivity.class));
             }
             onBackPressed();
         });
 
+        parseFragmentParams();
+        if (TextUtils.isEmpty(mFragmentName)) {
+            throw new IllegalStateException("Fragment name cannot be null");
+        }
+
+        authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
+            if (isLoggedIn) {
+                replaceFragment();
+            } else {
+                if (isTaskRoot()) {
+                    startActivity(new Intent(SimpleFragmentActivity.this, LoginActivity.class));
+                }
+                finish();
+            }
+        });
+    }
+
+    private void parseFragmentParams() {
         Intent intent = getIntent();
         Uri data = intent.getData();
 
+        // data contains URI if activity is launched from deep link or
+        // url from Customer.io push notification
+        // e.g.
+        // java-layout://settings,
+        // java-layout://events/custom
+        // java-layout://attributes/profile
         if (data != null) {
             String host = data.getHost();
             String lastPathSegment = data.getLastPathSegment();
@@ -87,20 +113,6 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
                 mFragmentName = extras.getString(ARG_FRAGMENT_NAME);
             }
         }
-
-        if (TextUtils.isEmpty(mFragmentName)) {
-            throw new IllegalStateException("Fragment name cannot be null");
-        }
-        authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
-            if (isLoggedIn) {
-                replaceFragment();
-            } else {
-                if (isTaskRoot()) {
-                    startActivity(new Intent(SimpleFragmentActivity.this, LoginActivity.class));
-                }
-                finish();
-            }
-        });
     }
 
     private void replaceFragment() {

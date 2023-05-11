@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.core.Randoms;
+import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.databinding.ActivityDashboardBinding;
 import io.customer.android.sample.java_layout.ui.common.SimpleFragmentActivity;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;

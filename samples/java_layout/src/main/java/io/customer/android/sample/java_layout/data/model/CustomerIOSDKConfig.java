@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.BuildConfig;
-import io.customer.android.sample.java_layout.core.StringUtils;
+import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.android.sample.java_layout.support.Optional;
 
 public class CustomerIOSDKConfig {

@@ -12,9 +12,9 @@ import androidx.annotation.Nullable;
 import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.core.OSUtils;
-import io.customer.android.sample.java_layout.core.StringUtils;
-import io.customer.android.sample.java_layout.core.ViewUtils;
+import io.customer.android.sample.java_layout.utils.OSUtils;
+import io.customer.android.sample.java_layout.utils.StringUtils;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
 import io.customer.android.sample.java_layout.databinding.ActivitySettingsBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;

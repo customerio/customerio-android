@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.core.ViewUtils;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.android.sample.java_layout.databinding.FragmentCustomEventTrackingBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseFragment;
 import io.customer.sdk.CustomerIO;

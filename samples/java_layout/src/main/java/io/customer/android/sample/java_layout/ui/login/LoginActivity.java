@@ -5,8 +5,8 @@ import android.text.TextUtils;
 import android.util.Patterns;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.core.Randoms;
-import io.customer.android.sample.java_layout.core.ViewUtils;
+import io.customer.android.sample.java_layout.utils.Randoms;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;

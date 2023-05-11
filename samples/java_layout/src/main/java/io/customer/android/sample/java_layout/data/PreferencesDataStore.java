@@ -10,6 +10,7 @@ import java.util.Map;
 
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
 
 public class PreferencesDataStore {
     private static final String SDK_CONFIG_FILE = "sdk_config_prefs";
@@ -24,13 +25,13 @@ public class PreferencesDataStore {
     }
 
     @MainThread
-    public void clearSDKConfig() {
-        PreferencesStoreUtils.clearData(sdkDataStore);
+    public Single<Preferences> clearSDKConfig() {
+        return PreferencesStoreUtils.clearData(sdkDataStore);
     }
 
     @MainThread
-    public void saveToSDKConfig(Map<String, String> bundle) {
-        PreferencesStoreUtils.saveData(sdkDataStore, bundle);
+    public Single<Preferences> saveToSDKConfig(Map<String, String> bundle) {
+        return PreferencesStoreUtils.saveData(sdkDataStore, bundle);
     }
 
     @MainThread

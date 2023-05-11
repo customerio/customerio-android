@@ -2,8 +2,8 @@
     <!-- Base application theme. -->
     <style name="Theme.SampleApp.Base" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/java_blue_500</item>
-        <item name="colorPrimaryVariant">@color/java_blue_700</item>
+        <item name="colorPrimary">@color/java_blue_700</item>
+        <item name="colorPrimaryVariant">@color/java_blue_500</item>
         <item name="colorOnPrimary">@color/white</item>
         <!-- Secondary brand color. -->
         <item name="colorSecondary">@color/java_orange_200</item>
@@ -19,6 +19,7 @@
         <item name="borderlessButtonStyle">@style/Widget.App.Button.TextButton</item>
         <item name="materialButtonStyle">@style/Widget.App.Button</item>
         <item name="textAppearanceLabelLarge">@style/TextAppearance.App.Button</item>
+        <item name="textInputStyle">@style/Widget.App.TextInputLayout</item>
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.App.SmallComponent</item>
     </style>
 
@@ -36,4 +37,6 @@
     <style name="Widget.App.Button.TextButton" parent="Widget.Material3.Button.TextButton">
         <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
     </style>
+
+    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox" />
 </resources>

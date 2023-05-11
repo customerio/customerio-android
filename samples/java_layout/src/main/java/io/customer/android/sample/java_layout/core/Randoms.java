@@ -1,5 +1,7 @@
 package io.customer.android.sample.java_layout.core;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -13,6 +15,12 @@ public class Randoms {
     private static final String[] emails = {
             "java_layout@android.com",
             "roll@android.com"
+    };
+    private static final String[] eventNames = {
+            "Button Click",
+            "Random Event",
+            "Shopping",
+            "Charity"
     };
 
     private static int randomInt(final int max) {
@@ -30,5 +38,18 @@ public class Randoms {
 
     public String email() {
         return randomValue(emails);
+    }
+
+    public String eventName() {
+        return randomValue(eventNames);
+    }
+
+    public Map<String, Object> eventAttributes() {
+        return new HashMap<String, Object>() {{
+            put("color", "Orange");
+            put("size", 30);
+            put("price", 2.99);
+            put("isNew", true);
+        }};
     }
 }

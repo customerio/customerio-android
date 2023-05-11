@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.R;
+import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.databinding.FragmentAttributesTrackingBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseFragment;
 import io.customer.sdk.CustomerIO;
@@ -64,16 +65,14 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
 
         binding.sendEventButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            String attributeName = binding.attributeNameTextInput.getText().toString().trim();
-            String attributeValue = binding.attributeValueTextInput.getText().toString().trim();
+            String attributeName = ViewUtils.getTextTrimmed(binding.attributeNameTextInput);
+            String attributeValue = ViewUtils.getTextTrimmed(binding.attributeValueTextInput);
 
             if (TextUtils.isEmpty(attributeName)) {
-                binding.attributeNameInputLayout.setErrorEnabled(true);
-                binding.attributeNameInputLayout.setError(getString(R.string.error_attribute_name));
+                ViewUtils.setError(binding.attributeNameInputLayout, getString(R.string.error_attribute_name));
                 isFormValid = false;
             } else {
-                binding.attributeNameInputLayout.setErrorEnabled(false);
-                binding.attributeNameInputLayout.setError(null);
+                ViewUtils.setError(binding.attributeNameInputLayout, null);
             }
 
             if (isFormValid) {

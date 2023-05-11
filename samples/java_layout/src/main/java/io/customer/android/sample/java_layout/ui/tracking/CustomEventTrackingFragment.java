@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.R;
+import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.databinding.FragmentCustomEventTrackingBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseFragment;
 import io.customer.sdk.CustomerIO;
@@ -32,25 +33,21 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
     protected void setupContent() {
         binding.sendEventButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            String eventName = binding.eventNameTextInput.getText().toString().trim();
-            String propertyName = binding.propertyNameTextInput.getText().toString().trim();
-            String propertyValue = binding.propertyValueTextInput.getText().toString().trim();
+            String eventName = ViewUtils.getTextTrimmed(binding.eventNameTextInput);
+            String propertyName = ViewUtils.getTextTrimmed(binding.propertyNameTextInput);
+            String propertyValue = ViewUtils.getTextTrimmed(binding.propertyValueTextInput);
 
             if (TextUtils.isEmpty(eventName)) {
-                binding.eventNameInputLayout.setErrorEnabled(true);
-                binding.eventNameInputLayout.setError(getString(R.string.error_event_name));
+                ViewUtils.setError(binding.eventNameInputLayout, getString(R.string.error_event_name));
                 isFormValid = false;
             } else {
-                binding.eventNameInputLayout.setErrorEnabled(false);
-                binding.eventNameInputLayout.setError(null);
+                ViewUtils.setError(binding.eventNameInputLayout, null);
             }
             if (TextUtils.isEmpty(propertyName)) {
-                binding.propertyNameInputLayout.setErrorEnabled(true);
-                binding.propertyNameInputLayout.setError(getString(R.string.error_property_name));
+                ViewUtils.setError(binding.propertyNameInputLayout, getString(R.string.error_property_name));
                 isFormValid = false;
             } else {
-                binding.propertyNameInputLayout.setErrorEnabled(false);
-                binding.propertyNameInputLayout.setError(null);
+                ViewUtils.setError(binding.propertyNameInputLayout, null);
             }
 
             if (isFormValid) {

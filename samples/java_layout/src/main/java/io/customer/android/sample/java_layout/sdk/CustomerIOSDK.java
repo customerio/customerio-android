@@ -11,6 +11,7 @@ import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
 import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
+import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
@@ -35,7 +36,11 @@ public class CustomerIOSDK {
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
         if (Boolean.TRUE.equals(sdkConfig.isInAppEnabled())) {
-            builder.addCustomerIOModule(new ModuleMessagingInApp());
+            builder.addCustomerIOModule(new ModuleMessagingInApp(
+                    new MessagingInAppModuleConfig.Builder()
+                            .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                            .build()
+            ));
         }
 
         // Modify SDK settings for testing purposes only.

@@ -85,7 +85,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
     private boolean parseFragmentParams() {
         Intent intent = getIntent();
-        Uri data = intent.getData();
+        Uri deepLinkUrl = intent.getData();
 
         // data contains URI if activity is launched from deep link or url from Customer.io push notification
         // e.g.

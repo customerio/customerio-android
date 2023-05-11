@@ -5,14 +5,15 @@ import android.text.TextUtils;
 import android.util.Patterns;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.utils.Randoms;
-import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
+import io.customer.android.sample.java_layout.utils.Randoms;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.sdk.CustomerIO;
 
 public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
 
@@ -64,6 +65,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
             }
 
             if (isFormValid) {
+                CustomerIO.instance().identify(email);
                 authViewModel.setLoggedInUser(new User(email, displayName, false));
             }
         });

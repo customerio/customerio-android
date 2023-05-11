@@ -59,13 +59,18 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
     @Override
     protected void setupContent() {
-        binding.topAppBar.setNavigationOnClickListener(view -> navigateUp());
+        if (!parseFragmentParams()) {
+            // Navigate up for unsupported deep links so app doesn't crash and user experience is
+            // not affected
+            navigateUp();
+            return;
+        }
 
-        parseFragmentParams();
         if (TextUtils.isEmpty(mFragmentName)) {
             throw new IllegalStateException("Fragment name cannot be null");
         }
 
+        binding.topAppBar.setNavigationOnClickListener(view -> navigateUp());
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 replaceFragment();
@@ -78,7 +83,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         });
     }
 
-    private void parseFragmentParams() {
+    private boolean parseFragmentParams() {
         Intent intent = getIntent();
         Uri data = intent.getData();
 
@@ -106,16 +111,15 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
                     }
                     break;
             }
-            // Navigate up for unsupported deep links so app doesn't crash and user experience is
-            // not affected
-            if (TextUtils.isEmpty(mFragmentName)) {
-                navigateUp();
-            }
+            // Return true if deep link was parsed successfully only, false otherwise for unsupported links
+            return !TextUtils.isEmpty(mFragmentName);
         } else {
             Bundle extras = intent.getExtras();
             if (extras != null) {
                 mFragmentName = extras.getString(ARG_FRAGMENT_NAME);
             }
+            // Return true if for argument provided from app code so we can force crash for incorrect values
+            return true;
         }
     }
 

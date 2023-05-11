@@ -22,7 +22,7 @@ public class ViewUtils {
     }
 
     public static void setError(@NonNull TextInputLayout textInputLayout, @Nullable String error) {
-        boolean isErrorEnabled = TextUtils.isEmpty(error);
+        boolean isErrorEnabled = !TextUtils.isEmpty(error);
         textInputLayout.setErrorEnabled(isErrorEnabled);
         textInputLayout.setError(error);
     }

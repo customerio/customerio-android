@@ -49,15 +49,17 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         authViewModel = viewModelProvider.get(AuthViewModel.class);
     }
 
+    private void navigateUp() {
+        // For better user experience, navigate to launcher activity on navigate up button
+        if (isTaskRoot()) {
+            startActivity(new Intent(SimpleFragmentActivity.this, DashboardActivity.class));
+        }
+        onBackPressed();
+    }
+
     @Override
     protected void setupContent() {
-        binding.topAppBar.setNavigationOnClickListener(view -> {
-            // For better user experience, navigate to launcher activity on navigate up button
-            if (isTaskRoot()) {
-                startActivity(new Intent(SimpleFragmentActivity.this, DashboardActivity.class));
-            }
-            onBackPressed();
-        });
+        binding.topAppBar.setNavigationOnClickListener(view -> navigateUp());
 
         parseFragmentParams();
         if (TextUtils.isEmpty(mFragmentName)) {
@@ -103,6 +105,11 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
                             break;
                     }
                     break;
+            }
+            // Navigate up for unsupported deep links so app doesn't crash and user experience is
+            // not affected
+            if (TextUtils.isEmpty(mFragmentName)) {
+                navigateUp();
             }
         } else {
             Bundle extras = intent.getExtras();

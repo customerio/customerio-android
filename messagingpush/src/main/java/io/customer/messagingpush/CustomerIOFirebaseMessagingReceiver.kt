@@ -5,16 +5,14 @@ import android.content.Context
 import android.content.Intent
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.di.pushTrackingUtil
-import io.customer.sdk.CustomerIO
+import io.customer.messagingpush.extensions.getSDKInstanceOrNull
 
 class CustomerIOFirebaseMessagingReceiver : BroadcastReceiver() {
-    private fun getSDKInstanceOrNull(context: Context): CustomerIO? {
-        return CustomerIO.instanceOrNull(context, listOf(ModuleMessagingPushFCM()))
-    }
 
     override fun onReceive(context: Context, intent: Intent) {
         val extras = intent.extras ?: return
-        val sdkInstance = getSDKInstanceOrNull(context) ?: return
+        // if CustomerIO instance isn't initialized, we cannot process the notification
+        val sdkInstance = context.getSDKInstanceOrNull() ?: return
 
         val moduleConfig = sdkInstance.diGraph.moduleConfig
         val pushTrackingUtil = sdkInstance.diGraph.pushTrackingUtil

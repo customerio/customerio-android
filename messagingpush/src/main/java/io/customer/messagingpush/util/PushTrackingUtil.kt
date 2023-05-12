@@ -6,6 +6,7 @@ import io.customer.sdk.repository.TrackRepository
 
 interface PushTrackingUtil {
     fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean
+    fun parseIntentExtrasForTrackingDelivered(bundle: Bundle): Boolean
 
     companion object {
         const val DELIVERY_ID_KEY = "CIO-Delivery-ID"
@@ -16,8 +17,7 @@ interface PushTrackingUtil {
 class PushTrackingUtilImpl(
     private val trackRepository: TrackRepository
 ) : PushTrackingUtil {
-
-    override fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean {
+    private fun trackMetricEvent(bundle: Bundle, event: MetricEvent): Boolean {
         val deliveryId = bundle.getString(PushTrackingUtil.DELIVERY_ID_KEY)
         val deliveryToken = bundle.getString(PushTrackingUtil.DELIVERY_TOKEN_KEY)
 
@@ -26,9 +26,16 @@ class PushTrackingUtilImpl(
         trackRepository.trackMetric(
             deliveryID = deliveryId,
             deviceToken = deliveryToken,
-            event = MetricEvent.opened
+            event = event
         )
-
         return true
+    }
+
+    override fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean {
+        return trackMetricEvent(bundle, MetricEvent.opened)
+    }
+
+    override fun parseIntentExtrasForTrackingDelivered(bundle: Bundle): Boolean {
+        return trackMetricEvent(bundle, MetricEvent.delivered)
     }
 }

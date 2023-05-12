@@ -12,6 +12,9 @@ import io.customer.messaginginapp.type.InAppEventListener;
 import io.customer.messaginginapp.type.InAppMessage;
 import io.customer.sdk.CustomerIO;
 
+/**
+ * Sample implementation for {@link InAppEventListener}.
+ */
 public class InAppMessageEventListener implements InAppEventListener {
     private final Logger logger;
 
@@ -21,25 +24,25 @@ public class InAppMessageEventListener implements InAppEventListener {
 
     @Override
     public void messageShown(@NonNull InAppMessage message) {
-        logger.v(String.format(Locale.ENGLISH, "in-app message shown. message: %s", message));
+        logInAppEvent("in-app message: messageShown. message: %s", message);
         trackInAppEvent("messageShown", message);
     }
 
     @Override
     public void messageDismissed(@NonNull InAppMessage message) {
-        logger.v(String.format(Locale.ENGLISH, "in-app message dismissed. message: %s", message));
+        logInAppEvent("in-app message: messageDismissed. message: %s", message);
         trackInAppEvent("messageDismissed", message);
     }
 
     @Override
     public void errorWithMessage(@NonNull InAppMessage message) {
-        logger.v(String.format(Locale.ENGLISH, "error with in-app message. message: %s", message));
+        logInAppEvent("in-app message: errorWithMessage. message: %s", message);
         trackInAppEvent("errorWithMessage", message);
     }
 
     @Override
     public void messageActionTaken(@NonNull InAppMessage message, @NonNull String actionValue, @NonNull String actionName) {
-        logger.v(String.format(Locale.ENGLISH, "in-app message action taken. action: %s, name: %s, message: %s", actionValue, actionName, message));
+        logInAppEvent("in-app message: messageActionTaken. action: %s, name: %s, message: %s", actionValue, actionName, message);
         trackInAppEvent("messageActionTaken",
                 message,
                 new HashMap<String, String>() {{
@@ -52,9 +55,13 @@ public class InAppMessageEventListener implements InAppEventListener {
         trackInAppEvent(eventName, message, null);
     }
 
+    private void logInAppEvent(@NonNull String format, @NonNull Object... args) {
+        logger.v(String.format(Locale.ENGLISH, format, args));
+    }
+
     private void trackInAppEvent(@NonNull String eventName, @NonNull InAppMessage message, @Nullable Map<String, String> arguments) {
         CustomerIO.instance().track(
-                "inapp action",
+                "in-app message action",
                 new HashMap<String, String>() {{
                     if (arguments != null) {
                         putAll(arguments);

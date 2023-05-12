@@ -1,4 +1,23 @@
 <resources>
     <string name="app_name">Kotlin_Compose</string>
     <string name="database">sample_app_kotlin_db</string>
+    <string name="name">Name</string>
+    <string name="email">Email</string>
+    <string name="login">Login</string>
+    <string name="continue_as_guest">Continue as Guest</string>
+    <string name="invalid_email">Please enter a valid email</string>
+    <string name="invalid_name">Please enter a valid name</string>
+    <string name="settings">Settings</string>
+    <string name="ami_app">Kotlin Android Ami App</string>
+    <string name="device_token">Device Token</string>
+    <string name="cio_track_url">CIO Track URL</string>
+    <string name="site_id">Site Id</string>
+    <string name="api_key">API Key</string>
+    <string name="background_queue_seconds_delay">backgroundQueueSecondsDelay</string>
+    <string name="background_queue_min_tasks">backgroundQueueMinNumberOfTasks</string>
+    <string name="track_screen">Track Screens</string>
+    <string name="track_device_attributes">Track Device Attributes</string>
+    <string name="debug_mode">Debug Mode</string>
+    <string name="save">Save</string>
+    <string name="editing_settings">Editing settings will require an app restart.</string>
 </resources>

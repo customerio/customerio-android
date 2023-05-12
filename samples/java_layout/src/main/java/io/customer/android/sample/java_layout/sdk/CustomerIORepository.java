@@ -103,20 +103,12 @@ public class CustomerIORepository {
         return CustomerIOSDKConfig.getDefaultConfigurations();
     }
 
-    public void identify(@NonNull String email) {
-        CustomerIO.instance().identify(email);
-    }
-
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {
         CustomerIO.instance().identify(email, attributes);
     }
 
     public void clearIdentify() {
         CustomerIO.instance().clearIdentify();
-    }
-
-    public void trackEvent(@NonNull String eventName) {
-        CustomerIO.instance().track(eventName);
     }
 
     public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {

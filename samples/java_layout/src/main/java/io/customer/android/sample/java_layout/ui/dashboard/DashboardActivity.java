@@ -98,6 +98,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
         });
         binding.logoutButton.setOnClickListener(view -> {
+            customerIORepository.clearIdentify();
             authViewModel.clearLoggedInUser();
         });
     }

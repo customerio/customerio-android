@@ -107,6 +107,10 @@ public class CustomerIORepository {
         CustomerIO.instance().identify(email);
     }
 
+    public void clearIdentify() {
+        CustomerIO.instance().clearIdentify();
+    }
+
     public void trackEvent(@NonNull String eventName) {
         CustomerIO.instance().track(eventName);
     }

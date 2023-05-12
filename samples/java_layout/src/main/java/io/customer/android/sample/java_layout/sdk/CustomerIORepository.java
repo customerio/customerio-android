@@ -21,31 +21,6 @@ import io.customer.sdk.util.CioLogLevel;
  * Util class to hold all Customer.io related operations at single place
  */
 public class CustomerIORepository {
-    /**
-     * Identifies user for Customer.io SDK
-     *
-     * @param identifier unique id for the user, we use email for sample apps
-     */
-    public void identify(@NonNull String identifier) {
-        CustomerIO.instance().identify(identifier);
-    }
-
-    public void trackEvent(@NonNull String eventName) {
-        CustomerIO.instance().track(eventName);
-    }
-
-    public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {
-        CustomerIO.instance().track(eventName, extras);
-    }
-
-    public void setDeviceAttributes(@NonNull Map<String, String> attributes) {
-        CustomerIO.instance().setDeviceAttributes(attributes);
-    }
-
-    public void setProfileAttributes(@NonNull Map<String, String> attributes) {
-        CustomerIO.instance().setProfileAttributes(attributes);
-    }
-
     public void initializeSdk(SampleApplication application) {
         ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
@@ -126,5 +101,25 @@ public class CustomerIORepository {
 
         // Return default configurations if no configurations were saved in data store
         return CustomerIOSDKConfig.getDefaultConfigurations();
+    }
+
+    public void identify(@NonNull String email) {
+        CustomerIO.instance().identify(email);
+    }
+
+    public void trackEvent(@NonNull String eventName) {
+        CustomerIO.instance().track(eventName);
+    }
+
+    public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {
+        CustomerIO.instance().track(eventName, extras);
+    }
+
+    public void setDeviceAttributes(@NonNull Map<String, String> attributes) {
+        CustomerIO.instance().setDeviceAttributes(attributes);
+    }
+
+    public void setProfileAttributes(@NonNull Map<String, String> attributes) {
+        CustomerIO.instance().setProfileAttributes(attributes);
     }
 }

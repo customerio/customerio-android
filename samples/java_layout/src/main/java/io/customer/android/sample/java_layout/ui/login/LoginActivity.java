@@ -7,17 +7,18 @@ import android.util.Patterns;
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
+import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
-import io.customer.sdk.CustomerIO;
 
 public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
 
     private AuthViewModel authViewModel;
+    private CustomerIORepository customerIORepository;
 
     @Override
     protected ActivityLoginBinding inflateViewBinding() {
@@ -27,6 +28,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     @Override
     protected void injectDependencies() {
         authViewModel = viewModelProvider.get(AuthViewModel.class);
+        customerIORepository = applicationGraph.getCustomerIORepository();
     }
 
     @Override
@@ -65,7 +67,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
             }
 
             if (isFormValid) {
-                CustomerIO.instance().identify(email);
+                customerIORepository.identify(email);
                 authViewModel.setLoggedInUser(new User(email, displayName, false));
             }
         });

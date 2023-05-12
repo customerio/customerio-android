@@ -9,12 +9,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.android.sample.java_layout.databinding.FragmentCustomEventTrackingBinding;
+import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseFragment;
-import io.customer.sdk.CustomerIO;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 
 public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEventTrackingBinding> {
+
+    private CustomerIORepository customerIORepository;
 
     public CustomEventTrackingFragment() {
         // Required empty public constructor
@@ -27,6 +29,11 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
     @Override
     protected FragmentCustomEventTrackingBinding inflateViewBinding() {
         return FragmentCustomEventTrackingBinding.inflate(getLayoutInflater());
+    }
+
+    @Override
+    protected void injectDependencies() {
+        customerIORepository = applicationGraph.getCustomerIORepository();
     }
 
     @Override
@@ -53,7 +60,7 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
             if (isFormValid) {
                 Map<String, String> extras = new HashMap<>();
                 extras.put(propertyName, propertyValue);
-                CustomerIO.instance().track(eventName, extras);
+                customerIORepository.trackEvent(eventName, extras);
 
                 FragmentActivity activity = getActivity();
                 if (activity != null) {

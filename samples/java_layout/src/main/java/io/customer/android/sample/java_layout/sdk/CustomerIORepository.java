@@ -84,25 +84,6 @@ public class CustomerIORepository {
         }
     }
 
-    /**
-     * Retrieves SDK settings, only required by sample app.
-     */
-    @NonNull
-    private CustomerIOSDKConfig getSdkConfig(PreferencesDataStore dataStore) {
-        try {
-            Map<String, String> configBundle = dataStore.sdkConfig().blockingFirst();
-            Optional<CustomerIOSDKConfig> sdkConfig = CustomerIOSDKConfig.fromMap(configBundle);
-            if (sdkConfig.isPresent()) {
-                return sdkConfig.get();
-            }
-        } catch (Exception ignored) {
-            // Ignore exception if no configurations are available in data store
-        }
-
-        // Return default configurations if no configurations were saved in data store
-        return CustomerIOSDKConfig.getDefaultConfigurations();
-    }
-
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {
         CustomerIO.instance().identify(email, attributes);
     }
@@ -121,5 +102,28 @@ public class CustomerIORepository {
 
     public void setProfileAttributes(@NonNull Map<String, String> attributes) {
         CustomerIO.instance().setProfileAttributes(attributes);
+    }
+
+    /*
+     ****************************************************
+     * Code below this line required by sample app only *
+     ****************************************************
+     */
+
+    // Retrieves SDK settings from data store
+    @NonNull
+    private CustomerIOSDKConfig getSdkConfig(PreferencesDataStore dataStore) {
+        try {
+            Map<String, String> configBundle = dataStore.sdkConfig().blockingFirst();
+            Optional<CustomerIOSDKConfig> sdkConfig = CustomerIOSDKConfig.fromMap(configBundle);
+            if (sdkConfig.isPresent()) {
+                return sdkConfig.get();
+            }
+        } catch (Exception ignored) {
+            // Ignore exception if no configurations are available in data store
+        }
+
+        // Return default configurations if no configurations were saved in data store
+        return CustomerIOSDKConfig.getDefaultConfigurations();
     }
 }

@@ -105,9 +105,9 @@ public class CustomerIORepository {
     }
 
     /*
-     ****************************************************
-     * Code below this line required by sample app only *
-     ****************************************************
+     *******************************************************
+     * Code below this line is required by sample app only *
+     *******************************************************
      */
 
     // Retrieves SDK settings from data store

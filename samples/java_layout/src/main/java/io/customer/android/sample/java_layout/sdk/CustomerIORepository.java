@@ -17,8 +17,36 @@ import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.util.CioLogLevel;
 
-public class CustomerIOSDK {
-    public static void initializeSDK(SampleApplication application) {
+/**
+ * Util class to hold all Customer.io related operations at single place
+ */
+public class CustomerIORepository {
+    /**
+     * Identifies user for Customer.io SDK
+     *
+     * @param identifier unique id for the user, we use email for sample apps
+     */
+    public void identify(@NonNull String identifier) {
+        CustomerIO.instance().identify(identifier);
+    }
+
+    public void trackEvent(@NonNull String eventName) {
+        CustomerIO.instance().track(eventName);
+    }
+
+    public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {
+        CustomerIO.instance().track(eventName, extras);
+    }
+
+    public void setDeviceAttributes(@NonNull Map<String, String> attributes) {
+        CustomerIO.instance().setDeviceAttributes(attributes);
+    }
+
+    public void setProfileAttributes(@NonNull Map<String, String> attributes) {
+        CustomerIO.instance().setProfileAttributes(attributes);
+    }
+
+    public void initializeSdk(SampleApplication application) {
         ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
@@ -56,7 +84,7 @@ public class CustomerIOSDK {
      * purposes and may not be needed unless there is a need to override any
      * default configuration from the SDK.
      */
-    private static void configureSdk(CustomerIO.Builder builder, final CustomerIOSDKConfig sdkConfig) {
+    private void configureSdk(CustomerIO.Builder builder, final CustomerIOSDKConfig sdkConfig) {
         final String trackingApiUrl = sdkConfig.getTrackingURL();
         if (!TextUtils.isEmpty(trackingApiUrl)) {
             builder.setTrackingApiURL(trackingApiUrl);
@@ -71,11 +99,11 @@ public class CustomerIOSDK {
             builder.setBackgroundQueueMinNumberOfTasks(bqMinTasks);
         }
 
-        Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
+        final Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
         if (screenTrackingEnabled != null) {
             builder.autoTrackScreenViews(screenTrackingEnabled);
         }
-        Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
+        final Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
         if (deviceAttributesTrackingEnabled != null) {
             builder.autoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
         }
@@ -85,18 +113,18 @@ public class CustomerIOSDK {
      * Retrieves SDK settings, only required by sample app.
      */
     @NonNull
-    private static CustomerIOSDKConfig getSdkConfig(PreferencesDataStore dataStore) {
-        Optional<CustomerIOSDKConfig> sdkConfig;
+    private CustomerIOSDKConfig getSdkConfig(PreferencesDataStore dataStore) {
         try {
             Map<String, String> configBundle = dataStore.sdkConfig().blockingFirst();
-            sdkConfig = CustomerIOSDKConfig.fromMap(configBundle);
+            Optional<CustomerIOSDKConfig> sdkConfig = CustomerIOSDKConfig.fromMap(configBundle);
+            if (sdkConfig.isPresent()) {
+                return sdkConfig.get();
+            }
         } catch (Exception ignored) {
-            sdkConfig = Optional.empty();
+            // Ignore exception if no configurations are available in data store
         }
-        if (sdkConfig.isPresent()) {
-            return sdkConfig.get();
-        } else {
-            return CustomerIOSDKConfig.getDefaultConfigurations();
-        }
+
+        // Return default configurations if no configurations were saved in data store
+        return CustomerIOSDKConfig.getDefaultConfigurations();
     }
 }

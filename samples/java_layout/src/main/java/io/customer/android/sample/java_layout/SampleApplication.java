@@ -3,7 +3,6 @@ package io.customer.android.sample.java_layout;
 import android.app.Application;
 
 import io.customer.android.sample.java_layout.di.ApplicationGraph;
-import io.customer.android.sample.java_layout.sdk.CustomerIOSDK;
 
 public class SampleApplication extends Application {
     private final ApplicationGraph appGraph = new ApplicationGraph(this);
@@ -11,7 +10,8 @@ public class SampleApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        CustomerIOSDK.initializeSDK(SampleApplication.this);
+        // Initialize Customer.io SDK on app start
+        appGraph.getCustomerIORepository().initializeSdk(SampleApplication.this);
     }
 
     public ApplicationGraph getApplicationGraph() {

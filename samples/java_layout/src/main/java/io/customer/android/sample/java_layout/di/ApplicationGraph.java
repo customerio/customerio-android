@@ -2,6 +2,7 @@ package io.customer.android.sample.java_layout.di;
 
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
+import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.utils.Logger;
 
 public class ApplicationGraph {
@@ -9,12 +10,14 @@ public class ApplicationGraph {
     private final Logger logger;
     private final PreferencesDataStore preferencesDataStore;
     private final ViewModelFactory viewModelFactory;
+    private final CustomerIORepository customerIORepository;
 
     public ApplicationGraph(SampleApplication application) {
         this.application = application;
         logger = new Logger();
         preferencesDataStore = new PreferencesDataStore(application);
         viewModelFactory = new ViewModelFactory(preferencesDataStore);
+        customerIORepository = new CustomerIORepository();
     }
 
     public SampleApplication getApplication() {
@@ -31,5 +34,9 @@ public class ApplicationGraph {
 
     public ViewModelFactory getViewModelFactory() {
         return viewModelFactory;
+    }
+
+    public CustomerIORepository getCustomerIORepository() {
+        return customerIORepository;
     }
 }

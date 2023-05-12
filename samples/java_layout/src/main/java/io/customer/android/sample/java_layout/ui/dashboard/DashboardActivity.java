@@ -27,6 +27,7 @@ import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 
 public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
@@ -103,8 +104,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void setupObservers() {
-        // TODO: Fetch and set user agent here
-        binding.userAgentTextView.setText("User agent will be shown here");
+        ViewUtils.setUserAgent(binding.userAgentTextView);
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
         });
         authViewModel.getUserDataObservable().observe(this, user -> {

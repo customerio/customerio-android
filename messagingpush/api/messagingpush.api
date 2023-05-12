@@ -1,3 +1,8 @@
+public final class io/customer/messagingpush/CustomerIOFirebaseMessagingReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
 public class io/customer/messagingpush/CustomerIOFirebaseMessagingService : com/google/firebase/messaging/FirebaseMessagingService {
 	public static final field Companion Lio/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion;
 	public fun <init> ()V

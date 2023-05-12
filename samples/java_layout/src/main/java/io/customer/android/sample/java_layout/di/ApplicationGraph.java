@@ -16,8 +16,8 @@ public class ApplicationGraph {
         this.application = application;
         logger = new Logger();
         preferencesDataStore = new PreferencesDataStore(application);
-        viewModelFactory = new ViewModelFactory(preferencesDataStore);
         customerIORepository = new CustomerIORepository();
+        viewModelFactory = new ViewModelFactory(preferencesDataStore, customerIORepository);
     }
 
     public SampleApplication getApplication() {

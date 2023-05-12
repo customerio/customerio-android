@@ -107,6 +107,10 @@ public class CustomerIORepository {
         CustomerIO.instance().identify(email);
     }
 
+    public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {
+        CustomerIO.instance().identify(email, attributes);
+    }
+
     public void clearIdentify() {
         CustomerIO.instance().clearIdentify();
     }

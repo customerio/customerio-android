@@ -9,9 +9,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.BuildConfig;
-import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.android.sample.java_layout.support.Optional;
+import io.customer.android.sample.java_layout.utils.StringUtils;
 
+/**
+ * Data class to hold SDK configurations. This is only required by sample app for testing purpose.
+ */
 public class CustomerIOSDKConfig {
     private static class Keys {
         static final String SITE_ID = "cio_sdk_site_id";

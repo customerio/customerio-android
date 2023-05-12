@@ -18,7 +18,7 @@ import io.customer.sdk.CustomerIO;
 import io.customer.sdk.util.CioLogLevel;
 
 /**
- * Util class to hold all Customer.io related operations at single place
+ * Repository class to hold all Customer.io related operations at single place
  */
 public class CustomerIORepository {
     public void initializeSdk(SampleApplication application) {

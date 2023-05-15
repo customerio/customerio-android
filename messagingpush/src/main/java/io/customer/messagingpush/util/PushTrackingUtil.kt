@@ -38,6 +38,10 @@ class PushTrackingUtilImpl(
         return true
     }
 
+    @Deprecated(
+        "This method is deprecated and will be removed in future releases. Use parseAndTrackMetricEvent instead",
+        replaceWith = ReplaceWith("parseAndTrackMetricEvent(bundle = bundle, event = MetricEvent.opened)")
+    )
     override fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean {
         return parseAndTrackMetricEvent(bundle, MetricEvent.opened)
     }

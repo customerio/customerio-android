@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.customer.android.sample.kotlin_compose.navigation.Screen.CustomAttribute.ARGS_TRACKING_EVENT_TYPE
+import io.customer.android.sample.kotlin_compose.ui.customTrack.CustomAttributeRoute
 import io.customer.android.sample.kotlin_compose.ui.customTrack.CustomEventRoute
 import io.customer.android.sample.kotlin_compose.ui.dashboard.DashboardRoute
 import io.customer.android.sample.kotlin_compose.ui.login.LoginRoute
@@ -22,6 +23,8 @@ sealed class Screen(val route: String) {
     object CustomEvent : Screen("custom_event_track")
     object CustomAttribute : Screen("custom_attribute/{type}") {
         const val ARGS_TRACKING_EVENT_TYPE = "type"
+        const val TYPE_PROFILE = "profile"
+        const val TYPE_DEVICE = "device"
 
         fun createRoute(type: String): String {
             return "custom_attribute/$type"
@@ -59,7 +62,7 @@ internal fun NavGraphBuilder.addCustomAttributeRoute(
         val trackingType = it.arguments?.getString(ARGS_TRACKING_EVENT_TYPE)
         // types of attribute could be profile and device
         requireNotNull(trackingType) { "$ARGS_TRACKING_EVENT_TYPE parameter wasn't found. Please make sure it's set!" }
-        CustomEventRoute(onBackPressed = {
+        CustomAttributeRoute(attributeType = trackingType, onBackPressed = {
             navController.navigateUp()
         })
     }

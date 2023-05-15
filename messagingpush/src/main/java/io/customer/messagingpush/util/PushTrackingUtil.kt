@@ -10,8 +10,8 @@ interface PushTrackingUtil {
     fun parseAndTrackMetricEvent(bundle: Bundle, event: MetricEvent): Boolean
 
     @Deprecated(
-        "This method is deprecated and will be removed in future releases. Use trackMetricEvent instead",
-        ReplaceWith("trackMetricEvent(bundle = bundle, event = MetricEvent.opened)")
+        "This method is deprecated and will be removed in future releases. Use parseAndTrackMetricEvent instead",
+        ReplaceWith("parseAndTrackMetricEvent(bundle = bundle, event = MetricEvent.opened)")
     )
     fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean
 

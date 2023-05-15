@@ -12,12 +12,7 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.DispatchersProvider
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.Logger
-import io.customer.sdk.util.Seconds
-import io.customer.sdk.util.SimpleTimer
+import io.customer.sdk.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -43,7 +38,11 @@ interface Queue {
         event: MetricEvent
     ): QueueModifyResult
 
-    fun queueTrackInAppMetric(deliveryId: String, event: MetricEvent): QueueModifyResult
+    fun queueTrackInAppMetric(
+        deliveryId: String,
+        event: MetricEvent,
+        metadata: Map<String, String>
+    ): QueueModifyResult
 
     fun <TaskType : Enum<*>, TaskData : Any> addTask(
         type: TaskType,
@@ -55,6 +54,8 @@ interface Queue {
     suspend fun run()
 
     fun deleteExpiredTasks()
+
+    fun cancelTimer()
 }
 
 internal class QueueImpl internal constructor(
@@ -210,7 +211,8 @@ internal class QueueImpl internal constructor(
 
     override fun queueTrackInAppMetric(
         deliveryId: String,
-        event: MetricEvent
+        event: MetricEvent,
+        metadata: Map<String, String>
     ): QueueModifyResult {
         return addTask(
             QueueTaskType.TrackDeliveryEvent,
@@ -219,7 +221,8 @@ internal class QueueImpl internal constructor(
                 payload = DeliveryPayload(
                     deliveryID = deliveryId,
                     event = event,
-                    timestamp = dateUtil.now
+                    timestamp = dateUtil.now,
+                    metaData = metadata
                 )
             ),
             blockingGroups = emptyList()
@@ -258,5 +261,9 @@ internal class QueueImpl internal constructor(
 
     override fun deleteExpiredTasks() {
         storage.deleteExpired()
+    }
+
+    override fun cancelTimer() {
+        queueTimer.cancel()
     }
 }

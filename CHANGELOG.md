@@ -1,3 +1,24 @@
+### [3.4.2](https://github.com/customerio/customerio-android/compare/3.4.1...3.4.2) (2023-04-22)
+
+
+### Bug Fixes
+
+* multiple Queue instances being created ([#190](https://github.com/customerio/customerio-android/issues/190)) ([406626c](https://github.com/customerio/customerio-android/commit/406626c467bb65616fd66184bc0fc5005b3b335b))
+
+### [3.4.1](https://github.com/customerio/customerio-android/compare/3.4.0...3.4.1) (2023-04-20)
+
+
+### Bug Fixes
+
+* push opened metrics tracked on Android 12 ([#184](https://github.com/customerio/customerio-android/issues/184)) ([d2e52fa](https://github.com/customerio/customerio-android/commit/d2e52fa35be34cf0248d3c775614f487234cf8d4))
+
+## [3.4.0](https://github.com/customerio/customerio-android/compare/3.3.2...3.4.0) (2023-04-19)
+
+
+### Features
+
+* in app click tracking ([#187](https://github.com/customerio/customerio-android/issues/187)) ([4ad1f35](https://github.com/customerio/customerio-android/commit/4ad1f35c6ba5e67f07dd78f1169ef4b9b1ed547a))
+
 ### [3.3.2](https://github.com/customerio/customerio-android/compare/3.3.1...3.3.2) (2023-03-10)
 
 

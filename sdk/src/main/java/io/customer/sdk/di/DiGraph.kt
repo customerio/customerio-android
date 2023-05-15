@@ -44,13 +44,14 @@ abstract class DiGraph {
      * ```
      */
     inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {
-        val singletonKey = INST::class.java.simpleName
+        // Use a synchronized block to prevent multiple threads from creating multiple instances of the singleton.
+        synchronized(this) {
+            val singletonKey = INST::class.java.simpleName
 
-        return (
-            singletons[singletonKey] as? INST ?: newInstanceCreator().also {
+            return singletons[singletonKey] as? INST ?: newInstanceCreator().also {
                 singletons[singletonKey] = it
             }
-            )
+        }
     }
 
     /**

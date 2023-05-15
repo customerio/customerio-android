@@ -1,0 +1,44 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.SampleApp.Base" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/java_blue_700</item>
+        <item name="colorPrimaryVariant">@color/java_blue_500</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/java_orange_200</item>
+        <item name="colorSecondaryVariant">@color/java_orange_700</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Theme colors -->
+        <item name="colorOnSurface">@color/black</item>
+        <!-- Common colors -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+    </style>
+
+    <!-- Final application theme. -->
+    <style name="Theme.SampleApp" parent="Theme.SampleApp.Base">
+        <!-- Customize common attributes here. -->
+        <item name="borderlessButtonStyle">@style/Widget.App.Button.TextButton</item>
+        <item name="materialButtonStyle">@style/Widget.App.Button</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.App.Button</item>
+        <item name="textInputStyle">@style/Widget.App.TextInputLayout</item>
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.App.SmallComponent</item>
+    </style>
+
+    <style name="TextAppearance.App.Button" parent="TextAppearance.Material3.LabelLarge" />
+
+    <style name="ShapeAppearance.App.SmallComponent" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">4dp</item>
+    </style>
+
+    <style name="Widget.App.Button" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
+    </style>
+
+    <style name="Widget.App.Button.TextButton" parent="Widget.Material3.Button.TextButton">
+        <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
+    </style>
+
+    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox" />
+</resources>

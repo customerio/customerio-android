@@ -1,0 +1,89 @@
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services' // Google services Gradle plugin
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+
+android {
+    namespace 'io.customer.android.sample.java_layout'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "io.customer.android.sample.java_layout"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+
+        buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
+        buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    buildFeatures {
+        viewBinding true
+    }
+
+    repositories {
+        mavenLocal()
+    }
+}
+
+dependencies {
+    // TODO Replace this with generic implementation for all sample SDKs to referencing remote versions is easier
+    def cioSDKVersion = localProperties["sdkVersion"]
+    if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
+        implementation(project(":sdk"))
+        implementation(project(":messagingpush"))
+        implementation(project(":messaginginapp"))
+    } else {
+        implementation "io.customer.android:tracking:$cioSDKVersion"
+        implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
+        implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
+    }
+
+    def datastore_version = "1.0.0"
+    def lifecycle_version = "2.6.1"
+    implementation "androidx.annotation:annotation:1.6.0"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+    implementation "androidx.core:core-splashscreen:1.0.1"
+    implementation "androidx.datastore:datastore-preferences:$datastore_version"
+    implementation "androidx.datastore:datastore-preferences-rxjava3:$datastore_version"
+    implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-reactivestreams:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
+    implementation "com.google.android.material:material:1.9.0"
+    implementation "io.reactivex.rxjava3:rxandroid:3.0.2"
+    // Because RxAndroid releases are few and far between, it is recommended to
+    // explicitly depend on RxJava's latest version for bug fixes and new features.
+    implementation "io.reactivex.rxjava3:rxjava:3.1.5"
+
+    // If this block is removed, updating annotation from 1.5.0 and lifecycle version from 2.5.1
+    // causes duplicate classes error because a large number of Lifecycle classes have been
+    // converted to Kotlin since 2.6
+    // see: https://developer.android.com/jetpack/androidx/releases/lifecycle#2.6.0
+    constraints {
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.0") {
+            because("kotlin-stdlib-jdk7 is now a part of kotlin-stdlib")
+        }
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0") {
+            because("kotlin-stdlib-jdk8 is now a part of kotlin-stdlib")
+        }
+    }
+}

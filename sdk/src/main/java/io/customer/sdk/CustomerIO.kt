@@ -115,14 +115,17 @@ class CustomerIO internal constructor(
         @InternalCustomerIOApi
         @JvmStatic
         @Synchronized
-        fun instanceOrNull(context: Context): CustomerIO? = try {
+        fun instanceOrNull(
+            context: Context,
+            modules: List<CustomerIOModule<*>> = emptyList()
+        ): CustomerIO? = try {
             instance()
         } catch (ex: Exception) {
             val customerIOShared = CustomerIOShared.instance()
             customerIOShared.initializeAndGetSharedComponent(context).let {
                 val storedValues = it.sharedPreferenceRepository.loadSettings()
                 if (storedValues.doesExist()) {
-                    return@let createInstanceFromStoredValues(storedValues, context)
+                    return@let createInstanceFromStoredValues(storedValues, context, modules)
                 } else {
                     customerIOShared.diStaticGraph.logger.error(
                         "Customer.io instance not initialized: ${ex.message}"
@@ -135,7 +138,8 @@ class CustomerIO internal constructor(
         @Throws(IllegalArgumentException::class)
         private fun createInstanceFromStoredValues(
             customerIOStoredValues: CustomerIOStoredValues,
-            context: Context
+            context: Context,
+            modules: List<CustomerIOModule<*>>
         ): CustomerIO {
             return Builder(
                 siteId = customerIOStoredValues.siteId,
@@ -149,6 +153,9 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes(shouldTrackDeviceAttributes = customerIOStoredValues.autoTrackDeviceAttributes)
                 setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = customerIOStoredValues.backgroundQueueMinNumberOfTasks)
                 setBackgroundQueueSecondsDelay(backgroundQueueSecondsDelay = customerIOStoredValues.backgroundQueueSecondsDelay)
+                for (module in modules) {
+                    addCustomerIOModule(module)
+                }
             }.build()
         }
 
@@ -336,6 +343,19 @@ class CustomerIO internal constructor(
             )
             val client = CustomerIO(diGraph)
             val logger = diGraph.logger
+
+            // cleanup of old reference if it exists, so that if the SDK is re-initialized (due to wrappers different lifecycle),
+            // the old instance is not kept in memory and any callbacks are unregistered
+            instance?.let {
+                // we need to unregister the previous activity lifecycle because it doesn't get garbage collected
+                // and will continue to hold a reference to the previous app context and return callbacks
+                appContext.unregisterActivityLifecycleCallbacks(it.diGraph.activityLifecycleCallbacks)
+                // Cancelling queue timer as the new queue timer will take care of running queue tasks.
+                // If we do not cancel old timer, it results in multiple timers being run and accessing
+                // the same tasks.
+                it.diGraph.queue.cancelTimer()
+                instance = null
+            }
 
             instance = client
 

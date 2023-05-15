@@ -17,7 +17,12 @@ buildscript {
         classpath Dependencies.kotlinBinaryValidator
         classpath Dependencies.gradleNexusPublishPlugin
         classpath Dependencies.dokka
-        classpath Dependencies.kotlinGradlePlugin
+        // if you have a Gradle plugin dependency in the classpath of the root project,
+        // it will not be added to all modules even if they don't need it.
+        // Gradle will only add the plugin to modules that explicitly declare a dependency on it.
+        // needed for hilt in kotlin sample app
+        classpath Dependencies.hiltGradlePlugin
+        classpath Dependencies.googleServicesPlugin
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -51,7 +56,9 @@ apiValidation {
     ignoredProjects += [
             'common-test',
             'app',
-            'base'
+            'base',
+            'kotlin_compose',
+            'java_layout',
     ]
 
     nonPublicMarkers += [

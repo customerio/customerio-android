@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--    Theme specific colors -->
+    <color name="java_blue_200">#FFA3C2D9</color>
+    <color name="java_blue_500">#FF5382A1</color>
+    <color name="java_blue_700">#FF365F78</color>
+    <color name="java_orange_200">#FFFCCB85</color>
+    <color name="java_orange_500">#FFF89720</color>
+    <color name="java_orange_700">#FFED7C1B</color>
+    <!--    Generic colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -90,4 +90,20 @@ class TrackRepositoryTest : BaseTest() {
             givenEvent
         )
     }
+
+    // trackInAppMetric
+
+    fun trackInAppMetric_expectAddEventToBackgroundQueue() {
+        val givenDeliveryId = String.random
+        val givenEvent = MetricEvent.opened
+        val givenMetadata = mapOf(String.random to String.random, String.random to String.random)
+
+        repository.trackInAppMetric(givenDeliveryId, givenEvent, givenMetadata)
+
+        verify(backgroundQueueMock).queueTrackInAppMetric(
+            givenDeliveryId,
+            givenEvent,
+            givenMetadata
+        )
+    }
 }

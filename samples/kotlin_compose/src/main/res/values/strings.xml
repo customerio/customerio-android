@@ -20,4 +20,21 @@
     <string name="debug_mode">Debug Mode</string>
     <string name="save">Save</string>
     <string name="editing_settings">Editing settings will require an app restart.</string>
+    <string name="notification_permission_success">Push notifications are now enabled on this device</string>
+    <string name="notification_permission_failure">Push notifications are disabled on this device</string>
+    <string name="what_would_you_like_to_test">What would you like to test?</string>
+    <string name="hey_user">Hey, %1$s!</string>
+    <string name="send_random_event">Send Random Event</string>
+    <string name="send_custom_event">Send Custom Event</string>
+    <string name="set_device_attribute">Set Device Attribute</string>
+    <string name="set_profile_attribute">Set Profile Attribute</string>
+    <string name="logout">Logout</string>
+    <string name="event_name">Event Name</string>
+    <string name="propety_name">Property Name</string>
+    <string name="property_value">Property Value</string>
+    <string name="send_event">Send Event</string>
+    <string name="attribute_name">Attribute Name</string>
+    <string name="attribute_value">Attribute Value</string>
+    <string name="send_profile_attribute">Send Profile Attribute</string>
+    <string name="send_device_attribute">Send Device Attribute</string>
 </resources>

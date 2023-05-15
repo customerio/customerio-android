@@ -10,10 +10,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.core.ViewUtils;
 import io.customer.android.sample.java_layout.databinding.FragmentAttributesTrackingBinding;
+import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseFragment;
-import io.customer.sdk.CustomerIO;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 
 public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesTrackingBinding> {
 
@@ -23,6 +23,8 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
     private static final String ARG_ATTRIBUTE_TYPE = "attribute_type";
 
     private String mAttributeType;
+
+    private CustomerIORepository customerIORepository;
 
     public AttributesTrackingFragment() {
         // Required empty public constructor
@@ -48,6 +50,11 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
     @Override
     protected FragmentAttributesTrackingBinding inflateViewBinding() {
         return FragmentAttributesTrackingBinding.inflate(getLayoutInflater());
+    }
+
+    @Override
+    protected void injectDependencies() {
+        customerIORepository = applicationGraph.getCustomerIORepository();
     }
 
     @Override
@@ -83,11 +90,11 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
                 switch (mAttributeType) {
                     case ATTRIBUTE_TYPE_DEVICE:
                         attributeType = getString(R.string.device);
-                        CustomerIO.instance().setDeviceAttributes(attributes);
+                        customerIORepository.setDeviceAttributes(attributes);
                         break;
                     case ATTRIBUTE_TYPE_PROFILE:
                         attributeType = getString(R.string.profile);
-                        CustomerIO.instance().setProfileAttributes(attributes);
+                        customerIORepository.setProfileAttributes(attributes);
                         break;
                     default:
                         return;

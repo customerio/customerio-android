@@ -2,11 +2,16 @@ package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
+import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.type.InAppEventListener
+import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import java.lang.reflect.Field
 import org.amshove.kluent.shouldBe
@@ -25,6 +30,12 @@ internal class ModuleMessagingInAppTest : BaseTest() {
     private val prefRepository: SitePreferenceRepository
         get() = di.sitePreferenceRepository
 
+    private val modules = hashMapOf<String, CustomerIOModule<*>>()
+
+    override fun setupConfig(): CustomerIOConfig = createConfig(
+        modules = modules
+    )
+
     @Before
     override fun setup() {
         super.setup()
@@ -37,6 +48,7 @@ internal class ModuleMessagingInAppTest : BaseTest() {
                 .build(),
             overrideDiGraph = di
         )
+        modules[ModuleMessagingInApp.moduleName] = module
     }
 
     @Test
@@ -111,5 +123,24 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         }
         organizationId?.isAccessible = true
         (organizationId?.get(module)) shouldBe null
+    }
+
+    @Test
+    fun whenDismissMessageCalledOnCustomerIO_thenDismissMessageIsCalledOnGist() {
+        // initialize the SDK
+        val customerIO = CustomerIO.Builder(
+            siteId = siteId,
+            apiKey = String.random,
+            region = Region.US,
+            appContext = application
+        ).apply {
+            overrideDiGraph = di
+        }.build()
+
+        // call dismissMessage on the CustomerIO instance
+        customerIO.inAppMessaging().dismissMessage()
+
+        // verify that the module's dismissMessage method was called
+        verify(gistInAppMessagesProvider).dismissMessage()
     }
 }

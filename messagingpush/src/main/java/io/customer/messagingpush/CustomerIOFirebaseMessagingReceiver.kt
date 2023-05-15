@@ -6,6 +6,7 @@ import android.content.Intent
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.extensions.getSDKInstanceOrNull
+import io.customer.sdk.data.request.MetricEvent
 
 class CustomerIOFirebaseMessagingReceiver : BroadcastReceiver() {
 
@@ -19,7 +20,7 @@ class CustomerIOFirebaseMessagingReceiver : BroadcastReceiver() {
 
         // Track delivered event only if auto-tracking is enabled
         if (moduleConfig.autoTrackPushEvents) {
-            pushTrackingUtil.parseIntentExtrasForTrackingDelivered(extras)
+            pushTrackingUtil.trackMetricEvent(extras, MetricEvent.delivered)
         }
     }
 }

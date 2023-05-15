@@ -123,7 +123,6 @@ public abstract interface class io/customer/messagingpush/util/PushTrackingUtil 
 	public static final field Companion Lio/customer/messagingpush/util/PushTrackingUtil$Companion;
 	public static final field DELIVERY_ID_KEY Ljava/lang/String;
 	public static final field DELIVERY_TOKEN_KEY Ljava/lang/String;
-	public abstract fun parseIntentExtrasForTrackingDelivered (Landroid/os/Bundle;)Z
 	public abstract fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
 }
 
@@ -134,7 +133,7 @@ public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
 
 public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
 	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
-	public fun parseIntentExtrasForTrackingDelivered (Landroid/os/Bundle;)Z
 	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
+	public fun trackMetricEvent (Landroid/os/Bundle;Lio/customer/sdk/data/request/MetricEvent;)Z
 }
 

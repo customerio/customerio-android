@@ -28,12 +28,12 @@ class PushTrackingUtilTest : BaseTest() {
     }
 
     @Test
-    fun parseLaunchedActivityForTracking_givenBundleWithoutDeliveryData_expectDoNoTrackPush() {
+    fun parseExtrasForTrackingMetrics_givenBundleWithoutDeliveryData_expectDoNoTrackPush() {
         val givenBundle = Bundle().apply {
             putString("foo", String.random)
         }
 
-        val result = util.parseLaunchedActivityForTracking(givenBundle)
+        val result = util.trackMetricEvent(givenBundle, MetricEvent.opened)
 
         result.shouldBeFalse()
 
@@ -41,7 +41,7 @@ class PushTrackingUtilTest : BaseTest() {
     }
 
     @Test
-    fun parseLaunchedActivityForTracking_givenBundleWithDeliveryData_expectTrackPush() {
+    fun parseExtrasForTrackingMetrics_givenBundleWithDeliveryData_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
         val givenBundle = Bundle().apply {
@@ -49,7 +49,7 @@ class PushTrackingUtilTest : BaseTest() {
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
 
-        val result = util.parseLaunchedActivityForTracking(givenBundle)
+        val result = util.trackMetricEvent(givenBundle, MetricEvent.opened)
 
         result.shouldBeTrue()
 

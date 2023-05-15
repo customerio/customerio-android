@@ -20,7 +20,7 @@ class CustomerIOFirebaseMessagingReceiver : BroadcastReceiver() {
 
         // Track delivered event only if auto-tracking is enabled
         if (moduleConfig.autoTrackPushEvents) {
-            pushTrackingUtil.trackMetricEvent(extras, MetricEvent.delivered)
+            pushTrackingUtil.parseAndTrackMetricEvent(extras, MetricEvent.delivered)
         }
     }
 }

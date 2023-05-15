@@ -133,7 +133,7 @@ public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
 
 public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
 	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
+	public fun parseAndTrackMetricEvent (Landroid/os/Bundle;Lio/customer/sdk/data/request/MetricEvent;)Z
 	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
-	public fun trackMetricEvent (Landroid/os/Bundle;Lio/customer/sdk/data/request/MetricEvent;)Z
 }
 

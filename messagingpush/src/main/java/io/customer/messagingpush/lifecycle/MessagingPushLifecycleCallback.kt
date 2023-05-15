@@ -23,7 +23,7 @@ internal class MessagingPushLifecycleCallback internal constructor(
                 val intentArguments = activity.intent.extras ?: return
 
                 if (moduleConfig.autoTrackPushEvents) {
-                    pushTrackingUtil.trackMetricEvent(intentArguments, MetricEvent.opened)
+                    pushTrackingUtil.parseAndTrackMetricEvent(intentArguments, MetricEvent.opened)
                 }
                 launchContentAction(
                     activity,

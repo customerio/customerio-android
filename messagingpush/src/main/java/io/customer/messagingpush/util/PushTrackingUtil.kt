@@ -7,7 +7,7 @@ import io.customer.sdk.repository.TrackRepository
 
 interface PushTrackingUtil {
     @InternalCustomerIOApi
-    fun trackMetricEvent(bundle: Bundle, event: MetricEvent): Boolean
+    fun parseAndTrackMetricEvent(bundle: Bundle, event: MetricEvent): Boolean
 
     @Deprecated(
         "This method is deprecated and will be removed in future releases. Use trackMetricEvent instead",
@@ -24,7 +24,7 @@ interface PushTrackingUtil {
 class PushTrackingUtilImpl(
     private val trackRepository: TrackRepository
 ) : PushTrackingUtil {
-    override fun trackMetricEvent(bundle: Bundle, event: MetricEvent): Boolean {
+    override fun parseAndTrackMetricEvent(bundle: Bundle, event: MetricEvent): Boolean {
         val deliveryId = bundle.getString(PushTrackingUtil.DELIVERY_ID_KEY)
         val deliveryToken = bundle.getString(PushTrackingUtil.DELIVERY_TOKEN_KEY)
 
@@ -39,6 +39,6 @@ class PushTrackingUtilImpl(
     }
 
     override fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean {
-        return trackMetricEvent(bundle, MetricEvent.opened)
+        return parseAndTrackMetricEvent(bundle, MetricEvent.opened)
     }
 }

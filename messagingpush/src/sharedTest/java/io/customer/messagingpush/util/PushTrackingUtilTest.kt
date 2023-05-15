@@ -33,7 +33,7 @@ class PushTrackingUtilTest : BaseTest() {
             putString("foo", String.random)
         }
 
-        val result = util.trackMetricEvent(givenBundle, MetricEvent.opened)
+        val result = util.parseAndTrackMetricEvent(givenBundle, MetricEvent.opened)
 
         result.shouldBeFalse()
 
@@ -49,7 +49,7 @@ class PushTrackingUtilTest : BaseTest() {
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
 
-        val result = util.trackMetricEvent(givenBundle, MetricEvent.opened)
+        val result = util.parseAndTrackMetricEvent(givenBundle, MetricEvent.opened)
 
         result.shouldBeTrue()
 
@@ -65,7 +65,7 @@ class PushTrackingUtilTest : BaseTest() {
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
 
-        val result = util.trackMetricEvent(givenBundle, MetricEvent.delivered)
+        val result = util.parseAndTrackMetricEvent(givenBundle, MetricEvent.delivered)
 
         result.shouldBeTrue()
 

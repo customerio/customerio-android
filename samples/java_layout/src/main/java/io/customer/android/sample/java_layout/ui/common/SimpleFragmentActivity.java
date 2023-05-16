@@ -9,6 +9,9 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import java.util.List;
+
+import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.databinding.ActivitySimpleFragmentBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
@@ -85,16 +88,30 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
     private boolean parseFragmentParams() {
         Intent intent = getIntent();
-        Uri deepLinkUrl = intent.getData();
+        Uri deepLinkUri = intent.getData();
 
-        // deepLinkUrl contains URI if activity is launched from deep link or url from Customer.io push notification
+        // deepLinkUri contains link URI if activity is launched from deep link or url from
+        // Customer.io push notification
         // e.g.
-        // java-layout://events/custom
-        // java-layout://attributes/profile
-        if (deepLinkUrl != null) {
-            String host = deepLinkUrl.getHost();
-            String lastPathSegment = deepLinkUrl.getLastPathSegment();
-            switch (host) {
+        // java-sample://events/custom
+        // https://www.java-sample.com/events/custom
+        // java-sample://attributes/profile
+        // https://www.java-sample.com/attributes/profile
+
+        if (deepLinkUri != null) {
+            String host = deepLinkUri.getHost();
+            List<String> segments = deepLinkUri.getPathSegments();
+            String lastPathSegment = deepLinkUri.getLastPathSegment();
+
+            String path;
+            boolean isUniversalLink = BuildConfig.UNIVERSAL_DEEP_LINK_HOST.equals(host);
+            if (isUniversalLink && !segments.isEmpty()) {
+                path = segments.get(0);
+            } else {
+                path = host;
+            }
+
+            switch (path) {
                 case "events":
                     if ("custom".equals(lastPathSegment)) {
                         mFragmentName = FRAGMENT_CUSTOM_TRACKING_EVENT;

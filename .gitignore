@@ -81,4 +81,3 @@ lint/tmp/
 
 # Android Profiling
 *.hprof
-samples/kotlin_compose/src/google-services.json

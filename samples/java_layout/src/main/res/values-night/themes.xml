@@ -9,8 +9,9 @@
         <item name="colorSecondary">@color/java_orange_200</item>
         <item name="colorSecondaryVariant">@color/java_orange_200</item>
         <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
+        <!-- Theme colors -->
+        <item name="colorOnSurface">@color/white</item>
+        <!-- Common colors -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
     </style>
 </resources>

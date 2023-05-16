@@ -53,8 +53,8 @@
                 <data android:scheme="http" />
                 <!-- Accepts URIs that begin with "https://*" -->
                 <data android:scheme="https" />
-                <!-- universalDeepLinkHost = "ciosample.page.link" -->
-                <!-- Accepts URIs that begin with "*://ciosample.page.link" -->
+                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
+                <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
                 <data android:host="${universalDeepLinkHost}" />
                 <!-- Accepts URIs that ends with "*://*/java-layout/settings" -->
                 <data android:pathPrefix="/java-layout/settings" />
@@ -87,8 +87,8 @@
                 <data android:scheme="http" />
                 <!-- Accepts URIs that begin with "https://*" -->
                 <data android:scheme="https" />
-                <!-- universalDeepLinkHost = "ciosample.page.link" -->
-                <!-- Accepts URIs that begin with "*://ciosample.page.link" -->
+                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
+                <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
                 <data android:host="${universalDeepLinkHost}" />
                 <!-- Accepts URIs that ends with "*://*/java-layout/events" -->
                 <data android:pathPrefix="/java-layout/events" />

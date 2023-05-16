@@ -32,32 +32,62 @@
             android:name=".ui.settings.SettingsActivity"
             android:exported="true"
             android:label="@string/label_settings_activity">
-            <intent-filter android:label="deep_linking_filter">
+            <intent-filter android:label="app-scheme-links-filter">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-layout://settings” -->
+                <!-- Accepts URIs that begin with "java-layout://settings" -->
                 <data
                     android:host="settings"
                     android:scheme="java-layout" />
+            </intent-filter>
+            <intent-filter android:label="universal-scheme-links-filter">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs that begin with "https://*" -->
+                <data android:scheme="https" />
+                <!-- Accepts URIs that begin with "*://ciosample.page.link" -->
+                <data android:host="ciosample.page.link" />
+                <!-- Accepts URIs that ends with "*://*/java-layout/settings" -->
+                <data android:pathPrefix="/java-layout/settings" />
             </intent-filter>
         </activity>
         <activity
             android:name=".ui.common.SimpleFragmentActivity"
             android:exported="true"
             android:label="@string/label_simple_fragment_activity">
-            <intent-filter android:label="deep_linking_filter">
+            <intent-filter android:label="app-scheme-links-filter">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-layout://*” -->
+                <!-- Accepts URIs that begin with "java-layout://*" -->
                 <data android:scheme="java-layout" />
-                <!-- Accepts URIs with host "*://events” -->
+                <!-- Accepts URIs with host "*://events" -->
                 <data android:host="events" />
-                <!-- Accepts URIs with host "*://attributes” -->
+                <!-- Accepts URIs with host "*://attributes" -->
                 <data android:host="attributes" />
+            </intent-filter>
+            <intent-filter android:label="universal-scheme-links-filter">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs that begin with "https://*" -->
+                <data android:scheme="https" />
+                <!-- Accepts URIs that begin with "*://ciosample.page.link" -->
+                <data android:host="ciosample.page.link" />
+                <!-- Accepts URIs that ends with "*://*/java-layout/events" -->
+                <data android:pathPrefix="/java-layout/events" />
+                <!-- Accepts URIs that ends with "*://*/java-layout/attributes" -->
+                <data android:pathPrefix="/java-layout/attributes" />
             </intent-filter>
         </activity>
 

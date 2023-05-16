@@ -20,7 +20,7 @@ android {
         versionCode 1
         versionName "1.0"
 
-        String universalDeepLinkHost = "ciosample.page.link"
+        String universalDeepLinkHost = "www.java-sample.com"
 
         buildConfigField "String", "UNIVERSAL_DEEP_LINK_HOST", "\"${universalDeepLinkHost}\""
         buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""

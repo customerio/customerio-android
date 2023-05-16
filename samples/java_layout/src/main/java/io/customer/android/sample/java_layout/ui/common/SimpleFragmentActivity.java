@@ -93,10 +93,10 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         // deepLinkUri contains link URI if activity is launched from deep link or url from
         // Customer.io push notification
         // e.g.
-        // java-layout://events/custom
-        // https://ciosample.page.link/java-layout/events/custom
-        // java-layout://attributes/profile
-        // https://ciosample.page.link/java-layout/attributes/profile
+        // java-sample://events/custom
+        // https://www.java-sample.com/events/custom
+        // java-sample://attributes/profile
+        // https://www.java-sample.com/attributes/profile
 
         if (deepLinkUri != null) {
             String host = deepLinkUri.getHost();
@@ -105,8 +105,8 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
             String path;
             boolean isUniversalLink = BuildConfig.UNIVERSAL_DEEP_LINK_HOST.equals(host);
-            if (isUniversalLink && segments.size() > 1) {
-                path = segments.get(1);
+            if (isUniversalLink && !segments.isEmpty()) {
+                path = segments.get(0);
             } else {
                 path = host;
             }

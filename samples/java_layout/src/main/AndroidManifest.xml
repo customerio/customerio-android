@@ -37,10 +37,10 @@
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-layout://settings" -->
+                <!-- Accepts URIs that begin with "java-sample://settings" -->
                 <data
                     android:host="settings"
-                    android:scheme="java-layout" />
+                    android:scheme="java-sample" />
             </intent-filter>
             <intent-filter
                 android:autoVerify="true"
@@ -56,8 +56,8 @@
                 <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
                 <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
                 <data android:host="${universalDeepLinkHost}" />
-                <!-- Accepts URIs that ends with "*://*/java-layout/settings" -->
-                <data android:pathPrefix="/java-layout/settings" />
+                <!-- Accepts URIs that ends with "*://*/settings" -->
+                <data android:pathPrefix="/settings" />
             </intent-filter>
         </activity>
         <activity
@@ -69,8 +69,8 @@
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-layout://*" -->
-                <data android:scheme="java-layout" />
+                <!-- Accepts URIs that begin with "java-sample://*" -->
+                <data android:scheme="java-sample" />
                 <!-- Accepts URIs with host "*://events" -->
                 <data android:host="events" />
                 <!-- Accepts URIs with host "*://attributes" -->
@@ -90,10 +90,10 @@
                 <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
                 <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
                 <data android:host="${universalDeepLinkHost}" />
-                <!-- Accepts URIs that ends with "*://*/java-layout/events" -->
-                <data android:pathPrefix="/java-layout/events" />
-                <!-- Accepts URIs that ends with "*://*/java-layout/attributes" -->
-                <data android:pathPrefix="/java-layout/attributes" />
+                <!-- Accepts URIs that ends with "*://*/events" -->
+                <data android:pathPrefix="/events" />
+                <!-- Accepts URIs that ends with "*://*/attributes" -->
+                <data android:pathPrefix="/attributes" />
             </intent-filter>
         </activity>
 

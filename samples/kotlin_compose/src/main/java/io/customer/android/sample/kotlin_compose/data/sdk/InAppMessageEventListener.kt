@@ -57,8 +57,7 @@ class InAppMessageEventListener(private val logger: Logger = Logger()) : InAppEv
                 arguments?.let { putAll(it) }
                 put("event-name", eventName)
                 put("message-id", message.messageId)
-                val deliveryId = message.deliveryId
-                put("delivery-id", deliveryId ?: "NULL")
+                put("delivery-id", message.deliveryId ?: "NULL")
             }
         )
     }

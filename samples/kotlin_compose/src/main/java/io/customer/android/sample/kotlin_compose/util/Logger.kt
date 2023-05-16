@@ -11,19 +11,11 @@ class Logger {
         Log.d(TAG, message)
     }
 
-    fun v(message: String) {
-        v(message, null)
-    }
-
-    fun v(message: String, throwable: Throwable?) {
+    fun v(message: String, throwable: Throwable? = null) {
         Log.v(TAG, message, throwable)
     }
 
-    fun e(message: String) {
-        e(message, null)
-    }
-
-    fun e(message: String, throwable: Throwable?) {
+    fun e(message: String, throwable: Throwable? = null) {
         Log.e(TAG, message, throwable)
     }
 }

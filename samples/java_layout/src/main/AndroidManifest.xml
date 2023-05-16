@@ -42,7 +42,9 @@
                     android:host="settings"
                     android:scheme="java-layout" />
             </intent-filter>
-            <intent-filter android:label="universal-scheme-links-filter">
+            <intent-filter
+                android:autoVerify="true"
+                android:label="universal-scheme-links-filter">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
@@ -74,7 +76,9 @@
                 <!-- Accepts URIs with host "*://attributes" -->
                 <data android:host="attributes" />
             </intent-filter>
-            <intent-filter android:label="universal-scheme-links-filter">
+            <intent-filter
+                android:autoVerify="true"
+                android:label="universal-scheme-links-filter">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />

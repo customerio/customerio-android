@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.util.extensions.getUserAgent
@@ -68,6 +69,8 @@ fun ActionButton(text: String, onClick: () -> Unit) {
 fun HeaderText(string: String) {
     Text(
         text = string,
-        style = MaterialTheme.typography.titleLarge
+        style = MaterialTheme.typography.titleLarge,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
     )
 }

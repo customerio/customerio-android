@@ -4,6 +4,8 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
+import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
+import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
@@ -30,7 +32,12 @@ class MainApplication : Application() {
         ).apply {
             configuration.setValuesFromBuilder(this)
 
-            addCustomerIOModule(ModuleMessagingInApp())
+            addCustomerIOModule(
+                ModuleMessagingInApp(
+                    config = MessagingInAppModuleConfig.Builder()
+                        .setEventListener(InAppMessageEventListener()).build()
+                )
+            )
             addCustomerIOModule(ModuleMessagingPushFCM())
 
             build()

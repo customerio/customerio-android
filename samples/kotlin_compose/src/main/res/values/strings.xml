@@ -37,4 +37,6 @@
     <string name="attribute_value">Attribute Value</string>
     <string name="send_profile_attribute">Send Profile Attribute</string>
     <string name="send_device_attribute">Send Device Attribute</string>
+    <string name="filter_view_app_link">Kotlin Sample App Scheme Links</string>
+    <string name="filter_view_universal_link">Kotlin Sample Universal Scheme Links</string>
 </resources>

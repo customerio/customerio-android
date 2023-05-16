@@ -9,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import io.customer.android.sample.kotlin_compose.navigation.Screen.CustomAttribute.ARGS_TRACKING_EVENT_TYPE
 import io.customer.android.sample.kotlin_compose.ui.customTrack.CustomAttributeRoute
 import io.customer.android.sample.kotlin_compose.ui.customTrack.CustomEventRoute
@@ -86,7 +87,19 @@ internal fun NavGraphBuilder.addLoginRoute(
 internal fun NavGraphBuilder.addSettingsRoute(
     navController: NavHostController
 ) {
-    composable(Screen.Settings.route) {
+    composable(
+        route = Screen.Settings.route,
+        deepLinks = (
+            listOf(
+                navDeepLink {
+                    uriPattern = "kotlin-sample://settings"
+                },
+                navDeepLink {
+                    uriPattern = "https://www.kotlin-sample.com/settings"
+                }
+            )
+            )
+    ) {
         SettingsRoute(onBackPressed = {
             navController.navigateUp()
         })

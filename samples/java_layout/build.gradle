@@ -3,6 +3,7 @@ plugins {
     id 'com.google.gms.google-services' // Google services Gradle plugin
 }
 
+// Include Customer.io SDK dependencies and common gradle properties for sample apps
 apply from: "${rootDir}/samples/sample-app.gradle"
 
 android {

@@ -7,6 +7,7 @@ plugins {
 }
 
 apply {
+    // Include Customer.io SDK dependencies and common gradle properties for sample apps
     from("$rootDir/samples/sample-app.gradle")
 }
 

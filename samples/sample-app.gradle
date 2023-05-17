@@ -20,10 +20,12 @@ android {
 dependencies {
     def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
+        // Add local dependency for SDK modules, helpful for debugging
         implementation(project(":sdk"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
     } else {
+        // Stable releases dependency, use published versions directly
         implementation "io.customer.android:tracking:$cioSDKVersion"
         implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"

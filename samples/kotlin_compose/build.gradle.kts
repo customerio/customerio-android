@@ -1,6 +1,3 @@
-import java.util.Properties
-import java.io.FileInputStream
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,11 +6,9 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-val localProperties = Properties()
-try {
-    localProperties.load(FileInputStream(rootProject.file("local.properties")))
-} catch (ex: Exception) {
-    println("$ex")
+apply {
+    // Include Customer.io SDK dependencies and common gradle properties for sample apps
+    from("$rootDir/samples/sample-app.gradle")
 }
 
 android {
@@ -31,9 +26,6 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-
-        buildConfigField("String", "API_KEY", "\"" + localProperties["apiKey"] + "\"")
-        buildConfigField("String", "SITE_ID", "\"" + localProperties["siteId"] + "\"")
     }
 
     buildTypes {
@@ -87,11 +79,6 @@ dependencies {
     // di
     kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
     implementation("com.google.dagger:hilt-android:$hiltVersion")
-
-    // SDK
-    implementation(project(":sdk"))
-    implementation(project(":messagingpush"))
-    implementation(project(":messaginginapp"))
 
     // navigation
     implementation("androidx.navigation:navigation-compose:2.6.0-beta01")

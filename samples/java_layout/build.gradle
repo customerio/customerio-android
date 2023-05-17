@@ -3,11 +3,8 @@ plugins {
     id 'com.google.gms.google-services' // Google services Gradle plugin
 }
 
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-if (localPropertiesFile.exists()) {
-    localProperties.load(new FileInputStream(localPropertiesFile))
-}
+// Include Customer.io SDK dependencies and common gradle properties for sample apps
+apply from: "${rootDir}/samples/sample-app.gradle"
 
 android {
     namespace 'io.customer.android.sample.java_layout'
@@ -21,11 +18,7 @@ android {
         versionName "1.0"
 
         String universalDeepLinkHost = "www.java-sample.com"
-
         buildConfigField "String", "UNIVERSAL_DEEP_LINK_HOST", "\"${universalDeepLinkHost}\""
-        buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
-        buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
-
         manifestPlaceholders += [universalDeepLinkHost: universalDeepLinkHost]
     }
 
@@ -42,25 +35,9 @@ android {
     buildFeatures {
         viewBinding true
     }
-
-    repositories {
-        mavenLocal()
-    }
 }
 
 dependencies {
-    // TODO Replace this with generic implementation for all sample SDKs to referencing remote versions is easier
-    def cioSDKVersion = localProperties["sdkVersion"]
-    if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
-        implementation(project(":sdk"))
-        implementation(project(":messagingpush"))
-        implementation(project(":messaginginapp"))
-    } else {
-        implementation "io.customer.android:tracking:$cioSDKVersion"
-        implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
-        implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
-    }
-
     def datastore_version = "1.0.0"
     def lifecycle_version = "2.6.1"
     implementation "androidx.annotation:annotation:1.6.0"

@@ -1,6 +1,7 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -19,17 +20,21 @@ import dagger.hilt.android.AndroidEntryPoint
 import io.customer.android.sample.kotlin_compose.navigation.AppNavGraph
 import io.customer.android.sample.kotlin_compose.ui.login.AuthenticationViewModel
 import io.customer.android.sample.kotlin_compose.ui.theme.CustomerIoSDKTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val authenticationViewModel: AuthenticationViewModel by viewModels()
+    private val deepLinkState: MutableStateFlow<Intent?> = MutableStateFlow(null)
 
     private val notificationPermissionRequestLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             val messageId: Int =
                 if (isGranted) R.string.notification_permission_success else R.string.notification_permission_failure
-            Snackbar.make(this.findViewById(R.id.content), messageId, Snackbar.LENGTH_SHORT).show()
+            Snackbar.make(this.findViewById(android.R.id.content), messageId, Snackbar.LENGTH_SHORT)
+                .show()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +50,7 @@ class MainActivity : ComponentActivity() {
 
                 AppNavGraph(
                     startDestination = currentRoute,
+                    deepLinkState = deepLinkState.asStateFlow(),
                     modifier = Modifier.systemBarsPadding()
                 )
             }
@@ -66,5 +72,10 @@ class MainActivity : ComponentActivity() {
         if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
             notificationPermissionRequestLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        deepLinkState.tryEmit(intent)
     }
 }

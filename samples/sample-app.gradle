@@ -1,0 +1,31 @@
+Properties localProperties = new Properties()
+File localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+
+android {
+    defaultConfig {
+        buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
+        buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
+    }
+    repositories {
+        // For locally deployed builds
+        mavenLocal()
+        // For snapshot builds
+        maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+    }
+}
+
+dependencies {
+    def cioSDKVersion = localProperties["sdkVersion"]
+    if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
+        implementation(project(":sdk"))
+        implementation(project(":messagingpush"))
+        implementation(project(":messaginginapp"))
+    } else {
+        implementation "io.customer.android:tracking:$cioSDKVersion"
+        implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
+        implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
+    }
+}

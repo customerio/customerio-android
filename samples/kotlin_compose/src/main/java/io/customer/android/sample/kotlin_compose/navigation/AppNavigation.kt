@@ -44,8 +44,8 @@ fun AppNavGraph(
 ) {
     val navController = rememberNavController()
 
-    deepLinkState.collectAsState(null).value.let {
-        it?.let { navController.handleDeepLink(it) }
+    deepLinkState.collectAsState(null).value?.let {
+        navController.handleDeepLink(it)
     }
 
     NavHost(

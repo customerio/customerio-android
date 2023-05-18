@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class MainActivity : ComponentActivity() {
 
     private val authenticationViewModel: AuthenticationViewModel by viewModels()
-    private val deepLinkState: MutableStateFlow<Intent?> = MutableStateFlow(null)
+    private val deepLinkIntentState: MutableStateFlow<Intent?> = MutableStateFlow(null)
 
     private val notificationPermissionRequestLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
 
                 AppNavGraph(
                     startDestination = currentRoute,
-                    deepLinkState = deepLinkState.asStateFlow(),
+                    deepLinkState = deepLinkIntentState.asStateFlow(),
                     modifier = Modifier.systemBarsPadding()
                 )
             }
@@ -76,6 +76,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        deepLinkState.tryEmit(intent)
+        deepLinkIntentState.tryEmit(intent)
     }
 }

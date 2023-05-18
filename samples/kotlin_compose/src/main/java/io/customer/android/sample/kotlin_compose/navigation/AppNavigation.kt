@@ -1,6 +1,8 @@
 package io.customer.android.sample.kotlin_compose.navigation
 
+import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -16,6 +18,7 @@ import io.customer.android.sample.kotlin_compose.ui.customTrack.CustomEventRoute
 import io.customer.android.sample.kotlin_compose.ui.dashboard.DashboardRoute
 import io.customer.android.sample.kotlin_compose.ui.login.LoginRoute
 import io.customer.android.sample.kotlin_compose.ui.settings.SettingsRoute
+import kotlinx.coroutines.flow.StateFlow
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -36,9 +39,14 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavGraph(
     modifier: Modifier = Modifier,
+    deepLinkState: StateFlow<Intent?>,
     startDestination: String = Screen.Login.route
 ) {
     val navController = rememberNavController()
+
+    deepLinkState.collectAsState(null).value?.let {
+        navController.handleDeepLink(it)
+    }
 
     NavHost(
         navController = navController,

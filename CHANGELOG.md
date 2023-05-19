@@ -5,6 +5,13 @@
 
 * minor only auto update for gist ([#210](https://github.com/customerio/customerio-android/issues/210)) ([c00d50c](https://github.com/customerio/customerio-android/commit/c00d50c22e8c0e21d445d678833fc0bb81b70d0b))
 
+### [3.4.3](https://github.com/customerio/customerio-android/compare/3.4.2...3.4.3) (2023-05-19)
+
+
+### Bug Fixes
+
+* minor only auto update for gist ([#210](https://github.com/customerio/customerio-android/issues/210)) ([c00d50c](https://github.com/customerio/customerio-android/commit/c00d50c22e8c0e21d445d678833fc0bb81b70d0b))
+
 ### [3.4.2](https://github.com/customerio/customerio-android/compare/3.4.1...3.4.2) (2023-04-22)
 
 

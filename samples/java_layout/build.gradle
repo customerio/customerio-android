@@ -1,12 +1,10 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services' // Google services Gradle plugin
 }
 
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-if (localPropertiesFile.exists()) {
-    localProperties.load(new FileInputStream(localPropertiesFile))
-}
+// Include Customer.io SDK dependencies and common gradle properties for sample apps
+apply from: "${rootDir}/samples/sample-app.gradle"
 
 android {
     namespace 'io.customer.android.sample.java_layout'
@@ -19,8 +17,9 @@ android {
         versionCode 1
         versionName "1.0"
 
-        buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
-        buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
+        String universalDeepLinkHost = "www.java-sample.com"
+        buildConfigField "String", "UNIVERSAL_DEEP_LINK_HOST", "\"${universalDeepLinkHost}\""
+        manifestPlaceholders += [universalDeepLinkHost: universalDeepLinkHost]
     }
 
     buildTypes {
@@ -39,18 +38,6 @@ android {
 }
 
 dependencies {
-    // TODO Replace this with generic implementation for all sample SDKs to referencing remote versions is easier
-    def cioSDKVersion = localProperties["sdkVersion"]
-    if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
-        implementation(project(":sdk"))
-        implementation(project(":messagingpush"))
-        implementation(project(":messaginginapp"))
-    } else {
-        implementation "io.customer.android:tracking:$cioSDKVersion"
-        implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
-        implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
-    }
-
     def datastore_version = "1.0.0"
     def lifecycle_version = "2.6.1"
     implementation "androidx.annotation:annotation:1.6.0"
@@ -63,7 +50,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-reactivestreams:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
-    implementation "com.google.android.material:material:1.8.0"
+    implementation "com.google.android.material:material:1.9.0"
     implementation "io.reactivex.rxjava3:rxandroid:3.0.2"
     // Because RxAndroid releases are few and far between, it is recommended to
     // explicitly depend on RxJava's latest version for bug fixes and new features.

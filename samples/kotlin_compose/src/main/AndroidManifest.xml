@@ -5,7 +5,6 @@
 
     <application
         android:name=".MainApplication"
-        android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -17,9 +16,35 @@
             android:theme="@style/Theme.CustomerioSDK">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter android:label="@string/filter_view_app_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "kotlin-sample://settings" -->
+                <data
+                    android:host="settings"
+                    android:scheme="kotlin-sample" />
+            </intent-filter>
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/filter_view_universal_link">
+
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs that begin with "https://*" -->
+                <data android:scheme="https" />
+                <data android:host="www.kotlin-sample.com" />
+                <!-- Accepts URIs that ends with "*://*/settings" -->
+                <data android:pathPrefix="/settings" />
+            </intent-filter>
+
         </activity>
     </application>
 

@@ -32,33 +32,76 @@
             android:name=".ui.settings.SettingsActivity"
             android:exported="true"
             android:label="@string/label_settings_activity">
-            <intent-filter android:label="deep_linking_filter">
+            <intent-filter android:label="@string/filter_view_app_link">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-layout://settings” -->
+                <!-- Accepts URIs that begin with "java-sample://settings" -->
                 <data
                     android:host="settings"
-                    android:scheme="java-layout" />
+                    android:scheme="java-sample" />
+            </intent-filter>
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/filter_view_universal_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs that begin with "https://*" -->
+                <data android:scheme="https" />
+                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
+                <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
+                <data android:host="${universalDeepLinkHost}" />
+                <!-- Accepts URIs that ends with "*://*/settings" -->
+                <data android:pathPrefix="/settings" />
             </intent-filter>
         </activity>
         <activity
             android:name=".ui.common.SimpleFragmentActivity"
             android:exported="true"
             android:label="@string/label_simple_fragment_activity">
-            <intent-filter android:label="deep_linking_filter">
+            <intent-filter android:label="@string/filter_view_app_link">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-layout://*” -->
-                <data android:scheme="java-layout" />
-                <!-- Accepts URIs with host "*://events” -->
+                <!-- Accepts URIs that begin with "java-sample://*" -->
+                <data android:scheme="java-sample" />
+                <!-- Accepts URIs with host "*://events" -->
                 <data android:host="events" />
-                <!-- Accepts URIs with host "*://attributes” -->
+                <!-- Accepts URIs with host "*://attributes" -->
                 <data android:host="attributes" />
             </intent-filter>
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/filter_view_universal_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs that begin with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs that begin with "https://*" -->
+                <data android:scheme="https" />
+                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
+                <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
+                <data android:host="${universalDeepLinkHost}" />
+                <!-- Accepts URIs that ends with "*://*/events" -->
+                <data android:pathPrefix="/events" />
+                <!-- Accepts URIs that ends with "*://*/attributes" -->
+                <data android:pathPrefix="/attributes" />
+            </intent-filter>
         </activity>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/java_blue_500" />
     </application>
 </manifest>

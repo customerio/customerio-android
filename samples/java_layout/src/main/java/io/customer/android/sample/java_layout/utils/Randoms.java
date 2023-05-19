@@ -1,4 +1,4 @@
-package io.customer.android.sample.java_layout.core;
+package io.customer.android.sample.java_layout.utils;
 
 import java.util.HashMap;
 import java.util.Map;

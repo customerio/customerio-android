@@ -44,7 +44,7 @@
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/settings"
                 app:icon="@drawable/ic_settings_24"
-                app:iconTint="?attr/colorOnSecondary"
+                app:iconTint="?attr/colorOnSurface"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
@@ -160,9 +160,10 @@
 
             <TextView
                 android:id="@+id/user_agent_text_view"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="@dimen/margin_default"
+                android:gravity="center"
                 android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"

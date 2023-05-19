@@ -26,6 +26,8 @@ object Dependencies {
     const val gist = "build:gist:${Versions.GIST}"
     const val googlePlayServicesBase =
         "com.google.android.gms:play-services-base:${Versions.GOOGLE_PLAY_SERVICES_BASE}"
+    const val googleServicesPlugin =
+        "com.google.gms:google-services:${Versions.GOOGLE_SERVICES_PLUGIN}"
     const val gradleNexusPublishPlugin =
         "io.github.gradle-nexus:publish-plugin:${Versions.GRADLE_NEXUS_PUBLISH_PLUGIN}"
     const val gradleVersionsPlugin =

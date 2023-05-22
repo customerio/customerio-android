@@ -63,10 +63,7 @@ See file [GIT-WORKFLOW](GIT-WORKFLOW.md) to learn about how code is deployed in 
 #### Deployment setup 
 
 To setup the CI server to make the deployments, follow these steps:
-1. Create a GitHub token on your personal GitHub account. As long as your account has push access to the SDK source code repository on GitHub. The scopes need to (1) public repos to write to repos. 
-
 Create GitHub Actions secrets: 
-* `REPO_PUSH_TOKEN` - set the value to the GitHub token created in this step. This is used to push commits made on the CI server back to the source code repo after deployment. 
 * `GRADLE_PUBLISH_USERNAME` - set the value to Sonatype Jira username to push to Sonatype repository. 
 * `GRADLE_PUBLISH_PASSWORD` - set the value to Sonatype Jira password. 
 * `GRADLE_SIGNING_KEYID` - The signing plugin says "The public key ID (The last 8 symbols of the keyId. You can use gpg -K to get it)." The important part there is the last 8 characters of the keyid. Use command `gpg --list-secret-keys --keyid-format long` and the last 8 characters of the `[S]` subkey's keyId is the value of this environment variable. So if the key is woijeyrinvnno22o2n, you will set nno22o2n as the value on your CI server.

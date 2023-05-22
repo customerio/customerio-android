@@ -11,6 +11,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -82,22 +83,39 @@ fun SendEventsView(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ActionButton(text = stringResource(R.string.send_random_event), onClick = {
-            CustomerIO.instance().track(
-                name = "random_event",
-                attributes = mapOf("random" to (0..1000).random())
-            )
-        })
+        ActionButton(
+            text = stringResource(R.string.send_random_event),
+            modifier = Modifier.testTag("random_event"),
+            onClick = {
+                CustomerIO.instance().track(
+                    name = "random_event",
+                    attributes = mapOf("random" to (0..1000).random())
+                )
+            }
+        )
         ActionButton(
             text = stringResource(R.string.send_custom_event),
+            modifier = Modifier.testTag("send_custom_event"),
             onClick = onTrackCustomEvent
         )
-        ActionButton(text = stringResource(R.string.set_device_attribute), onClick = {
-            onTrackCustomAttribute.invoke(TYPE_DEVICE)
-        })
-        ActionButton(text = stringResource(R.string.set_profile_attribute), onClick = {
-            onTrackCustomAttribute.invoke(TYPE_PROFILE)
-        })
-        ActionButton(text = stringResource(R.string.logout), onClick = onLogout)
+        ActionButton(
+            text = stringResource(R.string.set_device_attribute),
+            modifier = Modifier.testTag("set_device_attribute"),
+            onClick = {
+                onTrackCustomAttribute.invoke(TYPE_DEVICE)
+            }
+        )
+        ActionButton(
+            text = stringResource(R.string.set_profile_attribute),
+            modifier = Modifier.testTag("set_profile_attribute"),
+            onClick = {
+                onTrackCustomAttribute.invoke(TYPE_PROFILE)
+            }
+        )
+        ActionButton(
+            text = stringResource(R.string.logout),
+            modifier = Modifier.testTag("logout"),
+            onClick = onLogout
+        )
     }
 }

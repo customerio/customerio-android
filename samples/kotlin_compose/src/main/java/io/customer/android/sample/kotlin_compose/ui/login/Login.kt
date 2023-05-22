@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -102,6 +103,7 @@ fun LoginFieldsView(
             label = { Text(stringResource(R.string.name)) },
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag("name")
                 .padding(start = 0.dp, end = 0.dp),
             isError = nameErrorState.isNotEmpty(),
             supportingText = { Text(text = nameErrorState) }
@@ -112,6 +114,7 @@ fun LoginFieldsView(
             onValueChange = { newValue -> email = newValue },
             label = { Text(stringResource(R.string.email)) },
             modifier = Modifier
+                .testTag("email")
                 .fillMaxWidth()
                 .padding(start = 0.dp, end = 0.dp),
             isError = emailErrorState.isNotEmpty(),
@@ -119,9 +122,13 @@ fun LoginFieldsView(
             supportingText = { Text(text = emailErrorState) }
         )
 
-        ActionButton(text = stringResource(R.string.login), onClick = {
-            onLogin.invoke(email, name)
-        })
+        ActionButton(
+            text = stringResource(R.string.login),
+            modifier = Modifier.testTag("login"),
+            onClick = {
+                onLogin.invoke(email, name)
+            }
+        )
 
         Text(
             text = stringResource(R.string.continue_as_guest),

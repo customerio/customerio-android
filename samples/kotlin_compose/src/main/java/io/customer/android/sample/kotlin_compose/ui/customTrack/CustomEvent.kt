@@ -5,11 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,12 +13,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
+import io.customer.android.sample.kotlin_compose.ui.components.BackButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.sdk.CustomerIO
 
@@ -40,15 +37,7 @@ fun CustomEventRoute(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        IconButton(
-            onClick = onBackPressed
-        ) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "Back",
-                modifier = Modifier.align(Alignment.Start)
-            )
-        }
+        BackButton(onClick = onBackPressed)
 
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -58,7 +47,9 @@ fun CustomEventRoute(
         ) {
             HeaderText(stringResource(R.string.send_custom_event))
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("event_name"),
                 value = eventName,
                 onValueChange = {
                     eventName = it
@@ -68,7 +59,9 @@ fun CustomEventRoute(
                 }
             )
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("property_name"),
                 value = propertyName,
                 onValueChange = {
                     propertyName = it
@@ -78,7 +71,9 @@ fun CustomEventRoute(
                 }
             )
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("property_value"),
                 value = propertyValue,
                 onValueChange = {
                     propertyValue = it
@@ -87,12 +82,16 @@ fun CustomEventRoute(
                     Text(text = stringResource(id = R.string.property_value))
                 }
             )
-            ActionButton(text = stringResource(R.string.send_event), onClick = {
-                CustomerIO.instance().track(
-                    name = eventName,
-                    attributes = mapOf(propertyName to propertyValue)
-                )
-            })
+            ActionButton(
+                text = stringResource(R.string.send_event),
+                modifier = Modifier.testTag("send_button"),
+                onClick = {
+                    CustomerIO.instance().track(
+                        name = eventName,
+                        attributes = mapOf(propertyName to propertyValue)
+                    )
+                }
+            )
         }
     }
 }

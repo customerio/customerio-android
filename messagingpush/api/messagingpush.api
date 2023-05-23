@@ -100,6 +100,11 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 	public synthetic fun newArray (I)[Ljava/lang/Object;
 }
 
+public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {
+	public static final field RECENT_MESSAGES_MAX_SIZE I
+	public final fun getRecentMessagesQueue ()Lkotlin/collections/ArrayDeque;
+}
+
 public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {
 	public fun <init> (Lio/customer/sdk/util/Logger;Landroid/content/Context;)V
 	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
@@ -133,7 +138,6 @@ public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
 
 public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
 	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
-	public fun parseAndTrackMetricEvent (Landroid/os/Bundle;Lio/customer/sdk/data/request/MetricEvent;)Z
 	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
 }
 

@@ -28,12 +28,12 @@ class PushTrackingUtilTest : BaseTest() {
     }
 
     @Test
-    fun parseExtrasForTrackingMetrics_givenBundleWithoutDeliveryData_expectDoNoTrackPush() {
+    fun parseLaunchedActivityForTracking_givenBundleWithoutDeliveryData_expectDoNoTrackPush() {
         val givenBundle = Bundle().apply {
             putString("foo", String.random)
         }
 
-        val result = util.parseAndTrackMetricEvent(givenBundle, MetricEvent.opened)
+        val result = util.parseLaunchedActivityForTracking(givenBundle)
 
         result.shouldBeFalse()
 
@@ -41,7 +41,7 @@ class PushTrackingUtilTest : BaseTest() {
     }
 
     @Test
-    fun parseExtrasForOpenedMetrics_givenBundleWithDeliveryData_expectTrackOpened() {
+    fun parseLaunchedActivityForTracking_givenBundleWithDeliveryData_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
         val givenBundle = Bundle().apply {
@@ -49,26 +49,10 @@ class PushTrackingUtilTest : BaseTest() {
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
 
-        val result = util.parseAndTrackMetricEvent(givenBundle, MetricEvent.opened)
+        val result = util.parseLaunchedActivityForTracking(givenBundle)
 
         result.shouldBeTrue()
 
         verify(trackRepositoryMock).trackMetric(givenDeliveryId, MetricEvent.opened, givenDeviceToken)
-    }
-
-    @Test
-    fun parseExtrasForDeliveredMetrics_givenBundleWithDeliveryData_expectTrackDelivered() {
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-        val givenBundle = Bundle().apply {
-            putString(PushTrackingUtil.DELIVERY_ID_KEY, givenDeliveryId)
-            putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
-        }
-
-        val result = util.parseAndTrackMetricEvent(givenBundle, MetricEvent.delivered)
-
-        result.shouldBeTrue()
-
-        verify(trackRepositoryMock).trackMetric(givenDeliveryId, MetricEvent.delivered, givenDeviceToken)
     }
 }

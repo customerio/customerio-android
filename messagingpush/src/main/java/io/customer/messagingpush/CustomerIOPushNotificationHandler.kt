@@ -20,12 +20,12 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.extensions.*
+import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.util.Logger
@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
  * Make sure [CustomerIO] instance is always initialized before using this class.
  */
 internal class CustomerIOPushNotificationHandler(
+    private val pushMessageProcessor: PushMessageProcessor,
     private val remoteMessage: RemoteMessage
 ) {
 
@@ -98,10 +99,10 @@ internal class CustomerIOPushNotificationHandler(
         val deliveryToken = bundle.getString(DELIVERY_TOKEN_KEY)
 
         if (deliveryId != null && deliveryToken != null) {
-            CustomerIO.instanceOrNull(context)?.trackMetric(
-                deliveryID = deliveryId,
-                deviceToken = deliveryToken,
-                event = MetricEvent.delivered
+            // Use processor to track metrics properly and avoid duplication
+            pushMessageProcessor.processRemoteMessageDeliveredMetrics(
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken
             )
         } else {
             // not a CIO push notification

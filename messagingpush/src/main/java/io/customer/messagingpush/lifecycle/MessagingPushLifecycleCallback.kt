@@ -7,7 +7,6 @@ import androidx.lifecycle.Lifecycle
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
-import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.lifecycle.LifecycleCallback
 
 internal class MessagingPushLifecycleCallback internal constructor(
@@ -23,7 +22,7 @@ internal class MessagingPushLifecycleCallback internal constructor(
                 val intentArguments = activity.intent.extras ?: return
 
                 if (moduleConfig.autoTrackPushEvents) {
-                    pushTrackingUtil.parseAndTrackMetricEvent(intentArguments, MetricEvent.opened)
+                    pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
                 }
                 launchContentAction(
                     activity,

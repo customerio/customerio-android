@@ -12,6 +12,16 @@ internal class PushMessageProcessorImpl(
     private val trackRepository: TrackRepository
 ) : PushMessageProcessor {
 
+    /**
+     * Responsible for storing and updating recent messages in queue atomically.
+     * Once this method is called, the current implementation marks the notification
+     * as processed and future calls for same [deliveryId] will receive true indicating
+     * that the notification is processed already.
+     *
+     * @param deliveryId unique message id received in push payload.
+     * @return true if the message was processed previously; false otherwise.
+     * Callers should generally process notifications only if false was returned.
+     */
     @Synchronized
     private fun getOrUpdateMessageAlreadyProcessed(deliveryId: String?): Boolean {
         val logger = CustomerIOShared.instance().diStaticGraph.logger
@@ -33,6 +43,7 @@ internal class PushMessageProcessorImpl(
                     PushMessageProcessor.recentMessagesQueue.removeLast()
                 }
                 PushMessageProcessor.recentMessagesQueue.addFirst(deliveryId)
+                logger.debug("Received new message with deliveryId: $deliveryId")
                 return false
             }
         }
@@ -46,12 +57,17 @@ internal class PushMessageProcessorImpl(
         if (deliveryId == null || deliveryToken == null) return
 
         if (!getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId)) {
+            // We only track delivered metrics from GCM right now
             trackDeliveredMetrics(deliveryId, deliveryToken)
         }
     }
 
     override fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String) {
         if (!getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId)) {
+            // We only track delivered metrics here for Firebase messages as the caller
+            // processes and displays the notification already and FCM guarantees to send
+            // callbacks only once for each notification, so duplication is not possible within
+            // Firebase message receivers
             trackDeliveredMetrics(deliveryId, deliveryToken)
         }
     }

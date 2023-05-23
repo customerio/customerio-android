@@ -14,6 +14,8 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.TrackRepository
+import org.amshove.kluent.shouldBeFalse
+import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
@@ -32,16 +34,44 @@ class PushMessageProcessorTest : BaseTest() {
     )
 
     @Test
+    fun processMessageIntent_givenDeliveryDataInvalid_expectDoNoProcessPush() {
+        val givenDeliveryId = ""
+        val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+
+        val result = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+
+        result.shouldBeTrue()
+    }
+
+    @Test
+    fun processMessageIntent_givenMessageReceivedMultipleTimes_expectDoNoProcessPushMoreThanOnce() {
+        val givenDeliveryId = String.random
+        val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+
+        val resultFirst = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+        val resultSecond = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+        val resultThird = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+
+        resultFirst.shouldBeFalse()
+        resultSecond.shouldBeTrue()
+        resultThird.shouldBeTrue()
+    }
+
+    @Test
+    fun processMessageIntent_givenNewMessageReceived_expectProcessPush() {
+        val givenDeliveryId = String.random
+        val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+
+        val result = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+
+        result.shouldBeFalse()
+    }
+
+    @Test
     fun processGCMMessageIntent_givenBundleWithoutDeliveryData_expectDoNoTrackPush() {
         val givenBundle = Bundle().apply {
             putString("message_id", String.random)
         }
-        val module = ModuleMessagingPushFCM(
-            overrideCustomerIO = customerIOMock,
-            overrideDiGraph = di,
-            moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
-        )
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
         val processor: PushMessageProcessor =
             PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
         val gcmIntent: Intent = mock()

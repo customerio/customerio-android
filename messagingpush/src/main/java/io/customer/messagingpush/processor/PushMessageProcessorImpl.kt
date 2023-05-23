@@ -1,6 +1,7 @@
 package io.customer.messagingpush.processor
 
 import android.content.Intent
+import androidx.annotation.VisibleForTesting
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.CustomerIOShared
@@ -23,7 +24,8 @@ internal class PushMessageProcessorImpl(
      * Callers should generally process notifications only if false was returned.
      */
     @Synchronized
-    private fun getOrUpdateMessageAlreadyProcessed(deliveryId: String?): Boolean {
+    @VisibleForTesting
+    internal fun getOrUpdateMessageAlreadyProcessed(deliveryId: String?): Boolean {
         val logger = CustomerIOShared.instance().diStaticGraph.logger
 
         when {

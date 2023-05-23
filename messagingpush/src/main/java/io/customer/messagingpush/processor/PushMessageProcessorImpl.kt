@@ -28,11 +28,13 @@ internal class PushMessageProcessorImpl(
 
         when {
             deliveryId.isNullOrBlank() -> {
+                // Ignore messages with empty/invalid deliveryId
                 logger.debug("Received message with empty deliveryId")
                 return true
             }
 
             PushMessageProcessor.recentMessagesQueue.contains(deliveryId) -> {
+                // Ignore messages that were processed already
                 logger.debug("Received duplicate message with deliveryId: $deliveryId")
                 return true
             }

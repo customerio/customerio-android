@@ -34,7 +34,7 @@ class PushMessageProcessorTest : BaseTest() {
     )
 
     @Test
-    fun processMessageIntent_givenDeliveryDataInvalid_expectDoNoProcessPush() {
+    fun processMessage_givenDeliveryDataInvalid_expectDoNoProcessPush() {
         val givenDeliveryId = ""
         val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
 
@@ -44,7 +44,7 @@ class PushMessageProcessorTest : BaseTest() {
     }
 
     @Test
-    fun processMessageIntent_givenMessageReceivedMultipleTimes_expectDoNoProcessPushMoreThanOnce() {
+    fun processMessage_givenMessageReceivedMultipleTimes_expectDoNoProcessPushMoreThanOnce() {
         val givenDeliveryId = String.random
         val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
 
@@ -58,7 +58,7 @@ class PushMessageProcessorTest : BaseTest() {
     }
 
     @Test
-    fun processMessageIntent_givenNewMessageReceived_expectProcessPush() {
+    fun processMessage_givenNewMessageReceived_expectProcessPush() {
         val givenDeliveryId = String.random
         val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
 

@@ -13,17 +13,17 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.util.CioLogLevel
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import leakcanary.AppWatcher
+import leakcanary.DetectLeaksAfterTestSuccess
 import leakcanary.LeakAssertions
 import org.junit.Assert.*
 import org.junit.Before
@@ -43,6 +43,9 @@ class MemoryLeakageInstrumentedTest {
     val composeTestRule = createComposeRule()
 
     @get:Rule
+    val rule = DetectLeaksAfterTestSuccess()
+
+    @get:Rule
     val hiltRule = HiltAndroidRule(this)
 
     @Inject
@@ -51,7 +54,6 @@ class MemoryLeakageInstrumentedTest {
     @Inject
     lateinit var preferences: PreferenceRepository
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
         hiltRule.inject()
@@ -78,18 +80,21 @@ class MemoryLeakageInstrumentedTest {
                 )
             )
             addCustomerIOModule(ModuleMessagingPushFCM())
-
             build()
         }
 
         // Delete all users. So we always land in `Login Screen`
-        GlobalScope.launch {
+        runBlocking {
             userPreferenceRepository.deleteAllUsers()
         }
     }
 
+    @OptIn(InternalCustomerIOApi::class)
     @Test
     fun testMemoryLeakage() {
+        // wait till compose ui is idle
+        composeTestRule.runOnIdle { }
+
         // Launch the MainActivity.
         ActivityScenario.launch(MainActivity::class.java)
 
@@ -103,9 +108,9 @@ class MemoryLeakageInstrumentedTest {
         // Click the login button.
         composeTestRule.onNodeWithTag("login").performClick()
 
-        // Click the random event button 100 times.
+        // Click the random event button 50 times.
         val randomEvent = composeTestRule.onNodeWithTag("random_event")
-        for (i in 0..100) {
+        for (i in 0..50) {
             randomEvent.performClick()
         }
 
@@ -125,8 +130,10 @@ class MemoryLeakageInstrumentedTest {
         val propertyValue = composeTestRule.onNodeWithTag("property_value")
         propertyValue.performTextInput("test value")
 
-        // Click the send button.
-        composeTestRule.onNodeWithTag("send_button").performClick()
+        // Click the send button 10
+        for (i in 0..10) {
+            composeTestRule.onNodeWithTag("send_button").performClick()
+        }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
@@ -144,8 +151,10 @@ class MemoryLeakageInstrumentedTest {
         val attributeValue = composeTestRule.onNodeWithTag("attribute_value")
         attributeValue.performTextInput("memory test attribute")
 
-        // Click the send button.
-        composeTestRule.onNodeWithTag("send_button").performClick()
+        // Click the send button 10
+        for (i in 0..10) {
+            composeTestRule.onNodeWithTag("send_button").performClick()
+        }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
@@ -161,8 +170,10 @@ class MemoryLeakageInstrumentedTest {
 
         composeTestRule.onNodeWithTag("attribute_value").performTextInput("memory test attribute")
 
-        // Click the send button.
-        composeTestRule.onNodeWithTag("send_button").performClick()
+        // Click the send button 10
+        for (i in 0..10) {
+            composeTestRule.onNodeWithTag("send_button").performClick()
+        }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
@@ -170,12 +181,28 @@ class MemoryLeakageInstrumentedTest {
         // Click the back button.
         composeTestRule.onNodeWithTag("back_button", useUnmergedTree = true).performClick()
 
-        // wait for 5 seconds
-        composeTestRule.runOnIdle {
-            Thread.sleep(4000)
-        }
+        // wait till compose ui is idle
+        composeTestRule.runOnIdle {}
 
         // Click the logout button.
         composeTestRule.onNodeWithTag("logout").performClick()
+
+        composeTestRule.runOnIdle { }
+
+        // Tell the AppWatcher object that we expect the CustomerIO.instance() object to be weakly reachable.
+        AppWatcher.objectWatcher.expectWeaklyReachable(
+            CustomerIO.instance(),
+            "CustomerIO should be garbage collected"
+        )
+
+        // Clear the CustomerIO instance.
+        CustomerIO.clearInstance()
+
+        // Call the System.gc() method to force the garbage collector to run.
+        System.gc()
+
+        // Assert that the AppWatcher object does not have any retained objects.
+        assertEquals(AppWatcher.objectWatcher.hasRetainedObjects, false)
+        assertEquals(AppWatcher.objectWatcher.retainedObjectCount, 0)
     }
 }

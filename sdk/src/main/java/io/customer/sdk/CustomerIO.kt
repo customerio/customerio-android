@@ -100,7 +100,11 @@ class CustomerIO internal constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
-            instance = null
+            instance?.let {
+                (it.diGraph.context as Application)
+                    .unregisterActivityLifecycleCallbacks(it.diGraph.activityLifecycleCallbacks)
+                instance = null
+            }
         }
 
         /**
@@ -237,6 +241,7 @@ class CustomerIO internal constructor(
                 is Int -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks)
                 }
+
                 is Double -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks.toInt())
                 }

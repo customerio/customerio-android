@@ -4,11 +4,12 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.util.PushTrackingUtil
-import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.util.Logger
 
 internal class PushMessageProcessorImpl(
+    private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val trackRepository: TrackRepository
 ) : PushMessageProcessor {
@@ -26,8 +27,6 @@ internal class PushMessageProcessorImpl(
     @Synchronized
     @VisibleForTesting
     internal fun getOrUpdateMessageAlreadyProcessed(deliveryId: String?): Boolean {
-        val logger = CustomerIOShared.instance().diStaticGraph.logger
-
         when {
             deliveryId.isNullOrBlank() -> {
                 // Ignore messages with empty/invalid deliveryId

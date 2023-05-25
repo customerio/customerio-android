@@ -37,6 +37,7 @@ internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
 internal val CustomerIOComponent.pushMessageProcessor: PushMessageProcessor
     get() = override() ?: getSingletonInstanceCreate {
         PushMessageProcessorImpl(
+            logger = logger,
             moduleConfig = moduleConfig,
             trackRepository = trackRepository
         )

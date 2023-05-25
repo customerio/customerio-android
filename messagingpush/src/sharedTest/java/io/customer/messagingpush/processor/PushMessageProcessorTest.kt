@@ -33,10 +33,14 @@ class PushMessageProcessorTest : BaseTest() {
         configurations = configurations
     )
 
+    private fun pushMessageProcessor(): PushMessageProcessorImpl {
+        return PushMessageProcessorImpl(di.logger, di.moduleConfig, trackRepositoryMock)
+    }
+
     @Test
     fun processMessage_givenDeliveryDataInvalid_expectDoNoProcessPush() {
         val givenDeliveryId = ""
-        val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
 
         val result = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
 
@@ -46,7 +50,7 @@ class PushMessageProcessorTest : BaseTest() {
     @Test
     fun processMessage_givenMessageReceivedMultipleTimes_expectDoNoProcessPushMoreThanOnce() {
         val givenDeliveryId = String.random
-        val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
 
         val resultFirst = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
         val resultSecond = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
@@ -60,7 +64,7 @@ class PushMessageProcessorTest : BaseTest() {
     @Test
     fun processMessage_givenNewMessageReceived_expectProcessPush() {
         val givenDeliveryId = String.random
-        val processor = PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
 
         val result = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
 
@@ -72,8 +76,7 @@ class PushMessageProcessorTest : BaseTest() {
         val givenBundle = Bundle().apply {
             putString("message_id", String.random)
         }
-        val processor: PushMessageProcessor =
-            PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
         val gcmIntent: Intent = mock()
         whenever(gcmIntent.extras).thenReturn(givenBundle)
 
@@ -96,8 +99,7 @@ class PushMessageProcessorTest : BaseTest() {
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()
         )
         configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
-        val processor: PushMessageProcessor =
-            PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
         val gcmIntent: Intent = mock()
         whenever(gcmIntent.extras).thenReturn(givenBundle)
 
@@ -120,8 +122,7 @@ class PushMessageProcessorTest : BaseTest() {
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
         )
         configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
-        val processor: PushMessageProcessor =
-            PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
         val gcmIntent: Intent = mock()
         whenever(gcmIntent.extras).thenReturn(givenBundle)
 
@@ -144,8 +145,7 @@ class PushMessageProcessorTest : BaseTest() {
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()
         )
         configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
-        val processor: PushMessageProcessor =
-            PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
@@ -162,8 +162,7 @@ class PushMessageProcessorTest : BaseTest() {
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
         )
         configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
-        val processor: PushMessageProcessor =
-            PushMessageProcessorImpl(di.moduleConfig, trackRepositoryMock)
+        val processor = pushMessageProcessor()
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 

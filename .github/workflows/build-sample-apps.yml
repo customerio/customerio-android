@@ -69,6 +69,11 @@ jobs:
         distribution: 'temurin'
         java-version: '11'
 
+    # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries. 
+    # If using sd on macos, "brew install" works great. for Linux, this is the recommended way. 
+    - name: Install sd CLI to use later in the workflow 
+      uses: kenji-miyake/setup-sd@v1
+
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2 
     

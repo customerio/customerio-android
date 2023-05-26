@@ -20,7 +20,7 @@ import io.customer.messagingpush.processor.PushMessageProcessor
  * @see [PushMessageProcessor.processGCMMessageIntent] to understand the goals of this
  * class better
  */
-class CustomerIOFirebaseMessagingReceiver : BroadcastReceiver() {
+class CustomerIOCloudMessagingReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val extras = intent.extras

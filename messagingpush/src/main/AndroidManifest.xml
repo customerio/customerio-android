@@ -27,7 +27,7 @@
         listens to message broadcast emitted by Google Cloud APIs. Read class docs for more details.
         -->
         <receiver
-            android:name=".CustomerIOFirebaseMessagingReceiver"
+            android:name=".CustomerIOCloudMessagingReceiver"
             android:exported="true"
             android:permission="com.google.android.c2dm.permission.SEND">
             <intent-filter>

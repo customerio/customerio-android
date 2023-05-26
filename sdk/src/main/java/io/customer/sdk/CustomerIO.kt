@@ -332,7 +332,7 @@ class CustomerIO internal constructor(
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl,
-                configurations = modules.entries.associate { entry -> entry.key to entry.value.moduleConfig }
+                modules = modules.entries.associate { entry -> entry.key to entry.value }
             )
 
             sharedInstance.attachSDKConfig(sdkConfig = config, context = appContext)

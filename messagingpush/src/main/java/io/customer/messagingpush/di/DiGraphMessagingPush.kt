@@ -20,11 +20,9 @@ internal val CustomerIOComponent.fcmTokenProvider: DeviceTokenProvider
     get() = override() ?: FCMTokenProviderImpl(logger = logger, context = context)
 
 internal val CustomerIOComponent.moduleConfig: MessagingPushModuleConfig
-    get() = override() ?: sdkConfig.configurations.getOrElse(
-        ModuleMessagingPushFCM.MODULE_NAME
-    ) {
-        MessagingPushModuleConfig.default()
-    } as MessagingPushModuleConfig
+    get() = override()
+        ?: sdkConfig.modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig
+        ?: MessagingPushModuleConfig.default()
 
 internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
     get() = override() ?: DeepLinkUtilImpl(logger, moduleConfig)

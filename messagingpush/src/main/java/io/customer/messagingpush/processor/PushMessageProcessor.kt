@@ -4,6 +4,7 @@ import android.content.Intent
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.processor.PushMessageProcessor.Companion.RECENT_MESSAGES_MAX_SIZE
+import java.util.concurrent.LinkedBlockingDeque
 
 /**
  * Push notification processor class that is responsible for processing notification
@@ -50,6 +51,7 @@ interface PushMessageProcessor {
 
         // Queue to store recent messages received. The most recent message should be the
         // first element while the oldest being the last.
-        val recentMessagesQueue: ArrayDeque<String> = ArrayDeque(RECENT_MESSAGES_MAX_SIZE)
+        val recentMessagesQueue: LinkedBlockingDeque<String> =
+            LinkedBlockingDeque(RECENT_MESSAGES_MAX_SIZE)
     }
 }

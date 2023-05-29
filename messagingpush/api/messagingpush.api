@@ -102,7 +102,7 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 
 public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {
 	public static final field RECENT_MESSAGES_MAX_SIZE I
-	public final fun getRecentMessagesQueue ()Lkotlin/collections/ArrayDeque;
+	public final fun getRecentMessagesQueue ()Ljava/util/concurrent/LinkedBlockingDeque;
 }
 
 public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {

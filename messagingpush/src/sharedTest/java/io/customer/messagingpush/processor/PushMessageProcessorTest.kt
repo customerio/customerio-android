@@ -72,6 +72,28 @@ class PushMessageProcessorTest : BaseTest() {
     }
 
     @Test
+    fun processMessage_givenQueueLimitReached_expectOldestToBeRemoved() {
+        val processor = pushMessageProcessor()
+        // Push first message and ignore result
+        val givenDeliveryIdOldest = String.random
+        processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryIdOldest)
+        // Fill the queue with random messages and ignore results
+        for (i in 1..PushMessageProcessor.RECENT_MESSAGES_MAX_SIZE) {
+            processor.getOrUpdateMessageAlreadyProcessed(String.random)
+        }
+        // Push last message and ignore result
+        // Pushing this message should remove first message from the queue
+        val givenDeliveryIdRecent = String.random
+        processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryIdRecent)
+
+        val resultOldest = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryIdOldest)
+        val resultRecent = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryIdRecent)
+
+        resultOldest.shouldBeFalse()
+        resultRecent.shouldBeTrue()
+    }
+
+    @Test
     fun processGCMMessageIntent_givenBundleWithoutDeliveryData_expectDoNoTrackPush() {
         val givenBundle = Bundle().apply {
             putString("message_id", String.random)

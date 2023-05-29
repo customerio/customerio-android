@@ -12,7 +12,7 @@ import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
-import io.customer.sdk.module.CustomerIOModuleConfig
+import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
@@ -25,12 +25,12 @@ import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 class PushMessageProcessorTest : BaseTest() {
-    private val configurations = hashMapOf<String, CustomerIOModuleConfig>()
+    private val modules = hashMapOf<String, CustomerIOModule<*>>()
     private val customerIOMock: CustomerIOInstance = mock()
     private val trackRepositoryMock: TrackRepository = mock()
 
     override fun setupConfig(): CustomerIOConfig = createConfig(
-        configurations = configurations
+        modules = modules
     )
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
@@ -98,7 +98,7 @@ class PushMessageProcessorTest : BaseTest() {
             overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()
         )
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
         val gcmIntent: Intent = mock()
         whenever(gcmIntent.extras).thenReturn(givenBundle)
@@ -121,7 +121,7 @@ class PushMessageProcessorTest : BaseTest() {
             overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
         )
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
         val gcmIntent: Intent = mock()
         whenever(gcmIntent.extras).thenReturn(givenBundle)
@@ -144,7 +144,7 @@ class PushMessageProcessorTest : BaseTest() {
             overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()
         )
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
@@ -161,7 +161,7 @@ class PushMessageProcessorTest : BaseTest() {
             overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
         )
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)

@@ -1,3 +1,10 @@
+## [3.5.0](https://github.com/customerio/customerio-android/compare/3.4.3...3.5.0) (2023-05-26)
+
+
+### Features
+
+* dismiss in-app message ([#186](https://github.com/customerio/customerio-android/issues/186)) ([89794f3](https://github.com/customerio/customerio-android/commit/89794f32ed7d8de3f699bfa5f985c179c5b3762c))
+
 ### [3.4.3](https://github.com/customerio/customerio-android/compare/3.4.2...3.4.3) (2023-05-19)
 
 

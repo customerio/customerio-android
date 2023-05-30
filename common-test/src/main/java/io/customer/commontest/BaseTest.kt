@@ -11,7 +11,7 @@ import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
-import io.customer.sdk.module.CustomerIOModuleConfig
+import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockWebServer
@@ -67,7 +67,7 @@ abstract class BaseTest {
         backgroundQueueTaskExpiredSeconds: Double = Seconds.fromDays(3).value,
         logLevel: CioLogLevel = CioLogLevel.DEBUG,
         trackingApiUrl: String? = null,
-        configurations: Map<String, CustomerIOModuleConfig> = emptyMap()
+        modules: Map<String, CustomerIOModule<*>> = emptyMap()
     ) = CustomerIOConfig(
         client = client,
         siteId = siteId,
@@ -81,7 +81,7 @@ abstract class BaseTest {
         backgroundQueueTaskExpiredSeconds = backgroundQueueTaskExpiredSeconds,
         logLevel = logLevel,
         trackingApiUrl = trackingApiUrl,
-        configurations = configurations
+        modules = modules
     )
 
     // override in test class to override SDK config for all test functions in the class.

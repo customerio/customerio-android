@@ -1,7 +1,15 @@
+public final class io/customer/messagingpush/CustomerIOCloudMessagingReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
 public class io/customer/messagingpush/CustomerIOFirebaseMessagingService : com/google/firebase/messaging/FirebaseMessagingService {
 	public static final field Companion Lio/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion;
 	public fun <init> ()V
+	public static final fun onMessageReceived (Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;)Z
+	public static final fun onMessageReceived (Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;Z)Z
 	public fun onMessageReceived (Lcom/google/firebase/messaging/RemoteMessage;)V
+	public static final fun onNewToken (Landroid/content/Context;Ljava/lang/String;)V
 	public fun onNewToken (Ljava/lang/String;)V
 }
 
@@ -90,6 +98,11 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 	public synthetic fun createFromParcel (Landroid/os/Parcel;)Ljava/lang/Object;
 	public fun newArray (I)[Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
 	public synthetic fun newArray (I)[Ljava/lang/Object;
+}
+
+public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {
+	public static final field RECENT_MESSAGES_MAX_SIZE I
+	public final fun getRecentMessagesQueue ()Ljava/util/concurrent/LinkedBlockingDeque;
 }
 
 public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {

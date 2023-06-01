@@ -22,6 +22,18 @@
                 <action android:name="io.customer.messagingpush.PUSH_ACTION" />
             </intent-filter>
         </receiver>
+        <!--
+        Broadcast receiver for listening to push events from GoogleCloudMessaging (GCM). The receiver
+        listens to message broadcast emitted by Google Cloud APIs. Read class docs for more details.
+        -->
+        <receiver
+            android:name=".CustomerIOCloudMessagingReceiver"
+            android:exported="true"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <queries>

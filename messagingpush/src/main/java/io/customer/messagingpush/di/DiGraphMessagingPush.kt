@@ -2,6 +2,8 @@ package io.customer.messagingpush.di
 
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
+import io.customer.messagingpush.processor.PushMessageProcessor
+import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
@@ -29,3 +31,12 @@ internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
 
 internal val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
     get() = override() ?: PushTrackingUtilImpl(trackRepository)
+
+internal val CustomerIOComponent.pushMessageProcessor: PushMessageProcessor
+    get() = override() ?: getSingletonInstanceCreate {
+        PushMessageProcessorImpl(
+            logger = logger,
+            moduleConfig = moduleConfig,
+            trackRepository = trackRepository
+        )
+    }

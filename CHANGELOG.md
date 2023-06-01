@@ -1,3 +1,10 @@
+### [3.5.1](https://github.com/customerio/customerio-android/compare/3.5.0...3.5.1) (2023-06-01)
+
+
+### Bug Fixes
+
+* improve delivered metrics ([#204](https://github.com/customerio/customerio-android/issues/204)) ([831d1d9](https://github.com/customerio/customerio-android/commit/831d1d92c7abcf861b73e1301fbed57b0945b44b))
+
 ## [3.5.0](https://github.com/customerio/customerio-android/compare/3.4.3...3.5.0) (2023-05-26)
 
 

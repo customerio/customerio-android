@@ -7,18 +7,17 @@ import android.content.Intent;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
-import io.customer.android.sample.java_layout.utils.OSUtils;
-import io.customer.android.sample.java_layout.utils.StringUtils;
-import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
 import io.customer.android.sample.java_layout.databinding.ActivitySettingsBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
+import io.customer.android.sample.java_layout.utils.OSUtils;
+import io.customer.android.sample.java_layout.utils.StringUtils;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.messagingpush.provider.FCMTokenProviderImpl;
 import io.customer.sdk.CustomerIOShared;
 import io.customer.sdk.device.DeviceTokenProvider;
@@ -140,17 +139,9 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromInteger(config.getBackgroundQueueSecondsDelay()));
         ViewUtils.setTextWithSelectionIfFocused(binding.bqTasksTextInput, StringUtils.fromInteger(config.getBackgroundQueueMinNumOfTasks()));
-        binding.enableInAppSwitch.setChecked(isFeatureEnabled(config.isInAppEnabled(), false));
-        binding.trackScreensSwitch.setChecked(isFeatureEnabled(config.isScreenTrackingEnabled(), true));
-        binding.trackDeviceAttributesSwitch.setChecked(isFeatureEnabled(config.isDeviceAttributesTrackingEnabled(), true));
-        binding.debugModeSwitch.setChecked(isFeatureEnabled(config.isDebugModeEnabled(), false));
-    }
-
-    private boolean isFeatureEnabled(@Nullable Boolean value, boolean defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        } else {
-            return value;
-        }
+        binding.enableInAppSwitch.setChecked(config.inAppEnabled());
+        binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());
+        binding.trackDeviceAttributesSwitch.setChecked(config.deviceAttributesTrackingEnabled());
+        binding.debugModeSwitch.setChecked(config.debugModeEnabled());
     }
 }

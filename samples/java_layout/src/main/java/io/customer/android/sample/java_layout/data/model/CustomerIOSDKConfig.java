@@ -153,9 +153,18 @@ public class CustomerIOSDKConfig {
         return inAppEnabled;
     }
 
+    public boolean inAppEnabled() {
+        return Boolean.FALSE != inAppEnabled;
+    }
+
+
     @Nullable
     public Boolean isScreenTrackingEnabled() {
         return screenTrackingEnabled;
+    }
+
+    public boolean screenTrackingEnabled() {
+        return Boolean.FALSE != screenTrackingEnabled;
     }
 
     @Nullable
@@ -163,8 +172,16 @@ public class CustomerIOSDKConfig {
         return deviceAttributesTrackingEnabled;
     }
 
+    public boolean deviceAttributesTrackingEnabled() {
+        return Boolean.FALSE != deviceAttributesTrackingEnabled;
+    }
+
     @Nullable
     public Boolean isDebugModeEnabled() {
         return debugModeEnabled;
+    }
+
+    public boolean debugModeEnabled() {
+        return Boolean.TRUE == debugModeEnabled;
     }
 }

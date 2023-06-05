@@ -1,6 +1,7 @@
 package io.customer.android.sample.java_layout.sdk;
 
 import android.text.TextUtils;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -30,7 +31,7 @@ public class CustomerIORepository {
         CustomerIO.Builder builder = new CustomerIO.Builder(sdkConfig.getSiteId(), sdkConfig.getApiKey(), application);
 
         // Enable detailed logging for debug builds.
-        if (Boolean.TRUE.equals(sdkConfig.isDebugModeEnabled())) {
+        if (sdkConfig.debugModeEnabled()) {
             builder.setLogLevel(CioLogLevel.DEBUG);
         }
 
@@ -38,7 +39,8 @@ public class CustomerIORepository {
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
-        if (Boolean.TRUE.equals(sdkConfig.isInAppEnabled())) {
+        Log.d("[CIO]-[DEV]", "test6 -> " + sdkConfig.inAppEnabled());
+        if (sdkConfig.inAppEnabled()) {
             builder.addCustomerIOModule(new ModuleMessagingInApp(
                     new MessagingInAppModuleConfig.Builder()
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))

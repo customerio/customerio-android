@@ -13,7 +13,10 @@ platform :android do
     name_of_sample_app_module = File.basename(path_to_root_directory_sample_app) # just get the name of the directory I am in now. `samples/N`
 
     # Apps use `build.gradle` or `build.kts`. This wildcard lookup is used to get the absolute path to one of these files present 
-    path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd) 
+    # Some apps might have 2 build.gradle files, some might have 1. It's assumed that the build.gradle file that has the deepest path inside of the app module (app/build.gradle is preferred over build.gradle) is the file that we want to use. That is why we sort the array by longest string and then we grab the first location. 
+    relative_path_to_app_gradle_file Dir.glob("../**/build.*").sort{ |x, y| y.length - x.length }.first    
+    path_to_app_gradle_file = File.expand_path(relative_path_to_app_gradle_file, Dir.pwd)
+    UI.message("Using Android app gradle file path: #{path_to_app_gradle_file}")
 
     new_app_version = get_new_app_version()
     new_build_number = get_new_build_version()

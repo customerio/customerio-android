@@ -60,7 +60,7 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
                 FragmentActivity activity = getActivity();
                 if (activity != null) {
                     MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(activity);
-                    builder.setMessage(getString(R.string.event_tracked_msg_format, eventName));
+                    builder.setMessage(R.string.event_tracked_msg);
                     builder.setOnDismissListener(dialogInterface -> activity.onBackPressed());
                     builder.show();
                 }

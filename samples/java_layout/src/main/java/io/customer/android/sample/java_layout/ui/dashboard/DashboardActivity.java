@@ -138,7 +138,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         }
         customerIORepository.trackEvent(eventName, extras);
         MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
-        builder.setMessage(getString(R.string.event_tracked_msg_format, eventName));
+        builder.setMessage(R.string.event_tracked_msg);
         builder.show();
     }
 

@@ -17,6 +17,7 @@
     <string name="log_out">Log Out</string>
     <string name="device_token">Device Token</string>
     <string name="tracking_url">Tracking URL</string>
+    <string name="error_tracking_url">Please enter formatted url e.g. https://tracking.cio/</string>
     <string name="site_id">Site ID</string>
     <string name="error_site_id">Site ID cannot be empty</string>
     <string name="api_key">Api Key</string>

@@ -53,8 +53,10 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
             String displayName = ViewUtils.getText(binding.displayNameTextInput);
             String email = ViewUtils.getTextTrimmed(binding.emailTextInput);
             if (TextUtils.isEmpty(email) || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.emailInputLayout.setError(getString(R.string.error_email));
+                ViewUtils.setError(binding.emailInputLayout, getString(R.string.error_email));
                 isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.emailInputLayout, null);
             }
 
             if (isFormValid) {

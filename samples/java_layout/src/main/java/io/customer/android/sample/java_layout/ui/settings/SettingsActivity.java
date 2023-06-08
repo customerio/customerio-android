@@ -4,6 +4,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.text.TextUtils;
 import android.widget.Toast;
 
@@ -75,19 +76,32 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         binding.saveButton.setOnClickListener(view -> {
             String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
             String apiKey = ViewUtils.getTextTrimmed(binding.apiKeyTextInput);
+            String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
+
             boolean isFormValid = true;
-            if (TextUtils.isEmpty(siteId)) {
-                binding.siteIdInputLayout.setError(getString(R.string.error_site_id));
+            Uri trackingUri = Uri.parse(trackingURL);
+            // Since SDK does not allow tracking URL with empty host
+            if (!trackingURL.isEmpty() && TextUtils.isEmpty(trackingUri.getHost())) {
+                ViewUtils.setError(binding.trackingUrlInputLayout, getString(R.string.error_tracking_url));
                 isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.trackingUrlInputLayout, null);
+            }
+            if (TextUtils.isEmpty(siteId)) {
+                ViewUtils.setError(binding.siteIdInputLayout, getString(R.string.error_site_id));
+                isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.siteIdInputLayout, null);
             }
             if (TextUtils.isEmpty(apiKey)) {
-                binding.apiKeyInputLayout.setError(getString(R.string.error_api_key));
+                ViewUtils.setError(binding.apiKeyInputLayout, getString(R.string.error_api_key));
                 isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.apiKeyInputLayout, null);
             }
 
             if (isFormValid) {
                 binding.progressIndicator.show();
-                String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
                 Double bqSecondsDelay = StringUtils.parseDouble(ViewUtils.getTextTrimmed(binding.bqDelayTextInput), null);
                 Integer bqMinTasks = StringUtils.parseInteger(ViewUtils.getTextTrimmed(binding.bqTasksTextInput), null);
                 boolean featInApp = binding.enableInAppSwitch.isChecked();

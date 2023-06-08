@@ -27,13 +27,29 @@
             android:id="@+id/title_text_view"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_large"
             android:gravity="center"
             android:text="@string/app_title"
             android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
             app:layout_constraintBottom_toTopOf="@id/display_name_input_layout"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toBottomOf="@id/settings_button"
+            app:layout_constraintVertical_bias="0.25" />
+
+        <!--
+        The spacer helps view to slightly stretch the view on larger displays for better user
+        experience when keyboard is open
+        -->
+        <Space
+            android:id="@+id/title_display_name_spacer"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:layout_constraintBottom_toTopOf="@id/display_name_input_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHeight_min="72dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/title_text_view" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/display_name_input_layout"

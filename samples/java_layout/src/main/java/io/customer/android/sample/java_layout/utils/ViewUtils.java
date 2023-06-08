@@ -49,14 +49,10 @@ public class ViewUtils {
         textView.setText(userAgent);
     }
 
-    public static void showAlertDialog(@Nullable Activity activity,
-                                       @Nullable String title,
-                                       @NonNull String message) {
-        new MaterialAlertDialogBuilder(activity)
-                .setTitle(title)
-                .setMessage(message)
+    @NonNull
+    public static MaterialAlertDialogBuilder createAlertDialog(@NonNull Activity activity) {
+        return new MaterialAlertDialogBuilder(activity)
                 .setCancelable(true)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
+                .setPositiveButton(android.R.string.ok, null);
     }
 }

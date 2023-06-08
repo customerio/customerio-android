@@ -13,6 +13,8 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,7 +39,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                 if (isGranted) {
                     onPushPermissionGranted();
                 } else {
-                    ViewUtils.showAlertDialog(this, null, getString(R.string.notification_permission_failure));
+                    MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+                    builder.setMessage(R.string.notification_permission_failure);
+                    builder.show();
                 }
             });
 
@@ -133,7 +137,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             }
         }
         customerIORepository.trackEvent(eventName, extras);
-        ViewUtils.showAlertDialog(this, null, getString(R.string.event_tracked_msg_format, eventName));
+        MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+        builder.setMessage(getString(R.string.event_tracked_msg_format, eventName));
+        builder.show();
     }
 
     private void startSimpleFragmentActivity(String fragmentName) {
@@ -161,6 +167,8 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void onPushPermissionGranted() {
-        ViewUtils.showAlertDialog(this, null, getString(R.string.notification_permission_success));
+        MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+        builder.setMessage(R.string.notification_permission_success);
+        builder.show();
     }
 }

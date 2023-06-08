@@ -1,9 +1,10 @@
 package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.text.TextUtils;
-import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -58,10 +59,10 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
 
                 FragmentActivity activity = getActivity();
                 if (activity != null) {
-                    Toast.makeText(activity,
-                            getString(R.string.event_tracked_msg_format, eventName),
-                            Toast.LENGTH_SHORT).show();
-                    activity.onBackPressed();
+                    MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(activity);
+                    builder.setMessage(getString(R.string.event_tracked_msg_format, eventName));
+                    builder.setOnDismissListener(dialogInterface -> activity.onBackPressed());
+                    builder.show();
                 }
             }
         });

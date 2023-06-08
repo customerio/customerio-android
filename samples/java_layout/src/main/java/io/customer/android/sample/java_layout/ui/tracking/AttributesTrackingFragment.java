@@ -82,6 +82,13 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
                 ViewUtils.setError(binding.attributeNameInputLayout, null);
             }
 
+            if (TextUtils.isEmpty(attributeValue)) {
+                ViewUtils.setError(binding.attributeValueInputLayout, getString(R.string.error_attribute_value));
+                isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.attributeValueInputLayout, null);
+            }
+
             if (isFormValid) {
                 Map<String, String> attributes = new HashMap<>();
                 attributes.put(attributeName, attributeValue);

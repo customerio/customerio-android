@@ -36,12 +36,12 @@
     <string name="event_name">Event Name</string>
     <string name="error_event_name">Event name cannot be empty</string>
     <string name="property_name">Property Name</string>
-    <string name="error_property_name">Property name cannot be empty</string>
     <string name="property_value">Property Value</string>
     <string name="send_event">Send Event</string>
     <string name="attribute_name">Attribute Name</string>
     <string name="error_attribute_name">Attribute name cannot be empty</string>
     <string name="attribute_value">Attribute Value</string>
+    <string name="error_attribute_value">Attribute value cannot be empty</string>
     <string name="screen_title_device_attributes">Set Custom Device Attribute</string>
     <string name="screen_title_profile_attributes">Set Custom Profile Attribute</string>
     <string name="send_device_attribute">Send Device Attributes</string>

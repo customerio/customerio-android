@@ -50,12 +50,6 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
             } else {
                 ViewUtils.setError(binding.eventNameInputLayout, null);
             }
-            if (TextUtils.isEmpty(propertyName)) {
-                ViewUtils.setError(binding.propertyNameInputLayout, getString(R.string.error_property_name));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.propertyNameInputLayout, null);
-            }
 
             if (isFormValid) {
                 Map<String, String> extras = new HashMap<>();

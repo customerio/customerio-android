@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Pair;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
@@ -124,11 +125,15 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void sendRandomEvent() {
         Randoms randoms = new Randoms();
-        String eventName = randoms.eventName();
-        Map<String, Object> eventAttributes = randoms.eventAttributes();
+        Pair<String, Map<String, Object>> trackingEvent = randoms.trackingEvent();
+        String eventName = trackingEvent.first;
+        Map<String, Object> eventAttributes = trackingEvent.second;
+
         Map<String, String> extras = new HashMap<>();
-        for (Map.Entry<String, Object> entry : eventAttributes.entrySet()) {
-            extras.put(entry.getKey(), String.valueOf(entry.getValue()));
+        if (eventAttributes != null) {
+            for (Map.Entry<String, Object> entry : eventAttributes.entrySet()) {
+                extras.put(entry.getKey(), String.valueOf(entry.getValue()));
+            }
         }
         customerIORepository.trackEvent(eventName, extras);
         Snackbar.make(binding.sendRandomEventButton,

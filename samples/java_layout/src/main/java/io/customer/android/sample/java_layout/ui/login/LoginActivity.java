@@ -63,7 +63,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
         });
         binding.randomLoginButton.setOnClickListener(view -> {
             Randoms randoms = new Randoms();
-            authViewModel.setLoggedInUser(new User(randoms.email(), randoms.displayName(), true));
+            authViewModel.setLoggedInUser(new User(randoms.email(), "", true));
         });
     }
 }

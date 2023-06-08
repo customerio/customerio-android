@@ -21,7 +21,7 @@ public class User {
     public static Optional<User> fromMap(@NonNull Map<String, String> bundle) {
         String email = bundle.get(Keys.EMAIL);
         String displayName = bundle.get(Keys.DISPLAY_NAME);
-        if (TextUtils.isEmpty(email) || TextUtils.isEmpty(displayName)) {
+        if (TextUtils.isEmpty(email)) {
             return Optional.empty();
         }
         boolean isGuest = StringUtils.parseBoolean(bundle.get(Keys.IS_GUEST), false);

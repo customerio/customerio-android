@@ -5,10 +5,9 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-
-import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -110,7 +109,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(preferences -> {
                             binding.progressIndicator.hide();
-                            Snackbar.make(binding.saveButton, R.string.settings_save_msg, Snackbar.LENGTH_SHORT).show();
+                            Toast.makeText(this, R.string.settings_save_msg, Toast.LENGTH_SHORT).show();
                             OSUtils.restartApp();
                         });
                 disposables.add(disposable);

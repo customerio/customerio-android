@@ -17,6 +17,11 @@ import io.customer.sdk.CustomerIO;
 
 public class ViewUtils {
     @NonNull
+    public static String getText(@NonNull EditText editText) {
+        return editText.getText().toString();
+    }
+
+    @NonNull
     public static String getTextTrimmed(@NonNull EditText editText) {
         return editText.getText().toString().trim();
     }

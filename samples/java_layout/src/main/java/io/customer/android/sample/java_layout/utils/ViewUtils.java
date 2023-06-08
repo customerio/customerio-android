@@ -12,7 +12,6 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.util.Locale;
 
 import io.customer.android.sample.java_layout.BuildConfig;
-import io.customer.android.sample.java_layout.R;
 import io.customer.sdk.CustomerIO;
 
 public class ViewUtils {
@@ -39,10 +38,9 @@ public class ViewUtils {
         textInputLayout.setError(error);
     }
 
-    public static void setUserAgent(@NonNull TextView textView) {
+    public static void setBuildInfo(@NonNull TextView textView) {
         String userAgent = String.format(Locale.ENGLISH,
-                "%s - SDK v%s - App v%s (%s)",
-                textView.getContext().getString(R.string.app_name),
+                "Customer.io Android SDK %s Java Layout %s (%s)",
                 CustomerIO.instance().getSdkVersion(),
                 BuildConfig.VERSION_NAME,
                 BuildConfig.VERSION_CODE);

@@ -104,7 +104,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void setupObservers() {
-        ViewUtils.setUserAgent(binding.userAgentTextView);
+        ViewUtils.setBuildInfo(binding.buildInfoTextView);
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
         });
         authViewModel.getUserDataObservable().observe(this, user -> {

@@ -35,7 +35,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     }
 
     private void setupObservers() {
-        ViewUtils.setUserAgent(binding.userAgentTextView);
+        ViewUtils.setBuildInfo(binding.buildInfoTextView);
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 startActivity(new Intent(LoginActivity.this, DashboardActivity.class));

@@ -159,7 +159,7 @@
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <TextView
-                android:id="@+id/user_agent_text_view"
+                android:id="@+id/build_info_text_view"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="@dimen/margin_default"

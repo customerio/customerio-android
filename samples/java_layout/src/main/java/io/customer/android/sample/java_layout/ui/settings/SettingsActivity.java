@@ -88,7 +88,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             if (isFormValid) {
                 binding.progressIndicator.show();
                 String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
-                Integer bqSecondsDelay = StringUtils.parseInteger(ViewUtils.getTextTrimmed(binding.bqDelayTextInput), null);
+                Double bqSecondsDelay = StringUtils.parseDouble(ViewUtils.getTextTrimmed(binding.bqDelayTextInput), null);
                 Integer bqMinTasks = StringUtils.parseInteger(ViewUtils.getTextTrimmed(binding.bqTasksTextInput), null);
                 boolean featInApp = binding.enableInAppSwitch.isChecked();
                 boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
@@ -136,7 +136,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         ViewUtils.setTextWithSelectionIfFocused(binding.trackingUrlTextInput, config.getTrackingURL());
         ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, config.getSiteId());
         ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
-        ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromInteger(config.getBackgroundQueueSecondsDelay()));
+        ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromDouble(config.getBackgroundQueueSecondsDelay()));
         ViewUtils.setTextWithSelectionIfFocused(binding.bqTasksTextInput, StringUtils.fromInteger(config.getBackgroundQueueMinNumOfTasks()));
         binding.enableInAppSwitch.setChecked(config.inAppEnabled());
         binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());

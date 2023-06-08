@@ -1,7 +1,6 @@
 package io.customer.android.sample.java_layout.sdk;
 
 import android.text.TextUtils;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -39,7 +38,6 @@ public class CustomerIORepository {
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
-        Log.d("[CIO]-[DEV]", "test6 -> " + sdkConfig.inAppEnabled());
         if (sdkConfig.inAppEnabled()) {
             builder.addCustomerIOModule(new ModuleMessagingInApp(
                     new MessagingInAppModuleConfig.Builder()
@@ -67,7 +65,7 @@ public class CustomerIORepository {
             builder.setTrackingApiURL(trackingApiUrl);
         }
 
-        final Integer bqSecondsDelay = sdkConfig.getBackgroundQueueSecondsDelay();
+        final Double bqSecondsDelay = sdkConfig.getBackgroundQueueSecondsDelay();
         if (bqSecondsDelay != null) {
             builder.setBackgroundQueueSecondsDelay(bqSecondsDelay);
         }

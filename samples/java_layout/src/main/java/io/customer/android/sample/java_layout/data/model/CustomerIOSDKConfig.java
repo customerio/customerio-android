@@ -31,13 +31,13 @@ public class CustomerIOSDKConfig {
     public static CustomerIOSDKConfig getDefaultConfigurations() {
         return new CustomerIOSDKConfig(BuildConfig.SITE_ID,
                 BuildConfig.API_KEY,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
+                "https://track-sdk.customer.io/",
+                30.0,
+                10,
+                true,
+                true,
+                true,
+                true);
     }
 
     @NonNull
@@ -50,7 +50,7 @@ public class CustomerIOSDKConfig {
 
         CustomerIOSDKConfig defaultConfig = getDefaultConfigurations();
         String trackingURL = bundle.get(Keys.TRACKING_URL);
-        Integer bqSecondsDelay = StringUtils.parseInteger(bundle.get(Keys.BQ_SECONDS_DELAY), defaultConfig.backgroundQueueSecondsDelay);
+        Double bqSecondsDelay = StringUtils.parseDouble(bundle.get(Keys.BQ_SECONDS_DELAY), defaultConfig.backgroundQueueSecondsDelay);
         Integer bqMinTasks = StringUtils.parseInteger(bundle.get(Keys.BQ_MIN_TASKS), defaultConfig.backgroundQueueMinNumOfTasks);
         boolean inAppEnabled = StringUtils.parseBoolean(bundle.get(Keys.ENABLE_IN_APP), defaultConfig.inAppEnabled);
         boolean screenTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_SCREENS), defaultConfig.screenTrackingEnabled);
@@ -75,7 +75,7 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.SITE_ID, config.siteId);
         bundle.put(Keys.API_KEY, config.apiKey);
         bundle.put(Keys.TRACKING_URL, config.trackingURL);
-        bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromInteger(config.backgroundQueueSecondsDelay));
+        bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromDouble(config.backgroundQueueSecondsDelay));
         bundle.put(Keys.BQ_MIN_TASKS, StringUtils.fromInteger(config.backgroundQueueMinNumOfTasks));
         bundle.put(Keys.ENABLE_IN_APP, StringUtils.fromBoolean(config.inAppEnabled));
         bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(config.screenTrackingEnabled));
@@ -91,7 +91,7 @@ public class CustomerIOSDKConfig {
     @Nullable
     private final String trackingURL;
     @Nullable
-    private final Integer backgroundQueueSecondsDelay;
+    private final Double backgroundQueueSecondsDelay;
     @Nullable
     private final Integer backgroundQueueMinNumOfTasks;
     @Nullable
@@ -106,7 +106,7 @@ public class CustomerIOSDKConfig {
     public CustomerIOSDKConfig(@NonNull String siteId,
                                @NonNull String apiKey,
                                @Nullable String trackingURL,
-                               @Nullable Integer backgroundQueueSecondsDelay,
+                               @Nullable Double backgroundQueueSecondsDelay,
                                @Nullable Integer backgroundQueueMinNumOfTasks,
                                @Nullable Boolean inAppEnabled,
                                @Nullable Boolean screenTrackingEnabled,
@@ -139,7 +139,7 @@ public class CustomerIOSDKConfig {
     }
 
     @Nullable
-    public Integer getBackgroundQueueSecondsDelay() {
+    public Double getBackgroundQueueSecondsDelay() {
         return backgroundQueueSecondsDelay;
     }
 
@@ -182,6 +182,6 @@ public class CustomerIOSDKConfig {
     }
 
     public boolean debugModeEnabled() {
-        return Boolean.TRUE == debugModeEnabled;
+        return Boolean.FALSE != debugModeEnabled;
     }
 }

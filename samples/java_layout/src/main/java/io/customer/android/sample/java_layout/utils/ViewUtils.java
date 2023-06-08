@@ -1,5 +1,6 @@
 package io.customer.android.sample.java_layout.utils;
 
+import android.app.Activity;
 import android.text.TextUtils;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -7,6 +8,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.Locale;
@@ -45,5 +47,16 @@ public class ViewUtils {
                 BuildConfig.VERSION_NAME,
                 BuildConfig.VERSION_CODE);
         textView.setText(userAgent);
+    }
+
+    public static void showAlertDialog(@Nullable Activity activity,
+                                       @Nullable String title,
+                                       @NonNull String message) {
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle(title)
+                .setMessage(message)
+                .setCancelable(true)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 }

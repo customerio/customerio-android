@@ -12,6 +12,7 @@
     <string name="send_custom_event">Send Custom Event</string>
     <string name="set_device_attributes">Set Device Attributes</string>
     <string name="set_profile_attributes">Set Profile Attributes</string>
+    <string name="show_push_prompt">Show Push Prompt</string>
     <string name="view_logs">View Logs</string>
     <string name="log_out">Log Out</string>
     <string name="device_token">Device Token</string>
@@ -53,7 +54,7 @@
     <string name="label_login_activity">LoginActivity</string>
     <string name="label_settings_activity">SettingsActivity</string>
     <string name="label_simple_fragment_activity">SimpleFragmentActivity</string>
-    <string name="notification_permission_success">Push notifications are now enabled on this device</string>
+    <string name="notification_permission_success">Push notifications are enabled on this device</string>
     <string name="notification_permission_failure">Push notifications are disabled on this device</string>
     <string name="filter_view_app_link">Java Sample App Scheme Links</string>
     <string name="filter_view_universal_link">Java Sample Universal Scheme Links</string>

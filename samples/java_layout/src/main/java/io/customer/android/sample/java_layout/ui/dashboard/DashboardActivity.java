@@ -11,7 +11,6 @@ import android.view.ViewTreeObserver;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.StringRes;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.material.snackbar.Snackbar;
@@ -37,13 +36,11 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private final ActivityResultLauncher<String> notificationPermissionRequestLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-                @StringRes int messageId;
                 if (isGranted) {
-                    messageId = R.string.notification_permission_success;
+                    onPushPermissionGranted();
                 } else {
-                    messageId = R.string.notification_permission_failure;
+                    ViewUtils.showAlertDialog(this, null, getString(R.string.notification_permission_failure));
                 }
-                Snackbar.make(binding.content, messageId, Snackbar.LENGTH_SHORT).show();
             });
 
     @Override
@@ -99,6 +96,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.setProfileAttributesButton.setOnClickListener(view -> {
             startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
         });
+        binding.showPushPromptButton.setOnClickListener(view -> {
+            requestNotificationPermission();
+        });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
         });
@@ -115,7 +115,6 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             if (isLoggedIn) {
                 binding.progressIndicator.hide();
                 binding.content.setVisibility(View.VISIBLE);
-                requestNotificationPermission();
             } else {
                 startActivity(new Intent(DashboardActivity.this, LoginActivity.class));
                 finish();
@@ -150,13 +149,22 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void requestNotificationPermission() {
         // Push notification permission is only required by API Level 33 (Android 13) and above
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            onPushPermissionGranted();
+            return;
+        }
 
         int permissionStatus = ContextCompat.checkSelfPermission(
                 DashboardActivity.this, Manifest.permission.POST_NOTIFICATIONS);
         // Ask for notification permission if not granted
-        if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
+        if (permissionStatus == PackageManager.PERMISSION_GRANTED) {
+            onPushPermissionGranted();
+        } else {
             notificationPermissionRequestLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
+    }
+
+    private void onPushPermissionGranted() {
+        ViewUtils.showAlertDialog(this, null, getString(R.string.notification_permission_success));
     }
 }

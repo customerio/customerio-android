@@ -7,7 +7,6 @@
     <string name="login">Login</string>
     <string name="generate_random_login">Generate Random Login</string>
     <string name="settings">Settings</string>
-    <string name="dashboard_greeting_message_format">Hi, %1$s</string>
     <string name="dashboard_title_message">What would you like to test?</string>
     <string name="send_random_event">Send Random Event</string>
     <string name="send_custom_event">Send Custom Event</string>

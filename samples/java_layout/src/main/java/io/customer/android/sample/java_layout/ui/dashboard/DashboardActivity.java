@@ -108,9 +108,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
         });
         authViewModel.getUserDataObservable().observe(this, user -> {
-            binding.greetingsTextView.setText(
-                    getString(R.string.dashboard_greeting_message_format, user.getDisplayName())
-            );
+            binding.userEmailTextView.setText(user.getEmail());
         });
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {

@@ -23,11 +23,66 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter android:label="@string/filter_view_app_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs beginning with "java-sample://dashboard" -->
+                <data
+                    android:host="dashboard"
+                    android:scheme="java-sample" />
+            </intent-filter>
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/filter_view_universal_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs beginning with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs beginning with "https://*" -->
+                <data android:scheme="https" />
+                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
+                <!-- Accepts URIs beginning with "*://${universalDeepLinkHost}" -->
+                <data android:host="${universalDeepLinkHost}" />
+                <!-- Accepts URIs with path "*://*/dashboard/*" -->
+                <data android:pathPrefix="/dashboard" />
+            </intent-filter>
         </activity>
         <activity
             android:name=".ui.login.LoginActivity"
-            android:exported="false"
-            android:label="@string/label_login_activity" />
+            android:exported="true"
+            android:label="@string/label_login_activity">
+            <intent-filter android:label="@string/filter_view_app_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs beginning with "java-sample://login" -->
+                <data
+                    android:host="login"
+                    android:scheme="java-sample" />
+            </intent-filter>
+            <intent-filter
+                android:autoVerify="true"
+                android:label="@string/filter_view_universal_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs beginning with "http://*" -->
+                <data android:scheme="http" />
+                <!-- Accepts URIs beginning with "https://*" -->
+                <data android:scheme="https" />
+                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
+                <!-- Accepts URIs beginning with "*://${universalDeepLinkHost}" -->
+                <data android:host="${universalDeepLinkHost}" />
+                <!-- Accepts URIs with path "*://*/login/*" -->
+                <data android:pathPrefix="/login" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="true"
@@ -37,7 +92,7 @@
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-sample://settings" -->
+                <!-- Accepts URIs beginning with "java-sample://settings" -->
                 <data
                     android:host="settings"
                     android:scheme="java-sample" />
@@ -49,53 +104,21 @@
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "http://*" -->
+                <!-- Accepts URIs beginning with "http://*" -->
                 <data android:scheme="http" />
-                <!-- Accepts URIs that begin with "https://*" -->
+                <!-- Accepts URIs beginning with "https://*" -->
                 <data android:scheme="https" />
                 <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
-                <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
+                <!-- Accepts URIs beginning with "*://${universalDeepLinkHost}" -->
                 <data android:host="${universalDeepLinkHost}" />
-                <!-- Accepts URIs that ends with "*://*/settings" -->
+                <!-- Accepts URIs with path "*://*/settings/*" -->
                 <data android:pathPrefix="/settings" />
             </intent-filter>
         </activity>
         <activity
             android:name=".ui.common.SimpleFragmentActivity"
-            android:exported="true"
-            android:label="@string/label_simple_fragment_activity">
-            <intent-filter android:label="@string/filter_view_app_link">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "java-sample://*" -->
-                <data android:scheme="java-sample" />
-                <!-- Accepts URIs with host "*://events" -->
-                <data android:host="events" />
-                <!-- Accepts URIs with host "*://attributes" -->
-                <data android:host="attributes" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="@string/filter_view_universal_link">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "http://*" -->
-                <data android:scheme="http" />
-                <!-- Accepts URIs that begin with "https://*" -->
-                <data android:scheme="https" />
-                <!-- See `samples/java_layout/build.gradle` for `universalDeepLinkHost` value -->
-                <!-- Accepts URIs that begin with "*://${universalDeepLinkHost}" -->
-                <data android:host="${universalDeepLinkHost}" />
-                <!-- Accepts URIs that ends with "*://*/events" -->
-                <data android:pathPrefix="/events" />
-                <!-- Accepts URIs that ends with "*://*/attributes" -->
-                <data android:pathPrefix="/attributes" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:label="@string/label_simple_fragment_activity" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

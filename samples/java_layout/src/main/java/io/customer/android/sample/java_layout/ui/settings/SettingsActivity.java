@@ -31,6 +31,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     private final CompositeDisposable disposables = new CompositeDisposable();
     private SettingsViewModel settingsViewModel;
+    private boolean isLinkParamsPopulated = false;
 
     @Override
     protected ActivitySettingsBinding inflateViewBinding() {
@@ -57,6 +58,32 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     protected void setupContent() {
         setupViews();
         setupObservers();
+    }
+
+    private void parseLinkParams() {
+        // Exit early if params were already populated
+        if (isLinkParamsPopulated) return;
+
+        Intent intent = getIntent();
+        Uri deepLinkUri = intent.getData();
+
+        // deepLinkUri contains link URI if activity is launched from deep link or url from
+        // Customer.io push notification
+        // e.g.
+        // java-sample://settings&site_id=xxx&api_key=yyy
+        // https://www.java-sample.com/settings&site_id=xxx&api_key=yyy
+
+        if (deepLinkUri != null) {
+            String siteId = deepLinkUri.getQueryParameter("site_id");
+            if (siteId != null) {
+                ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, siteId);
+            }
+            String apiKey = deepLinkUri.getQueryParameter("api_key");
+            if (apiKey != null) {
+                ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, apiKey);
+            }
+        }
+        isLinkParamsPopulated = true;
     }
 
     private void setupViews() {
@@ -143,6 +170,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         settingsViewModel.getSDKConfigObservable().observe(this, config -> {
             binding.progressIndicator.hide();
             updateIOWithConfig(config);
+            parseLinkParams();
         });
     }
 

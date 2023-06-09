@@ -104,10 +104,13 @@ jobs:
         lane: 'android build'
         subdirectory: "samples/${{ matrix.sample-app }}"
       env:
-        ANDROID_SIGNING_ALIAS: ${{ secrets.ANDROID_SIGNING_ALIAS }}
-        ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
-        ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
         FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64: ${{ secrets.FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64 }}
+    
+    - name: Save built app binary for manual install if needed. 
+      uses: actions/upload-artifact@v3
+      with:
+        name: "${{ matrix.sample-app }} APK"
+        path: samples/${{ matrix.sample-app }}/build/outputs/apk/release/*.apk
     
     - name: Update sample builds PR comment with build information 
       if: ${{ github.event_name == 'pull_request' }}

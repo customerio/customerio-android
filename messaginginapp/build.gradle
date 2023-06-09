@@ -34,6 +34,9 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+    buildFeatures {
+        viewBinding true
+    }
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
@@ -49,13 +52,17 @@ dependencies {
     api project(":base")
     api project(":sdk")
 
+    implementation 'androidx.core:core-ktx:1.10.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.6.1"
+
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
+    implementation Dependencies.androidxAppCompat
     implementation Dependencies.retrofit
-    api Dependencies.gist
-    implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
-
 }

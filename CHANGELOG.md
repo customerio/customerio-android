@@ -1,3 +1,10 @@
+### [3.5.2](https://github.com/customerio/customerio-android/compare/3.5.1...3.5.2) (2023-06-09)
+
+
+### Bug Fixes
+
+* set auto track screen to false by default ([#216](https://github.com/customerio/customerio-android/issues/216)) ([71fcf52](https://github.com/customerio/customerio-android/commit/71fcf528bb52f7d2fcc6c9cecf686927e3c9b77b))
+
 ### [3.5.1](https://github.com/customerio/customerio-android/compare/3.5.0...3.5.1) (2023-06-01)
 
 

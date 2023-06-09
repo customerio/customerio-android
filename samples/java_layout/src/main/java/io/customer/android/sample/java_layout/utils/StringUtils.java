@@ -4,6 +4,8 @@ import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
+import java.util.Locale;
+
 public class StringUtils {
     @Nullable
     public static Double parseDouble(@Nullable String value, @Nullable Double defaultValue) {
@@ -19,7 +21,9 @@ public class StringUtils {
     }
 
     public static String fromDouble(@Nullable Double value) {
-        return value == null ? null : value.toString();
+        if (value == null) return null;
+        if (value % 1.0 != 0.0) return value.toString();
+        else return String.format(Locale.ENGLISH, "%.0f", value);
     }
 
     @Nullable

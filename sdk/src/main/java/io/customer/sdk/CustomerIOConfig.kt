@@ -61,7 +61,7 @@ data class CustomerIOConfig(
             const val BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS = 10
             const val BACKGROUND_QUEUE_SECONDS_DELAY = 30.0
             const val HTTP_REQUEST_TIMEOUT = 6000L
-            const val SHOULD_AUTO_RECORD_SCREEN_VIEWS = true
+            const val SHOULD_AUTO_RECORD_SCREEN_VIEWS = false
         }
 
         object Keys {

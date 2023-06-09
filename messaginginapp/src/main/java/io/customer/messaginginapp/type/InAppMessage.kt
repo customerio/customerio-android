@@ -1,7 +1,7 @@
 package io.customer.messaginginapp.type
 
-import build.gist.data.model.GistMessageProperties
-import build.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.GistMessageProperties
+import io.customer.messaginginapp.gist.data.model.Message
 
 data class InAppMessage(
     val messageId: String,

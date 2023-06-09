@@ -5,12 +5,14 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Pair;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -35,13 +37,22 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private AuthViewModel authViewModel;
     private CustomerIORepository customerIORepository;
 
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private final ActivityResultLauncher<Intent> notificationSettingsRequestLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (isNotificationPermissionGranted()) {
+                    showPushPermissionGranted();
+                }
+            });
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private final ActivityResultLauncher<String> notificationPermissionRequestLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
                 if (isGranted) {
-                    onPushPermissionGranted();
+                    showPushPermissionGranted();
                 } else {
                     MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
-                    builder.setMessage(R.string.notification_permission_failure);
+                    builder.setMessage(R.string.notification_permission_denied);
+                    builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
                     builder.show();
                 }
             });
@@ -153,21 +164,43 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private void requestNotificationPermission() {
         // Push notification permission is only required by API Level 33 (Android 13) and above
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            onPushPermissionGranted();
+            showPushPermissionGrantedAlert();
             return;
         }
 
-        int permissionStatus = ContextCompat.checkSelfPermission(
-                DashboardActivity.this, Manifest.permission.POST_NOTIFICATIONS);
         // Ask for notification permission if not granted
-        if (permissionStatus == PackageManager.PERMISSION_GRANTED) {
-            onPushPermissionGranted();
+        if (isNotificationPermissionGranted()) {
+            showPushPermissionGrantedAlert();
+        } else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+            builder.setMessage(R.string.notification_permission_failure);
+            builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
+            builder.show();
         } else {
             notificationPermissionRequestLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
     }
 
-    private void onPushPermissionGranted() {
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private boolean isNotificationPermissionGranted() {
+        return ContextCompat.checkSelfPermission(DashboardActivity.this,
+                Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private void openNotificationPermissionSettings() {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+        intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        notificationSettingsRequestLauncher.launch(intent);
+    }
+
+    private void showPushPermissionGranted() {
+        Snackbar.make(binding.showPushPromptButton,
+                R.string.notification_permission_success,
+                Snackbar.LENGTH_SHORT).show();
+    }
+
+    private void showPushPermissionGrantedAlert() {
         MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
         builder.setMessage(R.string.notification_permission_success);
         builder.show();

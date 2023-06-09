@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Ami App</string>
+    <string name="app_name">JavaLayout</string>
     <string name="app_title">Android Java Layout Ami App</string>
     <string name="display_name">First Name</string>
     <string name="email">Email</string>

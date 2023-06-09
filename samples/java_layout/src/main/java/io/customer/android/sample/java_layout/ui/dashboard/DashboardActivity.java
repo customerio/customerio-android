@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -137,9 +138,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             }
         }
         customerIORepository.trackEvent(eventName, extras);
-        MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
-        builder.setMessage(R.string.event_tracked_msg);
-        builder.show();
+        Snackbar.make(binding.sendRandomEventButton,
+                R.string.event_tracked_msg,
+                Snackbar.LENGTH_SHORT).show();
     }
 
     private void startSimpleFragmentActivity(String fragmentName) {

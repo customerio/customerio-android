@@ -14,6 +14,7 @@ import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import io.customer.sdk.util.CioLogLevel
+import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -52,7 +53,7 @@ class CustomerIOTest : BaseTest() {
             apiKey = givenApiKey,
             region = Region.EU,
             appContext = application
-        ).autoTrackScreenViews(true)
+        )
 
         val client = builder.build()
 
@@ -62,9 +63,13 @@ class CustomerIOTest : BaseTest() {
         actual.apiKey shouldBeEqualTo givenApiKey
         actual.timeout.shouldNotBeNull()
         actual.region shouldBeEqualTo Region.EU
-        actual.autoTrackScreenViews shouldBeEqualTo true
+        actual.autoTrackScreenViews shouldBeEqualTo false
         actual.trackingApiUrl shouldBeEqualTo null
         actual.trackingApiHostname shouldBeEqualTo "https://track-sdk-eu.customer.io/"
+        actual.backgroundQueueTaskExpiredSeconds shouldBeEqualTo Seconds.fromDays(3).value
+        actual.backgroundQueueMinNumberOfTasks shouldBeEqualTo 10
+        actual.backgroundQueueSecondsDelay shouldBeEqualTo 30.0
+        actual.logLevel shouldBeEqualTo CioLogLevel.ERROR
     }
 
     @Test

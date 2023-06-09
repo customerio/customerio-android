@@ -70,5 +70,5 @@
     <color name="md_theme_dark_outlineVariant">#46464F</color>
     <color name="md_theme_dark_scrim">#000000</color>
     <!-- App specific colors -->
-    <color name="notification_icon">@color/md_theme_light_tertiary</color>
+    <color name="notification_icon">@color/md_theme_light_primary</color>
 </resources>

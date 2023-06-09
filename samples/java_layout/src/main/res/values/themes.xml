@@ -54,5 +54,5 @@
         <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
     </style>
 
-    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.FilledBox" />
+    <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox" />
 </resources>

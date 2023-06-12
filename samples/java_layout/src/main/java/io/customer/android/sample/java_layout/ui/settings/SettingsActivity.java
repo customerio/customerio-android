@@ -131,7 +131,6 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                 binding.progressIndicator.show();
                 Double bqSecondsDelay = StringUtils.parseDouble(ViewUtils.getTextTrimmed(binding.bqDelayTextInput), null);
                 Integer bqMinTasks = StringUtils.parseInteger(ViewUtils.getTextTrimmed(binding.bqTasksTextInput), null);
-                boolean featInApp = binding.enableInAppSwitch.isChecked();
                 boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
                 boolean featTrackDeviceAttributes = binding.trackDeviceAttributesSwitch.isChecked();
                 boolean featDebugMode = binding.debugModeSwitch.isChecked();
@@ -140,7 +139,6 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                         trackingURL,
                         bqSecondsDelay,
                         bqMinTasks,
-                        featInApp,
                         featTrackScreens,
                         featTrackDeviceAttributes,
                         featDebugMode);
@@ -180,7 +178,6 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromDouble(config.getBackgroundQueueSecondsDelay()));
         ViewUtils.setTextWithSelectionIfFocused(binding.bqTasksTextInput, StringUtils.fromInteger(config.getBackgroundQueueMinNumOfTasks()));
-        binding.enableInAppSwitch.setChecked(config.inAppEnabled());
         binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());
         binding.trackDeviceAttributesSwitch.setChecked(config.deviceAttributesTrackingEnabled());
         binding.debugModeSwitch.setChecked(config.debugModeEnabled());

@@ -198,19 +198,6 @@
                     app:layout_constraintTop_toBottomOf="@id/bq_tasks_input_layout" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/enable_in_app_switch"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_default"
-                    android:checked="false"
-                    android:text="@string/enable_in_app"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/features_section_title"
-                    tools:checked="false" />
-
-                <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/track_screens_switch"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -220,7 +207,7 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintHorizontal_bias="0"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/enable_in_app_switch"
+                    app:layout_constraintTop_toBottomOf="@id/features_section_title"
                     tools:checked="true" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch

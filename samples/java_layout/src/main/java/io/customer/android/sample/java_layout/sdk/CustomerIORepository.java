@@ -38,13 +38,11 @@ public class CustomerIORepository {
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
-        if (sdkConfig.inAppEnabled()) {
-            builder.addCustomerIOModule(new ModuleMessagingInApp(
-                    new MessagingInAppModuleConfig.Builder()
-                            .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
-                            .build()
-            ));
-        }
+        builder.addCustomerIOModule(new ModuleMessagingInApp(
+                new MessagingInAppModuleConfig.Builder()
+                        .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                        .build()
+        ));
 
         // Modify SDK settings for testing purposes only.
         // If you don't need to override any of these settings, you can skip this line.

@@ -22,7 +22,6 @@ public class CustomerIOSDKConfig {
         static final String TRACKING_URL = "cio_sdk_tracking_url";
         static final String BQ_SECONDS_DELAY = "cio_sdk_bq_seconds_delay";
         static final String BQ_MIN_TASKS = "cio_sdk_bq_min_tasks";
-        static final String ENABLE_IN_APP = "cio_sdk_enable_in_app";
         static final String TRACK_SCREENS = "cio_sdk_track_screens";
         static final String TRACK_DEVICE_ATTRIBUTES = "cio_sdk_track_device_attributes";
         static final String DEBUG_MODE = "cio_sdk_debug_mode";
@@ -34,7 +33,6 @@ public class CustomerIOSDKConfig {
                 "https://track-sdk.customer.io/",
                 30.0,
                 10,
-                true,
                 true,
                 true,
                 true);
@@ -52,7 +50,6 @@ public class CustomerIOSDKConfig {
         String trackingURL = bundle.get(Keys.TRACKING_URL);
         Double bqSecondsDelay = StringUtils.parseDouble(bundle.get(Keys.BQ_SECONDS_DELAY), defaultConfig.backgroundQueueSecondsDelay);
         Integer bqMinTasks = StringUtils.parseInteger(bundle.get(Keys.BQ_MIN_TASKS), defaultConfig.backgroundQueueMinNumOfTasks);
-        boolean inAppEnabled = StringUtils.parseBoolean(bundle.get(Keys.ENABLE_IN_APP), defaultConfig.inAppEnabled);
         boolean screenTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_SCREENS), defaultConfig.screenTrackingEnabled);
         boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
         boolean debugModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.DEBUG_MODE), defaultConfig.debugModeEnabled);
@@ -62,7 +59,6 @@ public class CustomerIOSDKConfig {
                 trackingURL,
                 bqSecondsDelay,
                 bqMinTasks,
-                inAppEnabled,
                 screenTrackingEnabled,
                 deviceAttributesTrackingEnabled,
                 debugModeEnabled);
@@ -77,7 +73,6 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.TRACKING_URL, config.trackingURL);
         bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromDouble(config.backgroundQueueSecondsDelay));
         bundle.put(Keys.BQ_MIN_TASKS, StringUtils.fromInteger(config.backgroundQueueMinNumOfTasks));
-        bundle.put(Keys.ENABLE_IN_APP, StringUtils.fromBoolean(config.inAppEnabled));
         bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(config.screenTrackingEnabled));
         bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
         bundle.put(Keys.DEBUG_MODE, StringUtils.fromBoolean(config.debugModeEnabled));
@@ -95,8 +90,6 @@ public class CustomerIOSDKConfig {
     @Nullable
     private final Integer backgroundQueueMinNumOfTasks;
     @Nullable
-    private final Boolean inAppEnabled;
-    @Nullable
     private final Boolean screenTrackingEnabled;
     @Nullable
     private final Boolean deviceAttributesTrackingEnabled;
@@ -108,7 +101,6 @@ public class CustomerIOSDKConfig {
                                @Nullable String trackingURL,
                                @Nullable Double backgroundQueueSecondsDelay,
                                @Nullable Integer backgroundQueueMinNumOfTasks,
-                               @Nullable Boolean inAppEnabled,
                                @Nullable Boolean screenTrackingEnabled,
                                @Nullable Boolean deviceAttributesTrackingEnabled,
                                @Nullable Boolean debugModeEnabled) {
@@ -117,7 +109,6 @@ public class CustomerIOSDKConfig {
         this.trackingURL = trackingURL;
         this.backgroundQueueSecondsDelay = backgroundQueueSecondsDelay;
         this.backgroundQueueMinNumOfTasks = backgroundQueueMinNumOfTasks;
-        this.inAppEnabled = inAppEnabled;
         this.screenTrackingEnabled = screenTrackingEnabled;
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
         this.debugModeEnabled = debugModeEnabled;
@@ -146,15 +137,6 @@ public class CustomerIOSDKConfig {
     @Nullable
     public Integer getBackgroundQueueMinNumOfTasks() {
         return backgroundQueueMinNumOfTasks;
-    }
-
-    @Nullable
-    public Boolean isInAppEnabled() {
-        return inAppEnabled;
-    }
-
-    public boolean inAppEnabled() {
-        return Boolean.FALSE != inAppEnabled;
     }
 
 

@@ -145,22 +145,29 @@ public class CustomerIOSDKConfig {
         return screenTrackingEnabled;
     }
 
-    public boolean screenTrackingEnabled() {
-        return Boolean.FALSE != screenTrackingEnabled;
-    }
-
     @Nullable
     public Boolean isDeviceAttributesTrackingEnabled() {
         return deviceAttributesTrackingEnabled;
     }
 
-    public boolean deviceAttributesTrackingEnabled() {
-        return Boolean.FALSE != deviceAttributesTrackingEnabled;
-    }
-
     @Nullable
     public Boolean isDebugModeEnabled() {
         return debugModeEnabled;
+    }
+
+    /**
+     * Features by default are nullable to help differentiate between default/null values and
+     * values set by user.
+     * Unwrapping nullable values here for ease of use by keeping single source of truth for whole
+     * sample app.
+     */
+
+    public boolean screenTrackingEnabled() {
+        return Boolean.FALSE != screenTrackingEnabled;
+    }
+
+    public boolean deviceAttributesTrackingEnabled() {
+        return Boolean.FALSE != deviceAttributesTrackingEnabled;
     }
 
     public boolean debugModeEnabled() {

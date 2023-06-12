@@ -9,6 +9,8 @@ android {
         buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
         buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
     }
+    // Avoid redefining signing configs in sample apps to avoid breaking release
+    // builds (specially on CI servers)
     signingConfigs {
         debug {
             storeFile file("${rootDir}/samples/debug.keystore")

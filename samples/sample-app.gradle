@@ -9,6 +9,22 @@ android {
         buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
         buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
     }
+    signingConfigs {
+        debug {
+            storeFile file("${rootDir}/samples/debug.keystore")
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
     repositories {
         // For locally deployed builds
         mavenLocal()

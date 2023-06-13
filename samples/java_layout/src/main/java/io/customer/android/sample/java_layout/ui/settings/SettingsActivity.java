@@ -106,9 +106,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
 
             boolean isFormValid = true;
-            Uri trackingUri = Uri.parse(trackingURL);
-            // Since SDK does not allow tracking URL with empty host
-            if (!trackingURL.isEmpty() && TextUtils.isEmpty(trackingUri.getHost())) {
+            if (!isTrackingURLValid(trackingURL)) {
                 ViewUtils.setError(binding.trackingUrlInputLayout, getString(R.string.error_tracking_url));
                 isFormValid = false;
             } else {
@@ -170,6 +168,18 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             updateIOWithConfig(config);
             parseLinkParams();
         });
+    }
+
+    private boolean isTrackingURLValid(String url) {
+        // Empty text is considered valid
+        if (TextUtils.isEmpty(url)) {
+            return true;
+        }
+
+        Uri uri = Uri.parse(url);
+        String scheme = uri.getScheme();
+        // Since SDK does not allow tracking URL with empty host or incorrect schemes
+        return !TextUtils.isEmpty(uri.getAuthority()) && ("http".equals(scheme) || "https".equals(scheme));
     }
 
     private void updateIOWithConfig(@NonNull CustomerIOSDKConfig config) {

@@ -51,8 +51,8 @@ public class Randoms {
                     put("appointmentTime", cal.getTimeInMillis() / 1_000);
                 }};
                 break;
-            default:
             case 0:
+            default:
                 attributes = null;
         }
         return new Pair<>(eventNames[index], attributes);

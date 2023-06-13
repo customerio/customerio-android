@@ -202,6 +202,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void showPushPermissionGrantedAlert() {
         MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+        builder.setTitle(R.string.notification_permission_alert_title);
         builder.setMessage(R.string.notification_permission_success);
         builder.show();
     }

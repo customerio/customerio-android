@@ -54,6 +54,7 @@
     <string name="label_login_activity">LoginActivity</string>
     <string name="label_settings_activity">SettingsActivity</string>
     <string name="label_simple_fragment_activity">SimpleFragmentActivity</string>
+    <string name="notification_permission_alert_title">Push Permission</string>
     <string name="notification_permission_success">Push notifications are enabled on this device</string>
     <string name="notification_permission_denied">Push notifications are disabled on this device</string>
     <string name="notification_permission_failure">Push notifications are denied on this device. Please allow notification permission from settings to receive push on this device.</string>

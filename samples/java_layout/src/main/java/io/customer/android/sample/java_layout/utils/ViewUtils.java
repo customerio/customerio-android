@@ -41,12 +41,12 @@ public class ViewUtils {
     }
 
     public static void setBuildInfo(@NonNull TextView textView) {
-        String userAgent = String.format(Locale.ENGLISH,
+        String buildInfo = String.format(Locale.ENGLISH,
                 "Customer.io Android SDK %s Java Layout %s (%s)",
                 CustomerIO.instance().getSdkVersion(),
                 BuildConfig.VERSION_NAME,
                 BuildConfig.VERSION_CODE);
-        textView.setText(userAgent);
+        textView.setText(buildInfo);
     }
 
     @NonNull

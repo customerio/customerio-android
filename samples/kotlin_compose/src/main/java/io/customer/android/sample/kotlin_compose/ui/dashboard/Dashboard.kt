@@ -11,6 +11,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -21,6 +22,7 @@ import io.customer.android.sample.kotlin_compose.navigation.Screen.CustomAttribu
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.SettingsIcon
+import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
 import io.customer.sdk.CustomerIO
 
@@ -33,6 +35,13 @@ fun DashboardRoute(
     onSettingsClick: () -> Unit
 ) {
     val userState = viewModel.uiState.collectAsState()
+
+    TrackScreenLifecycle(
+        lifecycleOwner = LocalLifecycleOwner.current,
+        onScreenEnter = {
+            CustomerIO.instance().screen("Dashboard")
+        }
+    )
 
     DashboardScreen(
         userState = userState,
@@ -60,7 +69,7 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             SettingsIcon(onSettingsClick)
-            HeaderText(stringResource(R.string.hey_user, userState.value.email))
+            HeaderText(userState.value.email)
             HeaderText(stringResource(R.string.what_would_you_like_to_test))
             SendEventsView(
                 onTrackCustomEvent = onTrackCustomEvent,

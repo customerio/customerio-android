@@ -1,6 +1,6 @@
 package io.customer.android.sample.kotlin_compose.ui.settings
 
-import android.app.Application
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -39,20 +40,29 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
+import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
+import io.customer.sdk.CustomerIO
 
 @Composable
 fun SettingsRoute(
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     onBackPressed: () -> Unit
 ) {
-    val context = LocalContext.current
-    val state = settingsViewModel.uiState.collectAsState()
-    SettingsScreen(uiState = state.value, onBackPressed = onBackPressed, onSave = {
+    val state by settingsViewModel.uiState.collectAsState()
+
+    TrackScreenLifecycle(
+        lifecycleOwner = LocalLifecycleOwner.current,
+        onScreenEnter = {
+            CustomerIO.instance().screen("Settings")
+        }
+    )
+
+    SettingsScreen(uiState = state, onBackPressed = onBackPressed, onSave = {
         settingsViewModel.saveAndUpdateConfiguration(
-            configuration = it,
-            application = context.applicationContext as Application,
-            onComplete = {}
-        )
+            configuration = it
+        ) {}
+    }, onRestoreDefaults = {
+        settingsViewModel.restoreDefaults()
     })
 }
 
@@ -60,7 +70,8 @@ fun SettingsRoute(
 fun SettingsScreen(
     uiState: SettingsUiState,
     onBackPressed: () -> Unit,
-    onSave: (configuration: Configuration) -> Unit
+    onSave: (configuration: Configuration) -> Unit,
+    onRestoreDefaults: () -> Unit
 ) {
     val configuration by remember { mutableStateOf(uiState.configuration) }
 
@@ -97,12 +108,14 @@ fun SettingsScreen(
         }, onDebugModeChange = {
             configuration.debugMode = it
         })
-        SaveSettings(onSaveClick = { onSave.invoke(configuration) })
+        SaveSettings(onSaveClick = { onSave.invoke(configuration) }, onRestoreDefaults = {
+            onRestoreDefaults.invoke()
+        })
     }
 }
 
 @Composable
-fun SaveSettings(onSaveClick: () -> Unit) {
+fun SaveSettings(onSaveClick: () -> Unit, onRestoreDefaults: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -119,8 +132,20 @@ fun SaveSettings(onSaveClick: () -> Unit) {
             )
         }
         Text(
+            text = stringResource(R.string.restore_defaults),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(4.dp)
+                .clickable { onRestoreDefaults.invoke() }
+                .clip(RoundedCornerShape(25.dp)),
+            fontWeight = FontWeight.Bold
+
+        )
+        Text(
             text = stringResource(R.string.editing_settings),
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodySmall
         )
     }
 }
@@ -301,5 +326,10 @@ fun TopBar(onBackClick: () -> Unit) {
 @Preview
 @Composable
 fun SettingsScreenPreview() {
-    SettingsScreen(uiState = SettingsUiState(), onBackPressed = {}, onSave = {})
+    SettingsScreen(
+        uiState = SettingsUiState(),
+        onBackPressed = {},
+        onSave = {},
+        onRestoreDefaults = {}
+    )
 }

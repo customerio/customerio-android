@@ -13,12 +13,14 @@ import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.SITE_ID
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_API_URL_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_DEVICE_ATTRIBUTES
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_SCREEN
+import io.customer.sdk.CustomerIOConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 interface PreferenceRepository {
     suspend fun saveConfiguration(configuration: Configuration)
     fun getConfiguration(): Flow<Configuration>
+    suspend fun restoreDefaults(): Configuration
 }
 
 class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
@@ -43,23 +45,40 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
                 siteId = preferences[SITE_ID] ?: BuildConfig.SITE_ID,
                 apiKey = preferences[API_KEY] ?: BuildConfig.API_KEY
             ).apply {
-                trackUrl = preferences[TRACK_API_URL_KEY]
-                preferences[BACKGROUND_QUEUE_SECONDS_DELAY]?.let {
-                    backgroundQueueSecondsDelay = it
-                }
-                preferences[BACKGROUND_QUEUE_MIN_NUM_TASKS]?.let {
-                    backgroundQueueMinNumTasks = it
-                }
-                preferences[TRACK_SCREEN]?.let {
-                    trackScreen = it
-                }
-                preferences[TRACK_DEVICE_ATTRIBUTES]?.let {
-                    trackDeviceAttributes = it
-                }
-                preferences[DEBUG_MODE]?.let {
-                    debugMode = it
-                }
+                trackUrl =
+                    preferences[TRACK_API_URL_KEY]?.ifEmpty { "https://track-sdk.customer.io/" }
+                        ?: "https://track-sdk.customer.io/"
+
+                backgroundQueueSecondsDelay = preferences[BACKGROUND_QUEUE_SECONDS_DELAY]
+                    ?: CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+
+                backgroundQueueMinNumTasks = preferences[BACKGROUND_QUEUE_MIN_NUM_TASKS]
+                    ?: CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
+
+                trackScreen = preferences[TRACK_SCREEN] ?: true
+
+                trackDeviceAttributes = preferences[TRACK_DEVICE_ATTRIBUTES] ?: true
+
+                debugMode = preferences[DEBUG_MODE] ?: true
             }
         }
+    }
+
+    override suspend fun restoreDefaults(): Configuration {
+        val configuration = Configuration(
+            siteId = BuildConfig.SITE_ID,
+            apiKey = BuildConfig.API_KEY
+        ).apply {
+            trackUrl = "https://track-sdk.customer.io/"
+            backgroundQueueSecondsDelay =
+                CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+            backgroundQueueMinNumTasks =
+                CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
+            trackScreen = true
+            trackDeviceAttributes = true
+            debugMode = true
+        }
+        saveConfiguration(configuration)
+        return configuration
     }
 }

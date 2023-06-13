@@ -40,4 +40,6 @@
     <string name="filter_view_app_link">Kotlin Sample App Scheme Links</string>
     <string name="filter_view_universal_link">Kotlin Sample Universal Scheme Links</string>
     <string name="restore_defaults">Restore Defaults</string>
+    <string name="show_push_prompt">Show Push Prompt</string>
+    <string name="notification_permission_already_granted">Permission already granted</string>
 </resources>

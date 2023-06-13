@@ -25,13 +25,12 @@
     <string name="background_queue_seconds_delay_label">backgroundQueueSecondsDelay</string>
     <string name="background_queue_min_tasks_label">backgroundQueueMinNumberOfTasks</string>
     <string name="features">Features</string>
-    <string name="enable_in_app">Enable in-app</string>
     <string name="track_screens">Track Screens</string>
     <string name="track_device_attributes">Track Device Attributes</string>
     <string name="debug_mode">Debug Mode</string>
     <string name="save">Save</string>
     <string name="restore_defaults">Restore Defaults</string>
-    <string name="settings_post_save_msg_description">Saving settings will require an app restart</string>
+    <string name="settings_post_save_msg_description">Note: App will restart automatically on Save</string>
     <string name="settings_save_msg">SDK configurations saved successfully</string>
     <string name="screen_title_custom_event">Send Custom Event</string>
     <string name="event_name">Event Name</string>

@@ -47,10 +47,12 @@ class DashboardViewModel @Inject constructor(
             0 -> {
                 CustomerIO.instance().track("Order Purchased")
             }
+
             1 -> {
                 val attributes = mapOf("movie_name" to "The Incredibles")
                 CustomerIO.instance().track("movie_watched", attributes)
             }
+
             2 -> {
                 val sevenDaysLater = System.currentTimeMillis() / 1000 + 7 * 24 * 60 * 60
                 val attributes = mapOf("appointmentTime" to sevenDaysLater)

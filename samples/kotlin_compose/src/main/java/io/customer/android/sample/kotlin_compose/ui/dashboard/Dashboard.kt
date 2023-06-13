@@ -105,7 +105,7 @@ fun SendEventsView(
     val activity = context as? ComponentActivity
 
     Column(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         ActionButton(text = stringResource(R.string.send_random_event), onClick = onRandomEvent)

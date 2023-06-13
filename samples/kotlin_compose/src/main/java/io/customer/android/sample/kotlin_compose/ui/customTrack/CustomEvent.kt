@@ -19,11 +19,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
+import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.sdk.CustomerIO
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,8 +34,13 @@ fun CustomEventRoute(
     onBackPressed: () -> Unit
 ) {
     var eventName by remember { mutableStateOf("") }
+    var eventError by remember { mutableStateOf("") }
     var propertyName by remember { mutableStateOf("") }
     var propertyValue by remember { mutableStateOf("") }
+
+    TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
+        CustomerIO.instance().screen("Custom Event")
+    })
 
     Column(
         modifier = Modifier
@@ -62,9 +69,16 @@ fun CustomEventRoute(
                 value = eventName,
                 onValueChange = {
                     eventName = it
+                    eventError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.event_name))
+                },
+                isError = eventError.isNotEmpty(),
+                supportingText = {
+                    if (eventError.isNotEmpty()) {
+                        Text(text = eventError)
+                    }
                 }
             )
             OutlinedTextField(
@@ -88,6 +102,10 @@ fun CustomEventRoute(
                 }
             )
             ActionButton(text = stringResource(R.string.send_event), onClick = {
+                if (eventName.isEmpty()) {
+                    eventError = "Required"
+                    return@ActionButton
+                }
                 CustomerIO.instance().track(
                     name = eventName,
                     attributes = mapOf(propertyName to propertyValue)

@@ -50,14 +50,11 @@ fun SettingsRoute(
 ) {
     val state by settingsViewModel.uiState.collectAsState()
 
-    TrackScreenLifecycle(
-        lifecycleOwner = LocalLifecycleOwner.current,
-        onScreenEnter = {
-            CustomerIO.instance().screen("Settings")
-        }
-    )
+    TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
+        CustomerIO.instance().screen("Settings")
+    })
 
-    SettingsScreen(uiState = state, onBackPressed = onBackPressed, onSave = {
+    SettingsScreen(configuration = state.configuration, onBackPressed = onBackPressed, onSave = {
         settingsViewModel.saveAndUpdateConfiguration(
             configuration = it
         ) {}
@@ -68,13 +65,11 @@ fun SettingsRoute(
 
 @Composable
 fun SettingsScreen(
-    uiState: SettingsUiState,
+    configuration: Configuration,
     onBackPressed: () -> Unit,
     onSave: (configuration: Configuration) -> Unit,
     onRestoreDefaults: () -> Unit
 ) {
-    val configuration by remember { mutableStateOf(uiState.configuration) }
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(26.dp),
@@ -85,23 +80,23 @@ fun SettingsScreen(
     ) {
         TopBar(onBackClick = onBackPressed)
         EnvSettingsList(
-            deviceToken = uiState.deviceToken,
-            trackUrl = uiState.configuration.trackUrl ?: "",
+            deviceToken = "",
+            trackUrl = configuration.trackUrl ?: "",
             onTrackUrlChange = {
                 configuration.trackUrl = it
             }
         )
-        WorkspaceSettingsList(uiState = uiState, onSiteIdChange = {
+        WorkspaceSettingsList(configuration = configuration, onSiteIdChange = {
             configuration.siteId = it
         }, onApiKeyChange = {
             configuration.apiKey = it
         })
-        SDKSettingsList(uiState = uiState, onBackgroundQueueMinNumTasksChange = {
+        SDKSettingsList(configuration = configuration, onBackgroundQueueMinNumTasksChange = {
             configuration.backgroundQueueMinNumTasks = it
         }, onBackgroundQueueSecondsDelayChange = {
             configuration.backgroundQueueSecondsDelay = it
         })
-        FeaturesList(configuration = uiState.configuration, onTrackScreenChange = {
+        FeaturesList(configuration = configuration, onTrackScreenChange = {
             configuration.trackScreen = it
         }, onTrackDeviceAttributesChange = {
             configuration.trackDeviceAttributes = it
@@ -187,12 +182,12 @@ fun EnvSettingsList(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkspaceSettingsList(
-    uiState: SettingsUiState,
+    configuration: Configuration,
     onSiteIdChange: (siteId: String) -> Unit,
     onApiKeyChange: (apiKey: String) -> Unit
 ) {
-    var siteId by remember { mutableStateOf(uiState.configuration.siteId) }
-    var apiKey by remember { mutableStateOf(uiState.configuration.apiKey) }
+    var siteId by remember { mutableStateOf(configuration.siteId) }
+    var apiKey by remember { mutableStateOf(configuration.apiKey) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = siteId, onValueChange = {
@@ -213,12 +208,12 @@ fun WorkspaceSettingsList(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SDKSettingsList(
-    uiState: SettingsUiState,
+    configuration: Configuration,
     onBackgroundQueueSecondsDelayChange: (delay: Double) -> Unit,
     onBackgroundQueueMinNumTasksChange: (numTasks: Int) -> Unit
 ) {
-    var secondsDelays by remember { mutableStateOf(uiState.configuration.backgroundQueueSecondsDelay) }
-    var minTasks by remember { mutableStateOf(uiState.configuration.backgroundQueueMinNumTasks) }
+    var secondsDelays by remember { mutableStateOf(configuration.backgroundQueueSecondsDelay) }
+    var minTasks by remember { mutableStateOf(configuration.backgroundQueueMinNumTasks) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -327,7 +322,7 @@ fun TopBar(onBackClick: () -> Unit) {
 @Composable
 fun SettingsScreenPreview() {
     SettingsScreen(
-        uiState = SettingsUiState(),
+        configuration = Configuration("", ""),
         onBackPressed = {},
         onSave = {},
         onRestoreDefaults = {}

@@ -19,12 +19,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.navigation.Screen.CustomAttribute.TYPE_PROFILE
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
+import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.sdk.CustomerIO
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,6 +37,13 @@ fun CustomAttributeRoute(
 ) {
     var attributeName by remember { mutableStateOf("") }
     var attributeValue by remember { mutableStateOf("") }
+    var attributeNameError by remember { mutableStateOf("") }
+    var attributeValueError by remember { mutableStateOf("") }
+
+    TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
+        CustomerIO.instance()
+            .screen("Custom ${attributeType.replaceFirstChar { it.uppercase() }} Attribute")
+    })
 
     Column(
         modifier = Modifier
@@ -69,9 +78,16 @@ fun CustomAttributeRoute(
                 value = attributeName,
                 onValueChange = {
                     attributeName = it
+                    attributeNameError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.attribute_name))
+                },
+                isError = attributeNameError.isNotEmpty(),
+                supportingText = {
+                    if (attributeNameError.isNotEmpty()) {
+                        Text(text = attributeNameError)
+                    }
                 }
             )
             OutlinedTextField(
@@ -79,9 +95,16 @@ fun CustomAttributeRoute(
                 value = attributeValue,
                 onValueChange = {
                     attributeValue = it
+                    attributeValueError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.attribute_value))
+                },
+                isError = attributeValueError.isNotEmpty(),
+                supportingText = {
+                    if (attributeValueError.isNotEmpty()) {
+                        Text(text = attributeValueError)
+                    }
                 }
             )
 
@@ -96,7 +119,17 @@ fun CustomAttributeRoute(
                     CustomerIO.instance().deviceAttributes = mapOf(attributeName to attributeValue)
                 }
             }
-            ActionButton(text = btnTitle, onClick = action)
+            ActionButton(text = btnTitle, onClick = {
+                if (attributeName.isEmpty()) {
+                    attributeNameError = "Required"
+                    return@ActionButton
+                }
+                if (attributeValue.isEmpty()) {
+                    attributeValueError = "Required"
+                    return@ActionButton
+                }
+                action.invoke()
+            })
         }
     }
 }

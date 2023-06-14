@@ -79,7 +79,7 @@ class LoginViewModel @Inject constructor(
     fun loginAsGuest(onLoginSuccess: () -> Unit) {
         login(
             email = generateRandomEmail(),
-            name = "Guest",
+            name = "",
             isGuest = true,
             onLoginSuccess = onLoginSuccess
         )

@@ -24,9 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,8 +51,12 @@ fun SettingsRoute(
         CustomerIO.instance().screen("Settings")
     })
 
-    SettingsScreen(configuration = state.configuration, onBackPressed = onBackPressed, onSave = {
+    SettingsScreen(uiState = state, onBackPressed = onBackPressed, onSave = {
         settingsViewModel.saveAndUpdateConfiguration(
+            configuration = it
+        ) {}
+    }, onConfigurationChange = {
+        settingsViewModel.updateConfiguration(
             configuration = it
         ) {}
     }, onRestoreDefaults = {
@@ -65,11 +66,13 @@ fun SettingsRoute(
 
 @Composable
 fun SettingsScreen(
-    configuration: Configuration,
+    uiState: SettingsUiState,
     onBackPressed: () -> Unit,
+    onConfigurationChange: (configuration: Configuration) -> Unit,
     onSave: (configuration: Configuration) -> Unit,
     onRestoreDefaults: () -> Unit
 ) {
+    val configuration = uiState.configuration
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(26.dp),
@@ -80,29 +83,21 @@ fun SettingsScreen(
     ) {
         TopBar(onBackClick = onBackPressed)
         EnvSettingsList(
-            deviceToken = "",
-            trackUrl = configuration.trackUrl ?: "",
-            onTrackUrlChange = {
-                configuration.trackUrl = it
-            }
+            uiState = uiState,
+            onConfigurationChange = onConfigurationChange
         )
-        WorkspaceSettingsList(configuration = configuration, onSiteIdChange = {
-            configuration.siteId = it
-        }, onApiKeyChange = {
-            configuration.apiKey = it
-        })
-        SDKSettingsList(configuration = configuration, onBackgroundQueueMinNumTasksChange = {
-            configuration.backgroundQueueMinNumTasks = it
-        }, onBackgroundQueueSecondsDelayChange = {
-            configuration.backgroundQueueSecondsDelay = it
-        })
-        FeaturesList(configuration = configuration, onTrackScreenChange = {
-            configuration.trackScreen = it
-        }, onTrackDeviceAttributesChange = {
-            configuration.trackDeviceAttributes = it
-        }, onDebugModeChange = {
-            configuration.debugMode = it
-        })
+        WorkspaceSettingsList(
+            uiState = uiState,
+            onConfigurationChange = onConfigurationChange
+        )
+        SDKSettingsList(
+            uiState = uiState,
+            onConfigurationChange = onConfigurationChange
+        )
+        FeaturesList(
+            uiState = uiState,
+            onConfigurationChange = onConfigurationChange
+        )
         SaveSettings(onSaveClick = { onSave.invoke(configuration) }, onRestoreDefaults = {
             onRestoreDefaults.invoke()
         })
@@ -148,16 +143,14 @@ fun SaveSettings(onSaveClick: () -> Unit, onRestoreDefaults: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnvSettingsList(
-    deviceToken: String,
-    trackUrl: String,
-    onTrackUrlChange: (trackUrl: String) -> Unit
+    uiState: SettingsUiState,
+    onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
-    var trackUrlState by remember { mutableStateOf(trackUrl) }
-
+    val configuration = uiState.configuration
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = deviceToken,
+            value = uiState.deviceToken,
             readOnly = true,
             onValueChange = {},
             label = {
@@ -166,10 +159,9 @@ fun EnvSettingsList(
         )
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = trackUrlState,
-            onValueChange = {
-                trackUrlState = it
-                onTrackUrlChange(it)
+            value = configuration.trackUrl ?: "",
+            onValueChange = { value ->
+                onConfigurationChange(configuration.copy(trackUrl = value))
             },
             label = {
                 Text(text = stringResource(id = R.string.cio_track_url))
@@ -182,47 +174,50 @@ fun EnvSettingsList(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkspaceSettingsList(
-    configuration: Configuration,
-    onSiteIdChange: (siteId: String) -> Unit,
-    onApiKeyChange: (apiKey: String) -> Unit
+    uiState: SettingsUiState,
+    onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
-    var siteId by remember { mutableStateOf(configuration.siteId) }
-    var apiKey by remember { mutableStateOf(configuration.apiKey) }
+    val configuration = uiState.configuration
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = siteId, onValueChange = {
-            siteId = it
-            onSiteIdChange(it)
-        }, label = {
-            Text(text = stringResource(id = R.string.site_id))
-        })
-        OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = apiKey, onValueChange = {
-            apiKey = it
-            onApiKeyChange(it)
-        }, label = {
-            Text(text = stringResource(id = R.string.api_key))
-        })
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = configuration.siteId,
+            onValueChange = { value ->
+                onConfigurationChange(configuration.copy(siteId = value))
+            },
+            label = {
+                Text(text = stringResource(id = R.string.site_id))
+            }
+        )
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = configuration.apiKey,
+            onValueChange = { value ->
+                onConfigurationChange(configuration.copy(apiKey = value))
+            },
+            label = {
+                Text(text = stringResource(id = R.string.api_key))
+            }
+        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SDKSettingsList(
-    configuration: Configuration,
-    onBackgroundQueueSecondsDelayChange: (delay: Double) -> Unit,
-    onBackgroundQueueMinNumTasksChange: (numTasks: Int) -> Unit
+    uiState: SettingsUiState,
+    onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
-    var secondsDelays by remember { mutableStateOf(configuration.backgroundQueueSecondsDelay) }
-    var minTasks by remember { mutableStateOf(configuration.backgroundQueueMinNumTasks) }
+    val configuration = uiState.configuration
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = secondsDelays.toString(),
-            onValueChange = {
-                if (it.isNotEmpty()) {
-                    secondsDelays = it.toDouble()
-                    onBackgroundQueueSecondsDelayChange(it.toDouble())
+            value = configuration.backgroundQueueSecondsDelay.toString(),
+            onValueChange = { value ->
+                if (value.isNotEmpty()) {
+                    onConfigurationChange(configuration.copy(backgroundQueueSecondsDelay = value.toDouble()))
                 }
             },
             label = {
@@ -232,11 +227,10 @@ fun SDKSettingsList(
         )
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
-            value = minTasks.toString(),
-            onValueChange = {
-                if (it.isNotEmpty()) {
-                    minTasks = it.toInt()
-                    onBackgroundQueueMinNumTasksChange(it.toInt())
+            value = configuration.backgroundQueueMinNumTasks.toString(),
+            onValueChange = { value ->
+                if (value.isNotEmpty()) {
+                    onConfigurationChange(configuration.copy(backgroundQueueMinNumTasks = value.toInt()))
                 }
             },
             label = {
@@ -249,15 +243,10 @@ fun SDKSettingsList(
 
 @Composable
 fun FeaturesList(
-    configuration: Configuration,
-    onTrackScreenChange: (trackScreen: Boolean) -> Unit,
-    onTrackDeviceAttributesChange: (trackDeviceAttributes: Boolean) -> Unit,
-    onDebugModeChange: (debugMode: Boolean) -> Unit
+    uiState: SettingsUiState,
+    onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
-    var trackScreen by remember { mutableStateOf(configuration.trackScreen) }
-    var trackDeviceAttributes by remember { mutableStateOf(configuration.trackDeviceAttributes) }
-    var debugMode by remember { mutableStateOf(configuration.debugMode) }
-
+    val configuration = uiState.configuration
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -267,9 +256,8 @@ fun FeaturesList(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.track_screen))
-            Switch(checked = trackScreen, onCheckedChange = {
-                trackScreen = it
-                onTrackScreenChange(it)
+            Switch(checked = configuration.trackScreen, onCheckedChange = { value ->
+                onConfigurationChange(configuration.copy(trackScreen = value))
             })
         }
         Row(
@@ -278,9 +266,8 @@ fun FeaturesList(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.track_device_attributes))
-            Switch(checked = trackDeviceAttributes, onCheckedChange = {
-                trackDeviceAttributes = it
-                onTrackDeviceAttributesChange(it)
+            Switch(checked = configuration.trackDeviceAttributes, onCheckedChange = { value ->
+                onConfigurationChange(configuration.copy(trackDeviceAttributes = value))
             })
         }
         Row(
@@ -289,9 +276,8 @@ fun FeaturesList(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.debug_mode))
-            Switch(checked = debugMode, onCheckedChange = {
-                debugMode = it
-                onDebugModeChange(it)
+            Switch(checked = configuration.debugMode, onCheckedChange = { value ->
+                onConfigurationChange(configuration.copy(debugMode = value))
             })
         }
     }
@@ -322,9 +308,10 @@ fun TopBar(onBackClick: () -> Unit) {
 @Composable
 fun SettingsScreenPreview() {
     SettingsScreen(
-        configuration = Configuration("", ""),
+        uiState = SettingsUiState(configuration = Configuration("", "")),
         onBackPressed = {},
         onSave = {},
+        onConfigurationChange = {},
         onRestoreDefaults = {}
     )
 }

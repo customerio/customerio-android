@@ -34,6 +34,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateConfiguration(
+        configuration: Configuration,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.emit(_uiState.value.copy(configuration = configuration))
+            onComplete.invoke()
+        }
+    }
+
     fun saveAndUpdateConfiguration(
         configuration: Configuration,
         onComplete: () -> Unit

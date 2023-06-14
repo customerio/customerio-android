@@ -122,7 +122,10 @@ fun SendEventsView(
         modifier = Modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ActionButton(text = stringResource(R.string.send_random_event), onClick = onRandomEvent)
+        ActionButton(text = stringResource(R.string.send_random_event), onClick = {
+            onRandomEvent.invoke()
+            showMessage(context.getString(R.string.event_sent_successfully))
+        })
         ActionButton(
             text = stringResource(R.string.send_custom_event),
             onClick = onTrackCustomEvent

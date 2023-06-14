@@ -42,4 +42,6 @@
     <string name="restore_defaults">Restore Defaults</string>
     <string name="show_push_prompt">Show Push Prompt</string>
     <string name="notification_permission_already_granted">Permission already granted</string>
+    <string name="event_sent_successfully">Event sent successfully</string>
+    <string name="attribute_set_successfully">Attribute sent successfully!</string>
 </resources>

@@ -35,7 +35,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     }
 
     private void setupObservers() {
-        ViewUtils.setUserAgent(binding.userAgentTextView);
+        ViewUtils.setBuildInfo(binding.buildInfoTextView);
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 startActivity(new Intent(LoginActivity.this, DashboardActivity.class));
@@ -50,16 +50,13 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
         });
         binding.loginButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            String displayName = ViewUtils.getTextTrimmed(binding.displayNameTextInput);
-            if (TextUtils.isEmpty(displayName)) {
-                binding.displayNameInputLayout.setError(getString(R.string.error_display_name));
-                isFormValid = false;
-            }
-
+            String displayName = ViewUtils.getText(binding.displayNameTextInput);
             String email = ViewUtils.getTextTrimmed(binding.emailTextInput);
             if (TextUtils.isEmpty(email) || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.emailInputLayout.setError(getString(R.string.error_email));
+                ViewUtils.setError(binding.emailInputLayout, getString(R.string.error_email));
                 isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.emailInputLayout, null);
             }
 
             if (isFormValid) {
@@ -68,7 +65,7 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
         });
         binding.randomLoginButton.setOnClickListener(view -> {
             Randoms randoms = new Randoms();
-            authViewModel.setLoggedInUser(new User(randoms.email(), randoms.displayName(), true));
+            authViewModel.setLoggedInUser(new User(randoms.email(), "", true));
         });
     }
 }

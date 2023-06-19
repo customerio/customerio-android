@@ -11,7 +11,8 @@ data class GistProperties(
     val routeRule: String?,
     val elementId: String?,
     val campaignId: String?,
-    val position: MessagePosition
+    val position: MessagePosition,
+    val persistent: Boolean
 )
 
 data class Message(
@@ -28,6 +29,7 @@ class GistMessageProperties {
             var elementId: String? = null
             var campaignId: String? = null
             var position: MessagePosition = MessagePosition.CENTER
+            var persistent = false
 
             message.properties?.let { properties ->
                 properties["gist"]?.let { gistProperties ->
@@ -52,10 +54,15 @@ class GistMessageProperties {
                                 position = MessagePosition.valueOf(stringPosition.uppercase())
                             }
                         }
+                        gistProperties["persistent"]?.let { id ->
+                            (id as Boolean).let { persistentValue ->
+                                persistent = persistentValue
+                            }
+                        }
                     }
                 }
             }
-            return GistProperties(routeRule = routeRule, elementId = elementId, campaignId = campaignId, position = position)
+            return GistProperties(routeRule = routeRule, elementId = elementId, campaignId = campaignId, position = position, persistent = persistent)
         }
     }
 }

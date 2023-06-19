@@ -14,8 +14,8 @@ internal class GistModalManager : GistListener {
     }
 
     internal fun showModalMessage(message: Message, position: MessagePosition? = null): Boolean {
-        if (currentMessage != null) {
-            Log.i(GIST_TAG, "Message ${message.messageId} not shown, activity is already showing.")
+        currentMessage?.let { currentMessage ->
+            Log.i(GIST_TAG, "Message ${message.messageId} not shown, ${currentMessage.messageId} is already showing.")
             return false
         }
 
@@ -32,7 +32,7 @@ internal class GistModalManager : GistListener {
 
     internal fun dismissActiveMessage() {
         currentMessage?.let { message ->
-            GistSdk.handleGistClosed(message = message)
+            GistSdk.dismissPersistentMessage(message)
         } ?: run {
             Log.i(GIST_TAG, "No modal messages to dismiss.")
         }

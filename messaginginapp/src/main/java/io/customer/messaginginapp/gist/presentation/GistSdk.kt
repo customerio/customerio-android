@@ -9,6 +9,7 @@ import android.os.Looper
 import android.util.Log
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
+import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import kotlinx.coroutines.CancellationException
@@ -17,7 +18,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.launch
 
-const val GIST_TAG: String = "Gist"
+// replace with: CustomerIOLogger
+const val GIST_TAG: String = "[CIO]"
 
 object GistSdk : Application.ActivityLifecycleCallbacks {
     private const val SHARED_PREFERENCES_NAME = "gist-sdk"
@@ -199,6 +201,15 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
                 Log.e(GIST_TAG, "Failed to get user messages: ${e.message}", e)
             }
         }
+    }
+
+    internal fun dismissPersistentMessage(message: Message) {
+        val gistProperties = GistMessageProperties.getGistProperties(message)
+        if (gistProperties.persistent) {
+            Log.i(GIST_TAG, "Persistent message dismissed, logging view")
+            gistQueue.logView(message)
+        }
+        handleGistClosed(message)
     }
 
     internal fun handleGistLoaded(message: Message) {

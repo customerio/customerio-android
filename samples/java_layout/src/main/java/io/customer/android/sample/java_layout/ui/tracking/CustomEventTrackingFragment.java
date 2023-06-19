@@ -1,9 +1,10 @@
 package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.text.TextUtils;
-import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,12 +51,6 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
             } else {
                 ViewUtils.setError(binding.eventNameInputLayout, null);
             }
-            if (TextUtils.isEmpty(propertyName)) {
-                ViewUtils.setError(binding.propertyNameInputLayout, getString(R.string.error_property_name));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.propertyNameInputLayout, null);
-            }
 
             if (isFormValid) {
                 Map<String, String> extras = new HashMap<>();
@@ -64,10 +59,9 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
 
                 FragmentActivity activity = getActivity();
                 if (activity != null) {
-                    Toast.makeText(activity,
-                            getString(R.string.event_tracked_msg_format, eventName),
-                            Toast.LENGTH_SHORT).show();
-                    activity.onBackPressed();
+                    Snackbar.make(binding.sendEventButton,
+                            R.string.event_tracked_msg,
+                            Snackbar.LENGTH_SHORT).show();
                 }
             }
         });

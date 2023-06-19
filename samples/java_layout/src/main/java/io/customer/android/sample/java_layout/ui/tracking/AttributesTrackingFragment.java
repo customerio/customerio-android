@@ -2,9 +2,10 @@ package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -82,6 +83,13 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
                 ViewUtils.setError(binding.attributeNameInputLayout, null);
             }
 
+            if (TextUtils.isEmpty(attributeValue)) {
+                ViewUtils.setError(binding.attributeValueInputLayout, getString(R.string.error_attribute_value));
+                isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.attributeValueInputLayout, null);
+            }
+
             if (isFormValid) {
                 Map<String, String> attributes = new HashMap<>();
                 attributes.put(attributeName, attributeValue);
@@ -102,10 +110,9 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
 
                 FragmentActivity activity = getActivity();
                 if (activity != null) {
-                    Toast.makeText(activity,
+                    Snackbar.make(binding.sendEventButton,
                             getString(R.string.attributes_tracked_msg_format, attributeType),
-                            Toast.LENGTH_SHORT).show();
-                    activity.onBackPressed();
+                            Snackbar.LENGTH_SHORT).show();
                 }
             }
         });

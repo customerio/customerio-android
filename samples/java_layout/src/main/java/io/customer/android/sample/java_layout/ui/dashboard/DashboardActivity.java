@@ -5,14 +5,17 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.util.Pair;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.StringRes;
+import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.util.HashMap;
@@ -34,15 +37,24 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private AuthViewModel authViewModel;
     private CustomerIORepository customerIORepository;
 
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private final ActivityResultLauncher<Intent> notificationSettingsRequestLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (isNotificationPermissionGranted()) {
+                    showPushPermissionGranted();
+                }
+            });
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private final ActivityResultLauncher<String> notificationPermissionRequestLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-                @StringRes int messageId;
                 if (isGranted) {
-                    messageId = R.string.notification_permission_success;
+                    showPushPermissionGranted();
                 } else {
-                    messageId = R.string.notification_permission_failure;
+                    MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+                    builder.setMessage(R.string.notification_permission_denied);
+                    builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
+                    builder.show();
                 }
-                Snackbar.make(binding.content, messageId, Snackbar.LENGTH_SHORT).show();
             });
 
     @Override
@@ -98,25 +110,25 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.setProfileAttributesButton.setOnClickListener(view -> {
             startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
         });
+        binding.showPushPromptButton.setOnClickListener(view -> {
+            requestNotificationPermission();
+        });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
         });
     }
 
     private void setupObservers() {
-        ViewUtils.setUserAgent(binding.userAgentTextView);
+        ViewUtils.setBuildInfo(binding.buildInfoTextView);
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
         });
         authViewModel.getUserDataObservable().observe(this, user -> {
-            binding.greetingsTextView.setText(
-                    getString(R.string.dashboard_greeting_message_format, user.getDisplayName())
-            );
+            binding.userEmailTextView.setText(user.getEmail());
         });
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 binding.progressIndicator.hide();
                 binding.content.setVisibility(View.VISIBLE);
-                requestNotificationPermission();
             } else {
                 startActivity(new Intent(DashboardActivity.this, LoginActivity.class));
                 finish();
@@ -126,15 +138,19 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void sendRandomEvent() {
         Randoms randoms = new Randoms();
-        String eventName = randoms.eventName();
-        Map<String, Object> eventAttributes = randoms.eventAttributes();
+        Pair<String, Map<String, Object>> trackingEvent = randoms.trackingEvent();
+        String eventName = trackingEvent.first;
+        Map<String, Object> eventAttributes = trackingEvent.second;
+
         Map<String, String> extras = new HashMap<>();
-        for (Map.Entry<String, Object> entry : eventAttributes.entrySet()) {
-            extras.put(entry.getKey(), String.valueOf(entry.getValue()));
+        if (eventAttributes != null) {
+            for (Map.Entry<String, Object> entry : eventAttributes.entrySet()) {
+                extras.put(entry.getKey(), String.valueOf(entry.getValue()));
+            }
         }
         customerIORepository.trackEvent(eventName, extras);
         Snackbar.make(binding.sendRandomEventButton,
-                getString(R.string.event_tracked_msg_format, eventName),
+                R.string.event_tracked_msg,
                 Snackbar.LENGTH_SHORT).show();
     }
 
@@ -147,13 +163,47 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void requestNotificationPermission() {
         // Push notification permission is only required by API Level 33 (Android 13) and above
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            showPushPermissionGrantedAlert();
+            return;
+        }
 
-        int permissionStatus = ContextCompat.checkSelfPermission(
-                DashboardActivity.this, Manifest.permission.POST_NOTIFICATIONS);
         // Ask for notification permission if not granted
-        if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
+        if (isNotificationPermissionGranted()) {
+            showPushPermissionGrantedAlert();
+        } else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+            builder.setMessage(R.string.notification_permission_failure);
+            builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
+            builder.show();
+        } else {
             notificationPermissionRequestLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private boolean isNotificationPermissionGranted() {
+        return ContextCompat.checkSelfPermission(DashboardActivity.this,
+                Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
+    private void openNotificationPermissionSettings() {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+        intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        notificationSettingsRequestLauncher.launch(intent);
+    }
+
+    private void showPushPermissionGranted() {
+        Snackbar.make(binding.showPushPromptButton,
+                R.string.notification_permission_success,
+                Snackbar.LENGTH_SHORT).show();
+    }
+
+    private void showPushPermissionGrantedAlert() {
+        MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+        builder.setTitle(R.string.notification_permission_alert_title);
+        builder.setMessage(R.string.notification_permission_success);
+        builder.show();
     }
 }

@@ -41,12 +41,12 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
     protected void setupContent() {
         binding.sendEventButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            String eventName = ViewUtils.getTextTrimmed(binding.eventNameTextInput);
-            String propertyName = ViewUtils.getTextTrimmed(binding.propertyNameTextInput);
-            String propertyValue = ViewUtils.getTextTrimmed(binding.propertyValueTextInput);
+            String eventName = ViewUtils.getText(binding.eventNameTextInput);
+            String propertyName = ViewUtils.getText(binding.propertyNameTextInput);
+            String propertyValue = ViewUtils.getText(binding.propertyValueTextInput);
 
             if (TextUtils.isEmpty(eventName)) {
-                ViewUtils.setError(binding.eventNameInputLayout, getString(R.string.error_event_name));
+                ViewUtils.setError(binding.eventNameInputLayout, getString(R.string.error_text_input_field_empty));
                 isFormValid = false;
             } else {
                 ViewUtils.setError(binding.eventNameInputLayout, null);

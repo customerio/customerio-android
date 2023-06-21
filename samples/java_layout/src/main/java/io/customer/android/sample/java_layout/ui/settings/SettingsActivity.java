@@ -9,6 +9,9 @@ import android.text.TextUtils;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+
+import com.google.android.material.textfield.TextInputLayout;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -143,49 +146,24 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void saveSettings() {
-        boolean isFormValid = true;
+        boolean isFormValid;
 
         String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
-        if (!isTrackingURLValid(trackingURL)) {
-            ViewUtils.setError(binding.trackingUrlInputLayout, getString(R.string.error_tracking_url));
-            isFormValid = false;
-        } else {
-            ViewUtils.setError(binding.trackingUrlInputLayout, null);
-        }
+        isFormValid = updateErrorState(binding.trackingUrlInputLayout, !isTrackingURLValid(trackingURL), R.string.error_tracking_url);
 
         String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
-        if (TextUtils.isEmpty(siteId)) {
-            ViewUtils.setError(binding.siteIdInputLayout, getString(R.string.error_text_input_field_blank));
-            isFormValid = false;
-        } else {
-            ViewUtils.setError(binding.siteIdInputLayout, null);
-        }
+        isFormValid = updateErrorState(binding.siteIdInputLayout, TextUtils.isEmpty(siteId), R.string.error_text_input_field_blank) && isFormValid;
 
         String apiKey = ViewUtils.getTextTrimmed(binding.apiKeyTextInput);
-        if (TextUtils.isEmpty(apiKey)) {
-            ViewUtils.setError(binding.apiKeyInputLayout, getString(R.string.error_text_input_field_blank));
-            isFormValid = false;
-        } else {
-            ViewUtils.setError(binding.apiKeyInputLayout, null);
-        }
+        isFormValid = updateErrorState(binding.apiKeyInputLayout, TextUtils.isEmpty(apiKey), R.string.error_text_input_field_blank) && isFormValid;
 
         String bqSecondsDelayText = ViewUtils.getTextTrimmed(binding.bqDelayTextInput);
+        isFormValid = updateErrorState(binding.bqDelayInputLayout, TextUtils.isEmpty(bqSecondsDelayText), R.string.error_text_input_field_blank) && isFormValid;
         Double bqSecondsDelay = StringUtils.parseDouble(bqSecondsDelayText, null);
-        if (TextUtils.isEmpty(bqSecondsDelayText)) {
-            ViewUtils.setError(binding.bqDelayInputLayout, getString(R.string.error_text_input_field_blank));
-            isFormValid = false;
-        } else {
-            ViewUtils.setError(binding.bqDelayInputLayout, null);
-        }
 
         String bqMinTasksText = ViewUtils.getTextTrimmed(binding.bqTasksTextInput);
+        isFormValid = updateErrorState(binding.bqTasksInputLayout, TextUtils.isEmpty(bqMinTasksText), R.string.error_text_input_field_blank) && isFormValid;
         Integer bqMinTasks = StringUtils.parseInteger(bqMinTasksText, null);
-        if (TextUtils.isEmpty(bqMinTasksText)) {
-            ViewUtils.setError(binding.bqTasksInputLayout, getString(R.string.error_text_input_field_blank));
-            isFormValid = false;
-        } else {
-            ViewUtils.setError(binding.bqTasksInputLayout, null);
-        }
 
         if (isFormValid) {
             binding.progressIndicator.show();
@@ -211,5 +189,13 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                     });
             disposables.add(disposable);
         }
+    }
+
+    private boolean updateErrorState(TextInputLayout textInputLayout,
+                                     boolean isErrorEnabled,
+                                     @StringRes int errorResId) {
+        String error = isErrorEnabled ? getString(errorResId) : null;
+        ViewUtils.setError(textInputLayout, error);
+        return !isErrorEnabled;
     }
 }

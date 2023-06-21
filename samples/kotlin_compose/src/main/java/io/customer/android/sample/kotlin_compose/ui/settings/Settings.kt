@@ -1,6 +1,5 @@
 package io.customer.android.sample.kotlin_compose.ui.settings
 
-import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,10 +48,8 @@ fun SettingsRoute(
     val state = settingsViewModel.uiState.collectAsState()
     SettingsScreen(uiState = state.value, onBackPressed = onBackPressed, onSave = {
         settingsViewModel.saveAndUpdateConfiguration(
-            configuration = it,
-            application = context.applicationContext as Application,
-            onComplete = {}
-        )
+            configuration = it
+        ) {}
     })
 }
 

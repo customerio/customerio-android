@@ -97,39 +97,40 @@ class Queue : GistListener {
     }
 
     private fun handleMessages(messages: List<Message>) {
-        run loop@{
-            messages.forEach foreach@{ message ->
-                val gistProperties = GistMessageProperties.getGistProperties(message)
-                gistProperties.routeRule?.let { routeRule ->
-                    try {
-                        if (!routeRule.toRegex().matches(GistSdk.currentRoute)) {
-                            Log.i(
-                                GIST_TAG,
-                                "Message route: $routeRule does not match current route: ${GistSdk.currentRoute}"
-                            )
-                            addMessageToLocalStore(message)
-                            return@foreach
-                        }
-                    } catch (e: PatternSyntaxException) {
-                        Log.i(GIST_TAG, "Invalid route rule regex: $routeRule")
-                        return@foreach
-                    }
-                }
-                gistProperties.elementId?.let { elementId ->
+        for (message in messages) {
+            processMessage(message)
+        }
+    }
+
+    private fun processMessage(message: Message) {
+        val gistProperties = GistMessageProperties.getGistProperties(message)
+        gistProperties.routeRule?.let { routeRule ->
+            try {
+                if (!routeRule.toRegex().matches(GistSdk.currentRoute)) {
                     Log.i(
                         GIST_TAG,
-                        "Embedding message from queue with queue id: ${message.queueId}"
+                        "Message route: $routeRule does not match current route: ${GistSdk.currentRoute}"
                     )
-                    GistSdk.handleEmbedMessage(message, elementId)
-                } ?: run {
-                    Log.i(
-                        GIST_TAG,
-                        "Showing message from queue with queue id: ${message.queueId}"
-                    )
-                    GistSdk.showMessage(message)
-                    return@loop
+                    addMessageToLocalStore(message)
+                    return
                 }
+            } catch (e: PatternSyntaxException) {
+                Log.i(GIST_TAG, "Invalid route rule regex: $routeRule")
+                return
             }
+        }
+        gistProperties.elementId?.let { elementId ->
+            Log.i(
+                GIST_TAG,
+                "Embedding message from queue with queue id: ${message.queueId}"
+            )
+            GistSdk.handleEmbedMessage(message, elementId)
+        } ?: run {
+            Log.i(
+                GIST_TAG,
+                "Showing message from queue with queue id: ${message.queueId}"
+            )
+            GistSdk.showMessage(message)
         }
     }
 

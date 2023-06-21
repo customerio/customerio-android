@@ -170,11 +170,11 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     fun clearListeners() {
-        listeners.forEach {
-            val listenerPackageName = it.javaClass.`package`.name
+        for (listener in listeners) {
+            val listenerPackageName = listener.javaClass.`package`?.name
             if (!listenerPackageName.toString().startsWith("build.gist.")) {
                 Log.d(GIST_TAG, "Removing listener $listenerPackageName")
-                listeners.remove(it)
+                listeners.remove(listener)
             }
         }
     }
@@ -213,19 +213,27 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     internal fun handleGistLoaded(message: Message) {
-        listeners.forEach { it.onMessageShown(message) }
+        for (listener in listeners) {
+            listener.onMessageShown(message)
+        }
     }
 
     internal fun handleGistClosed(message: Message) {
-        listeners.forEach { it.onMessageDismissed(message) }
+        for (listener in listeners) {
+            listener.onMessageDismissed(message)
+        }
     }
 
     internal fun handleGistError(message: Message) {
-        listeners.forEach { it.onError(message) }
+        for (listener in listeners) {
+            listener.onError(message)
+        }
     }
 
     internal fun handleEmbedMessage(message: Message, elementId: String) {
-        listeners.forEach { it.embedMessage(message, elementId) }
+        for (listener in listeners) {
+            listener.embedMessage(message, elementId)
+        }
     }
 
     internal fun handleGistAction(
@@ -234,7 +242,9 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         action: String,
         name: String
     ) {
-        listeners.forEach { it.onAction(message, currentRoute, action, name) }
+        for (listener in listeners) {
+            listener.onAction(message, currentRoute, action, name)
+        }
     }
 
     internal fun getUserToken(): String? {

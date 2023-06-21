@@ -1,6 +1,5 @@
 package io.customer.android.sample.kotlin_compose.ui.settings
 
-import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,7 +36,6 @@ class SettingsViewModel @Inject constructor(
 
     fun saveAndUpdateConfiguration(
         configuration: Configuration,
-        application: Application,
         onComplete: () -> Unit
     ) {
         viewModelScope.launch {

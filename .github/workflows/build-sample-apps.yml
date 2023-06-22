@@ -85,9 +85,9 @@ jobs:
 
     - name: Setup build environment with Customer.io workspace credentials 
       run: |
-        touch "samples/${{ matrix.sample-app }}/local.properties"
-        echo "siteId=${{ secrets.CIO_SITE_ID }}" >> "samples/${{ matrix.sample-app }}/local.properties"
-        echo "apiKey=${{ secrets.CIO_API_KEY }}" >> "samples/${{ matrix.sample-app }}/local.properties"          
+        touch "samples/local.properties"
+        echo "siteId=${{ secrets.CIO_SITE_ID }}" >> "samples/local.properties"
+        echo "apiKey=${{ secrets.CIO_API_KEY }}" >> "samples/local.properties"          
     
     - name: Verify gradle scripts are not modified 
       uses: gradle/wrapper-validation-action@v1

@@ -1,5 +1,5 @@
 Properties localProperties = new Properties()
-File localPropertiesFile = rootProject.file('local.properties')
+File localPropertiesFile = file("${rootDir}/samples/local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(new FileInputStream(localPropertiesFile))
 }

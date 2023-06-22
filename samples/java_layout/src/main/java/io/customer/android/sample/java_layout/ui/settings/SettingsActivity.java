@@ -59,6 +59,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     @Override
     protected void setupContent() {
+        prepareViewsForAutomatedTests();
         setupViews();
         setupObservers();
     }
@@ -87,6 +88,21 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             }
         }
         isLinkParamsPopulated = true;
+    }
+
+    private void prepareViewsForAutomatedTests() {
+        ViewUtils.prepareForAutomatedTests(binding.topAppBar);
+        ViewUtils.prepareForAutomatedTests(binding.deviceTokenTextInput, R.string.acd_device_token_input);
+        ViewUtils.prepareForAutomatedTests(binding.trackingUrlTextInput, R.string.acd_tracking_url_input);
+        ViewUtils.prepareForAutomatedTests(binding.siteIdTextInput, R.string.acd_site_id_input);
+        ViewUtils.prepareForAutomatedTests(binding.apiKeyTextInput, R.string.acd_api_key_input);
+        ViewUtils.prepareForAutomatedTests(binding.bqDelayTextInput, R.string.acd_bq_seconds_delay_input);
+        ViewUtils.prepareForAutomatedTests(binding.bqTasksTextInput, R.string.acd_bq_min_tasks_input);
+        ViewUtils.prepareForAutomatedTests(binding.trackScreensSwitch, R.string.acd_track_screens_switch);
+        ViewUtils.prepareForAutomatedTests(binding.trackDeviceAttributesSwitch, R.string.acd_track_device_attributes_switch);
+        ViewUtils.prepareForAutomatedTests(binding.debugModeSwitch, R.string.acd_debug_mode_switch);
+        ViewUtils.prepareForAutomatedTests(binding.saveButton, R.string.acd_save_settings_button);
+        ViewUtils.prepareForAutomatedTests(binding.restoreDefaultsButton, R.string.acd_restore_default_settings_button);
     }
 
     private void setupViews() {

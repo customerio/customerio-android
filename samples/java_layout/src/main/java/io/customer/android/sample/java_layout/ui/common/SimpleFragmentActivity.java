@@ -15,6 +15,7 @@ import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.tracking.AttributesTrackingFragment;
 import io.customer.android.sample.java_layout.ui.tracking.CustomEventTrackingFragment;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 
 public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentBinding> {
 
@@ -66,6 +67,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
             throw new IllegalStateException("Fragment name cannot be null");
         }
 
+        ViewUtils.prepareForAutomatedTests(binding.topAppBar);
         binding.topAppBar.setNavigationOnClickListener(view -> navigateUp());
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {

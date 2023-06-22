@@ -11,20 +11,27 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
+import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.sdk.CustomerIO
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,8 +39,17 @@ fun CustomEventRoute(
     onBackPressed: () -> Unit
 ) {
     var eventName by remember { mutableStateOf("") }
+    var eventError by remember { mutableStateOf("") }
     var propertyName by remember { mutableStateOf("") }
     var propertyValue by remember { mutableStateOf("") }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
+        CustomerIO.instance().screen("Custom Event")
+    })
 
     Column(
         modifier = Modifier
@@ -62,9 +78,16 @@ fun CustomEventRoute(
                 value = eventName,
                 onValueChange = {
                     eventName = it
+                    eventError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.event_name))
+                },
+                isError = eventError.isNotEmpty(),
+                supportingText = {
+                    if (eventError.isNotEmpty()) {
+                        Text(text = eventError)
+                    }
                 }
             )
             OutlinedTextField(
@@ -88,11 +111,19 @@ fun CustomEventRoute(
                 }
             )
             ActionButton(text = stringResource(R.string.send_event), onClick = {
+                if (eventName.isEmpty()) {
+                    eventError = "Required"
+                    return@ActionButton
+                }
                 CustomerIO.instance().track(
                     name = eventName,
                     attributes = mapOf(propertyName to propertyValue)
                 )
+                scope.launch {
+                    snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))
+                }
             })
+            SnackbarHost(hostState = snackbarHostState)
         }
     }
 }

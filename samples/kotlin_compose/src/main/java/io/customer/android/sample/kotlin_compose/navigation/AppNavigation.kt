@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavDeepLink
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -80,7 +81,12 @@ internal fun NavGraphBuilder.addCustomAttributeRoute(
 internal fun NavGraphBuilder.addLoginRoute(
     navController: NavHostController
 ) {
-    composable(Screen.Login.route) {
+    composable(
+        route = Screen.Login.route,
+        deepLinks = (
+            getDeepLink("login")
+            )
+    ) {
         LoginRoute(onLoginSuccess = {
             navController.navigate(Screen.Dashboard.route) {
                 launchSingleTop = true
@@ -98,20 +104,24 @@ internal fun NavGraphBuilder.addSettingsRoute(
     composable(
         route = Screen.Settings.route,
         deepLinks = (
-            listOf(
-                navDeepLink {
-                    uriPattern = "kotlin-sample://settings"
-                },
-                navDeepLink {
-                    uriPattern = "https://www.kotlin-sample.com/settings"
-                }
-            )
+            getDeepLink("settings")
             )
     ) {
         SettingsRoute(onBackPressed = {
             navController.navigateUp()
         })
     }
+}
+
+fun getDeepLink(screen: String): List<NavDeepLink> {
+    return listOf(
+        navDeepLink {
+            uriPattern = "kotlin-sample://$screen"
+        },
+        navDeepLink {
+            uriPattern = "https://www.kotlin-sample.com/$screen"
+        }
+    )
 }
 
 internal fun NavGraphBuilder.addCustomEventRoute(
@@ -127,7 +137,7 @@ internal fun NavGraphBuilder.addCustomEventRoute(
 internal fun NavGraphBuilder.addDashboardRoute(
     navController: NavHostController
 ) {
-    composable(Screen.Dashboard.route) {
+    composable(route = Screen.Dashboard.route, deepLinks = getDeepLink("dashboard")) {
         DashboardRoute(onTrackCustomEvent = {
             navController.navigate(Screen.CustomEvent.route)
         }, onTrackCustomAttribute = {

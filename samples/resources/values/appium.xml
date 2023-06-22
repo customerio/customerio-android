@@ -1,0 +1,37 @@
+<resources>
+    <!--
+    Adding a prefix "acd_" to all the strings helps us avoid any conflicts with the app strings.
+    ACD here is used as short form Appium Content Description.
+    -->
+    <string name="acd_settings_icon">Settings</string>
+    <string name="acd_back_button_icon">Back Button</string>
+    <string name="acd_first_name_input">First Name Input</string>
+    <string name="acd_email_input">Email Input</string>
+    <string name="acd_login_button">Login Button</string>
+    <string name="acd_random_login_button">Random Login Button</string>
+    <string name="acd_device_token_input">Device Token Input</string>
+    <string name="acd_tracking_url_input">Track URL Input</string>
+    <string name="acd_site_id_input">Site ID Input</string>
+    <string name="acd_api_key_input">API Key Input</string>
+    <string name="acd_bq_seconds_delay_input">BQ Seconds Delay Input</string>
+    <string name="acd_bq_min_tasks_input">BQ Min Number of Tasks Input</string>
+    <string name="acd_track_screens_switch">Track Screens Toggle</string>
+    <string name="acd_track_device_attributes_switch">Track Device Attributes Toggle</string>
+    <string name="acd_debug_mode_switch">Debug Mode Toggle</string>
+    <string name="acd_save_settings_button">Save Settings Button</string>
+    <string name="acd_restore_default_settings_button">Restore Default Settings Button</string>
+    <string name="acd_random_event_button">Random Event Button</string>
+    <string name="acd_custom_event_button">Custom Event Button</string>
+    <string name="acd_device_attribute_button">Device Attribute Button</string>
+    <string name="acd_profile_attribute_button">Profile Attribute Button</string>
+    <string name="acd_push_prompt_button">Show Push Prompt Button</string>
+    <string name="acd_logout_button">Log Out Button</string>
+    <string name="acd_event_name_input">Event Name Input</string>
+    <string name="acd_property_name_input">Property Name Input</string>
+    <string name="acd_property_value_input">Property Value Input</string>
+    <string name="acd_send_event_button">Send Event Button</string>
+    <string name="acd_attribute_name_input">Attribute Name Input</string>
+    <string name="acd_attribute_value_input">Attribute Value Input</string>
+    <string name="acd_send_device_attribute_button">Set Device Attribute Button</string>
+    <string name="acd_send_profile_attribute_button">Set Profile Attribute Button</string>
+</resources>

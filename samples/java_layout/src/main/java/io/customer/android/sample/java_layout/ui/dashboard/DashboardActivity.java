@@ -97,6 +97,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void prepareViewsForAutomatedTests() {
         ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
+        ViewUtils.prepareForAutomatedTests(binding.userEmailTextView, R.string.acd_email_id_text);
         ViewUtils.prepareForAutomatedTests(binding.sendRandomEventButton, R.string.acd_random_event_button);
         ViewUtils.prepareForAutomatedTests(binding.sendCustomEventButton, R.string.acd_custom_event_button);
         ViewUtils.prepareForAutomatedTests(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);

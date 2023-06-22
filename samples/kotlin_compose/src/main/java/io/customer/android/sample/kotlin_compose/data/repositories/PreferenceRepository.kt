@@ -46,8 +46,7 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
                 apiKey = preferences[API_KEY] ?: BuildConfig.API_KEY
             ).apply {
                 trackUrl =
-                    preferences[TRACK_API_URL_KEY]?.ifEmpty { "https://track-sdk.customer.io/" }
-                        ?: "https://track-sdk.customer.io/"
+                    preferences[TRACK_API_URL_KEY]?.takeIf { it.isNotBlank() } ?: "https://track-sdk.customer.io/"
 
                 backgroundQueueSecondsDelay = preferences[BACKGROUND_QUEUE_SECONDS_DELAY]
                     ?: CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY

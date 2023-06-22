@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
 import io.customer.sdk.CustomerIO
+import java.util.Calendar
 import java.util.Random
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,7 +55,8 @@ class DashboardViewModel @Inject constructor(
             }
 
             2 -> {
-                val sevenDaysLater = System.currentTimeMillis() / 1000 + 7 * 24 * 60 * 60
+                val sevenDaysLater =
+                    Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.time
                 val attributes = mapOf("appointmentTime" to sevenDaysLater)
                 CustomerIO.instance().track("appointmentScheduled", attributes)
             }

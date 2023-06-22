@@ -9,6 +9,9 @@ import android.text.TextUtils;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+
+import com.google.android.material.textfield.TextInputLayout;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -100,58 +103,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             ClipData clip = ClipData.newPlainText(getString(R.string.device_token), deviceToken);
             clipboard.setPrimaryClip(clip);
         });
-        binding.saveButton.setOnClickListener(view -> {
-            String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
-            String apiKey = ViewUtils.getTextTrimmed(binding.apiKeyTextInput);
-            String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
-
-            boolean isFormValid = true;
-            if (!isTrackingURLValid(trackingURL)) {
-                ViewUtils.setError(binding.trackingUrlInputLayout, getString(R.string.error_tracking_url));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.trackingUrlInputLayout, null);
-            }
-            if (TextUtils.isEmpty(siteId)) {
-                ViewUtils.setError(binding.siteIdInputLayout, getString(R.string.error_site_id));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.siteIdInputLayout, null);
-            }
-            if (TextUtils.isEmpty(apiKey)) {
-                ViewUtils.setError(binding.apiKeyInputLayout, getString(R.string.error_api_key));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.apiKeyInputLayout, null);
-            }
-
-            if (isFormValid) {
-                binding.progressIndicator.show();
-                Double bqSecondsDelay = StringUtils.parseDouble(ViewUtils.getTextTrimmed(binding.bqDelayTextInput), null);
-                Integer bqMinTasks = StringUtils.parseInteger(ViewUtils.getTextTrimmed(binding.bqTasksTextInput), null);
-                boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
-                boolean featTrackDeviceAttributes = binding.trackDeviceAttributesSwitch.isChecked();
-                boolean featDebugMode = binding.debugModeSwitch.isChecked();
-                CustomerIOSDKConfig config = new CustomerIOSDKConfig(siteId,
-                        apiKey,
-                        trackingURL,
-                        bqSecondsDelay,
-                        bqMinTasks,
-                        featTrackScreens,
-                        featTrackDeviceAttributes,
-                        featDebugMode);
-                Disposable disposable = settingsViewModel
-                        .updateConfigurations(config)
-                        .subscribeOn(Schedulers.io())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(preferences -> {
-                            binding.progressIndicator.hide();
-                            Toast.makeText(this, R.string.settings_save_msg, Toast.LENGTH_SHORT).show();
-                            OSUtils.restartApp();
-                        });
-                disposables.add(disposable);
-            }
-        });
+        binding.saveButton.setOnClickListener(view -> saveSettings());
         binding.restoreDefaultsButton.setOnClickListener(view -> updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations()));
     }
 
@@ -171,9 +123,9 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private boolean isTrackingURLValid(String url) {
-        // Empty text is considered valid
+        // Empty text is not considered valid
         if (TextUtils.isEmpty(url)) {
-            return true;
+            return false;
         }
 
         Uri uri = Uri.parse(url);
@@ -191,5 +143,59 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());
         binding.trackDeviceAttributesSwitch.setChecked(config.deviceAttributesTrackingEnabled());
         binding.debugModeSwitch.setChecked(config.debugModeEnabled());
+    }
+
+    private void saveSettings() {
+        boolean isFormValid;
+
+        String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
+        isFormValid = updateErrorState(binding.trackingUrlInputLayout, !isTrackingURLValid(trackingURL), R.string.error_tracking_url);
+
+        String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
+        isFormValid = updateErrorState(binding.siteIdInputLayout, TextUtils.isEmpty(siteId), R.string.error_text_input_field_blank) && isFormValid;
+
+        String apiKey = ViewUtils.getTextTrimmed(binding.apiKeyTextInput);
+        isFormValid = updateErrorState(binding.apiKeyInputLayout, TextUtils.isEmpty(apiKey), R.string.error_text_input_field_blank) && isFormValid;
+
+        String bqSecondsDelayText = ViewUtils.getTextTrimmed(binding.bqDelayTextInput);
+        isFormValid = updateErrorState(binding.bqDelayInputLayout, TextUtils.isEmpty(bqSecondsDelayText), R.string.error_text_input_field_blank) && isFormValid;
+        Double bqSecondsDelay = StringUtils.parseDouble(bqSecondsDelayText, null);
+
+        String bqMinTasksText = ViewUtils.getTextTrimmed(binding.bqTasksTextInput);
+        isFormValid = updateErrorState(binding.bqTasksInputLayout, TextUtils.isEmpty(bqMinTasksText), R.string.error_text_input_field_blank) && isFormValid;
+        Integer bqMinTasks = StringUtils.parseInteger(bqMinTasksText, null);
+
+        if (isFormValid) {
+            binding.progressIndicator.show();
+            boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
+            boolean featTrackDeviceAttributes = binding.trackDeviceAttributesSwitch.isChecked();
+            boolean featDebugMode = binding.debugModeSwitch.isChecked();
+            CustomerIOSDKConfig config = new CustomerIOSDKConfig(siteId,
+                    apiKey,
+                    trackingURL,
+                    bqSecondsDelay,
+                    bqMinTasks,
+                    featTrackScreens,
+                    featTrackDeviceAttributes,
+                    featDebugMode);
+            Disposable disposable = settingsViewModel
+                    .updateConfigurations(config)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(preferences -> {
+                        binding.progressIndicator.hide();
+                        Toast.makeText(this, R.string.settings_save_msg, Toast.LENGTH_SHORT).show();
+                        OSUtils.restartApp();
+                    });
+            disposables.add(disposable);
+        }
+    }
+
+    private boolean updateErrorState(TextInputLayout textInputLayout,
+                                     boolean isErrorEnabled,
+                                     @StringRes int errorResId) {
+        String error = isErrorEnabled ? getString(errorResId) : null;
+        ViewUtils.setError(textInputLayout, error);
+        return !isErrorEnabled;
     }
 }

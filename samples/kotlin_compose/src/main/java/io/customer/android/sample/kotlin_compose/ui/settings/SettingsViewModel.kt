@@ -34,6 +34,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateConfiguration(
+        configuration: Configuration,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.emit(_uiState.value.copy(configuration = configuration))
+            onComplete.invoke()
+        }
+    }
+
     fun saveAndUpdateConfiguration(
         configuration: Configuration,
         onComplete: () -> Unit
@@ -41,6 +51,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             preferenceRepository.saveConfiguration(configuration)
             onComplete.invoke()
+        }
+    }
+
+    fun restoreDefaults() {
+        viewModelScope.launch {
+            val config = preferenceRepository.restoreDefaults()
+            _uiState.emit(_uiState.value.copy(configuration = config))
         }
     }
 }

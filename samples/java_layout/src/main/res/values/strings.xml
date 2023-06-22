@@ -19,9 +19,7 @@
     <string name="tracking_url">CIO Track URL</string>
     <string name="error_tracking_url">Please enter formatted url e.g. https://tracking.cio/</string>
     <string name="site_id">Site Id</string>
-    <string name="error_site_id">Site Id cannot be empty</string>
     <string name="api_key">API Key</string>
-    <string name="error_api_key">API Key cannot be empty</string>
     <string name="background_queue_seconds_delay_label">backgroundQueueSecondsDelay</string>
     <string name="background_queue_min_tasks_label">backgroundQueueMinNumberOfTasks</string>
     <string name="features">Features</string>
@@ -34,14 +32,11 @@
     <string name="settings_save_msg">SDK configurations saved successfully</string>
     <string name="screen_title_custom_event">Send Custom Event</string>
     <string name="event_name">Event Name</string>
-    <string name="error_event_name">Event name cannot be empty</string>
     <string name="property_name">Property Name</string>
     <string name="property_value">Property Value</string>
     <string name="send_event">Send Event</string>
     <string name="attribute_name">Attribute Name</string>
-    <string name="error_attribute_name">Attribute name cannot be empty</string>
     <string name="attribute_value">Attribute Value</string>
-    <string name="error_attribute_value">Attribute value cannot be empty</string>
     <string name="screen_title_device_attributes">Set Custom Device Attribute</string>
     <string name="screen_title_profile_attributes">Set Custom Profile Attribute</string>
     <string name="send_device_attribute">Send device attributes</string>
@@ -61,4 +56,6 @@
     <string name="open_settings">Open Settings</string>
     <string name="filter_view_app_link">Java Sample App Scheme Links</string>
     <string name="filter_view_universal_link">Java Sample Universal Scheme Links</string>
+    <string name="error_text_input_field_blank">This field cannot be blank</string>
+    <string name="error_text_input_field_empty">This field cannot be empty</string>
 </resources>

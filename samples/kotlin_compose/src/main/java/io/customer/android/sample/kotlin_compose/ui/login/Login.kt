@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,7 +30,9 @@ import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.SettingsIcon
+import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
+import io.customer.sdk.CustomerIO
 
 @Composable
 fun LoginRoute(
@@ -38,6 +41,13 @@ fun LoginRoute(
     onLoginSuccess: () -> Unit
 ) {
     val state = loginViewModel.uiState.collectAsState()
+
+    TrackScreenLifecycle(
+        lifecycleOwner = LocalLifecycleOwner.current,
+        onScreenEnter = {
+            CustomerIO.instance().screen("Login")
+        }
+    )
 
     LoginScreen(
         uiState = state.value,

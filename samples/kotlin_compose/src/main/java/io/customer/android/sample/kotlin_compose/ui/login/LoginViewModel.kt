@@ -9,7 +9,6 @@ import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
 import io.customer.sdk.CustomerIO
-import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,14 +42,7 @@ class LoginViewModel @Inject constructor(
     }
 
     fun loginUser(email: String, name: String, onLoginSuccess: () -> Unit) {
-        if (name.isEmpty()) {
-            _uiState.update {
-                it.copy(
-                    nameError = R.string.invalid_name,
-                    emailError = null
-                )
-            }
-        } else if (email.isEmpty() || Patterns.EMAIL_ADDRESS.matcher(email).matches().not()) {
+        if (email.isEmpty() || Patterns.EMAIL_ADDRESS.matcher(email).matches().not()) {
             _uiState.update {
                 it.copy(
                     emailError = R.string.invalid_email,
@@ -85,13 +77,20 @@ class LoginViewModel @Inject constructor(
     }
 
     fun loginAsGuest(onLoginSuccess: () -> Unit) {
-        val uuid = UUID.randomUUID().toString()
         login(
-            email = uuid,
-            name = "Guest",
+            email = generateRandomEmail(),
+            name = "",
             isGuest = true,
             onLoginSuccess = onLoginSuccess
         )
+    }
+
+    private fun generateRandomEmail(): String {
+        val randomString = (1..10).map {
+            (('a'..'z') + ('A'..'Z') + ('0'..'9')).random()
+        }.joinToString("")
+
+        return "$randomString@customer.io"
     }
 
     private fun loadData() {

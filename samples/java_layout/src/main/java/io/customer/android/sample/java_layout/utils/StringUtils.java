@@ -4,7 +4,28 @@ import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
+import java.util.Locale;
+
 public class StringUtils {
+    @Nullable
+    public static Double parseDouble(@Nullable String value, @Nullable Double defaultValue) {
+        if (TextUtils.isEmpty(value)) {
+            return defaultValue;
+        }
+
+        try {
+            return Double.valueOf(value);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    public static String fromDouble(@Nullable Double value) {
+        if (value == null) return null;
+        if (value % 1.0 != 0.0) return value.toString();
+        else return String.format(Locale.ENGLISH, "%.0f", value);
+    }
+
     @Nullable
     public static Integer parseInteger(@Nullable String value, @Nullable Integer defaultValue) {
         if (TextUtils.isEmpty(value)) {

@@ -2,9 +2,10 @@ package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,14 +73,21 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
 
         binding.sendEventButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            String attributeName = ViewUtils.getTextTrimmed(binding.attributeNameTextInput);
-            String attributeValue = ViewUtils.getTextTrimmed(binding.attributeValueTextInput);
+            String attributeName = ViewUtils.getText(binding.attributeNameTextInput);
+            String attributeValue = ViewUtils.getText(binding.attributeValueTextInput);
 
             if (TextUtils.isEmpty(attributeName)) {
-                ViewUtils.setError(binding.attributeNameInputLayout, getString(R.string.error_attribute_name));
+                ViewUtils.setError(binding.attributeNameInputLayout, getString(R.string.error_text_input_field_empty));
                 isFormValid = false;
             } else {
                 ViewUtils.setError(binding.attributeNameInputLayout, null);
+            }
+
+            if (TextUtils.isEmpty(attributeValue)) {
+                ViewUtils.setError(binding.attributeValueInputLayout, getString(R.string.error_text_input_field_empty));
+                isFormValid = false;
+            } else {
+                ViewUtils.setError(binding.attributeValueInputLayout, null);
             }
 
             if (isFormValid) {
@@ -102,10 +110,9 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
 
                 FragmentActivity activity = getActivity();
                 if (activity != null) {
-                    Toast.makeText(activity,
+                    Snackbar.make(binding.sendEventButton,
                             getString(R.string.attributes_tracked_msg_format, attributeType),
-                            Toast.LENGTH_SHORT).show();
-                    activity.onBackPressed();
+                            Snackbar.LENGTH_SHORT).show();
                 }
             }
         });

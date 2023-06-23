@@ -69,6 +69,7 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
         ViewUtils.prepareForAutomatedTests(binding.topAppBar);
         binding.topAppBar.setNavigationOnClickListener(view -> navigateUp());
+
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 replaceFragment();

@@ -33,6 +33,13 @@ android {
         // For snapshot builds
         maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
     }
+    sourceSets {
+        main {
+            res.srcDirs += [
+                    "${rootDir}/samples/resources",
+            ]
+        }
+    }
 }
 
 dependencies {

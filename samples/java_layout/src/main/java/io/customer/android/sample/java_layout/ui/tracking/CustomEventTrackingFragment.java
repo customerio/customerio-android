@@ -39,6 +39,18 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
 
     @Override
     protected void setupContent() {
+        prepareViewsForAutomatedTests();
+        setupViews();
+    }
+
+    private void prepareViewsForAutomatedTests() {
+        ViewUtils.prepareForAutomatedTests(binding.eventNameTextInput, R.string.acd_event_name_input);
+        ViewUtils.prepareForAutomatedTests(binding.propertyNameTextInput, R.string.acd_property_name_input);
+        ViewUtils.prepareForAutomatedTests(binding.propertyValueTextInput, R.string.acd_property_value_input);
+        ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_event_button);
+    }
+
+    private void setupViews() {
         binding.sendEventButton.setOnClickListener(view -> {
             boolean isFormValid = true;
             String eventName = ViewUtils.getText(binding.eventNameTextInput);

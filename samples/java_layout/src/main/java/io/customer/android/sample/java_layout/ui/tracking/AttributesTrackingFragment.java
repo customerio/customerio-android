@@ -60,6 +60,24 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
 
     @Override
     protected void setupContent() {
+        prepareViewsForAutomatedTests();
+        setupViews();
+    }
+
+    private void prepareViewsForAutomatedTests() {
+        ViewUtils.prepareForAutomatedTests(binding.attributeNameTextInput, R.string.acd_attribute_name_input);
+        ViewUtils.prepareForAutomatedTests(binding.attributeValueTextInput, R.string.acd_attribute_value_input);
+        switch (mAttributeType) {
+            case ATTRIBUTE_TYPE_DEVICE:
+                ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_device_attribute_button);
+                break;
+            case ATTRIBUTE_TYPE_PROFILE:
+                ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_profile_attribute_button);
+                break;
+        }
+    }
+
+    private void setupViews() {
         switch (mAttributeType) {
             case ATTRIBUTE_TYPE_DEVICE:
                 binding.screenTitleTextView.setText(R.string.screen_title_device_attributes);

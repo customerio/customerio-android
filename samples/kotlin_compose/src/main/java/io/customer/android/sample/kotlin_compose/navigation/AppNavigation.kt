@@ -41,7 +41,8 @@ sealed class Screen(val route: String) {
 fun AppNavGraph(
     modifier: Modifier = Modifier,
     deepLinkState: StateFlow<Intent?>,
-    startDestination: String = Screen.Login.route
+    startDestination: String = Screen.Login.route,
+    onCheckPermission: () -> Unit
 ) {
     val navController = rememberNavController()
 
@@ -56,7 +57,7 @@ fun AppNavGraph(
     ) {
         addLoginRoute(navController)
         addSettingsRoute(navController)
-        addDashboardRoute(navController)
+        addDashboardRoute(navController, onCheckPermission)
         addCustomEventRoute(navController)
         addCustomAttributeRoute(navController)
     }
@@ -83,9 +84,7 @@ internal fun NavGraphBuilder.addLoginRoute(
 ) {
     composable(
         route = Screen.Login.route,
-        deepLinks = (
-            getDeepLink("login")
-            )
+        deepLinks = (getDeepLink("login"))
     ) {
         LoginRoute(onLoginSuccess = {
             navController.navigate(Screen.Dashboard.route) {
@@ -103,9 +102,7 @@ internal fun NavGraphBuilder.addSettingsRoute(
 ) {
     composable(
         route = Screen.Settings.route,
-        deepLinks = (
-            getDeepLink("settings")
-            )
+        deepLinks = (getDeepLink("settings"))
     ) {
         SettingsRoute(onBackPressed = {
             navController.navigateUp()
@@ -135,19 +132,26 @@ internal fun NavGraphBuilder.addCustomEventRoute(
 }
 
 internal fun NavGraphBuilder.addDashboardRoute(
-    navController: NavHostController
+    navController: NavHostController,
+    onCheckPermission: () -> Unit
 ) {
     composable(route = Screen.Dashboard.route, deepLinks = getDeepLink("dashboard")) {
-        DashboardRoute(onTrackCustomEvent = {
-            navController.navigate(Screen.CustomEvent.route)
-        }, onTrackCustomAttribute = {
-            navController.navigate(Screen.CustomAttribute.createRoute(it))
-        }, onSettingsClick = {
-            navController.navigate(Screen.Settings.route)
-        }, onLogout = {
-            navController.navigate(Screen.Login.route) {
-                popUpTo(Screen.Dashboard.route) { inclusive = true }
-            }
-        })
+        DashboardRoute(
+            onTrackCustomEvent = {
+                navController.navigate(Screen.CustomEvent.route)
+            },
+            onTrackCustomAttribute = {
+                navController.navigate(Screen.CustomAttribute.createRoute(it))
+            },
+            onSettingsClick = {
+                navController.navigate(Screen.Settings.route)
+            },
+            onLogout = {
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(Screen.Dashboard.route) { inclusive = true }
+                }
+            },
+            onCheckPermission = onCheckPermission
+        )
     }
 }

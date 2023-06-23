@@ -113,7 +113,7 @@ fun ColumnScope.BackButton(onClick: () -> Unit) {
             contentDescription = "Back",
             modifier = Modifier
                 .align(Alignment.Start)
-                .testTag("back_button")
+                .testTag(stringResource(id = R.string.acd_back_button_icon))
         )
     }
 }

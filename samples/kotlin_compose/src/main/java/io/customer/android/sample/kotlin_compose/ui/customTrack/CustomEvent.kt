@@ -65,7 +65,7 @@ fun CustomEventRoute(
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("event_name"),
+                    .testTag(stringResource(id = R.string.acd_event_name_input)),
                 value = eventName,
                 onValueChange = {
                     eventName = it
@@ -84,7 +84,7 @@ fun CustomEventRoute(
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("property_name"),
+                    .testTag(stringResource(id = R.string.acd_property_name_input)),
                 value = propertyName,
                 onValueChange = {
                     propertyName = it
@@ -96,7 +96,7 @@ fun CustomEventRoute(
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("property_value"),
+                    .testTag(stringResource(id = R.string.acd_property_value_input)),
                 value = propertyValue,
                 onValueChange = {
                     propertyValue = it
@@ -107,7 +107,7 @@ fun CustomEventRoute(
             )
             ActionButton(
                 text = stringResource(R.string.send_event),
-                modifier = Modifier.testTag("send_button"),
+                modifier = Modifier.testTag(stringResource(id = R.string.acd_send_event_button)),
                 onClick = {
                     if (eventName.isEmpty()) {
                         eventError = "Required"

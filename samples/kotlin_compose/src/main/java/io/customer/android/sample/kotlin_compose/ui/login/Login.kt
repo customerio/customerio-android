@@ -113,7 +113,7 @@ fun LoginFieldsView(
             label = { Text(stringResource(R.string.name)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("name")
+                .testTag(stringResource(id = R.string.acd_first_name_input))
                 .padding(start = 0.dp, end = 0.dp),
             isError = nameErrorState.isNotEmpty(),
             supportingText = { Text(text = nameErrorState) }
@@ -124,7 +124,7 @@ fun LoginFieldsView(
             onValueChange = { newValue -> email = newValue },
             label = { Text(stringResource(R.string.email)) },
             modifier = Modifier
-                .testTag("email")
+                .testTag(stringResource(id = R.string.acd_email_input))
                 .fillMaxWidth()
                 .padding(start = 0.dp, end = 0.dp),
             isError = emailErrorState.isNotEmpty(),
@@ -134,7 +134,7 @@ fun LoginFieldsView(
 
         ActionButton(
             text = stringResource(R.string.login),
-            modifier = Modifier.testTag("login"),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_login_button)),
             onClick = {
                 onLogin.invoke(email, name)
             }
@@ -148,6 +148,7 @@ fun LoginFieldsView(
                 .clickable {
                     onGuestLogin.invoke()
                 }
+                .testTag(stringResource(id = R.string.acd_random_login_button))
         )
     }
 }

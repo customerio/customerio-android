@@ -74,7 +74,7 @@ fun CustomAttributeRoute(
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("attribute_name"),
+                    .testTag(stringResource(id = R.string.acd_attribute_name_input)),
                 value = attributeName,
                 onValueChange = {
                     attributeName = it
@@ -93,7 +93,7 @@ fun CustomAttributeRoute(
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("attribute_value"),
+                    .testTag(stringResource(id = R.string.acd_attribute_value_input)),
                 value = attributeValue,
                 onValueChange = {
                     attributeValue = it
@@ -121,9 +121,14 @@ fun CustomAttributeRoute(
                     CustomerIO.instance().deviceAttributes = mapOf(attributeName to attributeValue)
                 }
             }
+            val testTag = if (attributeType == TYPE_PROFILE) {
+                stringResource(id = R.string.acd_send_profile_attribute_button)
+            } else {
+                stringResource(id = R.string.acd_send_device_attribute_button)
+            }
             ActionButton(
                 text = btnTitle,
-                modifier = Modifier.testTag("send_button"),
+                modifier = Modifier.testTag(testTag),
                 onClick = {
                     if (attributeName.isEmpty()) {
                         attributeNameError = "Required"

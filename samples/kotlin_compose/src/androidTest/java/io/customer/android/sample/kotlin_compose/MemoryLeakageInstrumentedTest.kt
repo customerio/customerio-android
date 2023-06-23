@@ -92,6 +92,9 @@ class MemoryLeakageInstrumentedTest {
     @OptIn(InternalCustomerIOApi::class)
     @Test
     fun testMemoryLeakage() {
+        val appContext =
+            InstrumentationRegistry.getInstrumentation().targetContext
+
         // wait till compose ui is idle
         composeTestRule.runOnIdle { }
 
@@ -99,17 +102,20 @@ class MemoryLeakageInstrumentedTest {
         ActivityScenario.launch(MainActivity::class.java)
 
         // Enter the user's name and email address.
-        val name = composeTestRule.onNodeWithTag("name")
+        val name =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_first_name_input))
         name.performTextInput("MemoryLeakageTest")
 
-        val email = composeTestRule.onNodeWithTag("email")
+        val email = composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_email_input))
         email.performTextInput("memleak@leak.com")
 
         // Click the login button.
-        composeTestRule.onNodeWithTag("login").performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_login_button))
+            .performClick()
 
         // Click the random event button 50 times.
-        val randomEvent = composeTestRule.onNodeWithTag("random_event")
+        val randomEvent =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_random_event_button))
         for (i in 0..50) {
             randomEvent.performClick()
         }
@@ -118,74 +124,97 @@ class MemoryLeakageInstrumentedTest {
         LeakAssertions.assertNoLeaks()
 
         // Click the send custom event button.
-        composeTestRule.onNodeWithTag("send_custom_event").performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_custom_event_button))
+            .performClick()
 
         // Enter the event name, property name, and property value.
-        val eventName = composeTestRule.onNodeWithTag("event_name")
+        val eventName =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_event_name_input))
         eventName.performTextInput("custom event test for memory leak")
 
-        val propertyName = composeTestRule.onNodeWithTag("property_name")
+        val propertyName =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_property_name_input))
         propertyName.performTextInput("test property")
 
-        val propertyValue = composeTestRule.onNodeWithTag("property_value")
+        val propertyValue =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_property_value_input))
         propertyValue.performTextInput("test value")
 
         // Click the send button 10
         for (i in 0..10) {
-            composeTestRule.onNodeWithTag("send_button").performClick()
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_event_button))
+                .performClick()
         }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
 
         // Click the back button.
-        composeTestRule.onNodeWithTag("back_button", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag(
+            appContext.getString(R.string.acd_back_button_icon),
+            useUnmergedTree = true
+        ).performClick()
 
         // Click the set device attribute button.
-        composeTestRule.onNodeWithTag("set_device_attribute").performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_device_attribute_button))
+            .performClick()
 
         // Enter the attribute name and value.
-        val attributeName = composeTestRule.onNodeWithTag("attribute_name")
+        val attributeName =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_name_input))
         attributeName.performTextInput("memory test attribute")
 
-        val attributeValue = composeTestRule.onNodeWithTag("attribute_value")
+        val attributeValue =
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_value_input))
         attributeValue.performTextInput("memory test attribute")
 
         // Click the send button 10
         for (i in 0..10) {
-            composeTestRule.onNodeWithTag("send_button").performClick()
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_device_attribute_button))
+                .performClick()
         }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
 
         // Click the back button.
-        composeTestRule.onNodeWithTag("back_button", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag(
+            appContext.getString(R.string.acd_back_button_icon),
+            useUnmergedTree = true
+        ).performClick()
 
         // Click the set profile attribute button.
-        composeTestRule.onNodeWithTag("set_profile_attribute").performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_profile_attribute_button))
+            .performClick()
 
         // Enter the attribute name and value.
-        composeTestRule.onNodeWithTag("attribute_name").performTextInput("memory test attribute")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_name_input))
+            .performTextInput("memory test attribute")
 
-        composeTestRule.onNodeWithTag("attribute_value").performTextInput("memory test attribute")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_value_input))
+            .performTextInput("memory test attribute")
 
         // Click the send button 10
         for (i in 0..10) {
-            composeTestRule.onNodeWithTag("send_button").performClick()
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_profile_attribute_button))
+                .performClick()
         }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
 
         // Click the back button.
-        composeTestRule.onNodeWithTag("back_button", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag(
+            appContext.getString(R.string.acd_back_button_icon),
+            useUnmergedTree = true
+        ).performClick()
 
         // wait till compose ui is idle
         composeTestRule.runOnIdle {}
 
         // Click the logout button.
-        composeTestRule.onNodeWithTag("logout").performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_logout_button))
+            .performClick()
 
         composeTestRule.runOnIdle { }
 

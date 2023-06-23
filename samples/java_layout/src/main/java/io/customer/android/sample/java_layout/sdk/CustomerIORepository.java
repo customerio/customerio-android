@@ -30,7 +30,7 @@ public class CustomerIORepository {
         CustomerIO.Builder builder = new CustomerIO.Builder(sdkConfig.getSiteId(), sdkConfig.getApiKey(), application);
 
         // Enable detailed logging for debug builds.
-        if (Boolean.TRUE.equals(sdkConfig.isDebugModeEnabled())) {
+        if (sdkConfig.debugModeEnabled()) {
             builder.setLogLevel(CioLogLevel.DEBUG);
         }
 
@@ -38,13 +38,11 @@ public class CustomerIORepository {
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
-        if (Boolean.TRUE.equals(sdkConfig.isInAppEnabled())) {
-            builder.addCustomerIOModule(new ModuleMessagingInApp(
-                    new MessagingInAppModuleConfig.Builder()
-                            .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
-                            .build()
-            ));
-        }
+        builder.addCustomerIOModule(new ModuleMessagingInApp(
+                new MessagingInAppModuleConfig.Builder()
+                        .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                        .build()
+        ));
 
         // Modify SDK settings for testing purposes only.
         // If you don't need to override any of these settings, you can skip this line.
@@ -65,7 +63,7 @@ public class CustomerIORepository {
             builder.setTrackingApiURL(trackingApiUrl);
         }
 
-        final Integer bqSecondsDelay = sdkConfig.getBackgroundQueueSecondsDelay();
+        final Double bqSecondsDelay = sdkConfig.getBackgroundQueueSecondsDelay();
         if (bqSecondsDelay != null) {
             builder.setBackgroundQueueSecondsDelay(bqSecondsDelay);
         }

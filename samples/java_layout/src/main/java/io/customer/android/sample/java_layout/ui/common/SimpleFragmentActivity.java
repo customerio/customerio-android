@@ -1,7 +1,6 @@
 package io.customer.android.sample.java_layout.ui.common;
 
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 
@@ -9,9 +8,6 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
-import java.util.List;
-
-import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.databinding.ActivitySimpleFragmentBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
@@ -19,6 +15,7 @@ import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.tracking.AttributesTrackingFragment;
 import io.customer.android.sample.java_layout.ui.tracking.CustomEventTrackingFragment;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
+import io.customer.android.sample.java_layout.utils.ViewUtils;
 
 public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentBinding> {
 
@@ -62,18 +59,17 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
 
     @Override
     protected void setupContent() {
-        if (!parseFragmentParams()) {
-            // Navigate up for unsupported deep links so app doesn't crash and user experience is
-            // not affected
-            navigateUp();
-            return;
+        Bundle extras = getIntent().getExtras();
+        if (extras != null) {
+            mFragmentName = extras.getString(ARG_FRAGMENT_NAME);
         }
-
         if (TextUtils.isEmpty(mFragmentName)) {
             throw new IllegalStateException("Fragment name cannot be null");
         }
 
+        ViewUtils.prepareForAutomatedTests(binding.topAppBar);
         binding.topAppBar.setNavigationOnClickListener(view -> navigateUp());
+
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
                 replaceFragment();
@@ -84,60 +80,6 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
                 finish();
             }
         });
-    }
-
-    private boolean parseFragmentParams() {
-        Intent intent = getIntent();
-        Uri deepLinkUri = intent.getData();
-
-        // deepLinkUri contains link URI if activity is launched from deep link or url from
-        // Customer.io push notification
-        // e.g.
-        // java-sample://events/custom
-        // https://www.java-sample.com/events/custom
-        // java-sample://attributes/profile
-        // https://www.java-sample.com/attributes/profile
-
-        if (deepLinkUri != null) {
-            String host = deepLinkUri.getHost();
-            List<String> segments = deepLinkUri.getPathSegments();
-            String lastPathSegment = deepLinkUri.getLastPathSegment();
-
-            String path;
-            boolean isUniversalLink = BuildConfig.UNIVERSAL_DEEP_LINK_HOST.equals(host);
-            if (isUniversalLink && !segments.isEmpty()) {
-                path = segments.get(0);
-            } else {
-                path = host;
-            }
-
-            switch (path) {
-                case "events":
-                    if ("custom".equals(lastPathSegment)) {
-                        mFragmentName = FRAGMENT_CUSTOM_TRACKING_EVENT;
-                    }
-                    break;
-                case "attributes":
-                    switch (lastPathSegment) {
-                        case "device":
-                            mFragmentName = FRAGMENT_DEVICE_ATTRIBUTES;
-                            break;
-                        case "profile":
-                            mFragmentName = FRAGMENT_PROFILE_ATTRIBUTES;
-                            break;
-                    }
-                    break;
-            }
-            // Return true if deep link was parsed successfully only, false otherwise for unsupported links
-            return !TextUtils.isEmpty(mFragmentName);
-        } else {
-            Bundle extras = intent.getExtras();
-            if (extras != null) {
-                mFragmentName = extras.getString(ARG_FRAGMENT_NAME);
-            }
-            // Return true if for argument provided from app code so we can force crash for incorrect values
-            return true;
-        }
     }
 
     private void replaceFragment() {

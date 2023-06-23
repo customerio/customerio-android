@@ -1,5 +1,5 @@
 Properties localProperties = new Properties()
-File localPropertiesFile = rootProject.file('local.properties')
+File localPropertiesFile = file("${rootDir}/samples/local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(new FileInputStream(localPropertiesFile))
 }
@@ -9,11 +9,36 @@ android {
         buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
         buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
     }
+    // Avoid redefining signing configs in sample apps to avoid breaking release
+    // builds (specially on CI servers)
+    signingConfigs {
+        debug {
+            storeFile file("${rootDir}/samples/debug.keystore")
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
     repositories {
         // For locally deployed builds
         mavenLocal()
         // For snapshot builds
         maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    sourceSets {
+        main {
+            res.srcDirs += [
+                    "${rootDir}/samples/resources",
+            ]
+        }
     }
 }
 

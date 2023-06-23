@@ -16,24 +16,26 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.util.extensions.getUserAgent
 
 @Composable
 fun BoxScope.VersionText() {
-    val context = LocalContext.current
     Text(
-        text = context.getUserAgent(),
+        text = getUserAgent(),
         modifier = Modifier
             .align(Alignment.BottomCenter)
-            .padding(16.dp)
+            .padding(16.dp),
+        fontSize = MaterialTheme.typography.bodySmall.fontSize
     )
 }
 
@@ -80,6 +82,25 @@ fun HeaderText(string: String) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
     )
+}
+
+@Composable
+fun TrackScreenLifecycle(
+    lifecycleOwner: LifecycleOwner,
+    onScreenEnter: () -> Unit = {},
+    onScreenExit: () -> Unit = {}
+) {
+    LaunchedEffect(key1 = lifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onCreate(owner: LifecycleOwner) {
+                onScreenEnter()
+            }
+
+            override fun onDestroy(owner: LifecycleOwner) {
+                onScreenExit()
+            }
+        })
+    }
 }
 
 @Composable

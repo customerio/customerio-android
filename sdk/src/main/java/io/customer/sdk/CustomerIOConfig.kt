@@ -2,7 +2,7 @@ package io.customer.sdk
 
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
-import io.customer.sdk.module.CustomerIOModuleConfig
+import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.util.CioLogLevel
 
 data class CustomerIOConfig(
@@ -32,7 +32,7 @@ data class CustomerIOConfig(
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
     var trackingApiUrl: String?,
-    val configurations: Map<String, CustomerIOModuleConfig>
+    val modules: Map<String, CustomerIOModule<*>>
 ) {
     internal val trackingApiHostname: String
         get() {
@@ -61,7 +61,7 @@ data class CustomerIOConfig(
             const val BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS = 10
             const val BACKGROUND_QUEUE_SECONDS_DELAY = 30.0
             const val HTTP_REQUEST_TIMEOUT = 6000L
-            const val SHOULD_AUTO_RECORD_SCREEN_VIEWS = true
+            const val SHOULD_AUTO_RECORD_SCREEN_VIEWS = false
         }
 
         object Keys {

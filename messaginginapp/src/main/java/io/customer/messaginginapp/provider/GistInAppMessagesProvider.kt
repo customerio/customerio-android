@@ -12,6 +12,7 @@ internal interface InAppMessagesProvider {
     fun setCurrentRoute(route: String)
     fun clearUserToken()
     fun setListener(listener: InAppEventListener)
+    fun dismissMessage()
     fun subscribeToEvents(
         onMessageShown: (deliveryId: String) -> Unit,
         onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
@@ -23,7 +24,8 @@ internal interface InAppMessagesProvider {
  * Wrapper around Gist SDK
  */
 internal class GistInAppMessagesProvider(private val provider: GistApi) :
-    InAppMessagesProvider, GistListener {
+    InAppMessagesProvider,
+    GistListener {
 
     private var listener: InAppEventListener? = null
 
@@ -49,6 +51,10 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
 
     override fun setListener(listener: InAppEventListener) {
         this.listener = listener
+    }
+
+    override fun dismissMessage() {
+        provider.dismissMessage()
     }
 
     override fun subscribeToEvents(

@@ -47,7 +47,8 @@ public class AuthViewModel extends ViewModel {
 
     public void setLoggedInUser(@NonNull User user) {
         Map<String, String> attributes = new HashMap<String, String>() {{
-            put("name", user.getDisplayName());
+            put("first_name", user.getDisplayName());
+            put("email", user.getEmail());
             put("is_guest", StringUtils.fromBoolean(user.isGuest()));
         }};
         // Identify user profile before routing to next screen so it can be tracked

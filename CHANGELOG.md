@@ -1,3 +1,24 @@
+### [3.5.2](https://github.com/customerio/customerio-android/compare/3.5.1...3.5.2) (2023-06-09)
+
+
+### Bug Fixes
+
+* set auto track screen to false by default ([#216](https://github.com/customerio/customerio-android/issues/216)) ([71fcf52](https://github.com/customerio/customerio-android/commit/71fcf528bb52f7d2fcc6c9cecf686927e3c9b77b))
+
+### [3.5.1](https://github.com/customerio/customerio-android/compare/3.5.0...3.5.1) (2023-06-01)
+
+
+### Bug Fixes
+
+* improve delivered metrics ([#204](https://github.com/customerio/customerio-android/issues/204)) ([831d1d9](https://github.com/customerio/customerio-android/commit/831d1d92c7abcf861b73e1301fbed57b0945b44b))
+
+## [3.5.0](https://github.com/customerio/customerio-android/compare/3.4.3...3.5.0) (2023-05-26)
+
+
+### Features
+
+* dismiss in-app message ([#186](https://github.com/customerio/customerio-android/issues/186)) ([89794f3](https://github.com/customerio/customerio-android/commit/89794f32ed7d8de3f699bfa5f985c179c5b3762c))
+
 ### [3.4.3](https://github.com/customerio/customerio-android/compare/3.4.2...3.4.3) (2023-05-19)
 
 

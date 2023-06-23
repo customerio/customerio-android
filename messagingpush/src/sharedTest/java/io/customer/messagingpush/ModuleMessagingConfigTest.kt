@@ -7,7 +7,7 @@ import io.customer.messagingpush.di.moduleConfig
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.device.DeviceTokenProvider
-import io.customer.sdk.module.CustomerIOModuleConfig
+import io.customer.sdk.module.CustomerIOModule
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
@@ -24,10 +24,10 @@ internal class ModuleMessagingConfigTest : BaseTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
     private val fcmTokenProviderMock: DeviceTokenProvider = mock()
-    private val configurations = hashMapOf<String, CustomerIOModuleConfig>()
+    private val modules = hashMapOf<String, CustomerIOModule<*>>()
 
     override fun setupConfig(): CustomerIOConfig = createConfig(
-        configurations = configurations
+        modules = modules
     )
 
     @Before
@@ -48,7 +48,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
             overrideDiGraph = di
         )
 
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val moduleConfig = di.moduleConfig
 
         moduleConfig.notificationCallback.shouldBeNull()
@@ -63,7 +63,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
             overrideDiGraph = di
         )
 
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val moduleConfig = di.moduleConfig
 
         moduleConfig.autoTrackPushEvents.shouldBeTrue()
@@ -83,7 +83,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
             overrideDiGraph = di
         )
 
-        configurations[ModuleMessagingPushFCM.MODULE_NAME] = module.moduleConfig
+        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val moduleConfig = di.moduleConfig
 
         moduleConfig.autoTrackPushEvents.shouldBeFalse()

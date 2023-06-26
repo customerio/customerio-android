@@ -66,7 +66,9 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
 
             if (isFormValid) {
                 Map<String, String> extras = new HashMap<>();
-                extras.put(propertyName, propertyValue);
+                if (!TextUtils.isEmpty(propertyName)) {
+                    extras.put(propertyName, propertyValue);
+                }
                 customerIORepository.trackEvent(eventName, extras);
 
                 FragmentActivity activity = getActivity();

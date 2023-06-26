@@ -22,7 +22,9 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner =
+            "io.customer.android.sample.kotlin_compose.TestApplicationRunner"
+
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -32,8 +34,7 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
         }
     }
@@ -63,39 +64,49 @@ val coroutinesVersion = "1.5.2"
 val roomVersion = "2.4.2"
 
 dependencies {
-    // compose compiler requires an updated version of kotlin
+    // Compose compiler requires an updated version of Kotlin
     implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.20"))
-    implementation("androidx.core:core-ktx:1.10.0")
+
+    // Compose dependencies
+    implementation("androidx.core:core-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.activity:activity-compose:1.7.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("com.google.android.material:material:1.8.0")
+    implementation("com.google.android.material:material:1.9.0")
 
     implementation(platform("androidx.compose:compose-bom:2022.10.00"))
 
-    // di
+    // DI
     kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
     implementation("com.google.dagger:hilt-android:$hiltVersion")
 
-    // navigation
-    implementation("androidx.navigation:navigation-compose:2.6.0-beta01")
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.6.0-rc01")
     implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
 
-    // persistence
+    // Persistence
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
     implementation("androidx.datastore:datastore-core:1.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
+    // Leak detection
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.11")
+    androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:2.11")
+
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.39.1")
+    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.44.2")
+
+    // Testing dependencies
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2022.10.00"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:$composeVersion")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:$composeVersion")
 }
+

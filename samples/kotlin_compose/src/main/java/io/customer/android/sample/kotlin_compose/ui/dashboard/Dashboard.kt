@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -120,21 +121,42 @@ fun SendEventsView(
         modifier = Modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ActionButton(text = stringResource(R.string.send_random_event), onClick = {
-            onRandomEvent.invoke()
-            showMessage(context.getString(R.string.event_sent_successfully))
-        })
+        ActionButton(
+            text = stringResource(R.string.send_random_event),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_random_event_button)),
+            onClick = {
+                onRandomEvent.invoke()
+                showMessage(context.getString(R.string.event_sent_successfully))
+            }
+        )
         ActionButton(
             text = stringResource(R.string.send_custom_event),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_custom_event_button)),
             onClick = onTrackCustomEvent
         )
-        ActionButton(text = stringResource(R.string.set_device_attribute), onClick = {
-            onTrackCustomAttribute.invoke(TYPE_DEVICE)
-        })
-        ActionButton(text = stringResource(R.string.set_profile_attribute), onClick = {
-            onTrackCustomAttribute.invoke(TYPE_PROFILE)
-        })
-        ActionButton(text = stringResource(R.string.show_push_prompt), onClick = onCheckPermission)
-        ActionButton(text = stringResource(R.string.logout), onClick = onLogout)
+        ActionButton(
+            text = stringResource(R.string.set_device_attribute),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_device_attribute_button)),
+            onClick = {
+                onTrackCustomAttribute.invoke(TYPE_DEVICE)
+            }
+        )
+        ActionButton(
+            text = stringResource(R.string.set_profile_attribute),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_profile_attribute_button)),
+            onClick = {
+                onTrackCustomAttribute.invoke(TYPE_PROFILE)
+            }
+        )
+        ActionButton(
+            text = stringResource(R.string.show_push_prompt),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_push_prompt_button)),
+            onClick = onCheckPermission
+        )
+        ActionButton(
+            text = stringResource(R.string.logout),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_logout_button)),
+            onClick = onLogout
+        )
     }
 }

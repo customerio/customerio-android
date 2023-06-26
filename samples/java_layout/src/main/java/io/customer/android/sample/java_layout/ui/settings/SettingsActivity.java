@@ -147,7 +147,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         Uri uri = Uri.parse(url);
         String scheme = uri.getScheme();
         // Since SDK does not allow tracking URL with empty host or incorrect schemes
-        return !TextUtils.isEmpty(uri.getAuthority()) && ("http".equals(scheme) || "https".equals(scheme));
+        return !TextUtils.isEmpty(uri.getAuthority()) && ("http".equals(scheme) || "https".equals(scheme)) && uri.getPath().endsWith("/");
     }
 
     private void updateIOWithConfig(@NonNull CustomerIOSDKConfig config) {

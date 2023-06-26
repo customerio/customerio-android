@@ -113,9 +113,15 @@ class MemoryLeakageInstrumentedTest {
         composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_login_button))
             .performClick()
 
+        composeTestRule.runOnIdle { }
+
+        // wait for 500ms
+        Thread.sleep(500)
+
         // Click the random event button 50 times.
         val randomEvent =
             composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_random_event_button))
+
         for (i in 0..50) {
             randomEvent.performClick()
         }

@@ -120,7 +120,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             clipboard.setPrimaryClip(clip);
         });
         binding.saveButton.setOnClickListener(view -> saveSettings());
-        binding.restoreDefaultsButton.setOnClickListener(view -> updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations()));
+        binding.restoreDefaultsButton.setOnClickListener(view -> {
+            updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations());
+            saveSettings();
+        });
     }
 
     private void setupObservers() {

@@ -1,5 +1,6 @@
 package io.customer.android.sample.kotlin_compose.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,6 +55,10 @@ class SettingsViewModel @Inject constructor(
         // Protocol validation
         if (!trackUrl.startsWith("http://") && !trackUrl.startsWith("https://")) {
             return "URL must start with 'http://' or 'https://'"
+        }
+        // Host validation
+        if (Uri.parse(trackUrl)?.authority.isNullOrBlank()) {
+            return "Host must be defined"
         }
         // Ending character validation
         if (!trackUrl.endsWith("/")) {

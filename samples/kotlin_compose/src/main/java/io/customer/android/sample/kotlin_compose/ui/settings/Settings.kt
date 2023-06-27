@@ -249,7 +249,7 @@ fun WorkspaceSettingsList(
     }
 }
 
-fun Double.parseString(): String {
+fun Double.parseToString(): String {
     return if (this % 1.0 == 0.0) this.toInt().toString() else this.toString()
 }
 
@@ -261,11 +261,11 @@ fun SDKSettingsList(
 ) {
     val configuration = uiState.configuration
 
-    var textFieldValue by remember { mutableStateOf(configuration.backgroundQueueSecondsDelay.parseString()) }
+    var textFieldValue by remember { mutableStateOf(configuration.backgroundQueueSecondsDelay.parseToString()) }
     var errorState by remember { mutableStateOf("") }
 
     LaunchedEffect(configuration.backgroundQueueSecondsDelay) {
-        textFieldValue = configuration.backgroundQueueSecondsDelay.parseString()
+        textFieldValue = configuration.backgroundQueueSecondsDelay.parseToString()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {

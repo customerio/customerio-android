@@ -30,8 +30,17 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
 
     @Override
     protected void setupContent() {
+        prepareViewsForAutomatedTests();
         setupViews();
         setupObservers();
+    }
+
+    private void prepareViewsForAutomatedTests() {
+        ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
+        ViewUtils.prepareForAutomatedTests(binding.displayNameTextInput, R.string.acd_first_name_input);
+        ViewUtils.prepareForAutomatedTests(binding.emailTextInput, R.string.acd_email_input);
+        ViewUtils.prepareForAutomatedTests(binding.loginButton, R.string.acd_login_button);
+        ViewUtils.prepareForAutomatedTests(binding.randomLoginButton, R.string.acd_random_login_button);
     }
 
     private void setupObservers() {

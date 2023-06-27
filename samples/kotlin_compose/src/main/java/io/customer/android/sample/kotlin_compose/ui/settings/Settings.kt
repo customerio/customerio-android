@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -113,7 +114,9 @@ fun SaveSettings(onSaveClick: () -> Unit, onRestoreDefaults: () -> Unit) {
         Button(
             onClick = onSaveClick,
             shape = RoundedCornerShape(100.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_save_settings_button))
         ) {
             Text(
                 text = stringResource(R.string.save),
@@ -128,7 +131,8 @@ fun SaveSettings(onSaveClick: () -> Unit, onRestoreDefaults: () -> Unit) {
             modifier = Modifier
                 .padding(4.dp)
                 .clickable { onRestoreDefaults.invoke() }
-                .clip(RoundedCornerShape(25.dp)),
+                .clip(RoundedCornerShape(25.dp))
+                .testTag(stringResource(id = R.string.acd_restore_default_settings_button)),
             fontWeight = FontWeight.Bold
 
         )
@@ -149,7 +153,9 @@ fun EnvSettingsList(
     val configuration = uiState.configuration
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_device_token_input)),
             value = uiState.deviceToken,
             readOnly = true,
             onValueChange = {},
@@ -158,7 +164,9 @@ fun EnvSettingsList(
             }
         )
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_tracking_url_input)),
             value = configuration.trackUrl ?: "",
             onValueChange = { value ->
                 onConfigurationChange(configuration.copy(trackUrl = value))
@@ -181,7 +189,9 @@ fun WorkspaceSettingsList(
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_site_id_input)),
             value = configuration.siteId,
             onValueChange = { value ->
                 onConfigurationChange(configuration.copy(siteId = value))
@@ -191,7 +201,9 @@ fun WorkspaceSettingsList(
             }
         )
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_api_key_input)),
             value = configuration.apiKey,
             onValueChange = { value ->
                 onConfigurationChange(configuration.copy(apiKey = value))
@@ -213,7 +225,9 @@ fun SDKSettingsList(
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_bq_seconds_delay_input)),
             value = configuration.backgroundQueueSecondsDelay.toString(),
             onValueChange = { value ->
                 if (value.isNotEmpty()) {
@@ -226,7 +240,9 @@ fun SDKSettingsList(
             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
         )
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_bq_min_tasks_input)),
             value = configuration.backgroundQueueMinNumTasks.toString(),
             onValueChange = { value ->
                 if (value.isNotEmpty()) {
@@ -258,7 +274,7 @@ fun FeaturesList(
             Text(text = stringResource(id = R.string.track_screen))
             Switch(checked = configuration.trackScreen, onCheckedChange = { value ->
                 onConfigurationChange(configuration.copy(trackScreen = value))
-            })
+            }, modifier = Modifier.testTag(stringResource(id = R.string.acd_track_screens_switch)))
         }
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -266,9 +282,13 @@ fun FeaturesList(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.track_device_attributes))
-            Switch(checked = configuration.trackDeviceAttributes, onCheckedChange = { value ->
-                onConfigurationChange(configuration.copy(trackDeviceAttributes = value))
-            })
+            Switch(
+                checked = configuration.trackDeviceAttributes,
+                onCheckedChange = { value ->
+                    onConfigurationChange(configuration.copy(trackDeviceAttributes = value))
+                },
+                modifier = Modifier.testTag(stringResource(id = R.string.acd_track_device_attributes_switch))
+            )
         }
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -278,7 +298,7 @@ fun FeaturesList(
             Text(text = stringResource(id = R.string.debug_mode))
             Switch(checked = configuration.debugMode, onCheckedChange = { value ->
                 onConfigurationChange(configuration.copy(debugMode = value))
-            })
+            }, modifier = Modifier.testTag(stringResource(id = R.string.acd_debug_mode_switch)))
         }
     }
 }
@@ -293,7 +313,11 @@ fun TopBar(onBackClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBackClick) {
-            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                modifier = Modifier.testTag(stringResource(id = R.string.acd_back_button_icon))
+            )
         }
         Text(
             text = stringResource(id = R.string.settings),

@@ -5,11 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -20,14 +16,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
+import io.customer.android.sample.kotlin_compose.ui.components.BackButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.sdk.CustomerIO
@@ -56,15 +53,7 @@ fun CustomEventRoute(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        IconButton(
-            onClick = onBackPressed
-        ) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "Back",
-                modifier = Modifier.align(Alignment.Start)
-            )
-        }
+        BackButton(onClick = onBackPressed)
 
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -74,7 +63,9 @@ fun CustomEventRoute(
         ) {
             HeaderText(stringResource(R.string.send_custom_event))
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(stringResource(id = R.string.acd_event_name_input)),
                 value = eventName,
                 onValueChange = {
                     eventName = it
@@ -91,7 +82,9 @@ fun CustomEventRoute(
                 }
             )
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(stringResource(id = R.string.acd_property_name_input)),
                 value = propertyName,
                 onValueChange = {
                     propertyName = it
@@ -101,7 +94,9 @@ fun CustomEventRoute(
                 }
             )
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(stringResource(id = R.string.acd_property_value_input)),
                 value = propertyValue,
                 onValueChange = {
                     propertyValue = it
@@ -110,19 +105,23 @@ fun CustomEventRoute(
                     Text(text = stringResource(id = R.string.property_value))
                 }
             )
-            ActionButton(text = stringResource(R.string.send_event), onClick = {
-                if (eventName.isEmpty()) {
-                    eventError = "Required"
-                    return@ActionButton
+            ActionButton(
+                text = stringResource(R.string.send_event),
+                modifier = Modifier.testTag(stringResource(id = R.string.acd_send_event_button)),
+                onClick = {
+                    if (eventName.isEmpty()) {
+                        eventError = "Required"
+                        return@ActionButton
+                    }
+                    CustomerIO.instance().track(
+                        name = eventName,
+                        attributes = mapOf(propertyName to propertyValue)
+                    )
+                    scope.launch {
+                        snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))
+                    }
                 }
-                CustomerIO.instance().track(
-                    name = eventName,
-                    attributes = mapOf(propertyName to propertyValue)
-                )
-                scope.launch {
-                    snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))
-                }
-            })
+            )
             SnackbarHost(hostState = snackbarHostState)
         }
     }

@@ -71,6 +71,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     @Override
     protected void setupContent() {
         validateAuth();
+        prepareViewsForAutomatedTests();
         setupViews();
         setupObservers();
     }
@@ -92,6 +93,17 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                     }
                 }
         );
+    }
+
+    private void prepareViewsForAutomatedTests() {
+        ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
+        ViewUtils.prepareForAutomatedTests(binding.userEmailTextView, R.string.acd_email_id_text);
+        ViewUtils.prepareForAutomatedTests(binding.sendRandomEventButton, R.string.acd_random_event_button);
+        ViewUtils.prepareForAutomatedTests(binding.sendCustomEventButton, R.string.acd_custom_event_button);
+        ViewUtils.prepareForAutomatedTests(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);
+        ViewUtils.prepareForAutomatedTests(binding.setProfileAttributesButton, R.string.acd_profile_attribute_button);
+        ViewUtils.prepareForAutomatedTests(binding.showPushPromptButton, R.string.acd_push_prompt_button);
+        ViewUtils.prepareForAutomatedTests(binding.logoutButton, R.string.acd_logout_button);
     }
 
     private void setupViews() {

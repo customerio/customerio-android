@@ -4,7 +4,7 @@
     <string name="name">Name</string>
     <string name="email">Email</string>
     <string name="login">Login</string>
-    <string name="continue_as_guest">Continue as Guest</string>
+    <string name="continue_as_guest">Generate Random Login</string>
     <string name="invalid_email">Please enter a valid email</string>
     <string name="invalid_name">Please enter a valid name</string>
     <string name="settings">Settings</string>
@@ -44,4 +44,5 @@
     <string name="notification_permission_already_granted">Permission already granted</string>
     <string name="event_sent_successfully">Event sent successfully</string>
     <string name="attribute_set_successfully">Attribute sent successfully!</string>
+    <string name="open_settings">Open Settings</string>
 </resources>

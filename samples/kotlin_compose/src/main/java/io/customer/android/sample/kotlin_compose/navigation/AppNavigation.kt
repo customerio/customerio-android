@@ -102,21 +102,34 @@ internal fun NavGraphBuilder.addSettingsRoute(
 ) {
     composable(
         route = Screen.Settings.route,
-        deepLinks = (getDeepLink("settings"))
+        deepLinks = (
+            getDeepLink(
+                screen = "settings",
+                arguments = "site_id={site_id}&api_key={api_key}"
+            )
+            )
     ) {
-        SettingsRoute(onBackPressed = {
-            navController.navigateUp()
-        })
+        val siteId = it.arguments?.getString("site_id")
+        val apiKey = it.arguments?.getString("api_key")
+
+        SettingsRoute(
+            siteId = siteId,
+            apiKey = apiKey,
+            onBackPressed = {
+                navController.navigateUp()
+            }
+        )
     }
 }
 
-fun getDeepLink(screen: String): List<NavDeepLink> {
+fun getDeepLink(screen: String, arguments: String? = null): List<NavDeepLink> {
     return listOf(
         navDeepLink {
-            uriPattern = "kotlin-sample://$screen"
+            uriPattern = "kotlin-sample://$screen" + if (arguments != null) "?$arguments" else ""
         },
         navDeepLink {
-            uriPattern = "https://www.kotlin-sample.com/$screen"
+            uriPattern =
+                "https://www.kotlin-sample.com/$screen" + if (arguments != null) "?$arguments" else ""
         }
     )
 }

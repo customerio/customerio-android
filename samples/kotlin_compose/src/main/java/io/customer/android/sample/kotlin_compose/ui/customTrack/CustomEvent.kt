@@ -36,7 +36,6 @@ fun CustomEventRoute(
     onBackPressed: () -> Unit
 ) {
     var eventName by remember { mutableStateOf("") }
-    var eventError by remember { mutableStateOf("") }
     var propertyName by remember { mutableStateOf("") }
     var propertyValue by remember { mutableStateOf("") }
 
@@ -69,16 +68,9 @@ fun CustomEventRoute(
                 value = eventName,
                 onValueChange = {
                     eventName = it
-                    eventError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.event_name))
-                },
-                isError = eventError.isNotEmpty(),
-                supportingText = {
-                    if (eventError.isNotEmpty()) {
-                        Text(text = eventError)
-                    }
                 }
             )
             OutlinedTextField(
@@ -109,13 +101,9 @@ fun CustomEventRoute(
                 text = stringResource(R.string.send_event),
                 modifier = Modifier.testTag(stringResource(id = R.string.acd_send_event_button)),
                 onClick = {
-                    if (eventName.isEmpty()) {
-                        eventError = "Required"
-                        return@ActionButton
-                    }
                     CustomerIO.instance().track(
                         name = eventName,
-                        attributes = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
+                        attributes = mapOf(propertyName to propertyValue)
                     )
                     scope.launch {
                         snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))

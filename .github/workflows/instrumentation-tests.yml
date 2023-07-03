@@ -1,12 +1,16 @@
-name: Instrumentation Tests
+name: Instrumentation tests
 
 on: [push, pull_request]
 
 jobs:
   instrumentation-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [samples:kotlin_compose]
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up JDK 11
       uses: actions/setup-java@v2
       with:
@@ -16,18 +20,18 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
 
-    - name: Create and start emulator
-      run: |
-        echo "y" | sdkmanager "system-images;android-30;google_apis;x86"
-        echo "no" | avdmanager create avd --force --name test --abi google_apis/x86 --package "system-images;android-30;google_apis;x86"
-        $ANDROID_HOME/emulator/emulator -avd test -no-audio -no-window &
-        adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed | tr -d '\r') ]]; do sleep 1; done; input keyevent 82'
+    - name: Start emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 30
+        script: echo "Emulator started"
 
     - name: Run instrumentation tests
-      run: ./gradlew connectedAndroidTest
+      run: ./gradlew :${{ matrix.module }}:connectedAndroidTest
 
     - name: Publish test results
       uses: mikepenz/action-junit-report@v2
-      if: always() # even if previous step fails
+      if: always()
       with:
         report_paths: '**/build/outputs/androidTest-results/connected/TEST-*.xml'
+

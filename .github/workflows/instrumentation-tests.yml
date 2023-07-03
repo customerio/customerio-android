@@ -8,7 +8,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        module: [kotlin_compose, java_layout]
+        sample: [kotlin_compose, java_layout]
 
     steps:
     - uses: actions/checkout@v3

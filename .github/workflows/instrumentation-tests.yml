@@ -23,10 +23,10 @@ jobs:
     - name: Start emulator
       uses: reactivecircus/android-emulator-runner@v2
       with:
-        api-level: 30
+        api-level: 29
         target: google_apis
         arch: x86
-        emulator-build: 30.7.5
+        profile: Nexus 6
         script: ./gradlew connectedCheck
 
     - name: Run instrumentation tests

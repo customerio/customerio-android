@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [samples:kotlin_compose]
+        module: [samples/kotlin_compose]
     steps:
     - uses: actions/checkout@v2
 
@@ -33,5 +33,4 @@ jobs:
       uses: mikepenz/action-junit-report@v2
       if: always()
       with:
-        report_paths: '**/build/outputs/androidTest-results/connected/TEST-*.xml'
-
+        report_paths: './${{ matrix.module }}/build/outputs/androidTest-results/connected/TEST-*.xml'

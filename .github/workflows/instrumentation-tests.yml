@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   instrumentation-test:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         module: [samples/kotlin_compose]

@@ -26,7 +26,8 @@ jobs:
         api-level: 30
         target: google_apis
         arch: x86
-        script: echo "Emulator started"
+        emulator-build: 30.7.5
+        script: ./gradlew connectedCheck
 
     - name: Run instrumentation tests
       run: ./gradlew :${{ matrix.module }}:connectedAndroidTest

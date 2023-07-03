@@ -7,6 +7,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     strategy:
+      # Add more samples here as they are added to the project.
       matrix:
         sample: [kotlin_compose, java_layout]
 
@@ -28,6 +29,7 @@ jobs:
     - name: Start emulator
       uses: reactivecircus/android-emulator-runner@v2
       with:
+        # Configuration options for the emulator for the best optimization.
         api-level: 29
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
@@ -38,6 +40,7 @@ jobs:
         arch: x86
         emulator-build: 7425822 # https://github.com/ReactiveCircus/android-emulator-runner/issues/160
         profile: Nexus 6
+        # Run the instrumentation tests on the emulator.
         script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest
 
     - name: Publish test results

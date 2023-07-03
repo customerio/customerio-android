@@ -33,7 +33,7 @@ jobs:
         target: google_apis
         arch: x86
         profile: Nexus 6
-        script: ./gradlew connectedDebugAndroidTest
+        script: ./gradlew :samples:kotlin_compose:connectedDebugAndroidTest
 
     - name: Publish test results
       uses: mikepenz/action-junit-report@v2

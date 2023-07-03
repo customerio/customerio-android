@@ -35,7 +35,7 @@ platform :android do
     )
 
     UI.important("Updating the SDK's source code version to non-production version. This allows the sample apps to show the SDK version at runtime for app user to better understand the version of the SDK they are running.")
-    sh("../../../scripts/update-version.sh \"#{new_app_version} (#{new_build_number})\"")
+    sh("../../../scripts/update-version.sh \"#{new_app_version}.#{new_build_number}\"")
 
     build_android_app(
       task: ":samples:#{name_of_sample_app_module}:assemble",

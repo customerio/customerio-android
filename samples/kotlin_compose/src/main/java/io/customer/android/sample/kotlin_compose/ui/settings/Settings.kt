@@ -22,12 +22,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -42,6 +47,8 @@ import io.customer.sdk.CustomerIO
 
 @Composable
 fun SettingsRoute(
+    siteId: String? = null,
+    apiKey: String? = null,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     onBackPressed: () -> Unit
 ) {
@@ -51,21 +58,31 @@ fun SettingsRoute(
         CustomerIO.instance().screen("Settings")
     })
 
-    SettingsScreen(uiState = state, onBackPressed = onBackPressed, onSave = {
-        settingsViewModel.saveAndUpdateConfiguration(
-            configuration = it
-        ) {}
-    }, onConfigurationChange = {
-        settingsViewModel.updateConfiguration(
-            configuration = it
-        ) {}
-    }, onRestoreDefaults = {
-        settingsViewModel.restoreDefaults()
-    })
+    SettingsScreen(
+        siteId = siteId,
+        apiKey = apiKey,
+        uiState = state,
+        onBackPressed = onBackPressed,
+        onSave = {
+            settingsViewModel.saveAndUpdateConfiguration(
+                configuration = it
+            ) {}
+        },
+        onConfigurationChange = {
+            settingsViewModel.updateConfiguration(
+                configuration = it
+            ) {}
+        },
+        onRestoreDefaults = {
+            settingsViewModel.restoreDefaults()
+        }
+    )
 }
 
 @Composable
 fun SettingsScreen(
+    siteId: String? = null,
+    apiKey: String? = null,
     uiState: SettingsUiState,
     onBackPressed: () -> Unit,
     onConfigurationChange: (configuration: Configuration) -> Unit,
@@ -73,6 +90,7 @@ fun SettingsScreen(
     onRestoreDefaults: () -> Unit
 ) {
     val configuration = uiState.configuration
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(26.dp),
@@ -87,6 +105,8 @@ fun SettingsScreen(
             onConfigurationChange = onConfigurationChange
         )
         WorkspaceSettingsList(
+            siteId = siteId,
+            apiKey = apiKey,
             uiState = uiState,
             onConfigurationChange = onConfigurationChange
         )
@@ -113,7 +133,9 @@ fun SaveSettings(onSaveClick: () -> Unit, onRestoreDefaults: () -> Unit) {
         Button(
             onClick = onSaveClick,
             shape = RoundedCornerShape(100.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_save_settings_button))
         ) {
             Text(
                 text = stringResource(R.string.save),
@@ -128,7 +150,8 @@ fun SaveSettings(onSaveClick: () -> Unit, onRestoreDefaults: () -> Unit) {
             modifier = Modifier
                 .padding(4.dp)
                 .clickable { onRestoreDefaults.invoke() }
-                .clip(RoundedCornerShape(25.dp)),
+                .clip(RoundedCornerShape(25.dp))
+                .testTag(stringResource(id = R.string.acd_restore_default_settings_button)),
             fontWeight = FontWeight.Bold
 
         )
@@ -147,9 +170,12 @@ fun EnvSettingsList(
     onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
     val configuration = uiState.configuration
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_device_token_input)),
             value = uiState.deviceToken,
             readOnly = true,
             onValueChange = {},
@@ -158,7 +184,9 @@ fun EnvSettingsList(
             }
         )
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_tracking_url_input)),
             value = configuration.trackUrl ?: "",
             onValueChange = { value ->
                 onConfigurationChange(configuration.copy(trackUrl = value))
@@ -166,7 +194,13 @@ fun EnvSettingsList(
             label = {
                 Text(text = stringResource(id = R.string.cio_track_url))
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            isError = uiState.customTrackUrlError.isNotEmpty(),
+            supportingText = {
+                if (uiState.customTrackUrlError.isNotEmpty()) {
+                    Text(text = uiState.customTrackUrlError)
+                }
+            }
         )
     }
 }
@@ -174,14 +208,24 @@ fun EnvSettingsList(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkspaceSettingsList(
+    siteId: String? = null,
+    apiKey: String? = null,
     uiState: SettingsUiState,
     onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
     val configuration = uiState.configuration
 
+    LaunchedEffect(key1 = siteId, key2 = apiKey) {
+        if (siteId != null && apiKey != null) {
+            onConfigurationChange(configuration.copy(siteId = siteId, apiKey = apiKey))
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_site_id_input)),
             value = configuration.siteId,
             onValueChange = { value ->
                 onConfigurationChange(configuration.copy(siteId = value))
@@ -191,7 +235,9 @@ fun WorkspaceSettingsList(
             }
         )
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_api_key_input)),
             value = configuration.apiKey,
             onValueChange = { value ->
                 onConfigurationChange(configuration.copy(apiKey = value))
@@ -203,6 +249,10 @@ fun WorkspaceSettingsList(
     }
 }
 
+fun Double.parseToString(): String {
+    return if (this % 1.0 == 0.0) this.toInt().toString() else this.toString()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SDKSettingsList(
@@ -211,22 +261,46 @@ fun SDKSettingsList(
 ) {
     val configuration = uiState.configuration
 
+    var textFieldValue by remember { mutableStateOf(configuration.backgroundQueueSecondsDelay.parseToString()) }
+    var errorState by remember { mutableStateOf("") }
+
+    LaunchedEffect(configuration.backgroundQueueSecondsDelay) {
+        textFieldValue = configuration.backgroundQueueSecondsDelay.parseToString()
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = configuration.backgroundQueueSecondsDelay.toString(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_bq_seconds_delay_input)),
+            value = textFieldValue,
+            maxLines = 1,
+            isError = errorState.isNotEmpty(),
             onValueChange = { value ->
-                if (value.isNotEmpty()) {
-                    onConfigurationChange(configuration.copy(backgroundQueueSecondsDelay = value.toDouble()))
+                textFieldValue = value
+                val parsedDouble = value.toDoubleOrNull()
+                if (parsedDouble == null || parsedDouble < 1.0) {
+                    errorState = "Please enter a valid number greater than 1"
+                } else {
+                    errorState = ""
+                    onConfigurationChange(configuration.copy(backgroundQueueSecondsDelay = parsedDouble))
                 }
             },
             label = {
                 Text(text = stringResource(id = R.string.background_queue_seconds_delay))
             },
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Decimal),
+            supportingText = {
+                if (errorState.isNotEmpty()) {
+                    Text(text = errorState)
+                }
+            }
         )
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_bq_min_tasks_input)),
+            maxLines = 1,
             value = configuration.backgroundQueueMinNumTasks.toString(),
             onValueChange = { value ->
                 if (value.isNotEmpty()) {
@@ -258,7 +332,7 @@ fun FeaturesList(
             Text(text = stringResource(id = R.string.track_screen))
             Switch(checked = configuration.trackScreen, onCheckedChange = { value ->
                 onConfigurationChange(configuration.copy(trackScreen = value))
-            })
+            }, modifier = Modifier.testTag(stringResource(id = R.string.acd_track_screens_switch)))
         }
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -266,9 +340,13 @@ fun FeaturesList(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(text = stringResource(id = R.string.track_device_attributes))
-            Switch(checked = configuration.trackDeviceAttributes, onCheckedChange = { value ->
-                onConfigurationChange(configuration.copy(trackDeviceAttributes = value))
-            })
+            Switch(
+                checked = configuration.trackDeviceAttributes,
+                onCheckedChange = { value ->
+                    onConfigurationChange(configuration.copy(trackDeviceAttributes = value))
+                },
+                modifier = Modifier.testTag(stringResource(id = R.string.acd_track_device_attributes_switch))
+            )
         }
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -278,7 +356,7 @@ fun FeaturesList(
             Text(text = stringResource(id = R.string.debug_mode))
             Switch(checked = configuration.debugMode, onCheckedChange = { value ->
                 onConfigurationChange(configuration.copy(debugMode = value))
-            })
+            }, modifier = Modifier.testTag(stringResource(id = R.string.acd_debug_mode_switch)))
         }
     }
 }
@@ -293,7 +371,11 @@ fun TopBar(onBackClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBackClick) {
-            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                modifier = Modifier.testTag(stringResource(id = R.string.acd_back_button_icon))
+            )
         }
         Text(
             text = stringResource(id = R.string.settings),

@@ -10,6 +10,7 @@ interface UserRepository {
     fun getUser(email: String? = null): Flow<User?>
     suspend fun login(email: String, name: String, isGuest: Boolean = false)
     suspend fun deleteUser(user: User)
+    suspend fun deleteAllUsers()
 }
 
 class UserRepositoryImpl(
@@ -33,5 +34,9 @@ class UserRepositoryImpl(
 
     override suspend fun deleteUser(user: User) {
         userDao.delete(user = user)
+    }
+
+    override suspend fun deleteAllUsers() {
+        userDao.deleteAll()
     }
 }

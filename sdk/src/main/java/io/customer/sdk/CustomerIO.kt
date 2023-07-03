@@ -100,7 +100,17 @@ class CustomerIO internal constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
-            instance = null
+            instance?.let {
+                val appContext = it.diGraph.context as Application
+                // we need to unregister the previous activity lifecycle because it doesn't get garbage collected
+                // and will continue to hold a reference to the previous app context and return callbacks
+                appContext.unregisterActivityLifecycleCallbacks(it.diGraph.activityLifecycleCallbacks)
+                // Cancelling queue timer as the new queue timer will take care of running queue tasks.
+                // If we do not cancel old timer, it results in multiple timers being run and accessing
+                // the same tasks.
+                it.diGraph.queue.cancelTimer()
+                instance = null
+            }
         }
 
         /**
@@ -237,6 +247,7 @@ class CustomerIO internal constructor(
                 is Int -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks)
                 }
+
                 is Double -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks.toInt())
                 }
@@ -346,16 +357,7 @@ class CustomerIO internal constructor(
 
             // cleanup of old reference if it exists, so that if the SDK is re-initialized (due to wrappers different lifecycle),
             // the old instance is not kept in memory and any callbacks are unregistered
-            instance?.let {
-                // we need to unregister the previous activity lifecycle because it doesn't get garbage collected
-                // and will continue to hold a reference to the previous app context and return callbacks
-                appContext.unregisterActivityLifecycleCallbacks(it.diGraph.activityLifecycleCallbacks)
-                // Cancelling queue timer as the new queue timer will take care of running queue tasks.
-                // If we do not cancel old timer, it results in multiple timers being run and accessing
-                // the same tasks.
-                it.diGraph.queue.cancelTimer()
-                instance = null
-            }
+            clearInstance()
 
             instance = client
 

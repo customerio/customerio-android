@@ -1,10 +1,5 @@
 package io.customer.android.sample.kotlin_compose.ui.dashboard
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +17,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.User
@@ -44,7 +39,8 @@ fun DashboardRoute(
     onTrackCustomEvent: () -> Unit,
     onTrackCustomAttribute: (type: String) -> Unit,
     onLogout: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onCheckPermission: () -> Unit
 ) {
     val userState = viewModel.uiState.collectAsState()
 
@@ -62,7 +58,8 @@ fun DashboardRoute(
         onRandomEvent = {
             viewModel.sendRandomEvent()
         },
-        onSettingsClick = onSettingsClick
+        onSettingsClick = onSettingsClick,
+        onCheckPermission = onCheckPermission
     )
 }
 
@@ -73,7 +70,8 @@ fun DashboardScreen(
     onTrackCustomAttribute: (type: String) -> Unit,
     onRandomEvent: () -> Unit,
     onLogout: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onCheckPermission: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -96,7 +94,8 @@ fun DashboardScreen(
                         snackbarHostState.showSnackbar(message = message)
                     }
                 },
-                onLogout = onLogout
+                onLogout = onLogout,
+                onCheckPermission = onCheckPermission
             )
         }
         VersionText()
@@ -113,58 +112,51 @@ fun SendEventsView(
     onTrackCustomAttribute: (type: String) -> Unit,
     onRandomEvent: () -> Unit,
     showMessage: (String) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onCheckPermission: () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? ComponentActivity
 
     Column(
         modifier = Modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ActionButton(text = stringResource(R.string.send_random_event), onClick = {
-            onRandomEvent.invoke()
-            showMessage(context.getString(R.string.event_sent_successfully))
-        })
+        ActionButton(
+            text = stringResource(R.string.send_random_event),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_random_event_button)),
+            onClick = {
+                onRandomEvent.invoke()
+                showMessage(context.getString(R.string.event_sent_successfully))
+            }
+        )
         ActionButton(
             text = stringResource(R.string.send_custom_event),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_custom_event_button)),
             onClick = onTrackCustomEvent
         )
-        ActionButton(text = stringResource(R.string.set_device_attribute), onClick = {
-            onTrackCustomAttribute.invoke(TYPE_DEVICE)
-        })
-        ActionButton(text = stringResource(R.string.set_profile_attribute), onClick = {
-            onTrackCustomAttribute.invoke(TYPE_PROFILE)
-        })
-        ActionButton(text = stringResource(R.string.show_push_prompt), onClick = {
-            activity?.requestNotificationPermission(showMessage)
-        })
-        ActionButton(text = stringResource(R.string.logout), onClick = onLogout)
+        ActionButton(
+            text = stringResource(R.string.set_device_attribute),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_device_attribute_button)),
+            onClick = {
+                onTrackCustomAttribute.invoke(TYPE_DEVICE)
+            }
+        )
+        ActionButton(
+            text = stringResource(R.string.set_profile_attribute),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_profile_attribute_button)),
+            onClick = {
+                onTrackCustomAttribute.invoke(TYPE_PROFILE)
+            }
+        )
+        ActionButton(
+            text = stringResource(R.string.show_push_prompt),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_push_prompt_button)),
+            onClick = onCheckPermission
+        )
+        ActionButton(
+            text = stringResource(R.string.logout),
+            modifier = Modifier.testTag(stringResource(id = R.string.acd_logout_button)),
+            onClick = onLogout
+        )
     }
 }
-
-private fun ComponentActivity.requestNotificationPermission(showMessage: (String) -> Unit) {
-    // Push notification permission is only required by API Level 33 (Android 13) and above
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        showMessage(getString(R.string.notification_permission_already_granted))
-        return
-    }
-
-    val permissionStatus = ContextCompat.checkSelfPermission(
-        this,
-        Manifest.permission.POST_NOTIFICATIONS
-    )
-    // Ask for notification permission if not granted
-    if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
-        notificationPermissionRequestLauncher(showMessage).launch(Manifest.permission.POST_NOTIFICATIONS)
-    } else {
-        showMessage(getString(R.string.notification_permission_already_granted))
-    }
-}
-
-private fun ComponentActivity.notificationPermissionRequestLauncher(showMessage: (String) -> Unit) =
-    this.registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        val messageId: Int =
-            if (isGranted) R.string.notification_permission_success else R.string.notification_permission_failure
-        showMessage(getString(messageId))
-    }

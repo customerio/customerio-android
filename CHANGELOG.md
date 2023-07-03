@@ -1,3 +1,10 @@
+### [3.5.3](https://github.com/customerio/customerio-android/compare/3.5.2...3.5.3) (2023-07-03)
+
+
+### Bug Fixes
+
+* expose push tracking to wrapper sdks ([#227](https://github.com/customerio/customerio-android/issues/227)) ([3bc1345](https://github.com/customerio/customerio-android/commit/3bc134507f1539329a4ed015e7b0ae5a76d109e0))
+
 ### [3.5.2](https://github.com/customerio/customerio-android/compare/3.5.1...3.5.2) (2023-06-09)
 
 

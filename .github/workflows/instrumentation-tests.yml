@@ -18,8 +18,8 @@ jobs:
 
     - name: Create and start emulator
       run: |
-        echo "y" | sdkmanager "system-images;android-31;google_apis;x86"
-        echo "no" | avdmanager create avd --force --name test --abi google_apis/x86 --package "system-images;android-31;google_apis;x86"
+        echo "y" | sdkmanager "system-images;android-30;google_apis;x86"
+        echo "no" | avdmanager create avd --force --name test --abi google_apis/x86 --package "system-images;android-30;google_apis;x86"
         $ANDROID_HOME/emulator/emulator -avd test -no-audio -no-window &
         adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed | tr -d '\r') ]]; do sleep 1; done; input keyevent 82'
 

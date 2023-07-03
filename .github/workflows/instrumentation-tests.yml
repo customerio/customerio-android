@@ -7,7 +7,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        module: [samples/kotlin_compose]
+        module: [samples:kotlin_compose]
     steps:
     - uses: actions/checkout@v2
 
@@ -27,7 +27,6 @@ jobs:
         target: google_apis
         arch: x86
         profile: Nexus 6
-        script: ./gradlew connectedCheck
 
     - name: Run instrumentation tests
       run: ./gradlew :${{ matrix.module }}:connectedAndroidTest
@@ -36,4 +35,4 @@ jobs:
       uses: mikepenz/action-junit-report@v2
       if: always()
       with:
-        report_paths: './${{ matrix.module }}/build/outputs/androidTest-results/connected/TEST-*.xml'
+        report_paths: '**/build/outputs/androidTest-results/connected/TEST-*.xml'

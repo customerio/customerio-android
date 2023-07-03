@@ -33,4 +33,4 @@ jobs:
       uses: mikepenz/action-junit-report@v2
       if: always()
       with:
-        report_paths: './${{ matrix.module }}/build/outputs/androidTest-results/connected/TEST-*.xml'
+        report_paths: '**/build/outputs/androidTest-results/connected/TEST-*.xml'

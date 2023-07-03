@@ -27,9 +27,7 @@ jobs:
         target: google_apis
         arch: x86
         profile: Nexus 6
-
-    - name: Run instrumentation tests
-      run: ./gradlew :${{ matrix.module }}:connectedAndroidTest
+        script: ./gradlew :${{ matrix.module }}:connectedAndroidTest
 
     - name: Publish test results
       uses: mikepenz/action-junit-report@v2

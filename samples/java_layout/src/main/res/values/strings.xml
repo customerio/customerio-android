@@ -58,4 +58,5 @@
     <string name="filter_view_universal_link">Java Sample Universal Scheme Links</string>
     <string name="error_text_input_field_blank">This field cannot be blank</string>
     <string name="error_text_input_field_empty">This field cannot be empty</string>
+    <string name="error_number_input_field_small">The value must be greater than or equal to %1$s</string>
 </resources>

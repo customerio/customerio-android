@@ -3,6 +3,7 @@ package io.customer.android.sample.java_layout.ui.dashboard;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -13,6 +14,8 @@ import android.view.ViewTreeObserver;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresApi;
+import androidx.annotation.StringRes;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -37,7 +40,6 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private AuthViewModel authViewModel;
     private CustomerIORepository customerIORepository;
 
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private final ActivityResultLauncher<Intent> notificationSettingsRequestLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (isNotificationPermissionGranted()) {
@@ -50,10 +52,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                 if (isGranted) {
                     showPushPermissionGranted();
                 } else {
-                    MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
-                    builder.setMessage(R.string.notification_permission_denied);
-                    builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
-                    builder.show();
+                    showPushPermissionDeniedAlert(R.string.notification_permission_denied);
                 }
             });
 
@@ -174,35 +173,39 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void requestNotificationPermission() {
-        // Push notification permission is only required by API Level 33 (Android 13) and above
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            showPushPermissionGrantedAlert();
-            return;
-        }
-
-        // Ask for notification permission if not granted
         if (isNotificationPermissionGranted()) {
+            // Ask for notification permission if not granted
             showPushPermissionGrantedAlert();
-        } else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-            MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
-            builder.setMessage(R.string.notification_permission_failure);
-            builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
-            builder.show();
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            // If notification permission is not available or denied permanently, show prompt to open settings
+            showPushPermissionDeniedAlert(R.string.notification_permission_failure);
         } else {
+            // Else, request notification permission
             notificationPermissionRequestLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private boolean isNotificationPermissionGranted() {
-        return ContextCompat.checkSelfPermission(DashboardActivity.this,
-                Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        // Push notification permission is only required by API Level 33 (Android 13) and above
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(DashboardActivity.this,
+                    Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        // For Android OS 12 and below, notification enabled status can be checked using NotificationManagerCompat
+        return NotificationManagerCompat.from(this).areNotificationsEnabled();
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private void openNotificationPermissionSettings() {
-        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-        intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        final Intent intent;
+        final String packageName = getPackageName();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, packageName);
+        } else {
+            intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + packageName));
+        }
         notificationSettingsRequestLauncher.launch(intent);
     }
 
@@ -216,6 +219,13 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
         builder.setTitle(R.string.notification_permission_alert_title);
         builder.setMessage(R.string.notification_permission_success);
+        builder.show();
+    }
+
+    private void showPushPermissionDeniedAlert(@StringRes int messageResId) {
+        MaterialAlertDialogBuilder builder = ViewUtils.createAlertDialog(this);
+        builder.setMessage(messageResId);
+        builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
         builder.show();
     }
 }

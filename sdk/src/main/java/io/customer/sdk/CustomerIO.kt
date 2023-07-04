@@ -37,6 +37,8 @@ interface CustomerIOInstance {
     var profileAttributes: CustomAttributes
     var deviceAttributes: CustomAttributes
 
+    val deviceToken: String?
+
     fun identify(identifier: String)
 
     fun identify(
@@ -537,6 +539,9 @@ class CustomerIO internal constructor(
 
             deviceRepository.addCustomDeviceAttributes(value)
         }
+
+    override val deviceToken: String?
+        get() = deviceRepository.getDeviceToken()
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

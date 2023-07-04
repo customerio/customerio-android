@@ -104,6 +104,17 @@ class CustomerIOTest : BaseTest() {
     }
 
     @Test
+    fun deviceToken_givenGetValue_expectDeviceRepositoryGetDeviceToken() {
+        val givenDeviceToken = String.random
+        whenever(deviceRepositoryMock.getDeviceToken()).thenReturn(givenDeviceToken)
+        val customerIO = CustomerIO(di)
+
+        val actual = customerIO.deviceToken
+
+        actual shouldBeEqualTo givenDeviceToken
+    }
+
+    @Test
     fun deviceAttributes_givenSetValue_expectMakeRequestToAddAttributes() {
         val givenAttributes = mapOf(String.random to String.random)
         val customerIO = CustomerIO(di)

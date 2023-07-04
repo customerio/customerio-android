@@ -13,6 +13,7 @@ interface DeviceRepository {
     fun registerDeviceToken(deviceToken: String, attributes: CustomAttributes)
     fun deleteDeviceToken()
     fun addCustomDeviceAttributes(attributes: CustomAttributes)
+    fun getDeviceToken(): String?
 }
 
 internal class DeviceRepositoryImpl(
@@ -61,6 +62,10 @@ internal class DeviceRepositoryImpl(
         }
 
         registerDeviceToken(existingDeviceToken, attributes)
+    }
+
+    override fun getDeviceToken(): String? {
+        return sitePreferenceRepository.getDeviceToken()
     }
 
     private fun createDeviceAttributes(customAddedAttributes: CustomAttributes): Map<String, Any> {

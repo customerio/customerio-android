@@ -39,8 +39,6 @@ fun CustomAttributeRoute(
 ) {
     var attributeName by remember { mutableStateOf("") }
     var attributeValue by remember { mutableStateOf("") }
-    var attributeNameError by remember { mutableStateOf("") }
-    var attributeValueError by remember { mutableStateOf("") }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -78,16 +76,9 @@ fun CustomAttributeRoute(
                 value = attributeName,
                 onValueChange = {
                     attributeName = it
-                    attributeNameError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.attribute_name))
-                },
-                isError = attributeNameError.isNotEmpty(),
-                supportingText = {
-                    if (attributeNameError.isNotEmpty()) {
-                        Text(text = attributeNameError)
-                    }
                 }
             )
             OutlinedTextField(
@@ -97,16 +88,9 @@ fun CustomAttributeRoute(
                 value = attributeValue,
                 onValueChange = {
                     attributeValue = it
-                    attributeValueError = ""
                 },
                 label = {
                     Text(text = stringResource(id = R.string.attribute_value))
-                },
-                isError = attributeValueError.isNotEmpty(),
-                supportingText = {
-                    if (attributeValueError.isNotEmpty()) {
-                        Text(text = attributeValueError)
-                    }
                 }
             )
 
@@ -130,14 +114,6 @@ fun CustomAttributeRoute(
                 text = btnTitle,
                 modifier = Modifier.testTag(testTag),
                 onClick = {
-                    if (attributeName.isEmpty()) {
-                        attributeNameError = "Required"
-                        return@ActionButton
-                    }
-                    if (attributeValue.isEmpty()) {
-                        attributeValueError = "Required"
-                        return@ActionButton
-                    }
                     action.invoke()
                     scope.launch {
                         snackbarHostState.showSnackbar(message = context.getString(R.string.attribute_set_successfully))

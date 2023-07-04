@@ -10,8 +10,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import io.customer.android.sample.kotlin_compose.data.persistance.AppDatabase
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
-import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.MessagingInAppModuleConfig
@@ -49,7 +49,7 @@ class MemoryLeakageInstrumentedTest {
     val hiltRule = HiltAndroidRule(this)
 
     @Inject
-    lateinit var userPreferenceRepository: UserRepository
+    lateinit var appDatabase: AppDatabase
 
     @Inject
     lateinit var preferences: PreferenceRepository
@@ -85,7 +85,7 @@ class MemoryLeakageInstrumentedTest {
 
         // Delete all users. So we always land in `Login Screen`
         runBlocking {
-            userPreferenceRepository.deleteAllUsers()
+            appDatabase.clearAllTables()
         }
     }
 
@@ -102,12 +102,13 @@ class MemoryLeakageInstrumentedTest {
         ActivityScenario.launch(MainActivity::class.java)
 
         // Enter the user's name and email address.
-        val name =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_first_name_input))
-        name.performTextInput("MemoryLeakageTest")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_first_name_input)).apply {
+            performTextInput("MemoryLeakageTest")
+        }
 
-        val email = composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_email_input))
-        email.performTextInput("memleak@leak.com")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_email_input)).apply {
+            performTextInput("memleak@leak.com")
+        }
 
         // Click the login button.
         composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_login_button))
@@ -115,69 +116,63 @@ class MemoryLeakageInstrumentedTest {
 
         composeTestRule.runOnIdle { }
 
-        // wait for 500ms
-        Thread.sleep(500)
+        // wait for 1000ms to make sure the user is logged in and home screen is visible
+        // this is required because we are storing data and at times depending on device that process can be slow
+        Thread.sleep(1000)
 
         // Click the random event button 50 times.
-        val randomEvent =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_random_event_button))
-
-        for (i in 0..50) {
-            randomEvent.performClick()
-        }
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_random_event_button))
+            .apply {
+                for (i in 0..50) {
+                    performClick()
+                }
+            }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
 
         // Click the send custom event button.
-        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_custom_event_button))
-            .performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_custom_event_button)).performClick()
 
         // Enter the event name, property name, and property value.
-        val eventName =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_event_name_input))
-        eventName.performTextInput("custom event test for memory leak")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_event_name_input)).apply {
+            performTextInput("custom event test for memory leak")
+        }
 
-        val propertyName =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_property_name_input))
-        propertyName.performTextInput("test property")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_property_name_input)).apply {
+            performTextInput("test property")
+        }
 
-        val propertyValue =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_property_value_input))
-        propertyValue.performTextInput("test value")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_property_value_input)).apply {
+            performTextInput("test value")
+        }
 
         // Click the send button 10
         for (i in 0..10) {
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_event_button))
-                .performClick()
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_event_button)).performClick()
         }
 
         // Assert that there are no leaks.
         LeakAssertions.assertNoLeaks()
 
         // Click the back button.
-        composeTestRule.onNodeWithTag(
-            appContext.getString(R.string.acd_back_button_icon),
-            useUnmergedTree = true
-        ).performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_back_button_icon), useUnmergedTree = true).performClick()
 
         // Click the set device attribute button.
-        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_device_attribute_button))
-            .performClick()
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_device_attribute_button)).performClick()
 
         // Enter the attribute name and value.
-        val attributeName =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_name_input))
-        attributeName.performTextInput("memory test attribute")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_name_input)).apply {
+            performTextInput("memory test attribute")
+        }
 
-        val attributeValue =
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_value_input))
-        attributeValue.performTextInput("memory test attribute")
+        composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_attribute_value_input)).apply {
+            performTextInput("memory test attribute")
+        }
 
         // Click the send button 10
         for (i in 0..10) {
-            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_device_attribute_button))
-                .performClick()
+            composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_send_device_attribute_button)).performClick()
         }
 
         // Assert that there are no leaks.

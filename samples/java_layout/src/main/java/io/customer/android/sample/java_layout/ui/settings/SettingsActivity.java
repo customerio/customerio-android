@@ -120,7 +120,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             clipboard.setPrimaryClip(clip);
         });
         binding.saveButton.setOnClickListener(view -> saveSettings());
-        binding.restoreDefaultsButton.setOnClickListener(view -> updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations()));
+        binding.restoreDefaultsButton.setOnClickListener(view -> {
+            updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations());
+            saveSettings();
+        });
     }
 
     private void setupObservers() {
@@ -147,7 +150,14 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         Uri uri = Uri.parse(url);
         String scheme = uri.getScheme();
         // Since SDK does not allow tracking URL with empty host or incorrect schemes
-        return !TextUtils.isEmpty(uri.getAuthority()) && ("http".equals(scheme) || "https".equals(scheme));
+        return !TextUtils.isEmpty(uri.getAuthority()) && ("http".equals(scheme) || "https".equals(scheme)) && uri.getPath().endsWith("/");
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private <T extends Number & Comparable<T>> boolean isNumberValid(T number, T min) {
+        // Compares if the value is not null and greater than or equal to min
+        // i.e. evaluates number >= min
+        return number != null && number.compareTo(min) >= 0;
     }
 
     private void updateIOWithConfig(@NonNull CustomerIOSDKConfig config) {
@@ -174,12 +184,28 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         isFormValid = updateErrorState(binding.apiKeyInputLayout, TextUtils.isEmpty(apiKey), R.string.error_text_input_field_blank) && isFormValid;
 
         String bqSecondsDelayText = ViewUtils.getTextTrimmed(binding.bqDelayTextInput);
-        isFormValid = updateErrorState(binding.bqDelayInputLayout, TextUtils.isEmpty(bqSecondsDelayText), R.string.error_text_input_field_blank) && isFormValid;
         Double bqSecondsDelay = StringUtils.parseDouble(bqSecondsDelayText, null);
+        boolean isBQSecondsDelayTextEmpty = TextUtils.isEmpty(bqSecondsDelayText);
+        if (isBQSecondsDelayTextEmpty) {
+            isFormValid = updateErrorState(binding.bqDelayInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
+        } else {
+            double minDelay = 1.0;
+            isFormValid = updateErrorState(binding.bqDelayInputLayout,
+                    !isNumberValid(bqSecondsDelay, minDelay),
+                    getString(R.string.error_number_input_field_small, String.valueOf(minDelay))) && isFormValid;
+        }
 
         String bqMinTasksText = ViewUtils.getTextTrimmed(binding.bqTasksTextInput);
-        isFormValid = updateErrorState(binding.bqTasksInputLayout, TextUtils.isEmpty(bqMinTasksText), R.string.error_text_input_field_blank) && isFormValid;
         Integer bqMinTasks = StringUtils.parseInteger(bqMinTasksText, null);
+        boolean isBQMinTasksTextEmpty = TextUtils.isEmpty(bqMinTasksText);
+        if (isBQMinTasksTextEmpty) {
+            isFormValid = updateErrorState(binding.bqTasksInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
+        } else {
+            int minTasks = 1;
+            isFormValid = updateErrorState(binding.bqTasksInputLayout,
+                    !isNumberValid(bqMinTasks, minTasks),
+                    getString(R.string.error_number_input_field_small, String.valueOf(minTasks))) && isFormValid;
+        }
 
         if (isFormValid) {
             binding.progressIndicator.show();
@@ -211,6 +237,14 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                                      boolean isErrorEnabled,
                                      @StringRes int errorResId) {
         String error = isErrorEnabled ? getString(errorResId) : null;
+        ViewUtils.setError(textInputLayout, error);
+        return !isErrorEnabled;
+    }
+
+    private boolean updateErrorState(TextInputLayout textInputLayout,
+                                     boolean isErrorEnabled,
+                                     String errorMessage) {
+        String error = isErrorEnabled ? errorMessage : null;
         ViewUtils.setError(textInputLayout, error);
         return !isErrorEnabled;
     }

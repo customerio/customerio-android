@@ -52,29 +52,21 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
 
     private void setupViews() {
         binding.sendEventButton.setOnClickListener(view -> {
-            boolean isFormValid = true;
             String eventName = ViewUtils.getText(binding.eventNameTextInput);
             String propertyName = ViewUtils.getText(binding.propertyNameTextInput);
             String propertyValue = ViewUtils.getText(binding.propertyValueTextInput);
 
-            if (TextUtils.isEmpty(eventName)) {
-                ViewUtils.setError(binding.eventNameInputLayout, getString(R.string.error_text_input_field_empty));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.eventNameInputLayout, null);
-            }
-
-            if (isFormValid) {
-                Map<String, String> extras = new HashMap<>();
+            Map<String, String> extras = new HashMap<>();
+            if (!TextUtils.isEmpty(propertyName)) {
                 extras.put(propertyName, propertyValue);
-                customerIORepository.trackEvent(eventName, extras);
+            }
+            customerIORepository.trackEvent(eventName, extras);
 
-                FragmentActivity activity = getActivity();
-                if (activity != null) {
-                    Snackbar.make(binding.sendEventButton,
-                            R.string.event_tracked_msg,
-                            Snackbar.LENGTH_SHORT).show();
-                }
+            FragmentActivity activity = getActivity();
+            if (activity != null) {
+                Snackbar.make(binding.sendEventButton,
+                        R.string.event_tracked_msg,
+                        Snackbar.LENGTH_SHORT).show();
             }
         });
     }

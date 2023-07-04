@@ -1,7 +1,6 @@
 package io.customer.android.sample.java_layout.ui.tracking;
 
 import android.os.Bundle;
-import android.text.TextUtils;
 
 import androidx.fragment.app.FragmentActivity;
 
@@ -90,48 +89,31 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
         }
 
         binding.sendEventButton.setOnClickListener(view -> {
-            boolean isFormValid = true;
             String attributeName = ViewUtils.getText(binding.attributeNameTextInput);
             String attributeValue = ViewUtils.getText(binding.attributeValueTextInput);
 
-            if (TextUtils.isEmpty(attributeName)) {
-                ViewUtils.setError(binding.attributeNameInputLayout, getString(R.string.error_text_input_field_empty));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.attributeNameInputLayout, null);
+            Map<String, String> attributes = new HashMap<>();
+            attributes.put(attributeName, attributeValue);
+
+            final String attributeType;
+            switch (mAttributeType) {
+                case ATTRIBUTE_TYPE_DEVICE:
+                    attributeType = getString(R.string.device);
+                    customerIORepository.setDeviceAttributes(attributes);
+                    break;
+                case ATTRIBUTE_TYPE_PROFILE:
+                    attributeType = getString(R.string.profile);
+                    customerIORepository.setProfileAttributes(attributes);
+                    break;
+                default:
+                    return;
             }
 
-            if (TextUtils.isEmpty(attributeValue)) {
-                ViewUtils.setError(binding.attributeValueInputLayout, getString(R.string.error_text_input_field_empty));
-                isFormValid = false;
-            } else {
-                ViewUtils.setError(binding.attributeValueInputLayout, null);
-            }
-
-            if (isFormValid) {
-                Map<String, String> attributes = new HashMap<>();
-                attributes.put(attributeName, attributeValue);
-
-                final String attributeType;
-                switch (mAttributeType) {
-                    case ATTRIBUTE_TYPE_DEVICE:
-                        attributeType = getString(R.string.device);
-                        customerIORepository.setDeviceAttributes(attributes);
-                        break;
-                    case ATTRIBUTE_TYPE_PROFILE:
-                        attributeType = getString(R.string.profile);
-                        customerIORepository.setProfileAttributes(attributes);
-                        break;
-                    default:
-                        return;
-                }
-
-                FragmentActivity activity = getActivity();
-                if (activity != null) {
-                    Snackbar.make(binding.sendEventButton,
-                            getString(R.string.attributes_tracked_msg_format, attributeType),
-                            Snackbar.LENGTH_SHORT).show();
-                }
+            FragmentActivity activity = getActivity();
+            if (activity != null) {
+                Snackbar.make(binding.sendEventButton,
+                        getString(R.string.attributes_tracked_msg_format, attributeType),
+                        Snackbar.LENGTH_SHORT).show();
             }
         });
     }

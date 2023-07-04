@@ -69,15 +69,6 @@ jobs:
           profile: Nexus 6
           # Run the instrumentation tests on the emulator.
           script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest
-
-      - name: Retry instrumentation tests
-        if: failure()
-        uses: nick-fields/retry@v2
-        with:
-          max-retries: 3
-          retry-on:
-            - error
-            - timeout
       - name: Publish test results
         uses: mikepenz/action-junit-report@v2
         if: always()

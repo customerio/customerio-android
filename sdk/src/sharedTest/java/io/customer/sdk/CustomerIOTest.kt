@@ -109,9 +109,20 @@ class CustomerIOTest : BaseTest() {
         whenever(deviceRepositoryMock.getDeviceToken()).thenReturn(givenDeviceToken)
         val customerIO = CustomerIO(di)
 
-        val actual = customerIO.deviceToken
+        val actual = customerIO.registeredDeviceToken
 
         actual shouldBeEqualTo givenDeviceToken
+    }
+
+    @Test
+    fun deviceToken_testRegisterDeviceTokenWhenPreviouslyNull() {
+        val givenDeviceToken = String.random
+
+        CustomerIO.instance().registeredDeviceToken shouldBe null
+
+        CustomerIO.instance().registerDeviceToken(givenDeviceToken)
+
+        CustomerIO.instance().registeredDeviceToken shouldBeEqualTo givenDeviceToken
     }
 
     @Test

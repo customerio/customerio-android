@@ -3,9 +3,9 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstan
 	public fun clearIdentify ()V
 	public fun deleteDeviceToken ()V
 	public fun getDeviceAttributes ()Ljava/util/Map;
-	public fun getDeviceToken ()Ljava/lang/String;
 	public final fun getDiGraph ()Lio/customer/sdk/di/CustomerIOComponent;
 	public fun getProfileAttributes ()Ljava/util/Map;
+	public fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public fun getSdkVersion ()Ljava/lang/String;
 	public fun getSiteId ()Ljava/lang/String;
 	public fun identify (Ljava/lang/String;)V
@@ -129,8 +129,8 @@ public abstract interface class io/customer/sdk/CustomerIOInstance {
 	public abstract fun clearIdentify ()V
 	public abstract fun deleteDeviceToken ()V
 	public abstract fun getDeviceAttributes ()Ljava/util/Map;
-	public abstract fun getDeviceToken ()Ljava/lang/String;
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
+	public abstract fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public abstract fun getSdkVersion ()Ljava/lang/String;
 	public abstract fun getSiteId ()Ljava/lang/String;
 	public abstract fun identify (Ljava/lang/String;)V

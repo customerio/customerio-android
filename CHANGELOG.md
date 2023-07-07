@@ -1,3 +1,10 @@
+## [3.6.0](https://github.com/customerio/customerio-android/compare/3.5.3...3.6.0) (2023-07-07)
+
+
+### Features
+
+* expose device token ([#235](https://github.com/customerio/customerio-android/issues/235)) ([deaa916](https://github.com/customerio/customerio-android/commit/deaa9164d7a9666823dfa4e6c09e3c20d6a3cfeb))
+
 ### [3.5.3](https://github.com/customerio/customerio-android/compare/3.5.2...3.5.3) (2023-07-03)
 
 

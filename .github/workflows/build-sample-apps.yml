@@ -57,6 +57,11 @@ jobs:
         # List item is name of directory inside of "samples" directory for the corresponding app to compile. 
         - "java_layout"
         - "kotlin_compose"
+        include: # Add additional variables to each sample app build: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
+        - sample-app: "java_layout"
+          cio-workspace: "java"
+        - sample-app: "kotlin_compose"
+          cio-workspace: "kotlin"
 
     runs-on: ubuntu-latest
     name: Building app...${{ matrix.sample-app }}
@@ -83,11 +88,19 @@ jobs:
         ruby-version: '3.0'
         bundler-cache: true # cache tools to make builds faster in future 
 
-    - name: Setup build environment with Customer.io workspace credentials 
+    - name: Setup Customer.io workspace credentials for Java 
+      if: ${{ matrix.cio-workspace == 'java' }}
       run: |
         touch "samples/local.properties"
-        echo "siteId=${{ secrets.CIO_SITE_ID }}" >> "samples/local.properties"
-        echo "apiKey=${{ secrets.CIO_API_KEY }}" >> "samples/local.properties"          
+        echo "siteId=${{ secrets.CUSTOMERIO_JAVA_WORKSPACE_SITE_ID }}" >> "samples/local.properties"
+        echo "apiKey=${{ secrets.CUSTOMERIO_JAVA_WORKSPACE_API_KEY }}" >> "samples/local.properties" 
+
+    - name: Setup Customer.io workspace credentials for Kotlin
+      if: ${{ matrix.cio-workspace == 'kotlin' }}
+      run: |
+        touch "samples/local.properties"
+        echo "siteId=${{ secrets.CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID }}" >> "samples/local.properties"
+        echo "apiKey=${{ secrets.CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY }}" >> "samples/local.properties"          
     
     - name: Verify gradle scripts are not modified 
       uses: gradle/wrapper-validation-action@v1

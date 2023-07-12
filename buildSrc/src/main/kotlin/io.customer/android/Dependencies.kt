@@ -23,7 +23,6 @@ object Dependencies {
     const val hiltGradlePlugin = "com.google.dagger:hilt-android-gradle-plugin:${Versions.HILT}"
     const val firebaseMessaging =
         "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
-    const val gist = "build:gist:${Versions.GIST}"
     const val googlePlayServicesBase =
         "com.google.android.gms:play-services-base:${Versions.GOOGLE_PLAY_SERVICES_BASE}"
     const val googleServicesPlugin =

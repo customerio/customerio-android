@@ -1,10 +1,10 @@
 package io.customer.messaginginapp.provider
 
 import android.app.Application
-import build.gist.data.model.GistMessageProperties
-import build.gist.data.model.Message
-import build.gist.presentation.GistListener
-import build.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.data.model.GistMessageProperties
+import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.presentation.GistListener
+import io.customer.messaginginapp.gist.presentation.GistSdk
 
 /**
  * Wrapper around Gist Apis

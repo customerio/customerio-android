@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.provider
 
 import android.app.Application
+import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -28,7 +29,8 @@ internal class GistApiProvider : GistApi {
         GistSdk.init(
             application = application,
             siteId = siteId,
-            dataCenter = dataCenter
+            dataCenter = dataCenter,
+            environment = GistEnvironment.DEV,
         )
     }
 

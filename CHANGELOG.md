@@ -1,3 +1,10 @@
+### [3.6.1](https://github.com/customerio/customerio-android/compare/3.6.0...3.6.1) (2023-07-12)
+
+
+### Bug Fixes
+
+* migrate in-app module from gist to CIO ([#221](https://github.com/customerio/customerio-android/issues/221)) ([d6fda6d](https://github.com/customerio/customerio-android/commit/d6fda6df4c81b2499039cae857a7bbd3ccccafd6))
+
 ## [3.6.0](https://github.com/customerio/customerio-android/compare/3.5.3...3.6.0) (2023-07-07)
 
 

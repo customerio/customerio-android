@@ -28,6 +28,10 @@ lint:
 lint-install:
 	./scripts/get-ktlint.sh
 
+# Generate public API binary
+generate-public-api:
+	./gradlew apiDump
+
 # Run kotlin binary validator
-run-binary-validator:
+validate-public-api:
 	./scripts/binary-validation.sh

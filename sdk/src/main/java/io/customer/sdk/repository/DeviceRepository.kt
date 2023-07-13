@@ -89,7 +89,7 @@ internal class DeviceRepositoryImpl(
         // once given to SDK. We need it for future profile identifications.
 
         val identifiedProfileId = sitePreferenceRepository.getIdentifier()
-        if (identifiedProfileId == null) {
+        if (identifiedProfileId.isNullOrEmpty()) {
             logger.info("no profile identified so not removing device token from profile")
             return
         }

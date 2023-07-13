@@ -1,3 +1,10 @@
+### [3.6.2](https://github.com/customerio/customerio-android/compare/3.6.1...3.6.2) (2023-07-13)
+
+
+### Bug Fixes
+
+* duplicate classes crash on wrappers ([#239](https://github.com/customerio/customerio-android/issues/239)) ([ead2175](https://github.com/customerio/customerio-android/commit/ead217559c675b561410ea97886b4d4dfa6af2c0))
+
 ### [3.6.1](https://github.com/customerio/customerio-android/compare/3.6.0...3.6.1) (2023-07-12)
 
 

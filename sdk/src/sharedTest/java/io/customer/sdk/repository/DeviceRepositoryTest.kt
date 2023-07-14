@@ -52,6 +52,25 @@ class DeviceRepositoryTest : BaseTest() {
     }
 
     @Test
+    fun registerDeviceToken_givenEmptyDeviceToken_expectDoNotAddTaskToBackgroundQueue() {
+        val givenDeviceToken = ""
+
+        repository.registerDeviceToken(givenDeviceToken, emptyMap())
+
+        verifyNoInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun registerDeviceToken_givenEmptyIdentifier_expectDoNotAddTaskToBackgroundQueue() {
+        val givenDeviceToken = String.random
+        prefRepository.saveIdentifier("")
+
+        repository.registerDeviceToken(givenDeviceToken, emptyMap())
+
+        verifyNoInteractions(backgroundQueueMock)
+    }
+
+    @Test
     fun registerDeviceToken_givenIdentifiedProfile_expectAddTaskToQueue_expectSaveToken() {
         val givenIdentifier = String.random
         val givenDeviceToken = String.random

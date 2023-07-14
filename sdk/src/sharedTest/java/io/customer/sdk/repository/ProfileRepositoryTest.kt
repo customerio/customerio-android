@@ -11,6 +11,7 @@ import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.Logger
 import org.amshove.kluent.internal.assertEquals
+import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
@@ -65,6 +66,55 @@ class ProfileRepositoryTest : BaseTest() {
             attributes = givenAttributes
         )
         verifyNoMoreInteractions(backgroundQueueMock)
+    }
+
+    @Test
+    fun identify_givenEmptyIdentifier_expectNoIdentifyBackgroundQueue_expectIdentifierNotSaved() {
+        val newIdentifier = ""
+        val givenAttributes = mapOf("name" to String.random)
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        repository.identify(newIdentifier, givenAttributes)
+
+        verifyNoInteractions(backgroundQueueMock)
+
+        verify(backgroundQueueMock, times(0)).queueIdentifyProfile(
+            newIdentifier = newIdentifier,
+            oldIdentifier = null,
+            attributes = givenAttributes
+        )
+
+        prefRepository.getIdentifier().shouldBeNull()
+    }
+
+    @Test
+    fun identify_givenAlreadyIdentifiedProfile_givenNewEmptyIdentifier_expectIdentifierNotSaved() {
+        val givenIdentifier = ""
+        val givenAttributes = mapOf("name" to String.random)
+
+        val existingIdentifier = String.random
+
+        prefRepository.saveIdentifier(existingIdentifier)
+
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        repository.identify(givenIdentifier, givenAttributes)
+
+        verifyNoInteractions(backgroundQueueMock)
+
+        prefRepository.getIdentifier() shouldBe existingIdentifier
     }
 
     @Test

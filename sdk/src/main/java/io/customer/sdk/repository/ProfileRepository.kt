@@ -25,6 +25,11 @@ internal class ProfileRepositoryImpl(
         logger.info("identify profile $identifier")
         logger.debug("identify profile $identifier, $attributes")
 
+        if (identifier.isBlank()) {
+            logger.debug("Profile cannot be identified: Identifier is blank. Please retry with a valid, non-empty identifier.")
+            return
+        }
+
         val currentlyIdentifiedProfileIdentifier = sitePreferenceRepository.getIdentifier()
         // The SDK calls identify() with the already identified profile for changing profile attributes.
         val isChangingIdentifiedProfile =

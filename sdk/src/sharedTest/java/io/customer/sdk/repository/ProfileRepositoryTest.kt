@@ -68,6 +68,29 @@ class ProfileRepositoryTest : BaseTest() {
     }
 
     @Test
+    fun identify_givenEmptyIdentifier_expectNoIdentifyBackgroundQueue() {
+        val newIdentifier = ""
+        val givenAttributes = mapOf("name" to String.random)
+        whenever(
+            backgroundQueueMock.queueIdentifyProfile(
+                anyOrNull(),
+                anyOrNull(),
+                anyOrNull()
+            )
+        ).thenReturn(QueueModifyResult(true, QueueStatus(siteId, 1)))
+
+        repository.identify(newIdentifier, givenAttributes)
+
+        verifyNoInteractions(backgroundQueueMock)
+
+        verify(backgroundQueueMock, times(0)).queueIdentifyProfile(
+            newIdentifier = newIdentifier,
+            oldIdentifier = null,
+            attributes = givenAttributes
+        )
+    }
+
+    @Test
     fun identify_givenFirstTimeIdentify_givenDeviceTokenExists_expectIdentifyBackgroundQueue_expectDoNotDeleteToken_expectProfileIdentifiedHookUpdateWithCorrectIdentifier_expectRegisterDeviceToken() {
         val newIdentifier = String.random
         val givenDeviceToken = String.random

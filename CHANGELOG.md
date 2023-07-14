@@ -1,3 +1,10 @@
+### [3.6.3](https://github.com/customerio/customerio-android/compare/3.6.2...3.6.3) (2023-07-14)
+
+
+### Bug Fixes
+
+* prevent empty identifier and device token ([#240](https://github.com/customerio/customerio-android/issues/240)) ([e9b5d0c](https://github.com/customerio/customerio-android/commit/e9b5d0cf74e52dde042ffc6a6412f443821d24bf))
+
 ### [3.6.2](https://github.com/customerio/customerio-android/compare/3.6.1...3.6.2) (2023-07-13)
 
 

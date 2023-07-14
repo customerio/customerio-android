@@ -68,7 +68,7 @@ class ProfileRepositoryTest : BaseTest() {
     }
 
     @Test
-    fun identify_givenEmptyIdentifier_expectNoIdentifyBackgroundQueue() {
+    fun identify_givenEmptyIdentifier_expectNoIdentifyBackgroundQueue_expectIdentifierNotSaved() {
         val newIdentifier = ""
         val givenAttributes = mapOf("name" to String.random)
         whenever(
@@ -88,6 +88,8 @@ class ProfileRepositoryTest : BaseTest() {
             oldIdentifier = null,
             attributes = givenAttributes
         )
+
+        prefRepository.getIdentifier().shouldBeNull()
     }
 
     @Test

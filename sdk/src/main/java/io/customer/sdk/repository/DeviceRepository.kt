@@ -26,6 +26,11 @@ internal class DeviceRepositoryImpl(
 ) : DeviceRepository {
 
     override fun registerDeviceToken(deviceToken: String, attributes: CustomAttributes) {
+        if (deviceToken.isBlank()) {
+            logger.debug("device token cannot be blank. ignoring request to register device token")
+            return
+        }
+
         val attributes = createDeviceAttributes(attributes)
 
         logger.info("registering device token $deviceToken, attributes: $attributes")
@@ -36,7 +41,7 @@ internal class DeviceRepositoryImpl(
         sitePreferenceRepository.saveDeviceToken(deviceToken)
 
         val identifiedProfileId = sitePreferenceRepository.getIdentifier()
-        if (identifiedProfileId == null) {
+        if (identifiedProfileId.isNullOrBlank()) {
             logger.info("no profile identified, so not registering device token to a profile")
             return
         }

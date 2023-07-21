@@ -1,3 +1,10 @@
+### [3.6.4](https://github.com/customerio/customerio-android/compare/3.6.3...3.6.4) (2023-07-21)
+
+
+### Bug Fixes
+
+* in-app messaging proguard rules missing ([#241](https://github.com/customerio/customerio-android/issues/241)) ([c494bb0](https://github.com/customerio/customerio-android/commit/c494bb01ed4c3a7e552e381a88b3e27264c553ba))
+
 ### [3.6.3](https://github.com/customerio/customerio-android/compare/3.6.2...3.6.3) (2023-07-14)
 
 

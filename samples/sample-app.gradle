@@ -49,6 +49,7 @@ dependencies {
         implementation(project(":sdk"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
+        implementation(project(":datapipeline"))
     } else {
         // Stable releases dependency, use published versions directly
         implementation "io.customer.android:tracking:$cioSDKVersion"

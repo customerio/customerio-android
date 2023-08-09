@@ -43,6 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
+import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 
 @Composable
@@ -55,7 +56,7 @@ fun SettingsRoute(
     val state by settingsViewModel.uiState.collectAsState()
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        CustomerIO.instance().screen("Settings")
+        CustomerIO.instance().dataPipeline().screen("Settings")
     })
 
     SettingsScreen(

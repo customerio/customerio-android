@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
+import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 import java.util.Calendar
 import java.util.Random
@@ -44,21 +45,21 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun sendRandomEvent() {
-        when (Random().nextInt(3)) {
+        when (Random().nextInt(2)) {
             0 -> {
-                CustomerIO.instance().track("Order Purchased")
+                CustomerIO.instance().dataPipeline().track("Order Purchased")
             }
 
             1 -> {
                 val attributes = mapOf("movie_name" to "The Incredibles")
-                CustomerIO.instance().track("movie_watched", attributes)
+                CustomerIO.instance().dataPipeline().track("movie_watched", attributes)
             }
 
             2 -> {
                 val sevenDaysLater =
                     Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.time
                 val attributes = mapOf("appointmentTime" to sevenDaysLater)
-                CustomerIO.instance().track("appointmentScheduled", attributes)
+                CustomerIO.instance().dataPipeline().track("appointmentScheduled", attributes)
             }
         }
     }

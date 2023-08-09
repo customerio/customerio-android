@@ -27,6 +27,7 @@ import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.BackButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
+import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -44,7 +45,7 @@ fun CustomEventRoute(
     val context = LocalContext.current
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        CustomerIO.instance().screen("Custom Event")
+        CustomerIO.instance().dataPipeline().screen("Custom Event")
     })
 
     Column(
@@ -101,9 +102,9 @@ fun CustomEventRoute(
                 text = stringResource(R.string.send_event),
                 modifier = Modifier.testTag(stringResource(id = R.string.acd_send_event_button)),
                 onClick = {
-                    CustomerIO.instance().track(
+                    CustomerIO.instance().dataPipeline().track(
                         name = eventName,
-                        attributes = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
+                        properties = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
                     )
                     scope.launch {
                         snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))

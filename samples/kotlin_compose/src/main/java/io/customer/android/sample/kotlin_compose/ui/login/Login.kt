@@ -33,6 +33,7 @@ import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.SettingsIcon
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
+import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 
 @Composable
@@ -46,7 +47,7 @@ fun LoginRoute(
     TrackScreenLifecycle(
         lifecycleOwner = LocalLifecycleOwner.current,
         onScreenEnter = {
-            CustomerIO.instance().screen("Login")
+            CustomerIO.instance().dataPipeline().screen("Login")
         }
     )
 

@@ -28,6 +28,7 @@ import io.customer.android.sample.kotlin_compose.ui.components.ActionButton
 import io.customer.android.sample.kotlin_compose.ui.components.BackButton
 import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
+import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -45,7 +46,7 @@ fun CustomAttributeRoute(
     val context = LocalContext.current
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        CustomerIO.instance()
+        CustomerIO.instance().dataPipeline()
             .screen("Custom ${attributeType.replaceFirstChar { it.uppercase() }} Attribute")
     })
 
@@ -98,7 +99,7 @@ fun CustomAttributeRoute(
                 Pair(
                     stringResource(R.string.send_profile_attribute)
                 ) {
-                    CustomerIO.instance().profileAttributes = mapOf(attributeName to attributeValue)
+                    CustomerIO.instance().dataPipeline().identify(mapOf(attributeName to attributeValue))
                 }
             } else {
                 Pair(stringResource(R.string.send_device_attribute)) {

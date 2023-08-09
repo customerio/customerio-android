@@ -1,0 +1,60 @@
+public final class io/customer/datapipeline/BuildConfig {
+	public static final field BUILD_TYPE Ljava/lang/String;
+	public static final field DEBUG Z
+	public static final field LIBRARY_PACKAGE_NAME Ljava/lang/String;
+	public fun <init> ()V
+}
+
+public final class io/customer/datapipeline/DataPipelineModuleConfig : io/customer/sdk/module/CustomerIOModuleConfig {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getApiKey ()Ljava/lang/String;
+}
+
+public final class io/customer/datapipeline/DataPipelineModuleConfig$Builder : io/customer/sdk/module/CustomerIOModuleConfig$Builder {
+	public fun <init> (Ljava/lang/String;)V
+	public fun build ()Lio/customer/datapipeline/DataPipelineModuleConfig;
+	public synthetic fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
+	public final fun getApiKey ()Ljava/lang/String;
+}
+
+public final class io/customer/datapipeline/ModuleDataPipeline : io/customer/sdk/module/CustomerIOModule {
+	public static final field Companion Lio/customer/datapipeline/ModuleDataPipeline$Companion;
+	public static final field moduleName Ljava/lang/String;
+	public fun <init> (Lio/customer/datapipeline/DataPipelineModuleConfig;)V
+	public fun <init> (Lio/customer/datapipeline/DataPipelineModuleConfig;Lio/customer/sdk/di/CustomerIOComponent;)V
+	public final fun alias (Ljava/lang/String;)V
+	public fun getModuleConfig ()Lio/customer/datapipeline/DataPipelineModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/module/CustomerIOModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public final fun group (Ljava/lang/String;)V
+	public final fun group (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun group (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public static synthetic fun group$default (Lio/customer/datapipeline/ModuleDataPipeline;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public final fun identify ()V
+	public final fun identify (Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun identify (Ljava/lang/String;)V
+	public final fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun identify (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public final fun identify (Lkotlinx/serialization/json/JsonObject;)V
+	public static synthetic fun identify$default (Lio/customer/datapipeline/ModuleDataPipeline;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public static synthetic fun identify$default (Lio/customer/datapipeline/ModuleDataPipeline;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public fun initialize ()V
+	public final fun screen (Ljava/lang/String;)V
+	public final fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Ljava/lang/String;)V
+	public final fun screen (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public final fun screen (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;)V
+	public static synthetic fun screen$default (Lio/customer/datapipeline/ModuleDataPipeline;Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Ljava/lang/String;ILjava/lang/Object;)V
+	public static synthetic fun screen$default (Lio/customer/datapipeline/ModuleDataPipeline;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;ILjava/lang/Object;)V
+	public final fun track (Ljava/lang/String;)V
+	public final fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun track (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public static synthetic fun track$default (Lio/customer/datapipeline/ModuleDataPipeline;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+}
+
+public final class io/customer/datapipeline/ModuleDataPipeline$Companion {
+}
+
+public final class io/customer/datapipeline/di/DIGraphDataPipelineKt {
+	public static final fun dataPipeline (Lio/customer/sdk/CustomerIO;)Lio/customer/datapipeline/ModuleDataPipeline;
+}
+

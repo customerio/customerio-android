@@ -6,15 +6,17 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
+import io.customer.sdk.CustomerIO
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val configuration: Configuration = Configuration("", ""),
-    val customTrackUrlError: String = "",
-    val deviceToken: String = ""
-)
+    val customTrackUrlError: String = ""
+) {
+    val deviceToken: String by lazy { CustomerIO.instance().registeredDeviceToken ?: "" }
+}
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -42,7 +44,12 @@ class SettingsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val trackUrlValidation = validateCustomTrackUrl(configuration.trackUrl)
-            _uiState.emit(_uiState.value.copy(configuration = configuration, customTrackUrlError = trackUrlValidation))
+            _uiState.emit(
+                _uiState.value.copy(
+                    configuration = configuration,
+                    customTrackUrlError = trackUrlValidation
+                )
+            )
             onComplete.invoke()
         }
     }

@@ -1,5 +1,6 @@
 package io.customer.android.sample.kotlin_compose.ui.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,9 +32,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -170,6 +176,8 @@ fun EnvSettingsList(
     onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
     val configuration = uiState.configuration
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
@@ -177,10 +185,27 @@ fun EnvSettingsList(
                 .fillMaxWidth()
                 .testTag(stringResource(id = R.string.acd_device_token_input)),
             value = uiState.deviceToken,
+            singleLine = true,
             readOnly = true,
             onValueChange = {},
             label = {
                 Text(text = stringResource(id = R.string.device_token))
+            },
+            trailingIcon = {
+                IconButton(onClick = {
+                    clipboardManager.setText(AnnotatedString(uiState.deviceToken))
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.token_copied),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.baseline_content_copy_24),
+                        contentDescription = "Copy Text",
+                        tint = Color.Gray
+                    )
+                }
             }
         )
         OutlinedTextField(

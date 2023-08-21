@@ -170,7 +170,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     fun clearListeners() {
-        iterateOnListeners { iterator ->
+        forEachListener { iterator ->
             val listener = iterator.next()
             val listenerPackageName = listener.javaClass.`package`?.name
             if (!listenerPackageName.toString().startsWith("build.gist.")) {
@@ -214,28 +214,28 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     internal fun handleGistLoaded(message: Message) {
-        iterateOnListeners { iterator ->
+        forEachListener { iterator ->
             val listener = iterator.next()
             listener.onMessageShown(message)
         }
     }
 
     internal fun handleGistClosed(message: Message) {
-        iterateOnListeners { iterator ->
+        forEachListener { iterator ->
             val listener = iterator.next()
             listener.onMessageDismissed(message)
         }
     }
 
     internal fun handleGistError(message: Message) {
-        iterateOnListeners { iterator ->
+        forEachListener { iterator ->
             val listener = iterator.next()
             listener.onError(message)
         }
     }
 
     internal fun handleEmbedMessage(message: Message, elementId: String) {
-        iterateOnListeners { iterator ->
+        forEachListener { iterator ->
             val listener = iterator.next()
             listener.embedMessage(message, elementId)
         }
@@ -247,7 +247,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         action: String,
         name: String
     ) {
-        iterateOnListeners { iterator ->
+        forEachListener { iterator ->
             val listener = iterator.next()
             listener.onAction(message, currentRoute, action, name)
         }
@@ -257,7 +257,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         return sharedPreferences.getString(SHARED_PREFERENCES_USER_TOKEN_KEY, null)
     }
 
-    private fun iterateOnListeners(action: (MutableIterator<GistListener>) -> Unit) {
+    private fun forEachListener(action: (MutableIterator<GistListener>) -> Unit) {
         // Use iterator to avoid ConcurrentModificationException
         val iterator = listeners.iterator()
         while (iterator.hasNext()) {

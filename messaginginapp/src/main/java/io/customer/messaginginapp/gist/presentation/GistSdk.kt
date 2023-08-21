@@ -170,11 +170,12 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     fun clearListeners() {
-        for (listener in listeners) {
+        iterateOnListeners { iterator ->
+            val listener = iterator.next()
             val listenerPackageName = listener.javaClass.`package`?.name
             if (!listenerPackageName.toString().startsWith("build.gist.")) {
                 Log.d(GIST_TAG, "Removing listener $listenerPackageName")
-                listeners.remove(listener)
+                iterator.remove()
             }
         }
     }
@@ -213,25 +214,29 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     internal fun handleGistLoaded(message: Message) {
-        for (listener in listeners) {
+        iterateOnListeners { iterator ->
+            val listener = iterator.next()
             listener.onMessageShown(message)
         }
     }
 
     internal fun handleGistClosed(message: Message) {
-        for (listener in listeners) {
+        iterateOnListeners { iterator ->
+            val listener = iterator.next()
             listener.onMessageDismissed(message)
         }
     }
 
     internal fun handleGistError(message: Message) {
-        for (listener in listeners) {
+        iterateOnListeners { iterator ->
+            val listener = iterator.next()
             listener.onError(message)
         }
     }
 
     internal fun handleEmbedMessage(message: Message, elementId: String) {
-        for (listener in listeners) {
+        iterateOnListeners { iterator ->
+            val listener = iterator.next()
             listener.embedMessage(message, elementId)
         }
     }
@@ -242,13 +247,22 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         action: String,
         name: String
     ) {
-        for (listener in listeners) {
+        iterateOnListeners { iterator ->
+            val listener = iterator.next()
             listener.onAction(message, currentRoute, action, name)
         }
     }
 
     internal fun getUserToken(): String? {
         return sharedPreferences.getString(SHARED_PREFERENCES_USER_TOKEN_KEY, null)
+    }
+
+    private fun iterateOnListeners(action: (MutableIterator<GistListener>) -> Unit) {
+        // Use iterator to avoid ConcurrentModificationException
+        val iterator = listeners.iterator()
+        while (iterator.hasNext()) {
+            action(iterator)
+        }
     }
 
     private fun ensureInitialized() {

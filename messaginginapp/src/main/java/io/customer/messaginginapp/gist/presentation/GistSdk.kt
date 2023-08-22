@@ -12,6 +12,7 @@ import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -35,7 +36,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     internal lateinit var gistEnvironment: GistEnvironment
     internal lateinit var application: Application
 
-    private val listeners: MutableList<GistListener> = mutableListOf()
+    private val listeners: CopyOnWriteArrayList<GistListener> = CopyOnWriteArrayList()
 
     private var resumedActivities = mutableSetOf<String>()
 
@@ -170,12 +171,11 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     fun clearListeners() {
-        forEachListener { iterator ->
-            val listener = iterator.next()
+        for (listener in listeners) {
             val listenerPackageName = listener.javaClass.`package`?.name
             if (!listenerPackageName.toString().startsWith("build.gist.")) {
                 Log.d(GIST_TAG, "Removing listener $listenerPackageName")
-                iterator.remove()
+                listeners.remove(listener)
             }
         }
     }
@@ -214,29 +214,25 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     internal fun handleGistLoaded(message: Message) {
-        forEachListener { iterator ->
-            val listener = iterator.next()
+        for (listener in listeners) {
             listener.onMessageShown(message)
         }
     }
 
     internal fun handleGistClosed(message: Message) {
-        forEachListener { iterator ->
-            val listener = iterator.next()
+        for (listener in listeners) {
             listener.onMessageDismissed(message)
         }
     }
 
     internal fun handleGistError(message: Message) {
-        forEachListener { iterator ->
-            val listener = iterator.next()
+        for (listener in listeners) {
             listener.onError(message)
         }
     }
 
     internal fun handleEmbedMessage(message: Message, elementId: String) {
-        forEachListener { iterator ->
-            val listener = iterator.next()
+        for (listener in listeners) {
             listener.embedMessage(message, elementId)
         }
     }
@@ -247,22 +243,13 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         action: String,
         name: String
     ) {
-        forEachListener { iterator ->
-            val listener = iterator.next()
+        for (listener in listeners) {
             listener.onAction(message, currentRoute, action, name)
         }
     }
 
     internal fun getUserToken(): String? {
         return sharedPreferences.getString(SHARED_PREFERENCES_USER_TOKEN_KEY, null)
-    }
-
-    private fun forEachListener(action: (MutableIterator<GistListener>) -> Unit) {
-        // Use iterator to avoid ConcurrentModificationException
-        val iterator = listeners.iterator()
-        while (iterator.hasNext()) {
-            action(iterator)
-        }
     }
 
     private fun ensureInitialized() {

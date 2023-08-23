@@ -14,6 +14,16 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 internal class GistSdkListenersTest : BaseTest() {
+    /**
+     * This test validates if individual listeners can be removed without any exceptions.
+     * See https://github.com/customerio/customerio-android/issues/245 for more details.
+     *
+     * The test run following steps to validate the functionality:
+     * - Creates 100 listeners and adds them to the SDK.
+     * - Starts a thread to remove the listeners one by one.
+     * - Starts another thread in parallel to emit an error to the SDK 20 times.
+     * - Ensure both threads run in parallel and completed without any exceptions within the timeout.
+     */
     @Test
     fun processAndRemoveListenersIndividually_givenConcurrentModification_expectSuccessfulCompletion() {
         val listenersCount = 100
@@ -27,6 +37,7 @@ internal class GistSdkListenersTest : BaseTest() {
             GistSdk.addListener(listeners.last())
         }
 
+        // Create a thread to remove listeners one by one
         val removeListenersThread = thread(start = false) {
             repeat(listenersCount) { index ->
                 GistSdk.removeListener(listeners[index])
@@ -34,6 +45,7 @@ internal class GistSdkListenersTest : BaseTest() {
             threadsCompletionLatch.countDown()
         }
 
+        // Create a thread to emit events
         val handleGistErrorThread = thread(start = false) {
             repeat(emitEventsCount) {
                 GistSdk.handleGistError(Message())
@@ -41,6 +53,7 @@ internal class GistSdkListenersTest : BaseTest() {
             threadsCompletionLatch.countDown()
         }
 
+        // Start both threads in parallel
         handleGistErrorThread.start()
         removeListenersThread.start()
 
@@ -48,6 +61,7 @@ internal class GistSdkListenersTest : BaseTest() {
         // If there is any exception, the latch will not be decremented
         threadsCompletionLatch.await(10, TimeUnit.SECONDS)
 
+        // Assert that threads completed without any exceptions within the timeout
         assertEquals(
             expected = 0L,
             actual = threadsCompletionLatch.count,
@@ -55,6 +69,16 @@ internal class GistSdkListenersTest : BaseTest() {
         )
     }
 
+    /**
+     * This test validates if all listeners can be removed together without any exceptions.
+     * See https://github.com/customerio/customerio-android/issues/245 for more details.
+     *
+     * The test run following steps to validate the functionality:
+     * - Creates 100 listeners and adds them to the SDK.
+     * - Starts a thread that sleeps for 1 second, then clears all listeners at once.
+     * - Starts another thread in parallel to emit an error to the SDK 20 times.
+     * - Ensure both threads run in parallel and completed without any exceptions within the timeout.
+     */
     @Test
     fun processAndClearListenersAllAtOnce_givenConcurrentModification_expectSuccessfulCompletion() {
         val listenersCount = 100
@@ -68,6 +92,7 @@ internal class GistSdkListenersTest : BaseTest() {
             GistSdk.addListener(listeners.last())
         }
 
+        // Create a thread to remove all listeners
         val removeListenersThread = thread(start = false) {
             // Sleep for 1 second to ensure that the other thread has started
             // and is in the process of emitting events
@@ -76,6 +101,7 @@ internal class GistSdkListenersTest : BaseTest() {
             threadsCompletionLatch.countDown()
         }
 
+        // Create a thread to emit events
         val handleGistErrorThread = thread(start = false) {
             repeat(emitEventsCount) {
                 GistSdk.handleGistError(Message())
@@ -86,6 +112,7 @@ internal class GistSdkListenersTest : BaseTest() {
             threadsCompletionLatch.countDown()
         }
 
+        // Start both threads in parallel
         handleGistErrorThread.start()
         removeListenersThread.start()
 
@@ -93,6 +120,7 @@ internal class GistSdkListenersTest : BaseTest() {
         // If there is any exception, the latch will not be decremented
         threadsCompletionLatch.await(10, TimeUnit.SECONDS)
 
+        // Assert that threads completed without any exceptions within the timeout
         assertEquals(
             expected = 0L,
             actual = threadsCompletionLatch.count,

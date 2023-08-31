@@ -13,6 +13,7 @@ import android.view.ViewTreeObserver;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 import androidx.core.app.NotificationManagerCompat;
@@ -34,8 +35,9 @@ import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.sdk.tracking.TrackableScreen;
 
-public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
+public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> implements TrackableScreen {
 
     private AuthViewModel authViewModel;
     private CustomerIORepository customerIORepository;
@@ -55,6 +57,12 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                     showPushPermissionDeniedAlert(R.string.notification_permission_denied);
                 }
             });
+
+    @Nullable
+    @Override
+    public String getScreenName() {
+        return getString(R.string.screen_label_dashboard);
+    }
 
     @Override
     protected ActivityDashboardBinding inflateViewBinding() {

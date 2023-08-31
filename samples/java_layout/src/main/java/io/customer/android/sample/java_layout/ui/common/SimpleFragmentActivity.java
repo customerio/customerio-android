@@ -4,10 +4,12 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivitySimpleFragmentBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
@@ -16,8 +18,9 @@ import io.customer.android.sample.java_layout.ui.tracking.AttributesTrackingFrag
 import io.customer.android.sample.java_layout.ui.tracking.CustomEventTrackingFragment;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.sdk.tracking.TrackableScreen;
 
-public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentBinding> {
+public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentBinding> implements TrackableScreen {
 
     public static final String FRAGMENT_CUSTOM_TRACKING_EVENT = "FRAGMENT_CUSTOM_TRACKING_EVENT";
     public static final String FRAGMENT_DEVICE_ATTRIBUTES = "FRAGMENT_DEVICE_ATTRIBUTES";
@@ -32,6 +35,24 @@ public class SimpleFragmentActivity extends BaseActivity<ActivitySimpleFragmentB
         Bundle extras = new Bundle();
         extras.putString(ARG_FRAGMENT_NAME, fragmentName);
         return extras;
+    }
+
+    @Nullable
+    @Override
+    public String getScreenName() {
+        switch (mFragmentName) {
+            case FRAGMENT_CUSTOM_TRACKING_EVENT:
+                return getString(R.string.screen_label_custom_event);
+
+            case FRAGMENT_DEVICE_ATTRIBUTES:
+                return getString(R.string.screen_label_device_attributes);
+
+            case FRAGMENT_PROFILE_ATTRIBUTES:
+                return getString(R.string.screen_label_profile_attributes);
+
+            default:
+                return null;
+        }
     }
 
     @Override

@@ -373,3 +373,7 @@ public abstract interface class io/customer/sdk/repository/preference/SitePrefer
 	public abstract fun setHttpRequestsPauseEnds (Ljava/util/Date;)V
 }
 
+public abstract interface class io/customer/sdk/tracking/TrackableScreen {
+	public abstract fun getScreenName ()Ljava/lang/String;
+}
+

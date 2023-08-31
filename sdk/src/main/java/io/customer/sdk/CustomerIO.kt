@@ -20,6 +20,7 @@ import io.customer.sdk.repository.ProfileRepository
 import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.doesExist
+import io.customer.sdk.tracking.TrackableScreen
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.CoroutineScope
@@ -545,17 +546,25 @@ class CustomerIO internal constructor(
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager
-        return try {
-            val info = packageManager.getActivityInfo(
-                activity.componentName,
-                PackageManager.GET_META_DATA
-            )
-            val activityLabel = info.loadLabel(packageManager)
+        try {
+            val screenName: String? = if (activity is TrackableScreen) {
+                // TrackableScreen takes precedence over manifest label
+                activity.getScreenName()
+            } else {
+                val info = packageManager.getActivityInfo(
+                    activity.componentName,
+                    PackageManager.GET_META_DATA
+                )
+                val activityLabel = info.loadLabel(packageManager)
 
-            val screenName = activityLabel.toString().ifEmpty {
-                activity::class.java.simpleName.getScreenNameFromActivity()
+                activityLabel.toString().ifEmpty {
+                    activity::class.java.simpleName.getScreenNameFromActivity()
+                }
             }
-            screen(screenName, attributes)
+            // If screen name is null, we do not track the screen
+            screenName?.let {
+                screen(screenName, attributes)
+            }
         } catch (e: PackageManager.NameNotFoundException) {
             // if `PackageManager.NameNotFoundException` is thrown, is that a bug in the SDK or a problem with the customer's app?
             // We may want to decide to log this as an SDK error, log it so customer notices it to fix it themselves, or we do nothing because this exception might not be a big issue.

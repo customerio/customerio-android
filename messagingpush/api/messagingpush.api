@@ -58,6 +58,16 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 public final class io/customer/messagingpush/ModuleMessagingPushFCM$Companion {
 }
 
+public final class io/customer/messagingpush/activity/NotificationClickReceiverActivity : android/app/Activity {
+	public static final field Companion Lio/customer/messagingpush/activity/NotificationClickReceiverActivity$Companion;
+	public static final field NOTIFICATION_PAYLOAD_EXTRA Ljava/lang/String;
+	public fun <init> ()V
+	public final fun getLogger ()Lio/customer/sdk/util/Logger;
+}
+
+public final class io/customer/messagingpush/activity/NotificationClickReceiverActivity$Companion {
+}
+
 public abstract interface class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback {
 	public abstract fun createTaskStackFromPayload (Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
 	public abstract fun onNotificationComposed (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V

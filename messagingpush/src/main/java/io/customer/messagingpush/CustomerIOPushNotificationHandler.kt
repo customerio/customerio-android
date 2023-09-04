@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
@@ -210,11 +211,11 @@ internal class CustomerIOPushNotificationHandler(
             payload = payload,
             builder = notificationBuilder
         )
-        createIntentFromLink(
+        createIntentForNotificationClick(
             context,
             requestCode,
             payload
-        )?.let { pendingIntent ->
+        ).let { pendingIntent ->
             notificationBuilder.setContentIntent(pendingIntent)
         }
 
@@ -265,6 +266,22 @@ internal class CustomerIOPushNotificationHandler(
                 flags
             )
         }
+    }
+
+    private fun createIntentForNotificationClick(
+        context: Context,
+        requestCode: Int,
+        payload: CustomerIOParsedPushPayload
+    ): PendingIntent {
+        val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java)
+        notifyIntent.putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
+        notifyIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            notifyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     private fun addImage(

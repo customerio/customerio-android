@@ -62,6 +62,6 @@
     <string name="token_copied">Token Copied!</string>
     <string name="screen_label_dashboard">Dashboard</string>
     <string name="screen_label_custom_event">Custom Event</string>
-    <string name="screen_label_device_attributes">Device Attributes</string>
-    <string name="screen_label_profile_attributes">Profile Attributes</string>
+    <string name="screen_label_device_attributes">Custom Device Attribute</string>
+    <string name="screen_label_profile_attributes">Custom Profile Attribute</string>
 </resources>

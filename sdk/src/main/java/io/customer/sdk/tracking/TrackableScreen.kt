@@ -1,7 +1,7 @@
 package io.customer.sdk.tracking
 
 /**
- * Interface for activities or fragments that are trackable.
+ * Interface for activities that are trackable.
  */
 interface TrackableScreen {
     /**

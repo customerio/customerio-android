@@ -1,13 +1,14 @@
 package io.customer.sdk.tracking
 
 /**
- * Interface for activities that are trackable.
+ * Optional interface for activities that should be tracked using automated screen tracking.
  */
 interface TrackableScreen {
     /**
-     * Retrieve the name used for tracking the screen.
+     * Retrieve the name that should be used for tracking the screen. This name
+     * should be unique for each screen.
      *
-     * @return Name of the screen for tracking purposes, or null if the screen should not be tracked.
+     * @return name for tracking the screen, or null if the screen shouldn't be tracked.
      */
     fun getScreenName(): String?
 }

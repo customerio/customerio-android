@@ -6,16 +6,23 @@ package io.customer.messagingpush.config
 enum class NotificationClickBehavior {
 
     /**
-     * Always restarts the activity and creates a new task stack upon clicking the notification.
-     * Corresponds to Android's "Set up a regular activity PendingIntent".
+     * Creates a new task stack, clearing any existing one upon clicking the notification.
+     * Similar to Android's "Set up a regular activity PendingIntent".
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#DirectEntry).
      */
-    ALWAYS_RESTART_ACTIVITY,
+    RESET_TASK_STACK,
 
     /**
      * Restarts the activity only if it's necessary when the notification is clicked.
-     * Corresponds to Android's "Set up a special activity PendingIntent".
+     * Similar to Android's "Set up a special activity PendingIntent" but without forced restart.
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#ExtendedNotification).
      */
-    RESTART_ACTIVITY_IF_NEEDED
+    RESTART_ACTIVITY_IF_NEEDED,
+
+    /**
+     * Always restarts the activity upon clicking the notification.
+     * Will force restart the activity if it already exists.
+     * Similar to RESTART_ACTIVITY_IF_NEEDED, but with forced restart.
+     */
+    ALWAYS_RESTART_ACTIVITY
 }

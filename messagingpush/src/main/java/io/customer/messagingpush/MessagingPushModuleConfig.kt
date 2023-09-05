@@ -70,12 +70,8 @@ class MessagingPushModuleConfig private constructor(
 
         /**
          * Defines the behavior when a notification is clicked.
-         * <p>
-         *     ALWAYS_RESTART_ACTIVITY: Always restart the activity and create a new task stack.
-         *     RESTART_ACTIVITY_IF_NEEDED: Restart the activity only if needed, and avoid creating a new task stack otherwise.
-         * <p>
          *
-         * @param notificationOnClickBehavior the behavior when a notification is clicked; default ALWAYS_RESTART_ACTIVITY.
+         * @param notificationOnClickBehavior the behavior when a notification is clicked; default [NotificationClickBehavior.TASK_RESET_ALWAYS].
          * @see NotificationClickBehavior for more details.
          */
         fun setNotificationClickBehavior(notificationOnClickBehavior: NotificationClickBehavior): Builder {

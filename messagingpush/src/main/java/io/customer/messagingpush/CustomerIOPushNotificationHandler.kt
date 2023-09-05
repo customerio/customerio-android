@@ -275,7 +275,6 @@ internal class CustomerIOPushNotificationHandler(
     ): PendingIntent {
         val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java)
         notifyIntent.putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
-        notifyIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         return PendingIntent.getActivity(
             context,
             requestCode,

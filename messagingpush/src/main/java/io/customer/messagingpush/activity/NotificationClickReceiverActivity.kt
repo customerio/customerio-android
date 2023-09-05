@@ -16,10 +16,16 @@ import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.takeIfNotBlank
+import io.customer.sdk.tracking.TrackableScreen
 import io.customer.sdk.util.Logger
 
-class NotificationClickReceiverActivity : Activity() {
+class NotificationClickReceiverActivity : Activity(), TrackableScreen {
     val logger: Logger by lazy { CustomerIOShared.instance().diStaticGraph.logger }
+
+    override fun getScreenName(): String? {
+        // Return null to prevent this screen from being tracked
+        return null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

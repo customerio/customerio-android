@@ -60,11 +60,12 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 public final class io/customer/messagingpush/ModuleMessagingPushFCM$Companion {
 }
 
-public final class io/customer/messagingpush/activity/NotificationClickReceiverActivity : android/app/Activity {
+public final class io/customer/messagingpush/activity/NotificationClickReceiverActivity : android/app/Activity, io/customer/sdk/tracking/TrackableScreen {
 	public static final field Companion Lio/customer/messagingpush/activity/NotificationClickReceiverActivity$Companion;
 	public static final field NOTIFICATION_PAYLOAD_EXTRA Ljava/lang/String;
 	public fun <init> ()V
 	public final fun getLogger ()Lio/customer/sdk/util/Logger;
+	public fun getScreenName ()Ljava/lang/String;
 }
 
 public final class io/customer/messagingpush/activity/NotificationClickReceiverActivity$Companion {

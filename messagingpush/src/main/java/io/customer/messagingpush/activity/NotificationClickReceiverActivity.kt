@@ -4,7 +4,9 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.config.NotificationClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
@@ -13,6 +15,7 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.extensions.takeIfNotBlank
 import io.customer.sdk.util.Logger
 
 class NotificationClickReceiverActivity : Activity() {
@@ -29,12 +32,16 @@ class NotificationClickReceiverActivity : Activity() {
     }
 
     private fun handleIntent(data: Intent?) {
-        val payload: CustomerIOParsedPushPayload? =
-            data?.extras?.parcelable(NOTIFICATION_PAYLOAD_EXTRA)
-        if (payload == null) {
-            logger.error("Payload is null, cannot handle notification intent")
-        } else {
-            processNotificationIntent(payload = payload)
+        kotlin.runCatching {
+            val payload: CustomerIOParsedPushPayload? =
+                data?.extras?.parcelable(NOTIFICATION_PAYLOAD_EXTRA)
+            if (payload == null) {
+                logger.error("Payload is null, cannot handle notification intent")
+            } else {
+                processNotificationIntent(payload = payload)
+            }
+        }.onFailure { ex ->
+            logger.error("Failed to process notification intent: ${ex.message}")
         }
         finish()
     }
@@ -65,34 +72,69 @@ class NotificationClickReceiverActivity : Activity() {
             return
         }
 
-        val deepLinkIntent = deepLinkUtil.createDeepLinkHostAppIntent(
-            // check if the deep links are handled within the host app
-            this,
-            payload.deepLink
-        ) ?: payload.deepLink?.let { link ->
-            // check if the deep links can be opened outside the host app
+        val deepLink = payload.deepLink?.takeIfNotBlank()
+        if (deepLink == null) {
+            logger.debug("No deep link received in push notification content")
+        }
+
+        // Get the default intent for the host app
+        val defaultHostAppIntent = deepLinkUtil.createDefaultHostAppIntent(
+            context = this,
+            contentActionLink = null
+        )
+        // Check if the deep links are handled within the host app
+        val deepLinkHostAppIntent = deepLink?.let { link ->
+            deepLinkUtil.createDeepLinkHostAppIntent(context = this, link = link)
+        }
+        // Check if the deep links can be opened outside the host app
+        val deepLinkExternalIntent = deepLink?.let { link ->
             deepLinkUtil.createDeepLinkExternalIntent(
                 context = this,
                 link = link,
                 startingFromService = true
             )
-        } ?: deepLinkUtil.createDefaultHostAppIntent(
-            context = this,
-            contentActionLink = null
-        )
+        }
+        val deepLinkIntent: Intent = deepLinkHostAppIntent
+            ?: deepLinkExternalIntent
+            ?: defaultHostAppIntent
+            ?: return
+        deepLinkIntent.putExtra(NOTIFICATION_PAYLOAD_EXTRA, payload)
 
-        deepLinkIntent?.let { intent ->
-            try {
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-                startActivity(intent)
-            } catch (ex: ActivityNotFoundException) {
-                logger.error("Unable to start activity for notification action $payload; ${ex.message}")
+        try {
+            when (moduleConfig.notificationOnClickBehavior) {
+                NotificationClickBehavior.TASK_RESET_ALWAYS -> {
+                    val taskStackBuilder =
+                        moduleConfig.notificationCallback?.createTaskStackFromPayload(
+                            this,
+                            payload
+                        ) ?: kotlin.run {
+                            return@run TaskStackBuilder.create(this).run {
+                                addNextIntentWithParentStack(deepLinkIntent)
+                            }
+                        }
+                    if (taskStackBuilder.intentCount > 0) {
+                        taskStackBuilder.startActivities()
+                    }
+                }
+
+                NotificationClickBehavior.ACTIVITY_RESTART_IF_NEEDED -> {
+                    deepLinkIntent.flags =
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    startActivity(deepLinkIntent)
+                }
+
+                NotificationClickBehavior.ACTIVITY_RESTART_ALWAYS -> {
+                    deepLinkIntent.flags =
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+                    startActivity(deepLinkIntent)
+                }
             }
+        } catch (ex: ActivityNotFoundException) {
+            logger.error("Unable to start activity for notification action $payload; ${ex.message}")
         }
     }
 
     companion object {
-        const val NOTIFICATION_PAYLOAD_EXTRA = "CIO-Notification-Payload"
+        const val NOTIFICATION_PAYLOAD_EXTRA = "CIO_NotificationPayloadExtras"
     }
 }

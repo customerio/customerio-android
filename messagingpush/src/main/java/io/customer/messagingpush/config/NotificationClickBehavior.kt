@@ -10,19 +10,18 @@ enum class NotificationClickBehavior {
      * Similar to Android's "Set up a regular activity PendingIntent".
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#DirectEntry).
      */
-    RESET_TASK_STACK,
+    TASK_RESET_ALWAYS,
 
     /**
      * Restarts the activity only if it's necessary when the notification is clicked.
-     * Similar to Android's "Set up a special activity PendingIntent" but without forced restart.
+     * Similar to Android's "Set up a special activity PendingIntent".
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#ExtendedNotification).
      */
-    RESTART_ACTIVITY_IF_NEEDED,
+    ACTIVITY_RESTART_IF_NEEDED,
 
     /**
      * Always restarts the activity upon clicking the notification.
-     * Will force restart the activity if it already exists.
-     * Similar to RESTART_ACTIVITY_IF_NEEDED, but with forced restart.
+     * Similar to ACTIVITY_RESTART_IF_NEEDED, but with forced restart (if it is already on top).
      */
-    ALWAYS_RESTART_ACTIVITY
+    ACTIVITY_RESTART_ALWAYS
 }

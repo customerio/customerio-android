@@ -18,6 +18,12 @@ import io.customer.sdk.extensions.takeIfNotBlank
 import io.customer.sdk.tracking.TrackableScreen
 import io.customer.sdk.util.Logger
 
+/**
+ * Activity to handle notification click events.
+ *
+ * This activity is launched when a notification is clicked. It tracks opened
+ * metrics, handles the deep link and opens the desired activity in the host app.
+ */
 class NotificationClickReceiverActivity : Activity(), TrackableScreen {
     val logger: Logger by lazy { CustomerIOShared.instance().diStaticGraph.logger }
 

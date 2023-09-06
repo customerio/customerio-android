@@ -28,17 +28,6 @@ enum class NotificationClickBehavior {
     ACTIVITY_PREVENT_RESTART,
 
     /**
-     * Forces the restart of the deep-linked activity 'D' even if it's already at the top of the stack.
-     * - Example: Stack (A -> B) becomes (A -> B -> D) if D is the deep-linked activity and not in the stack.
-     * - Example: Stack (A -> B -> D) stays as (A -> B -> D) but D gets restarted if D is the deep-linked activity and is already at the top.
-     *
-     * Works well for activities with `standard` launch mode. The activity will be recreated and receive the data in `onCreate`.
-     *
-     * This behavior is an extension of [ACTIVITY_PREVENT_RESTART], forcing the deep-linked activity to restart if it's already on top of the stack.
-     */
-    ACTIVITY_ATTEMPT_RESTART,
-
-    /**
      * Starts the deep-linked activity without adding any intent flags.
      * - Example: Stack (A -> B) becomes (A -> B -> D) if D is the deep-linked target activity.
      *

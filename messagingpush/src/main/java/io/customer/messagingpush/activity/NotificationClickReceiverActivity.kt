@@ -124,13 +124,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
 
             NotificationClickBehavior.ACTIVITY_PREVENT_RESTART -> {
                 deepLinkIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-                startActivity(deepLinkIntent)
-            }
-
-            NotificationClickBehavior.ACTIVITY_ATTEMPT_RESTART -> {
-                deepLinkIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_NEW_TASK
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
                 startActivity(deepLinkIntent)
             }
 

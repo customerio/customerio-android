@@ -71,7 +71,7 @@ class MessagingPushModuleConfig private constructor(
         /**
          * Defines the behavior when a notification is clicked.
          *
-         * @param notificationOnClickBehavior the behavior when a notification is clicked; default [NotificationClickBehavior.TASK_RESET_ALWAYS].
+         * @param notificationOnClickBehavior the behavior when a notification is clicked; default [NotificationClickBehavior.ACTIVITY_PREVENT_RESTART].
          * @see NotificationClickBehavior for more details.
          */
         fun setNotificationClickBehavior(notificationOnClickBehavior: NotificationClickBehavior): Builder {

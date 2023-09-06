@@ -6,31 +6,35 @@ package io.customer.messagingpush.config
 enum class NotificationClickBehavior {
 
     /**
-     * Always creates a new task stack and clears any existing one upon clicking the notification.
-     * - Example 1: Stack (A -> B -> C) becomes (D) if D is the target activity.
-     * - Example 2: Stack (A -> B -> C) changes to (A -> D) if D is the target activity and A is the root of the task stack provided by callback.
+     * Resets the task stack to include the deep-linked activity 'D'.
+     * - Example 1: Stack (A -> B -> C) becomes (D) if D is the deep-linked activity.
+     * - Example 2: Stack (A -> B -> C) changes to (A -> D) if D is the deep-linked activity and A is the root of the task stack provided by callback.
      *
-     * Similar to Android's "Set up a regular activity PendingIntent."
+     * This is similar to Android's "Set up a regular activity PendingIntent."
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#DirectEntry).
      */
-    TASK_RESET_ALWAYS,
+    RESET_TASK_STACK,
 
     /**
-     * Restarts the target activity only if necessary when the notification is clicked.
-     * - Example 1: Stack (A -> B) becomes (A -> B -> D) if D is the target activity and not in the stack.
-     * - Example 2: Stack (A -> B -> D) remains (A -> B -> D) if D is the target activity and is already in the stack. D will not be restarted.
+     * Adds the deep-linked activity 'D' to the existing stack only if it's not already there.
+     * - Example: Stack (A -> B) becomes (A -> B -> D) if D is the deep-linked activity and not already in the stack.
+     * - Example: Stack (A -> B -> D) stays as (A -> B -> D) if D is the deep-linked activity and is already in the stack.
      *
-     * Similar to Android's "Set up a special activity PendingIntent."
+     * Works well for activities with launch modes other than `standard`. The same activity instance will be reused and receive the data in `onNewIntent`.
+     *
+     * This is similar to Android's "Set up a special activity PendingIntent."
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#ExtendedNotification).
      */
-    ACTIVITY_RESTART_IF_NEEDED,
+    ACTIVITY_PREVENT_RESTART,
 
     /**
-     * Always restarts the target activity upon clicking the notification.
-     * - Example 1: Stack (A -> B) becomes (A -> B -> D) if D is the target activity and not in the stack.
-     * - Example 2: Stack (A -> B -> D) remains (A -> B -> D) if D is the target activity and is already in the stack. D will be restarted.
+     * Forces the restart of the deep-linked activity 'D' even if it's already at the top of the stack.
+     * - Example: Stack (A -> B) becomes (A -> B -> D) if D is the deep-linked activity and not in the stack.
+     * - Example: Stack (A -> B -> D) stays as (A -> B -> D) but D gets restarted if D is the deep-linked activity and is already at the top.
      *
-     * This behavior is similar to ACTIVITY_RESTART_IF_NEEDED, but it forces a restart of the activity if it is already on top of the stack.
+     * Works well for activities with `standard` launch mode. The activity will be recreated and receive the data in `onCreate`.
+     *
+     * This behavior is an extension of [ACTIVITY_PREVENT_RESTART], forcing the deep-linked activity to restart if it's already on top of the stack.
      */
-    ACTIVITY_RESTART_ALWAYS
+    ACTIVITY_ATTEMPT_RESTART
 }

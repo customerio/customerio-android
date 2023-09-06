@@ -20,7 +20,7 @@ enum class NotificationClickBehavior {
      * - Example: Stack (A -> B) becomes (A -> B -> D) if D is the deep-linked activity and not already in the stack.
      * - Example: Stack (A -> B -> D) stays as (A -> B -> D) if D is the deep-linked activity and is already in the stack.
      *
-     * Works well for activities with launch modes other than `standard`. The same activity instance will be reused and receive the data in `onNewIntent`.
+     * The same activity instance will be reused and receive the data in `onNewIntent` if already on top.
      *
      * This is similar to Android's "Set up a special activity PendingIntent."
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#ExtendedNotification).

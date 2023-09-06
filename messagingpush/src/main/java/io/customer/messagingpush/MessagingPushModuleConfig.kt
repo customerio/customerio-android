@@ -29,7 +29,7 @@ class MessagingPushModuleConfig private constructor(
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var redirectDeepLinksToOtherApps: Boolean = true
         private var notificationOnClickBehavior: NotificationClickBehavior =
-            NotificationClickBehavior.TASK_RESET_ALWAYS
+            NotificationClickBehavior.ACTIVITY_RESTART_IF_NEEDED
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate

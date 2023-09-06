@@ -1,7 +1,6 @@
 package io.customer.messagingpush.activity
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import androidx.core.app.TaskStackBuilder
@@ -105,38 +104,39 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             ?: defaultHostAppIntent
             ?: return
         deepLinkIntent.putExtra(NOTIFICATION_PAYLOAD_EXTRA, payload)
+        logger.debug("[DEV] Dispatching deep link intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
 
-        try {
-            when (moduleConfig.notificationOnClickBehavior) {
-                NotificationClickBehavior.RESET_TASK_STACK -> {
-                    val taskStackBuilder =
-                        moduleConfig.notificationCallback?.createTaskStackFromPayload(
-                            this,
-                            payload
-                        ) ?: kotlin.run {
-                            return@run TaskStackBuilder.create(this).run {
-                                addNextIntentWithParentStack(deepLinkIntent)
-                            }
+        when (moduleConfig.notificationOnClickBehavior) {
+            NotificationClickBehavior.RESET_TASK_STACK -> {
+                val taskStackBuilder =
+                    moduleConfig.notificationCallback?.createTaskStackFromPayload(
+                        this,
+                        payload
+                    ) ?: kotlin.run {
+                        return@run TaskStackBuilder.create(this).run {
+                            addNextIntentWithParentStack(deepLinkIntent)
                         }
-                    if (taskStackBuilder.intentCount > 0) {
-                        taskStackBuilder.startActivities()
                     }
-                }
-
-                NotificationClickBehavior.ACTIVITY_PREVENT_RESTART -> {
-                    deepLinkIntent.flags =
-                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-                    startActivity(deepLinkIntent)
-                }
-
-                NotificationClickBehavior.ACTIVITY_ATTEMPT_RESTART -> {
-                    deepLinkIntent.flags =
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-                    startActivity(deepLinkIntent)
+                if (taskStackBuilder.intentCount > 0) {
+                    taskStackBuilder.startActivities()
                 }
             }
-        } catch (ex: ActivityNotFoundException) {
-            logger.error("Unable to start activity for notification action $payload; ${ex.message}")
+
+            NotificationClickBehavior.ACTIVITY_PREVENT_RESTART -> {
+                deepLinkIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                startActivity(deepLinkIntent)
+            }
+
+            NotificationClickBehavior.ACTIVITY_ATTEMPT_RESTART -> {
+                deepLinkIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(deepLinkIntent)
+            }
+
+            NotificationClickBehavior.ACTIVITY_NO_FLAGS -> {
+                startActivity(deepLinkIntent)
+            }
         }
     }
 

@@ -108,7 +108,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
 
         try {
             when (moduleConfig.notificationOnClickBehavior) {
-                NotificationClickBehavior.TASK_RESET_ALWAYS -> {
+                NotificationClickBehavior.RESET_TASK_STACK -> {
                     val taskStackBuilder =
                         moduleConfig.notificationCallback?.createTaskStackFromPayload(
                             this,
@@ -123,13 +123,13 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
                     }
                 }
 
-                NotificationClickBehavior.ACTIVITY_RESTART_IF_NEEDED -> {
+                NotificationClickBehavior.ACTIVITY_PREVENT_RESTART -> {
                     deepLinkIntent.flags =
                         Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
                     startActivity(deepLinkIntent)
                 }
 
-                NotificationClickBehavior.ACTIVITY_RESTART_ALWAYS -> {
+                NotificationClickBehavior.ACTIVITY_ATTEMPT_RESTART -> {
                     deepLinkIntent.flags =
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
                     startActivity(deepLinkIntent)

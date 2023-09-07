@@ -1,6 +1,7 @@
 package io.customer.sdk.queue
 
 import io.customer.sdk.error.CustomerIOError
+import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 
 interface QueueRunRequest {
@@ -19,8 +20,18 @@ internal class QueueRunRequestImpl internal constructor(
         val inventory = queueStorage.getInventory()
         val tasksToRun = inventory.toMutableList()
 
+        var lastFailedTask: QueueTaskMetadata? = null
+
         while (tasksToRun.isNotEmpty()) {
-            val currentTaskMetadata = tasksToRun.removeFirst()
+            // get the next task to run using the query criteria
+            val currentTaskMetadata = queryRunner.getNextTask(tasksToRun, lastFailedTask)
+            if (currentTaskMetadata == null) {
+                logger.debug("queue out of tasks to run...")
+                break
+            }
+
+            tasksToRun.remove(currentTaskMetadata)
+
             val taskStorageId = currentTaskMetadata.taskPersistedId
             val taskToRun = queueStorage.get(taskStorageId)
 
@@ -63,6 +74,7 @@ internal class QueueRunRequestImpl internal constructor(
                             queueStorage.update(taskStorageId, newRunResults)
                         }
                     }
+                    lastFailedTask = currentTaskMetadata
                 }
             }
         }

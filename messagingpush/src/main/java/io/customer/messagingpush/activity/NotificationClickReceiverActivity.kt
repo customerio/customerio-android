@@ -70,6 +70,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
 
         val deliveryId = payload.cioDeliveryId
         val deliveryToken = payload.cioDeliveryToken
+        val deepLink = payload.deepLink?.takeIfNotBlank()
 
         if (moduleConfig.autoTrackPushEvents) {
             sdkInstance.trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
@@ -77,15 +78,11 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
 
         // check if host app overrides the handling of deeplink
         val notificationCallback = moduleConfig.notificationCallback
-        val taskStackBuilder = notificationCallback?.createTaskStackFromPayload(this, payload)
-        if (taskStackBuilder != null) {
-            taskStackBuilder.startActivities()
+        val taskStackFromPayload = notificationCallback?.createTaskStackFromPayload(this, payload)
+        if (taskStackFromPayload != null) {
+            logger.info("Notification target overridden by createTaskStackFromPayload, starting new stack for link $deepLink")
+            taskStackFromPayload.startActivities()
             return
-        }
-
-        val deepLink = payload.deepLink?.takeIfNotBlank()
-        if (deepLink == null) {
-            logger.debug("No deep link received in push notification content")
         }
 
         // Get the default intent for the host app
@@ -110,22 +107,14 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             ?: defaultHostAppIntent
             ?: return
         deepLinkIntent.putExtra(NOTIFICATION_PAYLOAD_EXTRA, payload)
-        logger.debug("Dispatching deep link intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
+        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
 
         when (moduleConfig.notificationOnClickBehavior) {
             NotificationClickBehavior.RESET_TASK_STACK -> {
-                val taskStackBuilder =
-                    moduleConfig.notificationCallback?.createTaskStackFromPayload(
-                        this,
-                        payload
-                    ) ?: kotlin.run {
-                        return@run TaskStackBuilder.create(this).run {
-                            addNextIntentWithParentStack(deepLinkIntent)
-                        }
-                    }
-                if (taskStackBuilder.intentCount > 0) {
-                    taskStackBuilder.startActivities()
+                val taskStackBuilder = TaskStackBuilder.create(this).apply {
+                    addNextIntentWithParentStack(deepLinkIntent)
                 }
+                taskStackBuilder.startActivities()
             }
 
             NotificationClickBehavior.ACTIVITY_PREVENT_RESTART -> {

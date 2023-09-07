@@ -22,6 +22,7 @@
     <string name="api_key">API Key</string>
     <string name="background_queue_seconds_delay_label">backgroundQueueSecondsDelay</string>
     <string name="background_queue_min_tasks_label">backgroundQueueMinNumberOfTasks</string>
+    <string name="push_behavior_label">Notification Click Behavior</string>
     <string name="features">Features</string>
     <string name="track_screens">Track Screens</string>
     <string name="track_device_attributes">Track Device Attributes</string>

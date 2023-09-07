@@ -11,6 +11,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
 
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
 
 import io.customer.android.sample.java_layout.R;
@@ -21,6 +22,7 @@ import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.messagingpush.config.NotificationClickBehavior;
 import io.customer.sdk.CustomerIO;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
@@ -117,6 +119,14 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             clipboard.setPrimaryClip(clip);
             Toast.makeText(this, R.string.token_copied, Toast.LENGTH_SHORT).show();
         });
+
+        NotificationClickBehavior[] pushBehaviors = NotificationClickBehavior.values();
+        String[] pushBehaviorItems = new String[pushBehaviors.length];
+        for (int ind = 0; ind < pushBehaviors.length; ind++) {
+            pushBehaviorItems[ind] = pushBehaviors[ind].toString();
+        }
+        ((MaterialAutoCompleteTextView) binding.pushBehaviorTextView).setSimpleItems(pushBehaviorItems);
+
         binding.saveButton.setOnClickListener(view -> saveSettings());
         binding.restoreDefaultsButton.setOnClickListener(view -> {
             updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations());
@@ -125,7 +135,6 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void setupObservers() {
-
         binding.deviceTokenTextInput.setText(CustomerIO.instance().getRegisteredDeviceToken());
 
         settingsViewModel.getSDKConfigObservable().observe(this, config -> {
@@ -160,6 +169,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromDouble(config.getBackgroundQueueSecondsDelay()));
         ViewUtils.setTextWithSelectionIfFocused(binding.bqTasksTextInput, StringUtils.fromInteger(config.getBackgroundQueueMinNumOfTasks()));
+        NotificationClickBehavior pushBehavior = config.getNotificationClickBehavior();
+        if (pushBehavior != null) {
+            ((MaterialAutoCompleteTextView) binding.pushBehaviorTextView).setText(pushBehavior.name(), false);
+        }
         binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());
         binding.trackDeviceAttributesSwitch.setChecked(config.deviceAttributesTrackingEnabled());
         binding.debugModeSwitch.setChecked(config.debugModeEnabled());
@@ -203,6 +216,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
         if (isFormValid) {
             binding.progressIndicator.show();
+            String notificationClickBehaviorSelection = binding.pushBehaviorTextView.getText().toString();
+            NotificationClickBehavior notificationClickBehavior = StringUtils.parseEnum(notificationClickBehaviorSelection,
+                    null,
+                    NotificationClickBehavior.class);
             boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
             boolean featTrackDeviceAttributes = binding.trackDeviceAttributesSwitch.isChecked();
             boolean featDebugMode = binding.debugModeSwitch.isChecked();
@@ -211,6 +228,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                     trackingURL,
                     bqSecondsDelay,
                     bqMinTasks,
+                    notificationClickBehavior,
                     featTrackScreens,
                     featTrackDeviceAttributes,
                     featDebugMode);

@@ -180,6 +180,25 @@
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/push_behavior_input_layout"
+                    style="@style/Widget.Material3.TextInputLayout.FilledBox.ExposedDropdownMenu"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_small"
+                    android:hint="@string/push_behavior_label"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/bq_tasks_input_layout"
+                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
+
+                    <AutoCompleteTextView
+                        android:id="@+id/push_behavior_text_view"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
+
                 <TextView
                     android:id="@+id/features_section_title"
                     android:layout_width="wrap_content"
@@ -190,7 +209,7 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintHorizontal_bias="0"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/bq_tasks_input_layout" />
+                    app:layout_constraintTop_toBottomOf="@id/push_behavior_input_layout" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/track_screens_switch"

@@ -1,6 +1,7 @@
 package io.customer.messagingpush
 
 import io.customer.messagingpush.config.NotificationClickBehavior
+import io.customer.messagingpush.config.NotificationClickBehavior.ACTIVITY_NO_FLAGS
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.sdk.module.CustomerIOModuleConfig
 
@@ -28,8 +29,7 @@ class MessagingPushModuleConfig private constructor(
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var redirectDeepLinksToOtherApps: Boolean = true
-        private var notificationOnClickBehavior: NotificationClickBehavior =
-            NotificationClickBehavior.ACTIVITY_PREVENT_RESTART
+        private var notificationOnClickBehavior: NotificationClickBehavior = ACTIVITY_NO_FLAGS
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate

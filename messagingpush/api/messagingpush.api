@@ -137,16 +137,16 @@ public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/
 }
 
 public abstract interface class io/customer/messagingpush/util/DeepLinkUtil {
-	public abstract fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;Z)Landroid/content/Intent;
+	public abstract fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
 	public abstract fun createDeepLinkHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
-	public abstract fun createDefaultHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+	public abstract fun createDefaultHostAppIntent (Landroid/content/Context;)Landroid/content/Intent;
 }
 
 public final class io/customer/messagingpush/util/DeepLinkUtilImpl : io/customer/messagingpush/util/DeepLinkUtil {
 	public fun <init> (Lio/customer/sdk/util/Logger;Lio/customer/messagingpush/MessagingPushModuleConfig;)V
-	public fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;Z)Landroid/content/Intent;
+	public fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
 	public fun createDeepLinkHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
-	public fun createDefaultHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
+	public fun createDefaultHostAppIntent (Landroid/content/Context;)Landroid/content/Intent;
 }
 
 public abstract interface class io/customer/messagingpush/util/PushTrackingUtil {

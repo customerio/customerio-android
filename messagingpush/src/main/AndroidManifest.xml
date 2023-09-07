@@ -23,14 +23,6 @@
             </intent-filter>
         </service>
 
-        <!-- Action receiver for push interactions -->
-        <receiver
-            android:name=".CustomerIOPushReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="io.customer.messagingpush.PUSH_ACTION" />
-            </intent-filter>
-        </receiver>
         <!--
         Broadcast receiver for listening to push events from GoogleCloudMessaging (GCM). The receiver
         listens to message broadcast emitted by Google Cloud APIs. Read class docs for more details.

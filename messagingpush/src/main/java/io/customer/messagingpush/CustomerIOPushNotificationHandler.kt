@@ -13,16 +13,13 @@ import android.os.Bundle
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.app.NotificationCompat
-import androidx.core.app.TaskStackBuilder
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
-import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
-import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
@@ -70,9 +67,6 @@ internal class CustomerIOPushNotificationHandler(
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.moduleConfig
-
-    private val deepLinkUtil: DeepLinkUtil
-        get() = diGraph.deepLinkUtil
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
@@ -221,51 +215,6 @@ internal class CustomerIOPushNotificationHandler(
 
         val notification = notificationBuilder.build()
         notificationManager.notify(requestCode, notification)
-    }
-
-    private fun createIntentFromLink(
-        context: Context,
-        requestCode: Int,
-        payload: CustomerIOParsedPushPayload
-    ): PendingIntent? {
-        // In Android 12, you must specify the mutability of each PendingIntent
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-
-        if (context.applicationInfo.targetSdkVersion > Build.VERSION_CODES.R) {
-            val taskStackBuilder = moduleConfig.notificationCallback?.createTaskStackFromPayload(
-                context,
-                payload
-            ) ?: kotlin.run {
-                val pushContentIntent: Intent? = deepLinkUtil.createDeepLinkHostAppIntent(
-                    context,
-                    payload.deepLink
-                ) ?: deepLinkUtil.createDefaultHostAppIntent(context, payload.deepLink)
-                pushContentIntent?.putExtras(bundle)
-
-                return@run pushContentIntent?.let { intent ->
-                    TaskStackBuilder.create(context).run {
-                        addNextIntentWithParentStack(intent)
-                    }
-                }
-            }
-
-            return taskStackBuilder?.getPendingIntent(requestCode, flags)
-        } else {
-            val pushContentIntent = Intent(CustomerIOPushReceiver.ACTION)
-            pushContentIntent.setClass(context, CustomerIOPushReceiver::class.java)
-
-            pushContentIntent.putExtra(CustomerIOPushReceiver.PUSH_PAYLOAD_KEY, payload)
-            return PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                pushContentIntent,
-                flags
-            )
-        }
     }
 
     private fun createIntentForNotificationClick(

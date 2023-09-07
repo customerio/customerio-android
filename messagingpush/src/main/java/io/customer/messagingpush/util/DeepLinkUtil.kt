@@ -72,22 +72,19 @@ class DeepLinkUtilImpl(
         link: String,
         startingFromService: Boolean
     ): Intent? {
-        val linkUri = Uri.parse(link)
-        val intent: Intent?
-
-        if (moduleConfig.redirectDeepLinksToOtherApps) {
-            intent = queryDeepLinksForThirdPartyApps(context = context, uri = linkUri)
-
-            if (intent == null) {
-                logger.info(
-                    "No supporting application found for link received in " +
-                        "push notification: $link"
-                )
-            }
-        } else {
-            intent = null
+        // check config if the deep link should be opened by any other app or not
+        if (!moduleConfig.redirectDeepLinksToOtherApps) {
+            return null
         }
 
+        val linkUri = Uri.parse(link)
+        val intent = queryDeepLinksForThirdPartyApps(context = context, uri = linkUri)
+        if (intent == null) {
+            logger.info(
+                "No supporting application found for link received in " +
+                    "push notification: $link"
+            )
+        }
         return intent
     }
 

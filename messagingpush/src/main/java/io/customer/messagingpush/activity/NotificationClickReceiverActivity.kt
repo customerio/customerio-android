@@ -110,7 +110,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             ?: defaultHostAppIntent
             ?: return
         deepLinkIntent.putExtra(NOTIFICATION_PAYLOAD_EXTRA, payload)
-        logger.debug("[DEV] Dispatching deep link intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
+        logger.debug("Dispatching deep link intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
 
         when (moduleConfig.notificationOnClickBehavior) {
             NotificationClickBehavior.RESET_TASK_STACK -> {

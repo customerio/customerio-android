@@ -78,7 +78,13 @@ class QueueRunRequestTest : BaseTest() {
         val givenTaskId = String.random
         val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
 
-        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(Result.failure(CustomerIOError.BadRequest400("")))
+        whenever(runnerMock.runTask(eq(givenQueueTask))).thenReturn(
+            Result.failure(
+                CustomerIOError.BadRequest400(
+                    ""
+                )
+            )
+        )
         whenever(storageMock.getInventory()).thenReturn(
             listOf(
                 QueueTaskMetadata.random.copy(
@@ -153,4 +159,45 @@ class QueueRunRequestTest : BaseTest() {
             verify(runnerMock).runTask(givenQueueTask)
             verify(runnerMock).runTask(givenQueueTask2)
         }
+
+    @Test
+    fun test_run_givenMissingTaskInStorage_expectToContinueNextTask(): Unit = runBlocking {
+        val givenTaskId = String.random
+        val givenTaskId2 = String.random
+        val givenQueueTask1 = QueueTask.random.copy(storageId = givenTaskId)
+        val givenQueueTask2 = QueueTask.random.copy(storageId = givenTaskId2)
+
+        whenever(storageMock.getInventory()).thenReturn(
+            listOf(
+                QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId),
+                QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId2)
+            )
+        )
+        whenever(storageMock.get(eq(givenTaskId))).thenReturn(null)
+        whenever(storageMock.get(eq(givenTaskId2))).thenReturn(givenQueueTask2)
+        whenever(runnerMock.runTask(givenQueueTask2)).thenReturn(Result.success(Unit))
+        whenever(storageMock.delete(any())).thenReturn(
+            QueueModifyResult(
+                true,
+                QueueStatus(siteId, 0)
+            )
+        )
+
+        runRequest.run()
+
+        verify(runnerMock, never()).runTask(givenQueueTask1)
+        verify(runnerMock).runTask(givenQueueTask2)
+        verify(storageMock).delete(givenTaskId2)
+        verify(storageMock).delete(givenTaskId2)
+    }
+
+    @Test
+    fun test_run_givenNoTasksAvailable_expectGracefulTermination(): Unit = runBlocking {
+        whenever(storageMock.getInventory()).thenReturn(emptyList())
+
+        runRequest.run()
+
+        verify(runnerMock, never()).runTask(any())
+        verify(storageMock, never()).delete(anyOrNull())
+    }
 }

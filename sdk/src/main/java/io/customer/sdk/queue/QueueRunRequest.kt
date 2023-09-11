@@ -37,6 +37,9 @@ internal class QueueRunRequestImpl internal constructor(
 
             if (taskToRun == null) {
                 logger.error("Tried to get queue task with storage id: $taskStorageId but storage couldn't find it.")
+                // The task failed to execute because it couldn't be found. Gracefully handle the scenario by
+                // behaving the same way a failed HTTP request does. Run next task with an updated `lastFailedTask`.
+                lastFailedTask = currentTaskMetadata
                 continue
             }
 
@@ -62,10 +65,12 @@ internal class QueueRunRequestImpl internal constructor(
                             tasksToRun.clear() // clear the list to stop processing the next tasks
                             break
                         }
+
                         is CustomerIOError.BadRequest400 -> {
                             logger.error("Received HTTP 400 response while trying to run ${taskToRun.type}. 400 responses never succeed and therefore, the SDK is deleting this SDK request and not retry. Error message from API: ${error.message}, request data sent: ${taskToRun.data}")
                             queueStorage.delete(taskStorageId)
                         }
+
                         else -> {
                             val previousRunResults = taskToRun.runResults
                             val newRunResults =

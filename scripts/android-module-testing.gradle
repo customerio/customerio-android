@@ -20,7 +20,7 @@ android {
         // JVM (for speed) and Android (for confidence).
         String sharedTestDir = 'src/sharedTest/java'
         test.java.srcDirs += sharedTestDir
-        androidTest.java.srcDirs += sharedTestDir
+//        androidTest.java.srcDirs += sharedTestDir
     }
 }
 

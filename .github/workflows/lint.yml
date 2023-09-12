@@ -10,9 +10,9 @@ jobs:
         module: [sdk, messagingpush, messaginginapp] # android modules
     name: Android Lint (${{ matrix.module }})
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up JDK
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v3
       with:
         distribution: 'adopt'
         java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
@@ -23,9 +23,9 @@ jobs:
       run: ./gradlew :${{ matrix.module }}:lintDebug
 
     - name: Parse lint results (${{ matrix.module }})
-      uses: yutailang0119/action-android-lint@v1.0.2
+      uses: yutailang0119/action-android-lint@v3.1.0
       with:
-        xml_path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
+        report-path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 
 
   # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed. 
@@ -33,9 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Kotlin Lint
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up JDK
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v3
       with:
         distribution: 'adopt'
         java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/

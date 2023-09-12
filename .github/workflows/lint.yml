@@ -25,7 +25,7 @@ jobs:
     - name: Parse lint results (${{ matrix.module }})
       uses: yutailang0119/action-android-lint@v3.1.0
       with:
-        xml_path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
+        report-path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 
 
   # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed. 

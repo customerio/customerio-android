@@ -200,4 +200,37 @@ class QueueRunRequestTest : BaseTest() {
         verify(runnerMock, never()).runTask(any())
         verify(storageMock, never()).delete(anyOrNull())
     }
+
+    @Test
+    fun test_run_givenTasksEmptiedInLoop_expectGracefulTermination(): Unit = runBlocking {
+        val queueQueryRunnerMock: QueueQueryRunner = mock()
+        runRequest = QueueRunRequestImpl(runnerMock, storageMock, di.logger, queueQueryRunnerMock)
+
+        val givenTaskId = String.random
+        val givenQueueTask = QueueTask.random.copy(storageId = givenTaskId)
+
+        val tasksToRun = mutableListOf(
+            QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)
+        )
+
+        // Ensure that inventory returns a list initially so that the loop is entered
+        whenever(storageMock.getInventory()).thenReturn(tasksToRun)
+
+        // When queryRunner.getNextTask is called, clear tasksToRun list
+        whenever(queueQueryRunnerMock.getNextTask(any(), any())).thenAnswer {
+            tasksToRun.clear() // Clear the tasksToRun when queryRunner.getNextTask is called
+            QueueTaskMetadata.random.copy(taskPersistedId = givenTaskId)
+        }
+
+        // Return our task for the given ID.
+        whenever(storageMock.get(eq(givenTaskId))).thenReturn(givenQueueTask)
+
+        runRequest.run()
+
+        // We expect that the loop should break right after our modification to the tasksToRun list, hence:
+        // - The runner should never execute runTask
+        // - The storage should never delete any task
+        verify(runnerMock, never()).runTask(any())
+        verify(storageMock, never()).delete(anyOrNull())
+    }
 }

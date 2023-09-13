@@ -14,14 +14,6 @@ android {
             includeAndroidResources = true
         }
     }
-
-    sourceSets {
-        // Preferred to put test classes in `src/sharedTest/` so the tests will run on both
-        // JVM (for speed) and Android (for confidence).
-        String sharedTestDir = 'src/sharedTest/java'
-        test.java.srcDirs += sharedTestDir
-//        androidTest.java.srcDirs += sharedTestDir
-    }
 }
 
 dependencies {

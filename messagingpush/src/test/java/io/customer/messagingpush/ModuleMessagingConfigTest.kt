@@ -1,7 +1,6 @@
 package io.customer.messagingpush
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.sdk.CustomerIOConfig
@@ -14,13 +13,11 @@ import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
-@RunWith(AndroidJUnit4::class)
-internal class ModuleMessagingConfigTest : BaseTest() {
+internal class ModuleMessagingConfigTest : BaseUnitTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
     private val fcmTokenProviderMock: DeviceTokenProvider = mock()

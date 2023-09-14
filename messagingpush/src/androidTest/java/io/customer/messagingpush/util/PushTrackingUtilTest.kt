@@ -2,7 +2,7 @@ package io.customer.messagingpush.util
 
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.TrackRepository
@@ -15,7 +15,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 
 @RunWith(AndroidJUnit4::class)
-class PushTrackingUtilTest : BaseTest() {
+class PushTrackingUtilTest : BaseIntegrationTest() {
 
     private lateinit var util: PushTrackingUtil
 

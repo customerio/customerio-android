@@ -10,11 +10,14 @@ import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import io.customer.sdk.util.Logger
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 abstract class BaseUnitTest : BaseTest() {
 
-    override val context: Context = mock()
-    override val application: Application = mock()
+    override val application: Application = mock<Application>().apply {
+        whenever(applicationContext).thenReturn(this)
+    }
+    override val context: Context = application
 
     override fun setup(cioConfig: CustomerIOConfig) {
         super.setup(cioConfig)

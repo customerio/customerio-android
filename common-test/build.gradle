@@ -18,6 +18,15 @@ android {
     }
 }
 
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+    kotlinOptions {
+        freeCompilerArgs += [
+                '-Xopt-in=kotlin.RequiresOptIn',
+                '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',
+        ]
+    }
+}
+
 dependencies {
     // since all modules in project inherit the base tracking SDK, add it here to our shared testing module as all modules in project should have access to this module.
     api project(':sdk')

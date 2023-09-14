@@ -1,13 +1,15 @@
 package io.customer.sdk.repository.preference
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.extensions.valueOfOrNull
 import io.customer.sdk.util.CioLogLevel
 
-internal interface SharedPreferenceRepository {
+@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+interface SharedPreferenceRepository {
     fun saveSettings(values: CustomerIOStoredValues)
 
     fun loadSettings(): CustomerIOStoredValues

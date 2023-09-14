@@ -1,12 +1,14 @@
 package io.customer.sdk.repository.preference
 
+import androidx.annotation.VisibleForTesting
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.util.CioLogLevel
 
-internal data class CustomerIOStoredValues(
+@VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+data class CustomerIOStoredValues(
     val siteId: String,
     val apiKey: String,
     val region: Region,

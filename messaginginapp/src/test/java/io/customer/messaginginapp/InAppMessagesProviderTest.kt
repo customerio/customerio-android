@@ -1,7 +1,6 @@
 package io.customer.messaginginapp
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
@@ -13,15 +12,13 @@ import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
-@RunWith(AndroidJUnit4::class)
-internal class InAppMessagesProviderTest : BaseTest() {
+internal class InAppMessagesProviderTest : BaseUnitTest() {
 
     private lateinit var gistInAppMessagesProvider: GistInAppMessagesProvider
     private val gistApiProvider: GistApi = mock()
@@ -179,7 +176,11 @@ internal class InAppMessagesProviderTest : BaseTest() {
         val givenAction = String.random
         val givenName = String.random
         gistInAppMessagesProvider.onAction(givenMessage, givenCurrentRoute, givenAction, givenName)
-        verify(eventListenerMock).messageActionTaken(expectedInAppMessage, actionValue = givenAction, actionName = givenName)
+        verify(eventListenerMock).messageActionTaken(
+            expectedInAppMessage,
+            actionValue = givenAction,
+            actionName = givenName
+        )
     }
 
     @Test

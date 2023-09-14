@@ -28,9 +28,17 @@ abstract class BaseIntegrationTest : BaseTest() {
     override fun setup(cioConfig: CustomerIOConfig) {
         super.setup(cioConfig)
 
+        di.fileStorage.deleteAllSdkFiles()
+        di.sitePreferenceRepository.clearAll()
+
         // Initialize the SDK but with an injected DI graph.
         // Test setup should use the same SDK initialization that customers do to make test as close to production environment as possible.
-        CustomerIO.Builder(siteId = siteId, apiKey = String.random, region = Region.US, appContext = application).apply {
+        CustomerIO.Builder(
+            siteId = siteId,
+            apiKey = String.random,
+            region = Region.US,
+            appContext = application
+        ).apply {
             overrideDiGraph = di
         }.build()
     }

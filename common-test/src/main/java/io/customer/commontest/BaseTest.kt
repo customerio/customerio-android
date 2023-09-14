@@ -4,13 +4,19 @@ import android.app.Application
 import android.content.Context
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
+import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.module.CustomerIOModule
-import io.customer.sdk.util.*
+import io.customer.sdk.util.CioLogLevel
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
+import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.Seconds
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -36,7 +42,7 @@ abstract class BaseTest {
     protected lateinit var dispatchersProviderStub: DispatchersProviderStub
 
     protected lateinit var staticDIComponent: CustomerIOStaticComponent
-
+    protected lateinit var sharedDIComponent: CustomerIOSharedComponent
     protected lateinit var di: CustomerIOComponent
     protected val jsonAdapter: JsonAdapter
         get() = di.jsonAdapter
@@ -101,27 +107,38 @@ abstract class BaseTest {
             throw RuntimeException("server didnt' start ${cioConfig.trackingApiUrl}")
         }
 
+        // Create any stubs or mocks here
+        dateUtilStub = DateUtilStub()
+        deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
+        dispatchersProviderStub = DispatchersProviderStub()
+
+        // Create DI graph instances
         staticDIComponent = CustomerIOStaticComponent()
+        sharedDIComponent = CustomerIOSharedComponent(context)
+        // Initialize the SDK with injected DI graphs
+        CustomerIOShared.createInstance(staticDIComponent).apply {
+            diSharedGraph = sharedDIComponent
+        }
         di = CustomerIOComponent(
             staticComponent = staticDIComponent,
             sdkConfig = cioConfig,
             context = application
         )
-        di.fileStorage.deleteAllSdkFiles()
-        di.sitePreferenceRepository.clearAll()
+        // Override any dependencies required for the tests
+        overrideDependencies()
+    }
 
-        dateUtilStub = DateUtilStub().also {
-            di.overrideDependency(DateUtil::class.java, it)
-        }
-        deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
-        dispatchersProviderStub = DispatchersProviderStub().also {
-            staticDIComponent.overrideDependency(DispatchersProvider::class.java, it)
-        }
+    open fun overrideDependencies() {
+        di.overrideDependency(DateUtil::class.java, dateUtilStub)
+        di.overrideDependency(DeviceStore::class.java, deviceStore)
+        di.overrideDependency(DispatchersProvider::class.java, dispatchersProviderStub)
     }
 
     @After
     open fun teardown() {
         mockWebServer.shutdown()
+        staticDIComponent.reset()
+        sharedDIComponent.reset()
         di.reset()
     }
 }

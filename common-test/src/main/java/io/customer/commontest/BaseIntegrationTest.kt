@@ -1,5 +1,9 @@
 package io.customer.commontest
 
+import android.app.Application
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
@@ -13,6 +17,12 @@ import io.customer.sdk.extensions.random
  * integration test functions, the closer the tests are to the production environment.
  */
 abstract class BaseIntegrationTest : BaseTest() {
+
+    override val context: Context
+        get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+    override val application: Application
+        get() = ApplicationProvider.getApplicationContext()
 
     // Call this function again in your integration test function if you need to modify the SDK configuration
     override fun setup(cioConfig: CustomerIOConfig) {

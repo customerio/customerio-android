@@ -2,8 +2,6 @@ package io.customer.commontest
 
 import android.app.Application
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
-import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
@@ -29,11 +27,8 @@ abstract class BaseTest {
     protected val siteId: String
         get() = "test-site-id"
 
-    protected val context: Context
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
-
-    protected val application: Application
-        get() = ApplicationProvider.getApplicationContext()
+    protected abstract val context: Context
+    protected abstract val application: Application
 
     protected lateinit var cioConfig: CustomerIOConfig
 

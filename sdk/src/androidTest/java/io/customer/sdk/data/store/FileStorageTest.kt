@@ -1,14 +1,14 @@
 package io.customer.sdk.data.store
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class FileStorageTest : BaseTest() {
+class FileStorageTest : BaseIntegrationTest() {
 
     private lateinit var fileStorage: FileStorage
 

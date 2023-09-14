@@ -1,7 +1,6 @@
 package io.customer.sdk.queue
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import org.amshove.kluent.shouldBeEqualTo
@@ -9,10 +8,8 @@ import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class QueueQueryRunnerTest : BaseTest() {
+class QueueQueryRunnerTest : BaseUnitTest() {
 
     private lateinit var queryRunner: QueueQueryRunnerImpl
 

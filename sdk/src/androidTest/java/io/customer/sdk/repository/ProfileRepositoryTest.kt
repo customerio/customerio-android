@@ -1,7 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
@@ -20,7 +20,7 @@ import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
-class ProfileRepositoryTest : BaseTest() {
+class ProfileRepositoryTest : BaseIntegrationTest() {
 
     private val prefRepository: SitePreferenceRepository
         get() = di.sitePreferenceRepository

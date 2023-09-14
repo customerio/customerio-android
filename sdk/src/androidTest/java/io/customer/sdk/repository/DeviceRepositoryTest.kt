@@ -1,7 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.sdk.data.request.Device
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.Queue
@@ -16,7 +16,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 
 @RunWith(AndroidJUnit4::class)
-class DeviceRepositoryTest : BaseTest() {
+class DeviceRepositoryTest : BaseIntegrationTest() {
 
     private val prefRepository: SitePreferenceRepository
         get() = di.sitePreferenceRepository

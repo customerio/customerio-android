@@ -2,7 +2,7 @@ package io.customer.sdk.util
 
 import androidx.test.annotation.UiThreadTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.After
@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
  * Tests must be executed on Android device, only. Running on robolectric gave false positive results.
  */
 @RunWith(AndroidJUnit4::class)
-class SimpleTimerTest : BaseTest() {
+class SimpleTimerTest : BaseIntegrationTest() {
 
     private lateinit var timer: AndroidSimpleTimer
 

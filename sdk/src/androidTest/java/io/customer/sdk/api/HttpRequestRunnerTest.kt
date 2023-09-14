@@ -4,7 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.add
 import io.customer.base.extenstions.hasPassed
 import io.customer.base.extenstions.subtract
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.commontest.extensions.toResponseBody
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
@@ -31,7 +31,7 @@ import org.mockito.kotlin.whenever
 import retrofit2.Response
 
 @RunWith(AndroidJUnit4::class)
-class HttpRequestRunnerTest : BaseTest() {
+class HttpRequestRunnerTest : BaseIntegrationTest() {
 
     private lateinit var httpRunner: HttpRequestRunnerImpl
 

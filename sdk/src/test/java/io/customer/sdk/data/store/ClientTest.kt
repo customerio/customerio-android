@@ -1,13 +1,10 @@
 package io.customer.sdk.data.store
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class ClientTest : BaseTest() {
+class ClientTest : BaseUnitTest() {
     @Test
     fun initialize_givenAndroid_expectAndroidClient() {
         val androidClient = Client.Android(sdkVersion = "2.6.3")

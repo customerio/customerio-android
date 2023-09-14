@@ -1,16 +1,13 @@
 package io.customer.sdk.api
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.util.Seconds
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class HttpRetryPolicyTest : BaseTest() {
+class HttpRetryPolicyTest : BaseUnitTest() {
 
     private lateinit var retryPolicy: CustomerIOApiRetryPolicy
 

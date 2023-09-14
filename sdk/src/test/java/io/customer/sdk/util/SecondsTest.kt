@@ -1,13 +1,10 @@
 package io.customer.sdk.util
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class SecondsTest : BaseTest() {
+class SecondsTest : BaseUnitTest() {
 
     @Test
     fun toMilliseconds_givenNumberOfSeconds_expectGetMillis() {
@@ -36,8 +33,7 @@ class SecondsTest : BaseTest() {
     }
 }
 
-@RunWith(AndroidJUnit4::class)
-class MillisecondsTest : BaseTest() {
+class MillisecondsTest : BaseUnitTest() {
 
     @Test
     fun toSeconds_givenNumberOfMilliseconds_expectGetSeconds() {

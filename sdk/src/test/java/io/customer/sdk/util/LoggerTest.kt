@@ -1,15 +1,12 @@
 package io.customer.sdk.util
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
-import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
-@RunWith(AndroidJUnit4::class)
-class LoggerTest : BaseTest() {
+class LoggerTest : BaseUnitTest() {
 
     // Test log levels
 

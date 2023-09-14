@@ -1,16 +1,13 @@
 package io.customer.sdk.data.moshi.adapter
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.utils.TestCustomAttributesDataSet
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class CustomAttributesAdapterTest : BaseTest() {
+class CustomAttributesAdapterTest : BaseUnitTest() {
 
     private lateinit var adapter: CustomAttributesAdapter
 

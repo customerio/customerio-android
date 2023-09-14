@@ -2,7 +2,7 @@ package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.subtract
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.type.*
 import java.util.*
@@ -13,7 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class QueueStorageIntegrationTest : BaseTest() {
+class QueueStorageIntegrationTest : BaseIntegrationTest() {
 
     // using real instance of FileStorage to perform integration test
     private lateinit var queueStorage: QueueStorageImpl

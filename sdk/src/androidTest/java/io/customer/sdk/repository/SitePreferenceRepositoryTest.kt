@@ -2,7 +2,7 @@ package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.unixTimeToDate
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
 import java.util.*
@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SitePreferenceRepositoryTest : BaseTest() {
+class SitePreferenceRepositoryTest : BaseIntegrationTest() {
 
     private lateinit var prefRepository: SitePreferenceRepository
 

@@ -1,18 +1,25 @@
 package io.customer.sdk.queue
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.extensions.random
-import io.customer.sdk.queue.type.*
+import io.customer.sdk.queue.type.QueueModifyResult
+import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.queue.type.QueueTask
+import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.queue.type.QueueTaskRunResults
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.kotlin.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
-@RunWith(AndroidJUnit4::class)
-class QueueRunRequestTest : BaseTest() {
+class QueueRunRequestTest : BaseUnitTest() {
 
     private lateinit var runRequest: QueueRunRequestImpl
 

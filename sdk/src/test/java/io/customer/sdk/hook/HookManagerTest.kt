@@ -1,7 +1,6 @@
 package io.customer.sdk.hook
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.CioHooksManager
 import io.customer.sdk.hooks.HookModule
@@ -11,10 +10,8 @@ import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-internal class HookManagerTest : BaseTest() {
+internal class HookManagerTest : BaseUnitTest() {
 
     private lateinit var cioHooksManager: CioHooksManager
 

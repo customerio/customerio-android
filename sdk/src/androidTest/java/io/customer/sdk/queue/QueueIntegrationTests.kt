@@ -1,7 +1,7 @@
 package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.BaseIntegrationTest
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.extensions.random
@@ -13,7 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class QueueIntegrationTests : BaseTest() {
+class QueueIntegrationTests : BaseIntegrationTest() {
 
     private lateinit var queue: Queue
     private lateinit var queueStorage: QueueStorage

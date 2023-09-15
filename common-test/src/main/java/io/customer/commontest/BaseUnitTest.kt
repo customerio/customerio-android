@@ -12,6 +12,10 @@ import io.customer.sdk.util.Logger
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
+/**
+ * Base class for a unit test class to subclass. If you want to create integration tests, use [BaseIntegrationTest].
+ * Meant to provide convenience to test classes with properties and functions tests may use.
+ */
 abstract class BaseUnitTest : BaseTest() {
 
     override val application: Application = mock<Application>().apply {

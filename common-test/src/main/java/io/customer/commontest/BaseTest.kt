@@ -22,7 +22,9 @@ import retrofit2.HttpException
 import retrofit2.Response
 
 /**
- * Base class for a unit test class to subclass. If you want to create integration tests, use [BaseIntegrationTest].
+ * Base class for a test class to subclass. Do not inherit this class directly.
+ * - If you want to create unit tests, use [BaseUnitTest].
+ * - If you want to create integration tests, use [BaseIntegrationTest].
  * Meant to provide convenience to test classes with properties and functions tests may use.
  */
 abstract class BaseTest {

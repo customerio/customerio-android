@@ -7,6 +7,7 @@ import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.commontest.extensions.enqueueSuccessful
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
@@ -22,7 +23,13 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
         // A customer device could have tens of thousands of background queue tasks in it. There is no limit at this time so, this test function tries to
         // find a balance between keeping the test suite execution time low but being a quality test.
         val numberOfTasksToAddInQueue = 5000
-        setup(cioConfig = createConfig(backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1)) // set BQ to only be executed manually
+        // set BQ to only be executed manually
+        getCustomerIOBuilder(
+            cioConfig = createConfig(
+                backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1,
+                backgroundQueueSecondsDelay = TimeUnit.MINUTES.toSeconds(10).toDouble()
+            )
+        ).build()
 
         for (i in 0 until numberOfTasksToAddInQueue) {
             CustomerIO.instance().identify(String.random)
@@ -43,7 +50,13 @@ class CustomerIOIntegrationTest : BaseIntegrationTest() {
     @Test
     fun test_backgroundQueueExecuteLotsOfTasks_givenSuccessAllTasks_expectThrowNoError() = runTest {
         val numberOfTasksToAddInQueue = 5000
-        setup(cioConfig = createConfig(backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1)) // set BQ to only be executed manually
+        // set BQ to only be executed manually
+        getCustomerIOBuilder(
+            cioConfig = createConfig(
+                backgroundQueueMinNumberOfTasks = numberOfTasksToAddInQueue + 1,
+                backgroundQueueSecondsDelay = TimeUnit.MINUTES.toSeconds(10).toDouble()
+            )
+        ).build()
 
         for (i in 0 until numberOfTasksToAddInQueue) {
             CustomerIO.instance().identify(String.random)

@@ -42,7 +42,6 @@ dependencies {
 
     api Dependencies.mockito
     api Dependencies.mockitoKotlin
-    api Dependencies.robolectric
 
     api Dependencies.kluent
     api Dependencies.okhttpMockWebserver

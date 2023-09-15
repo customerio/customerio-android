@@ -43,7 +43,6 @@ object Dependencies {
     const val mockitoAndroid = "org.mockito:mockito-android:${Versions.MOCKITO}"
     const val mockitoKotlin = "org.mockito.kotlin:mockito-kotlin:${Versions.MOCKITO_KOTLIN}"
     const val moshiCodeGen = "com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}"
-    const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
     const val retrofitMoshiConverter = "com.squareup.retrofit2:converter-moshi:${Versions.RETROFIT}"
     const val okhttp = "com.squareup.okhttp3:okhttp:${Versions.OKHTTP}"

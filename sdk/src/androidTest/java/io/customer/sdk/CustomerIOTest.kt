@@ -15,6 +15,7 @@ import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -200,6 +201,9 @@ class CustomerIOTest : BaseIntegrationTest() {
     @Test
     fun initializeSdk_expectRunCleanup(): Unit = runBlocking {
         getRandomCustomerIOBuilder().build()
+
+        // wait for cleanup to run in background as it is a suspend function
+        delay(500)
 
         verify(cleanupRepositoryMock).cleanup()
     }

@@ -1,7 +1,7 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.BaseInstrumentedTest
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
@@ -17,7 +17,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
-class CustomerIOSharedTest : BaseIntegrationTest() {
+class CustomerIOSharedTest : BaseInstrumentedTest() {
     @Test
     fun verifyInstanceAccessedMultipleTimes_givenNoSpecialCondition_expectSameInstance() {
         val instance1 = CustomerIOShared.instance()

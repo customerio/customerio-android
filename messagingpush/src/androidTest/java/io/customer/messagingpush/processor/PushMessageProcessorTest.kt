@@ -3,7 +3,7 @@ package io.customer.messagingpush.processor
 import android.content.Intent
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.BaseInstrumentedTest
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.di.moduleConfig
@@ -24,7 +24,7 @@ import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
-class PushMessageProcessorTest : BaseIntegrationTest() {
+class PushMessageProcessorTest : BaseInstrumentedTest() {
     private val modules = hashMapOf<String, CustomerIOModule<*>>()
     private val customerIOMock: CustomerIOInstance = mock()
     private val trackRepositoryMock: TrackRepository = mock()

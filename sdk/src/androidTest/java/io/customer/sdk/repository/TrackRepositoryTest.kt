@@ -1,7 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.BaseInstrumentedTest
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
-class TrackRepositoryTest : BaseIntegrationTest() {
+class TrackRepositoryTest : BaseInstrumentedTest() {
 
     private val prefRepository: SitePreferenceRepository
         get() = di.sitePreferenceRepository

@@ -1,7 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.BaseInstrumentedTest
 import io.customer.sdk.repository.preference.*
 import java.util.*
 import org.amshove.kluent.shouldBeEqualTo
@@ -11,7 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SharedPreferenceRepositoryTest : BaseIntegrationTest() {
+class SharedPreferenceRepositoryTest : BaseInstrumentedTest() {
 
     private lateinit var prefRepository: SharedPreferenceRepository
 

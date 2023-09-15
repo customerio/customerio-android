@@ -1,7 +1,7 @@
 package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.BaseInstrumentedTest
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.type.InAppEventListener
@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.*
 
 @RunWith(AndroidJUnit4::class)
-internal class ModuleMessagingInAppTest : BaseIntegrationTest() {
+internal class ModuleMessagingInAppTest : BaseInstrumentedTest() {
 
     private lateinit var module: ModuleMessagingInApp
     private val gistInAppMessagesProvider: InAppMessagesProvider = mock()

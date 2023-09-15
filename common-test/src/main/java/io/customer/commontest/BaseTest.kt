@@ -25,8 +25,8 @@ import retrofit2.Response
 
 /**
  * Base class for a test class to subclass. Do not inherit this class directly.
- * - If you want to create unit tests, use [BaseUnitTest].
- * - If you want to create integration tests, use [BaseIntegrationTest].
+ * - If you want to create local unit tests, use [BaseLocalTest].
+ * - If you want to create instrumented unit tests, use [BaseInstrumentedTest].
  * Meant to provide convenience to test classes with properties and functions tests may use.
  */
 abstract class BaseTest {

@@ -13,10 +13,10 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 /**
- * Base class for a unit test class to subclass. If you want to create integration tests, use [BaseIntegrationTest].
+ * Base class for a unit test class to subclass. If you want to create instrumented tests, use [BaseInstrumentedTest].
  * Meant to provide convenience to test classes with properties and functions tests may use.
  */
-abstract class BaseUnitTest : BaseTest() {
+abstract class BaseLocalTest : BaseTest() {
 
     override val application: Application = mock<Application>().apply {
         whenever(applicationContext).thenReturn(this)

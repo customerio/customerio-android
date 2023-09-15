@@ -1,6 +1,6 @@
 package io.customer.sdk.hook
 
-import io.customer.commontest.BaseUnitTest
+import io.customer.commontest.BaseLocalTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.CioHooksManager
 import io.customer.sdk.hooks.HookModule
@@ -11,7 +11,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
 
-internal class HookManagerTest : BaseUnitTest() {
+internal class HookManagerTest : BaseLocalTest() {
 
     private lateinit var cioHooksManager: CioHooksManager
 

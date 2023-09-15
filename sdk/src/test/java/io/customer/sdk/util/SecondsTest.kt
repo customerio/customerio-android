@@ -1,10 +1,10 @@
 package io.customer.sdk.util
 
-import io.customer.commontest.BaseUnitTest
+import io.customer.commontest.BaseLocalTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-class SecondsTest : BaseUnitTest() {
+class SecondsTest : BaseLocalTest() {
 
     @Test
     fun toMilliseconds_givenNumberOfSeconds_expectGetMillis() {
@@ -33,7 +33,7 @@ class SecondsTest : BaseUnitTest() {
     }
 }
 
-class MillisecondsTest : BaseUnitTest() {
+class MillisecondsTest : BaseLocalTest() {
 
     @Test
     fun toSeconds_givenNumberOfMilliseconds_expectGetSeconds() {

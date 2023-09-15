@@ -1,6 +1,6 @@
 package io.customer.messagingpush
 
-import io.customer.commontest.BaseUnitTest
+import io.customer.commontest.BaseLocalTest
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.sdk.CustomerIOConfig
@@ -17,7 +17,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
-internal class ModuleMessagingConfigTest : BaseUnitTest() {
+internal class ModuleMessagingConfigTest : BaseLocalTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
     private val fcmTokenProviderMock: DeviceTokenProvider = mock()

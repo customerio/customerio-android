@@ -1,10 +1,10 @@
 package io.customer.sdk.data.store
 
-import io.customer.commontest.BaseUnitTest
+import io.customer.commontest.BaseLocalTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-class DeviceStoreTest : BaseUnitTest() {
+class DeviceStoreTest : BaseLocalTest() {
 
     @Test
     fun verifyBuildAttributesInDevice() {

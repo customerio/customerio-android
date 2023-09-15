@@ -1,7 +1,7 @@
 package io.customer.sdk.util
 
 import com.squareup.moshi.JsonClass
-import io.customer.commontest.BaseUnitTest
+import io.customer.commontest.BaseLocalTest
 import org.amshove.kluent.AnyException
 import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEqualTo
@@ -10,7 +10,7 @@ import org.amshove.kluent.shouldNotBeNull
 import org.amshove.kluent.shouldThrow
 import org.junit.Test
 
-class JsonAdapterTest : BaseUnitTest() {
+class JsonAdapterTest : BaseLocalTest() {
 
     @JsonClass(generateAdapter = true)
     data class TestVo(

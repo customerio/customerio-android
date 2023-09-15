@@ -1,5 +1,6 @@
 package io.customer.commontest
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import io.customer.commontest.util.DispatchersProviderStub
@@ -12,11 +13,7 @@ import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.module.CustomerIOModule
-import io.customer.sdk.util.CioLogLevel
-import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.DispatchersProvider
-import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.Seconds
+import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -95,6 +92,7 @@ abstract class BaseTest {
     }
 
     // Call inside of test function to override the SDK config for just 1 test function.
+    @SuppressLint("VisibleForTests")
     open fun setup(cioConfig: CustomerIOConfig) {
         this.cioConfig = cioConfig
 
@@ -104,7 +102,7 @@ abstract class BaseTest {
         }
         cioConfig.trackingApiUrl = mockWebServer.url("/").toString()
         if (!cioConfig.trackingApiUrl!!.contains("localhost")) {
-            throw RuntimeException("server didnt' start ${cioConfig.trackingApiUrl}")
+            throw RuntimeException("server didn't' start ${cioConfig.trackingApiUrl}")
         }
 
         // Create any stubs or mocks here

@@ -6,8 +6,11 @@ import android.content.Context
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.Logger
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
@@ -25,6 +28,8 @@ abstract class BaseUnitTest : BaseTest() {
 
     override fun setup(cioConfig: CustomerIOConfig) {
         super.setup(cioConfig)
+        // Override any dependencies required for the tests
+        overrideDependencies()
 
         CustomerIO.Builder(
             siteId = siteId,
@@ -37,9 +42,12 @@ abstract class BaseUnitTest : BaseTest() {
     }
 
     @SuppressLint("VisibleForTests")
-    override fun overrideDependencies() {
-        super.overrideDependencies()
+    fun overrideDependencies() {
         staticDIComponent.overrideDependency(Logger::class.java, mock())
         sharedDIComponent.overrideDependency(SharedPreferenceRepository::class.java, mock())
+
+        di.overrideDependency(DateUtil::class.java, dateUtilStub)
+        di.overrideDependency(DeviceStore::class.java, deviceStore)
+        di.overrideDependency(DispatchersProvider::class.java, dispatchersProviderStub)
     }
 }

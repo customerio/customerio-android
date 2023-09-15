@@ -124,14 +124,6 @@ abstract class BaseTest {
             sdkConfig = cioConfig,
             context = application
         )
-        // Override any dependencies required for the tests
-        overrideDependencies()
-    }
-
-    open fun overrideDependencies() {
-        di.overrideDependency(DateUtil::class.java, dateUtilStub)
-        di.overrideDependency(DeviceStore::class.java, deviceStore)
-        di.overrideDependency(DispatchersProvider::class.java, dispatchersProviderStub)
     }
 
     @After

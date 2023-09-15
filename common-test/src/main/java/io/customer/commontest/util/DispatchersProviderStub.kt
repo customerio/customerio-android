@@ -4,7 +4,7 @@ import io.customer.sdk.util.DispatchersProvider
 import io.customer.sdk.util.SdkDispatchers
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineDispatcher
 
 class DispatchersProviderStub : DispatchersProvider {
     private var overrideBackground: CoroutineDispatcher? = null
@@ -21,9 +21,9 @@ class DispatchersProviderStub : DispatchersProvider {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override val background: CoroutineDispatcher
-        get() = overrideBackground ?: StandardTestDispatcher()
+        get() = overrideBackground ?: TestCoroutineDispatcher()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override val main: CoroutineDispatcher
-        get() = overrideMain ?: StandardTestDispatcher()
+        get() = overrideMain ?: TestCoroutineDispatcher()
 }

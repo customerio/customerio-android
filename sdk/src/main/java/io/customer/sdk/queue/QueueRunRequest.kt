@@ -1,7 +1,6 @@
 package io.customer.sdk.queue
 
 import io.customer.sdk.error.CustomerIOError
-import io.customer.sdk.queue.type.QueueInventory
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import io.customer.sdk.util.Logger
 
@@ -19,86 +18,72 @@ internal class QueueRunRequestImpl internal constructor(
     override suspend fun run() {
         logger.debug("queue starting to run tasks...")
         val inventory = queueStorage.getInventory()
+        val tasksToRun = inventory.toMutableList()
 
-        runTasks(inventory, inventory.count())
-    }
+        var lastFailedTask: QueueTaskMetadata? = null
 
-    private suspend fun runTasks(
-        inventory: QueueInventory,
-        totalNumberOfTasksToRun: Int,
-        lastFailedTask: QueueTaskMetadata? = null
-    ) {
-        val nextTaskToRunInventoryItem = queryRunner.getNextTask(inventory, lastFailedTask)
-        if (nextTaskToRunInventoryItem == null) {
-            logger.debug("queue done running tasks")
-
-            queryRunner.reset()
-
-            return
-        }
-
-        val nextTaskStorageId = nextTaskToRunInventoryItem.taskPersistedId
-        val nextTaskToRun = queueStorage.get(nextTaskStorageId)
-        if (nextTaskToRun == null) {
-            logger.error("tried to get queue task with storage id: $nextTaskStorageId but storage couldn't find it.")
-
-            // The task failed to execute because it couldn't be found. Gracefully handle the scenario by
-            // behaving the same way a failed HTTP request does. Run next task with an updated `lastFailedTask`.
-            return goToNextTask(inventory, totalNumberOfTasksToRun, nextTaskToRunInventoryItem)
-        }
-
-        logger.debug("queue tasks left to run: ${inventory.count()} out of $totalNumberOfTasksToRun")
-        logger.debug("queue next task to run: $nextTaskStorageId, ${nextTaskToRun.type}, ${nextTaskToRun.data}, ${nextTaskToRun.runResults}")
-
-        val result = runner.runTask(nextTaskToRun)
-        when {
-            result.isSuccess -> {
-                logger.debug("queue task $nextTaskStorageId ran successfully")
-
-                logger.debug("queue deleting task $nextTaskStorageId")
-                queueStorage.delete(nextTaskStorageId)
-
-                return goToNextTask(inventory, totalNumberOfTasksToRun, null)
+        while (tasksToRun.isNotEmpty()) {
+            // get the next task to run using the query criteria
+            val currentTaskMetadata = queryRunner.getNextTask(tasksToRun, lastFailedTask)
+            if (currentTaskMetadata == null) {
+                logger.debug("queue out of tasks to run...")
+                break
             }
-            result.isFailure -> {
-                val error = result.exceptionOrNull()
-                logger.debug("queue task $nextTaskStorageId run failed $error")
 
-                return when (error as? CustomerIOError) {
-                    is CustomerIOError.HttpRequestsPaused -> {
-                        // When HTTP requests are paused, don't increment metadata about the tasks to create inaccurate data
-                        logger.info("queue is quitting early because all HTTP requests are paused.")
+            tasksToRun.remove(currentTaskMetadata)
 
-                        goToNextTask(emptyList(), totalNumberOfTasksToRun, null)
+            val taskStorageId = currentTaskMetadata.taskPersistedId
+            val taskToRun = queueStorage.get(taskStorageId)
+
+            if (taskToRun == null) {
+                logger.error("Tried to get queue task with storage id: $taskStorageId but storage couldn't find it.")
+                // The task failed to execute because it couldn't be found. Gracefully handle the scenario by
+                // behaving the same way a failed HTTP request does. Run next task with an updated `lastFailedTask`.
+                lastFailedTask = currentTaskMetadata
+                continue
+            }
+
+            logger.debug("queue tasks left to run: ${tasksToRun.size}")
+            logger.debug("queue next task to run: $taskStorageId, ${taskToRun.type}, ${taskToRun.data}, ${taskToRun.runResults}")
+
+            val result = runner.runTask(taskToRun)
+
+            when {
+                result.isSuccess -> {
+                    logger.debug("queue task $taskStorageId ran successfully")
+                    logger.debug("queue deleting task $taskStorageId")
+                    queueStorage.delete(taskStorageId)
+                }
+
+                result.isFailure -> {
+                    val error = result.exceptionOrNull()
+                    logger.debug("queue task $taskStorageId run failed $error")
+
+                    when (error as? CustomerIOError) {
+                        is CustomerIOError.HttpRequestsPaused, is CustomerIOError.NoHttpRequestMade -> {
+                            logger.info("queue is quitting early because ${error.message})")
+                            tasksToRun.clear() // clear the list to stop processing the next tasks
+                            break
+                        }
+
+                        is CustomerIOError.BadRequest400 -> {
+                            logger.error("Received HTTP 400 response while trying to run ${taskToRun.type}. 400 responses never succeed and therefore, the SDK is deleting this SDK request and not retry. Error message from API: ${error.message}, request data sent: ${taskToRun.data}")
+                            queueStorage.delete(taskStorageId)
+                        }
+
+                        else -> {
+                            val previousRunResults = taskToRun.runResults
+                            val newRunResults =
+                                taskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
+                            logger.debug("queue task $taskStorageId, updating run history from: $previousRunResults to: $newRunResults")
+                            queueStorage.update(taskStorageId, newRunResults)
+                        }
                     }
-                    is CustomerIOError.BadRequest400 -> {
-                        logger.error("Received HTTP 400 response while trying to run ${nextTaskToRun.type}. 400 responses never succeed and therefore, the SDK is deleting this SDK request and not retry. Error message from API: ${error.message}, request data sent: ${nextTaskToRun.data}")
-
-                        queueStorage.delete(nextTaskStorageId)
-
-                        goToNextTask(inventory, totalNumberOfTasksToRun, lastFailedTask = nextTaskToRunInventoryItem)
-                    }
-                    else -> {
-                        val previousRunResults = nextTaskToRun.runResults
-                        val newRunResults =
-                            nextTaskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
-                        logger.debug("queue task $nextTaskStorageId, updating run history from: $previousRunResults to: $newRunResults")
-                        queueStorage.update(nextTaskStorageId, newRunResults)
-
-                        goToNextTask(inventory, totalNumberOfTasksToRun, lastFailedTask = nextTaskToRunInventoryItem)
-                    }
+                    lastFailedTask = currentTaskMetadata
                 }
             }
         }
-    }
-
-    private suspend fun goToNextTask(
-        inventory: QueueInventory,
-        totalNumberOfTasksToRun: Int,
-        lastFailedTask: QueueTaskMetadata?
-    ) {
-        val newInventory = inventory.toMutableList()
-        newInventory.removeFirstOrNull()
-        runTasks(newInventory, totalNumberOfTasksToRun, lastFailedTask)
+        logger.debug("queue done running tasks")
+        queryRunner.reset()
     }
 }

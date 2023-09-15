@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import io.customer.commontest.util.DispatchersProviderStub
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOShared
 import io.customer.sdk.data.model.Region
@@ -12,6 +13,7 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
+import io.customer.sdk.extensions.random
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -132,5 +134,29 @@ abstract class BaseTest {
         staticDIComponent.reset()
         sharedDIComponent.reset()
         di.reset()
+    }
+
+    /**
+     * Creates a new instance for SDK builder with default configuration for tests.
+     */
+    protected fun getCustomerIOBuilder(
+        cioConfig: CustomerIOConfig = createConfig(),
+        siteId: String = this.siteId,
+        apiKey: String = String.random,
+        region: Region = Region.US,
+        application: Application = this.application
+    ): CustomerIO.Builder {
+        setup(cioConfig = cioConfig)
+        // Initialize the SDK but with an injected DI graph.
+        // Test setup should prefer using the same SDK initialization that customers do to
+        // make test as close to production environment as possible.
+        return CustomerIO.Builder(
+            siteId = siteId,
+            apiKey = apiKey,
+            region = region,
+            appContext = application
+        ).apply {
+            overrideDiGraph = di
+        }
     }
 }

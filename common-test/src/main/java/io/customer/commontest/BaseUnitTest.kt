@@ -3,11 +3,8 @@ package io.customer.commontest
 import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.DeviceStore
-import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.DispatchersProvider
@@ -40,19 +37,5 @@ abstract class BaseUnitTest : BaseTest() {
         di.overrideDependency(DateUtil::class.java, dateUtilStub)
         di.overrideDependency(DeviceStore::class.java, deviceStore)
         di.overrideDependency(DispatchersProvider::class.java, dispatchersProviderStub)
-    }
-
-    /**
-     * Create a new SDK instance with default configuration for unit tests.
-     */
-    protected fun createSDKInstance() {
-        CustomerIO.Builder(
-            siteId = siteId,
-            apiKey = String.random,
-            region = Region.US,
-            appContext = application
-        ).apply {
-            overrideDiGraph = di
-        }.build()
     }
 }

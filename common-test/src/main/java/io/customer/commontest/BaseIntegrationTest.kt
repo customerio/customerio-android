@@ -4,10 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.data.model.Region
-import io.customer.sdk.extensions.random
 
 /**
  * Base class for a integration test class to subclass. If you want to create unit tests, use [BaseTest].
@@ -30,21 +27,5 @@ abstract class BaseIntegrationTest : BaseTest() {
 
         di.fileStorage.deleteAllSdkFiles()
         di.sitePreferenceRepository.clearAll()
-    }
-
-    /**
-     * Create a new SDK instance with default configuration for integration tests.
-     */
-    protected fun createSDKInstance() {
-        // Initialize the SDK but with an injected DI graph.
-        // Test setup should use the same SDK initialization that customers do to make test as close to production environment as possible.
-        CustomerIO.Builder(
-            siteId = siteId,
-            apiKey = String.random,
-            region = Region.US,
-            appContext = application
-        ).apply {
-            overrideDiGraph = di
-        }.build()
     }
 }

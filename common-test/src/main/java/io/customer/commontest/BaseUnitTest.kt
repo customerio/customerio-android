@@ -30,15 +30,6 @@ abstract class BaseUnitTest : BaseTest() {
         super.setup(cioConfig)
         // Override any dependencies required for the tests
         overrideDependencies()
-
-        CustomerIO.Builder(
-            siteId = siteId,
-            apiKey = String.random,
-            region = Region.US,
-            appContext = application
-        ).apply {
-            overrideDiGraph = di
-        }.build()
     }
 
     @SuppressLint("VisibleForTests")
@@ -49,5 +40,19 @@ abstract class BaseUnitTest : BaseTest() {
         di.overrideDependency(DateUtil::class.java, dateUtilStub)
         di.overrideDependency(DeviceStore::class.java, deviceStore)
         di.overrideDependency(DispatchersProvider::class.java, dispatchersProviderStub)
+    }
+
+    /**
+     * Create a new SDK instance with default configuration for unit tests.
+     */
+    protected fun createSDKInstance() {
+        CustomerIO.Builder(
+            siteId = siteId,
+            apiKey = String.random,
+            region = Region.US,
+            appContext = application
+        ).apply {
+            overrideDiGraph = di
+        }.build()
     }
 }

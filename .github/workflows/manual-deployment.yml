@@ -1,0 +1,106 @@
+name: Manual Deploy to Maven Central
+# Trigger this manual deployment in scenarios where:
+# - A git tag exists, but the initial deployment failed.
+# - Fixes have been pushed to the main branch.
+# This avoids the need to recreate the tag for redeployment.
+on:
+  workflow_dispatch:  # allows for manual triggering
+
+jobs:
+  deploy-sonatype:
+    name: Deploy SDK to Maven Central
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # fetches all history for all tags and branches
+
+      - name: Get latest tag
+        id: get-latest-tag
+        run: echo "::set-output name=tag::$(git describe --tags --abbrev=0)"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: adopt
+          java-version: 11
+
+      - name: Push to Sonatype servers
+        run: ./scripts/deploy-code.sh
+        env:
+          OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.GRADLE_SIGNING_KEYID }}
+          SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}
+          SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
+
+      - name: Notify team of successful deployment
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ success() }}
+        with:
+          payload: |
+            {
+              "text": "Android SDK deployed to Maven Central",
+              "username": "Android deployment bot",
+              "icon_url": "https://media.pocketgamer.com/artwork/na-qulrguj/android.jpg",
+              "channel": "#mobile-deployments",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": "*Android* SDK deployed to Maven Central! (manual deployment)"
+                      }
+                  },
+                  {
+                      "type": "divider"
+                  },
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": "*Version:* ${{ steps.get-latest-tag.outputs.tag }}\n\nAndroid SDK deployment progress:\n~1. Git tag already created~\n~2. Manual deploy to maven central~\n\n"
+                      }
+                  }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      - name: Notify team of failure
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ failure() }}
+        with:
+          payload: |
+            {
+              "text": "Android SDK deployment failure",
+              "username": "Android deployment bot",
+              "icon_url": "https://media.pocketgamer.com/artwork/na-qulrguj/android.jpg",
+              "channel": "#mobile-deployments",
+              "blocks": [
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": "*Android* SDK deployment :warning: failure :warning:"
+                      }
+                  },
+                  {
+                      "type": "divider"
+                  },
+                  {
+                      "type": "section",
+                      "text": {
+                          "type": "mrkdwn",
+                          "text": "Android SDK failed deployment during step *deploy to maven central*. View <https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}|CI server logs> to learn why and fix the issue. <https://github.com/customerio/mobile/blob/main/GIT-WORKFLOW.md|Learn more about the deployment process and how to fix errors>."
+                      }
+                  }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+

@@ -7,13 +7,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.sdk.CustomerIOConfig
 
 /**
- * Base class for a instrumentation test class to subclass. If you want to create local unit tests, use [BaseLocalTest].
+ * Base class for a integration test class to subclass. If you want to create local unit tests, use [BaseUnitTest].
  * Meant to provide convenience to test classes with properties and functions tests may use.
  *
  * This class should avoid overriding dependencies as much as possible. The more *real* (not mocked) dependencies executed in these
  * integration test functions, the closer the tests are to the production environment.
  */
-abstract class BaseInstrumentedTest : BaseTest() {
+abstract class BaseAndroidTest : BaseTest() {
 
     override val context: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext

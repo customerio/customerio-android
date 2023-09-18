@@ -17,7 +17,11 @@ jobs:
 
       - name: Get latest tag
         id: get-latest-tag
-        run: echo "::set-output name=tag::$(git describe --tags --abbrev=0)"
+        run: |
+          echo '::group::Get latest tag'
+          TAG=$(git describe --tags --abbrev=0)
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo '::endgroup::'
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -26,7 +30,7 @@ jobs:
           java-version: 11
 
       - name: Push to Sonatype servers
-        run: ./scripts/deploy-code.sh
+        run: MODULE_VERSION=${{ env.TAG }} ./scripts/deploy-code.sh
         env:
           OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
@@ -60,7 +64,7 @@ jobs:
                       "type": "section",
                       "text": {
                           "type": "mrkdwn",
-                          "text": "*Version:* ${{ steps.get-latest-tag.outputs.tag }}\n\nAndroid SDK deployment progress:\n~1. Git tag already created~\n~2. Manual deploy to maven central~\n\n"
+                          "text": "*Version:* ${{ env.TAG }}\n\nAndroid SDK deployment progress:\n~1. Git tag already created~\n~2. Manual deploy to maven central~\n\n"
                       }
                   }
               ]
@@ -101,5 +105,3 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-
-

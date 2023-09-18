@@ -1,13 +1,13 @@
 package io.customer.sdk.data.moshi.adapter
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.utils.TestCustomAttributesDataSet
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.junit.Before
 import org.junit.Test
 
-class CustomAttributesAdapterTest : BaseLocalTest() {
+class CustomAttributesAdapterTest : BaseUnitTest() {
 
     private lateinit var adapter: CustomAttributesAdapter
 

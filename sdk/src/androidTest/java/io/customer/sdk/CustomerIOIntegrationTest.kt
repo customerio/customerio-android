@@ -1,7 +1,7 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseInstrumentedTest
+import io.customer.commontest.BaseAndroidTest
 import io.customer.commontest.extensions.enqueue
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.commontest.extensions.enqueueSuccessful
@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class CustomerIOIntegrationTest : BaseInstrumentedTest() {
+class CustomerIOIntegrationTest : BaseAndroidTest() {
 
     // The BQ should be able to handle N number of tasks inside of it without throwing an error.
     // This edge case mostly came from iOS having a stackoverflow during BQ execution.

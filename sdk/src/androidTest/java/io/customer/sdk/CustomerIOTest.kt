@@ -1,7 +1,7 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseInstrumentedTest
+import io.customer.commontest.BaseAndroidTest
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOSharedComponent
@@ -30,7 +30,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
-class CustomerIOTest : BaseInstrumentedTest() {
+class CustomerIOTest : BaseAndroidTest() {
 
     private val cleanupRepositoryMock: CleanupRepository = mock()
     private val deviceRepositoryMock: DeviceRepository = mock()

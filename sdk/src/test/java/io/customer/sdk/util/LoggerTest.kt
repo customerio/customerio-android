@@ -1,12 +1,12 @@
 package io.customer.sdk.util
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
-class LoggerTest : BaseLocalTest() {
+class LoggerTest : BaseUnitTest() {
 
     // Test log levels
 

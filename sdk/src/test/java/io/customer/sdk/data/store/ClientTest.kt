@@ -1,10 +1,10 @@
 package io.customer.sdk.data.store
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-class ClientTest : BaseLocalTest() {
+class ClientTest : BaseUnitTest() {
     @Test
     fun initialize_givenAndroid_expectAndroidClient() {
         val androidClient = Client.Android(sdkVersion = "2.6.3")

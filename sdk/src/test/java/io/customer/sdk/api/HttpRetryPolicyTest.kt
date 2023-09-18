@@ -1,13 +1,13 @@
 package io.customer.sdk.api
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.util.Seconds
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Before
 import org.junit.Test
 
-class HttpRetryPolicyTest : BaseLocalTest() {
+class HttpRetryPolicyTest : BaseUnitTest() {
 
     private lateinit var retryPolicy: CustomerIOApiRetryPolicy
 

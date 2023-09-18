@@ -1,12 +1,12 @@
 package io.customer.sdk.data.store
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.extensions.random
 import java.io.File
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-class FileTypeTest : BaseLocalTest() {
+class FileTypeTest : BaseUnitTest() {
 
     val testPath = "/path/to/file/io.customer"
     val existingPath = File(testPath)

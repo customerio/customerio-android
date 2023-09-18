@@ -1,7 +1,7 @@
 package io.customer.sdk.queue
 
 import com.squareup.moshi.JsonClass
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
@@ -17,7 +17,7 @@ import org.junit.Test
 import org.mockito.kotlin.*
 
 @ExperimentalCoroutinesApi
-class QueueTest : BaseLocalTest() {
+class QueueTest : BaseUnitTest() {
 
     private lateinit var queue: QueueImpl
     val storageMock: QueueStorage = mock()

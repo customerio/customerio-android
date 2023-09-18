@@ -1,6 +1,6 @@
 package io.customer.messaginginapp
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
@@ -18,7 +18,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
-internal class InAppMessagesProviderTest : BaseLocalTest() {
+internal class InAppMessagesProviderTest : BaseUnitTest() {
 
     private lateinit var gistInAppMessagesProvider: GistInAppMessagesProvider
     private val gistApiProvider: GistApi = mock()

@@ -1,6 +1,6 @@
 package io.customer.sdk.queue
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.type.*
@@ -9,7 +9,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.*
 
-class QueueRunRequestTest : BaseLocalTest() {
+class QueueRunRequestTest : BaseUnitTest() {
 
     private lateinit var runRequest: QueueRunRequestImpl
 

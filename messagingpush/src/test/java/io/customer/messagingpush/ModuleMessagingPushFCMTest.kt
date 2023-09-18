@@ -1,6 +1,6 @@
 package io.customer.messagingpush
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.extensions.random
@@ -13,7 +13,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
-internal class ModuleMessagingPushFCMTest : BaseLocalTest() {
+internal class ModuleMessagingPushFCMTest : BaseUnitTest() {
 
     private val customerIOMock: CustomerIOInstance = mock()
     private val fcmTokenProviderMock: DeviceTokenProvider = mock()

@@ -1,6 +1,6 @@
 package io.customer.sdk.queue
 
-import io.customer.commontest.BaseLocalTest
+import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.type.QueueTaskMetadata
 import org.amshove.kluent.shouldBeEqualTo
@@ -9,7 +9,7 @@ import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Before
 import org.junit.Test
 
-class QueueQueryRunnerTest : BaseLocalTest() {
+class QueueQueryRunnerTest : BaseUnitTest() {
 
     private lateinit var queryRunner: QueueQueryRunnerImpl
 

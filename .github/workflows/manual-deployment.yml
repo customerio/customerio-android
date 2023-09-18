@@ -1,7 +1,6 @@
 name: Manual Deploy to Maven Central
 # Trigger this manual deployment in scenarios where:
-# - A git tag exists, but the initial deployment failed.
-# - Fixes have been pushed to the main branch.
+# A git tag exists, but the initial deployment failed and fix has been pushed to main.
 # This avoids the need to recreate the tag for redeployment.
 on:
   workflow_dispatch:  # allows for manual triggering

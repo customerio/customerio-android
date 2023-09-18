@@ -200,7 +200,11 @@ class CustomerIOTest : BaseAndroidTest() {
 
     @Test
     fun initializeSdk_expectRunCleanup(): Unit = runBlocking {
-        getRandomCustomerIOBuilder().build()
+        getCustomerIOBuilder(
+            siteId = String.random,
+            apiKey = String.random,
+            region = Region.EU
+        ).build()
 
         // wait for cleanup to run in background as it is a suspend function
         delay(500)
@@ -291,14 +295,5 @@ class CustomerIOTest : BaseAndroidTest() {
         val actualClient = Client.Flutter("1.0.0")
         actualConfig.client.source shouldBeEqualTo actualClient.source
         actualConfig.client.sdkVersion shouldBeEqualTo actualClient.sdkVersion
-    }
-
-    private fun getRandomCustomerIOBuilder(): CustomerIO.Builder = CustomerIO.Builder(
-        siteId = String.random,
-        apiKey = String.random,
-        region = Region.EU,
-        appContext = application
-    ).apply {
-        this.overrideDiGraph = di
     }
 }

@@ -19,7 +19,6 @@ if [[ "$MODULE_VERSION" == "" ]]; then
     exit 1
 fi 
 
-./gradlew assembleRelease -x :app:assembleRelease
 ./gradlew androidSourcesJar javadocJar
 MODULE_VERSION="$MODULE_VERSION" ./gradlew publishReleasePublicationToSonatypeRepository --max-workers 1 closeAndReleaseSonatypeStagingRepository
 

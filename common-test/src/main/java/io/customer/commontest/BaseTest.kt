@@ -106,7 +106,7 @@ abstract class BaseTest {
         }
         cioConfig.trackingApiUrl = mockWebServer.url("/").toString()
         if (!cioConfig.trackingApiUrl!!.contains("localhost")) {
-            throw RuntimeException("server didn't' start ${cioConfig.trackingApiUrl}")
+            throw RuntimeException("server didn't start ${cioConfig.trackingApiUrl}")
         }
 
         // Create any stubs or mocks here
@@ -138,18 +138,20 @@ abstract class BaseTest {
 
     /**
      * Creates a new instance for SDK builder with default configuration for tests.
+     *
+     * @param cioConfig Optional. If provided, will override the default SDK configuration.
+     * The value may only be needed if the test needs to override the default SDK configuration.
      */
     protected fun getCustomerIOBuilder(
-        cioConfig: CustomerIOConfig = createConfig(),
+        cioConfig: CustomerIOConfig? = null,
         siteId: String = this.siteId,
         apiKey: String = String.random,
         region: Region = Region.US,
         application: Application = this.application
     ): CustomerIO.Builder {
-        setup(cioConfig = cioConfig)
+        cioConfig?.let { config -> setup(cioConfig = config) }
         // Initialize the SDK but with an injected DI graph.
-        // Test setup should prefer using the same SDK initialization that customers do to
-        // make test as close to production environment as possible.
+        // Test setup should prefer using the same SDK initialization that customers do to make test as close to production environment as possible.
         return CustomerIO.Builder(
             siteId = siteId,
             apiKey = apiKey,

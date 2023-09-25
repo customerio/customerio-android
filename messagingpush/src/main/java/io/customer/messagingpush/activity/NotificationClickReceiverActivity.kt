@@ -64,17 +64,30 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             return
         }
 
-        val diGraph = sdkInstance.diGraph
-        val deepLinkUtil: DeepLinkUtil = diGraph.deepLinkUtil
-        val moduleConfig: MessagingPushModuleConfig = diGraph.moduleConfig
+        val moduleConfig: MessagingPushModuleConfig = sdkInstance.diGraph.moduleConfig
+        trackMetrics(moduleConfig, payload)
+        handleDeepLink(moduleConfig, payload)
+    }
 
-        val deliveryId = payload.cioDeliveryId
-        val deliveryToken = payload.cioDeliveryToken
-        val deepLink = payload.deepLink?.takeIfNotBlank()
-
+    private fun trackMetrics(
+        moduleConfig: MessagingPushModuleConfig,
+        payload: CustomerIOParsedPushPayload
+    ) {
         if (moduleConfig.autoTrackPushEvents) {
-            sdkInstance.trackMetric(deliveryId, MetricEvent.opened, deliveryToken)
+            CustomerIO.instance().trackMetric(
+                payload.cioDeliveryId,
+                MetricEvent.opened,
+                payload.cioDeliveryToken
+            )
         }
+    }
+
+    private fun handleDeepLink(
+        moduleConfig: MessagingPushModuleConfig,
+        payload: CustomerIOParsedPushPayload
+    ) {
+        val deepLinkUtil: DeepLinkUtil = CustomerIO.instance().diGraph.deepLinkUtil
+        val deepLink = payload.deepLink?.takeIfNotBlank()
 
         // check if host app overrides the handling of deeplink
         val notificationCallback = moduleConfig.notificationCallback

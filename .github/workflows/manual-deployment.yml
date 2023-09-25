@@ -23,11 +23,7 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_ENV
           echo '::endgroup::'
 
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          distribution: adopt
-          java-version: 11
+      - uses: ./.github/actions/setup-android
 
       - name: Push to Sonatype servers
         run: MODULE_VERSION=${{ env.TAG }} ./scripts/deploy-code.sh

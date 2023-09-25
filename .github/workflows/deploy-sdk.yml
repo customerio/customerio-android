@@ -129,11 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          distribution: adopt
-          java-version: 11
+      - uses: ./.github/actions/setup-android
       - name: Push to Sonatype servers
         run: MODULE_VERSION=${{ needs.deploy-git-tag.outputs.new_release_version }} ./scripts/deploy-code.sh
         env:

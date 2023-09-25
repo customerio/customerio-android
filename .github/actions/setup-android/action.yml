@@ -1,0 +1,20 @@
+name: Setup Android
+description: Setup CI with Android development tools to compile and test Android source code. 
+
+runs:
+  using: "composite"
+  steps:
+  - name: Install Java
+    uses: actions/setup-java@v3
+    with:
+      distribution: 'temurin'
+      java-version: '17'
+  
+  - name: Install Android SDK
+    uses: android-actions/setup-android@v3 
+  
+  - name: Verify gradle scripts are valid gradle scripts 
+    uses: gradle/wrapper-validation-action@v1
+    
+  - name: Setup Gradle and cache dependencies between builds 
+    uses: gradle/gradle-build-action@v2

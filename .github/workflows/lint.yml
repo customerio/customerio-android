@@ -17,7 +17,7 @@ jobs:
         distribution: 'adopt'
         java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
+      uses: android-actions/setup-android@v3
 
     - name: Run lint (${{ matrix.module }})
       run: ./gradlew :${{ matrix.module }}:lintDebug

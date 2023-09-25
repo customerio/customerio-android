@@ -17,7 +17,7 @@ jobs:
           distribution: 'adopt'
           java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
       - name: Run unit tests (${{ matrix.module }})
         run: ./gradlew :${{ matrix.module }}:runJacocoTestReport
       - name: Upload code coverage report
@@ -50,7 +50,7 @@ jobs:
           distribution: 'adopt'
           java-version: '17'
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
       - name: Gradle cache
         uses: gradle/gradle-build-action@v2
       - name: Start emulator

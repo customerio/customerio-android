@@ -82,7 +82,7 @@ jobs:
       uses: kenji-miyake/setup-sd@v1
 
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v2 
+      uses: android-actions/setup-android@v3 
     
     - name: Install tools from Gemfile (ruby language) used for building our apps with 
       uses: ruby/setup-ruby@v1

@@ -149,7 +149,6 @@ jobs:
         with:
           ref: ${{ inputs.existing-git-tag }}
 
-      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
       - name: Push to Sonatype servers
         run: MODULE_VERSION=${{ needs.deploy-git-tag.outputs.new_release_version }} ./scripts/deploy-code.sh

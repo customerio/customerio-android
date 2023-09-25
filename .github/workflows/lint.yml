@@ -11,13 +11,7 @@ jobs:
     name: Android Lint (${{ matrix.module }})
     steps:
     - uses: actions/checkout@v4
-    - name: Set up JDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'adopt'
-        java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
+    - uses: ./.github/actions/setup-android
 
     - name: Run lint (${{ matrix.module }})
       run: ./gradlew :${{ matrix.module }}:lintDebug
@@ -34,11 +28,7 @@ jobs:
     name: Kotlin Lint
     steps:
     - uses: actions/checkout@v4
-    - name: Set up JDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'adopt'
-        java-version: '11' # Robolectric requires v9, but we choose LTS: https://adoptopenjdk.net/
+    - uses: ./.github/actions/setup-android
 
     - name: Install and run ktlint
       run: make lint-install && make lint-no-format

@@ -7,6 +7,7 @@ import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRep
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
+import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import javax.inject.Inject
@@ -38,7 +39,13 @@ class MainApplication : Application() {
                         .setEventListener(InAppMessageEventListener()).build()
                 )
             )
-            addCustomerIOModule(ModuleMessagingPushFCM())
+            addCustomerIOModule(
+                ModuleMessagingPushFCM(
+                    config = with(MessagingPushModuleConfig.Builder()) {
+                        setNotificationClickBehavior(configuration.notificationClickBehavior)
+                    }.build()
+                )
+            )
 
             build()
         }

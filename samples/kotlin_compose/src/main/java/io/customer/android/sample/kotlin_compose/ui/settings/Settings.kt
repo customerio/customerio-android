@@ -1,10 +1,13 @@
 package io.customer.android.sample.kotlin_compose.ui.settings
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,7 +17,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,6 +57,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
+import io.customer.messagingpush.config.NotificationClickBehavior
 import io.customer.sdk.CustomerIO
 
 @Composable
@@ -337,6 +346,55 @@ fun SDKSettingsList(
             },
             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
         )
+
+        var pushBehaviorDropdownExpanded by remember { mutableStateOf(false) }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = true,
+                    value = configuration.notificationClickBehavior.name,
+                    onValueChange = {},
+                    label = { Text(text = "Notification Click Behavior") },
+                    trailingIcon = {
+                        Icon(
+                            rememberVectorPainter(Icons.Default.ArrowDropDown),
+                            contentDescription = "Dropdown Arrow"
+                        )
+                    }
+                )
+                DropdownMenu(
+                    expanded = pushBehaviorDropdownExpanded,
+                    modifier = Modifier.fillMaxWidth(),
+                    onDismissRequest = { pushBehaviorDropdownExpanded = true }
+                ) {
+                    NotificationClickBehavior.values().forEach { value ->
+                        DropdownMenuItem(
+                            modifier = Modifier.padding(8.dp),
+                            onClick = {
+                                pushBehaviorDropdownExpanded = !pushBehaviorDropdownExpanded
+                                onConfigurationChange(
+                                    configuration.copy(
+                                        notificationClickBehavior = value
+                                    )
+                                )
+                            },
+                            text = { Text(value.name) }
+                        )
+                    }
+                }
+            }
+            Spacer(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Transparent)
+                    .padding(10.dp)
+                    .clickable(
+                        role = Role.DropdownList,
+                        onClick = { pushBehaviorDropdownExpanded = !pushBehaviorDropdownExpanded }
+                    )
+            )
+        }
     }
 }
 

@@ -58,4 +58,20 @@ public class StringUtils {
     public static String fromBoolean(@Nullable Boolean value) {
         return value == null ? null : Boolean.toString(value);
     }
+
+    public static <T extends Enum<T>> T parseEnum(@Nullable String value, T defaultValue, Class<T> enumClass) {
+        if (TextUtils.isEmpty(value)) {
+            return defaultValue;
+        }
+
+        try {
+            return Enum.valueOf(enumClass, value);
+        } catch (IllegalArgumentException e) {
+            return defaultValue;
+        }
+    }
+
+    public static <T extends Enum<T>> String fromEnum(@Nullable T value) {
+        return value == null ? null : value.name();
+    }
 }

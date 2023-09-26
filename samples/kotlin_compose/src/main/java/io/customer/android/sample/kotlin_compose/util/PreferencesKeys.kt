@@ -14,6 +14,8 @@ object PreferencesKeys {
     val BACKGROUND_QUEUE_SECONDS_DELAY = doublePreferencesKey("backgroundQueueSecondsDelay")
     val BACKGROUND_QUEUE_MIN_NUM_TASKS = intPreferencesKey("backgroundQueueMinNumTasks")
 
+    val NOTIFICATION_CLICK_BEHAVIOR_KEY = stringPreferencesKey("notificationClickBehaviorKey")
+
     val TRACK_SCREEN = booleanPreferencesKey("trackScreen")
     val TRACK_DEVICE_ATTRIBUTES = booleanPreferencesKey("trackDeviceAttributes")
     val DEBUG_MODE = booleanPreferencesKey("debugMode")

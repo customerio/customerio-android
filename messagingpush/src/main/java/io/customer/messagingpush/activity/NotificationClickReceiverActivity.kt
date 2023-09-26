@@ -99,21 +99,14 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
         }
 
         // Get the default intent for the host app
-        val defaultHostAppIntent = deepLinkUtil.createDefaultHostAppIntent(
-            context = this,
-            contentActionLink = null
-        )
+        val defaultHostAppIntent = deepLinkUtil.createDefaultHostAppIntent(context = this)
         // Check if the deep links are handled within the host app
         val deepLinkHostAppIntent = deepLink?.let { link ->
             deepLinkUtil.createDeepLinkHostAppIntent(context = this, link = link)
         }
         // Check if the deep links can be opened outside the host app
         val deepLinkExternalIntent = deepLink?.let { link ->
-            deepLinkUtil.createDeepLinkExternalIntent(
-                context = this,
-                link = link,
-                startingFromService = true
-            )
+            deepLinkUtil.createDeepLinkExternalIntent(context = this, link = link)
         }
         val deepLinkIntent: Intent = deepLinkHostAppIntent
             ?: deepLinkExternalIntent

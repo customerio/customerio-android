@@ -13,14 +13,10 @@ interface DeepLinkUtil {
      * Creates default launcher intent for host app.
      *
      * @param context reference to application context
-     * @param contentActionLink action link to add to extras so it can be
-     * opened after launcher activity has been created. This helps opening
-     * external links without affecting open metrics on Android 12 and
-     * onwards.
      * @return launcher intent for host app; null if fail to resolve
      * default launcher intent
      */
-    fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent?
+    fun createDefaultHostAppIntent(context: Context): Intent?
 
     /**
      * Creates intent from host app activities matching the provided link.
@@ -37,15 +33,12 @@ interface DeepLinkUtil {
      *
      * @param context reference to application context
      * @param link link to create intent for
-     * @param startingFromService flag to indicate if the intent is to be
-     * started from service so required flags can be added
      * @return intent that can open the link outside the host app; null if no
      * matching intent found
      */
     fun createDeepLinkExternalIntent(
         context: Context,
-        link: String,
-        startingFromService: Boolean
+        link: String
     ): Intent?
 }
 
@@ -53,7 +46,7 @@ class DeepLinkUtilImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig
 ) : DeepLinkUtil {
-    override fun createDefaultHostAppIntent(context: Context, contentActionLink: String?): Intent? {
+    override fun createDefaultHostAppIntent(context: Context): Intent? {
         return context.packageManager.getLaunchIntentForPackage(context.packageName)
     }
 
@@ -67,11 +60,7 @@ class DeepLinkUtilImpl(
         return intent
     }
 
-    override fun createDeepLinkExternalIntent(
-        context: Context,
-        link: String,
-        startingFromService: Boolean
-    ): Intent? {
+    override fun createDeepLinkExternalIntent(context: Context, link: String): Intent? {
         // check config if the deep link should be opened by any other app or not
         if (!moduleConfig.redirectDeepLinksToOtherApps) {
             return null

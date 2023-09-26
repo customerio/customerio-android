@@ -32,6 +32,7 @@ enum class NotificationClickBehavior {
      * - Example: Stack (A -> B) becomes (A -> B -> D) if D is the deep-linked target activity.
      *
      * This behavior relies on the launch mode or flags specified for the activity in the Android manifest.
+     * System default behaviors will take over if no flags are mentioned.
      */
     ACTIVITY_NO_FLAGS
 }

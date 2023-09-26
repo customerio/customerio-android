@@ -6,6 +6,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application>
+        <!-- Transparent activity for push interactions -->
+        <activity
+            android:name=".activity.NotificationClickReceiverActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".CustomerIOFirebaseMessagingService"
             android:exported="false">

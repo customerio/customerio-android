@@ -44,7 +44,7 @@ class MainApplication : Application() {
             addCustomerIOModule(
                 ModuleMessagingPushFCM(
                     config = with(MessagingPushModuleConfig.Builder()) {
-                        setNotificationClickBehavior(configuration.notificationClickBehavior)
+                        setPushClickBehavior(configuration.pushClickBehavior)
                     }.build()
                 )
             )

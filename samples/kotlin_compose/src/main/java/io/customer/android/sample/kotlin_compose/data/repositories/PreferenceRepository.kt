@@ -9,12 +9,12 @@ import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.API_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.BACKGROUND_QUEUE_MIN_NUM_TASKS
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.BACKGROUND_QUEUE_SECONDS_DELAY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.DEBUG_MODE
-import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.NOTIFICATION_CLICK_BEHAVIOR_KEY
+import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.PUSH_CLICK_BEHAVIOR_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.SITE_ID
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_API_URL_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_DEVICE_ATTRIBUTES
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_SCREEN
-import io.customer.messagingpush.config.NotificationClickBehavior
+import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.sdk.CustomerIOConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,8 +35,8 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
             configuration.trackUrl?.let { preferences[TRACK_API_URL_KEY] = it }
             preferences[BACKGROUND_QUEUE_SECONDS_DELAY] = configuration.backgroundQueueSecondsDelay
             preferences[BACKGROUND_QUEUE_MIN_NUM_TASKS] = configuration.backgroundQueueMinNumTasks
-            preferences[NOTIFICATION_CLICK_BEHAVIOR_KEY] =
-                configuration.notificationClickBehavior.name
+            preferences[PUSH_CLICK_BEHAVIOR_KEY] =
+                configuration.pushClickBehavior.name
             preferences[TRACK_SCREEN] = configuration.trackScreen
             preferences[TRACK_DEVICE_ATTRIBUTES] = configuration.trackDeviceAttributes
             preferences[DEBUG_MODE] = configuration.debugMode
@@ -59,14 +59,14 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
                 backgroundQueueMinNumTasks = preferences[BACKGROUND_QUEUE_MIN_NUM_TASKS]
                     ?: CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
 
-                notificationClickBehavior =
-                    preferences[NOTIFICATION_CLICK_BEHAVIOR_KEY]?.takeIf { name ->
+                pushClickBehavior =
+                    preferences[PUSH_CLICK_BEHAVIOR_KEY]?.takeIf { name ->
                         name.isNotBlank()
                     }?.let { name ->
                         kotlin.runCatching {
-                            enumValueOf<NotificationClickBehavior>(name)
+                            enumValueOf<PushClickBehavior>(name)
                         }.getOrNull()
-                    } ?: NotificationClickBehavior.ACTIVITY_PREVENT_RESTART
+                    } ?: PushClickBehavior.ACTIVITY_PREVENT_RESTART
 
                 trackScreen = preferences[TRACK_SCREEN] ?: true
 
@@ -87,7 +87,7 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
                 CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
             backgroundQueueMinNumTasks =
                 CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
-            notificationClickBehavior = NotificationClickBehavior.ACTIVITY_PREVENT_RESTART
+            pushClickBehavior = PushClickBehavior.ACTIVITY_PREVENT_RESTART
             trackScreen = true
             trackDeviceAttributes = true
             debugMode = true

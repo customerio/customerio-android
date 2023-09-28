@@ -57,7 +57,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
-import io.customer.messagingpush.config.NotificationClickBehavior
+import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.sdk.CustomerIO
 
 @Composable
@@ -353,7 +353,7 @@ fun SDKSettingsList(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     readOnly = true,
-                    value = configuration.notificationClickBehavior.name,
+                    value = configuration.pushClickBehavior.name,
                     onValueChange = {},
                     label = { Text(text = "Notification Click Behavior") },
                     trailingIcon = {
@@ -368,14 +368,14 @@ fun SDKSettingsList(
                     modifier = Modifier.fillMaxWidth(),
                     onDismissRequest = { pushBehaviorDropdownExpanded = true }
                 ) {
-                    NotificationClickBehavior.values().forEach { value ->
+                    PushClickBehavior.values().forEach { value ->
                         DropdownMenuItem(
                             modifier = Modifier.padding(8.dp),
                             onClick = {
                                 pushBehaviorDropdownExpanded = !pushBehaviorDropdownExpanded
                                 onConfigurationChange(
                                     configuration.copy(
-                                        notificationClickBehavior = value
+                                        pushClickBehavior = value
                                     )
                                 )
                             },

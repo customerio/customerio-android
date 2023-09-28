@@ -71,6 +71,7 @@ data class CustomerIOConfig(
             const val LOG_LEVEL = "logLevel"
             const val BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS = "backgroundQueueMinNumberOfTasks"
             const val BACKGROUND_QUEUE_SECONDS_DELAY = "backgroundQueueSecondsDelay"
+            const val PUSH_CLICK_BEHAVIOR_ANDROID = "pushClickBehaviorAndroid"
             const val SOURCE_SDK_VERSION = "version"
             const val SOURCE_SDK_SOURCE = "source"
         }

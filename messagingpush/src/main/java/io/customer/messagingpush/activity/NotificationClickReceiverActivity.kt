@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.MessagingPushModuleConfig
-import io.customer.messagingpush.config.NotificationClickBehavior
+import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.moduleConfig
@@ -113,23 +113,23 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             ?: defaultHostAppIntent
             ?: return
         deepLinkIntent.putExtra(NOTIFICATION_PAYLOAD_EXTRA, payload)
-        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
+        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.pushClickBehavior}")
 
-        when (moduleConfig.notificationOnClickBehavior) {
-            NotificationClickBehavior.RESET_TASK_STACK -> {
+        when (moduleConfig.pushClickBehavior) {
+            PushClickBehavior.RESET_TASK_STACK -> {
                 val taskStackBuilder = TaskStackBuilder.create(this).apply {
                     addNextIntentWithParentStack(deepLinkIntent)
                 }
                 taskStackBuilder.startActivities()
             }
 
-            NotificationClickBehavior.ACTIVITY_PREVENT_RESTART -> {
+            PushClickBehavior.ACTIVITY_PREVENT_RESTART -> {
                 deepLinkIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
                 startActivity(deepLinkIntent)
             }
 
-            NotificationClickBehavior.ACTIVITY_NO_FLAGS -> {
+            PushClickBehavior.ACTIVITY_NO_FLAGS -> {
                 startActivity(deepLinkIntent)
             }
         }

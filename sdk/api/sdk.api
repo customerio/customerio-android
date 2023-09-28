@@ -115,6 +115,7 @@ public final class io/customer/sdk/CustomerIOConfig$Companion$Keys {
 	public static final field BACKGROUND_QUEUE_SECONDS_DELAY Ljava/lang/String;
 	public static final field INSTANCE Lio/customer/sdk/CustomerIOConfig$Companion$Keys;
 	public static final field LOG_LEVEL Ljava/lang/String;
+	public static final field PUSH_CLICK_BEHAVIOR_ANDROID Ljava/lang/String;
 	public static final field SOURCE_SDK_SOURCE Ljava/lang/String;
 	public static final field SOURCE_SDK_VERSION Ljava/lang/String;
 	public static final field TRACKING_API_URL Ljava/lang/String;

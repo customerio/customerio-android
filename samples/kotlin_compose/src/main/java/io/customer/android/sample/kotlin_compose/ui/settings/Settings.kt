@@ -46,7 +46,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -390,7 +389,6 @@ fun SDKSettingsList(
                     .background(Color.Transparent)
                     .padding(10.dp)
                     .clickable(
-                        role = Role.DropdownList,
                         onClick = { pushBehaviorDropdownExpanded = !pushBehaviorDropdownExpanded }
                     )
             )

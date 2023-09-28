@@ -1,9 +1,9 @@
 package io.customer.messagingpush.config
 
 /**
- * Defines the behaviors for what happens when a notification is clicked.
+ * Defines the behaviors for what happens when a push notification is clicked.
  */
-enum class NotificationClickBehavior {
+enum class PushClickBehavior {
 
     /**
      * Resets the task stack to include the deep-linked activity 'D'.

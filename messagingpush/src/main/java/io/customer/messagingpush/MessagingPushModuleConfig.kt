@@ -1,7 +1,7 @@
 package io.customer.messagingpush
 
-import io.customer.messagingpush.config.NotificationClickBehavior
-import io.customer.messagingpush.config.NotificationClickBehavior.ACTIVITY_NO_FLAGS
+import io.customer.messagingpush.config.PushClickBehavior
+import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_NO_FLAGS
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.sdk.module.CustomerIOModuleConfig
 
@@ -23,13 +23,13 @@ class MessagingPushModuleConfig private constructor(
     val autoTrackPushEvents: Boolean,
     val notificationCallback: CustomerIOPushNotificationCallback?,
     val redirectDeepLinksToOtherApps: Boolean,
-    val notificationOnClickBehavior: NotificationClickBehavior
+    val notificationOnClickBehavior: PushClickBehavior
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var redirectDeepLinksToOtherApps: Boolean = true
-        private var notificationOnClickBehavior: NotificationClickBehavior = ACTIVITY_NO_FLAGS
+        private var notificationOnClickBehavior: PushClickBehavior = ACTIVITY_NO_FLAGS
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -71,10 +71,10 @@ class MessagingPushModuleConfig private constructor(
         /**
          * Defines the behavior when a notification is clicked.
          *
-         * @param notificationOnClickBehavior the behavior when a notification is clicked; default [NotificationClickBehavior.ACTIVITY_PREVENT_RESTART].
-         * @see NotificationClickBehavior for more details.
+         * @param notificationOnClickBehavior the behavior when a notification is clicked; default [PushClickBehavior.ACTIVITY_PREVENT_RESTART].
+         * @see PushClickBehavior for more details.
          */
-        fun setNotificationClickBehavior(notificationOnClickBehavior: NotificationClickBehavior): Builder {
+        fun setNotificationClickBehavior(notificationOnClickBehavior: PushClickBehavior): Builder {
             this.notificationOnClickBehavior = notificationOnClickBehavior
             return this
         }

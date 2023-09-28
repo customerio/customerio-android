@@ -38,8 +38,8 @@ public class CustomerIORepository {
         // Enable optional features of the SDK by adding desired modules.
         // Modify push notification configurations
         MessagingPushModuleConfig.Builder pushModuleConfigBuilder = new MessagingPushModuleConfig.Builder();
-        if (sdkConfig.getNotificationClickBehavior() != null) {
-            pushModuleConfigBuilder.setNotificationClickBehavior(sdkConfig.getNotificationClickBehavior());
+        if (sdkConfig.getPushClickBehavior() != null) {
+            pushModuleConfigBuilder.setPushClickBehavior(sdkConfig.getPushClickBehavior());
         }
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM(pushModuleConfigBuilder.build()));

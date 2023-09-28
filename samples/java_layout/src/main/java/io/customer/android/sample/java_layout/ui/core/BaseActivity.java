@@ -1,5 +1,6 @@
 package io.customer.android.sample.java_layout.ui.core;
 
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.annotation.EmptySuper;
@@ -18,6 +19,12 @@ public abstract class BaseActivity<VB extends ViewBinding> extends AppCompatActi
     protected ViewModelProvider viewModelProvider;
 
     protected abstract VB inflateViewBinding();
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        ((SampleApplication) getApplication()).lifecycleEventsListener.logEvent("onNewIntent", this);
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {

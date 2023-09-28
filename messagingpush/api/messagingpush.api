@@ -29,7 +29,7 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig : io/cust
 	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;ZLio/customer/messagingpush/config/PushClickBehavior;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAutoTrackPushEvents ()Z
 	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
-	public final fun getNotificationOnClickBehavior ()Lio/customer/messagingpush/config/PushClickBehavior;
+	public final fun getPushClickBehavior ()Lio/customer/messagingpush/config/PushClickBehavior;
 	public final fun getRedirectDeepLinksToOtherApps ()Z
 }
 
@@ -39,7 +39,7 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder :
 	public synthetic fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
 	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
-	public final fun setNotificationClickBehavior (Lio/customer/messagingpush/config/PushClickBehavior;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+	public final fun setPushClickBehavior (Lio/customer/messagingpush/config/PushClickBehavior;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setRedirectDeepLinksToOtherApps (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 }
 

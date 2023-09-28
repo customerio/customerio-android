@@ -113,9 +113,9 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             ?: defaultHostAppIntent
             ?: return
         deepLinkIntent.putExtra(NOTIFICATION_PAYLOAD_EXTRA, payload)
-        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.notificationOnClickBehavior}")
+        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.pushClickBehavior}")
 
-        when (moduleConfig.notificationOnClickBehavior) {
+        when (moduleConfig.pushClickBehavior) {
             PushClickBehavior.RESET_TASK_STACK -> {
                 val taskStackBuilder = TaskStackBuilder.create(this).apply {
                     addNextIntentWithParentStack(deepLinkIntent)

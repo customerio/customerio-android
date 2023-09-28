@@ -1,4 +1,4 @@
-package io.customer.android.sample.kotlin_compose.util
+package io.customer.android.sample.kotlin_compose
 
 import android.app.Activity
 import android.app.Application

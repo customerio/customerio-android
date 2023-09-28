@@ -7,8 +7,8 @@ enum class PushClickBehavior {
 
     /**
      * Resets the task stack to include the deep-linked activity 'D'.
-     * - Example 1: Stack (A -> B -> C) becomes (D) if D is the deep-linked activity.
-     * - Example 2: Stack (A -> B -> C) changes to (A -> D) if D is the deep-linked activity and A is the root of the task stack provided by callback.
+     * - Example: Stack (A -> B -> C) becomes (D) if D is the deep-linked activity.
+     * - Example: Stack (A -> B -> C) changes to (A -> D) if D is the deep-linked activity and A is the root of the task stack provided by callback.
      *
      * This is similar to Android's "Set up a regular activity PendingIntent."
      * For more info, see [Android Documentation](https://developer.android.com/develop/ui/views/notifications/navigation#DirectEntry).

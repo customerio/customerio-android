@@ -5,6 +5,7 @@ import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
+import io.customer.android.sample.kotlin_compose.util.ActivityLifecycleEventsListener
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.MessagingPushModuleConfig
@@ -19,6 +20,7 @@ class MainApplication : Application() {
 
     @Inject
     lateinit var preferences: PreferenceRepository
+    lateinit var lifecycleEventsListener: ActivityLifecycleEventsListener
 
     override fun onCreate() {
         super.onCreate()
@@ -49,5 +51,7 @@ class MainApplication : Application() {
 
             build()
         }
+        lifecycleEventsListener = ActivityLifecycleEventsListener()
+        registerActivityLifecycleCallbacks(lifecycleEventsListener)
     }
 }

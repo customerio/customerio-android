@@ -125,6 +125,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
+        (application as MainApplication).lifecycleEventsListener.logEvent("onNewIntent", this)
         deepLinkIntentState.tryEmit(intent)
     }
 }

@@ -56,8 +56,7 @@ interface PushMessageProcessor {
      *
      * This method may only be called from `onCreate` or `onNewIntent` methods of notification handler activity.
      *
-     * @param activityContext context should be an activity context and not application context as
-     * this will be used to start desired activity
+     * @param activityContext context should be from activity as this will be used for launching activity
      * @param intent intent received by the activity
      */
     fun processNotificationClick(activityContext: Context, intent: Intent)

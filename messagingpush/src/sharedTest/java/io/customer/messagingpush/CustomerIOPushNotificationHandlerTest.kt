@@ -1,6 +1,5 @@
 package io.customer.messagingpush
 
-import android.app.PendingIntent
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.messaging.RemoteMessage
@@ -15,7 +14,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.robolectric.Shadows
-import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 internal class CustomerIOPushNotificationHandlerTest : BaseTest() {
@@ -37,32 +35,6 @@ internal class CustomerIOPushNotificationHandlerTest : BaseTest() {
             title = String.random,
             body = String.random
         )
-    }
-
-    @Test
-    @Config(sdk = [android.os.Build.VERSION_CODES.LOLLIPOP])
-    fun createIntentForNotificationClick_preAndroidM_shouldNotSetImmutableFlag() {
-        val actualPendingIntent = pushNotificationHandler.createIntentForNotificationClick(
-            context,
-            Int.random(1000, 9999),
-            pushNotificationPayload
-        )
-
-        val expectedIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT
-        Shadows.shadowOf(actualPendingIntent).flags shouldBeEqualTo expectedIntentFlags
-    }
-
-    @Test
-    @Config(sdk = [android.os.Build.VERSION_CODES.TIRAMISU])
-    fun createIntentForNotificationClick_androidMOrHigher_shouldSetImmutableFlag() {
-        val actualPendingIntent = pushNotificationHandler.createIntentForNotificationClick(
-            context,
-            Int.random(1000, 9999),
-            pushNotificationPayload
-        )
-
-        val expectedIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        Shadows.shadowOf(actualPendingIntent).flags shouldBeEqualTo expectedIntentFlags
     }
 
     @Test

@@ -40,6 +40,7 @@ internal val CustomerIOComponent.pushMessageProcessor: PushMessageProcessor
         PushMessageProcessorImpl(
             logger = logger,
             moduleConfig = moduleConfig,
+            deepLinkUtil = deepLinkUtil,
             trackRepository = trackRepository
         )
     }

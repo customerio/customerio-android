@@ -1,5 +1,6 @@
 package io.customer.messagingpush.processor
 
+import android.content.Context
 import android.content.Intent
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.base.internal.InternalCustomerIOApi
@@ -44,6 +45,7 @@ interface PushMessageProcessor {
      * @param deliveryToken received in push payload
      */
     fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String)
+    fun processNotificationClick(activity: Context, intent: Intent)
 
     companion object {
         // Count of messages stored in memory

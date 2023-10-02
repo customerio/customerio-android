@@ -2,12 +2,14 @@ package io.customer.messagingpush
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
+import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.module.CustomerIOModule
+import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
@@ -53,6 +55,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
 
         moduleConfig.notificationCallback.shouldBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
+        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_NO_FLAGS
     }
 
     @Test
@@ -69,6 +72,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         moduleConfig.autoTrackPushEvents.shouldBeTrue()
         moduleConfig.notificationCallback.shouldBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
+        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_NO_FLAGS
     }
 
     @Test
@@ -78,6 +82,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
                 setAutoTrackPushEvents(false)
                 setNotificationCallback(object : CustomerIOPushNotificationCallback {})
                 setRedirectDeepLinksToOtherApps(false)
+                setPushClickBehavior(PushClickBehavior.RESET_TASK_STACK)
             }.build(),
             overrideCustomerIO = customerIOMock,
             overrideDiGraph = di
@@ -89,5 +94,6 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         moduleConfig.autoTrackPushEvents.shouldBeFalse()
         moduleConfig.notificationCallback.shouldNotBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeFalse()
+        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.RESET_TASK_STACK
     }
 }

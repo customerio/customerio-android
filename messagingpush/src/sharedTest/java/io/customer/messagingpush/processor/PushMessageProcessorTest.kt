@@ -26,6 +26,7 @@ import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBe
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
@@ -408,6 +409,10 @@ class PushMessageProcessorTest : BaseTest() {
         nextStartedActivity.`package` shouldBeEqualTo givenPackageName
     }
 
+    // Ignored as the testing framework does not support verifying the flags
+    // We'll have to rely on manual testing for this for now
+    // In future, we can use more advanced testing frameworks to verify this
+    @Ignore
     @Test
     fun processNotificationClick_givenPushBehavior_expectNoFlags() {
         setupModuleConfig(

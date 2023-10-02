@@ -16,7 +16,7 @@ import io.customer.sdk.extensions.takeIfNotBlank
 import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.util.Logger
 
-internal open class PushMessageProcessorImpl(
+internal class PushMessageProcessorImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,

@@ -43,7 +43,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
                 logger.error("SDK is not initialized, cannot handle notification intent")
             } else {
                 sdkInstance.diGraph.pushMessageProcessor.processNotificationClick(
-                    activity = this,
+                    activityContext = this,
                     intent = data
                 )
             }

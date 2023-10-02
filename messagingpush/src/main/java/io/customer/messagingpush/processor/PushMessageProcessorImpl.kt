@@ -95,14 +95,14 @@ internal open class PushMessageProcessorImpl(
         }
     }
 
-    override fun processNotificationClick(activity: Context, intent: Intent) {
+    override fun processNotificationClick(activityContext: Context, intent: Intent) {
         kotlin.runCatching {
             val payload: CustomerIOParsedPushPayload? =
                 intent.extras?.parcelable(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA)
             if (payload == null) {
                 logger.error("Payload is null, cannot handle notification intent")
             } else {
-                processNotificationIntent(activity = activity, payload = payload)
+                processNotificationIntent(activityContext, payload)
             }
         }.onFailure { ex ->
             logger.error("Failed to process notification intent: ${ex.message}")
@@ -110,9 +110,9 @@ internal open class PushMessageProcessorImpl(
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    fun processNotificationIntent(activity: Context, payload: CustomerIOParsedPushPayload) {
+    fun processNotificationIntent(activityContext: Context, payload: CustomerIOParsedPushPayload) {
         trackMetrics(payload)
-        handleDeepLink(activity, payload)
+        handleDeepLink(activityContext, payload)
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -127,13 +127,15 @@ internal open class PushMessageProcessorImpl(
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    fun handleDeepLink(activity: Context, payload: CustomerIOParsedPushPayload) {
+    fun handleDeepLink(activityContext: Context, payload: CustomerIOParsedPushPayload) {
         val deepLink = payload.deepLink?.takeIfNotBlank()
 
         // check if host app overrides the handling of deeplink
         val notificationCallback = moduleConfig.notificationCallback
-        val taskStackFromPayload =
-            notificationCallback?.createTaskStackFromPayload(activity, payload)
+        val taskStackFromPayload = notificationCallback?.createTaskStackFromPayload(
+            context = activityContext,
+            payload = payload
+        )
         if (taskStackFromPayload != null) {
             logger.info("Notification target overridden by createTaskStackFromPayload, starting new stack for link $deepLink")
             taskStackFromPayload.startActivities()
@@ -141,14 +143,15 @@ internal open class PushMessageProcessorImpl(
         }
 
         // Get the default intent for the host app
-        val defaultHostAppIntent = deepLinkUtil.createDefaultHostAppIntent(context = activity)
+        val defaultHostAppIntent =
+            deepLinkUtil.createDefaultHostAppIntent(context = activityContext)
         // Check if the deep links are handled within the host app
         val deepLinkHostAppIntent = deepLink?.let { link ->
-            deepLinkUtil.createDeepLinkHostAppIntent(context = activity, link = link)
+            deepLinkUtil.createDeepLinkHostAppIntent(context = activityContext, link = link)
         }
         // Check if the deep links can be opened outside the host app
         val deepLinkExternalIntent = deepLink?.let { link ->
-            deepLinkUtil.createDeepLinkExternalIntent(context = activity, link = link)
+            deepLinkUtil.createDeepLinkExternalIntent(context = activityContext, link = link)
         }
         val deepLinkIntent: Intent = deepLinkHostAppIntent
             ?: deepLinkExternalIntent
@@ -162,7 +165,7 @@ internal open class PushMessageProcessorImpl(
 
         when (moduleConfig.pushClickBehavior) {
             PushClickBehavior.RESET_TASK_STACK -> {
-                val taskStackBuilder = TaskStackBuilder.create(activity).apply {
+                val taskStackBuilder = TaskStackBuilder.create(activityContext).apply {
                     addNextIntentWithParentStack(deepLinkIntent)
                 }
                 taskStackBuilder.startActivities()
@@ -171,11 +174,11 @@ internal open class PushMessageProcessorImpl(
             PushClickBehavior.ACTIVITY_PREVENT_RESTART -> {
                 deepLinkIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
-                activity.startActivity(deepLinkIntent)
+                activityContext.startActivity(deepLinkIntent)
             }
 
             PushClickBehavior.ACTIVITY_NO_FLAGS -> {
-                activity.startActivity(deepLinkIntent)
+                activityContext.startActivity(deepLinkIntent)
             }
         }
     }

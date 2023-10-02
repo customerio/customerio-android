@@ -45,7 +45,22 @@ interface PushMessageProcessor {
      * @param deliveryToken received in push payload
      */
     fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String)
-    fun processNotificationClick(activity: Context, intent: Intent)
+
+    /**
+     * Executes the necessary actions when a notification is clicked by the user.
+     *
+     * This method performs the following tasks:
+     * 1. Tracks 'opened' metrics for the notification.
+     * 2. Resolves the deep link, if available in the notification payload, and navigates to the corresponding screen.
+     * 3. If no deep link is provided, opens the default launcher screen.
+     *
+     * This method may only be called from `onCreate` or `onNewIntent` methods of notification handler activity.
+     *
+     * @param activityContext context should be an activity context and not application context as
+     * this will be used to start desired activity
+     * @param intent intent received by the activity
+     */
+    fun processNotificationClick(activityContext: Context, intent: Intent)
 
     companion object {
         // Count of messages stored in memory

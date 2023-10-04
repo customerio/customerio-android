@@ -102,21 +102,22 @@ internal class PushMessageProcessorImpl(
             if (payload == null) {
                 logger.error("Payload is null, cannot handle notification intent")
             } else {
-                processNotificationIntent(activityContext, payload)
+                handleNotificationClickIntent(activityContext, payload)
             }
         }.onFailure { ex ->
             logger.error("Failed to process notification intent: ${ex.message}")
         }
     }
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    fun processNotificationIntent(activityContext: Context, payload: CustomerIOParsedPushPayload) {
-        trackMetrics(payload)
-        handleDeepLink(activityContext, payload)
+    private fun handleNotificationClickIntent(
+        activityContext: Context,
+        payload: CustomerIOParsedPushPayload
+    ) {
+        trackNotificationClickMetrics(payload)
+        handleNotificationDeepLink(activityContext, payload)
     }
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    fun trackMetrics(payload: CustomerIOParsedPushPayload) {
+    private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
         if (moduleConfig.autoTrackPushEvents) {
             trackRepository.trackMetric(
                 deliveryID = payload.cioDeliveryId,
@@ -126,8 +127,10 @@ internal class PushMessageProcessorImpl(
         }
     }
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    fun handleDeepLink(activityContext: Context, payload: CustomerIOParsedPushPayload) {
+    private fun handleNotificationDeepLink(
+        activityContext: Context,
+        payload: CustomerIOParsedPushPayload
+    ) {
         val deepLink = payload.deepLink?.takeIfNotBlank()
 
         // check if host app overrides the handling of deeplink

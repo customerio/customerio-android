@@ -409,10 +409,11 @@ class PushMessageProcessorTest : BaseTest() {
         nextStartedActivity.`package` shouldBeEqualTo givenPackageName
     }
 
-    // Ignored as the testing framework does not support verifying the flags
-    // We'll have to rely on manual testing for this for now
-    // In future, we can use more advanced testing frameworks to verify this
-    @Ignore
+    @Ignore(
+        "Current testing framework does not support verifying the flags. " +
+            "We'll have to rely on manual testing for this for now." +
+            "In future, we can use more advanced testing frameworks to verify this"
+    )
     @Test
     fun processNotificationClick_givenPushBehavior_expectNoFlags() {
         setupModuleConfig(

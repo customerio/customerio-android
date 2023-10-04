@@ -37,11 +37,9 @@ jobs:
         id: semantic-release
         with:
           dry_run: false
-          # version numbers below can be in many forms: M, M.m, M.m.p
+          semantic_version: latest
           extra_plugins: |
             conventional-changelog-conventionalcommits
-            @semantic-release/changelog
-            @semantic-release/git
             @semantic-release/github
             @semantic-release/exec
         env:

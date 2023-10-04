@@ -38,7 +38,7 @@ internal class CustomerIOPushNotificationHandlerTest : BaseTest() {
     }
 
     @Test
-    fun createIntentForNotificationClick_validPayload_shouldStartDeepLinkedActivity() {
+    fun createIntentForNotificationClick_givenAnyPayload_shouldStartNotificationClickReceiverActivity() {
         val actualPendingIntent = pushNotificationHandler.createIntentForNotificationClick(
             context,
             Int.random(1000, 9999),

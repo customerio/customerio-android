@@ -52,7 +52,6 @@ apiValidation {
 
     ignoredProjects += [
             'common-test',
-            'app',
             'base',
             'kotlin_compose',
             'java_layout',

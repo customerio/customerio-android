@@ -12,6 +12,7 @@ import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -35,7 +36,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     internal lateinit var gistEnvironment: GistEnvironment
     internal lateinit var application: Application
 
-    private val listeners: MutableList<GistListener> = mutableListOf()
+    private val listeners: CopyOnWriteArrayList<GistListener> = CopyOnWriteArrayList()
 
     private var resumedActivities = mutableSetOf<String>()
 

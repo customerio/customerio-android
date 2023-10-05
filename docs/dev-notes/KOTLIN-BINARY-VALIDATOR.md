@@ -38,8 +38,7 @@ apiValidation {
     ]  
   
   ignoredProjects += [  
-			'common-test',  
-            'app',  
+			'common-test'
     ]  
   
   ignoredClasses.add("io.customer.messagingpush.BuildConfig")  

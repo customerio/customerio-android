@@ -1,3 +1,17 @@
+### [3.6.6](https://github.com/customerio/customerio-android/compare/3.6.5...3.6.6) (2023-09-15)
+
+
+### Bug Fixes
+
+* stack-overflow caused by BQ recursion ([#251](https://github.com/customerio/customerio-android/issues/251)) ([365a5b6](https://github.com/customerio/customerio-android/commit/365a5b690ed37667dfb6782629ad56743d97904d))
+
+### [3.6.5](https://github.com/customerio/customerio-android/compare/3.6.4...3.6.5) (2023-08-23)
+
+
+### Bug Fixes
+
+* prevent concurrency issues in in-app listeners ([#246](https://github.com/customerio/customerio-android/issues/246)) ([72dafd7](https://github.com/customerio/customerio-android/commit/72dafd7e55091dbf64719fadc1cc9ff4010a00a4))
+
 ### [3.6.4](https://github.com/customerio/customerio-android/compare/3.6.3...3.6.4) (2023-07-21)
 
 

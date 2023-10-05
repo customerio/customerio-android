@@ -21,10 +21,7 @@ import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
-import io.customer.messagingpush.provider.FCMTokenProviderImpl;
-import io.customer.sdk.CustomerIOShared;
-import io.customer.sdk.device.DeviceTokenProvider;
-import io.customer.sdk.util.Logger;
+import io.customer.sdk.CustomerIO;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -118,6 +115,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clip = ClipData.newPlainText(getString(R.string.device_token), deviceToken);
             clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, R.string.token_copied, Toast.LENGTH_SHORT).show();
         });
         binding.saveButton.setOnClickListener(view -> saveSettings());
         binding.restoreDefaultsButton.setOnClickListener(view -> {
@@ -127,13 +125,9 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void setupObservers() {
-        // TODO: Expose SDK method to get device token and replace here
-        Logger cioSdkLogger = CustomerIOShared.instance().getDiStaticGraph().getLogger();
-        DeviceTokenProvider fcmTokenProvider = new FCMTokenProviderImpl(cioSdkLogger, this);
-        fcmTokenProvider.getCurrentToken(token -> {
-            binding.deviceTokenTextInput.setText(token);
-            return null;
-        });
+
+        binding.deviceTokenTextInput.setText(CustomerIO.instance().getRegisteredDeviceToken());
+
         settingsViewModel.getSDKConfigObservable().observe(this, config -> {
             binding.progressIndicator.hide();
             updateIOWithConfig(config);

@@ -68,21 +68,13 @@ jobs:
     runs-on: ubuntu-latest
     name: Building app...${{ matrix.sample-app }}
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up JDK
-      uses: actions/setup-java@v2
-      with:
-        distribution: 'temurin'
-        java-version: '11'
+    - uses: actions/checkout@v4
+    - uses: ./.github/actions/setup-android
 
     # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries. 
     # If using sd on macos, "brew install" works great. for Linux, this is the recommended way. 
     - name: Install sd CLI to use later in the workflow 
       uses: kenji-miyake/setup-sd@v1
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2 
     
     - name: Install tools from Gemfile (ruby language) used for building our apps with 
       uses: ruby/setup-ruby@v1
@@ -95,12 +87,6 @@ jobs:
         touch "samples/local.properties"
         echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
         echo "apiKey=${{ secrets[matrix.cio-apikey-secret-key] }}" >> "samples/local.properties"  
-    
-    - name: Verify gradle scripts are not modified 
-      uses: gradle/wrapper-validation-action@v1
-    
-    - name: Setup Gradle and cache dependencies between builds 
-      uses: gradle/gradle-build-action@v2
 
     - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase. 
       run: cat $GITHUB_EVENT_PATH

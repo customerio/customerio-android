@@ -250,7 +250,8 @@ class PushMessageProcessorTest : BaseTest() {
     fun processNotificationClick_givenValidIntent_expectSuccessfulProcessing() {
         setupModuleConfig(autoTrackPushEvents = true)
         val processor = pushMessageProcessor()
-        val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
+        val givenDeepLink = "https://cio.example.com/"
+        val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
         val intent = Intent().apply {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
@@ -262,9 +263,9 @@ class PushMessageProcessorTest : BaseTest() {
             MetricEvent.opened,
             givenPayload.cioDeliveryToken
         )
+        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(context, givenDeepLink)
+        verify(deepLinkUtilMock).createDeepLinkExternalIntent(context, givenDeepLink)
         verify(deepLinkUtilMock).createDefaultHostAppIntent(context)
-        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(context, givenPayload.deepLink)
-        verify(deepLinkUtilMock).createDeepLinkExternalIntent(context, givenPayload.deepLink!!)
     }
 
     @Test
@@ -291,9 +292,9 @@ class PushMessageProcessorTest : BaseTest() {
 
         processor.processNotificationClick(context, intent)
 
-        verify(deepLinkUtilMock).createDefaultHostAppIntent(any())
         verify(deepLinkUtilMock, never()).createDeepLinkHostAppIntent(any(), any())
         verify(deepLinkUtilMock, never()).createDeepLinkExternalIntent(any(), any())
+        verify(deepLinkUtilMock).createDefaultHostAppIntent(any())
     }
 
     @Test
@@ -357,9 +358,26 @@ class PushMessageProcessorTest : BaseTest() {
 
         processor.processNotificationClick(context, intent)
 
+        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(any(), any())
         verify(deepLinkUtilMock).createDeepLinkExternalIntent(any(), any())
         verify(deepLinkUtilMock, never()).createDefaultHostAppIntent(any())
-        verify(deepLinkUtilMock, never()).createDeepLinkHostAppIntent(any(), any())
+    }
+
+    @Test
+    fun processNotificationClick_givenInternalLink_expectOpenInternalIntent() {
+        val processor = pushMessageProcessor()
+        val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        whenever(deepLinkUtilMock.createDeepLinkExternalIntent(any(), any())).thenReturn(Intent())
+        whenever(deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any())).thenReturn(Intent())
+
+        processor.processNotificationClick(context, intent)
+
+        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(any(), any())
+        verify(deepLinkUtilMock, never()).createDeepLinkExternalIntent(any(), any())
+        verify(deepLinkUtilMock).createDefaultHostAppIntent(any())
     }
 
     @Test

@@ -347,6 +347,22 @@ class PushMessageProcessorTest : BaseTest() {
     }
 
     @Test
+    fun processNotificationClick_givenExternalLink_expectOpenExternalIntent() {
+        val processor = pushMessageProcessor()
+        val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        whenever(deepLinkUtilMock.createDeepLinkExternalIntent(any(), any())).thenReturn(Intent())
+
+        processor.processNotificationClick(context, intent)
+
+        verify(deepLinkUtilMock).createDeepLinkExternalIntent(any(), any())
+        verify(deepLinkUtilMock, never()).createDefaultHostAppIntent(any())
+        verify(deepLinkUtilMock, never()).createDeepLinkHostAppIntent(any(), any())
+    }
+
+    @Test
     fun processNotificationClick_givenPushBehavior_expectResetTaskStack() {
         setupModuleConfig(
             autoTrackPushEvents = false,

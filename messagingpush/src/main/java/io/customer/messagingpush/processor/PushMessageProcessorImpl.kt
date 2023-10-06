@@ -145,24 +145,27 @@ internal class PushMessageProcessorImpl(
             return
         }
 
-        // Check if the deep links can be opened outside the host app
-        val deepLinkExternalIntent = deepLink?.let { link ->
-            deepLinkUtil.createDeepLinkExternalIntent(context = activityContext, link = link)
+        // Check if the deep links are handled within the host app
+        val deepLinkHostAppIntent = deepLink?.let { link ->
+            deepLinkUtil.createDeepLinkHostAppIntent(context = activityContext, link = link)
         }
-        // Check if the deep links should be opened externally
-        if (deepLinkExternalIntent != null) {
-            // Open link externally and return
-            activityContext.startActivity(deepLinkExternalIntent)
-            return
+        // Check if the deep links are handled externally only if the host app doesn't handle it
+        if (deepLinkHostAppIntent == null) {
+            // Check if the deep links can be opened outside the host app
+            val deepLinkExternalIntent = deepLink?.let { link ->
+                deepLinkUtil.createDeepLinkExternalIntent(context = activityContext, link = link)
+            }
+            // Check if the deep links should be opened externally
+            if (deepLinkExternalIntent != null) {
+                // Open link externally and return
+                activityContext.startActivity(deepLinkExternalIntent)
+                return
+            }
         }
 
         // Get the default intent for the host app
         val defaultHostAppIntent =
             deepLinkUtil.createDefaultHostAppIntent(context = activityContext)
-        // Check if the deep links are handled within the host app
-        val deepLinkHostAppIntent = deepLink?.let { link ->
-            deepLinkUtil.createDeepLinkHostAppIntent(context = activityContext, link = link)
-        }
         val deepLinkIntent: Intent = deepLinkHostAppIntent
             ?: defaultHostAppIntent
             ?: return

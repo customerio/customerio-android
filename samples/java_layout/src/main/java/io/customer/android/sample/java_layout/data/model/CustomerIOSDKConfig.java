@@ -35,7 +35,7 @@ public class CustomerIOSDKConfig {
                 "https://track-sdk.customer.io/",
                 30.0,
                 10,
-                PushClickBehavior.ACTIVITY_NO_FLAGS,
+                PushClickBehavior.ACTIVITY_PREVENT_RESTART,
                 true,
                 true,
                 true);

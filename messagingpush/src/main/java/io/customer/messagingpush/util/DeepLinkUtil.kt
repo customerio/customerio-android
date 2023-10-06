@@ -26,7 +26,7 @@ interface DeepLinkUtil {
      * @return intent matching the link in traditional Android way; null if no
      * matching intents found
      */
-    fun createDeepLinkHostAppIntent(context: Context, link: String?): Intent?
+    fun createDeepLinkHostAppIntent(context: Context, link: String): Intent?
 
     /**
      * Creates intent outside the host app that can open the provided link.
@@ -50,7 +50,7 @@ class DeepLinkUtilImpl(
         return context.packageManager.getLaunchIntentForPackage(context.packageName)
     }
 
-    override fun createDeepLinkHostAppIntent(context: Context, link: String?): Intent? {
+    override fun createDeepLinkHostAppIntent(context: Context, link: String): Intent? {
         val intent: Intent? = queryDeepLinksForHostApp(context, Uri.parse(link))
         if (intent == null) {
             logger.info(

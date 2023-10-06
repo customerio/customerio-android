@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -217,7 +218,8 @@ internal class CustomerIOPushNotificationHandler(
         notificationManager.notify(requestCode, notification)
     }
 
-    private fun createIntentForNotificationClick(
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun createIntentForNotificationClick(
         context: Context,
         requestCode: Int,
         payload: CustomerIOParsedPushPayload

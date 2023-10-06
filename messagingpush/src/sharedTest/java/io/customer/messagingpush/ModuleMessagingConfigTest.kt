@@ -55,7 +55,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
 
         moduleConfig.notificationCallback.shouldBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
-        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_NO_FLAGS
+        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_PREVENT_RESTART
     }
 
     @Test
@@ -72,7 +72,7 @@ internal class ModuleMessagingConfigTest : BaseTest() {
         moduleConfig.autoTrackPushEvents.shouldBeTrue()
         moduleConfig.notificationCallback.shouldBeNull()
         moduleConfig.redirectDeepLinksToOtherApps.shouldBeTrue()
-        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_NO_FLAGS
+        moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_PREVENT_RESTART
     }
 
     @Test

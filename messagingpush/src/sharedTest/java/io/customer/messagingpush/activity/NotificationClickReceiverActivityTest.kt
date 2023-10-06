@@ -1,5 +1,6 @@
 package io.customer.messagingpush.activity
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -47,9 +48,10 @@ class NotificationClickReceiverActivityTest : BaseIntegrationTest() {
     @Test
     fun clickNotification_givenValidIntent_expectProcessPush() {
         val extras = pushActivityExtras()
+        val intent = Intent(context, NotificationClickReceiverActivity::class.java)
+        intent.putExtras(extras)
 
-        val scenario =
-            ActivityScenario.launch(NotificationClickReceiverActivity::class.java, extras)
+        val scenario = ActivityScenario.launch<NotificationClickReceiverActivity>(intent)
 
         verify(pushMessageProcessorMock).processNotificationClick(any(), any())
         scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
@@ -59,9 +61,21 @@ class NotificationClickReceiverActivityTest : BaseIntegrationTest() {
     fun clickNotification_givenSDKNotInitialized_expectDoNoProcessPush() {
         val extras = pushActivityExtras()
 
+        val intent = Intent(context, NotificationClickReceiverActivity::class.java)
+        intent.putExtras(extras)
+
         CustomerIO.clearInstance()
-        val scenario =
-            ActivityScenario.launch(NotificationClickReceiverActivity::class.java, extras)
+        val scenario = ActivityScenario.launch<NotificationClickReceiverActivity>(intent)
+
+        verifyNoInteractions(pushMessageProcessorMock)
+        scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
+    }
+
+    @Test
+    fun clickNotification_givenNullIntent_expectDoNoProcessPush() {
+        val intent = Intent(context, NotificationClickReceiverActivity::class.java)
+
+        val scenario = ActivityScenario.launch<NotificationClickReceiverActivity>(intent)
 
         verifyNoInteractions(pushMessageProcessorMock)
         scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED

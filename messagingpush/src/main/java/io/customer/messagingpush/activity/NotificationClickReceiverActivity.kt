@@ -34,7 +34,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
     }
 
     private fun handleIntent(data: Intent?) {
-        if (data == null) {
+        if (data == null || data.extras == null) {
             // This should never happen ideally
             logger.error("Intent is null, cannot process notification click")
         } else {

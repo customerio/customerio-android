@@ -27,9 +27,24 @@ data class CustomerIOConfig(
      */
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
-    val modules: Map<String, CustomerIOModule<*>>
+    val modules: Map<String, CustomerIOModule<*>>,
+    var trackingApiUrl: String? = null,
+
+    val siteId: String = "",
+    val apiKey: String = "",
+    val region: Region = Region.US,
+    val timeout: Long = 0
 ) {
 
+    internal val trackingApiHostname: String
+        get() {
+            return this.trackingApiUrl ?: this.region.let { selectedRegion ->
+                when (selectedRegion) {
+                    Region.US -> "https://track-sdk.customer.io/"
+                    Region.EU -> "https://track-sdk-eu.customer.io/"
+                }
+            }
+        }
     companion object {
 
         /**

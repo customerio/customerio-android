@@ -45,25 +45,29 @@ interface CustomerIOInstance {
     fun identify(identifier: String)
 
     fun identify(
-        identifier: String, attributes: Map<String, Any>
+        identifier: String,
+        attributes: Map<String, Any>
     )
 
     fun track(name: String)
 
     fun track(
-        name: String, attributes: Map<String, Any>
+        name: String,
+        attributes: Map<String, Any>
     )
 
     fun screen(name: String)
 
     fun screen(
-        name: String, attributes: Map<String, Any>
+        name: String,
+        attributes: Map<String, Any>
     )
 
     fun screen(activity: Activity)
 
     fun screen(
-        activity: Activity, attributes: Map<String, Any>
+        activity: Activity,
+        attributes: Map<String, Any>
     )
 
     fun clearIdentify()
@@ -73,7 +77,9 @@ interface CustomerIOInstance {
     fun deleteDeviceToken()
 
     fun trackMetric(
-        deliveryID: String, event: MetricEvent, deviceToken: String
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
     )
 }
 
@@ -126,7 +132,8 @@ class CustomerIO internal constructor(
         @JvmStatic
         @Synchronized
         fun instanceOrNull(
-            context: Context, modules: List<CustomerIOModule<*>> = emptyList()
+            context: Context,
+            modules: List<CustomerIOModule<*>> = emptyList()
         ): CustomerIO? = try {
             instance()
         } catch (ex: Exception) {
@@ -200,7 +207,10 @@ class CustomerIO internal constructor(
             CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
 
         constructor(
-            siteId: String, apiKey: String, region: Region = Region.US, appContext: Application
+            siteId: String,
+            apiKey: String,
+            region: Region = Region.US,
+            appContext: Application
         ) : this("$siteId:$apiKey", appContext)
 
         // added a `config` in the secondary constructor so users stick to our advised primary constructor
@@ -242,8 +252,10 @@ class CustomerIO internal constructor(
                 setClient(Client.fromRawValue(source = source, sdkVersion = version))
             }
 
-            when (val minNumberOfTasks =
-                config[CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]) {
+            when (
+                val minNumberOfTasks =
+                    config[CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]
+            ) {
                 is Int -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks)
                 }
@@ -319,14 +331,16 @@ class CustomerIO internal constructor(
         fun build(): CustomerIO {
             require(writeKey.isNotBlank()) { "write key needed" }
 
-            val config = CustomerIOConfig(client = client,
+            val config = CustomerIOConfig(
+                client = client,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
                 backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
-                modules = modules.entries.associate { entry -> entry.key to entry.value })
+                modules = modules.entries.associate { entry -> entry.key to entry.value }
+            )
 
             val dataPipeline = ModuleDataPipeline(
                 config = DataPipelineModuleConfig.Builder(
@@ -412,7 +426,8 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun identify(
-        identifier: String, attributes: CustomAttributes
+        identifier: String,
+        attributes: CustomAttributes
     ) = dataPipeline.identify(identifier, attributes)
 
     /**
@@ -430,7 +445,8 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun track(
-        name: String, attributes: CustomAttributes
+        name: String,
+        attributes: CustomAttributes
     ) = dataPipeline.track(name, attributes)
 
     /**
@@ -447,7 +463,8 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun screen(
-        name: String, attributes: CustomAttributes
+        name: String,
+        attributes: CustomAttributes
     ) = dataPipeline.screen(name, attributes)
 
     /**
@@ -464,7 +481,8 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun screen(
-        activity: Activity, attributes: CustomAttributes
+        activity: Activity,
+        attributes: CustomAttributes
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -494,9 +512,13 @@ class CustomerIO internal constructor(
      * Track a push metric
      */
     override fun trackMetric(
-        deliveryID: String, event: MetricEvent, deviceToken: String
+        deliveryID: String,
+        event: MetricEvent,
+        deviceToken: String
     ) = trackRepository.trackMetric(
-        deliveryID = deliveryID, event = event, deviceToken = deviceToken
+        deliveryID = deliveryID,
+        event = event,
+        deviceToken = deviceToken
     )
 
     /**
@@ -527,7 +549,8 @@ class CustomerIO internal constructor(
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(
-                activity.componentName, PackageManager.GET_META_DATA
+                activity.componentName,
+                PackageManager.GET_META_DATA
             )
             val activityLabel = info.loadLabel(packageManager)
 

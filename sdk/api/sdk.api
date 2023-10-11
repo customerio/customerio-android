@@ -2,6 +2,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstan
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public fun clearIdentify ()V
 	public fun deleteDeviceToken ()V
+	public final fun getDataPipeline ()Lio/customer/datapipeline/ModuleDataPipeline;
 	public fun getDeviceAttributes ()Ljava/util/Map;
 	public final fun getDiGraph ()Lio/customer/sdk/di/CustomerIOComponent;
 	public fun getProfileAttributes ()Ljava/util/Map;
@@ -24,7 +25,9 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstan
 }
 
 public final class io/customer/sdk/CustomerIO$Builder {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Landroid/app/Application;)V
+	public fun <init> (Ljava/lang/String;Landroid/app/Application;)V
+	public fun <init> (Ljava/lang/String;Landroid/app/Application;Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun <init> (Ljava/lang/String;Landroid/app/Application;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;Ljava/util/Map;)V
@@ -39,7 +42,6 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public final fun setClient (Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setLogLevel (Lio/customer/sdk/util/CioLogLevel;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setOverrideDiGraph (Lio/customer/sdk/di/CustomerIOComponent;)V
-	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setRequestTimeout (J)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setTrackingApiURL (Ljava/lang/String;)Lio/customer/sdk/CustomerIO$Builder;
 }
@@ -61,22 +63,23 @@ public final class io/customer/sdk/CustomerIOActivityLifecycleCallbacks : androi
 
 public final class io/customer/sdk/CustomerIOConfig {
 	public static final field Companion Lio/customer/sdk/CustomerIOConfig$Companion;
-	public fun <init> (Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;Ljava/util/Map;)V
+	public fun <init> (Lio/customer/sdk/data/store/Client;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;J)V
+	public synthetic fun <init> (Lio/customer/sdk/data/store/Client;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lio/customer/sdk/data/store/Client;
-	public final fun component10 ()D
-	public final fun component11 ()Lio/customer/sdk/util/CioLogLevel;
-	public final fun component12 ()Ljava/lang/String;
-	public final fun component13 ()Ljava/util/Map;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Lio/customer/sdk/data/model/Region;
-	public final fun component5 ()J
-	public final fun component6 ()Z
-	public final fun component7 ()Z
-	public final fun component8 ()I
-	public final fun component9 ()D
-	public final fun copy (Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;Ljava/util/Map;)Lio/customer/sdk/CustomerIOConfig;
-	public static synthetic fun copy$default (Lio/customer/sdk/CustomerIOConfig;Lio/customer/sdk/data/store/Client;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/sdk/CustomerIOConfig;
+	public final fun component10 ()Ljava/lang/String;
+	public final fun component11 ()Ljava/lang/String;
+	public final fun component12 ()Lio/customer/sdk/data/model/Region;
+	public final fun component13 ()J
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()I
+	public final fun component5 ()D
+	public final fun component6 ()D
+	public final fun component7 ()Lio/customer/sdk/util/CioLogLevel;
+	public final fun component8 ()Ljava/util/Map;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (Lio/customer/sdk/data/store/Client;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;J)Lio/customer/sdk/CustomerIOConfig;
+	public static synthetic fun copy$default (Lio/customer/sdk/CustomerIOConfig;Lio/customer/sdk/data/store/Client;ZZIDDLio/customer/sdk/util/CioLogLevel;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;JILjava/lang/Object;)Lio/customer/sdk/CustomerIOConfig;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getApiKey ()Ljava/lang/String;
 	public final fun getAutoTrackDeviceAttributes ()Z

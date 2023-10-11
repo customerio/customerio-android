@@ -1,11 +1,11 @@
 package io.customer.datapipeline
-import android.app.Application
+
 import com.segment.analytics.kotlin.android.Analytics
-import com.segment.analytics.kotlin.core.*
+import com.segment.analytics.kotlin.core.Analytics
+import com.segment.analytics.kotlin.core.Properties
+import com.segment.analytics.kotlin.core.Traits
+import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.module.CustomerIOModule
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -13,37 +13,20 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
 
 class ModuleDataPipeline(
-    override val moduleConfig: DataPipelineModuleConfig,
-    private val overrideDiGraph: CustomerIOComponent?
-) : CustomerIOModule<DataPipelineModuleConfig> {
-
-    override val moduleName: String = ModuleDataPipeline.moduleName
-
-    constructor(
-        config: DataPipelineModuleConfig
-    ) : this(
-        moduleConfig = config,
-        overrideDiGraph = null
-    )
-
-    private val diGraph: CustomerIOComponent
-        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
+    val config: DataPipelineModuleConfig
+) {
 
     private var analytics: Analytics? = null
 
-    override fun initialize() {
-        analytics =
-            Analytics(writeKey = moduleConfig.apiKey, context = diGraph.context as Application) {
-                this.errorHandler = {
-                    it.printStackTrace()
-                    it.localizedMessage?.let { it1 -> diGraph.logger.error(it1) }
-                }
+    fun initialize() {
+        analytics = Analytics(writeKey = config.writeKey, context = config.application) {
+            this.errorHandler = {
+                it.printStackTrace()
+//                    it.localizedMessage?.let { it1 -> diGraph.logger.error(it1) }
             }
+        }
     }
 
-    companion object {
-        const val moduleName: String = "DataPipeline"
-    }
 
     // Analytic event specific APIs
 
@@ -72,9 +55,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/track/">Track Documentation</a>
      */
     fun <T> track(
-        name: String,
-        properties: T,
-        serializationStrategy: SerializationStrategy<T>
+        name: String, properties: T, serializationStrategy: SerializationStrategy<T>
     ) {
         analytics?.track(name, properties, serializationStrategy)
     }
@@ -89,8 +70,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/track/">Track Documentation</a>
      */
     inline fun <reified T> track(
-        name: String,
-        properties: T
+        name: String, properties: T
     ) {
         track(name, properties, JsonAnySerializer.serializersModule.serializer())
     }
@@ -134,9 +114,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/identify/">Identify Documentation</a>
      */
     fun <T> identify(
-        userId: String,
-        traits: T,
-        serializationStrategy: SerializationStrategy<T>
+        userId: String, traits: T, serializationStrategy: SerializationStrategy<T>
     ) {
         analytics?.identify(userId, traits, serializationStrategy)
     }
@@ -198,8 +176,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/identify/">Identify Documentation</a>
      */
     fun <T> identify(
-        traits: T,
-        serializationStrategy: SerializationStrategy<T>
+        traits: T, serializationStrategy: SerializationStrategy<T>
     ) {
         identify(Json.encodeToJsonElement(serializationStrategy, traits).jsonObject)
     }
@@ -221,8 +198,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/identify/">Identify Documentation</a>
      */
     inline fun <reified T> identify(
-        userId: String,
-        traits: T
+        userId: String, traits: T
     ) {
         identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
     }
@@ -239,9 +215,7 @@ class ModuleDataPipeline(
      */
     @JvmOverloads
     fun screen(
-        title: String,
-        properties: JsonObject = emptyJsonObject,
-        category: String = ""
+        title: String, properties: JsonObject = emptyJsonObject, category: String = ""
     ) {
         analytics?.screen(title, properties, category)
     }
@@ -264,9 +238,7 @@ class ModuleDataPipeline(
         category: String = ""
     ) {
         screen(
-            title,
-            Json.encodeToJsonElement(serializationStrategy, properties).jsonObject,
-            category
+            title, Json.encodeToJsonElement(serializationStrategy, properties).jsonObject, category
         )
     }
 
@@ -281,9 +253,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/screen/">Screen Documentation</a>
      */
     inline fun <reified T> screen(
-        title: String,
-        properties: T,
-        category: String = ""
+        title: String, properties: T, category: String = ""
     ) {
         screen(title, properties, JsonAnySerializer.serializersModule.serializer(), category)
     }
@@ -317,9 +287,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/group/">Group Documentation</a>
      */
     fun <T> group(
-        groupId: String,
-        traits: T,
-        serializationStrategy: SerializationStrategy<T>
+        groupId: String, traits: T, serializationStrategy: SerializationStrategy<T>
     ) {
         group(groupId, Json.encodeToJsonElement(serializationStrategy, traits).jsonObject)
     }
@@ -336,8 +304,7 @@ class ModuleDataPipeline(
      * @see <a href="https://segment.com/docs/spec/group/">Group Documentation</a>
      */
     inline fun <reified T> group(
-        groupId: String,
-        traits: T
+        groupId: String, traits: T
     ) {
         group(groupId, traits, JsonAnySerializer.serializersModule.serializer())
     }
@@ -354,4 +321,7 @@ class ModuleDataPipeline(
     fun alias(newId: String) {
         analytics?.alias(newId)
     }
+
+    fun reset() = analytics?.reset()
+
 }

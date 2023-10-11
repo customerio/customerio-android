@@ -5,7 +5,10 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.annotation.VisibleForTesting
+import com.segment.analytics.kotlin.core.Configuration
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.datapipeline.DataPipelineModuleConfig
+import io.customer.datapipeline.ModuleDataPipeline
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
@@ -42,29 +45,25 @@ interface CustomerIOInstance {
     fun identify(identifier: String)
 
     fun identify(
-        identifier: String,
-        attributes: Map<String, Any>
+        identifier: String, attributes: Map<String, Any>
     )
 
     fun track(name: String)
 
     fun track(
-        name: String,
-        attributes: Map<String, Any>
+        name: String, attributes: Map<String, Any>
     )
 
     fun screen(name: String)
 
     fun screen(
-        name: String,
-        attributes: Map<String, Any>
+        name: String, attributes: Map<String, Any>
     )
 
     fun screen(activity: Activity)
 
     fun screen(
-        activity: Activity,
-        attributes: Map<String, Any>
+        activity: Activity, attributes: Map<String, Any>
     )
 
     fun clearIdentify()
@@ -74,9 +73,7 @@ interface CustomerIOInstance {
     fun deleteDeviceToken()
 
     fun trackMetric(
-        deliveryID: String,
-        event: MetricEvent,
-        deviceToken: String
+        deliveryID: String, event: MetricEvent, deviceToken: String
     )
 }
 
@@ -93,7 +90,8 @@ class CustomerIO internal constructor(
     /**
      * Strong reference to graph that other top-level classes in SDK can use `CustomerIO.instance().diGraph`.
      */
-    val diGraph: CustomerIOComponent
+    val diGraph: CustomerIOComponent,
+    val dataPipeline: ModuleDataPipeline
 ) : CustomerIOInstance {
 
     companion object {
@@ -128,8 +126,7 @@ class CustomerIO internal constructor(
         @JvmStatic
         @Synchronized
         fun instanceOrNull(
-            context: Context,
-            modules: List<CustomerIOModule<*>> = emptyList()
+            context: Context, modules: List<CustomerIOModule<*>> = emptyList()
         ): CustomerIO? = try {
             instance()
         } catch (ex: Exception) {
@@ -179,10 +176,9 @@ class CustomerIO internal constructor(
     }
 
     class Builder @JvmOverloads constructor(
-        private val siteId: String,
-        private val apiKey: String,
-        private var region: Region = Region.US,
-        private val appContext: Application
+        private val writeKey: String,
+        private val appContext: Application,
+        private val configs: Configuration.() -> Unit = {}
     ) {
         private val sharedInstance = CustomerIOShared.instance()
         private var client: Client = Client.Android(Version.version)
@@ -202,6 +198,10 @@ class CustomerIO internal constructor(
             CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
         private var backgroundQueueSecondsDelay: Double =
             CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
+
+        constructor(
+            siteId: String, apiKey: String, region: Region = Region.US, appContext: Application
+        ) : this("$siteId:$apiKey", appContext)
 
         // added a `config` in the secondary constructor so users stick to our advised primary constructor
         // and this is used internally only.
@@ -242,10 +242,8 @@ class CustomerIO internal constructor(
                 setClient(Client.fromRawValue(source = source, sdkVersion = version))
             }
 
-            when (
-                val minNumberOfTasks =
-                    config[CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]
-            ) {
+            when (val minNumberOfTasks =
+                config[CustomerIOConfig.Companion.Keys.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS]) {
                 is Int -> {
                     setBackgroundQueueMinNumberOfTasks(backgroundQueueMinNumberOfTasks = minNumberOfTasks)
                 }
@@ -259,11 +257,6 @@ class CustomerIO internal constructor(
 
         fun setClient(client: Client): Builder {
             this.client = client
-            return this
-        }
-
-        fun setRegion(region: Region): Builder {
-            this.region = region
             return this
         }
 
@@ -324,28 +317,23 @@ class CustomerIO internal constructor(
         }
 
         fun build(): CustomerIO {
-            if (apiKey.isEmpty()) {
-                throw IllegalStateException("apiKey is not defined in " + this::class.java.simpleName)
-            }
+            require(writeKey.isNotBlank()) { "write key needed" }
 
-            if (siteId.isEmpty()) {
-                throw IllegalStateException("siteId is not defined in " + this::class.java.simpleName)
-            }
-
-            val config = CustomerIOConfig(
-                client = client,
-                siteId = siteId,
-                apiKey = apiKey,
-                region = region,
-                timeout = timeout,
+            val config = CustomerIOConfig(client = client,
                 autoTrackScreenViews = shouldAutoRecordScreenViews,
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
                 backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
                 backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
                 logLevel = logLevel,
-                trackingApiUrl = trackingApiUrl,
-                modules = modules.entries.associate { entry -> entry.key to entry.value }
+                modules = modules.entries.associate { entry -> entry.key to entry.value })
+
+            val dataPipeline = ModuleDataPipeline(
+                config = DataPipelineModuleConfig.Builder(
+                    writeKey = writeKey,
+                    application = appContext,
+                    configuration = configs
+                ).build()
             )
 
             sharedInstance.attachSDKConfig(sdkConfig = config, context = appContext)
@@ -354,7 +342,7 @@ class CustomerIO internal constructor(
                 sdkConfig = config,
                 context = appContext
             )
-            val client = CustomerIO(diGraph)
+            val client = CustomerIO(diGraph, dataPipeline)
             val logger = diGraph.logger
 
             // cleanup of old reference if it exists, so that if the SDK is re-initialized (due to wrappers different lifecycle),
@@ -385,7 +373,7 @@ class CustomerIO internal constructor(
         get() = diGraph.profileRepository
 
     override val siteId: String
-        get() = diGraph.sdkConfig.siteId
+        get() = "diGraph.sdkConfig.siteId"
 
     override val sdkVersion: String
         get() = Version.version
@@ -424,16 +412,15 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun identify(
-        identifier: String,
-        attributes: CustomAttributes
-    ) = profileRepository.identify(identifier, attributes)
+        identifier: String, attributes: CustomAttributes
+    ) = dataPipeline.identify(identifier, attributes)
 
     /**
      * Track an event
      * [Learn more](https://customer.io/docs/events/) about events in Customer.io
      * @param name Name of the event you want to track.
      */
-    override fun track(name: String) = this.track(name, emptyMap())
+    override fun track(name: String) = dataPipeline.track(name)
 
     /**
      * Track an event
@@ -443,16 +430,15 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun track(
-        name: String,
-        attributes: CustomAttributes
-    ) = trackRepository.track(name, attributes)
+        name: String, attributes: CustomAttributes
+    ) = dataPipeline.track(name, attributes)
 
     /**
      * Track screen
      * @param name Name of the screen you want to track.
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
-    override fun screen(name: String) = this.screen(name, emptyMap())
+    override fun screen(name: String) = dataPipeline.screen(name)
 
     /**
      * Track screen
@@ -461,9 +447,8 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun screen(
-        name: String,
-        attributes: CustomAttributes
-    ) = trackRepository.screen(name, attributes)
+        name: String, attributes: CustomAttributes
+    ) = dataPipeline.screen(name, attributes)
 
     /**
      * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
@@ -479,8 +464,7 @@ class CustomerIO internal constructor(
      * @return Action<Unit> which can be accessed via `execute` or `enqueue`
      */
     override fun screen(
-        activity: Activity,
-        attributes: CustomAttributes
+        activity: Activity, attributes: CustomAttributes
     ) = recordScreenViews(activity, attributes)
 
     /**
@@ -491,7 +475,7 @@ class CustomerIO internal constructor(
      * If no profile has been identified yet, this function will ignore your request.
      */
     override fun clearIdentify() {
-        profileRepository.clearIdentify()
+        dataPipeline.reset()
     }
 
     /**
@@ -510,13 +494,9 @@ class CustomerIO internal constructor(
      * Track a push metric
      */
     override fun trackMetric(
-        deliveryID: String,
-        event: MetricEvent,
-        deviceToken: String
+        deliveryID: String, event: MetricEvent, deviceToken: String
     ) = trackRepository.trackMetric(
-        deliveryID = deliveryID,
-        event = event,
-        deviceToken = deviceToken
+        deliveryID = deliveryID, event = event, deviceToken = deviceToken
     )
 
     /**
@@ -547,15 +527,14 @@ class CustomerIO internal constructor(
         val packageManager = activity.packageManager
         return try {
             val info = packageManager.getActivityInfo(
-                activity.componentName,
-                PackageManager.GET_META_DATA
+                activity.componentName, PackageManager.GET_META_DATA
             )
             val activityLabel = info.loadLabel(packageManager)
 
             val screenName = activityLabel.toString().ifEmpty {
                 activity::class.java.simpleName.getScreenNameFromActivity()
             }
-            screen(screenName, attributes)
+            dataPipeline.screen(screenName, attributes)
         } catch (e: PackageManager.NameNotFoundException) {
             // if `PackageManager.NameNotFoundException` is thrown, is that a bug in the SDK or a problem with the customer's app?
             // We may want to decide to log this as an SDK error, log it so customer notices it to fix it themselves, or we do nothing because this exception might not be a big issue.

@@ -54,6 +54,7 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
 
 dependencies {
     api project(":base")
+    api project(":datapipeline")
 
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid

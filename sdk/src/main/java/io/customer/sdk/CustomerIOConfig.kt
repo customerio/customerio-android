@@ -7,10 +7,6 @@ import io.customer.sdk.util.CioLogLevel
 
 data class CustomerIOConfig(
     val client: Client,
-    val siteId: String,
-    val apiKey: String,
-    val region: Region,
-    val timeout: Long,
     val autoTrackScreenViews: Boolean,
     val autoTrackDeviceAttributes: Boolean,
     /**
@@ -31,18 +27,8 @@ data class CustomerIOConfig(
      */
     val backgroundQueueTaskExpiredSeconds: Double,
     val logLevel: CioLogLevel,
-    var trackingApiUrl: String?,
     val modules: Map<String, CustomerIOModule<*>>
 ) {
-    internal val trackingApiHostname: String
-        get() {
-            return this.trackingApiUrl ?: this.region.let { selectedRegion ->
-                when (selectedRegion) {
-                    Region.US -> "https://track-sdk.customer.io/"
-                    Region.EU -> "https://track-sdk-eu.customer.io/"
-                }
-            }
-        }
 
     companion object {
 

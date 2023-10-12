@@ -1,0 +1,70 @@
+import io.customer.android.Configurations
+import io.customer.android.Dependencies
+
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
+    id "org.jetbrains.kotlin.kapt"
+}
+
+ext {
+    PUBLISH_GROUP_ID = Configurations.artifactGroup
+    PUBLISH_ARTIFACT_ID = "tracking"
+}
+
+apply from: "${rootDir}/scripts/publish-module.gradle"
+apply from: "${rootDir}/scripts/android-config.gradle"
+apply from: "${rootDir}/scripts/codecov-android.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
+
+android {
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        androidTest {
+            java.srcDirs += 'src/sharedTest/java'
+        }
+    }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+    kotlinOptions {
+        freeCompilerArgs += [
+                '-Xopt-in=kotlin.RequiresOptIn',
+                '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',
+        ]
+    }
+}
+
+dependencies {
+    api project(":base")
+
+    implementation Dependencies.coroutinesCore
+    implementation Dependencies.coroutinesAndroid
+    implementation Dependencies.retrofit
+    implementation Dependencies.moshi
+    implementation Dependencies.retrofitMoshiConverter
+    implementation Dependencies.okhttpLoggingInterceptor
+    api Dependencies.androidxCoreKtx
+
+    kapt(Dependencies.moshiCodeGen)
+    kaptTest(Dependencies.moshiCodeGen)
+    kaptAndroidTest(Dependencies.moshiCodeGen)
+}
+

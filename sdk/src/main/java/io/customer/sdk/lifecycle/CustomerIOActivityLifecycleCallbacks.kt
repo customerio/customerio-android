@@ -1,4 +1,4 @@
-package io.customer.sdk
+package io.customer.sdk.lifecycle
 
 import android.app.Activity
 import android.app.Application.ActivityLifecycleCallbacks
@@ -6,7 +6,8 @@ import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
-import io.customer.sdk.lifecycle.LifecycleCallback
+import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
 
 class CustomerIOActivityLifecycleCallbacks internal constructor(
     private val config: CustomerIOConfig

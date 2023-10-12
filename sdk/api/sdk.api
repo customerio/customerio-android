@@ -34,6 +34,7 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public final fun autoTrackScreenViews (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun build ()Lio/customer/sdk/CustomerIO;
 	public final fun getOverrideDiGraph ()Lio/customer/sdk/di/CustomerIOComponent;
+	public final fun setAnalyticsTracking (Lio/customer/sdk/module/AnalyticsModule;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setBackgroundQueueMinNumberOfTasks (I)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setBackgroundQueueSecondsDelay (D)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun setClient (Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/CustomerIO$Builder;
@@ -46,17 +47,6 @@ public final class io/customer/sdk/CustomerIO$Builder {
 
 public final class io/customer/sdk/CustomerIO$Companion {
 	public final fun instance ()Lio/customer/sdk/CustomerIO;
-}
-
-public final class io/customer/sdk/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
-	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
-	public fun onActivityDestroyed (Landroid/app/Activity;)V
-	public fun onActivityPaused (Landroid/app/Activity;)V
-	public fun onActivityResumed (Landroid/app/Activity;)V
-	public fun onActivitySaveInstanceState (Landroid/app/Activity;Landroid/os/Bundle;)V
-	public fun onActivityStarted (Landroid/app/Activity;)V
-	public fun onActivityStopped (Landroid/app/Activity;)V
-	public final fun registerCallback (Lio/customer/sdk/lifecycle/LifecycleCallback;)V
 }
 
 public final class io/customer/sdk/CustomerIOConfig {
@@ -155,7 +145,9 @@ public final class io/customer/sdk/CustomerIOShared {
 	public final fun getDiStaticGraph ()Lio/customer/sdk/di/CustomerIOStaticComponent;
 	public final fun initializeAndGetSharedComponent (Landroid/content/Context;)Lio/customer/sdk/di/CustomerIOSharedComponent;
 	public static final fun instance ()Lio/customer/sdk/CustomerIOShared;
+	public final fun registerModule (Lio/customer/sdk/module/CustomerIOModule;)V
 	public final fun setDiSharedGraph (Lio/customer/sdk/di/CustomerIOSharedComponent;)V
+	public final fun unregisterModule (Lio/customer/sdk/module/CustomerIOModule;)V
 }
 
 public final class io/customer/sdk/CustomerIOShared$Companion {
@@ -229,34 +221,17 @@ public final class io/customer/sdk/data/request/MetricEvent$Companion {
 	public final fun getEvent (Ljava/lang/String;)Lio/customer/sdk/data/request/MetricEvent;
 }
 
-public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
-	public abstract fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
-	public abstract fun isValidForThisDevice (Landroid/content/Context;)Z
-}
-
 public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/DiGraph {
-	public fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
-	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/CustomerIOActivityLifecycleCallbacks;
-	public final fun getCioHttpRetryPolicy ()Lio/customer/sdk/api/HttpRetryPolicy;
+	public fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/module/AnalyticsModule;Lio/customer/sdk/CustomerIOConfig;)V
+	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks;
+	public final fun getAnalyticsModule ()Lio/customer/sdk/module/AnalyticsModule;
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDateUtil ()Lio/customer/sdk/util/DateUtil;
-	public final fun getDeviceRepository ()Lio/customer/sdk/repository/DeviceRepository;
 	public final fun getDispatchersProvider ()Lio/customer/sdk/util/DispatchersProvider;
-	public final fun getFileStorage ()Lio/customer/sdk/data/store/FileStorage;
 	public final fun getHooksManager ()Lio/customer/sdk/hooks/HooksManager;
-	public final fun getJsonAdapter ()Lio/customer/sdk/util/JsonAdapter;
 	public final fun getLogger ()Lio/customer/sdk/util/Logger;
-	public final fun getMoshi ()Lcom/squareup/moshi/Moshi;
-	public final fun getProfileRepository ()Lio/customer/sdk/repository/ProfileRepository;
-	public final fun getQueue ()Lio/customer/sdk/queue/Queue;
-	public final fun getQueueQueryRunner ()Lio/customer/sdk/queue/QueueQueryRunner;
-	public final fun getQueueRunRequest ()Lio/customer/sdk/queue/QueueRunRequest;
-	public final fun getQueueRunner ()Lio/customer/sdk/queue/QueueRunner;
-	public final fun getQueueStorage ()Lio/customer/sdk/queue/QueueStorage;
 	public final fun getSdkConfig ()Lio/customer/sdk/CustomerIOConfig;
 	public final fun getSitePreferenceRepository ()Lio/customer/sdk/repository/preference/SitePreferenceRepository;
-	public final fun getTimer ()Lio/customer/sdk/util/SimpleTimer;
-	public final fun getTrackRepository ()Lio/customer/sdk/repository/TrackRepository;
 }
 
 public final class io/customer/sdk/di/CustomerIOSharedComponent : io/customer/sdk/di/DiGraph {
@@ -315,6 +290,17 @@ public abstract class io/customer/sdk/hooks/ModuleHookProvider {
 	public fun screenTrackedHook (Lio/customer/sdk/hooks/ModuleHook$ScreenTrackedHook;)V
 }
 
+public final class io/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
+	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityDestroyed (Landroid/app/Activity;)V
+	public fun onActivityPaused (Landroid/app/Activity;)V
+	public fun onActivityResumed (Landroid/app/Activity;)V
+	public fun onActivitySaveInstanceState (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityStarted (Landroid/app/Activity;)V
+	public fun onActivityStopped (Landroid/app/Activity;)V
+	public final fun registerCallback (Lio/customer/sdk/lifecycle/LifecycleCallback;)V
+}
+
 public abstract interface class io/customer/sdk/lifecycle/LifecycleCallback {
 	public abstract fun getEventsToObserve ()Ljava/util/List;
 	public abstract fun onEventChanged (Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
@@ -323,6 +309,34 @@ public abstract interface class io/customer/sdk/lifecycle/LifecycleCallback {
 public final class io/customer/sdk/lifecycle/LifecycleCallback$DefaultImpls {
 	public static fun onEventChanged (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
 	public static synthetic fun onEventChanged$default (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;ILjava/lang/Object;)V
+}
+
+public abstract interface class io/customer/sdk/module/AnalyticsModule : io/customer/sdk/module/CustomerIOModule {
+	public abstract fun addCustomDeviceAttributes (Ljava/util/Map;)V
+	public abstract fun addCustomProfileAttributes (Ljava/util/Map;)V
+	public abstract fun cleanup (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun clearIdentify ()V
+	public abstract fun deleteDeviceToken ()V
+	public abstract fun getDeviceAttributes ()Ljava/util/Map;
+	public abstract fun getProfileAttributes ()Ljava/util/Map;
+	public abstract fun getRegisteredDeviceToken ()Ljava/lang/String;
+	public abstract fun identify (Ljava/lang/String;)V
+	public abstract fun identify (Ljava/lang/String;Ljava/util/Map;)V
+	public abstract fun registerDeviceToken (Ljava/lang/String;Ljava/util/Map;)V
+	public abstract fun screen (Landroid/app/Activity;)V
+	public abstract fun screen (Landroid/app/Activity;Ljava/util/Map;)V
+	public abstract fun screen (Ljava/lang/String;)V
+	public abstract fun screen (Ljava/lang/String;Ljava/util/Map;)V
+	public abstract fun setDeviceAttributes (Ljava/util/Map;)V
+	public abstract fun setProfileAttributes (Ljava/util/Map;)V
+	public abstract fun track (Ljava/lang/String;)V
+	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
+	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;)V
+	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
+}
+
+public final class io/customer/sdk/module/AnalyticsModule$DefaultImpls {
+	public static synthetic fun trackInAppMetric$default (Lio/customer/sdk/module/AnalyticsModule;Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;ILjava/lang/Object;)V
 }
 
 public abstract interface class io/customer/sdk/module/CustomerIOModule {
@@ -336,30 +350,6 @@ public abstract interface class io/customer/sdk/module/CustomerIOModuleConfig {
 
 public abstract interface class io/customer/sdk/module/CustomerIOModuleConfig$Builder {
 	public abstract fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
-}
-
-public abstract interface class io/customer/sdk/repository/DeviceRepository {
-	public abstract fun addCustomDeviceAttributes (Ljava/util/Map;)V
-	public abstract fun deleteDeviceToken ()V
-	public abstract fun getDeviceToken ()Ljava/lang/String;
-	public abstract fun registerDeviceToken (Ljava/lang/String;Ljava/util/Map;)V
-}
-
-public abstract interface class io/customer/sdk/repository/ProfileRepository {
-	public abstract fun addCustomProfileAttributes (Ljava/util/Map;)V
-	public abstract fun clearIdentify ()V
-	public abstract fun identify (Ljava/lang/String;Ljava/util/Map;)V
-}
-
-public abstract interface class io/customer/sdk/repository/TrackRepository {
-	public abstract fun screen (Ljava/lang/String;Ljava/util/Map;)V
-	public abstract fun track (Ljava/lang/String;Ljava/util/Map;)V
-	public abstract fun trackInAppMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;)V
-	public abstract fun trackMetric (Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/lang/String;)V
-}
-
-public final class io/customer/sdk/repository/TrackRepository$DefaultImpls {
-	public static synthetic fun trackInAppMetric$default (Lio/customer/sdk/repository/TrackRepository;Ljava/lang/String;Lio/customer/sdk/data/request/MetricEvent;Ljava/util/Map;ILjava/lang/Object;)V
 }
 
 public abstract interface class io/customer/sdk/repository/preference/SitePreferenceRepository {

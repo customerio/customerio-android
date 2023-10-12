@@ -11,8 +11,8 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
+import io.customer.sdk.module.CustomerIOAnalytics
 import io.customer.sdk.module.CustomerIOModule
-import io.customer.sdk.repository.TrackRepository
 
 class ModuleMessagingInApp
 @VisibleForTesting @InternalCustomerIOApi
@@ -47,8 +47,8 @@ internal constructor(
     private val diGraph: CustomerIOComponent
         get() = overrideDiGraph ?: CustomerIO.instance().diGraph
 
-    private val trackRepository: TrackRepository
-        get() = diGraph.trackRepository
+    private val trackRepository: CustomerIOAnalytics
+        get() = diGraph.analyticsModule
 
     private val identifier: String?
         get() = diGraph.sitePreferenceRepository.getIdentifier()

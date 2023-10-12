@@ -6,6 +6,7 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIOShared.Companion.instance
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
+import io.customer.sdk.module.CustomerIOGenericModule
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.util.LogcatLogger
 
@@ -29,6 +30,15 @@ class CustomerIOShared private constructor(
 ) {
 
     var diSharedGraph: CustomerIOSharedComponent? = null
+    private val modules: MutableSet<CustomerIOGenericModule> = mutableSetOf()
+
+    fun registerModule(module: CustomerIOGenericModule) {
+        modules.add(module)
+    }
+
+    fun unregisterModule(module: CustomerIOGenericModule) {
+        modules.remove(module)
+    }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     fun initializeAndGetSharedComponent(context: Context): CustomerIOSharedComponent {

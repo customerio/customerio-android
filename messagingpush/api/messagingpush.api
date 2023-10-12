@@ -141,7 +141,12 @@ public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
 }
 
 public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
-	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
+	public fun <init> (Lio/customer/sdk/module/AnalyticsModule;)V
 	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
+}
+
+public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
+	public abstract fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
+	public abstract fun isValidForThisDevice (Landroid/content/Context;)Z
 }
 

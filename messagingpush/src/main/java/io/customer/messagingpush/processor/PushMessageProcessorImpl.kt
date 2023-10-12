@@ -5,13 +5,13 @@ import androidx.annotation.VisibleForTesting
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.module.CustomerIOAnalytics
 import io.customer.sdk.util.Logger
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig,
-    private val trackRepository: TrackRepository
+    private val trackRepository: CustomerIOAnalytics
 ) : PushMessageProcessor {
 
     /**

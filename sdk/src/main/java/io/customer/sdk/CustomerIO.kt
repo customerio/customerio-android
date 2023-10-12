@@ -12,16 +12,13 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.extensions.*
+import io.customer.sdk.module.AnalyticsModule
+import io.customer.sdk.module.CustomerIOAnalytics
 import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.module.CustomerIOModuleConfig
-import io.customer.sdk.repository.CleanupRepository
-import io.customer.sdk.repository.DeviceRepository
-import io.customer.sdk.repository.ProfileRepository
-import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.doesExist
 import io.customer.sdk.util.CioLogLevel
-import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -110,7 +107,7 @@ class CustomerIO internal constructor(
                 // Cancelling queue timer as the new queue timer will take care of running queue tasks.
                 // If we do not cancel old timer, it results in multiple timers being run and accessing
                 // the same tasks.
-                it.diGraph.queue.cancelTimer()
+//                it.diGraph.queue.cancelTimer()
                 instance = null
             }
         }
@@ -191,6 +188,7 @@ class CustomerIO internal constructor(
             CustomerIOConfig.Companion.AnalyticsConstants.SHOULD_AUTO_RECORD_SCREEN_VIEWS
         private var autoTrackDeviceAttributes: Boolean =
             CustomerIOConfig.Companion.AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
+        private var analyticsModule: CustomerIOAnalytics? = null
         private val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> =
             mutableMapOf()
         private var logLevel: CioLogLevel =
@@ -318,6 +316,12 @@ class CustomerIO internal constructor(
             return this
         }
 
+        fun <Config : CustomerIOModuleConfig> setAnalyticsTracking(module: AnalyticsModule<Config>): Builder {
+            analyticsModule = module
+            modules[module.moduleName] = module
+            return this
+        }
+
         fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): Builder {
             modules[module.moduleName] = module
             return this
@@ -342,7 +346,7 @@ class CustomerIO internal constructor(
                 autoTrackDeviceAttributes = autoTrackDeviceAttributes,
                 backgroundQueueMinNumberOfTasks = backgroundQueueMinNumberOfTasks,
                 backgroundQueueSecondsDelay = backgroundQueueSecondsDelay,
-                backgroundQueueTaskExpiredSeconds = Seconds.fromDays(3).value,
+                backgroundQueueTaskExpiredSeconds = 3 * 24 * 60 * 60.0,
                 logLevel = logLevel,
                 trackingApiUrl = trackingApiUrl,
                 modules = modules.entries.associate { entry -> entry.key to entry.value }
@@ -352,6 +356,7 @@ class CustomerIO internal constructor(
             val diGraph = overrideDiGraph ?: CustomerIOComponent(
                 staticComponent = sharedInstance.diStaticGraph,
                 sdkConfig = config,
+                analyticsModule = analyticsModule!!,
                 context = appContext
             )
             val client = CustomerIO(diGraph)
@@ -375,28 +380,19 @@ class CustomerIO internal constructor(
         }
     }
 
-    private val trackRepository: TrackRepository
-        get() = diGraph.trackRepository
-
-    private val deviceRepository: DeviceRepository
-        get() = diGraph.deviceRepository
-
-    private val profileRepository: ProfileRepository
-        get() = diGraph.profileRepository
-
     override val siteId: String
         get() = diGraph.sdkConfig.siteId
 
     override val sdkVersion: String
         get() = Version.version
 
-    private val cleanupRepository: CleanupRepository
-        get() = diGraph.cleanupRepository
+    private val analyticsModule: CustomerIOAnalytics
+        get() = diGraph.analyticsModule
 
     private fun postInitialize() {
         // run cleanup asynchronously in background to prevent taking up the main/UI thread
         CoroutineScope(diGraph.dispatchersProvider.background).launch {
-            cleanupRepository.cleanup()
+            analyticsModule.cleanup()
         }
     }
 
@@ -426,7 +422,7 @@ class CustomerIO internal constructor(
     override fun identify(
         identifier: String,
         attributes: CustomAttributes
-    ) = profileRepository.identify(identifier, attributes)
+    ) = analyticsModule.identify(identifier, attributes)
 
     /**
      * Track an event
@@ -445,7 +441,7 @@ class CustomerIO internal constructor(
     override fun track(
         name: String,
         attributes: CustomAttributes
-    ) = trackRepository.track(name, attributes)
+    ) = analyticsModule.track(name, attributes)
 
     /**
      * Track screen
@@ -463,7 +459,7 @@ class CustomerIO internal constructor(
     override fun screen(
         name: String,
         attributes: CustomAttributes
-    ) = trackRepository.screen(name, attributes)
+    ) = analyticsModule.screen(name, attributes)
 
     /**
      * Track activity screen, `label` added for this activity in `manifest` will be utilized for tracking
@@ -491,7 +487,7 @@ class CustomerIO internal constructor(
      * If no profile has been identified yet, this function will ignore your request.
      */
     override fun clearIdentify() {
-        profileRepository.clearIdentify()
+        analyticsModule.clearIdentify()
     }
 
     /**
@@ -499,12 +495,12 @@ class CustomerIO internal constructor(
      * is no active customer, this will fail to register the device
      */
     override fun registerDeviceToken(deviceToken: String) =
-        deviceRepository.registerDeviceToken(deviceToken, deviceAttributes)
+        analyticsModule.registerDeviceToken(deviceToken, deviceAttributes)
 
     /**
      * Delete the currently registered device token
      */
-    override fun deleteDeviceToken() = deviceRepository.deleteDeviceToken()
+    override fun deleteDeviceToken() = analyticsModule.deleteDeviceToken()
 
     /**
      * Track a push metric
@@ -513,7 +509,7 @@ class CustomerIO internal constructor(
         deliveryID: String,
         event: MetricEvent,
         deviceToken: String
-    ) = trackRepository.trackMetric(
+    ) = analyticsModule.trackMetric(
         deliveryID = deliveryID,
         event = event,
         deviceToken = deviceToken
@@ -526,7 +522,7 @@ class CustomerIO internal constructor(
      */
     override var profileAttributes: CustomAttributes = emptyMap()
         set(value) {
-            profileRepository.addCustomProfileAttributes(value)
+            analyticsModule.addCustomProfileAttributes(value)
         }
 
     /**
@@ -537,11 +533,11 @@ class CustomerIO internal constructor(
         set(value) {
             field = value
 
-            deviceRepository.addCustomDeviceAttributes(value)
+            analyticsModule.addCustomDeviceAttributes(value)
         }
 
     override val registeredDeviceToken: String?
-        get() = deviceRepository.getDeviceToken()
+        get() = analyticsModule.registeredDeviceToken
 
     private fun recordScreenViews(activity: Activity, attributes: CustomAttributes) {
         val packageManager = activity.packageManager

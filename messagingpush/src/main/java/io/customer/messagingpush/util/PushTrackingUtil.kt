@@ -2,7 +2,7 @@ package io.customer.messagingpush.util
 
 import android.os.Bundle
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.module.CustomerIOAnalytics
 
 interface PushTrackingUtil {
     fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean
@@ -14,7 +14,7 @@ interface PushTrackingUtil {
 }
 
 class PushTrackingUtilImpl(
-    private val trackRepository: TrackRepository
+    private val trackRepository: CustomerIOAnalytics
 ) : PushTrackingUtil {
 
     override fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean {

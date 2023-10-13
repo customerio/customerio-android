@@ -76,7 +76,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         application: Application,
         siteId: String,
         dataCenter: String,
-        environment: GistEnvironment = GistEnvironment.PROD
+        environment: GistEnvironment = GistEnvironment.DEV // TODO: Change back to prod
     ) {
         GistSdk.application = application
         GistSdk.siteId = siteId

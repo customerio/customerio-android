@@ -166,10 +166,15 @@ public final class io/customer/sdk/CustomerIOShared$Companion {
 }
 
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
+	public static final field Companion Lio/customer/sdk/data/model/EventType$Companion;
 	public static final field event Lio/customer/sdk/data/model/EventType;
 	public static final field screen Lio/customer/sdk/data/model/EventType;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/data/model/EventType;
 	public static fun values ()[Lio/customer/sdk/data/model/EventType;
+}
+
+public final class io/customer/sdk/data/model/EventType$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract class io/customer/sdk/data/model/Region {
@@ -192,6 +197,8 @@ public final class io/customer/sdk/data/model/Region$US : io/customer/sdk/data/m
 }
 
 public final class io/customer/sdk/data/request/Device {
+	public static final field Companion Lio/customer/sdk/data/request/Device$Companion;
+	public synthetic fun <init> (ILjava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/util/Map;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/util/Map;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -207,15 +214,22 @@ public final class io/customer/sdk/data/request/Device {
 	public final fun getToken ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+	public static final fun write$Self (Lio/customer/sdk/data/request/Device;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
 }
 
-public final class io/customer/sdk/data/request/DeviceJsonAdapter : com/squareup/moshi/JsonAdapter {
-	public fun <init> (Lcom/squareup/moshi/Moshi;)V
-	public fun fromJson (Lcom/squareup/moshi/JsonReader;)Lio/customer/sdk/data/request/Device;
-	public synthetic fun fromJson (Lcom/squareup/moshi/JsonReader;)Ljava/lang/Object;
-	public fun toJson (Lcom/squareup/moshi/JsonWriter;Lio/customer/sdk/data/request/Device;)V
-	public synthetic fun toJson (Lcom/squareup/moshi/JsonWriter;Ljava/lang/Object;)V
-	public fun toString ()Ljava/lang/String;
+public final class io/customer/sdk/data/request/Device$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lio/customer/sdk/data/request/Device$$serializer;
+	public fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lio/customer/sdk/data/request/Device;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public fun serialize (Lkotlinx/serialization/encoding/Encoder;Lio/customer/sdk/data/request/Device;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class io/customer/sdk/data/request/Device$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class io/customer/sdk/data/request/MetricEvent : java/lang/Enum {
@@ -230,6 +244,7 @@ public final class io/customer/sdk/data/request/MetricEvent : java/lang/Enum {
 
 public final class io/customer/sdk/data/request/MetricEvent$Companion {
 	public final fun getEvent (Ljava/lang/String;)Lio/customer/sdk/data/request/MetricEvent;
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
@@ -249,7 +264,7 @@ public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/di/D
 	public final fun getHooksManager ()Lio/customer/sdk/hooks/HooksManager;
 	public final fun getJsonAdapter ()Lio/customer/sdk/util/JsonAdapter;
 	public final fun getLogger ()Lio/customer/sdk/util/Logger;
-	public final fun getMoshi ()Lcom/squareup/moshi/Moshi;
+	public final fun getModule ()Lkotlinx/serialization/modules/SerializersModule;
 	public final fun getProfileRepository ()Lio/customer/sdk/repository/ProfileRepository;
 	public final fun getQueue ()Lio/customer/sdk/queue/Queue;
 	public final fun getQueueQueryRunner ()Lio/customer/sdk/queue/QueueQueryRunner;

@@ -1,107 +1,162 @@
 package io.customer.sdk.data.moshi.adapter
 
-import com.squareup.moshi.*
-import io.customer.base.extenstions.getUnixTimestamp
-import io.customer.sdk.data.model.CustomAttributes
-import java.lang.reflect.Type
+import io.customer.sdk.data.moshi.adapter.CustomAttributeContextualSerializer.Companion.DEFAULT_FALLBACK_VALUE
+import io.customer.sdk.util.Logger
 import java.math.BigDecimal
-import java.util.*
+import java.math.BigInteger
+import java.util.Date
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
-internal class CustomAttributesFactory : JsonAdapter.Factory {
-    override fun create(
-        type: Type,
-        annotations: MutableSet<out Annotation>,
-        moshi: Moshi
-    ): JsonAdapter<*>? {
-        if (Types.getRawType(type) != Map::class.java) {
-            return null
-        }
-        return CustomAttributesAdapter(moshi).nullSafe()
+/**
+ * Contextual serializer for Kotlin serialization to add support for generic objects. The
+ * serializer assures the parsing is safe and fallbacks to [DEFAULT_FALLBACK_VALUE] where it
+ * fails to process.
+ *
+ * To support [Any] object in the class, the class file should add the following annotation
+ *
+ * [@file:UseContextualSerialization(Any::class)]
+ */
+internal class CustomAttributeContextualSerializer(
+    private val logger: Logger
+) : KSerializer<Any> {
+    private val delegateSerializer = JsonElement.serializer()
+    override val descriptor: SerialDescriptor = delegateSerializer.descriptor
+
+    override fun serialize(encoder: Encoder, value: Any) {
+        val jsonElement = parseAnyToJsonOrNull(value = value).also { json ->
+            if (json == null) {
+                logger.error("Unable to serialize $value, replacing with $DEFAULT_FALLBACK_VALUE")
+            }
+        } ?: DEFAULT_FALLBACK_VALUE
+        encoder.encodeSerializableValue(delegateSerializer, jsonElement)
+    }
+
+    override fun deserialize(decoder: Decoder): Any {
+        val jsonElement = decoder.decodeSerializableValue(delegateSerializer)
+        return parseJsonToAnyOrNull(jsonElement = jsonElement) ?: DEFAULT_FALLBACK_VALUE
+    }
+
+    companion object {
+        val DEFAULT_FALLBACK_VALUE = JsonNull
     }
 }
 
 /**
- * Moshi [JsonAdapter] for supporting [CustomAttributes] for the SDK.
+ * Maps objects to json elements. Basic primitive types and collections are supported. All
+ * unknown object types mapped using [CustomAttributeSerializer] if available.
  *
- * Duties of the JsonAdapter to support:
- * * For numbers inside of JSON, parse them to [BigDecimal]. Moshi by default uses [Double] which may not be big enough for a customer's use.
- * * Convert [Date] to [Long] (unix timestamp) as that's what the Customer.IO API expects.
- * * Convert [Enum] to [String] data type.
- * * Because the Map allows Any, filter out values that Moshi does not support. This lessons the chance of sending attributes to the API that the API cannot understand. This filtering is done *before* JSON parsing. Therefore, use the included [CustomAttributes.verify] extensions before using the [io.customer.sdk.util.JsonAdapter].
+ * @return mapped [JsonElement] if successful; null otherwise.
  */
-internal class CustomAttributesAdapter(moshi: Moshi) :
-    JsonAdapter<CustomAttributes>() {
+private fun CustomAttributeContextualSerializer.parseAnyToJsonOrNull(value: Any?): JsonElement? {
+    return if (value == null) {
+        JsonNull
+    } else {
+        parseFromAnyToJsonOrNull(value = value) ?: when (value) {
+            is JsonElement -> value
+            is Boolean -> JsonPrimitive(value = value)
+            is Number -> JsonPrimitive(value = value)
+            is String -> JsonPrimitive(value = value)
+            is Enum<*> -> JsonPrimitive(value = value.name)
+            is Array<*> -> JsonArray(
+                value.map { item -> parseAnyToJsonOrNull(item) ?: JsonNull }
+            )
 
-    private val elementAdapter: JsonAdapter<Any> = moshi.adapter(Any::class.java)
-    private val elementBigDecimalAdapter: JsonAdapter<BigDecimal> =
-        moshi.adapter(BigDecimal::class.java)
+            is Iterable<*> -> JsonArray(
+                value.map { item -> parseAnyToJsonOrNull(item) ?: JsonNull }
+            )
 
-    override fun fromJson(reader: JsonReader): CustomAttributes {
-        val result = mutableMapOf<String, Any>()
-        reader.beginObject()
-        while (reader.peek() != JsonReader.Token.END_OBJECT) {
-            try {
-                val name = reader.nextName()
-                val peeked = reader.peekJson()
-                if (peeked.peek() == JsonReader.Token.NUMBER) {
-                    result[name] = elementBigDecimalAdapter.fromJson(peeked)!!
-                } else {
-                    result[name] = elementAdapter.fromJson(peeked)!!
-                }
-            } catch (ignored: JsonDataException) {
+            is Map<*, *> -> {
+                JsonObject(
+                    value.entries.associate { (key, item) ->
+                        key.toString() to (parseAnyToJsonOrNull(item) ?: JsonNull)
+                    }
+                )
             }
-            reader.skipValue()
+
+            else -> null
         }
-        reader.endObject()
-        return result
     }
+}
 
-    override fun toJson(writer: JsonWriter, value: CustomAttributes?) {
-        if (value == null) {
-            throw NullPointerException("value was null! Wrap in .nullSafe() to write nullable values.")
-        }
-        val value = verifyCustomAttributes(value)
+/**
+ * Used for transforming objects from custom serializer to json classes without forcing client
+ * apps to use Kotlin JSON classes.
+ */
+private fun Any?.parseToJsonElement(): JsonElement = if (this != null) {
+    when (this) {
+        is Boolean -> JsonPrimitive(value = this)
+        is Number -> JsonPrimitive(value = this)
+        is String -> JsonPrimitive(value = this)
+        is Map<*, *> -> JsonObject(
+            entries.associate { (key, item) -> key.toString() to item.parseToJsonElement() }
+        )
 
-        writer.beginObject()
-
-        value.forEach {
-            try {
-                /**
-                 * If moshi can't serialize an object, it will throw an exception and crash the SDK.
-                 * To avoid the SDK crashing, try to see if Moshi is able to serialize the object.
-                 * If it is able to, then let's use the JSON writer to write the object to the JSON string. Else, ignore the attribute.
-                 */
-                elementAdapter.toJson(it.value) // our test. will throw exception if can't serialize.
-
-                // Write to json string since we are confident that it's able to be serialized now.
-                writer.name(it.key)
-                elementAdapter.toJson(writer, it.value)
-            } catch (e: Throwable) {
-                // Ignore element if it can't be serialized.
-                // Have automated tests written against SDK objects to assert the SDK models are able to
-                // serialize.
-            }
-        }
-
-        writer.endObject()
+        else -> JsonPrimitive(value = this.toString())
     }
+} else {
+    JsonNull
+}
 
-    /**
-     * Convert data types of the Map to data types the Customer.io API can understand. We want to run this function before Moshi converts our Map into a JSON string that then gets sent to theAPI.
-     */
-    private fun verifyCustomAttributes(value: CustomAttributes): CustomAttributes {
-        fun getValidValue(any: Any): Any {
-            return when (any) {
-                is Date -> any.getUnixTimestamp() // The API expects dates to be in Unix time format.
-                is Enum<*> -> any.name // Convert Enum data types to String.
-                else -> any
-            }
+/**
+ * The method tries to map [JsonElement] to best matching Kotlin primitive types. Mainly
+ * responsible for mapping collections, all non-null primitive types are mapped using
+ * [parseJsonToAnyOrNull] for [JsonPrimitive].
+ *
+ * @return mapped object if successful; null otherwise.
+ */
+private fun CustomAttributeContextualSerializer.parseJsonToAnyOrNull(jsonElement: JsonElement): Any? {
+    return when (jsonElement) {
+        is JsonNull -> null
+        is JsonPrimitive -> parseJsonToAnyOrNull(jsonPrimitive = jsonElement)
+        is JsonObject -> jsonElement.entries.associate { item ->
+            item.key to parseJsonToAnyOrNull(item.value)
         }
 
-        val validMap = mutableMapOf<String, Any>()
-        value.entries.forEach {
-            validMap[it.key] = getValidValue(it.value)
-        }
-        return validMap.toMap()
+        is JsonArray -> jsonElement.map { item -> parseJsonToAnyOrNull(item) }
     }
+}
+
+/**
+ * The method tries to map [JsonPrimitive] to best matching Kotlin primitive types, if it fails to
+ * map the value to any type, the value is passed to [CustomAttributeSerializer] to add
+ * support for unknown objects.
+ *
+ * @return mapped object if successful; null otherwise.
+ */
+private fun CustomAttributeContextualSerializer.parseJsonToAnyOrNull(jsonPrimitive: JsonPrimitive): Any? {
+    val content = jsonPrimitive.content
+    return when {
+        jsonPrimitive.isString -> content
+        content.equals(other = "null", ignoreCase = true) -> null
+        else -> parseFromJsonToAnyOrNull(jsonPrimitive = jsonPrimitive)
+            ?: content.toBooleanStrictOrNull()
+            ?: content.toIntOrNull()
+            ?: content.toLongOrNull()
+            ?: content.toFloatOrNull()
+            ?: content.toDoubleOrNull()
+            ?: null
+    }
+}
+
+internal fun parseFromAnyToJsonOrNull(value: Any): JsonElement? = when (value) {
+    is Date -> JsonPrimitive(value.time)
+    is BigInteger -> JsonPrimitive(value)
+    is BigDecimal -> JsonPrimitive(value)
+    else -> null
+}
+
+internal fun parseFromJsonToAnyOrNull(jsonPrimitive: JsonPrimitive): Any? {
+    val content = jsonPrimitive.content
+    return jsonPrimitive.longOrNull?.let { Date(it) }
+        ?: content.toBigIntegerOrNull()
+        ?: content.toBigDecimalOrNull()
 }

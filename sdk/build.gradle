@@ -4,7 +4,7 @@ import io.customer.android.Dependencies
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
-    id "org.jetbrains.kotlin.kapt"
+    id 'org.jetbrains.kotlin.plugin.serialization' version '1.7.10'
 }
 
 ext {
@@ -59,13 +59,13 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.retrofit
-    implementation Dependencies.moshi
-    implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
     api Dependencies.androidxCoreKtx
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
 
-    kapt(Dependencies.moshiCodeGen)
-    kaptTest(Dependencies.moshiCodeGen)
-    kaptAndroidTest(Dependencies.moshiCodeGen)
+
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:0.8.0") // check for the latest version
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.5.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1'
 }
 

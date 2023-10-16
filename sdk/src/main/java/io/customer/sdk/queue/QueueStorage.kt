@@ -5,12 +5,19 @@ import io.customer.base.extenstions.subtract
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType
-import io.customer.sdk.queue.type.*
+import io.customer.sdk.queue.type.QueueInventory
+import io.customer.sdk.queue.type.QueueModifyResult
+import io.customer.sdk.queue.type.QueueStatus
+import io.customer.sdk.queue.type.QueueTask
+import io.customer.sdk.queue.type.QueueTaskGroup
+import io.customer.sdk.queue.type.QueueTaskMetadata
+import io.customer.sdk.queue.type.QueueTaskRunResults
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.JsonAdapter
 import io.customer.sdk.util.Logger
 import io.customer.sdk.util.toSeconds
-import java.util.*
+import java.util.Date
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 interface QueueStorage {
@@ -135,6 +142,7 @@ internal class QueueStorageImpl internal constructor(
             sdkConfig.backgroundQueueTaskExpiredSeconds.toSeconds().value,
             TimeUnit.SECONDS
         )
+
         logger.debug("deleting tasks older then $queueTaskExpiredThreshold, current time is: ${Date()}")
 
         getInventory().filter {

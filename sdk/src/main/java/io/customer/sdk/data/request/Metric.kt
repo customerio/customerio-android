@@ -1,10 +1,13 @@
+@file:UseContextualSerialization(Date::class)
+
 package io.customer.sdk.data.request
 
-import com.squareup.moshi.Json
-import com.squareup.moshi.JsonClass
 import java.util.*
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseContextualSerialization
 
-@JsonClass(generateAdapter = false)
+@Serializable
 enum class MetricEvent {
     delivered, opened, converted, clicked;
 
@@ -19,10 +22,10 @@ enum class MetricEvent {
     }
 }
 
-@JsonClass(generateAdapter = true)
+@Serializable
 internal data class Metric(
-    @field:Json(name = "delivery_id") val deliveryID: String,
-    @field:Json(name = "device_id") val deviceToken: String,
+    @SerialName("delivery_id") val deliveryID: String,
+    @SerialName("device_id") val deviceToken: String,
     val event: MetricEvent,
     val timestamp: Date
 )

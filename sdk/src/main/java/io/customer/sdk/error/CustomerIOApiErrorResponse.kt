@@ -1,6 +1,10 @@
+@file:UseContextualSerialization(Any::class)
+
 package io.customer.sdk.error
 
-import com.squareup.moshi.JsonClass
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseContextualSerialization
 
 /**
 The API returns error response bodies in the format:
@@ -8,15 +12,16 @@ The API returns error response bodies in the format:
 {"meta": { "error": "invalid id" }}
 ```
  */
-@JsonClass(generateAdapter = true)
+@Serializable
 internal data class CustomerIOApiErrorResponse(
     val meta: Meta
 ) {
 
     // created property because Moshi cannot create adapter that extends Throwable
+    @Contextual
     val throwable: Throwable = Throwable(meta.error)
 
-    @JsonClass(generateAdapter = true)
+    @Serializable
     data class Meta(
         val error: String
     )
@@ -28,15 +33,16 @@ The API returns error response bodies in the format:
 {"meta": { "errors": ["invalid id"] }}
 ```
  */
-@JsonClass(generateAdapter = true)
+@Serializable
 internal data class CustomerIOApiErrorsResponse(
     val meta: Meta
 ) {
 
     // created property because Moshi cannot create adapter that extends Throwable
+    @Contextual
     val throwable: Throwable = Throwable(meta.errors.joinToString(", "))
 
-    @JsonClass(generateAdapter = true)
+    @Serializable
     data class Meta(
         val errors: List<String>
     )

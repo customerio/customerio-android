@@ -8,7 +8,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
 
-fun <F : Any> F.toResponseBody(jsonAdapter: JsonAdapter): ResponseBody {
+inline fun <reified F : Any> F.toResponseBody(jsonAdapter: JsonAdapter): ResponseBody {
     return jsonAdapter.toJson(this).toResponseBody("application/json".toMediaType())
 }
 

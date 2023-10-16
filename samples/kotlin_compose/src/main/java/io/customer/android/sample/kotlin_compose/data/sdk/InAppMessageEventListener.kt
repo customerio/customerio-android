@@ -1,7 +1,6 @@
 package io.customer.android.sample.kotlin_compose.data.sdk
 
 import io.customer.android.sample.kotlin_compose.util.Logger
-import io.customer.datapipeline.di.dataPipeline
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.CustomerIO
@@ -52,7 +51,7 @@ class InAppMessageEventListener(private val logger: Logger = Logger()) : InAppEv
         message: InAppMessage,
         arguments: Map<String, String>?
     ) {
-        CustomerIO.instance().dataPipeline().track(
+        CustomerIO.instance().track(
             "in-app message action",
             HashMap<String, String>().apply {
                 arguments?.let { putAll(it) }

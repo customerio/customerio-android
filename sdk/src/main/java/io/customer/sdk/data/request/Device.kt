@@ -1,19 +1,23 @@
+@file:UseContextualSerialization(Any::class, Date::class)
+
 package io.customer.sdk.data.request
 
-import com.squareup.moshi.Json
-import com.squareup.moshi.JsonClass
 import io.customer.sdk.data.model.CustomAttributes
 import java.util.*
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseContextualSerialization
 
-@JsonClass(generateAdapter = true)
+@Serializable
 data class Device(
-    @field:Json(name = "id") val token: String,
+    @SerialName("id") val token: String,
     val platform: String = "android",
     val lastUsed: Date,
-    val attributes: CustomAttributes
+    @Contextual val attributes: CustomAttributes
 )
 
-@JsonClass(generateAdapter = true)
+@Serializable
 internal data class DeviceRequest(
     val device: Device
 )

@@ -1,27 +1,61 @@
 package io.customer.sdk.di
 
 import android.content.Context
-import com.squareup.moshi.Moshi
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.api.*
+import io.customer.sdk.api.CustomerIOApiRetryPolicy
+import io.customer.sdk.api.HttpRequestRunner
+import io.customer.sdk.api.HttpRequestRunnerImpl
+import io.customer.sdk.api.HttpRetryPolicy
+import io.customer.sdk.api.RetrofitTrackingHttpClient
+import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.api.interceptors.HeadersInterceptor
-import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
-import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
-import io.customer.sdk.data.moshi.adapter.UnixDateAdapter
-import io.customer.sdk.data.store.*
+import io.customer.sdk.data.moshi.adapter.CustomAttributeContextualSerializer
+import io.customer.sdk.data.store.ApplicationStoreImp
+import io.customer.sdk.data.store.BuildStoreImp
+import io.customer.sdk.data.store.CustomerIOStore
+import io.customer.sdk.data.store.DeviceStore
+import io.customer.sdk.data.store.DeviceStoreImp
+import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.hooks.CioHooksManager
 import io.customer.sdk.hooks.HooksManager
-import io.customer.sdk.queue.*
-import io.customer.sdk.repository.*
+import io.customer.sdk.queue.Queue
+import io.customer.sdk.queue.QueueImpl
+import io.customer.sdk.queue.QueueQueryRunner
+import io.customer.sdk.queue.QueueQueryRunnerImpl
+import io.customer.sdk.queue.QueueRunRequest
+import io.customer.sdk.queue.QueueRunRequestImpl
+import io.customer.sdk.queue.QueueRunner
+import io.customer.sdk.queue.QueueRunnerImpl
+import io.customer.sdk.queue.QueueStorage
+import io.customer.sdk.queue.QueueStorageImpl
+import io.customer.sdk.repository.CleanupRepository
+import io.customer.sdk.repository.CleanupRepositoryImpl
+import io.customer.sdk.repository.DeviceRepository
+import io.customer.sdk.repository.DeviceRepositoryImpl
+import io.customer.sdk.repository.ProfileRepository
+import io.customer.sdk.repository.ProfileRepositoryImpl
+import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.repository.TrackRepositoryImpl
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
-import io.customer.sdk.util.*
+import io.customer.sdk.util.AndroidSimpleTimer
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DateUtilImpl
+import io.customer.sdk.util.DispatchersProvider
+import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.Logger
+import io.customer.sdk.util.SimpleTimer
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
 
 /**
  * Configuration class to configure/initialize low-level operations and objects.
@@ -36,7 +70,7 @@ class CustomerIOComponent(
         get() = override() ?: FileStorage(config = sdkConfig, context = context, logger = logger)
 
     val jsonAdapter: JsonAdapter
-        get() = override() ?: JsonAdapter(moshi = moshi)
+        get() = override() ?: JsonAdapter(json)
 
     val queueStorage: QueueStorage
         get() = override() ?: QueueStorageImpl(
@@ -185,25 +219,26 @@ class CustomerIOComponent(
         }
     }
 
-    // performance improvement to keep created moshi instance for re-use.
-    val moshi: Moshi by lazy {
-        override() ?: Moshi.Builder()
-            .add(UnixDateAdapter())
-            .add(BigDecimalAdapter())
-            .add(CustomAttributesFactory())
-            .build()
+    val module = SerializersModule {
+        contextual(CustomAttributeContextualSerializer(logger = logger))
     }
 
+    private val json by lazy {
+        Json {
+            ignoreUnknownKeys = true
+            serializersModule = module
+        }
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
     private fun buildRetrofit(
         endpoint: String,
         timeout: Long
     ): Retrofit {
         val okHttpClient = clientBuilder(timeout).build()
-        return override() ?: Retrofit.Builder()
-            .baseUrl(endpoint)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .client(okHttpClient)
-            .build()
+        val contentType = "application/json".toMediaType()
+        return override() ?: Retrofit.Builder().baseUrl(endpoint)
+            .addConverterFactory(json.asConverterFactory(contentType)).client(okHttpClient).build()
     }
 
     private val baseClient: OkHttpClient by lazy { override() ?: OkHttpClient() }

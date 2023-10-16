@@ -1,9 +1,9 @@
 package io.customer.sdk.queue.type
 
-import com.squareup.moshi.JsonClass
 import io.customer.sdk.extensions.random
+import kotlinx.serialization.Serializable
 
-@JsonClass(generateAdapter = true)
+@Serializable
 data class QueueTask(
     val storageId: String,
     val type: String,

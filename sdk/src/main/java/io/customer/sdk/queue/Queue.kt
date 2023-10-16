@@ -3,7 +3,13 @@ package io.customer.sdk.queue
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
-import io.customer.sdk.data.request.*
+import io.customer.sdk.data.request.DeliveryEvent
+import io.customer.sdk.data.request.DeliveryPayload
+import io.customer.sdk.data.request.DeliveryType
+import io.customer.sdk.data.request.Device
+import io.customer.sdk.data.request.Event
+import io.customer.sdk.data.request.Metric
+import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.queue.taskdata.DeletePushNotificationQueueTaskData
 import io.customer.sdk.queue.taskdata.IdentifyProfileQueueTaskData
 import io.customer.sdk.queue.taskdata.RegisterPushNotificationQueueTaskData
@@ -12,7 +18,12 @@ import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.queue.type.QueueTaskGroup
 import io.customer.sdk.queue.type.QueueTaskType
-import io.customer.sdk.util.*
+import io.customer.sdk.util.DateUtil
+import io.customer.sdk.util.DispatchersProvider
+import io.customer.sdk.util.JsonAdapter
+import io.customer.sdk.util.Logger
+import io.customer.sdk.util.Seconds
+import io.customer.sdk.util.SimpleTimer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -84,7 +95,7 @@ internal class QueueImpl internal constructor(
         synchronized(this) {
             logger.info("adding queue task $type")
 
-            val taskDataString = jsonAdapter.toJson(data)
+            val taskDataString = jsonAdapter.toJson(data::class.java)
 
             // What do we do if a queue task doesn't successfully get added to the queue?
             //

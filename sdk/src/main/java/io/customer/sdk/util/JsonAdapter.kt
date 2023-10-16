@@ -1,14 +1,17 @@
 package io.customer.sdk.util
 
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.Types
+import kotlinx.serialization.InternalSerializationApi
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 
 /**
  * Abstract way to deserialize JSON strings without thinking about the library used.
  *
  * This is an object instead of a class through dependency injection because when we run tests, we like to use the real instance of this class in our tests. That is usually a sign it doesn't need to be injected.
  */
-class JsonAdapter internal constructor(val moshi: Moshi) {
+@OptIn(InternalSerializationApi::class)
+class JsonAdapter internal constructor(val json: Json) {
 
     /**
      * Note: This class must treat arrays and not arrays differently (below we call them Lists but we mean arrays because that's what we call them in Json).
@@ -46,13 +49,11 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
      */
     @Throws(Exception::class)
     inline fun <reified T : Any> fromJson(data: String): T {
-        val json = data.trim()
+        val trimmedData = data.trim()
 
-        if (json.isNotEmpty() && json[0] == '[') throw IllegalArgumentException("String is a list. Use `fromJsonList` instead.")
+        if (trimmedData.isNotEmpty() && trimmedData[0] == '[') throw IllegalArgumentException("String is a list. Use `fromJsonList` instead.")
 
-        val jsonAdapter = moshi.adapter(T::class.java)
-
-        return jsonAdapter.fromJson(json) as T
+        return json.decodeFromString(T::class.serializer(), trimmedData)
     }
 
     /**
@@ -74,14 +75,12 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
      */
     @Throws(Exception::class)
     inline fun <reified T : Any> fromJsonList(data: String): List<T> {
-        val json = data.trim()
+        val trimmedData = data.trim()
 
-        if (json.isNotEmpty() && json[0] != '[') throw IllegalArgumentException("String is not a list. Use `fromJson` instead.")
+        if (trimmedData.isNotEmpty() && trimmedData[0] != '[') throw IllegalArgumentException("String is not a list. Use `fromJson` instead.")
 
-        val type = Types.newParameterizedType(List::class.java, T::class.java)
-        val adapter = moshi.adapter<List<T>>(type)
-
-        return adapter.fromJson(json) as List<T>
+        val listSerializer = ListSerializer(T::class.serializer())
+        return json.decodeFromString(listSerializer, trimmedData)
     }
 
     /**
@@ -94,16 +93,13 @@ class JsonAdapter internal constructor(val moshi: Moshi) {
         null
     }
 
-    fun <T : Any> toJson(data: T): String {
-        val jsonAdapter = moshi.adapter<T>(data::class.java)
-
-        return jsonAdapter.toJson(data)
+    inline fun <reified T : Any> toJson(data: T): String {
+        return json.encodeToString(T::class.serializer(), data)
     }
 
     inline fun <reified T : Any> toJson(data: List<T>): String {
-        val type = Types.newParameterizedType(List::class.java, T::class.java)
-        val adapter = moshi.adapter<List<T>>(type)
+        val listSerializer = ListSerializer(T::class.serializer())
 
-        return adapter.toJson(data)
+        return json.encodeToString(listSerializer, data)
     }
 }

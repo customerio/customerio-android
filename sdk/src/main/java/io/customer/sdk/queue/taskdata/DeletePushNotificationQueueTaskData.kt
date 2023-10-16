@@ -1,8 +1,8 @@
 package io.customer.sdk.queue.taskdata
 
-import com.squareup.moshi.JsonClass
+import kotlinx.serialization.Serializable
 
-@JsonClass(generateAdapter = true)
+@Serializable
 internal data class DeletePushNotificationQueueTaskData(
     val profileIdentified: String,
     val deviceToken: String

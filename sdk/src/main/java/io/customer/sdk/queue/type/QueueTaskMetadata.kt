@@ -1,14 +1,16 @@
+@file:UseContextualSerialization(Date::class)
+
 package io.customer.sdk.queue.type
 
-import com.squareup.moshi.JsonClass
-import io.customer.base.extenstions.unixTimeToDate
 import io.customer.sdk.extensions.random
-import java.util.*
+import java.util.Date
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseContextualSerialization
 
 // / Pointer to full queue task in persistent storage.
 // / This data structure is meant to be as small as possible with the
 // / ability to hold all queue task metadata in memory at runtime.
-@JsonClass(generateAdapter = true)
+@Serializable
 data class QueueTaskMetadata(
     val taskPersistedId: String,
     val taskType: String,
@@ -23,6 +25,12 @@ data class QueueTaskMetadata(
 ) {
     companion object {
         val random: QueueTaskMetadata
-            get() = QueueTaskMetadata(String.random, String.random, null, null, 1644600699L.unixTimeToDate())
+            get() = QueueTaskMetadata(
+                String.random,
+                String.random,
+                null,
+                null,
+                Date()
+            )
     }
 }

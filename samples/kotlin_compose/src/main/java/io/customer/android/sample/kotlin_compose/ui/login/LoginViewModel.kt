@@ -8,7 +8,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
-import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -67,15 +66,15 @@ class LoginViewModel @Inject constructor(
                 identifier = email,
                 attributes = mapOf("name" to name, "is_guest" to isGuest, "cio_source" to "track API")
             )
-            CustomerIO.instance().dataPipeline().identify(
-                userId = email,
-                traits = mapOf("name" to name, "is_guest" to isGuest, "cio_source" to "data pipeline")
+            CustomerIO.instance().identify(
+                identifier = email,
+                attributes = mapOf("name" to name, "is_guest" to isGuest, "cio_source" to "data pipeline")
             )
-            CustomerIO.instance().dataPipeline().track(
+            CustomerIO.instance().track(
                 name = "login",
-                properties = mapOf("name" to name, "email" to email)
+                attributes = mapOf("name" to name, "email" to email)
             )
-            CustomerIO.instance().dataPipeline().group("kotlin-data-pipeline")
+//            CustomerIO.instance().group("kotlin-data-pipeline")
             withContext(Dispatchers.Main) {
                 onLoginSuccess.invoke()
             }

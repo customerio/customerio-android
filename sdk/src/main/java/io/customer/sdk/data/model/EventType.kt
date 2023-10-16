@@ -1,8 +1,8 @@
 package io.customer.sdk.data.model
 
-import com.squareup.moshi.JsonClass
+import kotlinx.serialization.Serializable
 
-@JsonClass(generateAdapter = false)
+@Serializable
 enum class EventType {
     event, screen
 }

@@ -30,7 +30,6 @@ import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.SettingsIcon
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
-import io.customer.datapipeline.di.dataPipeline
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -46,7 +45,7 @@ fun DashboardRoute(
     val userState = viewModel.uiState.collectAsState()
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        CustomerIO.instance().dataPipeline().screen("Dashboard")
+        CustomerIO.instance().screen("Dashboard")
     })
 
     DashboardScreen(

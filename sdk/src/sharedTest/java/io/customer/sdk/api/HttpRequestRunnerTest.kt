@@ -61,21 +61,22 @@ class HttpRequestRunnerTest : BaseTest() {
     }
 
     @Test
-    fun performHttpRequest_givenHttpRequestsArePaused_expectDoNotMakeCall_expectReturnFail(): Unit = runBlocking {
-        prefsRepository.httpRequestsPauseEnds = Date().add(1, TimeUnit.MINUTES)
-        val httpClientMock = HttpClientMock<Unit>(emptyList())
+    fun performHttpRequest_givenHttpRequestsArePaused_expectDoNotMakeCall_expectReturnFail(): Unit =
+        runBlocking {
+            prefsRepository.httpRequestsPauseEnds = Date().add(1, TimeUnit.MINUTES)
+            val httpClientMock = HttpClientMock<Unit>(emptyList())
 
-        val actual = httpRunner.performAndProcessRequest {
-            httpClientMock.performRequest()
+            val actual = httpRunner.performAndProcessRequest {
+                httpClientMock.performRequest()
+            }
+
+            actual.isFailure.shouldBeTrue()
+            (actual.exceptionOrNull() is CustomerIOError.HttpRequestsPaused).shouldBeTrue()
+
+            httpClientMock.didPerformRequest.shouldBeFalse()
+            verifyNoInteractions(retryPolicyMock)
+            assertHttpRequestsPaused()
         }
-
-        actual.isFailure.shouldBeTrue()
-        (actual.exceptionOrNull() is CustomerIOError.HttpRequestsPaused).shouldBeTrue()
-
-        httpClientMock.didPerformRequest.shouldBeFalse()
-        verifyNoInteractions(retryPolicyMock)
-        assertHttpRequestsPaused()
-    }
 
     @Test
     fun performHttpRequest_givenHttpRequestsPauseEnded_expectMakeRequest(): Unit = runBlocking {
@@ -99,45 +100,49 @@ class HttpRequestRunnerTest : BaseTest() {
     }
 
     @Test
-    fun performHttpRequest_givenSuccessfulRequest_expectResetToPrepareForNextRequest(): Unit = runBlocking {
-        val httpClientMock = HttpClientMock(Response.success(Unit))
+    fun performHttpRequest_givenSuccessfulRequest_expectResetToPrepareForNextRequest(): Unit =
+        runBlocking {
+            val httpClientMock = HttpClientMock(Response.success(Unit))
 
-        httpRunner.performAndProcessRequest {
-            httpClientMock.performRequest()
+            httpRunner.performAndProcessRequest {
+                httpClientMock.performRequest()
+            }
+
+            assertPrepareForNextRelease()
+            assertHttpRequestsPaused(false)
         }
-
-        assertPrepareForNextRelease()
-        assertHttpRequestsPaused(false)
-    }
 
     @Test
-    fun performHttpRequest_givenSuccessfulRequest_expectReturnResultFromResponse(): Unit = runBlocking {
-        data class MockResponseBody(val foo: String = String.random)
-        val expectedBody = MockResponseBody()
-        val expected = Result.success(expectedBody)
-        val httpClientMock = HttpClientMock(Response.success(expectedBody))
+    fun performHttpRequest_givenSuccessfulRequest_expectReturnResultFromResponse(): Unit =
+        runBlocking {
+            data class MockResponseBody(val foo: String = String.random)
 
-        val actual = httpRunner.performAndProcessRequest {
-            httpClientMock.performRequest()
+            val expectedBody = MockResponseBody()
+            val expected = Result.success(expectedBody)
+            val httpClientMock = HttpClientMock(Response.success(expectedBody))
+
+            val actual = httpRunner.performAndProcessRequest {
+                httpClientMock.performRequest()
+            }
+
+            expected shouldBeEqualTo actual
+            assertHttpRequestsPaused(false)
         }
-
-        expected shouldBeEqualTo actual
-        assertHttpRequestsPaused(false)
-    }
 
     @Test
-    fun performHttpRequest_given500_givenRetryPolicyRanOutOfTime_expectPauseHttpRequests_expectPrepareForNextRelease_expectReturnFailure(): Unit = runBlocking {
-        whenever(retryPolicyMock.nextSleepTime).thenReturn(null)
-        val httpClientMock = HttpClientMock(Response.error<Unit>(500, "".toResponseBody()))
+    fun performHttpRequest_given500_givenRetryPolicyRanOutOfTime_expectPauseHttpRequests_expectPrepareForNextRelease_expectReturnFailure(): Unit =
+        runBlocking {
+            whenever(retryPolicyMock.nextSleepTime).thenReturn(null)
+            val httpClientMock = HttpClientMock(Response.error<Unit>(500, "".toResponseBody()))
 
-        val actual = httpRunner.performAndProcessRequest {
-            httpClientMock.performRequest()
+            val actual = httpRunner.performAndProcessRequest {
+                httpClientMock.performRequest()
+            }
+
+            assertHttpRequestsPaused()
+            assertPrepareForNextRelease()
+            (actual.exceptionOrNull() is CustomerIOError.ServerDown).shouldBeTrue()
         }
-
-        assertHttpRequestsPaused()
-        assertPrepareForNextRelease()
-        (actual.exceptionOrNull() is CustomerIOError.ServerDown).shouldBeTrue()
-    }
 
     /**
      * This test is commented out because it's throwing an exception:
@@ -167,22 +172,30 @@ class HttpRequestRunnerTest : BaseTest() {
 //    }
 
     @Test
-    fun performHttpRequest_given401_expectPauseHttpRequests_expectReturnFailure(): Unit = runBlocking {
-        val httpClientMock = HttpClientMock<Unit>(Response.error(401, "".toResponseBody()))
+    fun performHttpRequest_given401_expectPauseHttpRequests_expectReturnFailure(): Unit =
+        runBlocking {
+            val httpClientMock = HttpClientMock<Unit>(Response.error(401, "".toResponseBody()))
 
-        val actual = httpRunner.performAndProcessRequest {
-            httpClientMock.performRequest()
+            val actual = httpRunner.performAndProcessRequest {
+                httpClientMock.performRequest()
+            }
+
+            assertHttpRequestsPaused()
+            (actual.exceptionOrNull() is CustomerIOError.Unauthorized).shouldBeTrue()
         }
-
-        assertHttpRequestsPaused()
-        (actual.exceptionOrNull() is CustomerIOError.Unauthorized).shouldBeTrue()
-    }
 
     @Test
     fun performHttpRequest_given4XX_expectReturnFailure(): Unit = runBlocking {
-        val expectedApiError = CustomerIOApiErrorResponse(CustomerIOApiErrorResponse.Meta(String.random))
-        val expected = Result.failure<Unit>(CustomerIOError.UnsuccessfulStatusCode(403, expectedApiError.throwable.message!!))
-        val httpClientMock = HttpClientMock(Response.error<Unit>(403, expectedApiError.toResponseBody(jsonAdapter)))
+        val expectedApiError =
+            CustomerIOApiErrorResponse(CustomerIOApiErrorResponse.Meta(String.random))
+        val expected = Result.failure<Unit>(
+            CustomerIOError.UnsuccessfulStatusCode(
+                403,
+                expectedApiError.throwable.message!!
+            )
+        )
+        val httpClientMock =
+            HttpClientMock(Response.error<Unit>(403, expectedApiError.toResponseBody(jsonAdapter)))
 
         val actual = httpRunner.performAndProcessRequest {
             httpClientMock.performRequest()
@@ -193,16 +206,17 @@ class HttpRequestRunnerTest : BaseTest() {
     }
 
     @Test
-    fun performHttpRequest_given400_expectNotPausedHttpRequestsAndReturnFailure(): Unit = runBlocking {
-        val httpClientMock = HttpClientMock<Unit>(Response.error(400, "".toResponseBody()))
+    fun performHttpRequest_given400_expectNotPausedHttpRequestsAndReturnFailure(): Unit =
+        runBlocking {
+            val httpClientMock = HttpClientMock<Unit>(Response.error(400, "".toResponseBody()))
 
-        val actual = httpRunner.performAndProcessRequest {
-            httpClientMock.performRequest()
+            val actual = httpRunner.performAndProcessRequest {
+                httpClientMock.performRequest()
+            }
+
+            assertHttpRequestsPaused(false)
+            (actual.exceptionOrNull() is CustomerIOError.BadRequest400).shouldBeTrue()
         }
-
-        assertHttpRequestsPaused(false)
-        (actual.exceptionOrNull() is CustomerIOError.BadRequest400).shouldBeTrue()
-    }
 
     @Test
     fun parseCustomerIOErrorBody_givenInvalidErrorBody_expectNull() {
@@ -211,11 +225,14 @@ class HttpRequestRunnerTest : BaseTest() {
 
     @Test
     fun parseCustomerIOErrorBody_givenErrorBodies_expectParsedResultBack() {
-        val errorResponse = CustomerIOApiErrorResponse(CustomerIOApiErrorResponse.Meta(String.random))
-        val errorsResponse = CustomerIOApiErrorsResponse(CustomerIOApiErrorsResponse.Meta(listOf(String.random)))
+        val errorResponse =
+            CustomerIOApiErrorResponse(CustomerIOApiErrorResponse.Meta(String.random))
+        val errorsResponse =
+            CustomerIOApiErrorsResponse(CustomerIOApiErrorsResponse.Meta(listOf(String.random)))
 
         var expected = errorResponse.throwable.message
-        var actual = httpRunner.parseCustomerIOErrorBody(jsonAdapter.toJson(errorResponse))!!.message
+        var actual =
+            httpRunner.parseCustomerIOErrorBody(jsonAdapter.toJson(errorResponse))!!.message
 
         expected shouldBeEqualTo actual
 

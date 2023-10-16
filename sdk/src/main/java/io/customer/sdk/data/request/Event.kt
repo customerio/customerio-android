@@ -1,10 +1,13 @@
+@file:UseContextualSerialization(Any::class)
+
 package io.customer.sdk.data.request
 
-import com.squareup.moshi.JsonClass
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseContextualSerialization
 
-@JsonClass(generateAdapter = true)
+@Serializable
 internal data class Event(
     val name: String,
     val type: EventType,

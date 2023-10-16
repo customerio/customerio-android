@@ -1,9 +1,13 @@
+@file:UseContextualSerialization(Any::class)
+
 package io.customer.sdk.queue.taskdata
 
-import com.squareup.moshi.JsonClass
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseContextualSerialization
 
-@JsonClass(generateAdapter = true)
+@Serializable
 data class IdentifyProfileQueueTaskData(
     val identifier: String,
-    val attributes: Map<String, Any>
+    @Contextual val attributes: Map<String, Any>
 )

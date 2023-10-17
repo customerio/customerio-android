@@ -29,6 +29,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
 
     init {
+        // exception handling is required for webview in-case webview is not supported in the device
         try {
             webView = WebView(context)
             this.addView(webView)

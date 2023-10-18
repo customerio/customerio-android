@@ -58,9 +58,6 @@ class GistMessageProperties {
                             (id as? Boolean)?.let { persistentValue ->
                                 persistent = persistentValue
                             }
-                            (id as? String)?.let { persistentValue ->
-                                persistent = persistentValue.toBoolean()
-                            }
                         }
                     }
                 }

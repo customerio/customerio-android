@@ -226,8 +226,6 @@ internal class CustomerIOPushNotificationHandler(
     ): PendingIntent {
         val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java)
         notifyIntent.putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
-        // Without these flags, Android OS does not launch activity again in one session if the activity was recently launched
-        notifyIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         // In Android M, you must specify the mutability of each PendingIntent
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

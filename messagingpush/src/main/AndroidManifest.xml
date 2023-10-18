@@ -11,6 +11,7 @@
             android:name=".activity.NotificationClickReceiverActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:launchMode="singleTop"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />

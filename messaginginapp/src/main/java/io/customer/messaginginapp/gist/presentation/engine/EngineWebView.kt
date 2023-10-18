@@ -25,11 +25,17 @@ internal class EngineWebView @JvmOverloads constructor(
     var listener: EngineWebViewListener? = null
     private var timer: Timer? = null
     private var timerTask: TimerTask? = null
-    private var webView: WebView = WebView(context)
+    private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
 
     init {
-        this.addView(webView)
+        // exception handling is required for webview in-case webview is not supported in the device
+        try {
+            webView = WebView(context)
+            this.addView(webView)
+        } catch (e: Exception) {
+            Log.e(GIST_TAG, "Error while creating EngineWebView: ${e.message}")
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -38,40 +44,60 @@ internal class EngineWebView @JvmOverloads constructor(
         val jsonString = Gson().toJson(configuration)
         encodeToBase64(jsonString)?.let { options ->
             elapsedTimer.start("Engine render for message: ${configuration.messageId}")
-            val messageUrl = "${GistSdk.gistEnvironment.getGistRendererUrl()}/index.html?options=$options"
+            val messageUrl =
+                "${GistSdk.gistEnvironment.getGistRendererUrl()}/index.html?options=$options"
             Log.i(GIST_TAG, "Rendering message with URL: $messageUrl")
-            webView.loadUrl(messageUrl)
-            webView.settings.javaScriptEnabled = true
-            webView.settings.allowFileAccess = true
-            webView.settings.allowContentAccess = true
-            webView.settings.domStorageEnabled = true
-            webView.settings.textZoom = 100
-            webView.setBackgroundColor(Color.TRANSPARENT)
-            webView.addJavascriptInterface(EngineWebViewInterface(this), "appInterface")
+            webView?.let {
+                it.loadUrl(messageUrl)
+                it.settings.javaScriptEnabled = true
+                it.settings.allowFileAccess = true
+                it.settings.allowContentAccess = true
+                it.settings.domStorageEnabled = true
+                it.settings.textZoom = 100
+                it.setBackgroundColor(Color.TRANSPARENT)
+                it.addJavascriptInterface(EngineWebViewInterface(this), "appInterface")
 
-            webView.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView, url: String?) {
-                    view.loadUrl("javascript:window.parent.postMessage = function(message) {window.appInterface.postMessage(JSON.stringify(message))}")
-                }
+                it.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String?) {
+                        view.loadUrl("javascript:window.parent.postMessage = function(message) {window.appInterface.postMessage(JSON.stringify(message))}")
+                    }
 
-                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                    return !url.startsWith("https://code.gist.build")
-                }
+                    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                        return !url.startsWith("https://code.gist.build")
+                    }
 
-                override fun onReceivedError(view: WebView?, errorCod: Int, description: String, failingUrl: String?) {
-                    listener?.error()
-                }
+                    override fun onReceivedError(
+                        view: WebView?,
+                        errorCod: Int,
+                        description: String,
+                        failingUrl: String?
+                    ) {
+                        listener?.error()
+                    }
 
-                override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
-                    listener?.error()
-                }
+                    override fun onReceivedHttpError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        errorResponse: WebResourceResponse?
+                    ) {
+                        listener?.error()
+                    }
 
-                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                    listener?.error()
-                }
+                    override fun onReceivedError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        error: WebResourceError?
+                    ) {
+                        listener?.error()
+                    }
 
-                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                    listener?.error()
+                    override fun onReceivedSslError(
+                        view: WebView?,
+                        handler: SslErrorHandler?,
+                        error: SslError?
+                    ) {
+                        listener?.error()
+                    }
                 }
             }
         } ?: run {

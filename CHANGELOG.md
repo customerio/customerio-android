@@ -1,3 +1,10 @@
+## [3.6.7](https://github.com/customerio/customerio-android/compare/3.6.6...3.6.7) (2023-10-17)
+
+
+### Bug Fixes
+
+* added exception handling for when browser doesn't exist ([#271](https://github.com/customerio/customerio-android/issues/271)) ([aaddad5](https://github.com/customerio/customerio-android/commit/aaddad53281ac22c1e8a73340fcb24e7522e4648))
+
 ### [3.6.6](https://github.com/customerio/customerio-android/compare/3.6.5...3.6.6) (2023-09-15)
 
 

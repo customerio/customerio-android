@@ -6,7 +6,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application>
-        <!-- Transparent activity for push interactions -->
+        <!-- Transparent activity for push interactions 
+
+        Notes: 
+        * Using launchMode="singleTop" because Android OS does not launch activity again in one session if the activity was launched recently from earlier notification
+
+        -->
         <activity
             android:name=".activity.NotificationClickReceiverActivity"
             android:excludeFromRecents="true"

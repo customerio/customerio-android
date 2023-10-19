@@ -201,6 +201,7 @@ public final class io/customer/messaginginapp/gist/presentation/GistSdk : androi
 	public static field dataCenter Ljava/lang/String;
 	public static field siteId Ljava/lang/String;
 	public final fun addListener (Lio/customer/messaginginapp/gist/presentation/GistListener;)V
+	public final fun clearCurrentMessage ()V
 	public final fun clearListeners ()V
 	public final fun clearUserToken ()V
 	public final fun dismissMessage ()V

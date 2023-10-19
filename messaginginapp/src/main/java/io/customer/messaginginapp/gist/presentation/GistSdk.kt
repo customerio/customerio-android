@@ -160,6 +160,10 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         gistModalManager.dismissActiveMessage()
     }
 
+    fun clearCurrentMessage() {
+        gistModalManager.clearCurrentMessage()
+    }
+
     // Listeners
 
     fun addListener(listener: GistListener) {

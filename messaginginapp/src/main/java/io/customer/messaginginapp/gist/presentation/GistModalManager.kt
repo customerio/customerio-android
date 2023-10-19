@@ -58,4 +58,8 @@ internal class GistModalManager : GistListener {
     override fun onMessageShown(message: Message) {}
 
     override fun onAction(message: Message, currentRoute: String, action: String, name: String) {}
+
+    internal fun clearCurrentMessage() {
+        currentMessage = null
+    }
 }

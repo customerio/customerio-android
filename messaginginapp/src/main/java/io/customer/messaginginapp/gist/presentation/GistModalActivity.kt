@@ -101,6 +101,8 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
         // If the message is not persistent, dismiss it and inform the callback
         if (!isPersistentMessage()) {
             GistSdk.dismissMessage()
+        } else {
+            GistSdk.clearCurrentMessage()
         }
         super.onDestroy()
     }

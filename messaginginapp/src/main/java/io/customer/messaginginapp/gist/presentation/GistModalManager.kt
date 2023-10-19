@@ -15,7 +15,10 @@ internal class GistModalManager : GistListener {
 
     internal fun showModalMessage(message: Message, position: MessagePosition? = null): Boolean {
         currentMessage?.let { currentMessage ->
-            Log.i(GIST_TAG, "Message ${message.messageId} not shown, ${currentMessage.messageId} is already showing.")
+            Log.i(
+                GIST_TAG,
+                "Message ${message.messageId} not shown, ${currentMessage.messageId} is already showing."
+            )
             return false
         }
 

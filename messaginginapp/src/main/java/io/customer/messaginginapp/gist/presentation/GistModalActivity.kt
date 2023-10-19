@@ -8,6 +8,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
 import com.google.gson.Gson
@@ -61,6 +62,12 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
         } ?: run {
             finish()
         }
+
+        // Disable back button for persistent messages
+        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage()) {
+            override fun handleOnBackPressed() {}
+        }
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
     }
 
     override fun onResume() {
@@ -91,9 +98,18 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
 
     override fun onDestroy() {
         GistSdk.removeListener(this)
-        GistSdk.dismissMessage()
+        // If the message is not persistent, dismiss it and inform the callback
+        if (!isPersistentMessage()) {
+            GistSdk.dismissMessage()
+        }
         super.onDestroy()
     }
+
+    private fun isPersistentMessage(): Boolean = currentMessage?.let {
+        GistMessageProperties.getGistProperties(
+            it
+        ).persistent
+    } ?: false
 
     override fun onMessageShown(message: Message) {
         runOnUiThread {

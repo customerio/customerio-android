@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.listeners
 
+import android.content.Context
 import android.util.Base64
 import android.util.Log
 import io.customer.messaginginapp.gist.data.NetworkUtilities
@@ -9,47 +10,94 @@ import io.customer.messaginginapp.gist.data.repository.GistQueueService
 import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import java.io.File
 import java.util.regex.PatternSyntaxException
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import okhttp3.Cache
 import okhttp3.OkHttpClient
-import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class Queue : GistListener {
 
     private var localMessageStore: MutableList<Message> = mutableListOf()
+    private val cacheMap = mutableMapOf<String, Response>()
 
     init {
         GistSdk.addListener(this)
     }
 
+    private val cacheSize = 10 * 1024 * 1024 // 10 MB
+    private val cacheDirectory by lazy { File(GistSdk.application.cacheDir, "http_cache") }
+    private val cache by lazy { Cache(cacheDirectory, cacheSize.toLong()) }
+
+    private fun saveToPrefs(context: Context, key: String, value: String) {
+        val prefs = context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
+        prefs.edit().putString(key, value).apply()
+    }
+
+    private fun getFromPrefs(context: Context, key: String): String? {
+        val prefs = context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
+        return prefs.getString(key, null)
+    }
+
     private val gistQueueService by lazy {
-        val httpClient: OkHttpClient = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                GistSdk.getUserToken()?.let { userToken ->
-                    val request: Request = chain.request().newBuilder()
+        // Interceptor to set up request headers like site ID, data center, and user token.
+        val httpClient: OkHttpClient =
+            OkHttpClient.Builder().cache(cache)
+                .addInterceptor { chain ->
+                    val originalRequest = chain.request()
+
+                    val networkRequest = originalRequest.newBuilder()
                         .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, GistSdk.siteId)
                         .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, GistSdk.dataCenter)
-                        .addHeader(
-                            NetworkUtilities.USER_TOKEN_HEADER,
-                            // The NO_WRAP flag will omit all line terminators (i.e., the output will be on one long line).
-                            Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
-                        )
+                        .apply {
+                            GistSdk.getUserToken()?.let { userToken ->
+                                addHeader(
+                                    NetworkUtilities.USER_TOKEN_HEADER,
+                                    // The NO_WRAP flag will omit all line terminators (i.e., the output will be on one long line).
+                                    Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
+                                )
+                            }
+                        }
+                        .header("Cache-Control", "no-cache")
                         .build()
 
-                    chain.proceed(request)
-                } ?: run {
-                    val request: Request = chain.request().newBuilder()
-                        .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, GistSdk.siteId)
-                        .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, GistSdk.dataCenter)
-                        .build()
+                    val response = chain.proceed(networkRequest)
 
-                    chain.proceed(request)
+                    when (response.code) {
+                        200 -> {
+                            response.body?.let { responseBody ->
+                                val responseBodyString = responseBody.string()
+                                saveToPrefs(
+                                    GistSdk.application,
+                                    originalRequest.url.toString(),
+                                    responseBodyString
+                                )
+                                return@addInterceptor response.newBuilder().body(
+                                    responseBodyString.toResponseBody(responseBody.contentType())
+                                ).build()
+                            }
+                        }
+
+                        304 -> {
+                            val cachedResponse =
+                                getFromPrefs(GistSdk.application, originalRequest.url.toString())
+                            cachedResponse?.let {
+                                return@addInterceptor response.newBuilder()
+                                    .body(it.toResponseBody(null)).code(200).build()
+                            } ?: return@addInterceptor response
+                        }
+
+                        else -> return@addInterceptor response
+                    }
+
+                    response
                 }
-            }
-            .build()
+                .build()
 
         Retrofit.Builder()
             .baseUrl(GistSdk.gistEnvironment.getGistQueueApiUrl())
@@ -72,8 +120,6 @@ class Queue : GistListener {
             try {
                 Log.i(GIST_TAG, "Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
-                // If there's no change (304), move on.
-                if (latestMessagesResponse.code() == 304) { return@launch }
 
                 // To prevent us from showing expired / revoked messages, clear user messages from local queue.
                 clearUserMessagesFromLocalStore()

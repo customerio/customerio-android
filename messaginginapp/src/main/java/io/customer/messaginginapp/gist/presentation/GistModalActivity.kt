@@ -63,7 +63,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
             finish()
         }
 
-        // Disable back button for persistent messages
+        // Update back button to handle in-app message behavior, disable back press for persistent messages, true otherwise
         val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage()) {
             override fun handleOnBackPressed() {}
         }

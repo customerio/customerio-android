@@ -58,6 +58,7 @@ class Queue : GistListener {
                             GistSdk.getUserToken()?.let { userToken ->
                                 addHeader(
                                     NetworkUtilities.USER_TOKEN_HEADER,
+                                    // The NO_WRAP flag will omit all line terminators (i.e., the output will be on one long line).
                                     Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
                                 )
                             }

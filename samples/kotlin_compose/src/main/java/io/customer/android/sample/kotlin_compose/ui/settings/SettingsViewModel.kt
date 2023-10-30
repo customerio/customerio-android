@@ -91,10 +91,11 @@ class SettingsViewModel @Inject constructor(
         return validateCustomTrackUrl(configuration.trackUrl).isEmpty()
     }
 
-    fun restoreDefaults() {
+    fun restoreDefaults(onComplete: () -> Unit) {
         viewModelScope.launch {
             val config = preferenceRepository.restoreDefaults()
             _uiState.emit(_uiState.value.copy(configuration = config))
+            onComplete.invoke()
         }
     }
 }

@@ -80,7 +80,10 @@ fun SettingsRoute(
         onSave = {
             settingsViewModel.saveAndUpdateConfiguration(
                 configuration = it
-            ) {}
+            ) {
+                // Navigate back after saving
+                onBackPressed.invoke()
+            }
         },
         onConfigurationChange = {
             settingsViewModel.updateConfiguration(
@@ -88,7 +91,10 @@ fun SettingsRoute(
             ) {}
         },
         onRestoreDefaults = {
-            settingsViewModel.restoreDefaults()
+            settingsViewModel.restoreDefaults {
+                // Navigate back after restoring defaults
+                onBackPressed.invoke()
+            }
         }
     )
 }

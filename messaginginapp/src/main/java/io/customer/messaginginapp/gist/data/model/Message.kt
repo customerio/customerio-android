@@ -55,7 +55,7 @@ class GistMessageProperties {
                             }
                         }
                         gistProperties["persistent"]?.let { id ->
-                            (id as Boolean).let { persistentValue ->
+                            (id as? Boolean)?.let { persistentValue ->
                                 persistent = persistentValue
                             }
                         }

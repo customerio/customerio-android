@@ -1,3 +1,10 @@
+## [3.7.0](https://github.com/customerio/customerio-android/compare/3.6.7...3.7.0) (2023-10-25)
+
+
+### Features
+
+* persistant in-app messages ([#269](https://github.com/customerio/customerio-android/issues/269)) ([4fcb781](https://github.com/customerio/customerio-android/commit/4fcb781a3cf1a0e3b1414a6096deac40495250eb))
+
 ## [3.6.7](https://github.com/customerio/customerio-android/compare/3.6.6...3.6.7) (2023-10-17)
 
 

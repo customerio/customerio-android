@@ -9,14 +9,17 @@
         <!-- Transparent activity for push interactions 
 
         Notes: 
-        * Using launchMode="singleTop" because Android OS does not launch activity again in one session if the activity was launched recently from earlier notification
+        * Using launchMode="singleTask" because Android OS does not launch activity again in one session, if the activity
+        was launched recently from earlier notification.
+        * launchMode="singleTop" does not work well with ACTIVITY_NO_FLAGS if customer app also has launchMode="singleTop"
+        (e.g. Flutter apps) and have multiple instances launched from notifications in one session.
 
         -->
         <activity
             android:name=".activity.NotificationClickReceiverActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />

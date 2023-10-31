@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Prevent EncryptedSharedPreferences file from being backed up -->
+    <exclude
+        domain="sharedpref"
+        path="io.customer.sdk.SECURE_PREFERENCE_FILE_KEY.xml" />
+</full-backup-content>

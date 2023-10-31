@@ -1,6 +1,9 @@
 package io.customer.sdk.repository.preference
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
@@ -17,7 +20,23 @@ internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenc
     BasePreferenceRepository(context) {
 
     override val prefsName: String by lazy {
-        "io.customer.sdk.${context.packageName}.PREFERENCE_FILE_KEY"
+        "io.customer.sdk.SECURE_PREFERENCE_FILE_KEY"
+    }
+
+    override val prefs: SharedPreferences
+
+    init {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        prefs = EncryptedSharedPreferences.create(
+            context,
+            prefsName,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     override fun saveSettings(

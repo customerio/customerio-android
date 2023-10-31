@@ -1,6 +1,7 @@
 package io.customer.sdk.repository.preference
 
 import android.content.Context
+import android.content.SharedPreferences
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.extensions.getDate
 import io.customer.sdk.extensions.putDate
@@ -27,6 +28,12 @@ internal class SitePreferenceRepositoryImpl(
     override val prefsName: String by lazy {
         "io.customer.sdk.${context.packageName}.${config.siteId}"
     }
+
+    override val prefs: SharedPreferences
+        get() = context.applicationContext.getSharedPreferences(
+            prefsName,
+            Context.MODE_PRIVATE
+        )
 
     companion object {
         private const val KEY_IDENTIFIER = "identifier"

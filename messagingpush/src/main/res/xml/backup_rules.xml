@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Prevent EncryptedSharedPreferences file from being backed up -->
+    <!-- Encrypted preferences should not be backed up as the key used to encrypt it will no
+    longer be present when backup is restored -->
     <exclude
         domain="sharedpref"
-        path="io.customer.sdk.SECURE_PREFERENCE_FILE_KEY.xml" />
+        path="io.customer.sdk.EncryptedConfigCache.xml" />
 </full-backup-content>

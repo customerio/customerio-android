@@ -9,6 +9,8 @@ import android.content.SharedPreferences
 internal abstract class BasePreferenceRepository(val context: Context) {
 
     abstract val prefsName: String
+
+    // Making this abstract so base class has option to use encrypted shared prefs
     internal abstract val prefs: SharedPreferences
 
     // this would clear the prefs asynchronously

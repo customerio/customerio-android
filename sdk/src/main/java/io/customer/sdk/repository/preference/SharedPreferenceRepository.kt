@@ -19,8 +19,13 @@ internal interface SharedPreferenceRepository {
 internal class SharedPreferenceRepositoryImp(context: Context) : SharedPreferenceRepository,
     BasePreferenceRepository(context) {
 
+    // The file name used for storing shared preferences.
+    // This preference file should not be included in Auto Backup.
+    // Upon restoration, the encryption key originally used may no longer be present.
+    // To prevent this, ensure the file name matches the one excluded in backup_rules.xml.
+    // Read more: https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences
     override val prefsName: String by lazy {
-        "io.customer.sdk.SECURE_PREFERENCE_FILE_KEY"
+        "io.customer.sdk.EncryptedConfigCache"
     }
 
     override val prefs: SharedPreferences

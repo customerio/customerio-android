@@ -9,7 +9,7 @@ import android.content.SharedPreferences
 internal abstract class BasePreferenceRepository(val context: Context) {
 
     abstract val prefsName: String
-    protected abstract val prefs: SharedPreferences
+    internal abstract val prefs: SharedPreferences
 
     // this would clear the prefs asynchronously
     open fun clearAll() {

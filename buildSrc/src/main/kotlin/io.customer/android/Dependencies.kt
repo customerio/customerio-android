@@ -3,6 +3,8 @@ package io.customer.android
 object Dependencies {
     const val androidGradlePlugin =
         "com.android.tools.build:gradle:${Versions.ANDROID_GRADLE_PLUGIN}"
+    const val androidxSecurityCrypto =
+        "androidx.security:security-crypto:${Versions.ANDROIDX_SECURITY_CRYPTO}"
     const val androidxTestJunit = "androidx.test.ext:junit:${Versions.ANDROIDX_TEST_JUNIT}"
     const val androidxTestRunner = "androidx.test:runner:${Versions.ANDROIDX_TEST_RUNNER}"
     const val androidxTestRules = "androidx.test:rules:${Versions.ANDROIDX_TEST_RULES}"

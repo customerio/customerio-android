@@ -2,6 +2,9 @@ package io.customer.android
 
 object Versions {
     internal const val ANDROID_GRADLE_PLUGIN = "7.2.0"
+
+    // Using alpha version as current stable version (1.0.0) has minSdkVersion 23
+    internal const val ANDROIDX_SECURITY_CRYPTO = "1.1.0-alpha06"
     internal const val ANDROIDX_TEST_JUNIT = "1.1.4"
     internal const val ANDROIDX_TEST_RUNNER = "1.4.0"
     internal const val ANDROIDX_TEST_RULES = "1.4.0"

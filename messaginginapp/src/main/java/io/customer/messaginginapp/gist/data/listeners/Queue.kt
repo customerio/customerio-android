@@ -143,7 +143,9 @@ class Queue : GistListener {
     }
 
     private fun handleMessages(messages: List<Message>) {
-        for (message in messages) {
+        // Sorting messages by priority and placing nulls last.
+        val sortedMessages = messages.sortedWith(compareBy(nullsLast()) { it.priority })
+        for (message in sortedMessages) {
             processMessage(message)
         }
     }

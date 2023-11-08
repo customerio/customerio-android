@@ -24,7 +24,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 class Queue : GistListener {
 
     private var localMessageStore: MutableList<Message> = mutableListOf()
-    private val cacheMap = mutableMapOf<String, Response>()
 
     init {
         GistSdk.addListener(this)

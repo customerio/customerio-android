@@ -16,7 +16,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okhttp3.Cache
 import okhttp3.OkHttpClient
-import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -142,7 +141,7 @@ class Queue : GistListener {
     }
 
     private fun handleMessages(messages: List<Message>) {
-        // Sorting messages by priority and placing nulls last.
+        // Sorting messages by priority and placing nulls last
         val sortedMessages = messages.sortedWith(compareBy(nullsLast()) { it.priority })
         for (message in sortedMessages) {
             processMessage(message)

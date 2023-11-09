@@ -1,3 +1,10 @@
+## [3.7.1](https://github.com/customerio/customerio-android/compare/3.7.0...3.7.1) (2023-11-09)
+
+
+### Bug Fixes
+
+* add priority field to message and sorting by priority within local store ([#276](https://github.com/customerio/customerio-android/issues/276)) ([ddb0359](https://github.com/customerio/customerio-android/commit/ddb035983a9db5b5b7a711843a3dc15a8dc45a02))
+
 ## [3.7.0](https://github.com/customerio/customerio-android/compare/3.6.7...3.7.0) (2023-10-25)
 
 

@@ -1,3 +1,10 @@
+## [3.8.0](https://github.com/customerio/customerio-android/compare/3.7.1...3.8.0) (2023-11-14)
+
+
+### Features
+
+* improve push click behavior ([#247](https://github.com/customerio/customerio-android/issues/247)) ([bcc5318](https://github.com/customerio/customerio-android/commit/bcc5318b1ea055cfaa29d5ee35ef6ae53e340f1b))
+
 ## [3.7.1](https://github.com/customerio/customerio-android/compare/3.7.0...3.7.1) (2023-11-09)
 
 

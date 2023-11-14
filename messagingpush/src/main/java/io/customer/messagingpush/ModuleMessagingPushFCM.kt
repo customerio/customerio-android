@@ -2,7 +2,6 @@ package io.customer.messagingpush
 
 import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
-import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
@@ -41,7 +40,6 @@ internal constructor(
         diGraph.activityLifecycleCallbacks.registerCallback(
             MessagingPushLifecycleCallback(
                 moduleConfig = moduleConfig,
-                deepLinkUtil = diGraph.deepLinkUtil,
                 pushTrackingUtil = diGraph.pushTrackingUtil
             )
         )

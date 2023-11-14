@@ -1,16 +1,25 @@
 package io.customer.messagingpush.processor
 
+import android.content.Context
 import android.content.Intent
 import androidx.annotation.VisibleForTesting
+import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.activity.NotificationClickReceiverActivity
+import io.customer.messagingpush.config.PushClickBehavior
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.extensions.parcelable
+import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.extensions.takeIfNotBlank
 import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.util.Logger
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig,
+    private val deepLinkUtil: DeepLinkUtil,
     private val trackRepository: TrackRepository
 ) : PushMessageProcessor {
 
@@ -83,6 +92,106 @@ internal class PushMessageProcessorImpl(
                 deviceToken = deliveryToken,
                 event = MetricEvent.delivered
             )
+        }
+    }
+
+    override fun processNotificationClick(activityContext: Context, intent: Intent) {
+        kotlin.runCatching {
+            val payload: CustomerIOParsedPushPayload? =
+                intent.extras?.parcelable(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA)
+            if (payload == null) {
+                logger.error("Payload is null, cannot handle notification intent")
+            } else {
+                handleNotificationClickIntent(activityContext, payload)
+            }
+        }.onFailure { ex ->
+            logger.error("Failed to process notification intent: ${ex.message}")
+        }
+    }
+
+    private fun handleNotificationClickIntent(
+        activityContext: Context,
+        payload: CustomerIOParsedPushPayload
+    ) {
+        trackNotificationClickMetrics(payload)
+        handleNotificationDeepLink(activityContext, payload)
+    }
+
+    private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
+        if (moduleConfig.autoTrackPushEvents) {
+            trackRepository.trackMetric(
+                deliveryID = payload.cioDeliveryId,
+                event = MetricEvent.opened,
+                deviceToken = payload.cioDeliveryToken
+            )
+        }
+    }
+
+    private fun handleNotificationDeepLink(
+        activityContext: Context,
+        payload: CustomerIOParsedPushPayload
+    ) {
+        val deepLink = payload.deepLink?.takeIfNotBlank()
+
+        // check if host app overrides the handling of deeplink
+        val notificationCallback = moduleConfig.notificationCallback
+        val taskStackFromPayload = notificationCallback?.createTaskStackFromPayload(
+            context = activityContext,
+            payload = payload
+        )
+        if (taskStackFromPayload != null) {
+            logger.info("Notification target overridden by createTaskStackFromPayload, starting new stack for link $deepLink")
+            taskStackFromPayload.startActivities()
+            return
+        }
+
+        // Check if the deep links are handled within the host app
+        val deepLinkHostAppIntent = deepLink?.let { link ->
+            deepLinkUtil.createDeepLinkHostAppIntent(context = activityContext, link = link)
+        }
+        // Check if the deep links are handled externally only if the host app doesn't handle it
+        if (deepLinkHostAppIntent == null) {
+            // Check if the deep links can be opened outside the host app
+            val deepLinkExternalIntent = deepLink?.let { link ->
+                deepLinkUtil.createDeepLinkExternalIntent(context = activityContext, link = link)
+            }
+            // Check if the deep links should be opened externally
+            if (deepLinkExternalIntent != null) {
+                // Open link externally and return
+                activityContext.startActivity(deepLinkExternalIntent)
+                return
+            }
+        }
+
+        // Get the default intent for the host app
+        val defaultHostAppIntent =
+            deepLinkUtil.createDefaultHostAppIntent(context = activityContext)
+        val deepLinkIntent: Intent = deepLinkHostAppIntent
+            ?: defaultHostAppIntent
+            ?: return
+        deepLinkIntent.putExtra(
+            NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA,
+            payload
+        )
+        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.pushClickBehavior}")
+
+        when (moduleConfig.pushClickBehavior) {
+            PushClickBehavior.RESET_TASK_STACK -> {
+                val taskStackBuilder = TaskStackBuilder.create(activityContext).apply {
+                    addNextIntentWithParentStack(deepLinkIntent)
+                }
+                taskStackBuilder.startActivities()
+            }
+
+            PushClickBehavior.ACTIVITY_PREVENT_RESTART -> {
+                deepLinkIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                activityContext.startActivity(deepLinkIntent)
+            }
+
+            PushClickBehavior.ACTIVITY_NO_FLAGS -> {
+                activityContext.startActivity(deepLinkIntent)
+            }
         }
     }
 }

@@ -6,6 +6,24 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application>
+        <!-- Transparent activity for push interactions 
+
+        Notes: 
+        * Using launchMode="singleTask" because Android OS does not launch activity again in one session, if the activity
+        was launched recently from earlier notification.
+        * launchMode="singleTop" does not work well with ACTIVITY_NO_FLAGS if customer app also has launchMode="singleTop"
+        (e.g. Flutter apps) and have multiple instances launched from notifications in one session.
+
+        -->
+        <activity
+            android:name=".activity.NotificationClickReceiverActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".CustomerIOFirebaseMessagingService"
             android:exported="false">
@@ -14,14 +32,6 @@
             </intent-filter>
         </service>
 
-        <!-- Action receiver for push interactions -->
-        <receiver
-            android:name=".CustomerIOPushReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="io.customer.messagingpush.PUSH_ACTION" />
-            </intent-filter>
-        </receiver>
         <!--
         Broadcast receiver for listening to push events from GoogleCloudMessaging (GCM). The receiver
         listens to message broadcast emitted by Google Cloud APIs. Read class docs for more details.

@@ -1,29 +1,31 @@
 package io.customer.messagingpush
 
+import io.customer.messagingpush.config.PushClickBehavior
+import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTART
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.sdk.module.CustomerIOModuleConfig
 
 /**
  * Push messaging module configurations
- * <p/>
- * Please note for apps targeting Android 12 or greater, all other apps and
- * browser intents will be opened over host app so that notification metrics
- * are not affected
  *
  * @property notificationCallback callback to override default sdk behaviour for
  * notifications
  * @property redirectDeepLinksToOtherApps flag to support opening urls from
  * notification to other native apps or browsers; default true
+ * @property pushClickBehavior defines the behavior when a push notification
+ * is clicked
  */
 class MessagingPushModuleConfig private constructor(
     val autoTrackPushEvents: Boolean,
     val notificationCallback: CustomerIOPushNotificationCallback?,
-    val redirectDeepLinksToOtherApps: Boolean
+    val redirectDeepLinksToOtherApps: Boolean,
+    val pushClickBehavior: PushClickBehavior
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var redirectDeepLinksToOtherApps: Boolean = true
+        private var pushClickBehavior: PushClickBehavior = ACTIVITY_PREVENT_RESTART
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -62,11 +64,23 @@ class MessagingPushModuleConfig private constructor(
             return this
         }
 
+        /**
+         * Defines the behavior when a notification is clicked.
+         *
+         * @param pushClickBehavior the behavior when a notification is clicked; default [PushClickBehavior.ACTIVITY_PREVENT_RESTART].
+         * @see PushClickBehavior for more details.
+         */
+        fun setPushClickBehavior(pushClickBehavior: PushClickBehavior): Builder {
+            this.pushClickBehavior = pushClickBehavior
+            return this
+        }
+
         override fun build(): MessagingPushModuleConfig {
             return MessagingPushModuleConfig(
                 autoTrackPushEvents = autoTrackPushEvents,
                 notificationCallback = notificationCallback,
-                redirectDeepLinksToOtherApps = redirectDeepLinksToOtherApps
+                redirectDeepLinksToOtherApps = redirectDeepLinksToOtherApps,
+                pushClickBehavior = pushClickBehavior
             )
         }
     }

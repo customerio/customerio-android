@@ -1,3 +1,10 @@
+## [3.8.1](https://github.com/customerio/customerio-android/compare/3.8.0...3.8.1) (2023-12-06)
+
+
+### Bug Fixes
+
+* fixes a thread safety issue with currentMessage being out of sync ([#279](https://github.com/customerio/customerio-android/issues/279)) ([bb72944](https://github.com/customerio/customerio-android/commit/bb729449ad28e6b8afc1159d84c6ab63f732e526))
+
 ## [3.8.0](https://github.com/customerio/customerio-android/compare/3.7.1...3.8.0) (2023-11-14)
 
 

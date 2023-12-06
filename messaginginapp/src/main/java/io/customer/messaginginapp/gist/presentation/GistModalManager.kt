@@ -13,26 +13,24 @@ internal class GistModalManager : GistListener {
         GistSdk.addListener(this)
     }
 
-    internal fun showModalMessage(message: Message, position: MessagePosition? = null): Boolean {
-        synchronized(this) {
-            currentMessage?.let { currentMessage ->
-                Log.i(
-                    GIST_TAG,
-                    "Message ${message.messageId} not shown, ${currentMessage.messageId} is already showing."
-                )
-                return false
-            }
-
-            Log.i(GIST_TAG, "Showing message: ${message.messageId}")
-            currentMessage = message
-
-            val intent = GistModalActivity.newIntent(GistSdk.application)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            intent.putExtra(GIST_MESSAGE_INTENT, Gson().toJson(message))
-            intent.putExtra(GIST_MODAL_POSITION_INTENT, position?.toString())
-            GistSdk.application.startActivity(intent)
-            return true
+    @Synchronized internal fun showModalMessage(message: Message, position: MessagePosition? = null): Boolean {
+        currentMessage?.let { currentMessage ->
+            Log.i(
+                GIST_TAG,
+                "Message ${message.messageId} not shown, ${currentMessage.messageId} is already showing."
+            )
+            return false
         }
+
+        Log.i(GIST_TAG, "Showing message: ${message.messageId}")
+        currentMessage = message
+
+        val intent = GistModalActivity.newIntent(GistSdk.application)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        intent.putExtra(GIST_MESSAGE_INTENT, Gson().toJson(message))
+        intent.putExtra(GIST_MODAL_POSITION_INTENT, position?.toString())
+        GistSdk.application.startActivity(intent)
+        return true
     }
 
     internal fun dismissActiveMessage() {

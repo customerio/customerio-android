@@ -149,7 +149,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         val queueId = message.queueId
 
         if (shownMessageQueueIds.contains(queueId)) {
-            Log.i(GIST_TAG,"Duplicate message $queueId skipped")
+            Log.i(GIST_TAG, "Duplicate message $queueId skipped")
         } else {
             GlobalScope.launch {
                 try {

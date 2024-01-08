@@ -46,6 +46,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
 
     private var gistModalManager: GistModalManager = GistModalManager()
     internal var currentRoute: String = ""
+    private var shownMessageQueueIds = mutableSetOf<String>()
 
     @JvmStatic
     fun getInstance() = this
@@ -145,15 +146,26 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     fun showMessage(message: Message, position: MessagePosition? = null): String? {
         ensureInitialized()
         var messageShown = false
+        val queueId = message.queueId
 
-        GlobalScope.launch {
-            try {
-                messageShown = gistModalManager.showModalMessage(message, position)
-            } catch (e: Exception) {
-                Log.e(GIST_TAG, "Failed to show message: ${e.message}", e)
+        if (shownMessageQueueIds.contains(queueId)) {
+            Log.i(GIST_TAG,"Duplicate message $queueId skipped")
+        } else {
+            GlobalScope.launch {
+                try {
+                    messageShown = gistModalManager.showModalMessage(message, position)
+                } catch (e: Exception) {
+                    Log.e(GIST_TAG, "Failed to show message: ${e.message}", e)
+                }
             }
         }
-        return if (messageShown) message.instanceId else null
+
+        if (messageShown) {
+            shownMessageQueueIds.add(queueId!!)
+            return message.instanceId
+        } else {
+            return null
+        }
     }
 
     fun dismissMessage() {

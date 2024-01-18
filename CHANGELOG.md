@@ -1,3 +1,10 @@
+## [3.8.2](https://github.com/customerio/customerio-android/compare/3.8.1...3.8.2) (2024-01-18)
+
+
+### Bug Fixes
+
+* ensure messages are only shown once ([#281](https://github.com/customerio/customerio-android/issues/281)) ([f73e13f](https://github.com/customerio/customerio-android/commit/f73e13fddedc6fe36a6b7afd12db94014fb89014))
+
 ## [3.8.1](https://github.com/customerio/customerio-android/compare/3.8.0...3.8.1) (2023-12-06)
 
 

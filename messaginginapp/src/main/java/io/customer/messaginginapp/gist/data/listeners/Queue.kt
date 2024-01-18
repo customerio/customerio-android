@@ -194,6 +194,7 @@ class Queue : GistListener {
                         GIST_TAG,
                         "Logging view for user message: ${message.messageId}, with queue id: ${message.queueId}"
                     )
+                    shownMessageQueueIds.add(message.queueId)
                     removeMessageFromLocalStore(message)
                     gistQueueService.logUserMessageView(message.queueId)
                 } else {
@@ -224,10 +225,6 @@ class Queue : GistListener {
             Log.i(GIST_TAG, "Persistent message shown: ${message.messageId}, skipping logging view")
         } else {
             logView(message)
-        }
-
-        if (message.queueId != null) {
-            shownMessageQueueIds.add(message.queueId)
         }
     }
 

@@ -23,6 +23,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 class Queue : GistListener {
 
     private var localMessageStore: MutableList<Message> = mutableListOf()
+    private var shownMessageQueueIds = mutableSetOf<String>()
 
     init {
         GistSdk.addListener(this)
@@ -149,6 +150,11 @@ class Queue : GistListener {
     }
 
     private fun processMessage(message: Message) {
+        if (message.queueId != null && shownMessageQueueIds.contains(message.queueId)) {
+            Log.i(GIST_TAG, "Duplicate message ${message.queueId} skipped")
+            return
+        }
+
         val gistProperties = GistMessageProperties.getGistProperties(message)
         gistProperties.routeRule?.let { routeRule ->
             try {
@@ -188,6 +194,7 @@ class Queue : GistListener {
                         GIST_TAG,
                         "Logging view for user message: ${message.messageId}, with queue id: ${message.queueId}"
                     )
+                    shownMessageQueueIds.add(message.queueId)
                     removeMessageFromLocalStore(message)
                     gistQueueService.logUserMessageView(message.queueId)
                 } else {

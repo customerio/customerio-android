@@ -153,6 +153,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
                 Log.e(GIST_TAG, "Failed to show message: ${e.message}", e)
             }
         }
+
         return if (messageShown) message.instanceId else null
     }
 

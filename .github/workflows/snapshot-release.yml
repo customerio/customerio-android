@@ -33,7 +33,7 @@ jobs:
           SNAPSHOT: true
 
       - name: Find old comment to update comment for
-        uses: peter-evans/find-comment@v2
+        uses: peter-evans/find-comment@v3
         id: find-previous-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -41,7 +41,7 @@ jobs:
           body-includes: Build available to test
 
       - name: Inform pull request on build of SDK available to test 
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}

@@ -15,6 +15,7 @@ import java.util.regex.PatternSyntaxException
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okhttp3.Cache
+import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Retrofit
@@ -132,11 +133,28 @@ class Queue : GistListener {
                     )
                     latestMessagesResponse.body()?.let { handleMessages(it) }
                 }
+
+                // Check if the polling interval changed and update timer.
+                updatePollingInterval(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 Log.e(
                     GIST_TAG,
                     "Error fetching messages: ${e.message}"
                 )
+            }
+        }
+    }
+
+    private fun updatePollingInterval(headers: Headers) {
+        headers["X-Gist-Queue-Polling-Interval"]?.toIntOrNull()?.let { pollingIntervalSeconds ->
+            if (pollingIntervalSeconds > 0) {
+                val newPollingIntervalMilliseconds = (pollingIntervalSeconds * 1000).toLong()
+                if (newPollingIntervalMilliseconds != GistSdk.pollInterval) {
+                    GistSdk.pollInterval = newPollingIntervalMilliseconds
+                    // Queue check fetches messages again and could result in infinite loop.
+                    GistSdk.observeMessagesForUser(true)
+                    Log.i(GIST_TAG, "Polling interval changed to: $pollingIntervalSeconds seconds")
+                }
             }
         }
     }

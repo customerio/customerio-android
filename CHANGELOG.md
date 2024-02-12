@@ -1,3 +1,10 @@
+## [3.9.0](https://github.com/customerio/customerio-android/compare/3.8.2...3.9.0) (2024-02-12)
+
+
+### Features
+
+* use new header to set polling interval ([#285](https://github.com/customerio/customerio-android/issues/285)) ([966c9cb](https://github.com/customerio/customerio-android/commit/966c9cbd03a896a48c120ae495847705382b82c9))
+
 ## [3.8.2](https://github.com/customerio/customerio-android/compare/3.8.1...3.8.2) (2024-01-18)
 
 

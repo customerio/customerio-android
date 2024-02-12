@@ -146,13 +146,14 @@ class Queue : GistListener {
     }
 
     private fun updatePollingInterval(headers: Headers) {
-        headers["X-Gist-Queue-Polling-Interval"]?.let { pollingInterval ->
-            if (pollingInterval.toInt() > 0) {
-                val newPollingInterval = (pollingInterval.toInt() * 1000).toLong()
-                if (newPollingInterval != GistSdk.pollInterval) {
-                    GistSdk.pollInterval = newPollingInterval
+        headers["X-Gist-Queue-Polling-Interval"]?.toIntOrNull()?.let { pollingIntervalSeconds ->
+            if (pollingIntervalSeconds > 0) {
+                val newPollingIntervalMilliseconds = (pollingIntervalSeconds * 1000).toLong()
+                if (newPollingIntervalMilliseconds != GistSdk.pollInterval) {
+                    GistSdk.pollInterval = newPollingIntervalMilliseconds
+                    // Queue check fetches messages again and could result in infinite loop.
                     GistSdk.observeMessagesForUser(true)
-                    Log.i(GIST_TAG, "Polling interval changed to: ${pollingInterval.toInt()} seconds")
+                    Log.i(GIST_TAG, "Polling interval changed to: $pollingIntervalSeconds seconds")
                 }
             }
         }

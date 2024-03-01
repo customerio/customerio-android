@@ -51,7 +51,7 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
 
 dependencies {
     api project(":base")
-    api project(":sdk")
+    api project(':tracking')
 
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"

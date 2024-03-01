@@ -37,18 +37,18 @@ allprojects {
     }    
 }
 
-task clean(type: Delete) {
+tasks.register('clean', Delete) {
     delete rootProject.buildDir
 }
 
 apiValidation {
     ignoredPackages += [
             'io/customer/base/extenstions',
-            'io/customer/sdk/api',
-            'io/customer/sdk/data/store',
-            'io/customer/sdk/queue',
-            'io/customer/sdk/extensions',
-            'io/customer/sdk/util',
+            'io/customer/tracking/api',
+            'io/customer/tracking/data/store',
+            'io/customer/tracking/queue',
+            'io/customer/tracking/extensions',
+            'io/customer/tracking/util',
     ]
 
     ignoredProjects += [

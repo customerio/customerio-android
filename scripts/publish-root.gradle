@@ -10,7 +10,7 @@ ext["sonatypeStagingProfileId"] = System.getenv('SONATYPE_STAGING_PROFILE_ID') ?
 ext["snapshot"] = System.getenv('SNAPSHOT') ?: ''
 // have version = "local" for local development so installing in apps is easier.
 // this makes the version hard-coded instead of constantly changing like 1.0.0
-ext["PUBLISH_VERSION"] = "3.9.0"
+ext["PUBLISH_VERSION"] = "local"
 
 // override variables from 'local.properties'
 File secretPropsFile = project.rootProject.file('local.properties')

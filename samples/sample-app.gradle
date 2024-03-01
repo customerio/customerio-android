@@ -46,7 +46,7 @@ dependencies {
     def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
         // Add local dependency for SDK modules, helpful for debugging
-        implementation(project(":sdk"))
+        implementation(project(":tracking"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
     } else {

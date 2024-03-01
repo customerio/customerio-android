@@ -1,5 +1,6 @@
 import io.customer.android.Configurations
 import io.customer.android.Dependencies
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id 'java-library'
@@ -19,7 +20,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+tasks.withType(KotlinCompile).configureEach {
     kotlinOptions {
         freeCompilerArgs += [
                 '-Xopt-in=kotlin.RequiresOptIn',
@@ -27,6 +28,19 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
         ]
     }
 }
+
+//tasks.register('printPath') {
+//    doLast {
+//        project.exec {
+//            println("PATH: " + System.getenv("PATH"))
+//            // Your apkanalyzer command:
+//            commandLine "apkanalyzer", "--human-readable", "apk", "compare", "--different-only",
+//                    " /Users/shahrozali/AndroidStudioProjects/customerio-android/sdk/build/apkscale/build/outputs/apk/withoutLibrary/release/apkscale-withoutLibrary-release-unsigned.apk",
+//                    "/Users/shahrozali/AndroidStudioProjects/customerio-android/sdk/build/apkscale/build/outputs/apk/withLibrary/release/apkscale-withLibrary-release-unsigned.apk"
+//        }
+//       }
+//}
+
 
 dependencies {
     implementation Dependencies.coroutinesCore

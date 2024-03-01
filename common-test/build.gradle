@@ -19,8 +19,8 @@ android {
 }
 
 dependencies {
+    api project(':tracking')
     // since all modules in project inherit the base tracking SDK, add it here to our shared testing module as all modules in project should have access to this module.
-    api project(':sdk')
 
     // Non-testing tools that all modules use.
     api Dependencies.retrofit

@@ -1,3 +1,10 @@
+## [3.9.1](https://github.com/customerio/customerio-android/compare/3.9.0...3.9.1) (2024-03-21)
+
+
+### Bug Fixes
+
+* last used format for device ([#287](https://github.com/customerio/customerio-android/issues/287)) ([726667b](https://github.com/customerio/customerio-android/commit/726667ba4380b21cdf88042fe1984596f08f82f1))
+
 ## [3.9.0](https://github.com/customerio/customerio-android/compare/3.8.2...3.9.0) (2024-02-12)
 
 

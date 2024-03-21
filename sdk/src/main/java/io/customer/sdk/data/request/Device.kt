@@ -9,7 +9,7 @@ import java.util.*
 data class Device(
     @field:Json(name = "id") val token: String,
     val platform: String = "android",
-    @field:Json(name = "last_used") val lastUsed: Date,
+    @field:Json(name = "last_used") val lastUsed: Date?,
     val attributes: CustomAttributes
 )
 

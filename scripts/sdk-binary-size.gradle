@@ -15,40 +15,39 @@ tasks.register("generateSdkSizeReport") {
     dependsOn(taskDependencies)
 
     doLast {
-        // List to hold all JSON content
-        List allReports = []
-        // Groovy's JSON parser
-        def jsonSlurper = new JsonSlurper()
+        JsonSlurper jsonSlurper = new JsonSlurper()
+        List<String> reportOutputs = []
 
-        // Iterate over each project
+        // Iterate over each library module and read the apkscale report
         project.subprojects.findAll { subproject ->
             subproject.plugins.hasPlugin('com.android.library')
         }.each { subproject ->
             println "Processing ${subproject.name}"
 
-            // Define the expected location of the apkscale.json file
-            def jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
+            // Read the apkscale report for the library module
+            File jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
             println "Checking for report at ${project.relativePath(jsonFile)}"
 
-            // Check if the file exists and read its content
+            // If the report exists, parse it and add it to the list
             if (jsonFile.exists()) {
-                def apkscaleOutput = jsonSlurper.parseText(jsonFile.text).get(0)
+                def output = jsonSlurper.parseText(jsonFile.text).get(0)
                 Map<String, Object> report = [
-                        library: apkscaleOutput.library,
-                        sizes  : apkscaleOutput.size
+                        library: output.library,
+                        sizes  : output.size
                 ]
-                allReports.add(report)
+                reportOutputs.add(report)
             } else {
                 println "apkscale.json not found for ${subproject.name}"
             }
         }
 
-        // Define the output file path
+        // Create a combined report of all the individual reports
         File outputFile = project.file('reports/sdk-binary-size.json')
-        // Create the output directory if it doesn't exist
+        // Create the parent directory if it doesn't exist
         outputFile.parentFile.mkdir()
-        // Convert `allReports` to JSON string and write combined data to output file
-        outputFile.text = new JsonBuilder(allReports).toPrettyString()
+        // Write the combined report to output file as pretty printed JSON
+        outputFile.text = new JsonBuilder(reportOutputs).toPrettyString()
+
         println "Combined report generated at: ${outputFile}"
     }
 }

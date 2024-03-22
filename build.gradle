@@ -10,6 +10,7 @@ buildscript {
         google()
         maven { url "https://plugins.gradle.org/m2/" }
         mavenCentral()
+        maven { url 'https://repo.gradle.org/gradle/libs-releases' }
     }
     dependencies {
         classpath Dependencies.androidGradlePlugin
@@ -25,6 +26,8 @@ buildscript {
         classpath Dependencies.googleServicesPlugin
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
+        // APK Scale plugin to track binary size of the SDK
+        classpath Dependencies.apkScale
     }
 }
 
@@ -32,7 +35,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-    }    
+    }
 }
 
 task clean(type: Delete) {
@@ -70,3 +73,4 @@ apiValidation {
 }
 
 apply from: "${rootDir}/scripts/publish-root.gradle"
+apply from: "${rootDir}/scripts/sdk-binary-size.gradle"

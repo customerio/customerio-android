@@ -1,0 +1,101 @@
+import groovy.json.JsonBuilder
+import groovy.json.JsonSlurper
+import io.customer.android.Configurations
+
+tasks.register("trackBinarySize") {
+    List<String> taskDependencies = [
+            ':republishTrackingModuleAsSdk',
+            ':sdk:measureSize',
+            ':messagingpush:measureSize',
+            ':messaginginapp:measureSize',
+    ]
+    dependsOn(taskDependencies)
+
+    doLast {
+        // List to hold all JSON content
+        List allReports = []
+        // Groovy's JSON parser
+        def jsonSlurper = new JsonSlurper()
+
+        // Iterate over each project
+        project.subprojects.findAll { subproject ->
+            subproject.plugins.hasPlugin('com.android.library')
+        }.each { subproject ->
+            println "Processing ${subproject.name}"
+
+            // Define the expected location of the apkscale.json file
+            def jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
+            println "Checking for report at ${project.relativePath(jsonFile)}"
+
+            // Check if the file exists and read its content
+            if (jsonFile.exists()) {
+                def apkscaleOutput = jsonSlurper.parseText(jsonFile.text).get(0)
+                Map<String, Object> report = [
+                        library: apkscaleOutput.library,
+                        sizes  : apkscaleOutput.size
+                ]
+                allReports.add(report)
+            } else {
+                println "apkscale.json not found for ${subproject.name}"
+            }
+        }
+
+        // Define the output file path
+        File outputFile = project.file('reports/sdk-binary-size.json')
+        // Create the output directory if it doesn't exist
+        outputFile.parentFile.mkdir()
+        // Convert `allReports` to JSON string and write combined data to output file
+        outputFile.text = new JsonBuilder(allReports).toPrettyString()
+        println "Combined report generated at: ${outputFile}"
+    }
+}
+
+// This runs only in development mode locally and not in CI
+// This is temporary and will be removed once tracking module is placed in same as its artifactId
+//
+// Republish the `tracking` module to `sdk` as a temporary workaround to track binary size
+// The tracking module exists in directory named 'sdk', we need to republish 'tracking' as 'sdk'
+// so apkscale can locate it locally
+tasks.register("republishTrackingModuleAsSdk") {
+    doLast {
+        Boolean isDevelopment = System.getenv('IS_DEVELOPMENT') == "true"
+        if (!isDevelopment) {
+            println "Skipping republishing of the tracking module as SDK"
+            return
+        }
+
+        println "Republishing the tracking module as SDK"
+
+        String localMavenRepoPath = "${System.getProperty('user.home')}/.m2/repository"
+        String groupPath = Configurations.artifactGroup.replace('.', '/')
+        String sourceArtifactId = 'tracking'
+        String destinationArtifactId = 'sdk'
+
+        // Recursively copy and modify files
+        def sourceArtifact = new File("$localMavenRepoPath/$groupPath/$sourceArtifactId")
+        sourceArtifact.eachFileRecurse { File file ->
+            String destinationFilePath = file.getPath().replace(sourceArtifactId, destinationArtifactId)
+            File destinationFile = new File(destinationFilePath)
+
+            // Ensure the destination directory exists before copying
+            if (file.isDirectory()) {
+                destinationFile.mkdirs()
+            } else if (file.isFile()) {
+                // Modify the contents of text files if they are XML, POM, or module files
+                if (destinationFilePath.endsWith('.xml') || destinationFilePath.endsWith('.pom') || destinationFilePath.endsWith('.module')) {
+                    String content = file.text.replace(sourceArtifactId, destinationArtifactId)
+                    new File(destinationFilePath).write(content)
+                } else {
+                    // Else, copy the file as is and rename it
+                    copy {
+                        from file.path
+                        into destinationFile.parentFile
+                        rename { String fileName ->
+                            return fileName.replace(sourceArtifactId, destinationArtifactId)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

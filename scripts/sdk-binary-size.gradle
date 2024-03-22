@@ -22,7 +22,7 @@ tasks.register("generateSdkSizeReport") {
         project.subprojects.findAll { subproject ->
             subproject.plugins.hasPlugin('com.android.library')
         }.each { subproject ->
-            println "Processing ${subproject.name}"
+            println "Processing module: ${subproject.name}"
 
             // Read the apkscale report for the library module
             File jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
@@ -48,7 +48,7 @@ tasks.register("generateSdkSizeReport") {
         // Write the combined report to output file as pretty printed JSON
         outputFile.text = new JsonBuilder(reportOutputs).toPrettyString()
 
-        println "Combined report generated at: ${outputFile}"
+        println "SDK binary size report successfully generated and saved to ${project.relativePath(outputFile)}"
     }
 }
 

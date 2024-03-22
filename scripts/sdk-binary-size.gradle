@@ -2,7 +2,10 @@ import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import io.customer.android.Configurations
 
-tasks.register("trackBinarySize") {
+// This task generates a combined report of binary sizes of all SDK modules
+// The report is generated in JSON format using apkscale plugin and is saved to `reports/sdk-binary-size.json`
+// This task can be run locally by executing `./gradlew generateSdkSizeReport`
+tasks.register("generateSdkSizeReport") {
     List<String> taskDependencies = [
             ':republishTrackingModuleAsSdk',
             ':sdk:measureSize',

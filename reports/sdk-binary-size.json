@@ -1,0 +1,20 @@
+[
+    {
+        "library": "messaginginapp-release.aar",
+        "sizes": {
+            "universal": "3.2MB"
+        }
+    },
+    {
+        "library": "messagingpush-release.aar",
+        "sizes": {
+            "universal": "2.7MB"
+        }
+    },
+    {
+        "library": "sdk-release.aar",
+        "sizes": {
+            "universal": "1.9MB"
+        }
+    }
+]

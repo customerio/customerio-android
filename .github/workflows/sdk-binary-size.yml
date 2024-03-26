@@ -7,19 +7,24 @@ jobs:
   sdk-binary-size-comparison-report:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout base branch
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.base_ref }}
-      - uses: ./.github/actions/setup-android
+
+      - name: Setup Android SDK
+        uses: ./.github/actions/setup-android
 
       - name: Generate report for base branch
         run: |
-          git checkout ${{ github.base_ref }}
           ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch
           git checkout -
 
       - name: Generate report for PR branch
         run: ./gradlew generateSdkSizeReport  # Uses default $buildDir to save the report
+
+      - name: Checkout the PR branch
+        uses: actions/checkout@v4
 
       - name: Compare SDK Size Reports
         run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch

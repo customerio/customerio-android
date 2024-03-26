@@ -13,14 +13,15 @@ final String sdkSizeUnit = 'MB'
 // The report is generated in JSON format using apkscale plugin and is saved to
 // `$buildDir/sdk-binary-size.json` by default
 // This task can be run locally by executing `./gradlew generateSdkSizeReport`
-// Run `./gradlew generateSdkSizeReport -PoutputDir=<outputDir>` to specify custom output directory
+// Run `./gradlew generateSdkSizeReport -PsaveReportTo=<saveReportTo>` to specify custom directory
+// to save the report
 tasks.register("generateSdkSizeReport") {
     // List all task dependencies for each library module
     ArrayList<String> taskDependencies = targetModules.collect { String moduleName ->
         ":$moduleName:measureSize"
     }
     // Add the republishing task as the first dependency as temporary workaround to make it work locally
-    if (System.getenv('IS_DEVELOPMENT') == "true") {
+    if (System.getenv('IS_DEVELOPMENT') == 'true') {
         taskDependencies.add(0, ':republishTrackingModuleAsSdk')
     }
     dependsOn(taskDependencies)
@@ -47,7 +48,9 @@ tasks.register("generateSdkSizeReport") {
         }
 
         // Output directory for the combined report, default to `build` directory
-        String outputDirectory = project.hasProperty('outputDir') ? project.getProperty('outputDir') : "$buildDir"
+        String outputDirectory = project.hasProperty('saveReportTo')
+                ? project.getProperty('saveReportTo')
+                : "$buildDir"
         // Create a combined report of all the individual reports
         File finalReport = project.file("$outputDirectory/$sdkSizeReportFileName")
         // Create parent directories if they do not exist
@@ -60,33 +63,40 @@ tasks.register("generateSdkSizeReport") {
 }
 
 // Task to compare the generated SDK binary size report with an existing report
+// This task can be run locally by executing `./gradlew compareSdkSizeReports`
+// Run `./gradlew compareSdkSizeReports -PcompareWithDir=<compareWithDir>` to specify custom
+// directory for last recorded report to compare with
 tasks.register('compareSdkSizeReports') {
     // Ensure the comparison runs after the generation of the latest report
     dependsOn([':generateSdkSizeReport'])
 
-    // Default directories for existing and generated reports
-    String existingReportDirectory = "reports"
-    String generatedReportDirectory = "$buildDir"
-
-    // Allow overriding the directories from the command line to facilitate CI actions
-    doFirst {
-        if (project.hasProperty('existingReportDir')) {
-            existingReportDirectory = project.property('existingReportDir')
-        }
-        if (project.hasProperty('generatedReportDir')) {
-            generatedReportDirectory = project.property('generatedReportDir')
-        }
-    }
-
     doLast {
+        // Allow specifying custom directory for existing report to compare with the reports
+        // generated using CI for PRs that are not merged yet
+        String existingReportDirectory = project.hasProperty('compareWithDir')
+                ? project.getProperty('compareWithDir')
+                : 'reports'
+        // Read and validate the existing and generated reports for comparison
+        File existingReportFile = new File("$existingReportDirectory/$sdkSizeReportFileName")
+        if (!existingReportFile.exists()) {
+            println "Existing report not found at ${existingReportFile.canonicalPath}"
+            throw new GradleException('Failed to find existing report for comparison')
+        }
+        File generatedReportFile = new File("$buildDir/$sdkSizeReportFileName")
+        if (!generatedReportFile.exists()) {
+            println "Generated report not found at ${generatedReportFile.canonicalPath}"
+            throw new GradleException('Failed to find generated report for comparison')
+        }
+
         // Read the existing and generated reports for comparison
-        def existingReport = new JsonSlurper().parse(new File("$existingReportDirectory/$sdkSizeReportFileName"))
-        def generatedReport = new JsonSlurper().parse(new File("$generatedReportDirectory/$sdkSizeReportFileName"))
+        JsonSlurper jsonSlurper = new JsonSlurper()
+        def existingReport = jsonSlurper.parse(existingReportFile)
+        def generatedReport = jsonSlurper.parse(generatedReportFile)
 
         // Generates a base template for the comparison report and returns StringBuilder
         Closure<StringBuilder> initReportBuilder = {
             StringBuilder builder = new StringBuilder()
-            builder << "## 📏 SDK Binary Size Comparison Report\n\n"
+            builder << '## 📏 SDK Binary Size Comparison Report\n\n'
             return builder
         }
 
@@ -95,12 +105,12 @@ tasks.register('compareSdkSizeReports') {
         StringBuilder output = initReportBuilder()
 
         // Generate a markdown table for the comparison report
-        output << "| Module | Variant | Last Recorded Size | Current Size | Change in Size |\n"
-        output << "| ------ | ------- | ----------------- | ----------- | ----------- |\n"
+        output << '| Module | Variant | Last Recorded Size | Current Size | Change in Size |\n'
+        output << '| ------ | ------- | ----------------- | ----------- | ----------- |\n'
 
         // Closure to parse size string and extract the number
         Closure<Float> parseSize = { sizeStr ->
-            sizeStr.replace(sdkSizeUnit, "").trim() as float
+            sizeStr.replace(sdkSizeUnit, '').trim() as float
         }
 
         // Closure to compare the sizes of a module and variant
@@ -122,7 +132,7 @@ tasks.register('compareSdkSizeReports') {
                 sizeChangeSummary = changeInSize > 0 ? "⬆️ +$changeInSizeWithUnit" : "⬇️ $changeInSizeWithUnit"
             } else {
                 // If the sizes are the same, indicate no change
-                sizeChangeSummary = "✅ No Change"
+                sizeChangeSummary = '✅ No Change'
             }
             // Append the comparison result to the output table
             output << "| `$moduleName` | `$variant` | `${existingSize}` | `${generatedSize}` | $sizeChangeSummary |\n"
@@ -137,11 +147,11 @@ tasks.register('compareSdkSizeReports') {
         // If no changes were detected, update the output to indicate no changes
         if (!changesDetected) {
             output = initReportBuilder()
-            output << "No changes detected in SDK binary size. ✅\n"
+            output << 'No changes detected in SDK binary size. ✅\n'
         }
 
         // Output file for the comparison report at same location as the generated report
-        File comparisonOutputFile = new File("$generatedReportDirectory/sdk-binary-comparison.md")
+        File comparisonOutputFile = new File("$buildDir/sdk-binary-comparison.md")
         // Write comparison results to the specified output file
         comparisonOutputFile.text = output.toString()
 
@@ -157,13 +167,13 @@ tasks.register('compareSdkSizeReports') {
 // so apkscale can locate it locally
 tasks.register("republishTrackingModuleAsSdk") {
     doLast {
-        Boolean isDevelopment = System.getenv('IS_DEVELOPMENT') == "true"
+        Boolean isDevelopment = System.getenv('IS_DEVELOPMENT') == 'true'
         if (!isDevelopment) {
-            println "Skipping republishing of the tracking module as SDK"
+            println 'Skipping republishing of the tracking module as SDK'
             return
         }
 
-        println "Republishing the tracking module as SDK"
+        println 'Republishing the tracking module as SDK'
 
         String localMavenRepoPath = "${System.getProperty('user.home')}/.m2/repository"
         String groupPath = Configurations.artifactGroup.replace('.', '/')

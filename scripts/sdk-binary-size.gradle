@@ -36,7 +36,7 @@ tasks.register("generateSdkSizeReport") {
         }.each { Project subproject ->
             // Get the path to the apkscale report for the module
             File jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
-            println "Checking for report at ${project.relativePath(jsonFile)}"
+            println "Processing report for ${subproject.name} at ${project.relativePath(jsonFile)}"
 
             // Parse the JSON file and extract module name and its binary size
             if (jsonFile.exists()) {

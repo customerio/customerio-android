@@ -1,30 +1,30 @@
 name: SDK Binary Size Comparison
 
 # Run this workflow only on pull requests
-on: [ pull_request ]
+on: [pull_request]
 
 jobs:
   sdk-binary-size-comparison-report:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout base branch
+      - name: Checkout the PR branch
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.base_ref }}
 
       - name: Setup Android SDK
         uses: ./.github/actions/setup-android
 
       - name: Generate report for base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
         run: |
           ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch
-          git checkout -
+
+      - name: Checkout back to PR branch
+        uses: actions/checkout@v4
 
       - name: Generate report for PR branch
         run: ./gradlew generateSdkSizeReport  # Uses default $buildDir to save the report
-
-      - name: Checkout the PR branch
-        uses: actions/checkout@v4
 
       - name: Compare SDK Size Reports
         run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch

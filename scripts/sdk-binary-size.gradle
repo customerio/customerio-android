@@ -27,7 +27,7 @@ tasks.register("generateSdkSizeReport") {
     dependsOn(taskDependencies)
 
     doLast {
-        File sdkBuildGradle = File("${project.file('sdk/build/apkscale/build.gradle')}")
+        File sdkBuildGradle = project.file('sdk/build/apkscale/build.gradle')
         if (sdkBuildGradle.exists()) {
             println 'sdk/build/apkscale/build.gradle exists'
             println sdkBuildGradle.text

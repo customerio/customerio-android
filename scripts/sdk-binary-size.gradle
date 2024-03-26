@@ -93,16 +93,9 @@ tasks.register('compareSdkSizeReports') {
         def existingReport = jsonSlurper.parse(existingReportFile)
         def generatedReport = jsonSlurper.parse(generatedReportFile)
 
-        // Generates a base template for the comparison report and returns StringBuilder
-        Closure<StringBuilder> initReportBuilder = {
-            StringBuilder builder = new StringBuilder()
-            builder << '## 📏 SDK Binary Size Comparison Report\n\n'
-            return builder
-        }
-
         // Flag to indicate if any changes were detected in the comparison
         Boolean changesDetected = false
-        StringBuilder output = initReportBuilder()
+        StringBuilder output = new StringBuilder()
 
         // Generate a markdown table for the comparison report
         output << '| Module | Variant | Last Recorded Size | Current Size | Change in Size |\n'
@@ -146,7 +139,7 @@ tasks.register('compareSdkSizeReports') {
 
         // If no changes were detected, update the output to indicate no changes
         if (!changesDetected) {
-            output = initReportBuilder()
+            output = new StringBuilder()
             output << 'No changes detected in SDK binary size. ✅\n'
         }
 

@@ -9,16 +9,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
 
-      - name: Checkout base branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.base_ref }}
-
-      - name: Generate report for base branch
-        run: ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch --info
-
-      - name: Checkout to PR branch
-        uses: actions/checkout@v4
+#      - name: Checkout base branch
+#        uses: actions/checkout@v4
+#        with:
+#          ref: ${{ github.base_ref }}
+#
+#      - name: Generate report for base branch
+#        run: ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch --info
+#
+#      - name: Checkout to PR branch
+#        uses: actions/checkout@v4
 
       - name: Generate report for PR branch
         run: ./gradlew generateSdkSizeReport --info  # Uses default $buildDir to save the report

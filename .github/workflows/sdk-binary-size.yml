@@ -8,6 +8,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Cache local Maven repository
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
 #      - name: Checkout base branch
 #        uses: actions/checkout@v4
@@ -15,13 +31,13 @@ jobs:
 #          ref: ${{ github.base_ref }}
 #
 #      - name: Generate report for base branch
-#        run: ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch --info
+#        run: ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch --no-daemon --info
 #
 #      - name: Checkout to PR branch
 #        uses: actions/checkout@v4
 
       - name: Generate and Compare SDK Size Reports
-        run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --info
+        run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --no-daemon --info
 
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3

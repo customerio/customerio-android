@@ -15,16 +15,16 @@ jobs:
           ref: ${{ github.base_ref }}
 
       - name: Generate report for base branch
-        run: ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch
+        run: ./gradlew generateSdkSizeReport -PsaveReportTo=build/base-branch --info
 
       - name: Checkout to PR branch
         uses: actions/checkout@v4
 
       - name: Generate report for PR branch
-        run: ./gradlew generateSdkSizeReport  # Uses default $buildDir to save the report
+        run: ./gradlew generateSdkSizeReport --info  # Uses default $buildDir to save the report
 
       - name: Compare SDK Size Reports
-        run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch
+        run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --info
 
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3

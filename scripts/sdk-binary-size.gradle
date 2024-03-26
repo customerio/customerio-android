@@ -83,13 +83,19 @@ tasks.register('compareSdkSizeReports') {
         def existingReport = new JsonSlurper().parse(new File("$existingReportDirectory/$sdkSizeReportFileName"))
         def generatedReport = new JsonSlurper().parse(new File("$generatedReportDirectory/$sdkSizeReportFileName"))
 
+        // Generates a base template for the comparison report and returns StringBuilder
+        Closure<StringBuilder> initReportBuilder = {
+            StringBuilder builder = new StringBuilder()
+            builder << "## 📏 SDK Binary Size Comparison Report\n\n"
+            return builder
+        }
+
         // Flag to indicate if any changes were detected in the comparison
         Boolean changesDetected = false
-        StringBuilder output = new StringBuilder()
+        StringBuilder output = initReportBuilder()
 
         // Generate a markdown table for the comparison report
-        output << "## SDK Binary Size Comparison Report\n\n"
-        output << "| Module | Variant | Last Recorded Size | Current Size | Size Change |\n"
+        output << "| Module | Variant | Last Recorded Size | Current Size | Change in Size |\n"
         output << "| ------ | ------- | ----------------- | ----------- | ----------- |\n"
 
         // Closure to parse size string and extract the number
@@ -113,7 +119,7 @@ tasks.register('compareSdkSizeReports') {
                 changesDetected = true
                 float changeInSize = generatedSizeAsNumber - existingSizeAsNumber
                 String changeInSizeWithUnit = "${String.format("%.2f", changeInSize)}${sdkSizeUnit}"
-                sizeChangeSummary = changeInSize > 0 ? "🔺 +$changeInSizeWithUnit" : "🔻 $changeInSizeWithUnit"
+                sizeChangeSummary = changeInSize > 0 ? "⬆️ +$changeInSizeWithUnit" : "⬇️ $changeInSizeWithUnit"
             } else {
                 // If the sizes are the same, indicate no change
                 sizeChangeSummary = "✅ No Change"
@@ -130,8 +136,7 @@ tasks.register('compareSdkSizeReports') {
 
         // If no changes were detected, update the output to indicate no changes
         if (!changesDetected) {
-            output = new StringBuilder()
-            output << "## SDK Binary Size Comparison Report\n\n"
+            output = initReportBuilder()
             output << "No changes detected in SDK binary size. ✅\n"
         }
 

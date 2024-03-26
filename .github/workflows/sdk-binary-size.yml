@@ -20,10 +20,7 @@ jobs:
 #      - name: Checkout to PR branch
 #        uses: actions/checkout@v4
 
-      - name: Generate report for PR branch
-        run: ./gradlew generateSdkSizeReport --info  # Uses default $buildDir to save the report
-
-      - name: Compare SDK Size Reports
+      - name: Generate and Compare SDK Size Reports
         run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --info
 
       - name: Find old comment to update comment for

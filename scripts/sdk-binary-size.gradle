@@ -31,6 +31,20 @@ tasks.register("generateSdkSizeReport") {
         JsonSlurper jsonSlurper = new JsonSlurper()
         Map<String, Object> reports = new HashMap<>()
 
+        println 'Test File Exists'
+        println "sdk-release.aar: ${project.file('sdk/build/outputs/aar/sdk-release.aar').exists()}"
+        println "tracking-release.aar: ${project.file('sdk/build/outputs/aar/tracking-release.aar').exists()}"
+        println "messaginginapp-release.aar: ${project.file('messaginginapp/build/outputs/aar/messaginginapp-release.aar').exists()}"
+        println "messagingpush-release.aar: ${project.file('messagingpush/build/outputs/aar/messagingpush-release.aar').exists()}"
+        println '================'
+        String localMavenRepoPath = "${System.getProperty('user.home')}/.m2/repository"
+        String groupPath = Configurations.artifactGroup.replace('.', '/')
+        println "sdk-local.aar: ${project.file("$localMavenRepoPath/$groupPath/sdk").exists()}"
+        println "tracking-local.aar: ${project.file("$localMavenRepoPath/$groupPath/tracking").exists()}"
+        println "messaginginapp-local.aar: ${project.file("$localMavenRepoPath/$groupPath/messaginginapp").exists()}"
+        println "messagingpush-local.aar: ${project.file("$localMavenRepoPath/$groupPath/messagingpush").exists()}"
+        println '================'
+
         // Iterate over the target modules and read the apkscale report for each
         project.subprojects.findAll { Project subproject ->
             targetModules.contains(subproject.name)

@@ -3,8 +3,7 @@ import groovy.json.JsonSlurper
 import io.customer.android.Configurations
 
 // Array of module names for evaluating SDK binary size
-final List<String> targetModules = ['sdk']
-//final List<String> targetModules = ['sdk', 'messagingpush', 'messaginginapp']
+final List<String> targetModules = ['sdk', 'messagingpush', 'messaginginapp']
 // Output file name for the combined report
 final String sdkSizeReportFileName = 'sdk-binary-size.json'
 // Unit used for generating binary size report
@@ -30,20 +29,6 @@ tasks.register("generateSdkSizeReport") {
     doLast {
         JsonSlurper jsonSlurper = new JsonSlurper()
         Map<String, Object> reports = new HashMap<>()
-
-        println 'Test File Exists'
-        println "sdk-release.aar: ${project.file('sdk/build/outputs/aar/sdk-release.aar').exists()}"
-        println "tracking-release.aar: ${project.file('sdk/build/outputs/aar/tracking-release.aar').exists()}"
-        println "messaginginapp-release.aar: ${project.file('messaginginapp/build/outputs/aar/messaginginapp-release.aar').exists()}"
-        println "messagingpush-release.aar: ${project.file('messagingpush/build/outputs/aar/messagingpush-release.aar').exists()}"
-        println '================'
-        String localMavenRepoPath = "${System.getProperty('user.home')}/.m2/repository"
-        String groupPath = Configurations.artifactGroup.replace('.', '/')
-        println "sdk-local.aar: ${project.file("$localMavenRepoPath/$groupPath/sdk").exists()}"
-        println "tracking-local.aar: ${project.file("$localMavenRepoPath/$groupPath/tracking").exists()}"
-        println "messaginginapp-local.aar: ${project.file("$localMavenRepoPath/$groupPath/messaginginapp").exists()}"
-        println "messagingpush-local.aar: ${project.file("$localMavenRepoPath/$groupPath/messagingpush").exists()}"
-        println '================'
 
         // Iterate over the target modules and read the apkscale report for each
         project.subprojects.findAll { Project subproject ->
@@ -90,6 +75,15 @@ tasks.register('compareSdkSizeReports') {
     dependsOn([':generateSdkSizeReport'])
 
     doLast {
+
+        File sdkBuildGradle = File("${project.file('sdk/build/apkscale/build.gradle')}")
+        if (sdkBuildGradle.exists()) {
+            println 'sdk/build/apkscale/build.gradle exists'
+            println sdkBuildGradle.text
+            println '===================='
+        } else {
+            println 'sdk/build/apkscale/build.gradle does not exist'
+        }
         // Allow specifying custom directory for existing report to compare with the reports
         // generated using CI for PRs that are not merged yet
         String existingReportDirectory = project.hasProperty('compareWithDir')

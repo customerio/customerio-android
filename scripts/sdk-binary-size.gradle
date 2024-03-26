@@ -9,36 +9,38 @@ final String sdkSizeReportFileName = 'sdk-binary-size.json'
 // Unit used for generating binary size report
 final String sdkSizeUnit = 'MB'
 
-// This task generates a combined report of binary sizes of all SDK modules
-// The report is generated in JSON format using apkscale plugin and is saved to `reports/sdk-binary-size.json`
+// Task to generate combined report of binary sizes of all SDK modules
+// The report is generated in JSON format using apkscale plugin and is saved to
+// `$buildDir/sdk-binary-size.json` by default
 // This task can be run locally by executing `./gradlew generateSdkSizeReport`
+// Run `./gradlew generateSdkSizeReport -PoutputDir=<outputDir>` to specify custom output directory
 tasks.register("generateSdkSizeReport") {
+    // List all task dependencies for each library module
     ArrayList<String> taskDependencies = targetModules.collect { String moduleName ->
         ":$moduleName:measureSize"
     }
-    // Add the republishing task as the first dependency
-    taskDependencies.add(0, ':republishTrackingModuleAsSdk')
+    // Add the republishing task as the first dependency as temporary workaround to make it work locally
+    if (System.getenv('IS_DEVELOPMENT') == "true") {
+        taskDependencies.add(0, ':republishTrackingModuleAsSdk')
+    }
     dependsOn(taskDependencies)
 
     doLast {
         JsonSlurper jsonSlurper = new JsonSlurper()
         Map<String, Object> reports = new HashMap<>()
 
-        // Iterate over each library module and read the apkscale report
+        // Iterate over the target modules and read the apkscale report for each
         project.subprojects.findAll { Project subproject ->
             targetModules.contains(subproject.name)
-        }.each { subproject ->
-            println "Processing module: ${subproject.name}"
-
-            // Read the apkscale report for the library module
+        }.each { Project subproject ->
+            // Get the path to the apkscale report for the module
             File jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
             println "Checking for report at ${project.relativePath(jsonFile)}"
 
-            // If the report exists, parse it and add it to the list
+            // Parse the JSON file and extract module name and its binary size
             if (jsonFile.exists()) {
                 def output = jsonSlurper.parseText(jsonFile.text).get(0)
-                String moduleName = output.library - '-release.aar'
-                reports.put(moduleName, output.size)
+                reports.put(subproject.name, output.size)
             } else {
                 println "apkscale.json not found for ${subproject.name}"
             }
@@ -48,8 +50,8 @@ tasks.register("generateSdkSizeReport") {
         String outputDirectory = project.hasProperty('outputDir') ? project.getProperty('outputDir') : "$buildDir"
         // Create a combined report of all the individual reports
         File finalReport = project.file("$outputDirectory/$sdkSizeReportFileName")
-        // Create the parent directory if it doesn't exist
-        finalReport.parentFile.mkdir()
+        // Create parent directories if they do not exist
+        finalReport.parentFile.mkdirs()
         // Write the combined report to output file as pretty printed JSON
         finalReport.text = new JsonBuilder(reports).toPrettyString()
 
@@ -57,7 +59,9 @@ tasks.register("generateSdkSizeReport") {
     }
 }
 
+// Task to compare the generated SDK binary size report with an existing report
 tasks.register('compareSdkSizeReports') {
+    // Ensure the comparison runs after the generation of the latest report
     dependsOn([':generateSdkSizeReport'])
 
     // Default directories for existing and generated reports
@@ -84,8 +88,8 @@ tasks.register('compareSdkSizeReports') {
         StringBuilder output = new StringBuilder()
 
         // Generate a markdown table for the comparison report
-        output << "## SDK Size Comparison Report\n\n"
-        output << "| Module | Variant | Last Recorded Size | Latest Size | Size Change |\n"
+        output << "## SDK Binary Size Comparison Report\n\n"
+        output << "| Module | Variant | Last Recorded Size | Current Size | Size Change |\n"
         output << "| ------ | ------- | ----------------- | ----------- | ----------- |\n"
 
         // Closure to parse size string and extract the number
@@ -94,14 +98,14 @@ tasks.register('compareSdkSizeReports') {
         }
 
         // Closure to compare the sizes of a module and variant
-        Closure<StringBuilder> compareReport = { String moduleName, String variant = 'universal' ->
-            // Get the size of the module and variant from the generated and existing reports
-            def generatedSize = generatedReport[moduleName]?[variant]
+        Closure<StringBuilder> compareReport = { String moduleName, String variant ->
+            // Get the size of the module and variant from existing and generated reports
             def existingSize = existingReport[moduleName]?[variant]
+            def generatedSize = generatedReport[moduleName]?[variant]
 
             // Parse the size strings to extract comparable numbers
-            float generatedSizeAsNumber = generatedSize ? parseSize(generatedSize) : 0
             float existingSizeAsNumber = existingSize ? parseSize(existingSize) : 0
+            float generatedSizeAsNumber = generatedSize ? parseSize(generatedSize) : 0
 
             String sizeChangeSummary
             if (existingSizeAsNumber != generatedSizeAsNumber) {
@@ -118,15 +122,17 @@ tasks.register('compareSdkSizeReports') {
             output << "| `$moduleName` | `$variant` | `${existingSize}` | `${generatedSize}` | $sizeChangeSummary |\n"
         }
 
-        // Iterate over the target modules and compare the sizes of universal variant
+        // Iterate over the target modules and compare the sizes of universal variant,
         // as we are not tracking multiple abi variants for now
         targetModules.forEach { String moduleName ->
-            compareReport(moduleName)
+            compareReport(moduleName, 'universal')
         }
 
         // If no changes were detected, update the output to indicate no changes
         if (!changesDetected) {
-            output = new StringBuilder("## SDK Size Comparison Report\n\nNo changes detected in SDK binary size. ✅\n")
+            output = new StringBuilder()
+            output << "## SDK Binary Size Comparison Report\n\n"
+            output << "No changes detected in SDK binary size. ✅\n"
         }
 
         // Output file for the comparison report at same location as the generated report

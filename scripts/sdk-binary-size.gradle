@@ -147,7 +147,7 @@ tasks.register('compareSdkSizeReports') {
         // If no changes were detected, update the output to indicate no changes
         if (!changesDetected) {
             output = new StringBuilder()
-            output << 'No changes detected in SDK binary size. ✅\n'
+            output << 'No changes detected in SDK binary size ✅\n'
         }
 
         // Output file for the comparison report at same location as the generated report

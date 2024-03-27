@@ -16,16 +16,16 @@ final String sdkSizeUnit = 'MB'
 // Run `./gradlew generateSdkSizeReport -PsaveReportTo=<saveReportTo>` to specify custom directory
 // to save the report
 tasks.register("generateSdkSizeReport") {
-    project.subprojects.findAll { Project subproject ->
-        targetModules.contains(subproject.name)
-    }.each { Project subproject ->
-        // Configure the apkscale task for each library module
-        subproject.tasks.named("measureSize").configure {
-            println "Configuring measureSize task for ${subproject.name} at ${subproject.buildDir}/build/apkscale"
-            // Set the output directory for the apkscale report
-            outputs.dir("${subproject.buildDir}/build/apkscale")
-        }
-    }
+//    project.subprojects.findAll { Project subproject ->
+//        targetModules.contains(subproject.name)
+//    }.each { Project subproject ->
+//        // Configure the apkscale task for each library module
+//        subproject.tasks.named("measureSize").configure {
+//            println "Configuring measureSize task for ${subproject.name} at ${subproject.buildDir}/apkscale"
+//            // Set the output directory for the apkscale report
+//            outputs.dir("${subproject.buildDir}/apkscale")
+//        }
+//    }
 
     // List all task dependencies for each library module
     List<String> taskDependencies = new ArrayList<>()

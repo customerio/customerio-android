@@ -53,8 +53,8 @@ jobs:
       - name: Read SDK Size Comparison Report
         id: read_report
         run: |
-          report_content="$(<${{ github.workspace }}/build/sdk-binary-comparison.md)"
-          echo "::set-output name=content::$report_content"
+          content="$(<${{ github.workspace }}/build/sdk-binary-comparison.md)"
+          echo "$comment_content=content" >> "$GITHUB_OUTPUT"
 
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3
@@ -70,6 +70,7 @@ jobs:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            ## 📏 SDK Binary Size Comparison Report\n\n
-            ${{ steps.read_report.outputs.content }}
+            ## 📏 SDK Binary Size Comparison Report
+            
+            ${{ steps.read_report.outputs.$comment_content }}
           edit-mode: replace

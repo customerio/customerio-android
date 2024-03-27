@@ -35,6 +35,7 @@ jobs:
           path: |
             */build/apkscale
             */*/build/apkscale
+            */*/build/outputs/aar
           key: ${{ runner.os }}-apkscale-${{ hashFiles('**/*.gradle*') }}
           restore-keys: |
             ${{ runner.os }}-apkscale-

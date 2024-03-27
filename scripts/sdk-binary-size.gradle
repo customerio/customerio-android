@@ -28,9 +28,9 @@ tasks.register("generateSdkSizeReport") {
     }
 
     // List all task dependencies for each library module
-    ArrayList<String> taskDependencies = targetModules.collect { String moduleName ->
-        ":$moduleName:measureSize"
-    }
+    List<String> taskDependencies = new ArrayList<>()
+    taskDependencies.addAll(targetModules.collect { String moduleName -> ":$moduleName:assembleRelease" })
+    taskDependencies.addAll(targetModules.collect { String moduleName -> ":$moduleName:measureSize" })
     // Add the republishing task as the first dependency as temporary workaround to make it work locally
     if (System.getenv('IS_DEVELOPMENT') == 'true') {
         // taskDependencies.add(0, ':republishTrackingModuleAsSdk')

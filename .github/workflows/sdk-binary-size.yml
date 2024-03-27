@@ -1,9 +1,10 @@
-name: SDK Binary Size Comparison
+name: SDK Binary Size
 # Only run this workflow on pull requests
 on: [pull_request]
 
 jobs:
   sdk-binary-size-comparison-report:
+    name: Generate Comparison Report
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +50,12 @@ jobs:
           MODULE_VERSION: 'local'
           IS_DEVELOPMENT: 'true'
 
+      - name: Read SDK Size Comparison Report
+        id: read_report
+        run: |
+          report_content="$(<${{ github.workspace }}/build/sdk-binary-comparison.md)"
+          echo "::set-output name=content::$report_content"
+
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3
         id: find-previous-comment
@@ -64,5 +71,5 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             ## 📏 SDK Binary Size Comparison Report\n\n
-            $(cat ${{ github.workspace }}/build/sdk-binary-comparison.md)
+            ${{ steps.read_report.outputs.content }}
           edit-mode: replace

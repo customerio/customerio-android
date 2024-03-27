@@ -3,7 +3,7 @@ import groovy.json.JsonSlurper
 import io.customer.android.Configurations
 
 // Array of module names for evaluating SDK binary size
-final List<String> targetModules = ['sdk', 'messagingpush', 'messaginginapp']
+final List<String> targetModules = ['tracking', 'messagingpush', 'messaginginapp']
 // Output file name for the combined report
 final String sdkSizeReportFileName = 'sdk-binary-size.json'
 // Unit used for generating binary size report
@@ -22,7 +22,7 @@ tasks.register("generateSdkSizeReport") {
     }
     // Add the republishing task as the first dependency as temporary workaround to make it work locally
     if (System.getenv('IS_DEVELOPMENT') == 'true') {
-        taskDependencies.add(0, ':republishTrackingModuleAsSdk')
+        // taskDependencies.add(0, ':republishTrackingModuleAsSdk')
     }
     dependsOn(taskDependencies)
 

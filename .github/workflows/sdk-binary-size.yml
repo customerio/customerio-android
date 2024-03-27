@@ -54,7 +54,7 @@ jobs:
         id: read_report
         run: |
           content="$(<${{ github.workspace }}/build/sdk-binary-comparison.md)"
-          echo "$comment_content=content" >> "$GITHUB_OUTPUT"
+          echo "comment_content=$content" >> "$GITHUB_OUTPUT"
 
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3

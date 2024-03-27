@@ -27,15 +27,6 @@ tasks.register("generateSdkSizeReport") {
     dependsOn(taskDependencies)
 
     doLast {
-        File sdkBuildGradle = project.file('sdk/build/apkscale/build.gradle')
-        if (sdkBuildGradle.exists()) {
-            println 'sdk/build/apkscale/build.gradle exists'
-            println sdkBuildGradle.text
-            println '===================='
-        } else {
-            println 'sdk/build/apkscale/build.gradle does not exist'
-        }
-
         JsonSlurper jsonSlurper = new JsonSlurper()
         Map<String, Object> reports = new HashMap<>()
 
@@ -43,6 +34,16 @@ tasks.register("generateSdkSizeReport") {
         project.subprojects.findAll { Project subproject ->
             targetModules.contains(subproject.name)
         }.each { Project subproject ->
+            println "apkscale directory exists: ${subproject.file('build/apkscale').exists()}"
+            File buildGradle = subproject.file('build/apkscale/build.gradle')
+            if (buildGradle.exists()) {
+                println 'sdk/build/apkscale/build.gradle exists'
+                println buildGradle.text
+                println '===================='
+            } else {
+                println 'sdk/build/apkscale/build.gradle does not exist'
+            }
+
             // Get the path to the apkscale report for the module
             File jsonFile = subproject.file('build/apkscale/build/outputs/reports/apkscale.json')
             println "Processing report for ${subproject.name} at ${project.relativePath(jsonFile)}"

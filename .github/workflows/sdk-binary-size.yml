@@ -7,8 +7,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-android
-      - uses: actions/cache@v3
+
+      - name: Setup Android SDK
+        uses: ./.github/actions/setup-android
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
@@ -25,6 +29,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Grant execute permissions for gradlew
+        run: chmod +x gradlew
+
+      - name: Generate and Compare SDK Size Reports
+        run: ./gradlew compareSdkSizeReports --no-daemon --info
+
 #      - name: Checkout base branch
 #        uses: actions/checkout@v4
 #        with:
@@ -35,12 +45,9 @@ jobs:
 #
 #      - name: Checkout to PR branch
 #        uses: actions/checkout@v4
-
-      - name: Grant execute permissions for gradlew
-        run: chmod +x gradlew
-
-      - name: Generate and Compare SDK Size Reports
-        run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --no-daemon --info
+#
+#      - name: Generate and Compare SDK Size Reports
+#        run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --no-daemon --info
 
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3

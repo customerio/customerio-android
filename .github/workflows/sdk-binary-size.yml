@@ -36,6 +36,9 @@ jobs:
 #      - name: Checkout to PR branch
 #        uses: actions/checkout@v4
 
+      - name: Grant execute permissions for gradlew
+        run: chmod +x gradlew
+
       - name: Generate and Compare SDK Size Reports
         run: ./gradlew compareSdkSizeReports -PcompareWithDir=build/base-branch --no-daemon --info
 

@@ -29,6 +29,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Cache ApkScale directories
+        uses: actions/cache@v2
+        with:
+          path: |
+            */build/apkscale
+            */*/build/apkscale
+          key: ${{ runner.os }}-apkscale-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-apkscale-
+
       - name: Grant execute permissions for gradlew
         run: chmod +x gradlew
 

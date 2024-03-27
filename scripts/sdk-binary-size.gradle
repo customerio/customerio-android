@@ -35,6 +35,7 @@ tasks.register("generateSdkSizeReport") {
             targetModules.contains(subproject.name)
         }.each { Project subproject ->
             File dir = subproject.file('build/apkscale')
+            outputs.dir(dir)
             println "apkscale directory exists: ${dir.exists()}"
             if (dir.isDirectory()) {
                 dir.eachFile { File file ->
@@ -45,11 +46,11 @@ tasks.register("generateSdkSizeReport") {
             }
             File buildGradle = subproject.file('build/apkscale/build.gradle')
             if (buildGradle.exists()) {
-                println 'sdk/build/apkscale/build.gradle exists'
+                println "${subproject.name} build.gradle exists"
                 println buildGradle.text
                 println '===================='
             } else {
-                println 'sdk/build/apkscale/build.gradle does not exist'
+                println "${subproject.name} build.gradle does not exist"
             }
 
             // Get the path to the apkscale report for the module

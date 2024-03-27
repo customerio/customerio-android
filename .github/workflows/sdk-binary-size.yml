@@ -49,9 +49,6 @@ jobs:
           MODULE_VERSION: 'local'
           IS_DEVELOPMENT: 'true'
 
-      - name: Clean up generated reports
-        run: rm -rf "${{ github.workspace }}/gh-artifacts"
-
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3
         id: find-previous-comment

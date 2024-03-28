@@ -109,7 +109,6 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
 
     fun setCurrentRoute(route: String) {
         currentRoute = route
-        gistQueue.fetchUserMessagesFromLocalStore()
         Log.i(GIST_TAG, "Current gist route set to: $currentRoute")
     }
 
@@ -117,7 +116,6 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
 
     fun clearUserToken() {
         ensureInitialized()
-        gistQueue.clearUserMessagesFromLocalStore()
         // Remove user token from preferences & cancel job / timer.
         sharedPreferences.edit().remove(SHARED_PREFERENCES_USER_TOKEN_KEY).apply()
         observeUserMessagesJob?.cancel()
@@ -193,14 +191,12 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
 
         Log.i(GIST_TAG, "Messages timer started")
         if (!skipQueueCheck) {
-            gistQueue.fetchUserMessages()
         }
         observeUserMessagesJob = GlobalScope.launch {
             try {
                 // Poll for user messages
                 val ticker = ticker(pollInterval, context = this.coroutineContext)
                 for (tick in ticker) {
-                    gistQueue.fetchUserMessages()
                 }
             } catch (e: CancellationException) {
                 // Co-routine was cancelled, cancel internal timer
@@ -215,7 +211,6 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         val gistProperties = GistMessageProperties.getGistProperties(message)
         if (gistProperties.persistent) {
             Log.i(GIST_TAG, "Persistent message dismissed, logging view")
-            gistQueue.logView(message)
         }
         handleGistClosed(message)
     }

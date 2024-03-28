@@ -53,16 +53,8 @@ dependencies {
     api project(":base")
     api project(":tracking")
 
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"
-
-    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
-
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
-    implementation Dependencies.androidxAppCompat
-    implementation Dependencies.retrofit
-    implementation Dependencies.okhttpLoggingInterceptor
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
 }

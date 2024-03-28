@@ -23,7 +23,6 @@ jobs:
           ./gradlew generateSdkSizeReport
         env:
           # Use local version to make sure the report is generated for the current changes
-          MODULE_VERSION: 'local'
           IS_DEVELOPMENT: 'true'
 
       - name: Upload report for base branch
@@ -47,7 +46,6 @@ jobs:
           ./gradlew compareSdkSizeReports -PcompareWith=gh-artifacts/base/sdk-binary-size.json
         env:
           # Use local version to make sure the report is generated for the current changes
-          MODULE_VERSION: 'local'
           IS_DEVELOPMENT: 'true'
 
       - name: Find old comment to update comment for

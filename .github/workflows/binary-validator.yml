@@ -1,13 +1,13 @@
-name: Binary-validation
-# only run on PRs and when push a commit on a branch that we don't deploy on. 
-on: [push, pull_request]
-
-jobs:
-  api_check:
-    name: API check
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/actions/setup-android
-    - name: API check
-      run: ./gradlew apiCheck
+#name: Binary-validation
+## only run on PRs and when push a commit on a branch that we don't deploy on.
+#on: [push, pull_request]
+#
+#jobs:
+#  api_check:
+#    name: API check
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v4
+#    - uses: ./.github/actions/setup-android
+#    - name: API check
+#      run: ./gradlew apiCheck

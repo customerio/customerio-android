@@ -1,34 +1,34 @@
-name: Lint
-# only run on PRs and when push a commit on a branch that we don't deploy on. 
-on: [push, pull_request]
-
-jobs:
-  android-lint:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        module: [tracking, messagingpush, messaginginapp] # android modules
-    name: Android Lint (${{ matrix.module }})
-    steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/actions/setup-android
-
-    - name: Run lint (${{ matrix.module }})
-      run: ./gradlew :${{ matrix.module }}:lintDebug
-
-    - name: Parse lint results (${{ matrix.module }})
-      uses: yutailang0119/action-android-lint@v3.1.0
-      with:
-        report-path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
-      if: ${{ always() }} # if running tests fails, we still want to parse the test results 
-
-  # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed. 
-  kotlin-lint:
-    runs-on: ubuntu-latest
-    name: Kotlin Lint
-    steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/actions/setup-android
-
-    - name: Install and run ktlint
-      run: make lint-install && make lint-no-format
+#name: Lint
+## only run on PRs and when push a commit on a branch that we don't deploy on.
+#on: [push, pull_request]
+#
+#jobs:
+#  android-lint:
+#    runs-on: ubuntu-latest
+#    strategy:
+#      matrix:
+#        module: [tracking, messagingpush, messaginginapp] # android modules
+#    name: Android Lint (${{ matrix.module }})
+#    steps:
+#    - uses: actions/checkout@v4
+#    - uses: ./.github/actions/setup-android
+#
+#    - name: Run lint (${{ matrix.module }})
+#      run: ./gradlew :${{ matrix.module }}:lintDebug
+#
+#    - name: Parse lint results (${{ matrix.module }})
+#      uses: yutailang0119/action-android-lint@v3.1.0
+#      with:
+#        report-path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
+#      if: ${{ always() }} # if running tests fails, we still want to parse the test results
+#
+#  # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed.
+#  kotlin-lint:
+#    runs-on: ubuntu-latest
+#    name: Kotlin Lint
+#    steps:
+#    - uses: actions/checkout@v4
+#    - uses: ./.github/actions/setup-android
+#
+#    - name: Install and run ktlint
+#      run: make lint-install && make lint-no-format

@@ -11,6 +11,7 @@ object Dependencies {
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
     const val androidxAnnotations =
         "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
+    const val apkScale = "com.twilio:apkscale:${Versions.APK_SCALE}"
     const val coroutinesCore =
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.COROUTINES}"
     const val materialComponents =

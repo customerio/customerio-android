@@ -1,13 +1,13 @@
-name: Semantic PR helper
-
-on:
-  pull_request:
-    types: [opened, reopened, edited, synchronize, labeled]
-
-jobs:
-  lint-pr-title:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write # to comment on PRs
-    steps:    
-    - uses: levibostian/action-conventional-pr-linter@v4
+#name: Semantic PR helper
+#
+#on:
+#  pull_request:
+#    types: [opened, reopened, edited, synchronize, labeled]
+#
+#jobs:
+#  lint-pr-title:
+#    runs-on: ubuntu-latest
+#    permissions:
+#      pull-requests: write # to comment on PRs
+#    steps:
+#    - uses: levibostian/action-conventional-pr-linter@v4

@@ -55,6 +55,7 @@ dependencies {
     implementation Dependencies.retrofit
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
+    implementation 'com.squareup.picasso:picasso:2.8'
     testImplementation Dependencies.androidxTestJunit
     androidTestImplementation Dependencies.junit4
 

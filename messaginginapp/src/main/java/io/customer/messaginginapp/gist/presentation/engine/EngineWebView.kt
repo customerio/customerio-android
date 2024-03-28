@@ -2,20 +2,17 @@ package io.customer.messaginginapp.gist.presentation.engine
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
-import android.net.http.SslError
 import android.util.AttributeSet
 import android.util.Base64
 import android.util.Log
-import android.webkit.*
+import android.webkit.WebView
 import android.widget.FrameLayout
-import com.google.gson.Gson
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.GIST_TAG
-import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import java.io.UnsupportedEncodingException
-import java.util.*
+import java.util.Timer
+import java.util.TimerTask
 
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
@@ -41,68 +38,6 @@ internal class EngineWebView @JvmOverloads constructor(
     @SuppressLint("SetJavaScriptEnabled")
     fun setup(configuration: EngineWebConfiguration) {
         setupTimeout()
-        val jsonString = Gson().toJson(configuration)
-        encodeToBase64(jsonString)?.let { options ->
-            elapsedTimer.start("Engine render for message: ${configuration.messageId}")
-            val messageUrl =
-                "${GistSdk.gistEnvironment.getGistRendererUrl()}/index.html?options=$options"
-            Log.i(GIST_TAG, "Rendering message with URL: $messageUrl")
-            webView?.let {
-                it.loadUrl(messageUrl)
-                it.settings.javaScriptEnabled = true
-                it.settings.allowFileAccess = true
-                it.settings.allowContentAccess = true
-                it.settings.domStorageEnabled = true
-                it.settings.textZoom = 100
-                it.setBackgroundColor(Color.TRANSPARENT)
-                it.addJavascriptInterface(EngineWebViewInterface(this), "appInterface")
-
-                it.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        view.loadUrl("javascript:window.parent.postMessage = function(message) {window.appInterface.postMessage(JSON.stringify(message))}")
-                    }
-
-                    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                        return !url.startsWith("https://code.gist.build")
-                    }
-
-                    override fun onReceivedError(
-                        view: WebView?,
-                        errorCod: Int,
-                        description: String,
-                        failingUrl: String?
-                    ) {
-                        listener?.error()
-                    }
-
-                    override fun onReceivedHttpError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        errorResponse: WebResourceResponse?
-                    ) {
-                        listener?.error()
-                    }
-
-                    override fun onReceivedError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        error: WebResourceError?
-                    ) {
-                        listener?.error()
-                    }
-
-                    override fun onReceivedSslError(
-                        view: WebView?,
-                        handler: SslErrorHandler?,
-                        error: SslError?
-                    ) {
-                        listener?.error()
-                    }
-                }
-            }
-        } ?: run {
-            listener?.error()
-        }
     }
 
     private fun encodeToBase64(text: String): String? {

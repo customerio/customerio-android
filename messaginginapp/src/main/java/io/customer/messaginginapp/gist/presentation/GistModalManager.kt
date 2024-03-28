@@ -2,7 +2,6 @@ package io.customer.messaginginapp.gist.presentation
 
 import android.content.Intent
 import android.util.Log
-import com.google.gson.Gson
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 
@@ -27,7 +26,6 @@ internal class GistModalManager : GistListener {
 
         val intent = GistModalActivity.newIntent(GistSdk.application)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        intent.putExtra(GIST_MESSAGE_INTENT, Gson().toJson(message))
         intent.putExtra(GIST_MODAL_POSITION_INTENT, position?.toString())
         GistSdk.application.startActivity(intent)
         return true

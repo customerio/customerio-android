@@ -160,13 +160,6 @@ public final class io/customer/messaginginapp/gist/data/model/MessagePosition : 
 }
 
 public abstract interface class io/customer/messaginginapp/gist/data/repository/GistQueueService {
-	public abstract fun fetchMessagesForUser (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun logMessageView (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun logUserMessageView (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
-public final class io/customer/messaginginapp/gist/data/repository/GistQueueService$DefaultImpls {
-	public static synthetic fun fetchMessagesForUser$default (Lio/customer/messaginginapp/gist/data/repository/GistQueueService;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract interface class io/customer/messaginginapp/gist/presentation/GistListener {
@@ -177,7 +170,7 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/gist/presentation/GistListener, io/customer/messaginginapp/gist/presentation/GistViewListener {
+public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : android/app/Activity, io/customer/messaginginapp/gist/presentation/GistListener, io/customer/messaginginapp/gist/presentation/GistViewListener {
 	public static final field Companion Lio/customer/messaginginapp/gist/presentation/GistModalActivity$Companion;
 	public fun <init> ()V
 	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V

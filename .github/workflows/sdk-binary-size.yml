@@ -50,12 +50,6 @@ jobs:
           MODULE_VERSION: 'local'
           IS_DEVELOPMENT: 'true'
 
-      - name: Read SDK Size Comparison Report
-        id: read_report
-        run: |
-          comment_content="$(<${{ github.workspace }}/build/sdk-binary-comparison.md)"
-          echo "content=$comment_content" >> "$GITHUB_OUTPUT"
-
       - name: Find old comment to update comment for
         uses: peter-evans/find-comment@v3
         id: find-previous-comment
@@ -69,8 +63,5 @@ jobs:
         with:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            ## 📏 SDK Binary Size Comparison Report
-            
-            ${{ steps.read_report.outputs.content }}
+          body-path: ${{ github.workspace }}/build/sdk-binary-comparison.md
           edit-mode: replace

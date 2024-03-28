@@ -1,6 +1,7 @@
 package io.customer.messagingpush
 
 import androidx.annotation.VisibleForTesting
+import com.squareup.picasso.Picasso
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
@@ -43,6 +44,7 @@ internal constructor(
                 pushTrackingUtil = diGraph.pushTrackingUtil
             )
         )
+        Picasso.get().load("https://i.imgur.com/DvpvklR.png")
     }
 
     /**

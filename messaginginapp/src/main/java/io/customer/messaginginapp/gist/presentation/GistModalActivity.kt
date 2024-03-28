@@ -1,17 +1,14 @@
 package io.customer.messaginginapp.gist.presentation
 
 import android.animation.AnimatorInflater
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
-import com.google.gson.Gson
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
@@ -22,7 +19,7 @@ import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
-class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
+class GistModalActivity : Activity(), GistListener, GistViewListener {
     private lateinit var binding: ActivityGistBinding
     private var currentMessage: Message? = null
     private var messagePosition: MessagePosition = MessagePosition.CENTER
@@ -42,32 +39,6 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
         setContentView(binding.root)
         val messageStr = this.intent.getStringExtra(GIST_MESSAGE_INTENT)
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
-        Gson().fromJson(messageStr, Message::class.java)?.let { messageObj ->
-            currentMessage = messageObj
-            currentMessage?.let { message ->
-                elapsedTimer.start("Displaying modal for message: ${message.messageId}")
-                binding.gistView.listener = this
-                binding.gistView.setup(message)
-                messagePosition = if (modalPositionStr == null) {
-                    GistMessageProperties.getGistProperties(message).position
-                } else {
-                    MessagePosition.valueOf(modalPositionStr.uppercase())
-                }
-                when (messagePosition) {
-                    MessagePosition.CENTER -> binding.modalGistViewLayout.setVerticalGravity(Gravity.CENTER_VERTICAL)
-                    MessagePosition.BOTTOM -> binding.modalGistViewLayout.setVerticalGravity(Gravity.BOTTOM)
-                    MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
-                }
-            }
-        } ?: run {
-            finish()
-        }
-
-        // Update back button to handle in-app message behavior, disable back press for persistent messages, true otherwise
-        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage()) {
-            override fun handleOnBackPressed() {}
-        }
-        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
     }
 
     override fun onResume() {

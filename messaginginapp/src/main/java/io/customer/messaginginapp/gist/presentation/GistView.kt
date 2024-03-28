@@ -11,7 +11,6 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
-import com.google.gson.Gson
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
@@ -81,10 +80,6 @@ class GistView @JvmOverloads constructor(
                                 val parameterBinary = Base64.decode(propertiesBase64, Base64.DEFAULT)
                                 val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
                                 val map: Map<String, Any> = HashMap()
-                                val properties = Gson().fromJson(parameterString, map.javaClass)
-                                GistSdk.getInstance().showMessage(
-                                    Message(messageId = messageId, properties = properties)
-                                )
                             }
                             else -> {
                                 shouldLogAction = false

@@ -26,10 +26,7 @@ jobs:
         uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it.
 
       - name: Generate SDK Size Report
-        run: ./gradlew generateSdkSizeReport -PsaveReportTo=reports
-
-      - name: Stage SDK Size Report
-        run: git add reports/
+        run: ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
 
       # Semantic-release tool is used to:
       # 1. Determine the next semantic version for the software during deployment.

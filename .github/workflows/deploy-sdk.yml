@@ -25,6 +25,9 @@ jobs:
         # uses: kenji-miyake/setup-sd@v1
         uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it.
 
+      # Generate SDK size report to update in main branch before deploying new release.
+      # The report is pushed by semantic-release action below by including files listed in the
+      # `assets` array in the `.releaserc` file.
       - name: Generate SDK Size Report
         run: ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
 

@@ -1,4 +1,5 @@
-include ':sdk'
+include ':tracking'
+project(':tracking').projectDir = file('sdk')
 rootProject.name = "Customer.io SDK"
 include ':base'
 include ':messagingpush'

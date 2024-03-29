@@ -29,7 +29,9 @@ jobs:
       # The report is pushed by semantic-release action below by including files listed in the
       # `assets` array in the `.releaserc` file.
       - name: Generate SDK Size Report
-        run: ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
+        run: |
+          ./gradlew publishToMavenLocal
+          ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
         env:
           # Use local version to make sure the report is generated for the current changes
           IS_DEVELOPMENT: 'true'

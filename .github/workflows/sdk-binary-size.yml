@@ -1,0 +1,65 @@
+name: SDK Binary Size
+# Only run this workflow on pull requests
+on: [pull_request]
+
+jobs:
+  sdk-binary-size-comparison-report:
+    name: Generate Comparison Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: ./.github/actions/setup-android
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: Generate report for base branch
+        run: |
+          ./gradlew publishToMavenLocal
+          ./gradlew generateSdkSizeReport
+        env:
+          # Use local version to make sure the report is generated for the current changes
+          IS_DEVELOPMENT: 'true'
+
+      - name: Upload report for base branch
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-report-base-sdk-binary-size.json
+          path: build/sdk-binary-size.json
+
+      - name: Checkout to head branch
+        uses: actions/checkout@v4
+
+      - name: Download report for base branch
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-report-base-sdk-binary-size.json
+          path: gh-artifacts/base
+
+      - name: Generate and Compare SDK Size Reports
+        run: |
+          ./gradlew publishToMavenLocal
+          ./gradlew compareSdkSizeReports -PcompareWith=gh-artifacts/base/sdk-binary-size.json
+        env:
+          # Use local version to make sure the report is generated for the current changes
+          IS_DEVELOPMENT: 'true'
+
+      - name: Find old comment to update comment for
+        uses: peter-evans/find-comment@v3
+        id: find-previous-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: SDK Binary Size Comparison
+
+      - name: Add or Update PR Comment with SDK Size Comparison Report
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: ${{ github.workspace }}/build/sdk-binary-comparison.md
+          edit-mode: replace

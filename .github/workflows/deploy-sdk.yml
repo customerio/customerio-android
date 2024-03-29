@@ -30,6 +30,9 @@ jobs:
       # `assets` array in the `.releaserc` file.
       - name: Generate SDK Size Report
         run: ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
+        env:
+          # Use local version to make sure the report is generated for the current changes
+          IS_DEVELOPMENT: 'true'
 
       # Semantic-release tool is used to:
       # 1. Determine the next semantic version for the software during deployment.

@@ -166,6 +166,7 @@ public final class io/customer/sdk/CustomerIOShared$Companion {
 public final class io/customer/sdk/data/model/EventType : java/lang/Enum {
 	public static final field event Lio/customer/sdk/data/model/EventType;
 	public static final field screen Lio/customer/sdk/data/model/EventType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/data/model/EventType;
 	public static fun values ()[Lio/customer/sdk/data/model/EventType;
 }
@@ -222,6 +223,7 @@ public final class io/customer/sdk/data/request/MetricEvent : java/lang/Enum {
 	public static final field converted Lio/customer/sdk/data/request/MetricEvent;
 	public static final field delivered Lio/customer/sdk/data/request/MetricEvent;
 	public static final field opened Lio/customer/sdk/data/request/MetricEvent;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/data/request/MetricEvent;
 	public static fun values ()[Lio/customer/sdk/data/request/MetricEvent;
 }
@@ -282,6 +284,7 @@ public abstract class io/customer/sdk/di/DiGraph {
 public final class io/customer/sdk/hooks/HookModule : java/lang/Enum {
 	public static final field MessagingInApp Lio/customer/sdk/hooks/HookModule;
 	public static final field MessagingPush Lio/customer/sdk/hooks/HookModule;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/hooks/HookModule;
 	public static fun values ()[Lio/customer/sdk/hooks/HookModule;
 }

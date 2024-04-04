@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id("kotlin-android")
     id("org.jetbrains.kotlin.kapt")
     id("dagger.hilt.android.plugin")
     id("com.google.gms.google-services")
@@ -13,7 +13,7 @@ apply {
 
 android {
     namespace = "io.customer.android.sample.kotlin_compose"
-    compileSdk = 33
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "io.customer.android.sample.kotlin_compose"
@@ -39,17 +39,17 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.4.0-alpha02"
+        kotlinCompilerExtensionVersion = "1.5.2"
     }
     packagingOptions {
         resources {
@@ -58,34 +58,39 @@ android {
     }
 }
 
+// Allow references to generated code
+kapt {
+    correctErrorTypes = true
+}
+
 val hiltVersion = io.customer.android.Versions.HILT
-val composeVersion = "1.4.1"
+val composeVersion = "1.6.5"
 val coroutinesVersion = "1.5.2"
-val roomVersion = "2.4.2"
+val roomVersion = "2.6.1"
 
 dependencies {
     // Compose compiler requires an updated version of Kotlin
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.20"))
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.9.20"))
 
     // Compose dependencies
-    implementation("androidx.core:core-ktx:1.10.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
-    implementation("androidx.activity:activity-compose:1.7.1")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("com.google.android.material:material:1.9.0")
+    implementation("com.google.android.material:material:1.11.0")
 
-    implementation(platform("androidx.compose:compose-bom:2022.10.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.04.00"))
 
     // DI
     kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
     implementation("com.google.dagger:hilt-android:$hiltVersion")
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.6.0-rc01")
-    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Persistence
     implementation("androidx.room:room-ktx:$roomVersion")
@@ -98,8 +103,8 @@ dependencies {
     debugImplementation("com.squareup.leakcanary:leakcanary-android:2.11")
     androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:2.11")
 
-    androidTestImplementation("com.google.dagger:hilt-android-testing:2.39.1")
-    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.44.2")
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.51.1")
+    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.51.1")
 
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")

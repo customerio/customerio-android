@@ -52,6 +52,7 @@ public abstract class io/customer/messaginginapp/gist/GistEnvironment : java/lan
 	public static final field LOCAL Lio/customer/messaginginapp/gist/GistEnvironment;
 	public static final field PROD Lio/customer/messaginginapp/gist/GistEnvironment;
 	public synthetic fun <init> (Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/gist/GistEnvironment;
 	public static fun values ()[Lio/customer/messaginginapp/gist/GistEnvironment;
 }
@@ -154,6 +155,7 @@ public final class io/customer/messaginginapp/gist/data/model/MessagePosition : 
 	public static final field BOTTOM Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public static final field CENTER Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public static final field TOP Lio/customer/messaginginapp/gist/data/model/MessagePosition;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public final fun getPosition ()Ljava/lang/String;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public static fun values ()[Lio/customer/messaginginapp/gist/data/model/MessagePosition;

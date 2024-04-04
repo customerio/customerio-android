@@ -1,6 +1,6 @@
 package io.customer.sdk.util
 
-import io.customer.sdk.BuildConfig
+import io.customer.tracking.BuildConfig
 
 /**
  * Wrapper class to hold static/only one time defined properties from

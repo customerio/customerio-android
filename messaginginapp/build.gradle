@@ -38,6 +38,7 @@ android {
     buildFeatures {
         viewBinding true
     }
+    namespace 'io.customer.messaginginapp'
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {

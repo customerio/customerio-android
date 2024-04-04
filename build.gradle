@@ -13,7 +13,7 @@ buildscript {
         maven { url 'https://repo.gradle.org/gradle/libs-releases' }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.3.1'
+        classpath Dependencies.androidGradlePlugin
         classpath Dependencies.kotlinGradlePlugin
         classpath Dependencies.kotlinBinaryValidator
         classpath Dependencies.gradleNexusPublishPlugin

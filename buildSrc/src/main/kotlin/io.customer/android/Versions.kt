@@ -8,7 +8,7 @@ object Versions {
     internal const val ANDROIDX_APPCOMPAT = "1.3.1"
     internal const val ANDROIDX_KTX = "1.6.0"
     internal const val ANDROIDX_ANNOTATIONS = "1.2.0"
-    internal const val APK_SCALE = "0.1.4"
+    internal const val APK_SCALE = "0.1.7"
     internal const val COROUTINES = "1.6.4"
     internal const val DOKKA = "1.5.0"
     internal const val JUNIT4 = "4.13.2"

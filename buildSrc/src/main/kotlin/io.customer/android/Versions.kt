@@ -19,7 +19,7 @@ object Versions {
     internal const val GOOGLE_SERVICES_PLUGIN = "4.3.15"
     const val HILT = "2.44.2"
     internal const val KLUENT = "1.72"
-    internal const val KOTLIN_BINARY_VALIDATOR = "0.13.1"
+    internal const val KOTLIN_BINARY_VALIDATOR = "0.14.0"
     internal const val KOTLIN = "1.7.21"
     internal const val MATERIAL_COMPONENTS = "1.4.0"
     internal const val MOCKITO_KOTLIN = "4.0.0"

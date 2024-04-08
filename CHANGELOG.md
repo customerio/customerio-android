@@ -1,3 +1,10 @@
+## [3.9.2](https://github.com/customerio/customerio-android/compare/3.9.1...3.9.2) (2024-04-08)
+
+
+### Bug Fixes
+
+* added consumer rules for R8 full mode ([#298](https://github.com/customerio/customerio-android/issues/298)) ([3aa6757](https://github.com/customerio/customerio-android/commit/3aa675756266cf81de1f99adcb830079128c3584))
+
 ## [3.9.1](https://github.com/customerio/customerio-android/compare/3.9.0...3.9.1) (2024-03-21)
 
 

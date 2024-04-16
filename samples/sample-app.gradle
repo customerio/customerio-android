@@ -20,6 +20,7 @@ android {
         }
     }
     buildFeatures {
+        // BuildConfig is needed by sample apps to access api keys from local.properties
         buildConfig = true
     }
     buildTypes {

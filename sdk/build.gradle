@@ -24,6 +24,7 @@ android {
         consumerProguardFiles "consumer-rules.pro"
     }
     buildFeatures {
+        // BuildConfig is required currently to differentiate between debug and release environments in the SDK
         buildConfig = true
     }
     buildTypes {

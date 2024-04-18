@@ -1,3 +1,10 @@
+## [3.10.0](https://github.com/customerio/customerio-android/compare/3.9.2...3.10.0) (2024-04-18)
+
+
+### Features
+
+* support for android gradle plugin 8 ([#296](https://github.com/customerio/customerio-android/issues/296)) ([90b31ef](https://github.com/customerio/customerio-android/commit/90b31ef28f1c276f90526631e2784579cf5a6702))
+
 ## [3.9.2](https://github.com/customerio/customerio-android/compare/3.9.1...3.9.2) (2024-04-08)
 
 

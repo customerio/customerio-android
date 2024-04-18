@@ -18,6 +18,7 @@ apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
+    namespace 'io.customer.messaginginapp'
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -28,24 +29,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
     buildFeatures {
         viewBinding true
-    }
-}
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
-    kotlinOptions {
-        freeCompilerArgs += [
-                '-Xopt-in=kotlin.RequiresOptIn',
-                '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',
-        ]
     }
 }
 

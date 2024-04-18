@@ -30,8 +30,6 @@ object Dependencies {
         "com.google.gms:google-services:${Versions.GOOGLE_SERVICES_PLUGIN}"
     const val gradleNexusPublishPlugin =
         "io.github.gradle-nexus:publish-plugin:${Versions.GRADLE_NEXUS_PUBLISH_PLUGIN}"
-    const val gradleVersionsPlugin =
-        "com.github.ben-manes:gradle-versions-plugin:${Versions.GRADLE_VERSIONS_PLUGIN}"
     const val junit4 = "junit:junit:${Versions.JUNIT4}"
     const val kluent = "org.amshove.kluent:kluent-android:${Versions.KLUENT}"
     const val kotlinBinaryValidator =

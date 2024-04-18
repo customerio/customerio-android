@@ -1,3 +1,5 @@
+@file:OptIn(InternalCustomerIOApi::class)
+
 package io.customer.messagingpush.di
 
 import io.customer.base.internal.InternalCustomerIOApi

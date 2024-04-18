@@ -1,7 +1,6 @@
 package io.customer.messagingpush
 
 import androidx.annotation.VisibleForTesting
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
@@ -12,7 +11,6 @@ import io.customer.sdk.module.CustomerIOModule
 
 class ModuleMessagingPushFCM
 @VisibleForTesting
-@InternalCustomerIOApi
 internal constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default(),
     private val overrideCustomerIO: CustomerIOInstance?,

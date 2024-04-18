@@ -19,37 +19,24 @@ apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
+    namespace 'io.customer.tracking'
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }
-
+    buildFeatures {
+        // BuildConfig is required currently to differentiate between debug and release environments in the SDK
+        buildConfig = true
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
-
     sourceSets {
         androidTest {
             java.srcDirs += 'src/sharedTest/java'
         }
-    }
-}
-
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
-    kotlinOptions {
-        freeCompilerArgs += [
-                '-Xopt-in=kotlin.RequiresOptIn',
-                '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',
-        ]
     }
 }
 

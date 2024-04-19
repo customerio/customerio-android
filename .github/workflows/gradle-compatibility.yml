@@ -1,0 +1,135 @@
+name: Gradle Compatibility Check
+
+on: [ push ]
+
+jobs:
+  publish-sdk-local:
+    name: Publish SDK to local repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: ./.github/actions/setup-android
+
+      - name: Push SDK to local repository
+        run: ./gradlew publishToMavenLocal
+        # Use local version to make sure apps generated use the local version of the SDK
+        env:
+          IS_DEVELOPMENT: 'true'
+
+  gradle-compatibility-builds:
+    name: ${{ matrix.sample-app }} build with AGP ${{ matrix.agp-version }}
+    needs: publish-sdk-local
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Matrix of sample apps and AGP versions to test
+        sample-app_with_agp:
+          - "java_layout_current"
+          - "kotlin_compose_current"
+          - "java_layout_7"
+          - "kotlin_compose_7"
+        include:
+          - sample-app_with_agp: "java_layout_current"
+            sample-app: "java_layout"
+            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
+            jdk-version: "17"
+            agp-version: "8.3.1"
+            # We don't need to specify more versions here, as we'll use the default values for actual gradle versions.
+          - sample-app_with_agp: "kotlin_compose_current"
+            sample-app: "kotlin_compose"
+            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
+            jdk-version: "17"
+            agp-version: "8.3.1"
+            # We don't need to specify more versions here, as we'll use the default values for actual gradle versions.
+          - sample-app_with_agp: "java_layout_7"
+            sample-app: "java_layout"
+            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
+            jdk-version: "11"
+            agp-version: "7.2.0"
+            gradle-plugin-version: "7.6.4"
+            java-version: "JavaVersion.VERSION_1_8"
+            kotlin-jvm-version: "1.8"
+            apk-scale-version: "0.1.4"
+            packaging-resources-action: "packagingOptions"
+          - sample-app_with_agp: "kotlin_compose_7"
+            sample-app: "kotlin_compose"
+            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
+            jdk-version: "11"
+            agp-version: "7.2.0"
+            gradle-plugin-version: "7.6.4"
+            java-version: "JavaVersion.VERSION_1_8"
+            kotlin-jvm-version: "1.8"
+            apk-scale-version: "0.1.4"
+            packaging-resources-action: "packagingOptions"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sd CLI to use later in the workflow
+        uses: levibostian/setup-sd@add-file-extension
+
+      - name: Install tools from Gemfile (ruby language) used for building our apps with
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+
+      - name: Setup local.properties file for sample app
+        # Use the local version of the SDK to make sure the sample app uses latest changes
+        run: |
+          touch "samples/local.properties"
+          echo "sdkVersion=local" >> "samples/local.properties"
+          echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
+          echo "apiKey=${{ secrets[matrix.cio-apikey-secret-key] }}" >> "samples/local.properties"
+
+      - name: Update files for Gradle compatibility
+        # If AGP version matches the default value, we don't need to specify further versions.
+        run: |
+          if [ "${{ matrix.agp-version }}" = "8.3.1" ]; then
+          ./scripts/update-gradle-compatibility.sh
+          else
+          ./scripts/update-gradle-compatibility.sh \
+          --agpVersion ${{ matrix.agp-version }} \
+          --gradlePluginVersion ${{ matrix.gradle-plugin-version }} \
+          --javaVersion ${{ matrix.java-version }} \
+          --kotlinJVMVersion ${{ matrix.kotlin-jvm-version }} \
+          --apkScaleVersion ${{ matrix.apk-scale-version }} \
+          --packagingResourcesAction ${{ matrix.packaging-resources-action }}
+          fi
+
+      - name: Install Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: ${{ matrix.jdk-version }}
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            key: ${{ runner.os }}-gradle-${{ matrix.gradle-plugin-version }}-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ matrix.gradle-plugin-version }}-
+
+      - name: Verify gradle scripts are valid gradle scripts
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Set up Gradle Version ${{ matrix.gradle-plugin-version }}
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ matrix.gradle-plugin-version }}
+
+      - name: Build Sample App ${{ matrix.sample-app }} with Gradle Version ${{ matrix.gradle-plugin-version }}
+        run: gradle assembleRelease

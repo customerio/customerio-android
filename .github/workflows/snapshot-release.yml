@@ -52,6 +52,8 @@ jobs:
           edit-mode: replace
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # This job depends on the publish job to finish so we can use the snapshot version to verify
+  # gradle compatibility of the sample apps with actual releases of the SDK with latest changes.
   gradle-compatibility-builds:
     name: ${{ matrix.sample-app }} build with AGP ${{ matrix.agp-version }}
     needs: publish
@@ -106,8 +108,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
       - name: Install sd CLI to use later in the workflow
-        uses: levibostian/setup-sd@add-file-extension
+        # uses: kenji-miyake/setup-sd@v1
+        uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it.
 
       - name: Install tools from Gemfile (ruby language) used for building our apps with
         uses: ruby/setup-ruby@v1

@@ -65,27 +65,27 @@ jobs:
       matrix:
         # Matrix of sample apps and AGP versions to test
         # List all sample apps here that you want to test with the AGP versions.
-        sample-app_with_agp:
+        sample-app-with-agp:
           - "java_layout_current"
           - "kotlin_compose_current"
           - "java_layout_7"
           - "kotlin_compose_7"
         include:
-          - sample-app_with_agp: "java_layout_current"
+          - sample-app-with-agp: "java_layout_current"
             sample-app: "java_layout"
             cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
             jdk-version: "17"
             agp-version: "8.3.1"
             # We don't need to specify more versions here, as we'll use the default values for actual gradle versions.
-          - sample-app_with_agp: "kotlin_compose_current"
+          - sample-app-with-agp: "kotlin_compose_current"
             sample-app: "kotlin_compose"
             cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
             jdk-version: "17"
             agp-version: "8.3.1"
             # We don't need to specify more versions here, as we'll use the default values for actual gradle versions.
-          - sample-app_with_agp: "java_layout_7"
+          - sample-app-with-agp: "java_layout_7"
             sample-app: "java_layout"
             cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
@@ -96,7 +96,7 @@ jobs:
             kotlin-jvm-version: "1.8"
             apk-scale-version: "0.1.4"
             packaging-resources-action: "packagingOptions"
-          - sample-app_with_agp: "kotlin_compose_7"
+          - sample-app-with-agp: "kotlin_compose_7"
             sample-app: "kotlin_compose"
             cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"

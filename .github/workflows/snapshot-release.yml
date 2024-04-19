@@ -9,6 +9,8 @@ jobs:
   publish:
     name: Snapshot build and publish
     runs-on: ubuntu-latest
+    outputs:
+      snapshot_version: ${{ steps.set-snapshot-version.outputs.VERSION }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -124,7 +126,7 @@ jobs:
         # Use recently published snapshot version to make sure we're testing the latest changes.
         run: |
           touch "samples/local.properties"
-          echo "sdkVersion=${{ needs.publish.steps.set-snapshot-version.outputs.VERSION }}" >> "samples/local.properties"
+          echo "sdkVersion=${{ needs.publish.outputs.snapshot_version }}" >> "samples/local.properties"
           echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
           echo "apiKey=${{ secrets[matrix.cio-apikey-secret-key] }}" >> "samples/local.properties"
 

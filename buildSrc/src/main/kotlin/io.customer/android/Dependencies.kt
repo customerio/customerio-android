@@ -49,4 +49,5 @@ object Dependencies {
     const val okhttpMockWebserver = "com.squareup.okhttp3:mockwebserver:${Versions.OKHTTP}"
     const val okhttpLoggingInterceptor =
         "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
+    const val segment = "com.segment.analytics.kotlin:android:${Versions.SEGMENT}"
 }

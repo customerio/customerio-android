@@ -13,7 +13,7 @@
 #   --packagingResourcesAction <packaging_resources_action>
 # Example:
 # ./scripts/update-gradle-compatibility.sh
-#   --agpVersion 7.2.0
+#   --agpVersion 7.4.1
 #   --gradlePluginVersion 7.6.4
 #   --javaVersion JavaVersion.VERSION_1_8
 #   --kotlinJVMVersion 1.8

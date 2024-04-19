@@ -169,4 +169,4 @@ jobs:
           gradle-version: ${{ matrix.gradle-plugin-version }}
 
       - name: Build Sample App ${{ matrix.sample-app }} with Gradle Version ${{ matrix.gradle-plugin-version }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"

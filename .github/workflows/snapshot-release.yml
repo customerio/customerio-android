@@ -75,21 +75,18 @@ jobs:
             sample-app: "java_layout"
             cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
-            jdk-version: "17"
             agp-version: "8.3.1"
             # We don't need to specify more versions here, as we'll use the default values for actual gradle versions.
           - sample-app-with-agp: "kotlin_compose_current"
             sample-app: "kotlin_compose"
             cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
-            jdk-version: "17"
             agp-version: "8.3.1"
             # We don't need to specify more versions here, as we'll use the default values for actual gradle versions.
           - sample-app-with-agp: "java_layout_7"
             sample-app: "java_layout"
             cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
-            jdk-version: "11"
             agp-version: "7.2.0"
             gradle-plugin-version: "7.6.4"
             java-version: "JavaVersion.VERSION_1_8"
@@ -100,7 +97,6 @@ jobs:
             sample-app: "kotlin_compose"
             cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
             cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
-            jdk-version: "11"
             agp-version: "7.2.0"
             gradle-plugin-version: "7.6.4"
             java-version: "JavaVersion.VERSION_1_8"
@@ -149,7 +145,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: "temurin"
-          java-version: ${{ matrix.jdk-version }}
+          java-version: "17"
 
       - name: Install Android SDK
         uses: android-actions/setup-android@v3

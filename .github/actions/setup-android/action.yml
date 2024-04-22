@@ -11,10 +11,10 @@ runs:
       java-version: '17'
   
   - name: Install Android SDK
-    uses: android-actions/setup-android@v3 
+    uses: android-actions/setup-android@v3
   
   - name: Verify gradle scripts are valid gradle scripts 
-    uses: gradle/wrapper-validation-action@v1
+    uses: gradle/actions/wrapper-validation@v3
     
   - name: Setup Gradle and cache dependencies between builds 
-    uses: gradle/gradle-build-action@v2
+    uses: gradle/actions/setup-gradle@v3

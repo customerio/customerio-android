@@ -1,6 +1,8 @@
 package io.customer.android
 
 object Versions {
+    // When updating AGP version, make sure to also update workflow: gradle-compatibility-builds
+    // and script: update-gradle-compatibility as needed.
     internal const val ANDROID_GRADLE_PLUGIN = "8.3.1"
     internal const val ANDROIDX_TEST_JUNIT = "1.1.4"
     internal const val ANDROIDX_TEST_RUNNER = "1.4.0"

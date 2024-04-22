@@ -11,7 +11,9 @@
 #   --kotlinJVMVersion <new_kotlin_jvm_version>
 #   --apkScaleVersion <new_apk_scale_version>
 #   --packagingResourcesAction <packaging_resources_action>
-# Example:
+# Example with only AGP version:
+# ./scripts/update-gradle-compatibility.sh --agpVersion 7.4.1
+# Example with all arguments:
 # ./scripts/update-gradle-compatibility.sh
 #   --agpVersion 7.4.1
 #   --gradlePluginVersion 7.6.4
@@ -22,12 +24,12 @@
 
 set -e
 
-NEW_AGP_VERSION="8.3.1"
-NEW_GRADLE_PLUGIN_VERSION="8.4"
-NEW_JAVA_VERSION="JavaVersion.VERSION_17"
-NEW_KOTLIN_JVM_VERSION="17"
-NEW_APK_SCALE_VERSION="0.1.7"
-PACKAGING_RESOURCES_ACTION="packaging"
+NEW_AGP_VERSION=""
+NEW_GRADLE_VERSION=""
+NEW_JAVA_VERSION=""
+NEW_KOTLIN_JVM_VERSION=""
+NEW_APK_SCALE_VERSION=""
+PACKAGING_RESOURCES_ACTION=""
 
 # Parsing named arguments
 while [ "$#" -gt 0 ]; do
@@ -37,7 +39,7 @@ while [ "$#" -gt 0 ]; do
             shift
             ;;
         --gradlePluginVersion)
-            NEW_GRADLE_PLUGIN_VERSION="$2"
+            NEW_GRADLE_VERSION="$2"
             shift
             ;;
         --javaVersion)
@@ -64,6 +66,21 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+# Setting default values for arguments if not provided. Defaults are based on given AGP version.
+case "$NEW_AGP_VERSION" in
+    8.*)
+      echo "AGP version is already 8.0.0 or higher. No need to update the project. Exiting without changes."
+      exit 0 # Exit successfully
+        ;;
+    7.*)
+        NEW_GRADLE_VERSION="${NEW_GRADLE_VERSION:-7.6.4}"
+        NEW_JAVA_VERSION="${NEW_JAVA_VERSION:-JavaVersion.VERSION_1_8}"
+        NEW_KOTLIN_JVM_VERSION="${NEW_KOTLIN_JVM_VERSION:-1.8}"
+        NEW_APK_SCALE_VERSION="${NEW_APK_SCALE_VERSION:-0.1.4}"
+        PACKAGING_RESOURCES_ACTION="${PACKAGING_RESOURCES_ACTION:-packagingOptions}"
+        ;;
+esac
+
 RELATIVE_PATH_TO_SCRIPTS_DIR=$(dirname "$0")
 ABSOLUTE_PATH_TO_SOURCE_CODE_ROOT_DIR=$(realpath "$RELATIVE_PATH_TO_SCRIPTS_DIR/..")
 
@@ -79,9 +96,9 @@ sd "internal const val ANDROID_GRADLE_PLUGIN = \"(.*)\"" "internal const val AND
 sd "internal const val APK_SCALE = \"(.*)\"" "internal const val APK_SCALE = \"$NEW_APK_SCALE_VERSION\"" "$VERSIONS_BUILD_SOURCE_FILE"
 
 GRADLE_WRAPPER_PROPERTIES_FILE="$ABSOLUTE_PATH_TO_SOURCE_CODE_ROOT_DIR/gradle/wrapper/gradle-wrapper.properties"
-echo "Updating file: $GRADLE_WRAPPER_PROPERTIES_FILE to new AGP version: $NEW_GRADLE_PLUGIN_VERSION"
+echo "Updating file: $GRADLE_WRAPPER_PROPERTIES_FILE to new gradle version: $NEW_GRADLE_VERSION"
 # Given line: `distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip`
-sd "gradle-[0-9.]+-bin.zip" "gradle-${NEW_GRADLE_PLUGIN_VERSION}-bin.zip" "$GRADLE_WRAPPER_PROPERTIES_FILE"
+sd "gradle-[0-9.]+-bin.zip" "gradle-${NEW_GRADLE_VERSION}-bin.zip" "$GRADLE_WRAPPER_PROPERTIES_FILE"
 
 BASE_MODULE_BUILD_GRADLE_FILE="$ABSOLUTE_PATH_TO_SOURCE_CODE_ROOT_DIR/base/build.gradle"
 echo "Updating file: $BASE_MODULE_BUILD_GRADLE_FILE to new Java version: $NEW_JAVA_VERSION"

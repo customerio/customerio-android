@@ -6,7 +6,7 @@
 # Usage:
 # ./scripts/update-gradle-compatibility.sh
 #   --agpVersion <new_agp_version>
-#   --gradlePluginVersion <new_gradle_plugin_version>
+#   --gradleVersion <new_gradle_plugin_version>
 #   --javaVersion <new_java_version>
 #   --kotlinJVMVersion <new_kotlin_jvm_version>
 #   --apkScaleVersion <new_apk_scale_version>
@@ -16,7 +16,7 @@
 # Example with all arguments:
 # ./scripts/update-gradle-compatibility.sh
 #   --agpVersion 7.4.1
-#   --gradlePluginVersion 7.6.4
+#   --gradleVersion 7.6.4
 #   --javaVersion JavaVersion.VERSION_1_8
 #   --kotlinJVMVersion 1.8
 #   --apkScaleVersion 0.1.4
@@ -38,7 +38,7 @@ while [ "$#" -gt 0 ]; do
             NEW_AGP_VERSION="$2"
             shift
             ;;
-        --gradlePluginVersion)
+        --gradleVersion)
             NEW_GRADLE_VERSION="$2"
             shift
             ;;

@@ -140,7 +140,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            key: ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-${{ hashFiles('**/*.gradle*') }}
+          key: ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-
 

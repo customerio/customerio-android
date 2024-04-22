@@ -6,7 +6,7 @@
 # Usage:
 # ./scripts/update-gradle-compatibility.sh
 #   --agpVersion <new_agp_version>
-#   --gradleVersion <new_gradle_plugin_version>
+#   --gradleVersion <new_gradle_version>
 #   --javaVersion <new_java_version>
 #   --kotlinJVMVersion <new_kotlin_jvm_version>
 #   --apkScaleVersion <new_apk_scale_version>

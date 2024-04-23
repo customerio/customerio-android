@@ -1,13 +1,13 @@
 name: Tests
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   unit-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        module: [tracking, messagingpush, messaginginapp, base]
+        module: [tracking, messagingpush, messaginginapp, base] # need to add datapipelines, here, this CI task is broken right now.
     name: Unit tests (${{ matrix.module }})
     steps:
       - uses: actions/checkout@v4

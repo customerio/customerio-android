@@ -29,7 +29,7 @@ public final class io/customer/sdk/CustomerIO$Builder {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;Ljava/util/Map;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/sdk/data/model/Region;Landroid/app/Application;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun addCustomerIOModule (Lio/customer/sdk/module/CustomerIOModule;)Lio/customer/sdk/CustomerIO$Builder;
+	public final fun addCustomerIOModule (Lio/customer/android/core/module/CustomerIOModule;)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackDeviceAttributes (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun autoTrackScreenViews (Z)Lio/customer/sdk/CustomerIO$Builder;
 	public final fun build ()Lio/customer/sdk/CustomerIO;
@@ -324,19 +324,6 @@ public abstract interface class io/customer/sdk/lifecycle/LifecycleCallback {
 public final class io/customer/sdk/lifecycle/LifecycleCallback$DefaultImpls {
 	public static fun onEventChanged (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
 	public static synthetic fun onEventChanged$default (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;ILjava/lang/Object;)V
-}
-
-public abstract interface class io/customer/sdk/module/CustomerIOModule {
-	public abstract fun getModuleConfig ()Lio/customer/sdk/module/CustomerIOModuleConfig;
-	public abstract fun getModuleName ()Ljava/lang/String;
-	public abstract fun initialize ()V
-}
-
-public abstract interface class io/customer/sdk/module/CustomerIOModuleConfig {
-}
-
-public abstract interface class io/customer/sdk/module/CustomerIOModuleConfig$Builder {
-	public abstract fun build ()Lio/customer/sdk/module/CustomerIOModuleConfig;
 }
 
 public abstract interface class io/customer/sdk/repository/DeviceRepository {

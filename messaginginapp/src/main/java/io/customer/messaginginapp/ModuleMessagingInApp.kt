@@ -2,6 +2,7 @@ package io.customer.messaginginapp
 
 import android.app.Application
 import androidx.annotation.VisibleForTesting
+import io.customer.android.core.module.CustomerIOModule
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIO
@@ -10,7 +11,6 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
-import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.TrackRepository
 
 class ModuleMessagingInApp

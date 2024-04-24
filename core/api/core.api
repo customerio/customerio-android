@@ -1,0 +1,13 @@
+public abstract interface class io/customer/android/core/module/CustomerIOModule {
+	public abstract fun getModuleConfig ()Lio/customer/android/core/module/CustomerIOModuleConfig;
+	public abstract fun getModuleName ()Ljava/lang/String;
+	public abstract fun initialize ()V
+}
+
+public abstract interface class io/customer/android/core/module/CustomerIOModuleConfig {
+}
+
+public abstract interface class io/customer/android/core/module/CustomerIOModuleConfig$Builder {
+	public abstract fun build ()Lio/customer/android/core/module/CustomerIOModuleConfig;
+}
+

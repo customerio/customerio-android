@@ -1,4 +1,4 @@
-package io.customer.sdk.module
+package io.customer.android.core.module
 
 /**
  * A module is optional Customer.io SDK that you can install in your app.

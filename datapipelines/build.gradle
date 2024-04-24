@@ -32,7 +32,7 @@ android {
 }
 
 dependencies {
-
     api project(":base")
+    api project(":core")
     implementation(Dependencies.segment)
 }

@@ -2,7 +2,8 @@ import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 
 // Array of module names for evaluating SDK binary size
-final List<String> targetModules = ['tracking', 'messagingpush', 'messaginginapp', 'datapipelines']
+// Report generated follows the order of modules in this list
+final List<String> targetModules = ['core', 'datapipelines', 'tracking', 'messagingpush', 'messaginginapp']
 // Default output file name for the combined report
 final String defaultSdkReportName = 'sdk-binary-size.json'
 // Unit used for generating binary size report

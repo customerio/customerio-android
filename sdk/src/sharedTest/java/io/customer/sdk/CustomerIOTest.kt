@@ -1,13 +1,13 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.android.core.module.CustomerIOGenericModule
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import io.customer.sdk.extensions.random
-import io.customer.sdk.module.CustomerIOGenericModule
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository

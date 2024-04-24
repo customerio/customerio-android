@@ -1,6 +1,7 @@
 package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.android.core.module.CustomerIOModule
 import io.customer.commontest.BaseTest
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
@@ -11,7 +12,6 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
-import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import java.lang.reflect.Field
 import org.amshove.kluent.shouldBe

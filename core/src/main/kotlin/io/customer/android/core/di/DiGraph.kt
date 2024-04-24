@@ -1,4 +1,4 @@
-package io.customer.sdk.di
+package io.customer.android.core.di
 
 abstract class DiGraph {
     val overrides: MutableMap<String, Any> = mutableMapOf()

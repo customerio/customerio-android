@@ -1,5 +1,6 @@
 package io.customer.sdk.di
 
+import io.customer.android.core.di.DiGraph
 import io.customer.sdk.util.*
 
 /**

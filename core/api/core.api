@@ -1,3 +1,11 @@
+public abstract class io/customer/android/core/di/DiGraph {
+	public fun <init> ()V
+	public final fun getOverrides ()Ljava/util/Map;
+	public final fun getSingletons ()Ljava/util/Map;
+	public final fun overrideDependency (Ljava/lang/Class;Ljava/lang/Object;)V
+	public final fun reset ()V
+}
+
 public abstract interface class io/customer/android/core/module/CustomerIOModule {
 	public abstract fun getModuleConfig ()Lio/customer/android/core/module/CustomerIOModuleConfig;
 	public abstract fun getModuleName ()Ljava/lang/String;

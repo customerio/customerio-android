@@ -2,6 +2,7 @@ package io.customer.sdk.di
 
 import android.content.Context
 import com.squareup.moshi.Moshi
+import io.customer.android.core.di.DiGraph
 import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.api.*

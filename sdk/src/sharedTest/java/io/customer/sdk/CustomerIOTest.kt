@@ -1,8 +1,8 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.module.CustomerIOGenericModule
 import io.customer.commontest.BaseTest
+import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOSharedComponent

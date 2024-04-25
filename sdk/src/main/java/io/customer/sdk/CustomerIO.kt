@@ -5,6 +5,8 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.annotation.VisibleForTesting
+import io.customer.android.core.module.CustomerIOModule
+import io.customer.android.core.module.CustomerIOModuleConfig
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
@@ -12,8 +14,6 @@ import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.extensions.*
-import io.customer.sdk.module.CustomerIOModule
-import io.customer.sdk.module.CustomerIOModuleConfig
 import io.customer.sdk.repository.CleanupRepository
 import io.customer.sdk.repository.DeviceRepository
 import io.customer.sdk.repository.ProfileRepository

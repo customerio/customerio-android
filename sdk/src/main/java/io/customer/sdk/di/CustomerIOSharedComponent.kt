@@ -1,6 +1,7 @@
 package io.customer.sdk.di
 
 import android.content.Context
+import io.customer.android.core.di.DiGraph
 import io.customer.sdk.repository.preference.SharedPreferenceRepository
 import io.customer.sdk.repository.preference.SharedPreferenceRepositoryImp
 

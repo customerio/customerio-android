@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import io.customer.android.core.module.CustomerIOModule
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
@@ -11,7 +12,6 @@ import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
-import io.customer.sdk.module.CustomerIOModule
 import io.customer.sdk.util.*
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockWebServer

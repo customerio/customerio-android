@@ -1,9 +1,25 @@
+public final class io/customer/android/core/di/AndroidSDKComponent : io/customer/android/core/di/DiGraph {
+	public fun <init> (Landroid/content/Context;)V
+	public final fun getApplicationContext ()Landroid/content/Context;
+	public final fun getContext ()Landroid/content/Context;
+}
+
 public abstract class io/customer/android/core/di/DiGraph {
 	public fun <init> ()V
 	public final fun getOverrides ()Ljava/util/Map;
 	public final fun getSingletons ()Ljava/util/Map;
 	public final fun overrideDependency (Ljava/lang/Class;Ljava/lang/Object;)V
 	public final fun reset ()V
+}
+
+public final class io/customer/android/core/di/SDKComponent : io/customer/android/core/di/DiGraph {
+	public static final field INSTANCE Lio/customer/android/core/di/SDKComponent;
+	public final fun getAndroidSDKComponent ()Lio/customer/android/core/di/AndroidSDKComponent;
+	public final fun getModules ()Ljava/util/Map;
+}
+
+public final class io/customer/android/core/di/SDKComponentExtKt {
+	public static final fun registerAndroidSDKComponent (Lio/customer/android/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/android/core/di/AndroidSDKComponent;
 }
 
 public abstract interface class io/customer/android/core/module/CustomerIOModule {

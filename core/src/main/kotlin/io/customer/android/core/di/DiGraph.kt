@@ -60,7 +60,7 @@ abstract class DiGraph {
      * Example:
      * ```
      * val logger: Logger?
-     *   get() = singletonOrNull()
+     *   get() = getOrNull()
      * ```
      */
     inline fun <reified Dependency : Any> getOrNull(): Dependency? {

@@ -4,8 +4,8 @@ import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
+import io.customer.android.core.util.Logger
 import io.customer.sdk.device.DeviceTokenProvider
-import io.customer.sdk.util.Logger
 
 /**
  * Wrapper around FCM SDK to make the code base more testable. There is no concept of checked-exceptions in Kotlin

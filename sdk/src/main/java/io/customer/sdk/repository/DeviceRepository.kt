@@ -1,5 +1,6 @@
 package io.customer.sdk.repository
 
+import io.customer.android.core.util.Logger
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.request.Device
@@ -7,7 +8,6 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.util.DateUtil
-import io.customer.sdk.util.Logger
 
 interface DeviceRepository {
     fun registerDeviceToken(deviceToken: String, attributes: CustomAttributes)

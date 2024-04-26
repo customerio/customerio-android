@@ -1,6 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.android.core.util.Logger
 import io.customer.commontest.BaseTest
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.MetricEvent
@@ -10,7 +11,6 @@ import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.repository.preference.SitePreferenceRepository
-import io.customer.sdk.util.Logger
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith

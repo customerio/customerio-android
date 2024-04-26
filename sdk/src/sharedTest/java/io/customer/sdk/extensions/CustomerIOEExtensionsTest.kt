@@ -1,8 +1,8 @@
 package io.customer.sdk.extensions
 
+import io.customer.android.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.util.CioLogLevel
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 

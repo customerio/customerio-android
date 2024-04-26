@@ -1,6 +1,7 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.customer.android.core.util.Logger
 import io.customer.commontest.BaseTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HooksManager
@@ -9,7 +10,6 @@ import io.customer.sdk.queue.Queue
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus
 import io.customer.sdk.repository.preference.SitePreferenceRepository
-import io.customer.sdk.util.Logger
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeNull

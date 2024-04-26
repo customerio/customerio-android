@@ -1,5 +1,6 @@
 package io.customer.sdk.queue
 
+import io.customer.android.core.util.Logger
 import io.customer.sdk.api.TrackingHttpClient
 import io.customer.sdk.data.request.DeliveryEvent
 import io.customer.sdk.data.request.Metric
@@ -12,7 +13,6 @@ import io.customer.sdk.queue.type.QueueRunTaskResult
 import io.customer.sdk.queue.type.QueueTask
 import io.customer.sdk.queue.type.QueueTaskType
 import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.Logger
 import java.io.IOException
 
 interface QueueRunner {

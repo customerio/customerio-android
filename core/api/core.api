@@ -1,3 +1,10 @@
+public final class io/customer/android/core/BuildConfig {
+	public static final field BUILD_TYPE Ljava/lang/String;
+	public static final field DEBUG Z
+	public static final field LIBRARY_PACKAGE_NAME Ljava/lang/String;
+	public fun <init> ()V
+}
+
 public final class io/customer/android/core/di/AndroidSDKComponent : io/customer/android/core/di/DiGraph {
 	public fun <init> (Landroid/content/Context;)V
 	public final fun getApplicationContext ()Landroid/content/Context;
@@ -20,6 +27,15 @@ public final class io/customer/android/core/di/SDKComponent : io/customer/androi
 
 public final class io/customer/android/core/di/SDKComponentExtKt {
 	public static final fun registerAndroidSDKComponent (Lio/customer/android/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/android/core/di/AndroidSDKComponent;
+}
+
+public abstract interface class io/customer/android/core/environment/BuildEnvironment {
+	public abstract fun getDebugModeEnabled ()Z
+}
+
+public final class io/customer/android/core/environment/DefaultBuildEnvironment : io/customer/android/core/environment/BuildEnvironment {
+	public fun <init> ()V
+	public fun getDebugModeEnabled ()Z
 }
 
 public abstract interface class io/customer/android/core/module/CustomerIOModule {

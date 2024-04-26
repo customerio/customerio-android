@@ -1,10 +1,10 @@
 package io.customer.sdk.util
 
 import android.util.Log
-import androidx.annotation.VisibleForTesting
-import io.customer.sdk.CustomerIOConfig
+import io.customer.android.core.environment.BuildEnvironment
 
 interface Logger {
+    var logLevel: CioLogLevel
     fun info(message: String)
     fun debug(message: String)
     fun error(message: String)
@@ -16,45 +16,43 @@ enum class CioLogLevel {
     INFO,
     DEBUG;
 
-    fun shouldLog(levelForMessage: CioLogLevel): Boolean {
-        return when (this) {
-            NONE -> false
-            ERROR -> levelForMessage == ERROR
-            INFO -> levelForMessage == ERROR || levelForMessage == INFO
-            DEBUG -> true
-        }
-    }
-
     companion object {
-        fun getLogLevel(level: String?, fallback: CioLogLevel = CioLogLevel.NONE): CioLogLevel {
+        val DEFAULT = ERROR
+        fun getLogLevel(level: String?, fallback: CioLogLevel = NONE): CioLogLevel {
             return values().find { value -> value.name.equals(level, ignoreCase = true) }
                 ?: fallback
         }
     }
 }
 
-internal class LogcatLogger(
-    private val staticSettingsProvider: StaticSettingsProvider
+internal fun CioLogLevel.shouldLog(levelForMessage: CioLogLevel): Boolean {
+    return when (this) {
+        CioLogLevel.NONE -> false
+        CioLogLevel.ERROR -> levelForMessage == CioLogLevel.ERROR
+        CioLogLevel.INFO -> levelForMessage == CioLogLevel.ERROR || levelForMessage == CioLogLevel.INFO
+        CioLogLevel.DEBUG -> true
+    }
+}
+
+class LogcatLogger(
+    private val buildEnvironment: BuildEnvironment
 ) : Logger {
     // Log level defined by user in configurations
     private var preferredLogLevel: CioLogLevel? = null
 
     // Fallback log level to be used only if log level is not yet defined by the user
     private val fallbackLogLevel
-        get() = if (staticSettingsProvider.isDebuggable) {
-            CioLogLevel.DEBUG
-        } else {
-            CustomerIOConfig.Companion.SDKConstants.LOG_LEVEL_DEFAULT
+        get() = when {
+            buildEnvironment.debugModeEnabled -> CioLogLevel.DEBUG
+            else -> CioLogLevel.DEFAULT
         }
 
     // Prefer user log level; fallback to default only till the user defined value is not received
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    val logLevel: CioLogLevel
+    override var logLevel: CioLogLevel
         get() = preferredLogLevel ?: fallbackLogLevel
-
-    fun setPreferredLogLevel(logLevel: CioLogLevel) {
-        preferredLogLevel = logLevel
-    }
+        set(value) {
+            preferredLogLevel = value
+        }
 
     override fun info(message: String) {
         runIfMeetsLogLevelCriteria(CioLogLevel.INFO) {

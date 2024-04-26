@@ -50,7 +50,7 @@ data class CustomerIOConfig(
          * SDK constants to avoid repetitive configuration values
          */
         object SDKConstants {
-            val LOG_LEVEL_DEFAULT = CioLogLevel.ERROR
+            val LOG_LEVEL_DEFAULT = CioLogLevel.DEFAULT
         }
 
         /**

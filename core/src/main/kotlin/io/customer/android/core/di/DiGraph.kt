@@ -103,7 +103,7 @@ abstract class DiGraph {
 
     // TODO: Remove deprecated functions after all usages are removed.
     @Deprecated("Use newInstance or singleton instead", ReplaceWith("newInstance()"))
-    inline fun <reified DEP> override(): DEP? = overrides[DEP::class.java.simpleName] as? DEP
+    inline fun <reified DEP> override(): DEP? = overrides[DEP::class.java.name] as? DEP
 
     @Deprecated("Use singleton instead", ReplaceWith("singleton(newInstanceCreator)"))
     inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {

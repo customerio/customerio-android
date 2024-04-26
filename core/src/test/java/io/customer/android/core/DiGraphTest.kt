@@ -6,12 +6,8 @@ import io.customer.commontest.BaseTest
 import java.lang.Thread.sleep
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.Float
-import kotlin.Int
 import kotlin.String
-import kotlin.Unit
 import kotlin.concurrent.thread
-import kotlin.synchronized
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeNull
@@ -200,4 +196,5 @@ class DiGraphTest : BaseTest() {
     }
 }
 
+// Custom data class to test dependency injection with the same class name.
 private data class Pair(val value: Int)

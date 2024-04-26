@@ -113,7 +113,7 @@ class DiGraphTest : BaseTest() {
     }
 
     @Test
-    fun getOrNull_givenSingletonExists_expectSingletonRetrieved() {
+    fun getOrNull_givenSingletonSet_expectDependencyRetrieved() {
         val givenInstance = "SingletonInstance"
         diGraph.singleton { givenInstance }
 
@@ -121,6 +121,33 @@ class DiGraphTest : BaseTest() {
 
         actualInstance.shouldNotBeNull()
         assertEquals(givenInstance, actualInstance)
+    }
+
+    @Test
+    fun registerDependency_givenDependencySet_expectDependencyRetrieved() {
+        val givenInstance = "RegisteredInstance"
+        diGraph.registerDependency { givenInstance }
+
+        val actualInstance = diGraph.getOrNull<String>()
+
+        actualInstance.shouldNotBeNull()
+        assertEquals(givenInstance, actualInstance)
+    }
+
+    @Test
+    fun registerDependency_givenDependencySetMultipleTimes_expectDependencyInitializedOnce() {
+        var timesCalled = 0
+        val givenInstance = "RegisteredInstance"
+
+        val singleton = diGraph.registerDependency {
+            timesCalled++
+            givenInstance
+        }
+        val actualInstance = diGraph.registerDependency { "NewRegisteredInstance" }
+
+        assertEquals(givenInstance, singleton)
+        assertEquals(givenInstance, actualInstance)
+        assertEquals(1, timesCalled)
     }
 
     @Test
@@ -132,10 +159,10 @@ class DiGraphTest : BaseTest() {
             timesCalled++
             givenInstance
         }
-        val retrievedSingleton = diGraph.singleton { "NewSingletonInstance" }
+        val actualInstance = diGraph.singleton { "NewSingletonInstance" }
 
         assertEquals(givenInstance, singleton)
-        assertEquals(givenInstance, retrievedSingleton)
+        assertEquals(givenInstance, actualInstance)
         assertEquals(1, timesCalled)
     }
 

@@ -144,15 +144,17 @@ class DiGraphTest : BaseTest() {
         var initCount = 0
         val threadsCompletionLatch = CountDownLatch(3)
         val instances = mutableListOf<String>()
-        val givenInstance = "SingletonInstance"
+        val givenInstanceThread1 = "SingletonInstance1"
+        val givenInstanceThread2 = "SingletonInstance2"
+        val givenInstanceThread3 = "SingletonInstance3"
 
-        val getSingleton: () -> Unit = {
+        val getSingleton: (String, Long) -> Unit = { returnValue: String, wait: Long ->
             val instance = diGraph.singleton {
                 initCount++
                 // Sleep for 100ms to simulate some initialization time so that
                 // the other threads can execute in parallel
-                sleep(100)
-                return@singleton givenInstance
+                sleep(wait)
+                return@singleton returnValue
             }
             synchronized(instances) {
                 instances.add(instance)
@@ -160,9 +162,17 @@ class DiGraphTest : BaseTest() {
             threadsCompletionLatch.countDown()
         }
 
-        val thread1 = thread(start = false) { getSingleton() }
-        val thread2 = thread(start = false) { getSingleton() }
-        val thread3 = thread(start = false) { getSingleton() }
+        val thread1 = thread(start = false) {
+            // Wait less time for the first thread so we get the instance from
+            // this thread consistently
+            getSingleton(givenInstanceThread1, 100)
+        }
+        val thread2 = thread(start = false) {
+            getSingleton(givenInstanceThread2, 200)
+        }
+        val thread3 = thread(start = false) {
+            getSingleton(givenInstanceThread3, 300)
+        }
 
         // Start all threads in parallel
         thread1.start()
@@ -176,7 +186,7 @@ class DiGraphTest : BaseTest() {
         val firstInstance = instances.firstOrNull()
         firstInstance.shouldNotBeNull()
         instances.all { it == firstInstance }.shouldBeTrue()
-        assertEquals(givenInstance, firstInstance)
+        assertEquals(givenInstanceThread1, firstInstance)
         assertEquals(1, initCount)
     }
 

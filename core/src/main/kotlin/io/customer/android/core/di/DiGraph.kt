@@ -12,13 +12,19 @@ abstract class DiGraph {
     val singletons: MutableMap<String, Any> = mutableMapOf()
 
     /**
+     * Internal function to get the key for a dependency in the graph based on its class.
+     * This function is marked as public only because it is inlined in other public functions.
+     */
+    inline fun <reified Dependency : Any> dependencyKey(): String = Dependency::class.java.name
+
+    /**
      * Internal function to get an overridden dependency in the graph.
      * This function is marked as public only because it is inlined in other public functions.
      * Do not call this function directly. Instead, use the `newInstance` or `singleton` functions
      * to get the dependency.
      */
     inline fun <reified Dependency : Any> getOverriddenInstance(): Dependency? {
-        return overrides[Dependency::class.java.name] as? Dependency
+        return overrides[dependencyKey<Dependency>()] as? Dependency
     }
 
     /**
@@ -31,10 +37,9 @@ abstract class DiGraph {
         newInstanceCreator: () -> Dependency
     ): Dependency {
         // Use a synchronized block to prevent multiple threads from creating multiple instances of the singleton.
-        synchronized(lock = this) {
-            val singletonKey = Dependency::class.java.name
-            return singletons[singletonKey] as? Dependency
-                ?: newInstanceCreator().also { instance -> singletons[singletonKey] = instance }
+        synchronized(lock = singletons) {
+            val singletonKey = dependencyKey<Dependency>()
+            return singletons.getOrPut(singletonKey, newInstanceCreator) as Dependency
         }
     }
 
@@ -59,7 +64,7 @@ abstract class DiGraph {
      * ```
      */
     inline fun <reified Dependency : Any> getOrNull(): Dependency? {
-        return getOverriddenInstance() ?: singletons[Dependency::class.java.name] as? Dependency
+        return getOverriddenInstance() ?: singletons[dependencyKey<Dependency>()] as? Dependency
     }
 
     /**
@@ -103,17 +108,10 @@ abstract class DiGraph {
 
     // TODO: Remove deprecated functions after all usages are removed.
     @Deprecated("Use newInstance or singleton instead", ReplaceWith("newInstance()"))
-    inline fun <reified DEP> override(): DEP? = overrides[DEP::class.java.name] as? DEP
+    inline fun <reified DEP : Any> override(): DEP? = overrides[dependencyKey<DEP>()] as? DEP
 
     @Deprecated("Use singleton instead", ReplaceWith("singleton(newInstanceCreator)"))
     inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {
-        // Use a synchronized block to prevent multiple threads from creating multiple instances of the singleton.
-        synchronized(this) {
-            val singletonKey = INST::class.java.name
-
-            return singletons[singletonKey] as? INST ?: newInstanceCreator().also {
-                singletons[singletonKey] = it
-            }
-        }
+        return getOrCreateSingletonInstance(newInstanceCreator)
     }
 }

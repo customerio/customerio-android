@@ -22,12 +22,24 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import sovran.kotlin.Subscriber
 
+/**
+ * CustomerIOSettings is a data class that holds the settings for the CustomerIODestination plugin.
+ * @param apiKey: The Customer IO API key
+ * @param apiHost: The Customer IO API host
+ */
 @Serializable
 data class CustomerIOSettings(
     var apiKey: String,
     var apiHost: String? = null
 )
 
+/**
+ * CustomerIODestination plugin that is used to send events to Customer IO CDP api, in the choice of region.
+ * How it works
+ * - Plugin receives `apiHost` settings
+ * - We store events into a file with the batch api format (@link {https://customer.io/docs/api/cdp/#operation/batch})
+ * - We upload events on a dedicated thread using the batch api
+ */
 class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
 
     private var pipeline: EventPipeline? = null

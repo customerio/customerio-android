@@ -42,7 +42,7 @@ class CustomerIO private constructor(
         @JvmStatic
         fun instance(): CustomerIO {
             return instance ?: throw IllegalStateException(
-                "CustomerIO is not initialized. CustomerIO SDK must be called before obtaining CustomerIO instance."
+                "CustomerIO is not initialized. CustomerIO.Builder::build() must be called before obtaining SDK instance."
             )
         }
 

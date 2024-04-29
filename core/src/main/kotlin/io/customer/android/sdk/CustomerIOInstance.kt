@@ -1,7 +1,7 @@
 package io.customer.android.sdk
 
 /**
- * Allows mocking of [CustomerIO] for your automated tests in your project. Mock [CustomerIO] to assert your code is calling functions
- * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
+ * Allows mocking of [CustomerIO] for automated tests in the project.
+ * Mock the implementation of this interface to test the behavior of the SDK without actually calling the SDK.
  */
 interface CustomerIOInstance

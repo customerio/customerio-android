@@ -1,5 +1,6 @@
 package io.customer.android.core.di
 
+import io.customer.commontest.BaseUnitTest
 import java.lang.Thread.sleep
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -10,21 +11,19 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 
-class DiGraphTest {
+class DiGraphTest : BaseUnitTest() {
     private lateinit var diGraph: DiGraph
 
-    @Before
-    fun setUp() {
+    override fun setUp() {
+        super.setUp()
         diGraph = object : DiGraph() {}
     }
 
-    @After
-    fun tearDown() {
+    override fun tearDown() {
         diGraph.reset()
+        super.tearDown()
     }
 
     @Test

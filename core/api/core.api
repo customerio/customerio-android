@@ -22,6 +22,8 @@ public abstract class io/customer/android/core/di/DiGraph {
 public final class io/customer/android/core/di/SDKComponent : io/customer/android/core/di/DiGraph {
 	public static final field INSTANCE Lio/customer/android/core/di/SDKComponent;
 	public final fun getAndroidSDKComponent ()Lio/customer/android/core/di/AndroidSDKComponent;
+	public final fun getBuildEnvironment ()Lio/customer/android/core/environment/BuildEnvironment;
+	public final fun getLogger ()Lio/customer/android/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
 }
 
@@ -87,5 +89,18 @@ public abstract interface class io/customer/android/core/util/Logger {
 	public abstract fun getLogLevel ()Lio/customer/android/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
 	public abstract fun setLogLevel (Lio/customer/android/core/util/CioLogLevel;)V
+}
+
+public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstance {
+	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
+	public fun <init> (Lio/customer/sdk/CustomerIOInstance;)V
+	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+}
+
+public final class io/customer/sdk/CustomerIO$Companion {
+	public final fun instance ()Lio/customer/sdk/CustomerIO;
+}
+
+public abstract interface class io/customer/sdk/CustomerIOInstance {
 }
 

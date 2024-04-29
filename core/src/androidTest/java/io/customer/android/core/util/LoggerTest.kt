@@ -1,4 +1,4 @@
-package io.customer.sdk.util
+package io.customer.android.core.util
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.android.core.environment.BuildEnvironment

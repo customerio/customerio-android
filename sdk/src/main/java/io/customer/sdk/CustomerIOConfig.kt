@@ -1,9 +1,9 @@
 package io.customer.sdk
 
 import io.customer.android.core.module.CustomerIOModule
+import io.customer.android.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
-import io.customer.sdk.util.CioLogLevel
 
 data class CustomerIOConfig(
     val client: Client,

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.android.core.module.CustomerIOModule
+import io.customer.android.core.util.CioLogLevel
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region

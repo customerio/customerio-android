@@ -1,8 +1,8 @@
 package io.customer.sdk.queue
 
+import io.customer.android.core.util.Logger
 import io.customer.sdk.error.CustomerIOError
 import io.customer.sdk.queue.type.QueueTaskMetadata
-import io.customer.sdk.util.Logger
 
 interface QueueRunRequest {
     suspend fun run()

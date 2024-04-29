@@ -1,4 +1,4 @@
-package io.customer.sdk.util
+package io.customer.android.core.util
 
 import android.util.Log
 import io.customer.android.core.environment.BuildEnvironment

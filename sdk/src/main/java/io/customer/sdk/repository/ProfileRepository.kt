@@ -1,11 +1,11 @@
 package io.customer.sdk.repository
 
+import io.customer.android.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.queue.Queue
 import io.customer.sdk.repository.preference.SitePreferenceRepository
-import io.customer.sdk.util.Logger
 
 interface ProfileRepository {
     fun identify(identifier: String, attributes: CustomAttributes)

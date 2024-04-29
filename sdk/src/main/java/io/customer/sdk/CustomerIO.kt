@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import androidx.annotation.VisibleForTesting
 import io.customer.android.core.module.CustomerIOModule
 import io.customer.android.core.module.CustomerIOModuleConfig
+import io.customer.android.core.util.CioLogLevel
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
@@ -21,7 +22,6 @@ import io.customer.sdk.repository.TrackRepository
 import io.customer.sdk.repository.preference.CustomerIOStoredValues
 import io.customer.sdk.repository.preference.doesExist
 import io.customer.sdk.tracking.TrackableScreen
-import io.customer.sdk.util.CioLogLevel
 import io.customer.sdk.util.Seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch

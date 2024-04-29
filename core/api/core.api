@@ -51,3 +51,41 @@ public abstract interface class io/customer/android/core/module/CustomerIOModule
 	public abstract fun build ()Lio/customer/android/core/module/CustomerIOModuleConfig;
 }
 
+public final class io/customer/android/core/util/CioLogLevel : java/lang/Enum {
+	public static final field Companion Lio/customer/android/core/util/CioLogLevel$Companion;
+	public static final field DEBUG Lio/customer/android/core/util/CioLogLevel;
+	public static final field ERROR Lio/customer/android/core/util/CioLogLevel;
+	public static final field INFO Lio/customer/android/core/util/CioLogLevel;
+	public static final field NONE Lio/customer/android/core/util/CioLogLevel;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/android/core/util/CioLogLevel;
+	public static fun values ()[Lio/customer/android/core/util/CioLogLevel;
+}
+
+public final class io/customer/android/core/util/CioLogLevel$Companion {
+	public final fun getDEFAULT ()Lio/customer/android/core/util/CioLogLevel;
+	public final fun getLogLevel (Ljava/lang/String;Lio/customer/android/core/util/CioLogLevel;)Lio/customer/android/core/util/CioLogLevel;
+	public static synthetic fun getLogLevel$default (Lio/customer/android/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/android/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/android/core/util/CioLogLevel;
+}
+
+public final class io/customer/android/core/util/LogcatLogger : io/customer/android/core/util/Logger {
+	public static final field Companion Lio/customer/android/core/util/LogcatLogger$Companion;
+	public static final field TAG Ljava/lang/String;
+	public fun <init> (Lio/customer/android/core/environment/BuildEnvironment;)V
+	public fun debug (Ljava/lang/String;)V
+	public fun error (Ljava/lang/String;)V
+	public fun getLogLevel ()Lio/customer/android/core/util/CioLogLevel;
+	public fun info (Ljava/lang/String;)V
+	public fun setLogLevel (Lio/customer/android/core/util/CioLogLevel;)V
+}
+
+public final class io/customer/android/core/util/LogcatLogger$Companion {
+}
+
+public abstract interface class io/customer/android/core/util/Logger {
+	public abstract fun debug (Ljava/lang/String;)V
+	public abstract fun error (Ljava/lang/String;)V
+	public abstract fun getLogLevel ()Lio/customer/android/core/util/CioLogLevel;
+	public abstract fun info (Ljava/lang/String;)V
+	public abstract fun setLogLevel (Lio/customer/android/core/util/CioLogLevel;)V
+}
+

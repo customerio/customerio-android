@@ -1,5 +1,6 @@
 package io.customer.sdk.queue
 
+import io.customer.android.core.util.Logger
 import io.customer.base.extenstions.isOlderThan
 import io.customer.base.extenstions.subtract
 import io.customer.sdk.CustomerIOConfig
@@ -8,7 +9,6 @@ import io.customer.sdk.data.store.FileType
 import io.customer.sdk.queue.type.*
 import io.customer.sdk.util.DateUtil
 import io.customer.sdk.util.JsonAdapter
-import io.customer.sdk.util.Logger
 import io.customer.sdk.util.toSeconds
 import java.util.*
 import java.util.concurrent.TimeUnit

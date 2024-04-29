@@ -64,7 +64,7 @@ public final class io/customer/messagingpush/activity/NotificationClickReceiverA
 	public static final field Companion Lio/customer/messagingpush/activity/NotificationClickReceiverActivity$Companion;
 	public static final field NOTIFICATION_PAYLOAD_EXTRA Ljava/lang/String;
 	public fun <init> ()V
-	public final fun getLogger ()Lio/customer/sdk/util/Logger;
+	public final fun getLogger ()Lio/customer/android/core/util/Logger;
 	public fun getScreenName ()Ljava/lang/String;
 }
 
@@ -131,7 +131,7 @@ public final class io/customer/messagingpush/processor/PushMessageProcessor$Comp
 }
 
 public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {
-	public fun <init> (Lio/customer/sdk/util/Logger;Landroid/content/Context;)V
+	public fun <init> (Lio/customer/android/core/util/Logger;Landroid/content/Context;)V
 	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
 	public fun isValidForThisDevice (Landroid/content/Context;)Z
 }
@@ -143,7 +143,7 @@ public abstract interface class io/customer/messagingpush/util/DeepLinkUtil {
 }
 
 public final class io/customer/messagingpush/util/DeepLinkUtilImpl : io/customer/messagingpush/util/DeepLinkUtil {
-	public fun <init> (Lio/customer/sdk/util/Logger;Lio/customer/messagingpush/MessagingPushModuleConfig;)V
+	public fun <init> (Lio/customer/android/core/util/Logger;Lio/customer/messagingpush/MessagingPushModuleConfig;)V
 	public fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
 	public fun createDeepLinkHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
 	public fun createDefaultHostAppIntent (Landroid/content/Context;)Landroid/content/Intent;

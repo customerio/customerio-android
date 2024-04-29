@@ -1,10 +1,10 @@
 package io.customer.sdk.repository.preference
 
+import io.customer.android.core.util.CioLogLevel
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
-import io.customer.sdk.util.CioLogLevel
 
 internal data class CustomerIOStoredValues(
     val siteId: String,

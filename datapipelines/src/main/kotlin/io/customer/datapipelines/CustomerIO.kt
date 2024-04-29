@@ -1,7 +1,9 @@
+@file:Suppress("unused")
+
 package io.customer.datapipelines
 
 import android.app.Application
-import io.customer.sdk.CustomerIO
+import io.customer.android.sdk.CustomerIO
 
 @Suppress("FunctionName")
 fun CustomerIO.Companion.Builder(

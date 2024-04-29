@@ -6,8 +6,8 @@ import io.customer.android.core.di.registerAndroidSDKComponent
 import io.customer.android.core.module.CustomerIOModule
 import io.customer.android.core.module.CustomerIOModuleConfig
 import io.customer.android.core.util.Logger
+import io.customer.android.sdk.CustomerIO
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
-import io.customer.sdk.CustomerIO
 
 /**
  * Builder class for creating a new instance of CustomerIO.
@@ -41,7 +41,7 @@ class CustomerIOBuilder internal constructor(
         modules.putAll(registeredModules.associateBy { module -> module.moduleName })
 
         // Initialize CustomerIO instance before initializing the modules
-        val customerIO = CustomerIO(implementation = dataPipelinesModule)
+        val customerIO = CustomerIO.createInstance(implementation = dataPipelinesModule)
         modules.forEach { (_, module) ->
             logger.debug("initializing SDK module ${module.moduleName}...")
             module.initialize()

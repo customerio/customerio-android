@@ -91,16 +91,16 @@ public abstract interface class io/customer/android/core/util/Logger {
 	public abstract fun setLogLevel (Lio/customer/android/core/util/CioLogLevel;)V
 }
 
-public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstance {
-	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
-	public fun <init> (Lio/customer/sdk/CustomerIOInstance;)V
-	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+public final class io/customer/android/sdk/CustomerIO : io/customer/android/sdk/CustomerIOInstance {
+	public static final field Companion Lio/customer/android/sdk/CustomerIO$Companion;
+	public synthetic fun <init> (Lio/customer/android/sdk/CustomerIOInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun instance ()Lio/customer/android/sdk/CustomerIO;
 }
 
-public final class io/customer/sdk/CustomerIO$Companion {
-	public final fun instance ()Lio/customer/sdk/CustomerIO;
+public final class io/customer/android/sdk/CustomerIO$Companion {
+	public final fun instance ()Lio/customer/android/sdk/CustomerIO;
 }
 
-public abstract interface class io/customer/sdk/CustomerIOInstance {
+public abstract interface class io/customer/android/sdk/CustomerIOInstance {
 }
 

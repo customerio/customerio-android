@@ -4,8 +4,8 @@ import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.android.core.di.AndroidSDKComponent
 import io.customer.android.core.module.CustomerIOModule
+import io.customer.android.sdk.CustomerIOInstance
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
-import io.customer.sdk.CustomerIOInstance
 
 /**
  * DataPipelinesModule is SDK module that provides the ability to send data to

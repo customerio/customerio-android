@@ -1,8 +1,5 @@
-package io.customer.android.core
+package io.customer.android.core.di
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.di.DiGraph
-import io.customer.commontest.BaseTest
 import java.lang.Thread.sleep
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -13,17 +10,21 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class DiGraphTest : BaseTest() {
+class DiGraphTest {
     private lateinit var diGraph: DiGraph
 
     @Before
     fun setUp() {
         diGraph = object : DiGraph() {}
+    }
+
+    @After
+    fun tearDown() {
+        diGraph.reset()
     }
 
     @Test
@@ -195,10 +196,10 @@ class DiGraphTest : BaseTest() {
             getSingleton(givenInstanceThread1, 100)
         }
         val thread2 = thread(start = false) {
-            getSingleton(givenInstanceThread2, 200)
+            getSingleton(givenInstanceThread2, 500)
         }
         val thread3 = thread(start = false) {
-            getSingleton(givenInstanceThread3, 300)
+            getSingleton(givenInstanceThread3, 500)
         }
 
         // Start all threads in parallel

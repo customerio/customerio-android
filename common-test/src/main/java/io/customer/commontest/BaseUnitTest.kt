@@ -5,10 +5,10 @@ import org.junit.Before
 
 abstract class BaseUnitTest {
     @Before
-    open fun setUp() {
+    open fun setup() {
     }
 
     @After
-    open fun tearDown() {
+    open fun teardown() {
     }
 }

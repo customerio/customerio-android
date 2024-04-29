@@ -16,14 +16,14 @@ import org.junit.Test
 class DiGraphTest : BaseUnitTest() {
     private lateinit var diGraph: DiGraph
 
-    override fun setUp() {
-        super.setUp()
+    override fun setup() {
+        super.setup()
         diGraph = object : DiGraph() {}
     }
 
-    override fun tearDown() {
+    override fun teardown() {
         diGraph.reset()
-        super.tearDown()
+        super.teardown()
     }
 
     @Test

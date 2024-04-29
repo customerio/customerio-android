@@ -266,9 +266,9 @@ public final class io/customer/sdk/di/CustomerIOSharedComponent : io/customer/an
 
 public final class io/customer/sdk/di/CustomerIOStaticComponent : io/customer/android/core/di/DiGraph {
 	public fun <init> ()V
+	public final fun getBuildEnvironment ()Lio/customer/android/core/environment/BuildEnvironment;
 	public final fun getDispatchersProvider ()Lio/customer/sdk/util/DispatchersProvider;
 	public final fun getLogger ()Lio/customer/sdk/util/Logger;
-	public final fun getStaticSettingsProvider ()Lio/customer/sdk/util/StaticSettingsProvider;
 }
 
 public final class io/customer/sdk/hooks/HookModule : java/lang/Enum {

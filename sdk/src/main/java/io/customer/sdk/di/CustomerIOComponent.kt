@@ -180,7 +180,7 @@ class CustomerIOComponent(
 
     private val httpLoggingInterceptor by lazy {
         override() ?: HttpLoggingInterceptor().apply {
-            if (staticComponent.staticSettingsProvider.isDebuggable) {
+            if (staticComponent.buildEnvironment.debugModeEnabled) {
                 level = HttpLoggingInterceptor.Level.BODY
             }
         }

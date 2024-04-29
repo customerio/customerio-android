@@ -1,6 +1,8 @@
 package io.customer.sdk.di
 
 import io.customer.android.core.di.DiGraph
+import io.customer.android.core.environment.BuildEnvironment
+import io.customer.android.core.environment.DefaultBuildEnvironment
 import io.customer.sdk.util.*
 
 /**
@@ -14,12 +16,12 @@ import io.customer.sdk.util.*
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class CustomerIOStaticComponent : DiGraph() {
-    val staticSettingsProvider: StaticSettingsProvider by lazy {
-        override() ?: StaticSettingsProviderImpl()
+    val buildEnvironment: BuildEnvironment by lazy {
+        override() ?: DefaultBuildEnvironment()
     }
 
     val logger: Logger by lazy {
-        override() ?: LogcatLogger(staticSettingsProvider = staticSettingsProvider)
+        override() ?: LogcatLogger(buildEnvironment = buildEnvironment)
     }
 
     val dispatchersProvider: DispatchersProvider by lazy { override() ?: SdkDispatchers() }

@@ -14,7 +14,7 @@ import io.customer.sdk.CustomerIOInstance
 class DataPipelinesModule
 internal constructor(
     androidSDKComponent: AndroidSDKComponent,
-    override val moduleConfig: DataPipelinesModuleConfig = DataPipelinesModuleConfig("")
+    override val moduleConfig: DataPipelinesModuleConfig
 ) : CustomerIOModule<DataPipelinesModuleConfig>, CustomerIOInstance {
     override val moduleName: String = MODULE_NAME
 

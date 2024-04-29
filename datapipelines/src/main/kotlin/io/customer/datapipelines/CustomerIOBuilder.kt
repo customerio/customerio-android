@@ -9,6 +9,12 @@ import io.customer.android.core.util.Logger
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.sdk.CustomerIO
 
+/**
+ * Builder class for creating a new instance of CustomerIO.
+ * The class uses builder pattern to simplify the setup and configuration of CustomerIO SDK,
+ * including its core components and additional modules.
+ * It automatically includes the [DataPipelinesModule] to ensure all events are routed to it.
+ */
 class CustomerIOBuilder internal constructor(
     private val applicationContext: Application,
     private val cdpApiKey: String
@@ -22,17 +28,19 @@ class CustomerIOBuilder internal constructor(
     }
 
     fun build(): CustomerIO {
+        // Register AndroidSDKComponent to fulfill the dependencies required by the SDK modules
         val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(context = applicationContext)
-
-        // Initialize the DataPipelinesModule with the provided configuration
         val modules = SDKComponent.modules
 
+        // Initialize DataPipelinesModule with the provided configuration
         val dataPipelinesConfig = DataPipelinesModuleConfig(cdpApiKey = cdpApiKey)
         val dataPipelinesModule = DataPipelinesModule(androidSDKComponent, dataPipelinesConfig)
+
+        // Register DataPipelinesModule and all other modules
         modules[DataPipelinesModule.MODULE_NAME] = dataPipelinesModule
         modules.putAll(registeredModules.associateBy { module -> module.moduleName })
 
-        // Initialize the CustomerIO instance before initializing the SDK modules
+        // Initialize CustomerIO instance before initializing the modules
         val customerIO = CustomerIO(implementation = dataPipelinesModule)
         modules.forEach { (_, module) ->
             logger.debug("initializing SDK module ${module.moduleName}...")

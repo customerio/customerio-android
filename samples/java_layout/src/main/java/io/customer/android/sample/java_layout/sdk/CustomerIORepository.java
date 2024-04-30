@@ -16,6 +16,7 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
+import io.customer.sdk.CustomerIOBuilder;
 import io.customer.sdk.core.util.CioLogLevel;
 
 /**
@@ -52,7 +53,7 @@ public class CustomerIORepository {
         // Finally, build to finish initializing the SDK.
         builder.build();
 
-        CustomerIOBuilder newBuilder = new io.customer.datapipelines.CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+        CustomerIOBuilder newBuilder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
         newBuilder.build();
     }
 

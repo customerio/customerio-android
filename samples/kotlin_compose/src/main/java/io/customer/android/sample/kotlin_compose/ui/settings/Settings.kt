@@ -53,6 +53,7 @@ import io.customer.sdk.CustomerIO
 
 @Composable
 fun SettingsRoute(
+    cdpApiKey: String? = null,
     siteId: String? = null,
     apiKey: String? = null,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
@@ -65,6 +66,7 @@ fun SettingsRoute(
     })
 
     SettingsScreen(
+        cdpApiKey = cdpApiKey,
         siteId = siteId,
         apiKey = apiKey,
         uiState = state,
@@ -87,6 +89,7 @@ fun SettingsRoute(
 
 @Composable
 fun SettingsScreen(
+    cdpApiKey: String? = null,
     siteId: String? = null,
     apiKey: String? = null,
     uiState: SettingsUiState,
@@ -111,6 +114,7 @@ fun SettingsScreen(
             onConfigurationChange = onConfigurationChange
         )
         WorkspaceSettingsList(
+            cdpApiKey = cdpApiKey,
             siteId = siteId,
             apiKey = apiKey,
             uiState = uiState,
@@ -233,6 +237,7 @@ fun EnvSettingsList(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkspaceSettingsList(
+    cdpApiKey: String? = null,
     siteId: String? = null,
     apiKey: String? = null,
     uiState: SettingsUiState,
@@ -240,9 +245,9 @@ fun WorkspaceSettingsList(
 ) {
     val configuration = uiState.configuration
 
-    LaunchedEffect(key1 = siteId, key2 = apiKey) {
-        if (siteId != null && apiKey != null) {
-            onConfigurationChange(configuration.copy(siteId = siteId, apiKey = apiKey))
+    LaunchedEffect(key1 = cdpApiKey, key2 = siteId, key3 = apiKey) {
+        if (cdpApiKey != null && siteId != null && apiKey != null) {
+            onConfigurationChange(configuration.copy(cdpApiKey = cdpApiKey, siteId = siteId, apiKey = apiKey))
         }
     }
 

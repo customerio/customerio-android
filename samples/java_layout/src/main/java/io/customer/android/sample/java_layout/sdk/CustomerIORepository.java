@@ -11,6 +11,7 @@ import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
 import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
+import io.customer.datapipelines.CustomerIOBuilder;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
@@ -50,6 +51,9 @@ public class CustomerIORepository {
 
         // Finally, build to finish initializing the SDK.
         builder.build();
+
+        CustomerIOBuilder newBuilder = new io.customer.datapipelines.CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+        newBuilder.build();
     }
 
     /**

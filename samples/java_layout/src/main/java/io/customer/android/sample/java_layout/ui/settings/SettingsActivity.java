@@ -75,6 +75,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         // https://www.java-sample.com/settings&site_id=xxx&api_key=yyy
 
         if (deepLinkUri != null) {
+            String cdpApiKey = deepLinkUri.getQueryParameter("cdp_api_key");
+            if (cdpApiKey != null) {
+                ViewUtils.setTextWithSelectionIfFocused(binding.cdpApiKeyTextInput, cdpApiKey);
+            }
             String siteId = deepLinkUri.getQueryParameter("site_id");
             if (siteId != null) {
                 ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, siteId);
@@ -91,6 +95,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         ViewUtils.prepareForAutomatedTests(binding.topAppBar);
         ViewUtils.prepareForAutomatedTests(binding.deviceTokenTextInput, R.string.acd_device_token_input);
         ViewUtils.prepareForAutomatedTests(binding.trackingUrlTextInput, R.string.acd_tracking_url_input);
+        ViewUtils.prepareForAutomatedTests(binding.cdpApiKeyTextInput, R.string.acd_cdp_api_key_input);
         ViewUtils.prepareForAutomatedTests(binding.siteIdTextInput, R.string.acd_site_id_input);
         ViewUtils.prepareForAutomatedTests(binding.apiKeyTextInput, R.string.acd_api_key_input);
         ViewUtils.prepareForAutomatedTests(binding.bqDelayTextInput, R.string.acd_bq_seconds_delay_input);
@@ -156,6 +161,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     private void updateIOWithConfig(@NonNull CustomerIOSDKConfig config) {
         ViewUtils.setTextWithSelectionIfFocused(binding.trackingUrlTextInput, config.getTrackingURL());
+        ViewUtils.setTextWithSelectionIfFocused(binding.cdpApiKeyTextInput, config.getCdpApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, config.getSiteId());
         ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromDouble(config.getBackgroundQueueSecondsDelay()));
@@ -170,6 +176,9 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
         String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
         isFormValid = updateErrorState(binding.trackingUrlInputLayout, !isTrackingURLValid(trackingURL), R.string.error_tracking_url);
+
+        String cdpApiKey = ViewUtils.getTextTrimmed(binding.cdpApiKeyTextInput);
+        isFormValid = updateErrorState(binding.cdpApiKeyInputLayout, TextUtils.isEmpty(cdpApiKey), R.string.error_text_input_field_blank) && isFormValid;
 
         String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
         isFormValid = updateErrorState(binding.siteIdInputLayout, TextUtils.isEmpty(siteId), R.string.error_text_input_field_blank) && isFormValid;
@@ -206,7 +215,8 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
             boolean featTrackDeviceAttributes = binding.trackDeviceAttributesSwitch.isChecked();
             boolean featDebugMode = binding.debugModeSwitch.isChecked();
-            CustomerIOSDKConfig config = new CustomerIOSDKConfig(siteId,
+            CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
+                    siteId,
                     apiKey,
                     trackingURL,
                     bqSecondsDelay,

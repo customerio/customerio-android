@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 
 object PreferencesKeys {
+    val CDP_API_KEY = stringPreferencesKey("cdpApiKey")
     val SITE_ID = stringPreferencesKey("siteId")
     val API_KEY = stringPreferencesKey("apiKey")
 

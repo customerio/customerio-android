@@ -250,6 +250,18 @@ fun WorkspaceSettingsList(
         OutlinedTextField(
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_cdp_api_key_input)),
+            value = configuration.cdpApiKey,
+            onValueChange = { value ->
+                onConfigurationChange(configuration.copy(cdpApiKey = value))
+            },
+            label = {
+                Text(text = stringResource(id = R.string.cdp_api_key))
+            }
+        )
+        OutlinedTextField(
+            modifier = Modifier
+                .fillMaxWidth()
                 .testTag(stringResource(id = R.string.acd_site_id_input)),
             value = configuration.siteId,
             onValueChange = { value ->
@@ -415,7 +427,7 @@ fun TopBar(onBackClick: () -> Unit) {
 @Composable
 fun SettingsScreenPreview() {
     SettingsScreen(
-        uiState = SettingsUiState(configuration = Configuration("", "")),
+        uiState = SettingsUiState(configuration = Configuration("", "", "")),
         onBackPressed = {},
         onSave = {},
         onConfigurationChange = {},

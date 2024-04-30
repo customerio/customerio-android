@@ -6,6 +6,7 @@ if (localPropertiesFile.exists()) {
 
 android {
     defaultConfig {
+        buildConfigField "String", "CDP_API_KEY", "\"${localProperties["cdpApiKey"]}\""
         buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
         buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
     }

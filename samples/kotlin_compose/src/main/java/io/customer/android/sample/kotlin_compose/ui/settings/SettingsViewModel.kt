@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
-    val configuration: Configuration = Configuration("", ""),
+    val configuration: Configuration = Configuration("", "", ""),
     val customTrackUrlError: String = ""
 ) {
     val deviceToken: String by lazy { CustomerIO.instance().registeredDeviceToken ?: "" }

@@ -11,6 +11,7 @@
     <string name="ami_app">Android Kotlin Compose Ami App</string>
     <string name="device_token">Device Token</string>
     <string name="cio_track_url">CIO Track URL</string>
+    <string name="cdp_api_key">CDP API Key</string>
     <string name="site_id">Site Id</string>
     <string name="api_key">API Key</string>
     <string name="background_queue_seconds_delay">backgroundQueueSecondsDelay</string>

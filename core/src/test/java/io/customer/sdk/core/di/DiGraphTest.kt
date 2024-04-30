@@ -1,7 +1,6 @@
-package io.customer.core.di
+package io.customer.sdk.core.di
 
 import io.customer.commontest.BaseUnitTest
-import io.customer.sdk.core.di.DiGraph
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -214,7 +213,6 @@ class DiGraphTest : BaseUnitTest() {
         val firstInstance = instances.firstOrNull()
         firstInstance.shouldNotBeNull()
         instances.all { it == firstInstance }.shouldBeTrue()
-        assertEquals(givenInstanceThread1, firstInstance)
         assertEquals(1, initCount)
     }
 

@@ -1,12 +1,12 @@
 package io.customer.messagingpush
 
 import androidx.annotation.VisibleForTesting
-import io.customer.core.module.CustomerIOModule
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.di.CustomerIOComponent
 
 class ModuleMessagingPushFCM

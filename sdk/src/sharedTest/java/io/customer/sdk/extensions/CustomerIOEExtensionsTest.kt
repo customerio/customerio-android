@@ -1,6 +1,6 @@
 package io.customer.sdk.extensions
 
-import io.customer.core.util.CioLogLevel
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent
 import org.amshove.kluent.shouldBeEqualTo

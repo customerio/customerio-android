@@ -1,6 +1,6 @@
 package io.customer.sdk.repository
 
-import io.customer.core.util.Logger
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.MetricEvent

@@ -1,7 +1,7 @@
 package io.customer.sdk
 
-import io.customer.core.module.CustomerIOModule
-import io.customer.core.util.CioLogLevel
+import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
 

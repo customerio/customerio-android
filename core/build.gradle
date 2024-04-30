@@ -18,7 +18,7 @@ apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
-    namespace 'io.customer.android.core'
+    namespace 'io.customer.sdk.core'
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }

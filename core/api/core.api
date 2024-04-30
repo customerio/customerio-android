@@ -1,17 +1,30 @@
-public final class io/customer/android/core/BuildConfig {
+public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/android/CustomerIOInstance {
+	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
+	public synthetic fun <init> (Lio/customer/sdk/android/CustomerIOInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
+}
+
+public final class io/customer/sdk/android/CustomerIO$Companion {
+	public final fun instance ()Lio/customer/sdk/android/CustomerIO;
+}
+
+public abstract interface class io/customer/sdk/android/CustomerIOInstance {
+}
+
+public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z
 	public static final field LIBRARY_PACKAGE_NAME Ljava/lang/String;
 	public fun <init> ()V
 }
 
-public final class io/customer/core/di/AndroidSDKComponent : io/customer/core/di/DiGraph {
+public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk/core/di/DiGraph {
 	public fun <init> (Landroid/content/Context;)V
 	public final fun getApplicationContext ()Landroid/content/Context;
 	public final fun getContext ()Landroid/content/Context;
 }
 
-public abstract class io/customer/core/di/DiGraph {
+public abstract class io/customer/sdk/core/di/DiGraph {
 	public fun <init> ()V
 	public final fun getOverrides ()Ljava/util/Map;
 	public final fun getSingletons ()Ljava/util/Map;
@@ -19,88 +32,75 @@ public abstract class io/customer/core/di/DiGraph {
 	public final fun reset ()V
 }
 
-public final class io/customer/core/di/SDKComponent : io/customer/core/di/DiGraph {
-	public static final field INSTANCE Lio/customer/core/di/SDKComponent;
-	public final fun getAndroidSDKComponent ()Lio/customer/core/di/AndroidSDKComponent;
-	public final fun getBuildEnvironment ()Lio/customer/core/environment/BuildEnvironment;
-	public final fun getLogger ()Lio/customer/core/util/Logger;
+public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/di/DiGraph {
+	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
+	public final fun getAndroidSDKComponent ()Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
+	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
 }
 
-public final class io/customer/core/di/SDKComponentExtKt {
-	public static final fun registerAndroidSDKComponent (Lio/customer/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/core/di/AndroidSDKComponent;
+public final class io/customer/sdk/core/di/SDKComponentExtKt {
+	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
 }
 
-public abstract interface class io/customer/core/environment/BuildEnvironment {
+public abstract interface class io/customer/sdk/core/environment/BuildEnvironment {
 	public abstract fun getDebugModeEnabled ()Z
 }
 
-public final class io/customer/core/environment/DefaultBuildEnvironment : io/customer/core/environment/BuildEnvironment {
+public final class io/customer/sdk/core/environment/DefaultBuildEnvironment : io/customer/sdk/core/environment/BuildEnvironment {
 	public fun <init> ()V
 	public fun getDebugModeEnabled ()Z
 }
 
-public abstract interface class io/customer/core/module/CustomerIOModule {
-	public abstract fun getModuleConfig ()Lio/customer/core/module/CustomerIOModuleConfig;
+public abstract interface class io/customer/sdk/core/module/CustomerIOModule {
+	public abstract fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public abstract fun getModuleName ()Ljava/lang/String;
 	public abstract fun initialize ()V
 }
 
-public abstract interface class io/customer/core/module/CustomerIOModuleConfig {
+public abstract interface class io/customer/sdk/core/module/CustomerIOModuleConfig {
 }
 
-public abstract interface class io/customer/core/module/CustomerIOModuleConfig$Builder {
-	public abstract fun build ()Lio/customer/core/module/CustomerIOModuleConfig;
+public abstract interface class io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
+	public abstract fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 }
 
-public final class io/customer/core/util/CioLogLevel : java/lang/Enum {
-	public static final field Companion Lio/customer/core/util/CioLogLevel$Companion;
-	public static final field DEBUG Lio/customer/core/util/CioLogLevel;
-	public static final field ERROR Lio/customer/core/util/CioLogLevel;
-	public static final field INFO Lio/customer/core/util/CioLogLevel;
-	public static final field NONE Lio/customer/core/util/CioLogLevel;
-	public static fun valueOf (Ljava/lang/String;)Lio/customer/core/util/CioLogLevel;
-	public static fun values ()[Lio/customer/core/util/CioLogLevel;
+public final class io/customer/sdk/core/util/CioLogLevel : java/lang/Enum {
+	public static final field Companion Lio/customer/sdk/core/util/CioLogLevel$Companion;
+	public static final field DEBUG Lio/customer/sdk/core/util/CioLogLevel;
+	public static final field ERROR Lio/customer/sdk/core/util/CioLogLevel;
+	public static final field INFO Lio/customer/sdk/core/util/CioLogLevel;
+	public static final field NONE Lio/customer/sdk/core/util/CioLogLevel;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/core/util/CioLogLevel;
+	public static fun values ()[Lio/customer/sdk/core/util/CioLogLevel;
 }
 
-public final class io/customer/core/util/CioLogLevel$Companion {
-	public final fun getDEFAULT ()Lio/customer/core/util/CioLogLevel;
-	public final fun getLogLevel (Ljava/lang/String;Lio/customer/core/util/CioLogLevel;)Lio/customer/core/util/CioLogLevel;
-	public static synthetic fun getLogLevel$default (Lio/customer/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/core/util/CioLogLevel;
+public final class io/customer/sdk/core/util/CioLogLevel$Companion {
+	public final fun getDEFAULT ()Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun getLogLevel (Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;)Lio/customer/sdk/core/util/CioLogLevel;
+	public static synthetic fun getLogLevel$default (Lio/customer/sdk/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/sdk/core/util/CioLogLevel;
 }
 
-public final class io/customer/core/util/LogcatLogger : io/customer/core/util/Logger {
-	public static final field Companion Lio/customer/core/util/LogcatLogger$Companion;
+public final class io/customer/sdk/core/util/LogcatLogger : io/customer/sdk/core/util/Logger {
+	public static final field Companion Lio/customer/sdk/core/util/LogcatLogger$Companion;
 	public static final field TAG Ljava/lang/String;
-	public fun <init> (Lio/customer/core/environment/BuildEnvironment;)V
+	public fun <init> (Lio/customer/sdk/core/environment/BuildEnvironment;)V
 	public fun debug (Ljava/lang/String;)V
 	public fun error (Ljava/lang/String;)V
-	public fun getLogLevel ()Lio/customer/core/util/CioLogLevel;
+	public fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public fun info (Ljava/lang/String;)V
-	public fun setLogLevel (Lio/customer/core/util/CioLogLevel;)V
+	public fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 
-public final class io/customer/core/util/LogcatLogger$Companion {
+public final class io/customer/sdk/core/util/LogcatLogger$Companion {
 }
 
-public abstract interface class io/customer/core/util/Logger {
+public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun debug (Ljava/lang/String;)V
 	public abstract fun error (Ljava/lang/String;)V
-	public abstract fun getLogLevel ()Lio/customer/core/util/CioLogLevel;
+	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
-	public abstract fun setLogLevel (Lio/customer/core/util/CioLogLevel;)V
-}
-
-public final class io/customer/sdk/CustomerIO : io/customer/sdk/CustomerIOInstance {
-	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
-	public synthetic fun <init> (Lio/customer/sdk/CustomerIOInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public static final fun instance ()Lio/customer/sdk/CustomerIO;
-}
-
-public final class io/customer/sdk/CustomerIO$Companion {
-	public final fun instance ()Lio/customer/sdk/CustomerIO;
-}
-
-public abstract interface class io/customer/sdk/CustomerIOInstance {
+	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 

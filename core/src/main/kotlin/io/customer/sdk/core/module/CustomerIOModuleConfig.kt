@@ -1,4 +1,4 @@
-package io.customer.core.module
+package io.customer.sdk.core.module
 
 /**
  * Tagged interface to support dynamic configurations for Customer.io modules

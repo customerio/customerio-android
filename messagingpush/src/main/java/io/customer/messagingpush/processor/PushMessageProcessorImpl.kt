@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
-import io.customer.core.util.Logger
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.config.PushClickBehavior
@@ -12,6 +11,7 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.takeIfNotBlank
 import io.customer.sdk.repository.TrackRepository

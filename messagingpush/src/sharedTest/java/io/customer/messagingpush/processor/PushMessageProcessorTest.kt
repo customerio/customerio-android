@@ -6,7 +6,6 @@ import android.os.Bundle
 import androidx.core.app.TaskStackBuilder
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
-import io.customer.core.module.CustomerIOModule
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
@@ -18,6 +17,7 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.TrackRepository

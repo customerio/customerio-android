@@ -2,12 +2,12 @@ package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
-import io.customer.core.module.CustomerIOModule
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HookModule

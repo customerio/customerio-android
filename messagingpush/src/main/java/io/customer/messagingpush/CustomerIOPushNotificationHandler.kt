@@ -16,7 +16,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.core.util.Logger
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.moduleConfig
@@ -26,6 +25,7 @@ import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOStaticComponent
 import java.net.URL

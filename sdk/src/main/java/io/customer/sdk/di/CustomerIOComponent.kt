@@ -2,12 +2,12 @@ package io.customer.sdk.di
 
 import android.content.Context
 import com.squareup.moshi.Moshi
-import io.customer.core.di.DiGraph
-import io.customer.core.util.Logger
 import io.customer.sdk.CustomerIOActivityLifecycleCallbacks
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.api.*
 import io.customer.sdk.api.interceptors.HeadersInterceptor
+import io.customer.sdk.core.di.DiGraph
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
 import io.customer.sdk.data.moshi.adapter.UnixDateAdapter

@@ -1,10 +1,10 @@
-package io.customer.core.di
+package io.customer.sdk.core.di
 
-import io.customer.core.environment.BuildEnvironment
-import io.customer.core.environment.DefaultBuildEnvironment
-import io.customer.core.module.CustomerIOModule
-import io.customer.core.util.LogcatLogger
-import io.customer.core.util.Logger
+import io.customer.sdk.core.environment.BuildEnvironment
+import io.customer.sdk.core.environment.DefaultBuildEnvironment
+import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.util.LogcatLogger
+import io.customer.sdk.core.util.Logger
 
 /**
  * Object level DiGraph for the SDK. Provides a centralized way to manage all

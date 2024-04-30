@@ -4,7 +4,7 @@ import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
-import io.customer.core.util.Logger
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.device.DeviceTokenProvider
 
 /**

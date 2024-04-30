@@ -1,7 +1,7 @@
 package io.customer.sdk.queue
 
-import io.customer.android.core.util.Logger
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.EventType
 import io.customer.sdk.data.request.*

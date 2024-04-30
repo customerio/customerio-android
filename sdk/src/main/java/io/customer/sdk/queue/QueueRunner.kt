@@ -1,7 +1,7 @@
 package io.customer.sdk.queue
 
-import io.customer.android.core.util.Logger
 import io.customer.sdk.api.TrackingHttpClient
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.request.DeliveryEvent
 import io.customer.sdk.data.request.Metric
 import io.customer.sdk.extensions.valueOfOrNull

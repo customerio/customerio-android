@@ -1,7 +1,7 @@
 package io.customer.messaginginapp
 
-import io.customer.android.core.module.CustomerIOModuleConfig
 import io.customer.messaginginapp.type.InAppEventListener
+import io.customer.sdk.core.module.CustomerIOModuleConfig
 
 /**
  * In app messaging module configurations that can be used to customize app

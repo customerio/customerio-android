@@ -1,6 +1,6 @@
-package io.customer.android.core.environment
+package io.customer.sdk.core.environment
 
-import io.customer.android.core.BuildConfig
+import io.customer.sdk.core.BuildConfig
 
 /**
  * Wrapper class to hold static/only one time defined properties from

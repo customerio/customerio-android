@@ -5,10 +5,10 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.annotation.VisibleForTesting
-import io.customer.android.core.module.CustomerIOModule
-import io.customer.android.core.module.CustomerIOModuleConfig
-import io.customer.android.core.util.CioLogLevel
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.request.MetricEvent

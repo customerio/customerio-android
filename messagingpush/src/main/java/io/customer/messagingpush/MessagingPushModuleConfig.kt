@@ -1,9 +1,9 @@
 package io.customer.messagingpush
 
-import io.customer.android.core.module.CustomerIOModuleConfig
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTART
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
+import io.customer.sdk.core.module.CustomerIOModuleConfig
 
 /**
  * Push messaging module configurations

@@ -15,7 +15,7 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
-import io.customer.android.core.util.CioLogLevel;
+import io.customer.sdk.core.util.CioLogLevel;
 
 /**
  * Repository class to hold all Customer.io related operations at single place

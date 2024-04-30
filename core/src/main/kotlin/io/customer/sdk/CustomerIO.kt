@@ -1,13 +1,12 @@
-package io.customer.android.sdk
-
-import androidx.annotation.VisibleForTesting
-import io.customer.android.core.di.SDKComponent
-import io.customer.base.internal.InternalCustomerIOApi
-
 // TODO: Move this class and its dependencies (CustomerIOInstance) to the correct package.
 // We need to move this class to the right package to avoid breaking imports for the users of the SDK.
 // We have placed the class in the wrong package for now to avoid breaking the build.
 // Once old implementations are removed, we can move the class to the correct package.
+package io.customer.sdk.android
+
+import androidx.annotation.VisibleForTesting
+import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.core.di.SDKComponent
 
 /**
  * Welcome to the Customer.io Android SDK!

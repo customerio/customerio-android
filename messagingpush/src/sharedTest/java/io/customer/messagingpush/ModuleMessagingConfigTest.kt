@@ -1,13 +1,13 @@
 package io.customer.messagingpush
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.module.CustomerIOModule
 import io.customer.commontest.BaseTest
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.di.moduleConfig
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.device.DeviceTokenProvider
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse

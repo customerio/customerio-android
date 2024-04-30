@@ -1,6 +1,6 @@
 package io.customer.sdk.queue
 
-import io.customer.android.core.util.Logger
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.queue.type.QueueTaskMetadata
 
 interface QueueQueryRunner {

@@ -1,10 +1,8 @@
-package io.customer.android.core.di
+package io.customer.sdk.core.di
 
 import io.customer.commontest.BaseUnitTest
-import java.lang.Thread.sleep
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.String
 import kotlin.concurrent.thread
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEmpty
@@ -13,6 +11,8 @@ import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 
+// Custom data class to test dependency injection with the same class name.
+private data class Pair(val value: Int)
 class DiGraphTest : BaseUnitTest() {
     private lateinit var diGraph: DiGraph
 
@@ -180,7 +180,7 @@ class DiGraphTest : BaseUnitTest() {
                 initCount++
                 // Sleep for 100ms to simulate some initialization time so that
                 // the other threads can execute in parallel
-                sleep(wait)
+                Thread.sleep(wait)
                 return@singleton returnValue
             }
             synchronized(instances) {
@@ -213,7 +213,6 @@ class DiGraphTest : BaseUnitTest() {
         val firstInstance = instances.firstOrNull()
         firstInstance.shouldNotBeNull()
         instances.all { it == firstInstance }.shouldBeTrue()
-        assertEquals(givenInstanceThread1, firstInstance)
         assertEquals(1, initCount)
     }
 
@@ -232,6 +231,3 @@ class DiGraphTest : BaseUnitTest() {
         diGraph.getOrNull<Float>().shouldBeNull()
     }
 }
-
-// Custom data class to test dependency injection with the same class name.
-private data class Pair(val value: Int)

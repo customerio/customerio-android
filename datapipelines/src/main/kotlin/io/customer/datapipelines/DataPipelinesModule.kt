@@ -2,9 +2,14 @@ package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
+import com.segment.analytics.kotlin.core.ErrorHandler
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.extensions.apiHost
+import io.customer.datapipelines.extensions.cdnHost
+import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 
 /**
@@ -18,13 +23,32 @@ internal constructor(
 ) : CustomerIOModule<DataPipelinesModuleConfig>, CustomerIOInstance {
     override val moduleName: String = MODULE_NAME
 
+    private val errorLogger = object : ErrorHandler {
+        override fun invoke(error: Throwable) {
+            SDKComponent.logger.error(error.message ?: error.stackTraceToString())
+        }
+    }
+
     private val analytics: Analytics
 
     init {
         analytics = Analytics(
             writeKey = moduleConfig.cdpApiKey,
             context = androidSDKComponent.applicationContext
-        )
+        ) {
+            flushAt = moduleConfig.flushAt
+            flushInterval = moduleConfig.flushInterval
+            flushPolicies = moduleConfig.flushPolicies
+            autoAddSegmentDestination = false
+            trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
+            apiHost = moduleConfig.apiHost ?: moduleConfig.region.apiHost()
+            cdnHost = moduleConfig.cdnHost ?: moduleConfig.region.cdnHost()
+            errorHandler = errorLogger
+        }
+
+        if (moduleConfig.autoAddCustomerIODestination) {
+            analytics.add(CustomerIODestination())
+        }
     }
 
     override fun initialize() {

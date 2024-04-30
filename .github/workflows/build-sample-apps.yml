@@ -59,9 +59,11 @@ jobs:
         - "kotlin_compose"
         include: # Add additional variables to each sample app build: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
         - sample-app: "java_layout"
+          cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
           cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
           cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
         - sample-app: "kotlin_compose"
+          cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
           cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
           cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
           

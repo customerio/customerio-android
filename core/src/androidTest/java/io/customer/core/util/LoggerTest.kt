@@ -1,4 +1,4 @@
-package io.customer.android.core.util
+package io.customer.core.util
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest

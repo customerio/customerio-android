@@ -1,3 +1,28 @@
+public final class io/customer/datapipelines/CustomerIOBuilder {
+	public final fun addCustomerIOModule (Lio/customer/android/core/module/CustomerIOModule;)Lio/customer/datapipelines/CustomerIOBuilder;
+	public final fun build ()Lio/customer/android/sdk/CustomerIO;
+}
+
+public final class io/customer/datapipelines/CustomerIOKt {
+	public static final fun Builder (Lio/customer/android/sdk/CustomerIO$Companion;Landroid/app/Application;Ljava/lang/String;)Lio/customer/datapipelines/CustomerIOBuilder;
+}
+
+public final class io/customer/datapipelines/DataPipelinesModule : io/customer/android/core/module/CustomerIOModule, io/customer/android/sdk/CustomerIOInstance {
+	public static final field Companion Lio/customer/datapipelines/DataPipelinesModule$Companion;
+	public synthetic fun getModuleConfig ()Lio/customer/android/core/module/CustomerIOModuleConfig;
+	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public fun initialize ()V
+}
+
+public final class io/customer/datapipelines/DataPipelinesModule$Companion {
+}
+
+public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : io/customer/android/core/module/CustomerIOModuleConfig {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getCdpApiKey ()Ljava/lang/String;
+}
+
 public final class io/customer/datapipelines/plugins/CustomerIODestination : com/segment/analytics/kotlin/core/platform/DestinationPlugin, com/segment/analytics/kotlin/core/platform/VersionedPlugin, sovran/kotlin/Subscriber {
 	public fun <init> ()V
 	public fun alias (Lcom/segment/analytics/kotlin/core/AliasEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;

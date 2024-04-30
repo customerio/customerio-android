@@ -1,7 +1,7 @@
 package io.customer.sdk.repository.preference
 
 import android.content.Context
-import io.customer.android.core.util.CioLogLevel
+import io.customer.core.util.CioLogLevel
 import io.customer.sdk.Version
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client

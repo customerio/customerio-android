@@ -5,8 +5,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.core.app.TaskStackBuilder
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.module.CustomerIOModule
 import io.customer.commontest.BaseTest
+import io.customer.core.module.CustomerIOModule
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity

@@ -1,4 +1,4 @@
-package io.customer.android.core.di
+package io.customer.core.di
 
 import android.content.Context
 

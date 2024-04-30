@@ -1,4 +1,4 @@
-package io.customer.android.sdk
+package io.customer.sdk
 
 /**
  * Allows mocking of [CustomerIO] for automated tests in the project.

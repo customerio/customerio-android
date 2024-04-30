@@ -1,8 +1,8 @@
 package io.customer.messaginginapp
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.module.CustomerIOModule
 import io.customer.commontest.BaseTest
+import io.customer.core.module.CustomerIOModule
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.type.InAppEventListener

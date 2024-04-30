@@ -1,10 +1,10 @@
-package io.customer.android.core.di
+package io.customer.core.di
 
-import io.customer.android.core.environment.BuildEnvironment
-import io.customer.android.core.environment.DefaultBuildEnvironment
-import io.customer.android.core.module.CustomerIOModule
-import io.customer.android.core.util.LogcatLogger
-import io.customer.android.core.util.Logger
+import io.customer.core.environment.BuildEnvironment
+import io.customer.core.environment.DefaultBuildEnvironment
+import io.customer.core.module.CustomerIOModule
+import io.customer.core.util.LogcatLogger
+import io.customer.core.util.Logger
 
 /**
  * Object level DiGraph for the SDK. Provides a centralized way to manage all

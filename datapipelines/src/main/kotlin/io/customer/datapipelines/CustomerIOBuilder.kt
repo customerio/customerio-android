@@ -1,13 +1,13 @@
 package io.customer.datapipelines
 
 import android.app.Application
-import io.customer.android.core.di.SDKComponent
-import io.customer.android.core.di.registerAndroidSDKComponent
-import io.customer.android.core.module.CustomerIOModule
-import io.customer.android.core.module.CustomerIOModuleConfig
-import io.customer.android.core.util.Logger
-import io.customer.android.sdk.CustomerIO
+import io.customer.core.di.SDKComponent
+import io.customer.core.di.registerAndroidSDKComponent
+import io.customer.core.module.CustomerIOModule
+import io.customer.core.module.CustomerIOModuleConfig
+import io.customer.core.util.Logger
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.sdk.CustomerIO
 
 /**
  * Builder class for creating a new instance of CustomerIO.

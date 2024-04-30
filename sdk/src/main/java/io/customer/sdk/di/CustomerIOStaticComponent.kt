@@ -1,10 +1,10 @@
 package io.customer.sdk.di
 
-import io.customer.android.core.di.DiGraph
-import io.customer.android.core.environment.BuildEnvironment
-import io.customer.android.core.environment.DefaultBuildEnvironment
-import io.customer.android.core.util.LogcatLogger
-import io.customer.android.core.util.Logger
+import io.customer.core.di.DiGraph
+import io.customer.core.environment.BuildEnvironment
+import io.customer.core.environment.DefaultBuildEnvironment
+import io.customer.core.util.LogcatLogger
+import io.customer.core.util.Logger
 import io.customer.sdk.util.*
 
 /**

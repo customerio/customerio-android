@@ -4,9 +4,9 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
-import io.customer.android.core.module.CustomerIOModule
-import io.customer.android.core.util.CioLogLevel
 import io.customer.commontest.util.DispatchersProviderStub
+import io.customer.core.module.CustomerIOModule
+import io.customer.core.util.CioLogLevel
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client

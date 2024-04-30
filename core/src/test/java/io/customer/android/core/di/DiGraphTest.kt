@@ -1,6 +1,7 @@
 package io.customer.android.core.di
 
 import io.customer.commontest.BaseUnitTest
+import io.customer.core.di.DiGraph
 import java.lang.Thread.sleep
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

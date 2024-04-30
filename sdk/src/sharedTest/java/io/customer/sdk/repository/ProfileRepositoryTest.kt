@@ -1,8 +1,8 @@
 package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.util.Logger
 import io.customer.commontest.BaseTest
+import io.customer.core.util.Logger
 import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook

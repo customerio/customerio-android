@@ -1,12 +1,12 @@
-public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/customer/android/core/module/CustomerIOModuleConfig {
+public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/customer/core/module/CustomerIOModuleConfig {
 	public static final field Companion Lio/customer/messaginginapp/MessagingInAppModuleConfig$Companion;
 	public synthetic fun <init> (Lio/customer/messaginginapp/type/InAppEventListener;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getEventListener ()Lio/customer/messaginginapp/type/InAppEventListener;
 }
 
-public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder : io/customer/android/core/module/CustomerIOModuleConfig$Builder {
+public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder : io/customer/core/module/CustomerIOModuleConfig$Builder {
 	public fun <init> ()V
-	public synthetic fun build ()Lio/customer/android/core/module/CustomerIOModuleConfig;
+	public synthetic fun build ()Lio/customer/core/module/CustomerIOModuleConfig;
 	public fun build ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public final fun setEventListener (Lio/customer/messaginginapp/type/InAppEventListener;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 }
@@ -14,7 +14,7 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Companion {
 }
 
-public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/android/core/module/CustomerIOModule {
+public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/messaginginapp/ModuleMessagingInApp$Companion;
 	public static final field moduleName Ljava/lang/String;
 	public fun <init> ()V
@@ -24,7 +24,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
 	public synthetic fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun dismissMessage ()V
-	public synthetic fun getModuleConfig ()Lio/customer/android/core/module/CustomerIOModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/core/module/CustomerIOModuleConfig;
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V

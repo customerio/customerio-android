@@ -1,6 +1,6 @@
 package io.customer.sdk.repository
 
-import io.customer.android.core.util.Logger
+import io.customer.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.hooks.ModuleHook

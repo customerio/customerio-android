@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import io.customer.android.core.util.Logger
+import io.customer.core.util.Logger
 import io.customer.messagingpush.MessagingPushModuleConfig
 
 interface DeepLinkUtil {

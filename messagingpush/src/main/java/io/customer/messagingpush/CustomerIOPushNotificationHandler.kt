@@ -16,7 +16,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.android.core.util.Logger
+import io.customer.core.util.Logger
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.moduleConfig

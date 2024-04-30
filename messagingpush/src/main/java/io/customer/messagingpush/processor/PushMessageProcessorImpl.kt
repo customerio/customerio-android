@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
-import io.customer.android.core.util.Logger
+import io.customer.core.util.Logger
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.config.PushClickBehavior

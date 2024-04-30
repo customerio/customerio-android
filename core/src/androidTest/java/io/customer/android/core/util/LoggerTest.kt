@@ -1,8 +1,11 @@
 package io.customer.android.core.util
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.environment.BuildEnvironment
 import io.customer.commontest.BaseTest
+import io.customer.core.environment.BuildEnvironment
+import io.customer.core.util.CioLogLevel
+import io.customer.core.util.LogcatLogger
+import io.customer.core.util.shouldLog
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith

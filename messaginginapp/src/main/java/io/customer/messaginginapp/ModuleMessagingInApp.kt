@@ -2,7 +2,7 @@ package io.customer.messaginginapp
 
 import android.app.Application
 import androidx.annotation.VisibleForTesting
-import io.customer.android.core.module.CustomerIOModule
+import io.customer.core.module.CustomerIOModule
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIO

@@ -3,7 +3,7 @@
 package io.customer.datapipelines
 
 import android.app.Application
-import io.customer.android.sdk.CustomerIO
+import io.customer.sdk.CustomerIO
 
 /**
  * Creates a new instance of builder for CustomerIO SDK.

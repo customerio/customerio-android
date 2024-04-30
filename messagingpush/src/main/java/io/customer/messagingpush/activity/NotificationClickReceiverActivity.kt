@@ -3,7 +3,7 @@ package io.customer.messagingpush.activity
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import io.customer.android.core.util.Logger
+import io.customer.core.util.Logger
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared

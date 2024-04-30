@@ -1,4 +1,4 @@
-package io.customer.android.core.environment
+package io.customer.core.environment
 
 import io.customer.android.core.BuildConfig
 

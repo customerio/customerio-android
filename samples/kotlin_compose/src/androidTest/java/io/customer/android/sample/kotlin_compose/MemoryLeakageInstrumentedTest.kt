@@ -10,11 +10,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import io.customer.android.core.util.CioLogLevel
 import io.customer.android.sample.kotlin_compose.data.persistance.AppDatabase
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.core.util.CioLogLevel
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM

@@ -1,6 +1,6 @@
 package io.customer.commontest.module
 
-import io.customer.android.core.module.CustomerIOModule
+import io.customer.core.module.CustomerIOModule
 
 /**
  * Internal typealias to simplify generic types for tests

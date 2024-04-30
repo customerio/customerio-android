@@ -1,8 +1,8 @@
 package io.customer.messagingpush
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.android.core.module.CustomerIOModule
 import io.customer.commontest.BaseTest
+import io.customer.core.module.CustomerIOModule
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.di.moduleConfig

@@ -1,7 +1,7 @@
-package io.customer.android.core.util
+package io.customer.core.util
 
 import android.util.Log
-import io.customer.android.core.environment.BuildEnvironment
+import io.customer.core.environment.BuildEnvironment
 
 interface Logger {
     var logLevel: CioLogLevel

@@ -1,8 +1,8 @@
 package io.customer.sdk.api
 
-import io.customer.android.core.util.Logger
 import io.customer.base.extenstions.add
 import io.customer.base.extenstions.hasPassed
+import io.customer.core.util.Logger
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError

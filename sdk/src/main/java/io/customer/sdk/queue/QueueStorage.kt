@@ -1,8 +1,8 @@
 package io.customer.sdk.queue
 
-import io.customer.android.core.util.Logger
 import io.customer.base.extenstions.isOlderThan
 import io.customer.base.extenstions.subtract
+import io.customer.core.util.Logger
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.FileStorage
 import io.customer.sdk.data.store.FileType

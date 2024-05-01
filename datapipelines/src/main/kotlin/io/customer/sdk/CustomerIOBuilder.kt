@@ -9,6 +9,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
 
@@ -31,8 +32,11 @@ class CustomerIOBuilder(
     private val applicationContext: Application,
     private val cdpApiKey: String
 ) {
-    private val logger: Logger = SDKComponent.logger
+
     private val registeredModules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
+
+    private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
+    private val logger: Logger = SDKComponent.logger
 
     // Host Settings
     private var region: Region = Region.US
@@ -55,6 +59,15 @@ class CustomerIOBuilder(
 
     // Configuration options required for migration from earlier versions
     private var migrationSiteId: String? = null
+
+    /**
+     * Specifies the log level for the SDK.
+     * Default value is [CioLogLevel.ERROR].
+     */
+    fun setLogLevel(level: CioLogLevel): CustomerIOBuilder {
+        this.logLevel = level
+        return this
+    }
 
     /**
      * Specifies the workspace region to ensure CDP requests are routed to the correct regional endpoint.
@@ -145,6 +158,9 @@ class CustomerIOBuilder(
         // Register AndroidSDKComponent to fulfill the dependencies required by the SDK modules
         val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(context = applicationContext)
         val modules = SDKComponent.modules
+
+        // Update the log level for the SDK
+        SDKComponent.logger.logLevel = logLevel
 
         // Initialize DataPipelinesModule with the provided configuration
         val dataPipelinesConfig = DataPipelinesModuleConfig(

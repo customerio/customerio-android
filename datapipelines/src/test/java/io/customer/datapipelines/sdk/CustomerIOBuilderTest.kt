@@ -9,6 +9,7 @@ import io.customer.datapipelines.extensions.apiHost
 import io.customer.datapipelines.extensions.cdnHost
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBe
@@ -82,6 +83,7 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         val givenRegion = Region.EU
 
         createCustomerIOBuilder(givenCdpApiKey)
+            .setLogLevel(CioLogLevel.DEBUG)
             .setMigrationSiteId(givenMigrationSiteId)
             .setRegion(givenRegion)
             .setAutoTrackDeviceAttributes(false)
@@ -102,6 +104,9 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         dataPipelinesModule.moduleConfig.flushInterval shouldBe 2
         dataPipelinesModule.moduleConfig.apiHost shouldBe givenRegion.apiHost()
         dataPipelinesModule.moduleConfig.cdnHost shouldBe givenRegion.cdnHost()
+
+        // verify the shared logger has updated log level
+        SDKComponent.logger.logLevel shouldBe CioLogLevel.DEBUG
     }
 
     @Test

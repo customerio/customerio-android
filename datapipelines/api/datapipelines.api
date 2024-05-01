@@ -69,3 +69,7 @@ public final class io/customer/sdk/CustomerIOBuilder {
 	public final fun build ()Lio/customer/sdk/android/CustomerIO;
 }
 
+public final class io/customer/sdk/CustomerIOKt {
+	public static final fun Builder (Lio/customer/sdk/android/CustomerIO$Companion;Landroid/app/Application;Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
+}
+

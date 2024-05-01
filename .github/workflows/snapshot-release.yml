@@ -9,6 +9,8 @@ jobs:
   publish:
     name: Snapshot build and publish
     runs-on: ubuntu-latest
+    outputs:
+      snapshot_version: ${{ steps.set-snapshot-version.outputs.VERSION }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -51,3 +53,104 @@ jobs:
             Repository: `https://s01.oss.sonatype.org/content/repositories/snapshots/`
           edit-mode: replace
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # This job depends on the publish job to finish so we can use the snapshot version to verify
+  # gradle compatibility of the sample apps with actual releases of the SDK with latest changes.
+  gradle-compatibility-builds:
+    name: ${{ matrix.sample-app }} build with AGP ${{ matrix.agp-version }}
+    needs: publish
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Matrix of sample apps and AGP versions to test
+        # List all sample apps here that you want to test with the AGP versions.
+        sample-app-with-agp:
+          - "java_layout_sdk"
+          - "kotlin_compose_sdk"
+          - "java_layout_7"
+          - "kotlin_compose_7"
+        include:
+          - sample-app-with-agp: "java_layout_sdk"
+            sample-app: "java_layout"
+            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
+            agp-version: "8.3.1"
+            gradle-version: "8.4"
+          - sample-app-with-agp: "kotlin_compose_sdk"
+            sample-app: "kotlin_compose"
+            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
+            agp-version: "8.3.1"
+            gradle-version: "8.4"
+          - sample-app-with-agp: "java_layout_7"
+            sample-app: "java_layout"
+            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
+            agp-version: "7.4.1"
+            gradle-version: "7.6.4"
+          - sample-app-with-agp: "kotlin_compose_7"
+            sample-app: "kotlin_compose"
+            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
+            cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
+            agp-version: "7.4.1"
+            gradle-version: "7.6.4"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
+      - name: Install sd CLI to use later in the workflow
+        # uses: kenji-miyake/setup-sd@v1
+        uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it.
+
+      - name: Install tools from Gemfile (ruby language) used for building our apps with
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+
+      - name: Setup local.properties file for sample app
+        # Use recently published snapshot version to make sure we're testing the latest changes.
+        run: |
+          touch "samples/local.properties"
+          echo "sdkVersion=${{ needs.publish.outputs.snapshot_version }}" >> "samples/local.properties"
+          echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
+          echo "apiKey=${{ secrets[matrix.cio-apikey-secret-key] }}" >> "samples/local.properties"
+
+      - name: Update files for Gradle compatibility
+        # If AGP version matches the default value, we don't need to specify further versions.
+        run: |
+          ./scripts/update-gradle-compatibility.sh \
+          --agpVersion ${{ matrix.agp-version }} \
+          --gradleVersion ${{ matrix.gradle-version }}
+
+      - name: Install Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-
+
+      - name: Verify gradle scripts are valid gradle scripts
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Set up Gradle Version ${{ matrix.gradle-version }}
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ matrix.gradle-version }}
+
+      - name: Building ${{ matrix.sample-app }} with AGP version ${{ matrix.agp-version }}
+        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"

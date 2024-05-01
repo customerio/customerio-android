@@ -5,11 +5,11 @@ import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
-import io.customer.datapipelines.Builder
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOBuilder
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -47,7 +47,7 @@ class MainApplication : Application() {
         // New method to initialize CustomerIO
         // The new method should be called after the old method till the old method is removed
         // This is because the push and in-app modules are still using properties only initialized in the old method
-        io.customer.sdk.android.CustomerIO.Builder(
+        CustomerIOBuilder(
             applicationContext = this,
             cdpApiKey = configuration.cdpApiKey
         ).apply {

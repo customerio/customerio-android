@@ -1,22 +1,3 @@
-public final class io/customer/datapipelines/CustomerIOBuilder {
-	public final fun addCustomerIOModule (Lio/customer/sdk/core/module/CustomerIOModule;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun build ()Lio/customer/sdk/android/CustomerIO;
-	public final fun setApiHost (Ljava/lang/String;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setAutoAddCustomerIODestination (Z)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setAutoTrackDeviceAttributes (Z)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setCdnHost (Ljava/lang/String;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setFlushAt (I)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setFlushInterval (I)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setFlushPolicies (Ljava/util/List;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setMigrationSiteId (Ljava/lang/String;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun setTrackApplicationLifecycleEvents (Z)Lio/customer/datapipelines/CustomerIOBuilder;
-}
-
-public final class io/customer/datapipelines/CustomerIOKt {
-	public static final fun Builder (Lio/customer/sdk/android/CustomerIO$Companion;Landroid/app/Application;Ljava/lang/String;)Lio/customer/datapipelines/CustomerIOBuilder;
-}
-
 public final class io/customer/datapipelines/DataPipelinesModule : io/customer/sdk/android/CustomerIOInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/datapipelines/DataPipelinesModule$Companion;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
@@ -96,5 +77,21 @@ public final class io/customer/datapipelines/plugins/CustomerIOSettings$$seriali
 
 public final class io/customer/datapipelines/plugins/CustomerIOSettings$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class io/customer/sdk/CustomerIOBuilder {
+	public fun <init> (Landroid/app/Application;Ljava/lang/String;)V
+	public final fun addCustomerIOModule (Lio/customer/sdk/core/module/CustomerIOModule;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun build ()Lio/customer/sdk/android/CustomerIO;
+	public final fun setApiHost (Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setAutoAddCustomerIODestination (Z)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setAutoTrackDeviceAttributes (Z)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setCdnHost (Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setFlushAt (I)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setFlushInterval (I)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setFlushPolicies (Ljava/util/List;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setMigrationSiteId (Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun setTrackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOBuilder;
 }
 

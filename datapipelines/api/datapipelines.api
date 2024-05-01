@@ -1,12 +1,3 @@
-public final class io/customer/datapipelines/CustomerIOBuilder {
-	public final fun addCustomerIOModule (Lio/customer/sdk/core/module/CustomerIOModule;)Lio/customer/datapipelines/CustomerIOBuilder;
-	public final fun build ()Lio/customer/sdk/android/CustomerIO;
-}
-
-public final class io/customer/datapipelines/CustomerIOKt {
-	public static final fun Builder (Lio/customer/sdk/android/CustomerIO$Companion;Landroid/app/Application;Ljava/lang/String;)Lio/customer/datapipelines/CustomerIOBuilder;
-}
-
 public final class io/customer/datapipelines/DataPipelinesModule : io/customer/sdk/android/CustomerIOInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/datapipelines/DataPipelinesModule$Companion;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
@@ -70,5 +61,11 @@ public final class io/customer/datapipelines/plugins/CustomerIOSettings$$seriali
 
 public final class io/customer/datapipelines/plugins/CustomerIOSettings$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class io/customer/sdk/CustomerIOBuilder {
+	public fun <init> (Landroid/app/Application;Ljava/lang/String;)V
+	public final fun addCustomerIOModule (Lio/customer/sdk/core/module/CustomerIOModule;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun build ()Lio/customer/sdk/android/CustomerIO;
 }
 

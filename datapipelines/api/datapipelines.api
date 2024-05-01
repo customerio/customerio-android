@@ -21,7 +21,6 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 	public final fun getFlushInterval ()I
 	public final fun getFlushPolicies ()Ljava/util/List;
 	public final fun getMigrationSiteId ()Ljava/lang/String;
-	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
 	public final fun getTrackApplicationLifecycleEvents ()Z
 }
 

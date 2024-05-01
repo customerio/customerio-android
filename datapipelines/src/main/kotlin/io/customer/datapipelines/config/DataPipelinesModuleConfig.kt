@@ -10,7 +10,7 @@ class DataPipelinesModuleConfig(
     // Server key
     val cdpApiKey: String,
     // Host Settings
-    val region: Region,
+    region: Region,
     // Optional manual override for apiHost and cdnHost
     apiHostOverride: String? = null,
     cdnHostOverride: String? = null,

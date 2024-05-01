@@ -5,8 +5,6 @@ import android.app.Application
 import io.customer.commontest.BaseUnitTest
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.DataPipelinesModule
-import io.customer.datapipelines.extensions.apiHost
-import io.customer.datapipelines.extensions.cdnHost
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
@@ -81,14 +79,13 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         createCustomerIOBuilder().build()
 
         val dataPipelinesModule = SDKComponent.modules[DataPipelinesModule.MODULE_NAME] as DataPipelinesModule
-        dataPipelinesModule.moduleConfig.region shouldBe Region.US
         dataPipelinesModule.moduleConfig.migrationSiteId shouldBe null
         dataPipelinesModule.moduleConfig.autoTrackDeviceAttributes shouldBe true
         dataPipelinesModule.moduleConfig.trackApplicationLifecycleEvents shouldBe true
         dataPipelinesModule.moduleConfig.flushAt shouldBe 20
         dataPipelinesModule.moduleConfig.flushInterval shouldBe 30
-        dataPipelinesModule.moduleConfig.apiHost shouldBe Region.US.apiHost()
-        dataPipelinesModule.moduleConfig.cdnHost shouldBe Region.US.cdnHost()
+        dataPipelinesModule.moduleConfig.apiHost shouldBe "cdp.customer.io/v1"
+        dataPipelinesModule.moduleConfig.cdnHost shouldBe "cdp.customer.io/v1"
         dataPipelinesModule.moduleConfig.autoAddCustomerIODestination shouldBe true
     }
 
@@ -111,15 +108,14 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         // verify the customerIOBuilder config with DataPipelinesModuleConfig
 
         val dataPipelinesModule = SDKComponent.modules[DataPipelinesModule.MODULE_NAME] as DataPipelinesModule
-        dataPipelinesModule.moduleConfig.region shouldBe givenRegion
         dataPipelinesModule.moduleConfig.cdpApiKey shouldBe givenCdpApiKey
         dataPipelinesModule.moduleConfig.migrationSiteId shouldBe givenMigrationSiteId
         dataPipelinesModule.moduleConfig.autoTrackDeviceAttributes shouldBe false
         dataPipelinesModule.moduleConfig.trackApplicationLifecycleEvents shouldBe false
         dataPipelinesModule.moduleConfig.flushAt shouldBe 100
         dataPipelinesModule.moduleConfig.flushInterval shouldBe 2
-        dataPipelinesModule.moduleConfig.apiHost shouldBe givenRegion.apiHost()
-        dataPipelinesModule.moduleConfig.cdnHost shouldBe givenRegion.cdnHost()
+        dataPipelinesModule.moduleConfig.apiHost shouldBe "cdp.eu.customer.io/v1"
+        dataPipelinesModule.moduleConfig.cdnHost shouldBe "cdp.eu.customer.io/v1"
 
         // verify the shared logger has updated log level
         SDKComponent.logger.logLevel shouldBe CioLogLevel.DEBUG
@@ -139,7 +135,6 @@ class CustomerIOBuilderTest : BaseUnitTest() {
 
         // verify apiHost and cdnHost are not overridden by region
         val dataPipelinesModule = SDKComponent.modules[DataPipelinesModule.MODULE_NAME] as DataPipelinesModule
-        dataPipelinesModule.moduleConfig.region shouldBe givenRegion
         dataPipelinesModule.moduleConfig.apiHost shouldBe givenApiHost
         dataPipelinesModule.moduleConfig.cdnHost shouldBe givenCdnHost
 
@@ -155,7 +150,6 @@ class CustomerIOBuilderTest : BaseUnitTest() {
 
         // verify apiHost and cdnHost are not overridden by region
         val dataPipelinesUSModule = SDKComponent.modules[DataPipelinesModule.MODULE_NAME] as DataPipelinesModule
-        dataPipelinesUSModule.moduleConfig.region shouldBe givenUSRegion
         dataPipelinesUSModule.moduleConfig.apiHost shouldBe givenUSApiHost
         dataPipelinesUSModule.moduleConfig.cdnHost shouldBe givenUSCdnHost
     }

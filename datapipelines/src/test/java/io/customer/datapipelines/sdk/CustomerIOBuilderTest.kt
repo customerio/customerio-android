@@ -77,6 +77,22 @@ class CustomerIOBuilderTest : BaseUnitTest() {
     }
 
     @Test
+    fun build_givenDefaultConfiguration_expectDefaultDataPipelinesModuleConfig() {
+        createCustomerIOBuilder().build()
+
+        val dataPipelinesModule = SDKComponent.modules[DataPipelinesModule.MODULE_NAME] as DataPipelinesModule
+        dataPipelinesModule.moduleConfig.region shouldBe Region.US
+        dataPipelinesModule.moduleConfig.migrationSiteId shouldBe null
+        dataPipelinesModule.moduleConfig.autoTrackDeviceAttributes shouldBe true
+        dataPipelinesModule.moduleConfig.trackApplicationLifecycleEvents shouldBe true
+        dataPipelinesModule.moduleConfig.flushAt shouldBe 20
+        dataPipelinesModule.moduleConfig.flushInterval shouldBe 30
+        dataPipelinesModule.moduleConfig.apiHost shouldBe Region.US.apiHost()
+        dataPipelinesModule.moduleConfig.cdnHost shouldBe Region.US.cdnHost()
+        dataPipelinesModule.moduleConfig.autoAddCustomerIODestination shouldBe true
+    }
+
+    @Test
     fun build_givenConfiguration_expectSameDataPipelinesModuleConfig() {
         val givenCdpApiKey = String.random
         val givenMigrationSiteId = String.random
@@ -112,8 +128,8 @@ class CustomerIOBuilderTest : BaseUnitTest() {
     @Test
     fun build_givenHostConfiguration_expectCorrectHostDataPipelinesModuleConfig() {
         val givenRegion = Region.EU
-        val givenApiHost = "https://api.example.com"
-        val givenCdnHost = "https://cdn.example.com"
+        val givenApiHost = "https://eu.api.example.com"
+        val givenCdnHost = "https://eu.cdn.example.com"
 
         createCustomerIOBuilder()
             .setRegion(givenRegion)
@@ -126,6 +142,22 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         dataPipelinesModule.moduleConfig.region shouldBe givenRegion
         dataPipelinesModule.moduleConfig.apiHost shouldBe givenApiHost
         dataPipelinesModule.moduleConfig.cdnHost shouldBe givenCdnHost
+
+        val givenUSRegion = Region.US
+        val givenUSApiHost = "https://us.api.example.com"
+        val givenUSCdnHost = "https://us.cdn.example.com"
+
+        createCustomerIOBuilder()
+            .setRegion(givenUSRegion)
+            .setApiHost(givenUSApiHost)
+            .setCdnHost(givenUSCdnHost)
+            .build()
+
+        // verify apiHost and cdnHost are not overridden by region
+        val dataPipelinesUSModule = SDKComponent.modules[DataPipelinesModule.MODULE_NAME] as DataPipelinesModule
+        dataPipelinesUSModule.moduleConfig.region shouldBe givenUSRegion
+        dataPipelinesUSModule.moduleConfig.apiHost shouldBe givenUSApiHost
+        dataPipelinesUSModule.moduleConfig.cdnHost shouldBe givenUSCdnHost
     }
 
     private fun createCustomerIOBuilder(givenCdpApiKey: String? = null): CustomerIOBuilder = CustomerIOBuilder(

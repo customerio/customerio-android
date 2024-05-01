@@ -23,6 +23,7 @@ internal constructor(
 ) : CustomerIOModule<DataPipelinesModuleConfig>, CustomerIOInstance {
     override val moduleName: String = MODULE_NAME
 
+    // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
         override fun invoke(error: Throwable) {
             SDKComponent.logger.error(error.message ?: error.stackTraceToString())
@@ -36,6 +37,8 @@ internal constructor(
         flushAt = moduleConfig.flushAt
         flushInterval = moduleConfig.flushInterval
         flushPolicies = moduleConfig.flushPolicies
+        // Force set to false as we don't need to forward events to Segment destination
+        // User can disable CIO destination to achieve same results
         autoAddSegmentDestination = false
         trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
         apiHost = moduleConfig.apiHost

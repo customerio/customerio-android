@@ -38,7 +38,7 @@ dependencies {
     implementation(Dependencies.segment)
     implementation(Dependencies.kotlinxSerializationJson)
 
-    api Dependencies.mockito
-    api Dependencies.mockitoKotlin
-    api Dependencies.robolectric
+    testImplementation(Dependencies.mockito)
+    testImplementation(Dependencies.mockitoKotlin)
+    testImplementation(Dependencies.robolectric)
 }

@@ -14,7 +14,7 @@ import io.customer.sdk.core.di.SDKComponent
  * You must have an instance of `CustomerIO` to use the features of the SDK.
  * Create your own instance using
  * ```
- * with(CustomerIO.Builder(appContext: Application context, cdpApiKey = "XXX")) {
+ * with(CustomerIOBuilder(appContext: Application context, cdpApiKey = "XXX")) {
  *   setLogLevel(...)
  *   addCustomerIOModule(...)
  *   build()
@@ -41,7 +41,7 @@ class CustomerIO private constructor(
         @JvmStatic
         fun instance(): CustomerIO {
             return instance ?: throw IllegalStateException(
-                "CustomerIO is not initialized. CustomerIO.Builder::build() must be called before obtaining SDK instance."
+                "CustomerIO is not initialized. CustomerIOBuilder::build() must be called before obtaining SDK instance."
             )
         }
 

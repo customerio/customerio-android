@@ -1,6 +1,7 @@
-package io.customer.datapipelines
+package io.customer.sdk
 
 import android.app.Application
+import io.customer.datapipelines.DataPipelinesModule
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
@@ -10,12 +11,21 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.Logger
 
 /**
- * Builder class for creating a new instance of CustomerIO.
+ * Creates a new instance of builder for CustomerIO SDK.
  * The class uses builder pattern to simplify the setup and configuration of CustomerIO SDK,
  * including its core components and additional modules.
  * It automatically includes the [DataPipelinesModule] to ensure all events are routed to it.
+ *
+ * Example usage:
+ * ```
+ * with(CustomerIOBuilder(appContext: Application context, cdpApiKey = "XXX")) {
+ *   setLogLevel(...)
+ *   addCustomerIOModule(...)
+ *   build()
+ * }
+ * ```
  */
-class CustomerIOBuilder internal constructor(
+class CustomerIOBuilder(
     private val applicationContext: Application,
     private val cdpApiKey: String
 ) {

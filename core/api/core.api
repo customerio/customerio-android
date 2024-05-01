@@ -104,3 +104,22 @@ public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 
+public abstract class io/customer/sdk/data/model/Region {
+	public static final field Companion Lio/customer/sdk/data/model/Region$Companion;
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCode ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/data/model/Region$Companion {
+	public final fun getRegion (Ljava/lang/String;Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/data/model/Region;
+	public static synthetic fun getRegion$default (Lio/customer/sdk/data/model/Region$Companion;Ljava/lang/String;Lio/customer/sdk/data/model/Region;ILjava/lang/Object;)Lio/customer/sdk/data/model/Region;
+}
+
+public final class io/customer/sdk/data/model/Region$EU : io/customer/sdk/data/model/Region {
+	public static final field INSTANCE Lio/customer/sdk/data/model/Region$EU;
+}
+
+public final class io/customer/sdk/data/model/Region$US : io/customer/sdk/data/model/Region {
+	public static final field INSTANCE Lio/customer/sdk/data/model/Region$US;
+}
+

@@ -52,7 +52,17 @@ public class CustomerIORepository {
         // Finally, build to finish initializing the SDK.
         builder.build();
 
+        // TODO: Remove old builder and use new builder to initialize the SDK
+        // New method to initialize CustomerIO
+        // The new method should be called after the old method till the old method is removed
+        // This is because the push and in-app modules are still using properties only initialized in the old method
         CustomerIOBuilder newBuilder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+        builder.addCustomerIOModule(new ModuleMessagingInApp(
+                new MessagingInAppModuleConfig.Builder()
+                        .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                        .build()
+        ));
         newBuilder.build();
     }
 

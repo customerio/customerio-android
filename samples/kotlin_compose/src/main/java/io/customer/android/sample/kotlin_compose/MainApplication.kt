@@ -44,6 +44,7 @@ class MainApplication : Application() {
             build()
         }
 
+        // TODO: Remove old builder and use new builder to initialize the SDK
         // New method to initialize CustomerIO
         // The new method should be called after the old method till the old method is removed
         // This is because the push and in-app modules are still using properties only initialized in the old method

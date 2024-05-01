@@ -148,7 +148,17 @@ class CustomerIOBuilder(
 
         // Initialize DataPipelinesModule with the provided configuration
         val dataPipelinesConfig = DataPipelinesModuleConfig(
-            cdpApiKey = cdpApiKey, region = region, apiHost = apiHost, cdnHost = cdnHost, flushAt = flushAt, flushInterval = flushInterval, flushPolicies = flushPolicies, autoAddCustomerIODestination = autoAddCustomerIODestination, trackApplicationLifecycleEvents = trackApplicationLifecycleEvents, autoTrackDeviceAttributes = autoTrackDeviceAttributes, migrationSiteId = migrationSiteId
+            cdpApiKey = cdpApiKey,
+            region = region,
+            apiHostOverride = apiHost,
+            cdnHostOverride = cdnHost,
+            flushAt = flushAt,
+            flushInterval = flushInterval,
+            flushPolicies = flushPolicies,
+            autoAddCustomerIODestination = autoAddCustomerIODestination,
+            trackApplicationLifecycleEvents = trackApplicationLifecycleEvents,
+            autoTrackDeviceAttributes = autoTrackDeviceAttributes,
+            migrationSiteId = migrationSiteId
         )
         val dataPipelinesModule = DataPipelinesModule(androidSDKComponent, dataPipelinesConfig)
 

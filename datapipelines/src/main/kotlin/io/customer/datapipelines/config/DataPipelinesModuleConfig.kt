@@ -1,6 +1,8 @@
 package io.customer.datapipelines.config
 
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
+import io.customer.datapipelines.extensions.apiHost
+import io.customer.datapipelines.extensions.cdnHost
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.data.model.Region
 
@@ -9,8 +11,9 @@ class DataPipelinesModuleConfig(
     val cdpApiKey: String,
     // Host Settings
     val region: Region,
-    val apiHost: String? = null,
-    val cdnHost: String? = null,
+    // Optional manual override for apiHost and cdnHost
+    apiHostOverride: String? = null,
+    cdnHostOverride: String? = null,
     // Dispatching configuration
     val flushAt: Int,
     val flushInterval: Int,
@@ -23,4 +26,7 @@ class DataPipelinesModuleConfig(
     val autoTrackDeviceAttributes: Boolean,
     // Configuration options required for migration from earlier versions
     val migrationSiteId: String? = null
-) : CustomerIOModuleConfig
+) : CustomerIOModuleConfig {
+    val apiHost: String = apiHostOverride ?: region.apiHost()
+    val cdnHost: String = cdnHostOverride ?: region.cdnHost()
+}

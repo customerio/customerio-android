@@ -29,23 +29,21 @@ internal constructor(
         }
     }
 
-    private val analytics: Analytics
+    private val analytics: Analytics = Analytics(
+        writeKey = moduleConfig.cdpApiKey,
+        context = androidSDKComponent.applicationContext
+    ) {
+        flushAt = moduleConfig.flushAt
+        flushInterval = moduleConfig.flushInterval
+        flushPolicies = moduleConfig.flushPolicies
+        autoAddSegmentDestination = false
+        trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
+        apiHost = moduleConfig.apiHost
+        cdnHost = moduleConfig.cdnHost
+        errorHandler = errorLogger
+    }
 
     init {
-        analytics = Analytics(
-            writeKey = moduleConfig.cdpApiKey,
-            context = androidSDKComponent.applicationContext
-        ) {
-            flushAt = moduleConfig.flushAt
-            flushInterval = moduleConfig.flushInterval
-            flushPolicies = moduleConfig.flushPolicies
-            autoAddSegmentDestination = false
-            trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
-            apiHost = moduleConfig.apiHost ?: moduleConfig.region.apiHost()
-            cdnHost = moduleConfig.cdnHost ?: moduleConfig.region.cdnHost()
-            errorHandler = errorLogger
-        }
-
         if (moduleConfig.autoAddCustomerIODestination) {
             analytics.add(CustomerIODestination())
         }

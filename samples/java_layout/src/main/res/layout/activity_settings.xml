@@ -97,7 +97,7 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/site_id_input_layout"
+                    android:id="@+id/cdp_api_key_input_layout"
                     style="?attr/textInputStyle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -105,6 +105,27 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@id/tracking_url_input_layout"
+                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/cdp_api_key_text_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/cdp_api_key"
+                        android:inputType="text"
+                        android:maxLength="200"
+                        android:maxLines="1" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/site_id_input_layout"
+                    style="?attr/textInputStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_small"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/cdp_api_key_input_layout"
                     app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
                     <com.google.android.material.textfield.TextInputEditText

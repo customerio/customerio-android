@@ -11,6 +11,7 @@
     <string name="acd_random_login_button">Random Login Button</string>
     <string name="acd_device_token_input">Device Token Input</string>
     <string name="acd_tracking_url_input">Track URL Input</string>
+    <string name="acd_cdp_api_key_input">CDP API Key Input</string>
     <string name="acd_site_id_input">Site ID Input</string>
     <string name="acd_api_key_input">API Key Input</string>
     <string name="acd_bq_seconds_delay_input">BQ Seconds Delay Input</string>

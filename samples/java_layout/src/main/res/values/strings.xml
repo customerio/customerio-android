@@ -18,6 +18,7 @@
     <string name="device_token">Device Token</string>
     <string name="tracking_url">CIO Track URL</string>
     <string name="error_tracking_url">Please enter formatted url e.g. https://tracking.cio/</string>
+    <string name="cdp_api_key">CDP API Key</string>
     <string name="site_id">Site Id</string>
     <string name="api_key">API Key</string>
     <string name="background_queue_seconds_delay_label">backgroundQueueSecondsDelay</string>

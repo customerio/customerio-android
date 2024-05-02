@@ -8,6 +8,7 @@ import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.API_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.BACKGROUND_QUEUE_MIN_NUM_TASKS
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.BACKGROUND_QUEUE_SECONDS_DELAY
+import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.CDP_API_KEY
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.DEBUG_MODE
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.SITE_ID
 import io.customer.android.sample.kotlin_compose.util.PreferencesKeys.TRACK_API_URL_KEY
@@ -28,6 +29,7 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
 
     override suspend fun saveConfiguration(configuration: Configuration) {
         dataStore.edit { preferences ->
+            preferences[CDP_API_KEY] = configuration.cdpApiKey
             preferences[SITE_ID] = configuration.siteId
             preferences[API_KEY] = configuration.apiKey
             configuration.trackUrl?.let { preferences[TRACK_API_URL_KEY] = it }
@@ -42,6 +44,7 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
     override fun getConfiguration(): Flow<Configuration> {
         return dataStore.data.map { preferences ->
             return@map Configuration(
+                cdpApiKey = preferences[CDP_API_KEY] ?: BuildConfig.CDP_API_KEY,
                 siteId = preferences[SITE_ID] ?: BuildConfig.SITE_ID,
                 apiKey = preferences[API_KEY] ?: BuildConfig.API_KEY
             ).apply {
@@ -65,6 +68,7 @@ class PreferenceRepositoryImp(private val dataStore: DataStore<Preferences>) :
 
     override suspend fun restoreDefaults(): Configuration {
         val configuration = Configuration(
+            cdpApiKey = BuildConfig.CDP_API_KEY,
             siteId = BuildConfig.SITE_ID,
             apiKey = BuildConfig.API_KEY
         ).apply {

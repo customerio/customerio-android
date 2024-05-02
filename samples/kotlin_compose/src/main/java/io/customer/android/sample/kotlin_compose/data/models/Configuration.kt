@@ -8,6 +8,7 @@ import io.customer.sdk.CustomerIOConfig.Companion.AnalyticsConstants.SHOULD_AUTO
 import io.customer.sdk.core.util.CioLogLevel
 
 data class Configuration(
+    var cdpApiKey: String,
     var siteId: String,
     var apiKey: String,
     var trackUrl: String? = null,

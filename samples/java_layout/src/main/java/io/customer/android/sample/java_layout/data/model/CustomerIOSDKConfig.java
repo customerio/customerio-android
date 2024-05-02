@@ -17,6 +17,7 @@ import io.customer.android.sample.java_layout.utils.StringUtils;
  */
 public class CustomerIOSDKConfig {
     private static class Keys {
+        static final String CDP_API_KEY = "cio_sdk_cdp_api_key";
         static final String SITE_ID = "cio_sdk_site_id";
         static final String API_KEY = "cio_sdk_api_key";
         static final String TRACKING_URL = "cio_sdk_tracking_url";
@@ -28,7 +29,8 @@ public class CustomerIOSDKConfig {
     }
 
     public static CustomerIOSDKConfig getDefaultConfigurations() {
-        return new CustomerIOSDKConfig(BuildConfig.SITE_ID,
+        return new CustomerIOSDKConfig(BuildConfig.CDP_API_KEY,
+                BuildConfig.SITE_ID,
                 BuildConfig.API_KEY,
                 "https://track-sdk.customer.io/",
                 30.0,
@@ -40,9 +42,10 @@ public class CustomerIOSDKConfig {
 
     @NonNull
     public static Optional<CustomerIOSDKConfig> fromMap(@NonNull Map<String, String> bundle) {
+        String cdpApiKey = bundle.get(Keys.CDP_API_KEY);
         String siteId = bundle.get(Keys.SITE_ID);
         String apiKey = bundle.get(Keys.API_KEY);
-        if (TextUtils.isEmpty(siteId) || TextUtils.isEmpty(apiKey)) {
+        if (TextUtils.isEmpty(cdpApiKey) || TextUtils.isEmpty(siteId) || TextUtils.isEmpty(apiKey)) {
             return Optional.empty();
         }
 
@@ -54,7 +57,8 @@ public class CustomerIOSDKConfig {
         boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
         boolean debugModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.DEBUG_MODE), defaultConfig.debugModeEnabled);
 
-        CustomerIOSDKConfig config = new CustomerIOSDKConfig(siteId,
+        CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
+                siteId,
                 apiKey,
                 trackingURL,
                 bqSecondsDelay,
@@ -68,6 +72,7 @@ public class CustomerIOSDKConfig {
     @NonNull
     public static Map<String, String> toMap(@NonNull CustomerIOSDKConfig config) {
         Map<String, String> bundle = new HashMap<>();
+        bundle.put(Keys.CDP_API_KEY, config.cdpApiKey);
         bundle.put(Keys.SITE_ID, config.siteId);
         bundle.put(Keys.API_KEY, config.apiKey);
         bundle.put(Keys.TRACKING_URL, config.trackingURL);
@@ -79,6 +84,8 @@ public class CustomerIOSDKConfig {
         return bundle;
     }
 
+    @NonNull
+    private final String cdpApiKey;
     @NonNull
     private final String siteId;
     @NonNull
@@ -96,7 +103,8 @@ public class CustomerIOSDKConfig {
     @Nullable
     private final Boolean debugModeEnabled;
 
-    public CustomerIOSDKConfig(@NonNull String siteId,
+    public CustomerIOSDKConfig(@NonNull String cdpApiKey,
+                               @NonNull String siteId,
                                @NonNull String apiKey,
                                @Nullable String trackingURL,
                                @Nullable Double backgroundQueueSecondsDelay,
@@ -104,6 +112,7 @@ public class CustomerIOSDKConfig {
                                @Nullable Boolean screenTrackingEnabled,
                                @Nullable Boolean deviceAttributesTrackingEnabled,
                                @Nullable Boolean debugModeEnabled) {
+        this.cdpApiKey = cdpApiKey;
         this.siteId = siteId;
         this.apiKey = apiKey;
         this.trackingURL = trackingURL;
@@ -112,6 +121,11 @@ public class CustomerIOSDKConfig {
         this.screenTrackingEnabled = screenTrackingEnabled;
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
         this.debugModeEnabled = debugModeEnabled;
+    }
+
+    @NonNull
+    public String getCdpApiKey() {
+        return cdpApiKey;
     }
 
     @NonNull

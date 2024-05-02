@@ -71,8 +71,8 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         // deepLinkUri contains link URI if activity is launched from deep link or url from
         // Customer.io push notification
         // e.g.
-        // java-sample://settings&site_id=xxx&api_key=yyy
-        // https://www.java-sample.com/settings&site_id=xxx&api_key=yyy
+        // java-sample://settings?cdp_api_key=xxx&site_id=yyy&api_key=zzz
+        // https://www.java-sample.com/settings?cdp_api_key=xxx&site_id=yyy&api_key=zzz
 
         if (deepLinkUri != null) {
             String cdpApiKey = deepLinkUri.getQueryParameter("cdp_api_key");

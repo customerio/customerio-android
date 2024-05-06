@@ -58,7 +58,7 @@ dependencies {
     } else {
         // Stable releases dependency, use published versions directly
         implementation "io.customer.android:tracking:$cioSDKVersion"
-//        implementation "io.customer.android:datapipelines:$cioSDKVersion"
+        implementation "io.customer.android:datapipelines:$cioSDKVersion"
         implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
     }

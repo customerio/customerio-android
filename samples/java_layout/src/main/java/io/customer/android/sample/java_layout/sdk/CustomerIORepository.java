@@ -57,6 +57,14 @@ public class CustomerIORepository {
         // The new method should be called after the old method till the old method is removed
         // This is because the push and in-app modules are still using properties only initialized in the old method
         CustomerIOBuilder newBuilder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+        newBuilder.setMigrationSiteId(sdkConfig.getSiteId());
+        if (sdkConfig.getBackgroundQueueMinNumOfTasks() != null) {
+            newBuilder.setFlushAt(sdkConfig.getBackgroundQueueMinNumOfTasks());
+        }
+        if (sdkConfig.getBackgroundQueueSecondsDelay() != null) {
+            newBuilder.setFlushInterval(sdkConfig.getBackgroundQueueSecondsDelay().intValue());
+        }
+        newBuilder.setAutoTrackDeviceAttributes(Boolean.TRUE.equals(sdkConfig.isDeviceAttributesTrackingEnabled()));
 
         // Enable detailed logging for debug builds.
         if (sdkConfig.debugModeEnabled()) {

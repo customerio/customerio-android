@@ -52,6 +52,8 @@ class MainApplication : Application() {
             applicationContext = this,
             cdpApiKey = configuration.cdpApiKey
         ).apply {
+            configuration.setValuesFromBuilder(this)
+
             addCustomerIOModule(
                 ModuleMessagingInApp(
                     config = MessagingInAppModuleConfig.Builder()

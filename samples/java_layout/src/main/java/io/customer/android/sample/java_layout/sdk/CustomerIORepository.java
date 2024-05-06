@@ -57,6 +57,12 @@ public class CustomerIORepository {
         // The new method should be called after the old method till the old method is removed
         // This is because the push and in-app modules are still using properties only initialized in the old method
         CustomerIOBuilder newBuilder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+
+        // Enable detailed logging for debug builds.
+        if (sdkConfig.debugModeEnabled()) {
+            newBuilder.setLogLevel(CioLogLevel.DEBUG);
+        }
+
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         builder.addCustomerIOModule(new ModuleMessagingInApp(
                 new MessagingInAppModuleConfig.Builder()

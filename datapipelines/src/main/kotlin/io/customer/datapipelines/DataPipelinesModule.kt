@@ -86,11 +86,12 @@ internal constructor(
      * The method is responsible for identifying the user profile with the given traits
      * and running any necessary hooks.
      * All other identify methods should call this method to ensure consistency.
+     * For methods that don't require to mention traits, use [Nothing] as the type.
      */
-    private fun <Body> commonIdentify(
+    private fun <Traits> commonIdentify(
         userId: String,
         traitsMap: CustomAttributes? = null,
-        traitsSerializable: Pair<Body, SerializationStrategy<Body>>? = null
+        traitsSerializable: Pair<Traits, SerializationStrategy<Traits>>? = null
     ) {
         if (userId.isBlank()) {
             logger.debug("Profile cannot be identified: Identifier is blank. Please retry with a valid, non-empty identifier.")

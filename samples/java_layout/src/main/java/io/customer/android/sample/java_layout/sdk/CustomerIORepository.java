@@ -119,7 +119,7 @@ public class CustomerIORepository {
     }
 
     public void setProfileAttributes(@NonNull Map<String, String> attributes) {
-        CustomerIO.instance().setProfileAttributes(attributes);
+        io.customer.sdk.android.CustomerIO.instance().setProfileAttributes(attributes);
     }
 
     /*

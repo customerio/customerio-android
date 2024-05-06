@@ -40,6 +40,7 @@ fun Configuration.setValuesFromBuilder(builder: CustomerIOBuilder): CustomerIOBu
     builder.setAutoTrackDeviceAttributes(this.trackDeviceAttributes)
     builder.setFlushAt(this.backgroundQueueMinNumTasks)
     builder.setFlushInterval(this.backgroundQueueSecondsDelay.toInt())
+
     if (this.debugMode) {
         builder.setLogLevel(CioLogLevel.DEBUG)
     } else {

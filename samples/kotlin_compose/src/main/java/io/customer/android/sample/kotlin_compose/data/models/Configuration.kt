@@ -1,6 +1,7 @@
 package io.customer.android.sample.kotlin_compose.data.models
 
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.CustomerIOConfig.Companion.AnalyticsConstants.AUTO_TRACK_DEVICE_ATTRIBUTES
 import io.customer.sdk.CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_MIN_NUMBER_OF_TASKS
 import io.customer.sdk.CustomerIOConfig.Companion.AnalyticsConstants.BACKGROUND_QUEUE_SECONDS_DELAY
@@ -32,5 +33,14 @@ fun Configuration.setValuesFromBuilder(builder: CustomerIO.Builder): CustomerIO.
     }
     builder.autoTrackDeviceAttributes(this.trackDeviceAttributes)
     builder.autoTrackScreenViews(this.trackScreen)
+    return builder
+}
+
+fun Configuration.setValuesFromBuilder(builder: CustomerIOBuilder): CustomerIOBuilder {
+    if (this.debugMode) {
+        builder.setLogLevel(CioLogLevel.DEBUG)
+    } else {
+        builder.setLogLevel(CioLogLevel.ERROR)
+    }
     return builder
 }

@@ -13,6 +13,8 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.data.model.CustomAttributes
+import kotlinx.serialization.SerializationStrategy
 
 /**
  * DataPipelinesModule is SDK module that provides the ability to send data to
@@ -73,6 +75,83 @@ internal constructor(
     }
 
     override fun initialize() {
+    }
+
+    // Gets the userId registered by a previous identify call
+    // or null if no user is registered
+    private val registeredUserId: String? get() = analytics.userId()
+
+    /**
+     * Common method to identify a user profile with traits.
+     * The method is responsible for identifying the user profile with the given traits
+     * and running any necessary hooks.
+     * All other identify methods should call this method to ensure consistency.
+     */
+    private fun <Body> commonIdentify(
+        userId: String,
+        traitsMap: CustomAttributes? = null,
+        traitsSerializable: Pair<Body, SerializationStrategy<Body>>? = null
+    ) {
+        if (userId.isBlank()) {
+            logger.debug("Profile cannot be identified: Identifier is blank. Please retry with a valid, non-empty identifier.")
+            return
+        }
+
+        logger.info("identify profile with id $userId")
+        when {
+            traitsMap != null -> {
+                logger.debug("identify profile with traits $traitsMap")
+                analytics.identify(
+                    userId = userId,
+                    traits = traitsMap
+                )
+            }
+
+            traitsSerializable != null -> {
+                logger.debug("identify profile with traits $traitsSerializable")
+                analytics.identify(
+                    userId = userId,
+                    traits = traitsSerializable.first,
+                    serializationStrategy = traitsSerializable.second
+                )
+            }
+
+            else -> {
+                analytics.identify(userId = userId)
+            }
+        }
+    }
+
+    override var profileAttributes: CustomAttributes
+        get() = analytics.traits() ?: emptyMap()
+        set(value) {
+            val userId = registeredUserId
+            if (userId != null) {
+                commonIdentify<Nothing>(userId = userId, traitsMap = value)
+            } else {
+                logger.debug("No user profile found, updating traits for anonymous user ${analytics.anonymousId()}")
+                analytics.identify(traits = value)
+            }
+        }
+
+    override fun identify(userId: String) {
+        commonIdentify<Nothing>(userId = userId)
+    }
+
+    override fun identify(userId: String, traits: CustomAttributes) {
+        commonIdentify<Nothing>(userId = userId, traitsMap = traits)
+    }
+
+    override fun <Body> identify(
+        userId: String,
+        traits: Body,
+        serializationStrategy: SerializationStrategy<Body>
+    ) = commonIdentify(userId = userId, traitsSerializable = traits to serializationStrategy)
+
+    override fun clearIdentify() {
+        val userId = registeredUserId ?: "anonymous"
+        logger.debug("resetting user profile with id $userId")
+        analytics.reset()
     }
 
     companion object {

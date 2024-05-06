@@ -1,9 +1,15 @@
 public final class io/customer/datapipelines/DataPipelinesModule : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/datapipelines/DataPipelinesModule$Companion;
+	public fun clearIdentify ()V
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
+	public fun getProfileAttributes ()Ljava/util/Map;
+	public fun identify (Ljava/lang/String;)V
+	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public fun initialize ()V
+	public fun setProfileAttributes (Ljava/util/Map;)V
 }
 
 public final class io/customer/datapipelines/DataPipelinesModule$Companion {
@@ -96,12 +102,24 @@ public final class io/customer/sdk/CustomerIOBuilder {
 }
 
 public abstract interface class io/customer/sdk/DataPipelineInstance : io/customer/sdk/android/CustomerIOInstance {
+	public abstract fun clearIdentify ()V
+	public abstract fun getProfileAttributes ()Ljava/util/Map;
+	public abstract fun identify (Ljava/lang/String;)V
+	public abstract fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public abstract fun identify (Ljava/lang/String;Ljava/util/Map;)V
+	public abstract fun setProfileAttributes (Ljava/util/Map;)V
 }
 
 public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipelineInstance {
 	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/DataPipelineInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun clearIdentify ()V
+	public fun getProfileAttributes ()Ljava/util/Map;
+	public fun identify (Ljava/lang/String;)V
+	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
+	public fun setProfileAttributes (Ljava/util/Map;)V
 }
 
 public final class io/customer/sdk/android/CustomerIO$Companion {

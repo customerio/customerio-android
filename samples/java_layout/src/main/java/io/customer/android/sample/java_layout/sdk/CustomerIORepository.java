@@ -103,11 +103,11 @@ public class CustomerIORepository {
     }
 
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {
-        CustomerIO.instance().identify(email, attributes);
+        io.customer.sdk.android.CustomerIO.instance().identify(email, attributes);
     }
 
     public void clearIdentify() {
-        CustomerIO.instance().clearIdentify();
+        io.customer.sdk.android.CustomerIO.instance().clearIdentify();
     }
 
     public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {

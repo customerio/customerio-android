@@ -38,7 +38,7 @@ class DashboardViewModel @Inject constructor(
     fun logout(user: User, onLogout: () -> Unit) {
         viewModelScope.launch {
             userRepository.deleteUser(user)
-            CustomerIO.instance().clearIdentify()
+            io.customer.sdk.android.CustomerIO.instance().clearIdentify()
             onLogout.invoke()
         }
     }

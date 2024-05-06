@@ -36,7 +36,7 @@ dependencies {
     api project(":base")
     api project(":core")
     implementation(Dependencies.segment)
-    implementation(Dependencies.kotlinxSerializationJson)
+    api(Dependencies.kotlinxSerializationJson)
 
     testImplementation(Dependencies.mockito)
     testImplementation(Dependencies.mockitoKotlin)

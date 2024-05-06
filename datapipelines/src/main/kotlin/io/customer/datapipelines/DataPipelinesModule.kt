@@ -143,10 +143,10 @@ internal constructor(
         commonIdentify<Nothing>(userId = userId, traitsMap = traits)
     }
 
-    override fun <Body> identify(
+    override fun <Traits> identify(
         userId: String,
-        traits: Body,
-        serializationStrategy: SerializationStrategy<Body>
+        traits: Traits,
+        serializationStrategy: SerializationStrategy<Traits>
     ) = commonIdentify(userId = userId, traitsSerializable = traits to serializationStrategy)
 
     override fun clearIdentify() {

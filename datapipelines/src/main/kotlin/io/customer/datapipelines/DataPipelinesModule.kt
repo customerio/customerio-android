@@ -7,7 +7,7 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.plugins.CustomerIODestination
-import io.customer.sdk.android.CustomerIOInstance
+import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
@@ -22,7 +22,7 @@ class DataPipelinesModule
 internal constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig
-) : CustomerIOModule<DataPipelinesModuleConfig>, CustomerIOInstance {
+) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance {
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger

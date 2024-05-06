@@ -1,4 +1,4 @@
-public final class io/customer/datapipelines/DataPipelinesModule : io/customer/sdk/android/CustomerIOInstance, io/customer/sdk/core/module/CustomerIOModule {
+public final class io/customer/datapipelines/DataPipelinesModule : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/datapipelines/DataPipelinesModule$Companion;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
@@ -93,5 +93,18 @@ public final class io/customer/sdk/CustomerIOBuilder {
 	public final fun setMigrationSiteId (Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun setRegion (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun setTrackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOBuilder;
+}
+
+public abstract interface class io/customer/sdk/DataPipelineInstance : io/customer/sdk/android/CustomerIOInstance {
+}
+
+public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipelineInstance {
+	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
+	public synthetic fun <init> (Lio/customer/sdk/DataPipelineInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
+}
+
+public final class io/customer/sdk/android/CustomerIO$Companion {
+	public final fun instance ()Lio/customer/sdk/android/CustomerIO;
 }
 

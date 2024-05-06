@@ -1,4 +1,4 @@
-// TODO: Move this class and its dependencies (CustomerIOInstance) to the correct package.
+// TODO: Move this class and its dependencies (CustomerIOInstance, DataPipelineInstance) to the correct package.
 // We need to move this class to the right package to avoid breaking imports for the users of the SDK.
 // We have placed the class in the wrong package for now to avoid breaking the build.
 // Once old implementations are removed, we can move the class to the correct package.
@@ -6,6 +6,7 @@ package io.customer.sdk.android
 
 import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.SDKComponent
 
 /**
@@ -24,8 +25,8 @@ import io.customer.sdk.core.di.SDKComponent
  * After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
 class CustomerIO private constructor(
-    implementation: CustomerIOInstance
-) : CustomerIOInstance by implementation {
+    implementation: DataPipelineInstance
+) : DataPipelineInstance by implementation {
     companion object {
         /**
          * Singleton instance of CustomerIO SDK that is created and set using the provided implementation.
@@ -53,7 +54,7 @@ class CustomerIO private constructor(
         @Synchronized
         @InternalCustomerIOApi
         fun createInstance(
-            implementation: CustomerIOInstance
+            implementation: DataPipelineInstance
         ): CustomerIO {
             val existingInstance = instance
             if (existingInstance != null) {

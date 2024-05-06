@@ -95,3 +95,16 @@ public final class io/customer/sdk/CustomerIOBuilder {
 	public final fun setTrackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOBuilder;
 }
 
+public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/android/CustomerIOInstance {
+	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
+	public synthetic fun <init> (Lio/customer/sdk/android/CustomerIOInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
+}
+
+public final class io/customer/sdk/android/CustomerIO$Companion {
+	public final fun instance ()Lio/customer/sdk/android/CustomerIO;
+}
+
+public abstract interface class io/customer/sdk/android/CustomerIOInstance {
+}
+

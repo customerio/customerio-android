@@ -1,16 +1,3 @@
-public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/android/CustomerIOInstance {
-	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
-	public synthetic fun <init> (Lio/customer/sdk/android/CustomerIOInstance;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
-}
-
-public final class io/customer/sdk/android/CustomerIO$Companion {
-	public final fun instance ()Lio/customer/sdk/android/CustomerIO;
-}
-
-public abstract interface class io/customer/sdk/android/CustomerIOInstance {
-}
-
 public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z

@@ -1,3 +1,6 @@
+public abstract interface class io/customer/sdk/android/CustomerIOInstance {
+}
+
 public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z

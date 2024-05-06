@@ -105,6 +105,3 @@ public final class io/customer/sdk/android/CustomerIO$Companion {
 	public final fun instance ()Lio/customer/sdk/android/CustomerIO;
 }
 
-public abstract interface class io/customer/sdk/android/CustomerIOInstance {
-}
-

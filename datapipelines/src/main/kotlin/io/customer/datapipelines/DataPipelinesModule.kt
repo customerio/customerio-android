@@ -24,7 +24,7 @@ class DataPipelinesModule
 internal constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig
-) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance {
+) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
@@ -90,37 +90,20 @@ internal constructor(
      */
     private fun <Traits> commonIdentify(
         userId: String,
-        traitsMap: CustomAttributes? = null,
-        traitsSerializable: Pair<Traits, SerializationStrategy<Traits>>? = null
+        traits: Traits,
+        serializationStrategy: SerializationStrategy<Traits>
     ) {
         if (userId.isBlank()) {
             logger.debug("Profile cannot be identified: Identifier is blank. Please retry with a valid, non-empty identifier.")
             return
         }
 
-        logger.info("identify profile with id $userId")
-        when {
-            traitsMap != null -> {
-                logger.debug("identify profile with traits $traitsMap")
-                analytics.identify(
-                    userId = userId,
-                    traits = traitsMap
-                )
-            }
-
-            traitsSerializable != null -> {
-                logger.debug("identify profile with traits $traitsSerializable")
-                analytics.identify(
-                    userId = userId,
-                    traits = traitsSerializable.first,
-                    serializationStrategy = traitsSerializable.second
-                )
-            }
-
-            else -> {
-                analytics.identify(userId = userId)
-            }
-        }
+        logger.debug("identify profile with traits $traits")
+        analytics.identify(
+            userId = userId,
+            traits = traits,
+            serializationStrategy = serializationStrategy
+        )
     }
 
     override var profileAttributes: CustomAttributes
@@ -128,26 +111,18 @@ internal constructor(
         set(value) {
             val userId = registeredUserId
             if (userId != null) {
-                commonIdentify<Nothing>(userId = userId, traitsMap = value)
+                identify(userId, value)
             } else {
                 logger.debug("No user profile found, updating traits for anonymous user ${analytics.anonymousId()}")
                 analytics.identify(traits = value)
             }
         }
 
-    override fun identify(userId: String) {
-        commonIdentify<Nothing>(userId = userId)
-    }
-
-    override fun identify(userId: String, traits: CustomAttributes) {
-        commonIdentify<Nothing>(userId = userId, traitsMap = traits)
-    }
-
     override fun <Traits> identify(
         userId: String,
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
-    ) = commonIdentify(userId = userId, traitsSerializable = traits to serializationStrategy)
+    ) = commonIdentify(userId = userId, traits = traits, serializationStrategy = serializationStrategy)
 
     override fun clearIdentify() {
         val userId = registeredUserId ?: "anonymous"

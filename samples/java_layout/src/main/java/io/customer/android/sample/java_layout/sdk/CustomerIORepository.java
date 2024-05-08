@@ -103,7 +103,7 @@ public class CustomerIORepository {
     }
 
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {
-        io.customer.sdk.android.CustomerIO.instance().identify(email, attributes);
+        io.customer.sdk.android.CustomerIO.instance().identify(email);
     }
 
     public void clearIdentify() {

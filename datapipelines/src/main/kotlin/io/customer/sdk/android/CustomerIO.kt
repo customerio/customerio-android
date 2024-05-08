@@ -26,7 +26,7 @@ import io.customer.sdk.core.di.SDKComponent
  */
 class CustomerIO private constructor(
     implementation: DataPipelineInstance
-) : DataPipelineInstance by implementation {
+) : DataPipelineInstance() {
     companion object {
         /**
          * Singleton instance of CustomerIO SDK that is created and set using the provided implementation.

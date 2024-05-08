@@ -1,18 +1,26 @@
 package io.customer.sdk
 
+import com.segment.analytics.kotlin.core.emptyJsonObject
+import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.data.model.CustomAttributes
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.serializer
 
 /**
  * Extends [CustomerIOInstance] to provide the instance of CustomerIO SDK with
  * Data Pipelines implementation.
  */
-interface DataPipelineInstance : CustomerIOInstance {
+abstract class DataPipelineInstance : CustomerIOInstance {
     /**
      * Custom profile attributes to be added to current profile.
      */
-    var profileAttributes: CustomAttributes
+    abstract var profileAttributes: CustomAttributes
+
+    inline fun <reified Traits> identify(userId: String, traits: Traits) {
+        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+    }
 
     /**
      * Identify a customer (aka: Add or update a profile).
@@ -24,7 +32,10 @@ interface DataPipelineInstance : CustomerIOInstance {
      * This value can be an internal ID that your system uses or an email address.
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      */
-    fun identify(userId: String)
+    @JvmOverloads
+    fun identify(userId: String, traits: JsonObject = emptyJsonObject) {
+        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+    }
 
     /**
      * Identify a customer (aka: Add or update a profile).
@@ -37,7 +48,9 @@ interface DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits Map of <String, Any> to be added
      */
-    fun identify(userId: String, traits: CustomAttributes)
+    fun identify(userId: String, traits: CustomAttributes) {
+        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+    }
 
     /**
      * Identify a customer (aka: Add or update a profile).
@@ -52,7 +65,7 @@ interface DataPipelineInstance : CustomerIOInstance {
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      * @param serializationStrategy strategy to serialize [traits]
      */
-    fun <Traits> identify(
+    abstract fun <Traits> identify(
         userId: String,
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
@@ -65,5 +78,5 @@ interface DataPipelineInstance : CustomerIOInstance {
      * call `identify()` again to identify the new customer profile over the existing.
      * If no profile has been identified yet, this function will reset anonymous profile.
      */
-    fun clearIdentify()
+    abstract fun clearIdentify()
 }

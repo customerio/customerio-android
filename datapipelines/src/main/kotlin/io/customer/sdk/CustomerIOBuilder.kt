@@ -2,7 +2,6 @@ package io.customer.sdk
 
 import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
-import io.customer.datapipelines.DataPipelinesModule
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
@@ -17,7 +16,7 @@ import io.customer.sdk.data.model.Region
  * Creates a new instance of builder for CustomerIO SDK.
  * The class uses builder pattern to simplify the setup and configuration of CustomerIO SDK,
  * including its core components and additional modules.
- * It automatically includes the [DataPipelinesModule] to ensure all events are routed to it.
+ * It automatically includes implementations of [DataPipelineInstance] to ensure all events are routed to it.
  *
  * Example usage:
  * ```
@@ -176,14 +175,17 @@ class CustomerIOBuilder(
             autoTrackDeviceAttributes = autoTrackDeviceAttributes,
             migrationSiteId = migrationSiteId
         )
-        val dataPipelinesModule = DataPipelinesModule(androidSDKComponent, dataPipelinesConfig)
-
-        // Register DataPipelinesModule and all other modules
-        modules[DataPipelinesModule.MODULE_NAME] = dataPipelinesModule
-        modules.putAll(registeredModules.associateBy { module -> module.moduleName })
 
         // Initialize CustomerIO instance before initializing the modules
-        val customerIO = CustomerIO.createInstance(implementation = dataPipelinesModule)
+        val customerIO = CustomerIO.createInstance(
+            androidSDKComponent = androidSDKComponent,
+            moduleConfig = dataPipelinesConfig
+        )
+
+        // Register DataPipelines module and all other modules with SDKComponent
+        modules[CustomerIO.MODULE_NAME] = customerIO
+        modules.putAll(registeredModules.associateBy { module -> module.moduleName })
+
         modules.forEach { (_, module) ->
             logger.debug("initializing SDK module ${module.moduleName}...")
             module.initialize()

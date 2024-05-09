@@ -62,9 +62,9 @@ class LoginViewModel @Inject constructor(
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             userRepository.login(email = email, name = name, isGuest = isGuest)
-            CustomerIO.instance().identify(
-                identifier = email,
-                attributes = mapOf("name" to name, "is_guest" to isGuest)
+            io.customer.sdk.android.CustomerIO.instance().identify(
+                userId = email,
+                traits = mapOf("name" to name, "is_guest" to isGuest)
             )
             CustomerIO.instance().track(
                 name = "login",

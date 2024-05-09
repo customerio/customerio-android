@@ -62,6 +62,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param traits Map of <String, Any> to be added
      */
     fun identify(userId: String, traits: CustomAttributes) {
+        // Method needed for Java interop as inline doesn't work with Java
         identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
     }
 

@@ -86,6 +86,125 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     )
 
     /**
+     * The track method helps you record events: the things your users do on your app.
+     * Each track call records a single event. Each event has a name and properties.
+     * For example, if you send a track call when someone starts a video on your app,
+     * the name of the event might be Video Started,
+     * and the properties might include the title of the video, the length of the video, and so on.
+     *
+     * @param name Name of the action
+     * @param properties custom values providing extra information about the event.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
+     */
+    @JvmOverloads
+    fun track(name: String, properties: JsonObject = emptyJsonObject) {
+        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The track method helps you record events: the things your users do on your app.
+     * Each track call records a single event. Each event has a name and properties.
+     * For example, if you send a track call when someone starts a video on your app,
+     * the name of the event might be Video Started,
+     * and the properties might include the title of the video, the length of the video, and so on.
+     *
+     * @param name Name of the action
+     * @param properties Map of <String, Any> to be added
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
+     */
+    fun track(name: String, properties: CustomAttributes) {
+        // Method needed for Java interop as inline doesn't work with Java
+        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The track method helps you record events: the things your users do on your app.
+     * Each track call records a single event. Each event has a name and properties.
+     * For example, if you send a track call when someone starts a video on your app,
+     * the name of the event might be Video Started,
+     * and the properties might include the title of the video, the length of the video, and so on.
+     *
+     * @param name Name of the action
+     * @param properties to describe the action. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
+     * @param serializationStrategy strategy to serialize [properties]
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
+     */
+    abstract fun <T> track(
+        name: String,
+        properties: T,
+        serializationStrategy: SerializationStrategy<T>
+    )
+
+    /**
+     * The track method helps you record events: the things your users do on your app.
+     * Each track call records a single event. Each event has a name and properties.
+     * For example, if you send a track call when someone starts a video on your app,
+     * the name of the event might be Video Started,
+     * and the properties might include the title of the video, the length of the video, and so on.
+     *
+     * @param name Name of the action
+     * @param properties to describe the action. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
+     */
+    inline fun <reified T> track(
+        name: String,
+        properties: T
+    ) {
+        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param name A name for the screen.
+     * @param properties Additional details about the screen.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    @JvmOverloads
+    fun screen(name: String, properties: JsonObject = emptyJsonObject) {
+        screen(name, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param name A name for the screen.
+     * @param properties Additional details about the screen in Map <String, Any> format.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    fun screen(name: String, properties: CustomAttributes) {
+        // Method needed for Java interop as inline doesn't work with Java
+        screen(name, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param name A name for the screen.
+     * @param properties Additional details about the screen.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    abstract fun <T> screen(
+        name: String,
+        properties: T,
+        serializationStrategy: SerializationStrategy<T>
+    )
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param name A name for the screen.
+     * @param properties Additional details about the screen.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    inline fun <reified T> screen(
+        name: String,
+        properties: T
+    ) {
+        screen(name, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
      * be associated with the previously identified customer.
      * Note: If you simply want to identify a *new* customer, this function call is optional. Simply

@@ -93,7 +93,17 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/and
 	public final fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun identify (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
 	public static synthetic fun identify$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public final fun screen (Ljava/lang/String;)V
+	public abstract fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun screen (Ljava/lang/String;Ljava/util/Map;)V
+	public final fun screen (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public static synthetic fun screen$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
 	public abstract fun setProfileAttributes (Ljava/util/Map;)V
+	public final fun track (Ljava/lang/String;)V
+	public abstract fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun track (Ljava/lang/String;Ljava/util/Map;)V
+	public final fun track (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
 }
 
 public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
@@ -107,7 +117,9 @@ public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipe
 	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
+	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
+	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 }
 
 public final class io/customer/sdk/android/CustomerIO$Companion {

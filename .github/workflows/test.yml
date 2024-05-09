@@ -1,6 +1,8 @@
 name: Tests
 
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize] // # Don't rerun on `edited` to save time
 
 jobs:
   unit-test:
@@ -31,7 +33,7 @@ jobs:
         if: ${{ always() }} # if running tests fails, we still want to parse the test results
 
   instrumentation-test:
-    runs-on: macos-latest
+    runs-on: macos-11
     timeout-minutes: 45
     strategy:
       # Add more samples here as they are added to the project.
@@ -45,17 +47,14 @@ jobs:
         with:
           # Configuration options for the emulator for the best optimization.
           api-level: 29
-          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           ram-size: 4096M
-          emulator-boot-timeout: 12000
           target: default
-          arch: x86
+          arch: x86_64
           emulator-build: 7425822 # https://github.com/ReactiveCircus/android-emulator-runner/issues/160
-          profile: Nexus 6
           # Run the instrumentation tests on the emulator.
-          script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest
+          script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true --debug
       - name: Publish test results
         uses: mikepenz/action-junit-report@v4
         if: always()

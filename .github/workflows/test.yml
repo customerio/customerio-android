@@ -33,7 +33,7 @@ jobs:
         if: ${{ always() }} # if running tests fails, we still want to parse the test results
 
   instrumentation-test:
-    runs-on: macos-12
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       # Add more samples here as they are added to the project.
@@ -42,13 +42,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Gradle cache
-        uses: actions/cache@v3
-        with:
-          path: |
-             ~/.gradle/caches
-             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*') }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}-${{ hashFiles('**/buildSrc/**/*.kt') }}
+        uses: gradle/actions/setup-gradle@v3
+
       - name: AVD cache
         uses: actions/cache@v3
         id: avd-cache
@@ -56,23 +58,29 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-33-x86_64-20231227
-      - name: Start emulator
+          key: avd-31
+
+      - name: create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # Configuration options for the emulator for the best optimization.
-          api-level: 33
+          api-level: 31
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: run tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
           cores: 3
-          force-avd-creation: true
+          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
           disable-animations: true
           ram-size: 4096M
           target: google_apis
           arch: x86_64
-          pre-emulator-launch-script: |
-            cat ~/.android/avd/test.avd/config.ini || true
-            cat ~/.android/avd/test.avd/hardware-qemu.ini || true
           # Run the instrumentation tests on the emulator.
           script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true --debug
       - name: Publish test results

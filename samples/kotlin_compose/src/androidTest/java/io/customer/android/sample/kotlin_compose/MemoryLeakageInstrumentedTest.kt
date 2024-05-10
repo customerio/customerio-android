@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.persistance.AppDatabase
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
@@ -18,6 +19,7 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.util.CioLogLevel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -73,6 +75,22 @@ class MemoryLeakageInstrumentedTest {
             setLogLevel(CioLogLevel.DEBUG)
             setBackgroundQueueMinNumberOfTasks(5)
             setBackgroundQueueSecondsDelay(5.0)
+            addCustomerIOModule(
+                ModuleMessagingInApp(
+                    config = MessagingInAppModuleConfig.Builder()
+                        .setEventListener(InAppMessageEventListener()).build()
+                )
+            )
+            addCustomerIOModule(ModuleMessagingPushFCM())
+            build()
+        }
+
+        CustomerIOBuilder(
+            applicationContext = appContext as Application,
+            cdpApiKey = configuration.cdpApiKey
+        ).apply {
+            configuration.setValuesFromBuilder(this)
+
             addCustomerIOModule(
                 ModuleMessagingInApp(
                     config = MessagingInAppModuleConfig.Builder()

@@ -43,4 +43,10 @@ dependencies {
     testImplementation(Dependencies.mockito)
     testImplementation(Dependencies.mockitoKotlin)
     testImplementation(Dependencies.robolectric)
+
+    testImplementation(Dependencies.mockk)
+    testImplementation(Dependencies.coroutinesTest)
+
+    testImplementation(platform(Dependencies.junitBom))
+    testImplementation(Dependencies.junitJupiter)
 }

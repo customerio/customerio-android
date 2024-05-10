@@ -1,5 +1,7 @@
 package io.customer.sdk.core.di
 
+import androidx.annotation.CallSuper
+
 abstract class DiGraph {
     /**
      * Map of dependencies that can be overridden with mocks in test functions.
@@ -101,7 +103,8 @@ abstract class DiGraph {
      * This is meant to be called in between automated tests but can also be
      * called to reset that state of the SDK at runtime.
      */
-    fun reset() {
+    @CallSuper
+    open fun reset() {
         overrides.clear()
         singletons.clear()
     }

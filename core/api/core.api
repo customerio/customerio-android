@@ -19,7 +19,7 @@ public abstract class io/customer/sdk/core/di/DiGraph {
 	public final fun getOverrides ()Ljava/util/Map;
 	public final fun getSingletons ()Ljava/util/Map;
 	public final fun overrideDependency (Ljava/lang/Class;Ljava/lang/Object;)V
-	public final fun reset ()V
+	public fun reset ()V
 }
 
 public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/di/DiGraph {
@@ -28,6 +28,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
+	public fun reset ()V
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {

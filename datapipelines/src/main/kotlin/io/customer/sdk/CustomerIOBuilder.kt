@@ -59,6 +59,9 @@ class CustomerIOBuilder(
     // Configuration options required for migration from earlier versions
     private var migrationSiteId: String? = null
 
+    // Overrides the default DataPipelines module instance with custom implementation
+    private var overrideDataPipelineInstance: ((DataPipelinesModuleConfig) -> CustomerIO)? = null
+
     /**
      * Specifies the log level for the SDK.
      * Default value is [CioLogLevel.ERROR].
@@ -153,6 +156,17 @@ class CustomerIOBuilder(
         return this
     }
 
+    /**
+     * Overrides the default [CustomerIO] instance with a custom implementation.
+     * This is useful for testing only and should not be used in production.
+     */
+    internal fun setOverrideDataPipelineInstance(
+        overrideDataPipelineInstance: (DataPipelinesModuleConfig) -> CustomerIO
+    ): CustomerIOBuilder {
+        this.overrideDataPipelineInstance = overrideDataPipelineInstance
+        return this
+    }
+
     fun build(): CustomerIO {
         // Register AndroidSDKComponent to fulfill the dependencies required by the SDK modules
         val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(context = applicationContext)
@@ -177,7 +191,7 @@ class CustomerIOBuilder(
         )
 
         // Initialize CustomerIO instance before initializing the modules
-        val customerIO = CustomerIO.createInstance(
+        val customerIO = overrideDataPipelineInstance?.invoke(dataPipelinesConfig) ?: CustomerIO.createInstance(
             androidSDKComponent = androidSDKComponent,
             moduleConfig = dataPipelinesConfig
         )

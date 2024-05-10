@@ -12,6 +12,7 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -37,9 +38,10 @@ import kotlinx.serialization.SerializationStrategy
  * It is recommended to initialize the client in the `Application::onCreate()` method.
  * After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-class CustomerIO private constructor(
+class CustomerIO internal constructor(
     androidSDKComponent: AndroidSDKComponent,
-    override val moduleConfig: DataPipelinesModuleConfig
+    override val moduleConfig: DataPipelinesModuleConfig,
+    overrideAnalytics: Analytics? = null
 ) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
     override val moduleName: String = MODULE_NAME
 
@@ -64,21 +66,14 @@ class CustomerIO private constructor(
         }
     }
 
-    private val analytics: Analytics = Analytics(
+    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
         writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext
-    ) {
-        flushAt = moduleConfig.flushAt
-        flushInterval = moduleConfig.flushInterval
-        flushPolicies = moduleConfig.flushPolicies
-        // Force set to false as we don't need to forward events to Segment destination
-        // User can disable CIO destination to achieve same results
-        autoAddSegmentDestination = false
-        trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
-        apiHost = moduleConfig.apiHost
-        cdnHost = moduleConfig.cdnHost
-        errorHandler = errorLogger
-    }
+        context = androidSDKComponent.applicationContext,
+        configs = updateAnalyticsConfig(
+            moduleConfig = moduleConfig,
+            errorHandler = errorLogger
+        )
+    )
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration

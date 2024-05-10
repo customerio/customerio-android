@@ -98,7 +98,6 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/and
 
 public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
-	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun clearIdentify ()V
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;

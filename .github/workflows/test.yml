@@ -33,7 +33,7 @@ jobs:
         if: ${{ always() }} # if running tests fails, we still want to parse the test results
 
   instrumentation-test:
-    runs-on: macos-11
+    runs-on: macos-12
     timeout-minutes: 45
     strategy:
       # Add more samples here as they are added to the project.
@@ -42,17 +42,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
+      - name: Gradle cache
+        uses: actions/cache@v3
+        with:
+          path: |
+             ~/.gradle/caches
+             ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*') }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}-${{ hashFiles('**/buildSrc/**/*.kt') }}
+      - name: AVD cache
+        uses: actions/cache@v3
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33-x86_64-20231227
       - name: Start emulator
+        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           # Configuration options for the emulator for the best optimization.
-          api-level: 29
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          api-level: 33
+          cores: 3
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
           disable-animations: true
           ram-size: 4096M
-          target: default
+          target: google_apis
           arch: x86_64
-          emulator-build: 7425822 # https://github.com/ReactiveCircus/android-emulator-runner/issues/160
+          pre-emulator-launch-script: |
+            cat ~/.android/avd/test.avd/config.ini || true
+            cat ~/.android/avd/test.avd/hardware-qemu.ini || true
           # Run the instrumentation tests on the emulator.
           script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true --debug
       - name: Publish test results

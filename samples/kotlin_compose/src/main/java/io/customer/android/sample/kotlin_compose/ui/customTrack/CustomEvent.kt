@@ -101,9 +101,9 @@ fun CustomEventRoute(
                 text = stringResource(R.string.send_event),
                 modifier = Modifier.testTag(stringResource(id = R.string.acd_send_event_button)),
                 onClick = {
-                    CustomerIO.instance().track(
+                    io.customer.sdk.android.CustomerIO.instance().track(
                         name = eventName,
-                        attributes = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
+                        properties = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
                     )
                     scope.launch {
                         snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))

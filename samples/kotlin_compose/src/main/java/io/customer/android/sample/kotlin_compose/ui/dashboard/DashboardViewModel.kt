@@ -46,19 +46,19 @@ class DashboardViewModel @Inject constructor(
     fun sendRandomEvent() {
         when (Random().nextInt(3)) {
             0 -> {
-                CustomerIO.instance().track("Order Purchased")
+                io.customer.sdk.android.CustomerIO.instance().track("Order Purchased")
             }
 
             1 -> {
                 val attributes = mapOf("movie_name" to "The Incredibles")
-                CustomerIO.instance().track("movie_watched", attributes)
+                io.customer.sdk.android.CustomerIO.instance().track("movie_watched", attributes)
             }
 
             2 -> {
                 val sevenDaysLater =
                     Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.time
                 val attributes = mapOf("appointmentTime" to sevenDaysLater)
-                CustomerIO.instance().track("appointmentScheduled", attributes)
+                io.customer.sdk.android.CustomerIO.instance().track("appointmentScheduled", attributes)
             }
         }
     }

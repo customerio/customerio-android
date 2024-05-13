@@ -66,9 +66,9 @@ class LoginViewModel @Inject constructor(
                 userId = email,
                 traits = mapOf("name" to name, "is_guest" to isGuest)
             )
-            CustomerIO.instance().track(
+            io.customer.sdk.android.CustomerIO.instance().track(
                 name = "login",
-                attributes = mapOf("name" to name, "email" to email)
+                properties = mapOf("name" to name, "email" to email)
             )
             withContext(Dispatchers.Main) {
                 onLoginSuccess.invoke()

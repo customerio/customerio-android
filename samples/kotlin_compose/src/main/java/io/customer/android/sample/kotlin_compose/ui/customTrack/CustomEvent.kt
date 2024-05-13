@@ -44,7 +44,7 @@ fun CustomEventRoute(
     val context = LocalContext.current
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        CustomerIO.instance().screen("Custom Event")
+        io.customer.sdk.android.CustomerIO.instance().screen("Custom Event")
     })
 
     Column(

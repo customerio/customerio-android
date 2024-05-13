@@ -154,6 +154,57 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     }
 
     /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param title A name for the screen.
+     * @param properties Additional details about the screen.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    @JvmOverloads
+    fun screen(title: String, properties: JsonObject = emptyJsonObject) {
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param title A name for the screen.
+     * @param properties Additional details about the screen in Map <String, Any> format.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    fun screen(title: String, properties: CustomAttributes) {
+        // Method needed for Java interop as inline doesn't work with Java
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param title A name for the screen.
+     * @param properties Additional details about the screen.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    abstract fun <T> screen(
+        title: String,
+        properties: T,
+        serializationStrategy: SerializationStrategy<T>
+    )
+
+    /**
+     * The screen methods represents screen views in your mobile apps
+     *
+     * @param title A name for the screen.
+     * @param properties Additional details about the screen.
+     * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
+     */
+    inline fun <reified T> screen(
+        title: String,
+        properties: T
+    ) {
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
      * be associated with the previously identified customer.
      * Note: If you simply want to identify a *new* customer, this function call is optional. Simply

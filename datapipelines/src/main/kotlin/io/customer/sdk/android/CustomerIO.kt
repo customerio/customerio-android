@@ -147,9 +147,9 @@ class CustomerIO private constructor(
      * Common method to track an screen with properties.
      * All other screen methods should call this method to ensure consistency.
      */
-    override fun <T> screen(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
-        logger.debug("track a screen with title $name, properties $properties")
-        analytics.screen(title = name, properties = properties, serializationStrategy = serializationStrategy)
+    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        logger.debug("track a screen with title $title, properties $properties")
+        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
     }
 
     override fun clearIdentify() {

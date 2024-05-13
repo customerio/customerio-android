@@ -156,36 +156,36 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     /**
      * The screen methods represents screen views in your mobile apps
      *
-     * @param name A name for the screen.
+     * @param title A name for the screen.
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
     @JvmOverloads
-    fun screen(name: String, properties: JsonObject = emptyJsonObject) {
-        screen(name, properties, JsonAnySerializer.serializersModule.serializer())
+    fun screen(title: String, properties: JsonObject = emptyJsonObject) {
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
      * The screen methods represents screen views in your mobile apps
      *
-     * @param name A name for the screen.
+     * @param title A name for the screen.
      * @param properties Additional details about the screen in Map <String, Any> format.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
-    fun screen(name: String, properties: CustomAttributes) {
+    fun screen(title: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        screen(name, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
      * The screen methods represents screen views in your mobile apps
      *
-     * @param name A name for the screen.
+     * @param title A name for the screen.
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
     abstract fun <T> screen(
-        name: String,
+        title: String,
         properties: T,
         serializationStrategy: SerializationStrategy<T>
     )
@@ -193,15 +193,15 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     /**
      * The screen methods represents screen views in your mobile apps
      *
-     * @param name A name for the screen.
+     * @param title A name for the screen.
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
     inline fun <reified T> screen(
-        name: String,
+        title: String,
         properties: T
     ) {
-        screen(name, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
     }
 
     /**

@@ -2,7 +2,7 @@ package io.customer.datapipelines.core
 
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.BaseUnitTest
-import io.customer.datapipelines.extensions.requireAndroidSDKComponent
+import io.customer.datapipelines.extensions.registerAnalyticsFactory
 import io.customer.datapipelines.utils.OutputReaderPlugin
 import io.customer.datapipelines.utils.clearPersistentStorage
 import io.customer.datapipelines.utils.createTestAnalyticsInstance
@@ -28,14 +28,21 @@ abstract class UnitTest : BaseUnitTest() {
         initializeModule()
     }
 
-    private fun initializeModule() {
-        mockHTTPClient()
+    protected open fun initializeModule() {
+        setupDependencies()
 
         sdkInstance = createModuleInstance()
         analytics = sdkInstance.analytics
 
         outputReaderPlugin = OutputReaderPlugin(analytics)
         analytics.add(outputReaderPlugin)
+    }
+
+    protected open fun setupDependencies() {
+        mockHTTPClient()
+        SDKComponent.registerAnalyticsFactory { moduleConfig ->
+            return@registerAnalyticsFactory createTestAnalyticsInstance(moduleConfig)
+        }
     }
 
     protected open fun createModuleInstance(
@@ -45,14 +52,6 @@ abstract class UnitTest : BaseUnitTest() {
         val builder = CustomerIOBuilder(mock(), cdpApiKey)
         // Disable adding destination to analytics instance so events are not sent to the server by default
         builder.setAutoAddCustomerIODestination(false)
-        // Setup data pipeline module to use test analytics instance
-        builder.setOverrideDataPipelineInstance { moduleConfig ->
-            return@setOverrideDataPipelineInstance CustomerIO(
-                androidSDKComponent = SDKComponent.requireAndroidSDKComponent(),
-                moduleConfig = moduleConfig,
-                overrideAnalytics = createTestAnalyticsInstance(moduleConfig)
-            )
-        }
         // Apply custom configuration for the test
         builder.applyConfig()
         return builder.build()

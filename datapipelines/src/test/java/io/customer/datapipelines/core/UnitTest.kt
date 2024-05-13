@@ -39,7 +39,9 @@ abstract class UnitTest : BaseUnitTest() {
     }
 
     protected open fun setupDependencies() {
+        // Mock HTTP client to override CDP settings with test values
         mockHTTPClient()
+        // Setup analytics factory to create test analytics instance
         SDKComponent.registerAnalyticsFactory { moduleConfig ->
             return@registerAnalyticsFactory createTestAnalyticsInstance(moduleConfig)
         }

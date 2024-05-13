@@ -39,7 +39,7 @@ import kotlinx.serialization.SerializationStrategy
  * It is recommended to initialize the client in the `Application::onCreate()` method.
  * After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-class CustomerIO internal constructor(
+class CustomerIO private constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig,
     overrideAnalytics: Analytics? = null

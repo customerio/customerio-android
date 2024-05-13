@@ -62,7 +62,7 @@ fun SettingsRoute(
     val state by settingsViewModel.uiState.collectAsState()
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        CustomerIO.instance().screen("Settings")
+        io.customer.sdk.android.CustomerIO.instance().screen("Settings")
     })
 
     SettingsScreen(

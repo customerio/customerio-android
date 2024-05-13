@@ -129,6 +129,24 @@ class CustomerIO internal constructor(
         )
     }
 
+    /**
+     * Common method to track an event with traits.
+     * All other track methods should call this method to ensure consistency.
+     */
+    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        logger.debug("track an event with name $name and attributes $properties")
+        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy)
+    }
+
+    /**
+     * Common method to track an screen with properties.
+     * All other screen methods should call this method to ensure consistency.
+     */
+    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        logger.debug("track a screen with title $title, properties $properties")
+        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
+    }
+
     override fun clearIdentify() {
         val userId = registeredUserId ?: "anonymous"
         logger.debug("resetting user profile with id $userId")

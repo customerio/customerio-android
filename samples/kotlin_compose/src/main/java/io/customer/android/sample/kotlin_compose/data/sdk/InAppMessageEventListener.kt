@@ -51,7 +51,7 @@ class InAppMessageEventListener(private val logger: Logger = Logger()) : InAppEv
         message: InAppMessage,
         arguments: Map<String, String>?
     ) {
-        CustomerIO.instance().track(
+        io.customer.sdk.android.CustomerIO.instance().track(
             "in-app message action",
             HashMap<String, String>().apply {
                 arguments?.let { putAll(it) }

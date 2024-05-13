@@ -2,7 +2,9 @@ package io.customer.datapipelines.extensions
 
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.di.SDKComponentKeys
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.extensions.registerDependency
 
 /**
  * Registers the analytics factory to the SDKComponent.
@@ -11,4 +13,4 @@ import io.customer.sdk.core.di.SDKComponent
  */
 fun SDKComponent.registerAnalyticsFactory(
     factory: (moduleConfig: DataPipelinesModuleConfig) -> Analytics
-) = registerDependency(identifier = "analyticsFactory") { factory }
+) = registerDependency(identifier = SDKComponentKeys.AnalyticsFactory) { factory }

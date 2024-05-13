@@ -119,7 +119,7 @@ public class CustomerIORepository {
     }
 
     public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {
-        CustomerIO.instance().track(eventName, extras);
+        io.customer.sdk.android.CustomerIO.instance().track(eventName, extras);
     }
 
     public void setDeviceAttributes(@NonNull Map<String, String> attributes) {

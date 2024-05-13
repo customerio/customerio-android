@@ -12,6 +12,7 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.DataPipelineInstance
@@ -129,6 +130,24 @@ class CustomerIO internal constructor(
         )
     }
 
+    /**
+     * Common method to track an event with traits.
+     * All other track methods should call this method to ensure consistency.
+     */
+    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        logger.debug("track an event with name $name and attributes $properties")
+        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy)
+    }
+
+    /**
+     * Common method to track an screen with properties.
+     * All other screen methods should call this method to ensure consistency.
+     */
+    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        logger.debug("track a screen with title $title, properties $properties")
+        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
+    }
+
     override fun clearIdentify() {
         val userId = registeredUserId ?: "anonymous"
         logger.debug("resetting user profile with id $userId")
@@ -181,7 +200,8 @@ class CustomerIO internal constructor(
             logger.debug("creating new instance of CustomerIO SDK.")
             return CustomerIO(
                 androidSDKComponent = androidSDKComponent,
-                moduleConfig = moduleConfig
+                moduleConfig = moduleConfig,
+                overrideAnalytics = SDKComponent.analyticsFactory?.invoke(moduleConfig)
             ).apply { instance = this }
         }
 

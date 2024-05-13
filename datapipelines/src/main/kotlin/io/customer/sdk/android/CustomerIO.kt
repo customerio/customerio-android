@@ -12,6 +12,8 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.di.analyticsFactory
+import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -39,7 +41,8 @@ import kotlinx.serialization.SerializationStrategy
  */
 class CustomerIO private constructor(
     androidSDKComponent: AndroidSDKComponent,
-    override val moduleConfig: DataPipelinesModuleConfig
+    override val moduleConfig: DataPipelinesModuleConfig,
+    overrideAnalytics: Analytics? = null
 ) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
     override val moduleName: String = MODULE_NAME
 
@@ -64,21 +67,14 @@ class CustomerIO private constructor(
         }
     }
 
-    private val analytics: Analytics = Analytics(
+    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
         writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext
-    ) {
-        flushAt = moduleConfig.flushAt
-        flushInterval = moduleConfig.flushInterval
-        flushPolicies = moduleConfig.flushPolicies
-        // Force set to false as we don't need to forward events to Segment destination
-        // User can disable CIO destination to achieve same results
-        autoAddSegmentDestination = false
-        trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
-        apiHost = moduleConfig.apiHost
-        cdnHost = moduleConfig.cdnHost
-        errorHandler = errorLogger
-    }
+        context = androidSDKComponent.applicationContext,
+        configs = updateAnalyticsConfig(
+            moduleConfig = moduleConfig,
+            errorHandler = errorLogger
+        )
+    )
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -204,7 +200,8 @@ class CustomerIO private constructor(
             logger.debug("creating new instance of CustomerIO SDK.")
             return CustomerIO(
                 androidSDKComponent = androidSDKComponent,
-                moduleConfig = moduleConfig
+                moduleConfig = moduleConfig,
+                overrideAnalytics = SDKComponent.analyticsFactory?.invoke(moduleConfig)
             ).apply { instance = this }
         }
 

@@ -18,4 +18,11 @@ object SDKComponent : DiGraph() {
     val buildEnvironment: BuildEnvironment get() = newInstance { DefaultBuildEnvironment() }
     val logger: Logger get() = singleton { LogcatLogger(buildEnvironment = buildEnvironment) }
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
+
+    override fun reset() {
+        androidSDKComponent?.reset()
+        modules.clear()
+
+        super.reset()
+    }
 }

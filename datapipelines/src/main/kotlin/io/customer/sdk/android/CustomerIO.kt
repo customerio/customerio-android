@@ -12,6 +12,7 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.extensions.analyticsFactory
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.DataPipelineInstance
@@ -38,7 +39,7 @@ import kotlinx.serialization.SerializationStrategy
  * It is recommended to initialize the client in the `Application::onCreate()` method.
  * After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
  */
-class CustomerIO internal constructor(
+class CustomerIO private constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig,
     overrideAnalytics: Analytics? = null
@@ -199,7 +200,8 @@ class CustomerIO internal constructor(
             logger.debug("creating new instance of CustomerIO SDK.")
             return CustomerIO(
                 androidSDKComponent = androidSDKComponent,
-                moduleConfig = moduleConfig
+                moduleConfig = moduleConfig,
+                overrideAnalytics = SDKComponent.analyticsFactory?.invoke(moduleConfig)
             ).apply { instance = this }
         }
 

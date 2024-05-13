@@ -15,9 +15,12 @@ abstract class DiGraph {
 
     /**
      * Internal function to get the key for a dependency in the graph based on its class.
+     * If an identifier is provided, it will be used as the key instead of the class name.
      * This function is marked as public only because it is inlined in other public functions.
      */
-    inline fun <reified Dependency : Any> dependencyKey(): String = Dependency::class.java.name
+    inline fun <reified Dependency : Any> dependencyKey(identifier: String?): String {
+        return identifier ?: Dependency::class.java.name
+    }
 
     /**
      * Internal function to get an overridden dependency in the graph.
@@ -25,8 +28,8 @@ abstract class DiGraph {
      * Do not call this function directly. Instead, use the `newInstance` or `singleton` functions
      * to get the dependency.
      */
-    inline fun <reified Dependency : Any> getOverriddenInstance(): Dependency? {
-        return overrides[dependencyKey<Dependency>()] as? Dependency
+    inline fun <reified Dependency : Any> getOverriddenInstance(identifier: String?): Dependency? {
+        return overrides[dependencyKey<Dependency>(identifier)] as? Dependency
     }
 
     /**
@@ -36,11 +39,12 @@ abstract class DiGraph {
      * Do not call this function directly. Instead, use the `singleton` function.
      */
     inline fun <reified Dependency : Any> getOrCreateSingletonInstance(
+        identifier: String?,
         newInstanceCreator: () -> Dependency
     ): Dependency {
         // Use a synchronized block to prevent multiple threads from creating multiple instances of the singleton.
         synchronized(lock = singletons) {
-            val singletonKey = dependencyKey<Dependency>()
+            val singletonKey = dependencyKey<Dependency>(identifier)
             return singletons.getOrPut(singletonKey, newInstanceCreator) as Dependency
         }
     }
@@ -54,8 +58,9 @@ abstract class DiGraph {
      * ```
      */
     inline fun <reified Dependency : Any> newInstance(
+        identifier: String? = null,
         newInstanceCreator: () -> Dependency
-    ): Dependency = getOverriddenInstance() ?: newInstanceCreator()
+    ): Dependency = getOverriddenInstance(identifier) ?: newInstanceCreator()
 
     /**
      * Gets stored instance of dependency in the graph or null if it doesn't exist.
@@ -65,8 +70,8 @@ abstract class DiGraph {
      *   get() = getOrNull()
      * ```
      */
-    inline fun <reified Dependency : Any> getOrNull(): Dependency? {
-        return getOverriddenInstance() ?: singletons[dependencyKey<Dependency>()] as? Dependency
+    inline fun <reified Dependency : Any> getOrNull(identifier: String? = null): Dependency? {
+        return getOverriddenInstance(identifier) ?: singletons[dependencyKey<Dependency>(identifier)] as? Dependency
     }
 
     /**
@@ -77,8 +82,14 @@ abstract class DiGraph {
      *   get() = singleton { LoggerImpl(...) }
      * ```
      */
-    inline fun <reified Dependency : Any> singleton(newInstanceCreator: () -> Dependency): Dependency {
-        return getOverriddenInstance() ?: getOrCreateSingletonInstance(newInstanceCreator)
+    inline fun <reified Dependency : Any> singleton(
+        identifier: String? = null,
+        newInstanceCreator: () -> Dependency
+    ): Dependency {
+        return getOverriddenInstance(identifier) ?: getOrCreateSingletonInstance(
+            identifier = identifier,
+            newInstanceCreator = newInstanceCreator
+        )
     }
 
     /**
@@ -94,9 +105,13 @@ abstract class DiGraph {
      * Register a dependency in the graph. This is useful for dependencies that
      * are provided later in the lifecycle of the application.
      */
-    inline fun <reified Dependency : Any> registerDependency(newInstanceCreator: () -> Dependency): Dependency {
-        return getOrCreateSingletonInstance(newInstanceCreator)
-    }
+    inline fun <reified Dependency : Any> registerDependency(
+        identifier: String? = null,
+        newInstanceCreator: () -> Dependency
+    ): Dependency = getOrCreateSingletonInstance(
+        identifier = identifier,
+        newInstanceCreator = newInstanceCreator
+    )
 
     /**
      * Reset the graph to its initial state.
@@ -111,10 +126,10 @@ abstract class DiGraph {
 
     // TODO: Remove deprecated functions after all usages are removed.
     @Deprecated("Use newInstance or singleton instead", ReplaceWith("newInstance()"))
-    inline fun <reified DEP : Any> override(): DEP? = overrides[dependencyKey<DEP>()] as? DEP
+    inline fun <reified DEP : Any> override(): DEP? = overrides[dependencyKey<DEP>(identifier = null)] as? DEP
 
     @Deprecated("Use singleton instead", ReplaceWith("singleton(newInstanceCreator)"))
     inline fun <reified INST : Any> getSingletonInstanceCreate(newInstanceCreator: () -> INST): INST {
-        return getOrCreateSingletonInstance(newInstanceCreator)
+        return getOrCreateSingletonInstance(identifier = null, newInstanceCreator = newInstanceCreator)
     }
 }

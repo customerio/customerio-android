@@ -32,7 +32,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId().shouldBeEqualTo(givenIdentifier)
         analytics.traits().shouldBeEqualTo(emptyJsonObject)
 
-        outputReaderPlugin.identifyEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         val identifyEvent = outputReaderPlugin.identifyEvents.lastOrNull()
         identifyEvent.shouldNotBeNull()
 
@@ -54,7 +54,7 @@ class DataPipelinesInteractionTests : UnitTest() {
             .shouldNotBeNull()
             .shouldMatchTo(givenTraits)
 
-        outputReaderPlugin.identifyEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         val identifyEvent = outputReaderPlugin.identifyEvents.lastOrNull()
         identifyEvent.shouldNotBeNull()
 
@@ -76,7 +76,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId() shouldBe null
         analytics.anonymousId() shouldNotBe null
 
-        outputReaderPlugin.trackEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
         val trackEvent = outputReaderPlugin.trackEvents.lastOrNull()
         trackEvent.shouldNotBeNull()
 
@@ -94,7 +94,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId() shouldBe null
         analytics.anonymousId() shouldNotBe null
 
-        outputReaderPlugin.trackEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
         val trackEvent = outputReaderPlugin.trackEvents.lastOrNull()
         trackEvent.shouldNotBeNull()
 
@@ -115,7 +115,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId() shouldBe null
         analytics.anonymousId() shouldNotBe null
 
-        outputReaderPlugin.trackEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
         val trackEvent = outputReaderPlugin.trackEvents.lastOrNull()
         trackEvent.shouldNotBeNull()
 
@@ -137,8 +137,8 @@ class DataPipelinesInteractionTests : UnitTest() {
 
         analytics.userId() shouldBe givenIdentifier
 
-        outputReaderPlugin.identifyEvents.size.shouldBeEqualTo(1)
-        outputReaderPlugin.trackEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
 
         val identifyEvent = outputReaderPlugin.identifyEvents.lastOrNull()
         identifyEvent.shouldNotBeNull()
@@ -164,7 +164,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId() shouldBe null
         analytics.anonymousId() shouldNotBe null
 
-        outputReaderPlugin.screenEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.screenEvents.size shouldBeEqualTo 1
         val screenEvent = outputReaderPlugin.screenEvents.lastOrNull()
         screenEvent.shouldNotBeNull()
 
@@ -182,7 +182,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId() shouldBe null
         analytics.anonymousId() shouldNotBe null
 
-        outputReaderPlugin.screenEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.screenEvents.size shouldBeEqualTo 1
         val screenEvent = outputReaderPlugin.screenEvents.lastOrNull()
         screenEvent.shouldNotBeNull()
 
@@ -203,7 +203,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.userId() shouldBe null
         analytics.anonymousId() shouldNotBe null
 
-        outputReaderPlugin.screenEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.screenEvents.size shouldBeEqualTo 1
         val screenEvent = outputReaderPlugin.screenEvents.lastOrNull()
         screenEvent.shouldNotBeNull()
 
@@ -225,8 +225,8 @@ class DataPipelinesInteractionTests : UnitTest() {
 
         analytics.userId() shouldBe givenIdentifier
 
-        outputReaderPlugin.identifyEvents.size.shouldBeEqualTo(1)
-        outputReaderPlugin.screenEvents.size.shouldBeEqualTo(1)
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
+        outputReaderPlugin.screenEvents.size shouldBeEqualTo 1
 
         val identifyEvent = outputReaderPlugin.identifyEvents.lastOrNull()
         identifyEvent.shouldNotBeNull()

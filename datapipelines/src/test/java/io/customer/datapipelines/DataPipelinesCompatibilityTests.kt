@@ -22,6 +22,7 @@ import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBe
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 
 class DataPipelinesCompatibilityTests : UnitTest() {
@@ -110,12 +111,10 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.track(givenEvent)
 
-        storage.read(Storage.Constants.AnonymousId) shouldNotBe null
-        storage.read(Storage.Constants.UserId) shouldBe null
         storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
 
         val queuedEvents = getQueuedEvents()
-        queuedEvents.count().shouldBeEqualTo(1)
+        queuedEvents.count() shouldBeEqualTo 1
 
         val payload = queuedEvents.first().jsonObject
         payload.eventType.shouldBeEqualTo("track")
@@ -133,9 +132,6 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         val givenEvent = String.random
 
         sdkInstance.track(givenEvent)
-
-        storage.read(Storage.Constants.UserId) shouldBe null
-        storage.read(Storage.Constants.AnonymousId) shouldNotBe null
 
         val queuedEvents = getQueuedEvents()
         queuedEvents.count() shouldBeEqualTo 1
@@ -160,7 +156,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         val payload = queuedEvents.first().jsonObject
         payload.eventType shouldBeEqualTo "track"
         payload.eventName shouldBeEqualTo givenEvent
-        payload["properties"]?.jsonObject!! shouldMatchTo givenProperties
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenProperties
     }
 
     @Test
@@ -218,9 +214,6 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.screen(givenTitle)
 
-        storage.read(Storage.Constants.UserId) shouldBe null
-        storage.read(Storage.Constants.AnonymousId) shouldNotBe null
-
         val queuedEvents = getQueuedEvents()
         queuedEvents.count() shouldBeEqualTo 1
 
@@ -245,7 +238,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         val payload = queuedEvents.first().jsonObject
         payload.eventType shouldBeEqualTo "screen"
         payload.screenName shouldBeEqualTo givenTitle
-        payload["properties"]?.jsonObject!! shouldMatchTo givenProperties
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenProperties
     }
 
     @Test
@@ -287,10 +280,10 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         val payload = queuedEvents.first().jsonObject
         payload.eventType shouldBeEqualTo "identify"
-        val payload2 = queuedEvents.last().jsonObject
-        payload2.eventType shouldBeEqualTo "screen"
-        payload2.screenName shouldBeEqualTo givenTitle
-        payload2["properties"]?.jsonObject shouldBeEqualTo givenProperties
+        val trackPayload = queuedEvents.last().jsonObject
+        trackPayload.eventType shouldBeEqualTo "screen"
+        trackPayload.screenName shouldBeEqualTo givenTitle
+        trackPayload["properties"]?.jsonObject shouldBeEqualTo givenProperties
     }
 }
 

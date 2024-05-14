@@ -1,6 +1,8 @@
 name: Tests
 
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize] # Don't rerun on `edited` to save time
 
 jobs:
   unit-test:
@@ -31,7 +33,7 @@ jobs:
         if: ${{ always() }} # if running tests fails, we still want to parse the test results
 
   instrumentation-test:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       # Add more samples here as they are added to the project.
@@ -40,22 +42,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
-      - name: Start emulator
+      # Enable KVM (Kernel-based Virtual Machine) for better performance by allowing hardware virtualization
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Cache Gradle dependencies to speed up the build process
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      # Cache the Android Virtual Device (AVD) to avoid recreating it each time
+      - name: AVD cache
+        uses: actions/cache@v3
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-31
+          restore-keys: |
+            avd-
+
+      # Create AVD and generate snapshot for caching if not already cached
+      - name: create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # Configuration options for the emulator for the best optimization.
-          api-level: 29
+          api-level: 31
+          arch: x86_64
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: run tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          cores: 3
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
           disable-animations: true
           ram-size: 4096M
-          emulator-boot-timeout: 12000
-          target: default
-          arch: x86
-          emulator-build: 7425822 # https://github.com/ReactiveCircus/android-emulator-runner/issues/160
-          profile: Nexus 6
+          target: google_apis
+          arch: x86_64
           # Run the instrumentation tests on the emulator.
-          script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest
+          script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true --debug
       - name: Publish test results
         uses: mikepenz/action-junit-report@v4
         if: always()

@@ -62,6 +62,8 @@ jobs:
             ~/.android/avd/*
             ~/.android/adb*
           key: avd-31
+          restore-keys: |
+            avd-
 
       # Create AVD and generate snapshot for caching if not already cached
       - name: create AVD and generate snapshot for caching

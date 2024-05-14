@@ -22,15 +22,16 @@ infix fun JsonObject.shouldMatchTo(expected: CustomAttributes): JsonObject {
  * Converts a map of custom attributes to a JSON object.
  * If the map is empty, it returns an empty JSON object.
  */
-fun CustomAttributes?.toJsonObject(): JsonObject = JsonObject(
-    if (this.isNullOrEmpty()) {
+fun CustomAttributes?.toJsonObject(): JsonObject {
+    val encodedMap = if (this.isNullOrEmpty()) {
         emptyMap()
     } else {
         with(Json) {
             mapValues { (_, value) -> encode(value) }
         }
     }
-)
+    return JsonObject(encodedMap)
+}
 
 /**
  * Decodes a JSON string to a JSON object.

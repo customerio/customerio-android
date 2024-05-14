@@ -6,6 +6,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.datapipelines.core.UnitTest
 import io.customer.datapipelines.extensions.decodeJson
+import io.customer.datapipelines.extensions.shouldMatchTo
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.android.CustomerIO
@@ -14,10 +15,14 @@ import io.customer.sdk.extensions.random
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeFalse
+import org.amshove.kluent.shouldNotBe
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 
 class DataPipelinesCompatibilityTests : UnitTest() {
@@ -59,22 +64,25 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         return JsonArray(result)
     }
 
+    /**
+     * Identify tests
+     */
     @Test
     fun identify_givenIdentifierOnly_expectSetNewProfileWithoutAttributes() = runTest {
         val givenIdentifier = String.random
 
         sdkInstance.identify(givenIdentifier)
 
-        storage.read(Storage.Constants.UserId).shouldBeEqualTo(givenIdentifier)
-        storage.read(Storage.Constants.Traits).decodeJson().shouldBeEqualTo(emptyJsonObject)
+        storage.read(Storage.Constants.UserId) shouldBeEqualTo givenIdentifier
+        storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
 
         val queuedEvents = getQueuedEvents()
-        queuedEvents.count().shouldBeEqualTo(1)
+        queuedEvents.count() shouldBeEqualTo 1
 
         val payload = queuedEvents.first().jsonObject
-        payload.eventType.shouldBeEqualTo("identify")
-        payload.userId.shouldBeEqualTo(givenIdentifier)
-        payload.containsKey("traits").shouldBeFalse()
+        payload.eventType shouldBeEqualTo "identify"
+        payload.userId shouldBeEqualTo givenIdentifier
+        payload.containsKey("traits") shouldBe false
     }
 
     @Test
@@ -85,21 +93,205 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.identify(givenIdentifier, givenTraits)
 
-        storage.read(Storage.Constants.UserId).shouldBeEqualTo(givenIdentifier)
-        storage.read(Storage.Constants.Traits).decodeJson().shouldBeEqualTo(givenTraitsJson)
+        storage.read(Storage.Constants.UserId) shouldBeEqualTo givenIdentifier
+        storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo givenTraitsJson
 
         val queuedEvents = getQueuedEvents()
-        queuedEvents.count().shouldBeEqualTo(1)
+        queuedEvents.count() shouldBeEqualTo 1
 
         val payload = queuedEvents.first().jsonObject
-        payload.eventType.shouldBeEqualTo("identify")
-        payload.userId.shouldBeEqualTo(givenIdentifier)
-        payload["traits"]?.jsonObject.shouldBeEqualTo(givenTraitsJson)
+        payload.eventType shouldBeEqualTo "identify"
+        payload.userId shouldBeEqualTo givenIdentifier
+        payload["traits"]?.jsonObject shouldBeEqualTo givenTraitsJson
+    }
+
+    @Test
+    fun event_withoutIdentify_expectFinalJsonHasNoUserId() = runTest {
+        val givenEvent = String.random
+
+        sdkInstance.track(givenEvent)
+
+        storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType.shouldBeEqualTo("track")
+        payload.jsonObject.getString("anonymousId") shouldNotBe null
+        payload.userId shouldBe null
+        payload.containsKey("traits") shouldBe false
+    }
+
+    /**
+     * Track tests
+     */
+
+    @Test
+    fun track_givenEventWithoutProperties_expectTrackWithoutProperties() = runTest {
+        val givenEvent = String.random
+
+        sdkInstance.track(givenEvent)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload["properties"]?.jsonObject shouldBeEqualTo emptyJsonObject
+    }
+
+    @Test
+    fun track_givenEventWithPropertiesMap_expectTrackWithProperties() = runTest {
+        val givenEvent = String.random
+        val givenProperties: CustomAttributes = mapOf("size" to "Medium", "waist" to 32)
+
+        sdkInstance.track(givenEvent, givenProperties)
+
+        storage.read(Storage.Constants.UserId) shouldBe null
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo givenEvent
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenProperties
+    }
+
+    @Test
+    fun track_givenEventWithPropertiesJson_expectTrackWithProperties() = runTest {
+        val givenEvent = String.random
+        val givenProperties = buildJsonObject {
+            put("cool", "dude")
+            put("age", 53)
+        }
+
+        sdkInstance.track(givenEvent, givenProperties)
+
+        storage.read(Storage.Constants.UserId) shouldBe null
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo givenEvent
+        payload["properties"]?.jsonObject shouldBeEqualTo givenProperties
+    }
+
+    @Test
+    fun track_givenIdentifiedEventWithProperties_expectTrackWithProperties() = runTest {
+        sdkInstance.identify(String.random)
+        val givenEvent = String.random
+        val givenProperties = buildJsonObject {
+            put("cool", "dude")
+            put("age", 53)
+        }
+
+        sdkInstance.track(givenEvent, givenProperties)
+
+        storage.read(Storage.Constants.UserId) shouldNotBe null
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 2
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "identify"
+        val payload2 = queuedEvents.last().jsonObject
+        payload2.eventType shouldBeEqualTo "track"
+        payload2.eventName shouldBeEqualTo givenEvent
+        payload2["properties"]?.jsonObject shouldBeEqualTo givenProperties
+    }
+
+    /**
+     * Screen tests
+     */
+
+    @Test
+    fun screen_givenEventWithoutProperties_expectTrackWithoutProperties() = runTest {
+        val givenTitle = String.random
+
+        sdkInstance.screen(givenTitle)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "screen"
+        payload.screenName shouldBeEqualTo givenTitle
+        payload["properties"]?.jsonObject shouldBeEqualTo emptyJsonObject
+    }
+
+    @Test
+    fun screen_givenEventWithPropertiesMap_expectTrackWithProperties() = runTest {
+        val givenTitle = String.random
+        val givenProperties: CustomAttributes = mapOf("width" to 11, "height" to 32)
+
+        sdkInstance.screen(givenTitle, givenProperties)
+
+        storage.read(Storage.Constants.UserId) shouldBe null
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "screen"
+        payload.screenName shouldBeEqualTo givenTitle
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenProperties
+    }
+
+    @Test
+    fun screen_givenEventWithPropertiesJson_expectTrackWithProperties() = runTest {
+        val givenTitle = String.random
+        val givenProperties = buildJsonObject {
+            put("zoom", "wide")
+            put("height", 13)
+        }
+
+        sdkInstance.screen(givenTitle, givenProperties)
+
+        storage.read(Storage.Constants.UserId) shouldBe null
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "screen"
+        payload.screenName shouldBeEqualTo givenTitle
+        payload["properties"]?.jsonObject shouldBeEqualTo givenProperties
+    }
+
+    @Test
+    fun screen_givenIdentifiedEventWithProperties_expectTrackWithProperties() = runTest {
+        sdkInstance.identify(String.random)
+        val givenTitle = String.random
+        val givenProperties = buildJsonObject {
+            put("zoom", "wide")
+            put("height", 53)
+        }
+
+        sdkInstance.screen(givenTitle, givenProperties)
+
+        storage.read(Storage.Constants.UserId) shouldNotBe null
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 2
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "identify"
+        val trackPayload = queuedEvents.last().jsonObject
+        trackPayload.eventType shouldBeEqualTo "screen"
+        trackPayload.screenName shouldBeEqualTo givenTitle
+        trackPayload["properties"]?.jsonObject shouldBeEqualTo givenProperties
     }
 }
 
 private val JsonElement.eventType: String?
     get() = this.jsonObject.getString("type")
-
+private val JsonElement.eventName: String?
+    get() = this.jsonObject.getString("event")
+private val JsonElement.screenName: String?
+    get() = this.jsonObject.getString("name")
 private val JsonElement.userId: String?
     get() = this.jsonObject.getString("userId")

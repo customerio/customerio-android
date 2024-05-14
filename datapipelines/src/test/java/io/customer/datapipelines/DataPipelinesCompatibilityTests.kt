@@ -28,6 +28,9 @@ class DataPipelinesCompatibilityTests : UnitTest() {
             val eventsFile = storage.storageDirectory.walk().find { file ->
                 return@find file.name.contains(cdpApiKey) && file.name.endsWith(suffix = ".tmp")
             }
+            // The tmp file contains a list of batched events
+            // But the last event in the list is not closed with a comma
+            // So we need to add a closing bracket to make it a valid JSON array
             val contents = eventsFile?.readText()?.let { "$it]}" }
             val storedEvents = contents?.decodeJson() ?: emptyJsonObject
             return storedEvents["batch"]?.jsonArray ?: emptyJsonArray
@@ -41,8 +44,8 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
     override fun createModuleInstance(cdpApiKey: String, applyConfig: CustomerIOBuilder.() -> Unit): CustomerIO {
         return super.createModuleInstance(cdpApiKey) {
+            // Enable adding destination so events are processed and stored in the storage
             setAutoAddCustomerIODestination(true)
-            applyConfig()
         }
     }
 

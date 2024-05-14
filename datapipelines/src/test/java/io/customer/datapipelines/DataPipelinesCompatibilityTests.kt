@@ -30,6 +30,8 @@ import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 
 class DataPipelinesCompatibilityTests : UnitTest() {
+    //region Setup test environment
+
     private lateinit var storage: Storage
 
     override fun initializeModule() {
@@ -68,9 +70,9 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         return JsonArray(result)
     }
 
-    /**
-     * Identify tests
-     */
+    //endregion
+    //region Identify
+
     @Test
     fun identify_givenIdentifierOnly_expectFinalJsonHasNewProfile() = runTest {
         val givenIdentifier = String.random
@@ -132,6 +134,9 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload["traits"]?.jsonObject.shouldBeEqualTo(givenTraitsJson)
     }
 
+    //endregion
+    //region Clear identify
+
     @Test
     fun identify_clearIdentify_givenPreviouslyIdentifiedProfile_expectUserReset() {
         val previousAnonymousId = storage.read(Storage.Constants.AnonymousId)
@@ -143,6 +148,9 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         storage.read(Storage.Constants.UserId).shouldBeNull()
         storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
     }
+
+    //endregion
+    //region Anonymous user
 
     @Test
     fun event_withoutIdentify_expectFinalJsonHasNoUserId() = runTest {
@@ -162,9 +170,8 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload.containsKey("traits") shouldBe false
     }
 
-    /**
-     * Track tests
-     */
+    //endregion
+    //region Track event
 
     @Test
     fun track_givenEventWithoutProperties_expectTrackWithoutProperties() = runTest {
@@ -243,9 +250,8 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload2["properties"]?.jsonObject shouldBeEqualTo givenProperties
     }
 
-    /**
-     * Screen tests
-     */
+    //endregion
+    //region Track screen
 
     @Test
     fun screen_givenEventWithoutProperties_expectTrackWithoutProperties() = runTest {
@@ -324,7 +330,11 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         trackPayload.screenName shouldBeEqualTo givenTitle
         trackPayload["properties"]?.jsonObject shouldBeEqualTo givenProperties
     }
+
+    //endregion
 }
+
+//region Json extensions
 
 private val JsonElement.eventType: String?
     get() = this.jsonObject.getString("type")
@@ -334,3 +344,5 @@ private val JsonElement.screenName: String?
     get() = this.jsonObject.getString("name")
 private val JsonElement.userId: String?
     get() = this.jsonObject.getString("userId")
+
+//endregion

@@ -23,6 +23,8 @@ import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 
 class DataPipelinesInteractionTests : UnitTest() {
+    //region Setup test environment
+
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
     override fun initializeModule() {
@@ -32,9 +34,9 @@ class DataPipelinesInteractionTests : UnitTest() {
         analytics.add(outputReaderPlugin)
     }
 
-    /**
-     * Identify event tests
-     */
+    //endregion
+    //region Identify
+
     @Test
     fun identify_givenIdentifierOnly_expectSetNewProfileWithoutAttributes() {
         val givenIdentifier = String.random
@@ -158,6 +160,9 @@ class DataPipelinesInteractionTests : UnitTest() {
         outputReaderPlugin.allEvents.shouldBeEmpty()
     }
 
+    //endregion
+    //region Clear identify
+
     @Test
     fun identify_clearIdentify_givenPreviouslyIdentifiedProfile_expectUserReset() {
         val previousAnonymousId = analytics.anonymousId()
@@ -173,9 +178,9 @@ class DataPipelinesInteractionTests : UnitTest() {
         outputReaderPlugin.allEvents.shouldBeEmpty()
     }
 
-    /**
-     * Track event tests
-     */
+    //endregion
+    //region Track event
+
     @Test
     fun track_givenEventOnly_expectTrackEventWithoutProperties() {
         val givenEvent = String.random
@@ -260,9 +265,8 @@ class DataPipelinesInteractionTests : UnitTest() {
         trackEvent.properties shouldBeEqualTo givenProperties
     }
 
-    /**
-     * Screen event tests
-     */
+    //endregion
+    //region Track screen
 
     @Test
     fun screen_givenEventOnly_expectScreenEventWithoutProperties() {
@@ -347,4 +351,6 @@ class DataPipelinesInteractionTests : UnitTest() {
         screenEvent.name shouldBeEqualTo givenTitle
         screenEvent.properties shouldBeEqualTo givenProperties
     }
+
+    //endregion
 }

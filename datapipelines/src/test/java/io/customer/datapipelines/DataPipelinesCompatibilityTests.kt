@@ -23,6 +23,19 @@ import org.junit.Test
 class DataPipelinesCompatibilityTests : UnitTest() {
     private lateinit var storage: Storage
 
+    override fun initializeModule() {
+        super.initializeModule()
+
+        storage = analytics.storage
+    }
+
+    override fun createModuleInstance(cdpApiKey: String, applyConfig: CustomerIOBuilder.() -> Unit): CustomerIO {
+        return super.createModuleInstance(cdpApiKey) {
+            // Enable adding destination so events are processed and stored in the storage
+            setAutoAddCustomerIODestination(true)
+        }
+    }
+
     private suspend fun getQueuedEvents(): JsonArray {
         // Rollover to ensure that analytics completes writing to the current file
         // and update file contents with valid JSON
@@ -44,19 +57,6 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         }
         // Return the flat list of batched events
         return JsonArray(result)
-    }
-
-    override fun initializeModule() {
-        super.initializeModule()
-
-        storage = analytics.storage
-    }
-
-    override fun createModuleInstance(cdpApiKey: String, applyConfig: CustomerIOBuilder.() -> Unit): CustomerIO {
-        return super.createModuleInstance(cdpApiKey) {
-            // Enable adding destination so events are processed and stored in the storage
-            setAutoAddCustomerIODestination(true)
-        }
     }
 
     @Test

@@ -104,6 +104,26 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload["traits"]?.jsonObject shouldBeEqualTo givenTraitsJson
     }
 
+    @Test
+    fun event_withoutIdentify_expectFinalJsonHasNoUserId() = runTest {
+        val givenEvent = String.random
+
+        sdkInstance.track(givenEvent)
+
+        storage.read(Storage.Constants.AnonymousId) shouldBe null
+        storage.read(Storage.Constants.UserId) shouldBe null
+        storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count().shouldBeEqualTo(1)
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType.shouldBeEqualTo("track")
+        payload.jsonObject.getString("anonymousId") shouldNotBe null
+        payload.userId shouldBe null
+        payload.containsKey("traits") shouldBe false
+    }
+
     /**
      * Track tests
      */

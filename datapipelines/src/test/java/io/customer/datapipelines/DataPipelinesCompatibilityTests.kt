@@ -110,7 +110,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.track(givenEvent)
 
-        storage.read(Storage.Constants.AnonymousId) shouldBe null
+        storage.read(Storage.Constants.AnonymousId) shouldNotBe null
         storage.read(Storage.Constants.UserId) shouldBe null
         storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
 

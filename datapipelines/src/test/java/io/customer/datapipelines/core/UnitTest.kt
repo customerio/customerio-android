@@ -22,6 +22,9 @@ abstract class UnitTest : BaseUnitTest() {
     protected lateinit var analytics: Analytics
     protected lateinit var outputReaderPlugin: OutputReaderPlugin
 
+    protected val cdpApiKey: String
+        get() = sdkInstance.moduleConfig.cdpApiKey
+
     override fun setup() {
         super.setup()
 

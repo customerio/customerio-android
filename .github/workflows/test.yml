@@ -42,15 +42,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
+      # Enable KVM (Kernel-based Virtual Machine) for better performance by allowing hardware virtualization
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Cache Gradle dependencies to speed up the build process
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v3
 
+      # Cache the Android Virtual Device (AVD) to avoid recreating it each time
       - name: AVD cache
         uses: actions/cache@v3
         id: avd-cache
@@ -60,6 +63,7 @@ jobs:
             ~/.android/adb*
           key: avd-31
 
+      # Create AVD and generate snapshot for caching if not already cached
       - name: create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2

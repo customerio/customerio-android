@@ -6,7 +6,9 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.datapipelines.core.UnitTest
 import io.customer.datapipelines.extensions.decodeJson
+import io.customer.datapipelines.extensions.encodeToJsonElement
 import io.customer.datapipelines.extensions.toJsonObject
+import io.customer.datapipelines.support.UserTraits
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.data.model.CustomAttributes
@@ -18,6 +20,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
+import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Test
 
 class DataPipelinesCompatibilityTests : UnitTest() {
@@ -60,7 +64,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
     }
 
     @Test
-    fun identify_givenIdentifierOnly_expectSetNewProfileWithoutAttributes() = runTest {
+    fun identify_givenIdentifierOnly_expectFinalJsonHasNewProfile() = runTest {
         val givenIdentifier = String.random
 
         sdkInstance.identify(givenIdentifier)
@@ -78,7 +82,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
     }
 
     @Test
-    fun identify_givenIdentifierWithMap_expectSetNewProfileWithAttributes() = runTest {
+    fun identify_givenIdentifierWithMap_expectFinalJsonHasNewProfile() = runTest {
         val givenIdentifier = String.random
         val givenTraits: CustomAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
         val givenTraitsJson = givenTraits.toJsonObject()
@@ -95,6 +99,41 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload.eventType.shouldBeEqualTo("identify")
         payload.userId.shouldBeEqualTo(givenIdentifier)
         payload["traits"]?.jsonObject.shouldBeEqualTo(givenTraitsJson)
+    }
+
+    @Test
+    fun identify_givenIdentifierWithTraits_expectFinalJsonHasNewProfile() = runTest {
+        val givenIdentifier = String.random
+        val givenTraits = UserTraits(
+            firstName = "Dana",
+            ageInYears = 30
+        )
+        val givenTraitsJson = givenTraits.encodeToJsonElement()
+
+        sdkInstance.identify(givenIdentifier, givenTraits, UserTraits.serializer())
+
+        storage.read(Storage.Constants.UserId).shouldBeEqualTo(givenIdentifier)
+        storage.read(Storage.Constants.Traits).decodeJson().shouldBeEqualTo(givenTraitsJson)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count().shouldBeEqualTo(1)
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType.shouldBeEqualTo("identify")
+        payload.userId.shouldBeEqualTo(givenIdentifier)
+        payload["traits"]?.jsonObject.shouldBeEqualTo(givenTraitsJson)
+    }
+
+    @Test
+    fun identify_clearIdentify_givenPreviouslyIdentifiedProfile_expectUserReset() {
+        val previousAnonymousId = storage.read(Storage.Constants.AnonymousId)
+        sdkInstance.identify(String.random)
+
+        sdkInstance.clearIdentify()
+
+        storage.read(Storage.Constants.AnonymousId) shouldNotBeEqualTo previousAnonymousId
+        storage.read(Storage.Constants.UserId).shouldBeNull()
+        storage.read(Storage.Constants.Traits).decodeJson() shouldBeEqualTo emptyJsonObject
     }
 }
 

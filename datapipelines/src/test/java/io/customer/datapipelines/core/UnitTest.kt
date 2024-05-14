@@ -3,7 +3,6 @@ package io.customer.datapipelines.core
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.BaseUnitTest
 import io.customer.datapipelines.extensions.registerAnalyticsFactory
-import io.customer.datapipelines.utils.OutputReaderPlugin
 import io.customer.datapipelines.utils.clearPersistentStorage
 import io.customer.datapipelines.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.utils.mockHTTPClient
@@ -20,7 +19,6 @@ import org.mockito.kotlin.mock
 abstract class UnitTest : BaseUnitTest() {
     protected lateinit var sdkInstance: CustomerIO
     protected lateinit var analytics: Analytics
-    protected lateinit var outputReaderPlugin: OutputReaderPlugin
 
     protected val cdpApiKey: String
         get() = sdkInstance.moduleConfig.cdpApiKey
@@ -36,9 +34,6 @@ abstract class UnitTest : BaseUnitTest() {
 
         sdkInstance = createModuleInstance()
         analytics = sdkInstance.analytics
-
-        outputReaderPlugin = OutputReaderPlugin(analytics)
-        analytics.add(outputReaderPlugin)
     }
 
     protected open fun setupDependencies() {

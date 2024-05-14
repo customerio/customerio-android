@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import org.amshove.kluent.internal.assertEquals
 
 /**
@@ -40,6 +41,13 @@ fun CustomAttributes?.toJsonObject(): JsonObject {
 fun String?.decodeJson(): JsonObject = this?.let { json ->
     Json.decodeFromString(json)
 } ?: emptyJsonObject
+
+/**
+ * Encodes a serializable object to a JSON element.
+ */
+inline fun <reified T> T.encodeToJsonElement(): JsonElement {
+    return Json.encodeToJsonElement(this)
+}
 
 @OptIn(ExperimentalSerializationApi::class)
 private fun <T> Json.encode(value: T?): JsonElement = when (value) {

@@ -160,6 +160,23 @@ class DataPipelinesInteractionTests : UnitTest() {
         outputReaderPlugin.allEvents.shouldBeEmpty()
     }
 
+    @Test
+    fun identify_givenEmptyIdentifier_givenProfileAlreadyIdentifiedWithTraits_expectRequestIgnored() {
+        val givenIdentifier = ""
+        val givenPreviouslyIdentifiedProfile = String.random
+        val givenPreviouslyIdentifiedTraits: CustomAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
+
+        sdkInstance.identify(givenPreviouslyIdentifiedProfile, givenPreviouslyIdentifiedTraits)
+        outputReaderPlugin.reset()
+
+        sdkInstance.identify(givenIdentifier, emptyMap())
+
+        analytics.userId() shouldBeEqualTo givenPreviouslyIdentifiedProfile
+        analytics.traits().shouldNotBeNull() shouldMatchTo givenPreviouslyIdentifiedTraits
+
+        outputReaderPlugin.allEvents.shouldBeEmpty()
+    }
+
     //endregion
     //region Clear identify
 

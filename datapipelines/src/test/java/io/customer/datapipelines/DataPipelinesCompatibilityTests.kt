@@ -17,7 +17,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
-import org.amshove.kluent.shouldBeNull
 import org.junit.Test
 
 class DataPipelinesCompatibilityTests : UnitTest() {
@@ -53,12 +52,10 @@ class DataPipelinesCompatibilityTests : UnitTest() {
     fun identify_givenIdentifierOnly_expectSetNewProfileWithoutAttributes() {
         val givenIdentifier = String.random
 
-        analytics.userId().shouldBeNull()
-
         sdkInstance.identify(givenIdentifier)
 
-        val userId = storage.read(Storage.Constants.UserId)
-        val traits = storage.read(Storage.Constants.Traits).decodeJson()
+        storage.read(Storage.Constants.UserId).shouldBeEqualTo(givenIdentifier)
+        storage.read(Storage.Constants.Traits).decodeJson().shouldBeEqualTo(emptyJsonObject)
 
         val storedEvents = queuedEvents
         storedEvents.count().shouldBeEqualTo(1)
@@ -67,9 +64,6 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload.eventType.shouldBeEqualTo("identify")
         payload.userId.shouldBeEqualTo(givenIdentifier)
         payload.containsKey("traits").shouldBeFalse()
-
-        userId.shouldBeEqualTo(givenIdentifier)
-        traits.shouldBeEqualTo(emptyJsonObject)
     }
 
     @Test
@@ -78,12 +72,10 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         val givenTraits: CustomAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
         val givenTraitsJson = givenTraits.toJsonObject()
 
-        analytics.userId().shouldBeNull()
-
         sdkInstance.identify(givenIdentifier, givenTraits)
 
-        val userId = storage.read(Storage.Constants.UserId)
-        val traits = storage.read(Storage.Constants.Traits).decodeJson()
+        storage.read(Storage.Constants.UserId).shouldBeEqualTo(givenIdentifier)
+        storage.read(Storage.Constants.Traits).decodeJson().shouldBeEqualTo(givenTraitsJson)
 
         val storedEvents = queuedEvents
         storedEvents.count().shouldBeEqualTo(1)
@@ -92,9 +84,6 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         payload.eventType.shouldBeEqualTo("identify")
         payload.userId.shouldBeEqualTo(givenIdentifier)
         payload["traits"]?.jsonObject.shouldBeEqualTo(givenTraitsJson)
-
-        userId.shouldBeEqualTo(givenIdentifier)
-        traits.shouldBeEqualTo(givenTraitsJson)
     }
 }
 

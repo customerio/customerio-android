@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecycle
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.platform.Plugin
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Logger
 
 /**
  * Optional interface for activities that should be tracked using automated screen tracking.
@@ -26,6 +28,7 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
 
     override val type: Plugin.Type = Plugin.Type.Utility
     override lateinit var analytics: Analytics
+    private val logger: Logger = SDKComponent.logger
 
     override fun onActivityStarted(activity: Activity?) {
         val packageManager = activity?.packageManager
@@ -46,17 +49,14 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
                     }
                 }
             }
-            // If screen name is null, we do not track the screen
-            screenName?.let {
+            // If screen name is null or blank, we do not track the screen
+            if (!screenName.isNullOrBlank()) {
                 analytics.screen(screenName)
             }
         } catch (e: PackageManager.NameNotFoundException) {
-            // if `PackageManager.NameNotFoundException` is thrown, is that a bug in the SDK or a problem with the customer's app?
-            // We may want to decide to log this as an SDK error, log it so customer notices it to fix it themselves, or we do nothing because this exception might not be a big issue.
-            // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Activity Not Found: $e")))
+            logger.error(e.message ?: "Unable to activity screen NameNotFoundException, $activity")
         } catch (e: Exception) {
-            // Should we log exceptions that happen? Ignore them? How rare is an exception happen in this function?
-            // ActionUtils.getErrorAction(ErrorResult(error = ErrorDetail(message = "Unable to track, $activity")))
+            logger.error(e.message ?: "Unable to activity screen, $activity")
         }
     }
 }

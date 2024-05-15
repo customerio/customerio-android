@@ -13,5 +13,6 @@ internal class StringExt {
         "ItemsListActivity".getScreenNameFromActivity() shouldBeEqualTo "Items"
         "ItemsDialogActivity".getScreenNameFromActivity() shouldBeEqualTo "Items"
         "MapFragmentActivity".getScreenNameFromActivity() shouldBeEqualTo "Map"
+        "SplashScreen".getScreenNameFromActivity() shouldBeEqualTo "SplashScreen"
     }
 }

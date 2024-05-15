@@ -114,3 +114,51 @@ public final class io/customer/sdk/data/model/Region$US : io/customer/sdk/data/m
 	public static final field INSTANCE Lio/customer/sdk/data/model/Region$US;
 }
 
+public final class io/customer/sdk/events/Metric : java/lang/Enum {
+	public static final field Clicked Lio/customer/sdk/events/Metric;
+	public static final field Converted Lio/customer/sdk/events/Metric;
+	public static final field Delivered Lio/customer/sdk/events/Metric;
+	public static final field Opened Lio/customer/sdk/events/Metric;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/events/Metric;
+	public static fun values ()[Lio/customer/sdk/events/Metric;
+}
+
+public abstract interface class io/customer/sdk/events/TrackMetric {
+	public abstract fun getDeliveryId ()Ljava/lang/String;
+	public abstract fun getMetric ()Lio/customer/sdk/events/Metric;
+}
+
+public final class io/customer/sdk/events/TrackMetric$InApp : io/customer/sdk/events/TrackMetric {
+	public fun <init> (Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/util/Map;)V
+	public final fun component1 ()Lio/customer/sdk/events/Metric;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/util/Map;)Lio/customer/sdk/events/TrackMetric$InApp;
+	public static synthetic fun copy$default (Lio/customer/sdk/events/TrackMetric$InApp;Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/sdk/events/TrackMetric$InApp;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getDeliveryId ()Ljava/lang/String;
+	public final fun getMetadata ()Ljava/util/Map;
+	public fun getMetric ()Lio/customer/sdk/events/Metric;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/events/TrackMetric$Push : io/customer/sdk/events/TrackMetric {
+	public fun <init> (Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Lio/customer/sdk/events/Metric;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/events/TrackMetric$Push;
+	public static synthetic fun copy$default (Lio/customer/sdk/events/TrackMetric$Push;Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/events/TrackMetric$Push;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeviceToken ()Ljava/lang/String;
+	public fun getMetric ()Lio/customer/sdk/events/Metric;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/events/TrackMetricKt {
+	public static final fun asMap (Lio/customer/sdk/events/TrackMetric;)Ljava/util/Map;
+}
+

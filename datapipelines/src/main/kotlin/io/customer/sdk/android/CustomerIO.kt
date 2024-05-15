@@ -23,6 +23,8 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.events.TrackMetric
+import io.customer.sdk.events.asMap
 import kotlinx.serialization.SerializationStrategy
 
 /**
@@ -157,6 +159,10 @@ class CustomerIO private constructor(
         val userId = registeredUserId ?: "anonymous"
         logger.debug("resetting user profile with id $userId")
         analytics.reset()
+    }
+
+    override fun trackMetric(event: TrackMetric) {
+        track("Report Delivery Event", event.asMap())
     }
 
     companion object {

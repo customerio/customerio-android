@@ -132,6 +132,7 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/and
 	public final fun track (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun track (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
 	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public abstract fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
 }
 
 public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
@@ -148,6 +149,7 @@ public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipe
 	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
 	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
 }
 
 public final class io/customer/sdk/android/CustomerIO$Companion {

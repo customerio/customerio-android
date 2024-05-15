@@ -13,6 +13,8 @@ import io.customer.datapipelines.support.UserTraits
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.events.Metric
+import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.extensions.random
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
@@ -329,6 +331,62 @@ class DataPipelinesCompatibilityTests : UnitTest() {
         trackPayload.eventType shouldBeEqualTo "screen"
         trackPayload.screenName shouldBeEqualTo givenTitle
         trackPayload["properties"]?.jsonObject shouldBeEqualTo givenProperties
+    }
+
+    //endregion
+    //region Track metric
+
+    @Test
+    fun metricEvent_givenPushMetric_expectTrackWithProperties() = runTest {
+        val givenDeliveryId = String.random
+        val givenDeviceToken = String.random
+        val givenTrackEvent = TrackMetric.Push(
+            metric = Metric.Delivered,
+            deliveryId = givenDeliveryId,
+            deviceToken = givenDeviceToken
+        )
+
+        sdkInstance.trackMetric(givenTrackEvent)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo "Report Delivery Event"
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo mapOf(
+            "metric" to "delivered",
+            "deliveryId" to givenDeliveryId,
+            "recipient" to givenDeviceToken
+        )
+    }
+
+    @Test
+    fun metricEvent_givenInAppMetric_expectTrackWithProperties() = runTest {
+        val givenDeliveryId = String.random
+        val givenMetadata = mapOf(
+            "title" to "Welcome",
+            "message" to "Hello, world!"
+        )
+        val givenTrackEvent = TrackMetric.InApp(
+            metric = Metric.Clicked,
+            deliveryId = givenDeliveryId,
+            metadata = givenMetadata
+        )
+
+        sdkInstance.trackMetric(givenTrackEvent)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.first().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo "Report Delivery Event"
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo buildMap {
+            put("metric", "clicked")
+            put("deliveryId", givenDeliveryId)
+            putAll(givenMetadata)
+        }
     }
 
     //endregion

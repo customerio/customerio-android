@@ -39,6 +39,7 @@ fun Configuration.setValuesFromBuilder(builder: CustomerIO.Builder): CustomerIO.
 fun Configuration.setValuesFromBuilder(builder: CustomerIOBuilder): CustomerIOBuilder {
     builder.setMigrationSiteId(this.siteId)
     builder.setAutoTrackDeviceAttributes(this.trackDeviceAttributes)
+    builder.setAutoTrackActivityScreens(this.trackScreen)
     builder.setFlushAt(this.backgroundQueueMinNumTasks)
     builder.setFlushInterval(this.backgroundQueueSecondsDelay.toInt())
     builder.setLogLevel(if (this.debugMode) CioLogLevel.DEBUG else CioLogLevel.ERROR)

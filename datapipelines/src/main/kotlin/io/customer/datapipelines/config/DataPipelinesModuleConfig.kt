@@ -24,6 +24,8 @@ class DataPipelinesModuleConfig(
     val trackApplicationLifecycleEvents: Boolean,
     // Track device information
     val autoTrackDeviceAttributes: Boolean,
+    // Track screen views for Activities
+    val autoTrackActivityScreens: Boolean,
     // Configuration options required for migration from earlier versions
     val migrationSiteId: String? = null
 ) : CustomerIOModuleConfig {

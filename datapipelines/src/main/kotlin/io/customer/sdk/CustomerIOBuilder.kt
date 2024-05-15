@@ -56,6 +56,9 @@ class CustomerIOBuilder(
     // Track device information
     private var autoTrackDeviceAttributes: Boolean = true
 
+    // Track screen views for Activities
+    private var autoTrackActivityScreens: Boolean = false
+
     // Configuration options required for migration from earlier versions
     private var migrationSiteId: String? = null
 
@@ -141,6 +144,15 @@ class CustomerIOBuilder(
     }
 
     /**
+     * Enable this property if you want SDK to automatic track screen views for Activities.
+     * Note: This feature is not useful for UI toolkit like Jetpack Compose as it consist of only one Activity and multiple Composable.
+     */
+    fun setAutoTrackActivityScreens(track: Boolean): CustomerIOBuilder {
+        this.autoTrackActivityScreens = track
+        return this
+    }
+
+    /**
      * Set the migration site id to migrate the events from the tracking SDK version.
      */
     fun setMigrationSiteId(migrationSiteId: String?): CustomerIOBuilder {
@@ -173,6 +185,7 @@ class CustomerIOBuilder(
             autoAddCustomerIODestination = autoAddCustomerIODestination,
             trackApplicationLifecycleEvents = trackApplicationLifecycleEvents,
             autoTrackDeviceAttributes = autoTrackDeviceAttributes,
+            autoTrackActivityScreens = autoTrackActivityScreens,
             migrationSiteId = migrationSiteId
         )
 

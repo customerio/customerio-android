@@ -14,6 +14,7 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -83,6 +84,10 @@ class CustomerIO private constructor(
 
         if (moduleConfig.autoAddCustomerIODestination) {
             analytics.add(CustomerIODestination())
+        }
+
+        if (moduleConfig.autoTrackActivityScreens) {
+            analytics.add(AutomaticActivityScreenTrackingPlugin())
         }
     }
 

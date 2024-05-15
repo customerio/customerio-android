@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.Application
 import io.customer.commontest.BaseUnitTest
 import io.customer.commontest.module.CustomerIOGenericModule
+import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
+import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
@@ -11,6 +13,7 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBe
+import org.amshove.kluent.shouldNotBe
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
@@ -107,6 +110,7 @@ class CustomerIOBuilderTest : BaseUnitTest() {
             .setMigrationSiteId(givenMigrationSiteId)
             .setRegion(givenRegion)
             .setAutoTrackDeviceAttributes(false)
+            .setAutoTrackActivityScreens(true)
             .setTrackApplicationLifecycleEvents(false)
             .setFlushAt(100)
             .setFlushInterval(2)
@@ -118,6 +122,7 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         dataPipelinesModuleConfig.cdpApiKey shouldBe givenCdpApiKey
         dataPipelinesModuleConfig.migrationSiteId shouldBe givenMigrationSiteId
         dataPipelinesModuleConfig.autoTrackDeviceAttributes shouldBe false
+        dataPipelinesModuleConfig.autoTrackActivityScreens shouldBe true
         dataPipelinesModuleConfig.trackApplicationLifecycleEvents shouldBe false
         dataPipelinesModuleConfig.flushAt shouldBe 100
         dataPipelinesModuleConfig.flushInterval shouldBe 2
@@ -126,6 +131,29 @@ class CustomerIOBuilderTest : BaseUnitTest() {
 
         // verify the shared logger has updated log level
         SDKComponent.logger.logLevel shouldBe CioLogLevel.DEBUG
+
+        // verify plugin is added
+        CustomerIO.instance().analytics.find(CustomerIODestination::class) shouldNotBe null
+    }
+
+    @Test
+    fun build_givenAutoTrackActivityScreensEnabled_expectCorrectPluginsToBeAdded() {
+        val givenCdpApiKey = String.random
+        createCustomerIOBuilder(givenCdpApiKey)
+            .setAutoTrackActivityScreens(true)
+            .build()
+
+        CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldNotBe null
+    }
+
+    @Test
+    fun build_givenAutoTrackActivityScreensDisabled_expectCorrectPluginsToBeAdded() {
+        val givenCdpApiKey = String.random
+        createCustomerIOBuilder(givenCdpApiKey)
+            .setAutoTrackActivityScreens(false)
+            .build()
+
+        CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldBe null
     }
 
     @Test

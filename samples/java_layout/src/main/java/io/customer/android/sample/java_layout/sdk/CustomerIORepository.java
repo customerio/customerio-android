@@ -66,6 +66,8 @@ public class CustomerIORepository {
             newBuilder.setFlushInterval(sdkConfig.getBackgroundQueueSecondsDelay().intValue());
         }
         newBuilder.setAutoTrackDeviceAttributes(Boolean.TRUE.equals(sdkConfig.isDeviceAttributesTrackingEnabled()));
+        newBuilder.setAutoTrackActivityScreens(Boolean.TRUE.equals(sdkConfig.isScreenTrackingEnabled()));
+
         // Enable detailed logging for debug builds.
         if (sdkConfig.debugModeEnabled()) {
             newBuilder.setLogLevel(CioLogLevel.DEBUG);

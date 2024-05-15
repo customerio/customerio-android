@@ -7,7 +7,7 @@ import org.junit.Test
 
 class TrackMetricTest : BaseUnitTest() {
     @Test
-    fun validate_givenAnyMetric_expectCorrectTransformation() {
+    fun validate_givenAnyMetric_expectCorrectSerialization() {
         for (metric in Metric.values()) {
             val givenTrackEvent = TrackMetric.Push(
                 metric = metric,

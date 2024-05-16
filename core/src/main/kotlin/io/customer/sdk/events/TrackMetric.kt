@@ -37,6 +37,11 @@ sealed interface TrackMetric {
     ) : TrackMetric
 }
 
+/**
+ * Extension function to convert [TrackMetric] to a map for tracking metrics.
+ * Using map for tracking metrics allows easy serialization and modification
+ * in final JSON without implementing custom serialization.
+ */
 fun TrackMetric.asMap(): Map<String, Any> {
     val result = mutableMapOf<String, Any>()
     when (this) {

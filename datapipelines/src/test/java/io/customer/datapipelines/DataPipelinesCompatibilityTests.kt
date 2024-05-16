@@ -340,13 +340,14 @@ class DataPipelinesCompatibilityTests : UnitTest() {
     fun metricEvent_givenPushMetric_expectTrackWithProperties() = runTest {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
-        val givenTrackEvent = TrackMetric.Push(
-            metric = Metric.Delivered,
-            deliveryId = givenDeliveryId,
-            deviceToken = givenDeviceToken
-        )
 
-        sdkInstance.trackMetric(givenTrackEvent)
+        sdkInstance.trackMetric(
+            TrackMetric.Push(
+                metric = Metric.Delivered,
+                deliveryId = givenDeliveryId,
+                deviceToken = givenDeviceToken
+            )
+        )
 
         val queuedEvents = getQueuedEvents()
         queuedEvents.count() shouldBeEqualTo 1
@@ -365,16 +366,17 @@ class DataPipelinesCompatibilityTests : UnitTest() {
     fun metricEvent_givenInAppMetric_expectTrackWithProperties() = runTest {
         val givenDeliveryId = String.random
         val givenMetadata = mapOf(
-            "title" to "Welcome",
-            "message" to "Hello, world!"
-        )
-        val givenTrackEvent = TrackMetric.InApp(
-            metric = Metric.Clicked,
-            deliveryId = givenDeliveryId,
-            metadata = givenMetadata
+            "action" to "closed",
+            "screen" to "profile"
         )
 
-        sdkInstance.trackMetric(givenTrackEvent)
+        sdkInstance.trackMetric(
+            TrackMetric.InApp(
+                metric = Metric.Clicked,
+                deliveryId = givenDeliveryId,
+                metadata = givenMetadata
+            )
+        )
 
         val queuedEvents = getQueuedEvents()
         queuedEvents.count() shouldBeEqualTo 1

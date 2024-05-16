@@ -129,7 +129,9 @@ public abstract interface class io/customer/sdk/events/TrackMetric {
 }
 
 public final class io/customer/sdk/events/TrackMetric$InApp : io/customer/sdk/events/TrackMetric {
+	public fun <init> (Lio/customer/sdk/events/Metric;Ljava/lang/String;)V
 	public fun <init> (Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/util/Map;)V
+	public synthetic fun <init> (Lio/customer/sdk/events/Metric;Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lio/customer/sdk/events/Metric;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/util/Map;

@@ -30,10 +30,10 @@ sealed interface TrackMetric {
      * @property deliveryId Delivery ID of in-app message
      * @property metadata Additional metadata for the in-app message
      */
-    data class InApp(
+    data class InApp @JvmOverloads constructor(
         override val metric: Metric,
         override val deliveryId: String,
-        val metadata: Map<String, String>
+        val metadata: Map<String, String> = emptyMap()
     ) : TrackMetric
 }
 

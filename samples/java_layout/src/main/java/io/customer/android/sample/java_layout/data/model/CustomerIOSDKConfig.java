@@ -11,6 +11,8 @@ import java.util.Map;
 import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.android.sample.java_layout.utils.StringUtils;
+import io.customer.datapipelines.extensions.RegionExtKt;
+import io.customer.sdk.data.model.Region;
 
 /**
  * Data class to hold SDK configurations. This is only required by sample app for testing purpose.
@@ -19,10 +21,10 @@ public class CustomerIOSDKConfig {
     private static class Keys {
         static final String CDP_API_KEY = "cio_sdk_cdp_api_key";
         static final String SITE_ID = "cio_sdk_site_id";
-        static final String API_KEY = "cio_sdk_api_key";
-        static final String TRACKING_URL = "cio_sdk_tracking_url";
-        static final String BQ_SECONDS_DELAY = "cio_sdk_bq_seconds_delay";
-        static final String BQ_MIN_TASKS = "cio_sdk_bq_min_tasks";
+        static final String API_HOST = "cio_sdk_api_host";
+        static final String CDN_HOST = "cio_sdk_cdn_host";
+        static final String FLUSH_INTERVAL = "cio_sdk_flush_interval";
+        static final String FLUSH_AT = "cio_sdk_flush_at";
         static final String TRACK_SCREENS = "cio_sdk_track_screens";
         static final String TRACK_DEVICE_ATTRIBUTES = "cio_sdk_track_device_attributes";
         static final String DEBUG_MODE = "cio_sdk_debug_mode";
@@ -31,10 +33,10 @@ public class CustomerIOSDKConfig {
     public static CustomerIOSDKConfig getDefaultConfigurations() {
         return new CustomerIOSDKConfig(BuildConfig.CDP_API_KEY,
                 BuildConfig.SITE_ID,
-                BuildConfig.API_KEY,
-                "https://track-sdk.customer.io/",
-                30.0,
-                10,
+                RegionExtKt.apiHost(Region.US.INSTANCE),
+                RegionExtKt.cdnHost(Region.US.INSTANCE),
+                30,
+                20,
                 true,
                 true,
                 true);
@@ -44,25 +46,25 @@ public class CustomerIOSDKConfig {
     public static Optional<CustomerIOSDKConfig> fromMap(@NonNull Map<String, String> bundle) {
         String cdpApiKey = bundle.get(Keys.CDP_API_KEY);
         String siteId = bundle.get(Keys.SITE_ID);
-        String apiKey = bundle.get(Keys.API_KEY);
-        if (TextUtils.isEmpty(cdpApiKey) || TextUtils.isEmpty(siteId) || TextUtils.isEmpty(apiKey)) {
+        if (TextUtils.isEmpty(cdpApiKey) || TextUtils.isEmpty(siteId)) {
             return Optional.empty();
         }
 
         CustomerIOSDKConfig defaultConfig = getDefaultConfigurations();
-        String trackingURL = bundle.get(Keys.TRACKING_URL);
-        Double bqSecondsDelay = StringUtils.parseDouble(bundle.get(Keys.BQ_SECONDS_DELAY), defaultConfig.backgroundQueueSecondsDelay);
-        Integer bqMinTasks = StringUtils.parseInteger(bundle.get(Keys.BQ_MIN_TASKS), defaultConfig.backgroundQueueMinNumOfTasks);
+        String apiHost = bundle.get(Keys.API_HOST);
+        String cdnHost = bundle.get(Keys.CDN_HOST);
+        Integer flushInterval = StringUtils.parseInteger(bundle.get(Keys.FLUSH_INTERVAL), defaultConfig.flushInterval);
+        Integer flushAt = StringUtils.parseInteger(bundle.get(Keys.FLUSH_AT), defaultConfig.flushAt);
         boolean screenTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_SCREENS), defaultConfig.screenTrackingEnabled);
         boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
         boolean debugModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.DEBUG_MODE), defaultConfig.debugModeEnabled);
 
         CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
-                apiKey,
-                trackingURL,
-                bqSecondsDelay,
-                bqMinTasks,
+                apiHost,
+                cdnHost,
+                flushInterval,
+                flushAt,
                 screenTrackingEnabled,
                 deviceAttributesTrackingEnabled,
                 debugModeEnabled);
@@ -74,10 +76,10 @@ public class CustomerIOSDKConfig {
         Map<String, String> bundle = new HashMap<>();
         bundle.put(Keys.CDP_API_KEY, config.cdpApiKey);
         bundle.put(Keys.SITE_ID, config.siteId);
-        bundle.put(Keys.API_KEY, config.apiKey);
-        bundle.put(Keys.TRACKING_URL, config.trackingURL);
-        bundle.put(Keys.BQ_SECONDS_DELAY, StringUtils.fromDouble(config.backgroundQueueSecondsDelay));
-        bundle.put(Keys.BQ_MIN_TASKS, StringUtils.fromInteger(config.backgroundQueueMinNumOfTasks));
+        bundle.put(Keys.API_HOST, config.apiHost);
+        bundle.put(Keys.CDN_HOST, config.cdnHost);
+        bundle.put(Keys.FLUSH_INTERVAL, StringUtils.fromInteger(config.flushInterval));
+        bundle.put(Keys.FLUSH_AT, StringUtils.fromInteger(config.flushAt));
         bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(config.screenTrackingEnabled));
         bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
         bundle.put(Keys.DEBUG_MODE, StringUtils.fromBoolean(config.debugModeEnabled));
@@ -88,14 +90,14 @@ public class CustomerIOSDKConfig {
     private final String cdpApiKey;
     @NonNull
     private final String siteId;
-    @NonNull
-    private final String apiKey;
     @Nullable
-    private final String trackingURL;
+    private final String apiHost;
     @Nullable
-    private final Double backgroundQueueSecondsDelay;
+    private final String cdnHost;
     @Nullable
-    private final Integer backgroundQueueMinNumOfTasks;
+    private final Integer flushInterval;
+    @Nullable
+    private final Integer flushAt;
     @Nullable
     private final Boolean screenTrackingEnabled;
     @Nullable
@@ -105,19 +107,19 @@ public class CustomerIOSDKConfig {
 
     public CustomerIOSDKConfig(@NonNull String cdpApiKey,
                                @NonNull String siteId,
-                               @NonNull String apiKey,
-                               @Nullable String trackingURL,
-                               @Nullable Double backgroundQueueSecondsDelay,
-                               @Nullable Integer backgroundQueueMinNumOfTasks,
+                               @Nullable String apiHost,
+                               @Nullable String cdnHost,
+                               @Nullable Integer flushInterval,
+                               @Nullable Integer flushAt,
                                @Nullable Boolean screenTrackingEnabled,
                                @Nullable Boolean deviceAttributesTrackingEnabled,
                                @Nullable Boolean debugModeEnabled) {
         this.cdpApiKey = cdpApiKey;
         this.siteId = siteId;
-        this.apiKey = apiKey;
-        this.trackingURL = trackingURL;
-        this.backgroundQueueSecondsDelay = backgroundQueueSecondsDelay;
-        this.backgroundQueueMinNumOfTasks = backgroundQueueMinNumOfTasks;
+        this.apiHost = apiHost;
+        this.cdnHost = cdnHost;
+        this.flushInterval = flushInterval;
+        this.flushAt = flushAt;
         this.screenTrackingEnabled = screenTrackingEnabled;
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
         this.debugModeEnabled = debugModeEnabled;
@@ -133,24 +135,24 @@ public class CustomerIOSDKConfig {
         return siteId;
     }
 
-    @NonNull
-    public String getApiKey() {
-        return apiKey;
+    @Nullable
+    public String getApiHost() {
+        return apiHost;
     }
 
     @Nullable
-    public String getTrackingURL() {
-        return trackingURL;
+    public String getCdnHost() {
+        return cdnHost;
     }
 
     @Nullable
-    public Double getBackgroundQueueSecondsDelay() {
-        return backgroundQueueSecondsDelay;
+    public Integer getFlushInterval() {
+        return flushInterval;
     }
 
     @Nullable
-    public Integer getBackgroundQueueMinNumOfTasks() {
-        return backgroundQueueMinNumOfTasks;
+    public Integer getFlushAt() {
+        return flushAt;
     }
 
 

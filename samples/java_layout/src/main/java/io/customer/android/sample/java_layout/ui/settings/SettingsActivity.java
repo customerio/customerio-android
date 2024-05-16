@@ -71,8 +71,8 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         // deepLinkUri contains link URI if activity is launched from deep link or url from
         // Customer.io push notification
         // e.g.
-        // java-sample://settings?cdp_api_key=xxx&site_id=yyy&api_key=zzz
-        // https://www.java-sample.com/settings?cdp_api_key=xxx&site_id=yyy&api_key=zzz
+        // java-sample://settings?cdp_api_key=xxx&site_id=yyy
+        // https://www.java-sample.com/settings?cdp_api_key=xxx&site_id=yyy
 
         if (deepLinkUri != null) {
             String cdpApiKey = deepLinkUri.getQueryParameter("cdp_api_key");
@@ -83,10 +83,6 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             if (siteId != null) {
                 ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, siteId);
             }
-            String apiKey = deepLinkUri.getQueryParameter("api_key");
-            if (apiKey != null) {
-                ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, apiKey);
-            }
         }
         isLinkParamsPopulated = true;
     }
@@ -94,12 +90,12 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     private void prepareViewsForAutomatedTests() {
         ViewUtils.prepareForAutomatedTests(binding.topAppBar);
         ViewUtils.prepareForAutomatedTests(binding.deviceTokenTextInput, R.string.acd_device_token_input);
-        ViewUtils.prepareForAutomatedTests(binding.trackingUrlTextInput, R.string.acd_tracking_url_input);
+        ViewUtils.prepareForAutomatedTests(binding.apiHostTextInput, R.string.acd_api_host_input);
+        ViewUtils.prepareForAutomatedTests(binding.cdnHostTextInput, R.string.acd_cdn_host_input);
         ViewUtils.prepareForAutomatedTests(binding.cdpApiKeyTextInput, R.string.acd_cdp_api_key_input);
         ViewUtils.prepareForAutomatedTests(binding.siteIdTextInput, R.string.acd_site_id_input);
-        ViewUtils.prepareForAutomatedTests(binding.apiKeyTextInput, R.string.acd_api_key_input);
-        ViewUtils.prepareForAutomatedTests(binding.bqDelayTextInput, R.string.acd_bq_seconds_delay_input);
-        ViewUtils.prepareForAutomatedTests(binding.bqTasksTextInput, R.string.acd_bq_min_tasks_input);
+        ViewUtils.prepareForAutomatedTests(binding.flushIntervalTextInput, R.string.acd_flush_interval_input);
+        ViewUtils.prepareForAutomatedTests(binding.flushAtTextInput, R.string.acd_flush_at_input);
         ViewUtils.prepareForAutomatedTests(binding.trackScreensSwitch, R.string.acd_track_screens_switch);
         ViewUtils.prepareForAutomatedTests(binding.trackDeviceAttributesSwitch, R.string.acd_track_device_attributes_switch);
         ViewUtils.prepareForAutomatedTests(binding.debugModeSwitch, R.string.acd_debug_mode_switch);
@@ -140,16 +136,25 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         });
     }
 
-    private boolean isTrackingURLValid(String url) {
+    private boolean isHostURLInvalid(String url) {
         // Empty text is not considered valid
         if (TextUtils.isEmpty(url)) {
-            return false;
+            return true;
         }
 
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme();
-        // Since SDK does not allow tracking URL with empty host or incorrect schemes
-        return !TextUtils.isEmpty(uri.getAuthority()) && ("http".equals(scheme) || "https".equals(scheme)) && uri.getPath().endsWith("/");
+        try {
+            Uri uri = Uri.parse(url);
+            // Since SDK does not support custom schemes, we manually append http:// to the URL
+            // So the URL is considered invalid if it ends with a slash, contains a scheme, query or fragment
+            return url.endsWith("/")
+                    || !TextUtils.isEmpty(uri.getScheme())
+                    || !TextUtils.isEmpty(uri.getQuery())
+                    || !TextUtils.isEmpty(uri.getFragment());
+        } catch (Exception ex) {
+            //noinspection CallToPrintStackTrace
+            ex.printStackTrace();
+            return true;
+        }
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -160,12 +165,12 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void updateIOWithConfig(@NonNull CustomerIOSDKConfig config) {
-        ViewUtils.setTextWithSelectionIfFocused(binding.trackingUrlTextInput, config.getTrackingURL());
+        ViewUtils.setTextWithSelectionIfFocused(binding.apiHostTextInput, config.getApiHost());
+        ViewUtils.setTextWithSelectionIfFocused(binding.cdnHostTextInput, config.getCdnHost());
         ViewUtils.setTextWithSelectionIfFocused(binding.cdpApiKeyTextInput, config.getCdpApiKey());
         ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, config.getSiteId());
-        ViewUtils.setTextWithSelectionIfFocused(binding.apiKeyTextInput, config.getApiKey());
-        ViewUtils.setTextWithSelectionIfFocused(binding.bqDelayTextInput, StringUtils.fromDouble(config.getBackgroundQueueSecondsDelay()));
-        ViewUtils.setTextWithSelectionIfFocused(binding.bqTasksTextInput, StringUtils.fromInteger(config.getBackgroundQueueMinNumOfTasks()));
+        ViewUtils.setTextWithSelectionIfFocused(binding.flushIntervalTextInput, StringUtils.fromInteger(config.getFlushInterval()));
+        ViewUtils.setTextWithSelectionIfFocused(binding.flushAtTextInput, StringUtils.fromInteger(config.getFlushAt()));
         binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());
         binding.trackDeviceAttributesSwitch.setChecked(config.deviceAttributesTrackingEnabled());
         binding.debugModeSwitch.setChecked(config.debugModeEnabled());
@@ -174,8 +179,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     private void saveSettings() {
         boolean isFormValid;
 
-        String trackingURL = ViewUtils.getTextTrimmed(binding.trackingUrlTextInput);
-        isFormValid = updateErrorState(binding.trackingUrlInputLayout, !isTrackingURLValid(trackingURL), R.string.error_tracking_url);
+        String apiHost = ViewUtils.getTextTrimmed(binding.apiHostTextInput);
+        isFormValid = updateErrorState(binding.apiHostInputLayout, isHostURLInvalid(apiHost), R.string.error_host_url);
+
+        String cdnHost = ViewUtils.getTextTrimmed(binding.cdnHostTextInput);
+        isFormValid = updateErrorState(binding.cdnHostInputLayout, isHostURLInvalid(cdnHost), R.string.error_host_url) && isFormValid;
 
         String cdpApiKey = ViewUtils.getTextTrimmed(binding.cdpApiKeyTextInput);
         isFormValid = updateErrorState(binding.cdpApiKeyInputLayout, TextUtils.isEmpty(cdpApiKey), R.string.error_text_input_field_blank) && isFormValid;
@@ -183,30 +191,27 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
         isFormValid = updateErrorState(binding.siteIdInputLayout, TextUtils.isEmpty(siteId), R.string.error_text_input_field_blank) && isFormValid;
 
-        String apiKey = ViewUtils.getTextTrimmed(binding.apiKeyTextInput);
-        isFormValid = updateErrorState(binding.apiKeyInputLayout, TextUtils.isEmpty(apiKey), R.string.error_text_input_field_blank) && isFormValid;
-
-        String bqSecondsDelayText = ViewUtils.getTextTrimmed(binding.bqDelayTextInput);
-        Double bqSecondsDelay = StringUtils.parseDouble(bqSecondsDelayText, null);
-        boolean isBQSecondsDelayTextEmpty = TextUtils.isEmpty(bqSecondsDelayText);
-        if (isBQSecondsDelayTextEmpty) {
-            isFormValid = updateErrorState(binding.bqDelayInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
+        String flushIntervalText = ViewUtils.getTextTrimmed(binding.flushIntervalTextInput);
+        Integer flushInterval = StringUtils.parseInteger(flushIntervalText, null);
+        boolean isFlushIntervalTextEmpty = TextUtils.isEmpty(flushIntervalText);
+        if (isFlushIntervalTextEmpty) {
+            isFormValid = updateErrorState(binding.flushIntervalInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
         } else {
-            double minDelay = 1.0;
-            isFormValid = updateErrorState(binding.bqDelayInputLayout,
-                    !isNumberValid(bqSecondsDelay, minDelay),
+            int minDelay = 1;
+            isFormValid = updateErrorState(binding.flushIntervalInputLayout,
+                    !isNumberValid(flushInterval, minDelay),
                     getString(R.string.error_number_input_field_small, String.valueOf(minDelay))) && isFormValid;
         }
 
-        String bqMinTasksText = ViewUtils.getTextTrimmed(binding.bqTasksTextInput);
-        Integer bqMinTasks = StringUtils.parseInteger(bqMinTasksText, null);
-        boolean isBQMinTasksTextEmpty = TextUtils.isEmpty(bqMinTasksText);
-        if (isBQMinTasksTextEmpty) {
-            isFormValid = updateErrorState(binding.bqTasksInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
+        String flushAtText = ViewUtils.getTextTrimmed(binding.flushAtTextInput);
+        Integer flushAt = StringUtils.parseInteger(flushAtText, null);
+        boolean isFlushAtTextEmpty = TextUtils.isEmpty(flushAtText);
+        if (isFlushAtTextEmpty) {
+            isFormValid = updateErrorState(binding.flushAtInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
         } else {
             int minTasks = 1;
-            isFormValid = updateErrorState(binding.bqTasksInputLayout,
-                    !isNumberValid(bqMinTasks, minTasks),
+            isFormValid = updateErrorState(binding.flushAtInputLayout,
+                    !isNumberValid(flushAt, minTasks),
                     getString(R.string.error_number_input_field_small, String.valueOf(minTasks))) && isFormValid;
         }
 
@@ -217,10 +222,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             boolean featDebugMode = binding.debugModeSwitch.isChecked();
             CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
                     siteId,
-                    apiKey,
-                    trackingURL,
-                    bqSecondsDelay,
-                    bqMinTasks,
+                    apiHost,
+                    cdnHost,
+                    flushInterval,
+                    flushAt,
                     featTrackScreens,
                     featTrackDeviceAttributes,
                     featDebugMode);

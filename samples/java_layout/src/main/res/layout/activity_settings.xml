@@ -76,7 +76,7 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tracking_url_input_layout"
+                    android:id="@+id/api_host_input_layout"
                     style="?attr/textInputStyle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -87,10 +87,31 @@
                     app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/tracking_url_text_input"
+                        android:id="@+id/api_host_text_input"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="@string/tracking_url"
+                        android:hint="@string/api_host"
+                        android:inputType="textUri"
+                        android:maxLength="200"
+                        android:maxLines="1" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/cdn_host_input_layout"
+                    style="?attr/textInputStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_small"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/api_host_input_layout"
+                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/cdn_host_text_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/cdn_host"
                         android:inputType="textUri"
                         android:maxLength="200"
                         android:maxLines="1" />
@@ -104,7 +125,7 @@
                     android:layout_marginTop="@dimen/margin_default"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tracking_url_input_layout"
+                    app:layout_constraintTop_toBottomOf="@id/cdn_host_input_layout"
                     app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -139,63 +160,42 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/api_key_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/site_id_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/api_key_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/api_key"
-                        android:inputType="text"
-                        android:maxLength="200"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/bq_delay_input_layout"
+                    android:id="@+id/flush_interval_input_layout"
                     style="?attr/textInputStyle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/margin_default"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/api_key_input_layout"
+                    app:layout_constraintTop_toBottomOf="@id/site_id_input_layout"
                     app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/bq_delay_text_input"
+                        android:id="@+id/flush_interval_text_input"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="@string/background_queue_seconds_delay_label"
+                        android:hint="@string/flush_interval_label"
                         android:inputType="numberDecimal"
                         android:maxLength="10"
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/bq_tasks_input_layout"
+                    android:id="@+id/flush_at_input_layout"
                     style="?attr/textInputStyle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/margin_small"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/bq_delay_input_layout"
+                    app:layout_constraintTop_toBottomOf="@id/flush_interval_input_layout"
                     app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/bq_tasks_text_input"
+                        android:id="@+id/flush_at_text_input"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="@string/background_queue_min_tasks_label"
+                        android:hint="@string/flush_at_label"
                         android:inputType="number"
                         android:maxLength="10"
                         android:maxLines="1" />
@@ -211,7 +211,7 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintHorizontal_bias="0"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/bq_tasks_input_layout" />
+                    app:layout_constraintTop_toBottomOf="@id/flush_at_input_layout" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/track_screens_switch"

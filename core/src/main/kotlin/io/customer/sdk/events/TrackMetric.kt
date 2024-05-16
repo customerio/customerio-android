@@ -1,7 +1,5 @@
 package io.customer.sdk.events
 
-import java.util.Locale
-
 /**
  * Event wrapper for tracking metrics like push, in-app, etc. with
  * additional properties like deliveryId, deviceToken, metadata, etc.
@@ -35,25 +33,4 @@ sealed interface TrackMetric {
         override val deliveryId: String,
         val metadata: Map<String, String> = emptyMap()
     ) : TrackMetric
-}
-
-/**
- * Extension function to convert [TrackMetric] to a map for tracking metrics.
- * Using map for tracking metrics allows easy serialization and modification
- * in final JSON without implementing custom serialization.
- */
-fun TrackMetric.asMap(): Map<String, Any> {
-    val result = mutableMapOf<String, Any>()
-    when (this) {
-        is TrackMetric.Push -> {
-            result["recipient"] = deviceToken
-        }
-
-        is TrackMetric.InApp -> {
-            result.putAll(metadata)
-        }
-    }
-    result["metric"] = metric.name.lowercase(Locale.ENGLISH)
-    result["deliveryId"] = deliveryId
-    return result
 }

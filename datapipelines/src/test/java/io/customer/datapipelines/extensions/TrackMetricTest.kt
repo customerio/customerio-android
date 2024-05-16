@@ -1,6 +1,8 @@
-package io.customer.sdk.events
+package io.customer.datapipelines.extensions
 
 import io.customer.commontest.BaseUnitTest
+import io.customer.sdk.events.Metric
+import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test

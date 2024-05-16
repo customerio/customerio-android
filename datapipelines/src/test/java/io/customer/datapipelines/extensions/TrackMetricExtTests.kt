@@ -7,7 +7,7 @@ import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-class TrackMetricTest : BaseUnitTest() {
+class TrackMetricExtTests : BaseUnitTest() {
     @Test
     fun validate_givenAnyMetric_expectCorrectSerialization() {
         for (metric in Metric.values()) {

@@ -69,7 +69,7 @@ class MemoryLeakageInstrumentedTest {
 
         CustomerIO.Builder(
             siteId = configuration.siteId,
-            apiKey = configuration.apiKey,
+            apiKey = BuildConfig.API_KEY,
             appContext = appContext as Application
         ).apply {
             setLogLevel(CioLogLevel.DEBUG)

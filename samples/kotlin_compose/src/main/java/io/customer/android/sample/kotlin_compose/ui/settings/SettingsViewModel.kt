@@ -13,7 +13,8 @@ import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val configuration: Configuration = Configuration("", "", ""),
-    val customTrackUrlError: String = ""
+    val customAPIHostError: String = "",
+    val customCDNHostError: String = ""
 ) {
     val deviceToken: String by lazy { CustomerIO.instance().registeredDeviceToken ?: "" }
 }
@@ -43,11 +44,13 @@ class SettingsViewModel @Inject constructor(
         onComplete: () -> Unit
     ) {
         viewModelScope.launch {
-            val trackUrlValidation = validateCustomTrackUrl(configuration.trackUrl)
+            val apiHostError = validateCustomTrackUrl(configuration.apiHost)
+            val cdnHostError = validateCustomTrackUrl(configuration.cdnHost)
             _uiState.emit(
                 _uiState.value.copy(
                     configuration = configuration,
-                    customTrackUrlError = trackUrlValidation
+                    customAPIHostError = apiHostError,
+                    customCDNHostError = cdnHostError
                 )
             )
             onComplete.invoke()
@@ -56,23 +59,23 @@ class SettingsViewModel @Inject constructor(
 
     private fun validateCustomTrackUrl(trackUrl: String?): String {
         // Null check
-        if (trackUrl == null) {
+        if (trackUrl.isNullOrBlank()) {
             return ""
         }
-        // Protocol validation
-        if (!trackUrl.startsWith("http://") && !trackUrl.startsWith("https://")) {
-            return "URL must start with 'http://' or 'https://'"
-        }
-        // Host validation
-        if (Uri.parse(trackUrl)?.authority.isNullOrBlank()) {
-            return "Host must be defined"
-        }
-        // Ending character validation
-        if (!trackUrl.endsWith("/")) {
-            return "URL must end with '/'"
-        }
-        // Passed all checks, return empty string
-        return ""
+
+        return runCatching {
+            val uri = Uri.parse(trackUrl)
+            // Since SDK does not support custom schemes, we manually append http:// to the URL
+            // So the URL is considered invalid if it ends with a slash, contains a scheme, query or fragment
+            return@runCatching when {
+                uri.scheme != null -> "URL should not include 'http://' or 'https://'."
+                uri.query != null || uri.fragment != null -> "URL should not contain query parameters or fragments"
+                // Ending character validation
+                trackUrl.endsWith("/") -> "URL must end with '/'"
+                // Passed all checks, return empty string
+                else -> ""
+            }
+        }.getOrNull() ?: "Unable to parse URL. Please enter a valid URL."
     }
 
     fun saveAndUpdateConfiguration(
@@ -88,7 +91,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun validateConfiguration(configuration: Configuration): Boolean {
-        return validateCustomTrackUrl(configuration.trackUrl).isEmpty()
+        return validateCustomTrackUrl(configuration.apiHost).isEmpty() &&
+            validateCustomTrackUrl(configuration.cdnHost).isEmpty()
     }
 
     fun restoreDefaults() {

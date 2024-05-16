@@ -49,13 +49,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
-import io.customer.sdk.CustomerIO
 
 @Composable
 fun SettingsRoute(
     cdpApiKey: String? = null,
     siteId: String? = null,
-    apiKey: String? = null,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     onBackPressed: () -> Unit
 ) {
@@ -68,7 +66,6 @@ fun SettingsRoute(
     SettingsScreen(
         cdpApiKey = cdpApiKey,
         siteId = siteId,
-        apiKey = apiKey,
         uiState = state,
         onBackPressed = onBackPressed,
         onSave = {
@@ -91,7 +88,6 @@ fun SettingsRoute(
 fun SettingsScreen(
     cdpApiKey: String? = null,
     siteId: String? = null,
-    apiKey: String? = null,
     uiState: SettingsUiState,
     onBackPressed: () -> Unit,
     onConfigurationChange: (configuration: Configuration) -> Unit,
@@ -116,7 +112,6 @@ fun SettingsScreen(
         WorkspaceSettingsList(
             cdpApiKey = cdpApiKey,
             siteId = siteId,
-            apiKey = apiKey,
             uiState = uiState,
             onConfigurationChange = onConfigurationChange
         )
@@ -215,19 +210,38 @@ fun EnvSettingsList(
         OutlinedTextField(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(stringResource(id = R.string.acd_tracking_url_input)),
-            value = configuration.trackUrl ?: "",
+                .testTag(stringResource(id = R.string.acd_api_host_input)),
+            value = configuration.apiHost ?: "",
             onValueChange = { value ->
-                onConfigurationChange(configuration.copy(trackUrl = value))
+                onConfigurationChange(configuration.copy(apiHost = value))
             },
             label = {
-                Text(text = stringResource(id = R.string.cio_track_url))
+                Text(text = stringResource(id = R.string.api_host))
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            isError = uiState.customTrackUrlError.isNotEmpty(),
+            isError = uiState.customAPIHostError.isNotEmpty(),
             supportingText = {
-                if (uiState.customTrackUrlError.isNotEmpty()) {
-                    Text(text = uiState.customTrackUrlError)
+                if (uiState.customAPIHostError.isNotEmpty()) {
+                    Text(text = uiState.customAPIHostError)
+                }
+            }
+        )
+        OutlinedTextField(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(stringResource(id = R.string.acd_cdn_host_input)),
+            value = configuration.cdnHost ?: "",
+            onValueChange = { value ->
+                onConfigurationChange(configuration.copy(cdnHost = value))
+            },
+            label = {
+                Text(text = stringResource(id = R.string.cdn_host))
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            isError = uiState.customCDNHostError.isNotEmpty(),
+            supportingText = {
+                if (uiState.customCDNHostError.isNotEmpty()) {
+                    Text(text = uiState.customCDNHostError)
                 }
             }
         )
@@ -239,15 +253,14 @@ fun EnvSettingsList(
 fun WorkspaceSettingsList(
     cdpApiKey: String? = null,
     siteId: String? = null,
-    apiKey: String? = null,
     uiState: SettingsUiState,
     onConfigurationChange: (configuration: Configuration) -> Unit
 ) {
     val configuration = uiState.configuration
 
-    LaunchedEffect(key1 = cdpApiKey, key2 = siteId, key3 = apiKey) {
-        if (cdpApiKey != null && siteId != null && apiKey != null) {
-            onConfigurationChange(configuration.copy(cdpApiKey = cdpApiKey, siteId = siteId, apiKey = apiKey))
+    LaunchedEffect(key1 = cdpApiKey, key2 = siteId) {
+        if (cdpApiKey != null && siteId != null) {
+            onConfigurationChange(configuration.copy(cdpApiKey = cdpApiKey, siteId = siteId))
         }
     }
 
@@ -276,23 +289,7 @@ fun WorkspaceSettingsList(
                 Text(text = stringResource(id = R.string.site_id))
             }
         )
-        OutlinedTextField(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(stringResource(id = R.string.acd_api_key_input)),
-            value = configuration.apiKey,
-            onValueChange = { value ->
-                onConfigurationChange(configuration.copy(apiKey = value))
-            },
-            label = {
-                Text(text = stringResource(id = R.string.api_key))
-            }
-        )
     }
-}
-
-fun Double.parseToString(): String {
-    return if (this % 1.0 == 0.0) this.toInt().toString() else this.toString()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -303,33 +300,35 @@ fun SDKSettingsList(
 ) {
     val configuration = uiState.configuration
 
-    var textFieldValue by remember { mutableStateOf(configuration.backgroundQueueSecondsDelay.parseToString()) }
+    var flushIntervalTextValue by remember { mutableStateOf(configuration.flushInterval.toString()) }
+    var flushAtTextValue by remember { mutableStateOf(configuration.flushAt.toString()) }
     var errorState by remember { mutableStateOf("") }
 
-    LaunchedEffect(configuration.backgroundQueueSecondsDelay) {
-        textFieldValue = configuration.backgroundQueueSecondsDelay.parseToString()
+    LaunchedEffect(configuration.flushInterval) {
+        flushIntervalTextValue = configuration.flushInterval.toString()
+        flushAtTextValue = configuration.flushAt.toString()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(stringResource(id = R.string.acd_bq_seconds_delay_input)),
-            value = textFieldValue,
+                .testTag(stringResource(id = R.string.acd_flush_interval_input)),
+            value = flushIntervalTextValue,
             maxLines = 1,
             isError = errorState.isNotEmpty(),
             onValueChange = { value ->
-                textFieldValue = value
-                val parsedDouble = value.toDoubleOrNull()
-                if (parsedDouble == null || parsedDouble < 1.0) {
+                flushIntervalTextValue = value
+                val parsedValue = value.toIntOrNull()
+                if (parsedValue == null || parsedValue < 1) {
                     errorState = "Please enter a valid number greater than 1"
                 } else {
                     errorState = ""
-                    onConfigurationChange(configuration.copy(backgroundQueueSecondsDelay = parsedDouble))
+                    onConfigurationChange(configuration.copy(flushInterval = parsedValue))
                 }
             },
             label = {
-                Text(text = stringResource(id = R.string.background_queue_seconds_delay))
+                Text(text = stringResource(id = R.string.flush_interval))
             },
             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Decimal),
             supportingText = {
@@ -341,16 +340,21 @@ fun SDKSettingsList(
         OutlinedTextField(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(stringResource(id = R.string.acd_bq_min_tasks_input)),
+                .testTag(stringResource(id = R.string.acd_flush_at_input)),
             maxLines = 1,
-            value = configuration.backgroundQueueMinNumTasks.toString(),
+            value = flushAtTextValue,
             onValueChange = { value ->
-                if (value.isNotEmpty()) {
-                    onConfigurationChange(configuration.copy(backgroundQueueMinNumTasks = value.toInt()))
+                flushAtTextValue = value
+                val parsedValue = value.toIntOrNull()
+                if (parsedValue == null || parsedValue < 1) {
+                    errorState = "Please enter a valid number greater than 1"
+                } else {
+                    errorState = ""
+                    onConfigurationChange(configuration.copy(flushAt = parsedValue))
                 }
             },
             label = {
-                Text(text = stringResource(id = R.string.background_queue_min_tasks))
+                Text(text = stringResource(id = R.string.flush_at))
             },
             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
         )

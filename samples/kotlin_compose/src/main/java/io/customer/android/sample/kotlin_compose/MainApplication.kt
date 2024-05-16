@@ -26,28 +26,15 @@ class MainApplication : Application() {
             preferences.getConfiguration().first()
         }
 
-        CustomerIO.Builder(
-            siteId = configuration.siteId,
-            apiKey = configuration.apiKey,
-            appContext = this
-        ).apply {
-            configuration.setValuesFromBuilder(this)
-
-            addCustomerIOModule(
-                ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder()
-                        .setEventListener(InAppMessageEventListener()).build()
-                )
-            )
-            addCustomerIOModule(ModuleMessagingPushFCM())
-
-            build()
-        }
-
-        // TODO: Remove old builder and use new builder to initialize the SDK
-        // New method to initialize CustomerIO
+        // TODO: Remove old builder and use new builder only to initialize the SDK
         // The new method should be called after the old method till the old method is removed
         // This is because the push and in-app modules are still using properties only initialized in the old method
+        CustomerIO.Builder(
+            siteId = configuration.siteId,
+            apiKey = BuildConfig.API_KEY,
+            appContext = this
+        ).build()
+
         CustomerIOBuilder(
             applicationContext = this,
             cdpApiKey = configuration.cdpApiKey

@@ -165,6 +165,7 @@ class CustomerIO private constructor(
     override fun trackMetric(event: TrackMetric) {
         logger.info("${event.type} metric received for ${event.metric} event")
         logger.debug("tracking ${event.type} metric event with properties $event")
+
         track("Report Delivery Event", event.asMap())
     }
 

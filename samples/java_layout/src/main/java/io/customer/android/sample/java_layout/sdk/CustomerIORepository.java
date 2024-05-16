@@ -66,6 +66,8 @@ public class CustomerIORepository {
      * default configuration from the SDK.
      */
     private void configureSdk(CustomerIOBuilder builder, final CustomerIOSDKConfig sdkConfig) {
+        builder.setMigrationSiteId(sdkConfig.getSiteId());
+
         final String apiHost = sdkConfig.getApiHost();
         if (!TextUtils.isEmpty(apiHost)) {
             builder.setApiHost(apiHost);
@@ -76,7 +78,6 @@ public class CustomerIORepository {
             builder.setCdnHost(cdnHost);
         }
 
-        builder.setMigrationSiteId(sdkConfig.getSiteId());
         if (sdkConfig.getFlushAt() != null) {
             builder.setFlushAt(sdkConfig.getFlushAt());
         }

@@ -240,11 +240,14 @@ internal class CustomerIOPushNotificationHandler(
         )
     }
 
-    private fun addImage(
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun addImage(
         imageUrl: String,
         builder: NotificationCompat.Builder,
         body: String
     ) = runBlocking {
+        if (imageUrl.isEmpty()) return@runBlocking
+
         val style = NotificationCompat.BigPictureStyle()
             .bigLargeIcon(null)
             .setSummaryText(body)

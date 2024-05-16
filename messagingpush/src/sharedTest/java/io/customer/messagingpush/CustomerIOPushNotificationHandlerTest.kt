@@ -1,6 +1,7 @@
 package io.customer.messagingpush
 
 import android.os.Bundle
+import androidx.core.app.NotificationCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.BaseTest
@@ -12,7 +13,10 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.given
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.robolectric.Shadows
 
 @RunWith(AndroidJUnit4::class)
@@ -53,5 +57,14 @@ internal class CustomerIOPushNotificationHandlerTest : BaseTest() {
 
         nextStartedActivityIntent.intentClass shouldBeEqualTo NotificationClickReceiverActivity::class.java
         nextStartedActivityPayload shouldBeEqualTo pushNotificationPayload
+    }
+
+    @Test
+    fun addImage_givenEmptyStringForUrl_expectDoNotAddImageToPush() {
+        val givenPush: NotificationCompat.Builder = mock()
+
+        pushNotificationHandler.addImage("", givenPush, "")
+
+        verifyNoInteractions(givenPush)
     }
 }

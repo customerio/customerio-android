@@ -10,12 +10,12 @@
     <string name="settings">Settings</string>
     <string name="ami_app">Android Kotlin Compose Ami App</string>
     <string name="device_token">Device Token</string>
-    <string name="cio_track_url">CIO Track URL</string>
+    <string name="api_host">API Host</string>
+    <string name="cdn_host">CDN Host</string>
     <string name="cdp_api_key">CDP API Key</string>
     <string name="site_id">Site Id</string>
-    <string name="api_key">API Key</string>
-    <string name="background_queue_seconds_delay">backgroundQueueSecondsDelay</string>
-    <string name="background_queue_min_tasks">backgroundQueueMinNumberOfTasks</string>
+    <string name="flush_interval">flushInterval</string>
+    <string name="flush_at">flushAt</string>
     <string name="track_screen">Track Screens</string>
     <string name="track_device_attributes">Track Device Attributes</string>
     <string name="debug_mode">Debug Mode</string>

@@ -4,6 +4,7 @@ plugins {
 }
 
 // Include Customer.io SDK dependencies and common gradle properties for sample apps
+ext.appConfigKeyPrefix = 'javaLayout_'
 apply from: "${rootDir}/samples/sample-app.gradle"
 
 android {

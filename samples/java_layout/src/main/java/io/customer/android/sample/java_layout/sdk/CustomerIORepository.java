@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 
 import java.util.Map;
 
+import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -27,8 +28,14 @@ public class CustomerIORepository {
         // Get desired SDK config, only required by sample app
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
 
+        // TODO: Remove old builder and use new builder only to initialize the SDK
+        // The new method should be called after the old method till the old method is removed
+        // This is because the push and in-app modules are still using properties only initialized in the old method
+        CustomerIO.Builder oldBuilder = new CustomerIO.Builder(sdkConfig.getSiteId(), BuildConfig.API_KEY, application);
+        oldBuilder.build();
+
         // Initialize Customer.io SDK builder
-        CustomerIO.Builder builder = new CustomerIO.Builder(sdkConfig.getSiteId(), sdkConfig.getApiKey(), application);
+        CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
 
         // Enable detailed logging for debug builds.
         if (sdkConfig.debugModeEnabled()) {
@@ -51,35 +58,6 @@ public class CustomerIORepository {
 
         // Finally, build to finish initializing the SDK.
         builder.build();
-
-        // TODO: Remove old builder and use new builder to initialize the SDK
-        // New method to initialize CustomerIO
-        // The new method should be called after the old method till the old method is removed
-        // This is because the push and in-app modules are still using properties only initialized in the old method
-        CustomerIOBuilder newBuilder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
-
-        newBuilder.setMigrationSiteId(sdkConfig.getSiteId());
-        if (sdkConfig.getBackgroundQueueMinNumOfTasks() != null) {
-            newBuilder.setFlushAt(sdkConfig.getBackgroundQueueMinNumOfTasks());
-        }
-        if (sdkConfig.getBackgroundQueueSecondsDelay() != null) {
-            newBuilder.setFlushInterval(sdkConfig.getBackgroundQueueSecondsDelay().intValue());
-        }
-        newBuilder.setAutoTrackDeviceAttributes(Boolean.TRUE.equals(sdkConfig.isDeviceAttributesTrackingEnabled()));
-        newBuilder.setAutoTrackActivityScreens(Boolean.TRUE.equals(sdkConfig.isScreenTrackingEnabled()));
-
-        // Enable detailed logging for debug builds.
-        if (sdkConfig.debugModeEnabled()) {
-            newBuilder.setLogLevel(CioLogLevel.DEBUG);
-        }
-
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
-        builder.addCustomerIOModule(new ModuleMessagingInApp(
-                new MessagingInAppModuleConfig.Builder()
-                        .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
-                        .build()
-        ));
-        newBuilder.build();
     }
 
     /**
@@ -87,28 +65,33 @@ public class CustomerIORepository {
      * purposes and may not be needed unless there is a need to override any
      * default configuration from the SDK.
      */
-    private void configureSdk(CustomerIO.Builder builder, final CustomerIOSDKConfig sdkConfig) {
-        final String trackingApiUrl = sdkConfig.getTrackingURL();
-        if (!TextUtils.isEmpty(trackingApiUrl)) {
-            builder.setTrackingApiURL(trackingApiUrl);
+    private void configureSdk(CustomerIOBuilder builder, final CustomerIOSDKConfig sdkConfig) {
+        builder.setMigrationSiteId(sdkConfig.getSiteId());
+
+        final String apiHost = sdkConfig.getApiHost();
+        if (!TextUtils.isEmpty(apiHost)) {
+            builder.setApiHost(apiHost);
         }
 
-        final Double bqSecondsDelay = sdkConfig.getBackgroundQueueSecondsDelay();
-        if (bqSecondsDelay != null) {
-            builder.setBackgroundQueueSecondsDelay(bqSecondsDelay);
+        final String cdnHost = sdkConfig.getCdnHost();
+        if (!TextUtils.isEmpty(cdnHost)) {
+            builder.setCdnHost(cdnHost);
         }
-        final Integer bqMinTasks = sdkConfig.getBackgroundQueueMinNumOfTasks();
-        if (bqMinTasks != null) {
-            builder.setBackgroundQueueMinNumberOfTasks(bqMinTasks);
+
+        if (sdkConfig.getFlushAt() != null) {
+            builder.setFlushAt(sdkConfig.getFlushAt());
+        }
+        if (sdkConfig.getFlushInterval() != null) {
+            builder.setFlushInterval(sdkConfig.getFlushInterval());
         }
 
         final Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
         if (screenTrackingEnabled != null) {
-            builder.autoTrackScreenViews(screenTrackingEnabled);
+            builder.setAutoTrackActivityScreens(screenTrackingEnabled);
         }
         final Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
         if (deviceAttributesTrackingEnabled != null) {
-            builder.autoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
+            builder.setAutoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
         }
     }
 

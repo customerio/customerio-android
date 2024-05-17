@@ -44,8 +44,8 @@ class SettingsViewModel @Inject constructor(
         onComplete: () -> Unit
     ) {
         viewModelScope.launch {
-            val apiHostError = validateCustomTrackUrl(configuration.apiHost)
-            val cdnHostError = validateCustomTrackUrl(configuration.cdnHost)
+            val apiHostError = validateCustomHostUrl(configuration.apiHost)
+            val cdnHostError = validateCustomHostUrl(configuration.cdnHost)
             _uiState.emit(
                 _uiState.value.copy(
                     configuration = configuration,
@@ -57,21 +57,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun validateCustomTrackUrl(trackUrl: String?): String {
+    private fun validateCustomHostUrl(hostUrl: String?): String {
         // Null check
-        if (trackUrl.isNullOrBlank()) {
+        if (hostUrl.isNullOrBlank()) {
             return ""
         }
 
         return runCatching {
-            val uri = Uri.parse(trackUrl)
+            val uri = Uri.parse(hostUrl)
             // Since SDK does not support custom schemes, we manually append http:// to the URL
             // So the URL is considered invalid if it ends with a slash, contains a scheme, query or fragment
             return@runCatching when {
                 uri.scheme != null -> "URL should not include 'http://' or 'https://'."
                 uri.query != null || uri.fragment != null -> "URL should not contain query parameters or fragments"
                 // Ending character validation
-                trackUrl.endsWith("/") -> "URL must end with '/'"
+                hostUrl.endsWith("/") -> "URL must end with '/'"
                 // Passed all checks, return empty string
                 else -> ""
             }
@@ -91,8 +91,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun validateConfiguration(configuration: Configuration): Boolean {
-        return validateCustomTrackUrl(configuration.apiHost).isEmpty() &&
-            validateCustomTrackUrl(configuration.cdnHost).isEmpty()
+        return validateCustomHostUrl(configuration.apiHost).isEmpty() &&
+            validateCustomHostUrl(configuration.cdnHost).isEmpty()
     }
 
     fun restoreDefaults() {

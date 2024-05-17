@@ -13,6 +13,8 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
+import io.customer.datapipelines.extensions.asMap
+import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
@@ -23,6 +25,7 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.events.TrackMetric
 import kotlinx.serialization.SerializationStrategy
 
 /**
@@ -157,6 +160,13 @@ class CustomerIO private constructor(
         val userId = registeredUserId ?: "anonymous"
         logger.debug("resetting user profile with id $userId")
         analytics.reset()
+    }
+
+    override fun trackMetric(event: TrackMetric) {
+        logger.info("${event.type} metric received for ${event.metric} event")
+        logger.debug("tracking ${event.type} metric event with properties $event")
+
+        track("Report Delivery Event", event.asMap())
     }
 
     companion object {

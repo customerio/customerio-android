@@ -4,6 +4,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.events.TrackMetric
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.serializer
@@ -212,4 +213,12 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * If no profile has been identified yet, this function will reset anonymous profile.
      */
     abstract fun clearIdentify()
+
+    /**
+     * The track method helps manually record metric events for push notifications and
+     * in-app messages.
+     *
+     * @param event [TrackMetric] event to be tracked.
+     */
+    abstract fun trackMetric(event: TrackMetric)
 }

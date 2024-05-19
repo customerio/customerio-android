@@ -17,4 +17,7 @@ android {
                 '-opt-in=io.customer.base.internal.InternalCustomerIOApi',
         ]
     }
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
 }

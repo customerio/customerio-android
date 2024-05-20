@@ -10,12 +10,12 @@ import com.segment.analytics.kotlin.android.plugins.AndroidLifecyclePlugin
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.TrackEvent
+import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.core.UnitTest
 import io.customer.datapipelines.utils.TestRunPlugin
 import io.customer.datapipelines.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.utils.mockHTTPClient
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.extensions.random
 import io.mockk.every
 import io.mockk.mockk
@@ -28,9 +28,6 @@ import java.util.Date
 import java.util.UUID
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertFalse
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -48,10 +45,6 @@ class AndroidLifecyclePluginTests {
     private lateinit var analytics: Analytics
     private val mockContext = spyk(InstrumentationRegistry.getInstrumentation().targetContext)
     private val mockApplication = mockk<Application>(relaxed = true)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val testDispatcher = UnconfinedTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
 
     init {
         setupMocks()
@@ -77,19 +70,17 @@ class AndroidLifecyclePluginTests {
         mockHTTPClient()
     }
 
-    private fun createModuleInstance(
-        cdpApiKey: String = UnitTest.TEST_CDP_API_KEY,
-        applyConfig: CustomerIOBuilder.() -> Unit = {}
-    ): CustomerIO {
+    private fun createModuleConfig(
+        cdpApiKey: String = UnitTest.TEST_CDP_API_KEY
+    ): DataPipelinesModuleConfig {
         val builder = CustomerIOBuilder(mockContext as Application, cdpApiKey)
         builder.setAutoAddCustomerIODestination(false)
-        builder.applyConfig()
-        return builder.build()
+        return builder.build().moduleConfig
     }
 
     @Before
     fun setup() {
-        analytics = createTestAnalyticsInstance(createModuleInstance().moduleConfig, mockApplication, testDispatcher, testScope)
+        analytics = createTestAnalyticsInstance(createModuleConfig(), mockApplication)
     }
 
     @Test

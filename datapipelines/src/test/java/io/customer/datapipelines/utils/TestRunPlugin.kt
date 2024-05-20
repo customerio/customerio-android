@@ -10,6 +10,9 @@ import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.platform.EventPlugin
 import com.segment.analytics.kotlin.core.platform.Plugin
 
+/**
+ * A test plugin that can be used to test if the plugin was run
+ */
 class TestRunPlugin(var closure: (BaseEvent?) -> Unit) : EventPlugin {
     override val type: Plugin.Type = Plugin.Type.Before
     override lateinit var analytics: Analytics

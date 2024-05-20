@@ -1,5 +1,6 @@
 package io.customer.datapipelines.utils
 
+import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.Configuration
 import com.segment.analytics.kotlin.core.Connection
@@ -19,6 +20,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import sovran.kotlin.Store
 
 val settingsDefault = """
@@ -54,16 +56,35 @@ fun spyStore(scope: TestScope, dispatcher: TestDispatcher): Store {
 
 fun createAnalyticsConfig(
     moduleConfig: DataPipelinesModuleConfig,
-    errorHandler: ErrorHandler? = null
-): Configuration = Configuration(writeKey = moduleConfig.cdpApiKey).let { config ->
-    updateAnalyticsConfig(moduleConfig = moduleConfig, errorHandler = errorHandler).invoke(config)
-    return@let config
+    errorHandler: ErrorHandler? = null,
+    application: Application? = null
+): Configuration {
+    val configuration = if (application != null) {
+        Configuration(writeKey = moduleConfig.cdpApiKey, application = application)
+    } else {
+        Configuration(writeKey = moduleConfig.cdpApiKey)
+    }
+
+    return configuration.let { config ->
+        updateAnalyticsConfig(moduleConfig = moduleConfig).invoke(config)
+        config
+    }
 }
 
-fun createTestAnalyticsInstance(moduleConfig: DataPipelinesModuleConfig): Analytics {
-    val configuration = createAnalyticsConfig(moduleConfig = moduleConfig)
-    configuration.application = "Test"
-    return object : Analytics(configuration, TestCoroutineConfiguration()) {}
+fun createTestAnalyticsInstance(
+    moduleConfig: DataPipelinesModuleConfig,
+    application: Application? = null,
+    testDispatcher: TestDispatcher = UnconfinedTestDispatcher(),
+    testScope: TestScope = TestScope(testDispatcher)
+): Analytics {
+    val configuration = if (application != null) {
+        createAnalyticsConfig(moduleConfig = moduleConfig, application = application)
+    } else {
+        createAnalyticsConfig(moduleConfig = moduleConfig).apply {
+            this.application = "Test"
+        }
+    }
+    return object : Analytics(configuration, TestCoroutineConfiguration(testDispatcher, testScope)) {}
 }
 
 fun Analytics.clearPersistentStorage() {

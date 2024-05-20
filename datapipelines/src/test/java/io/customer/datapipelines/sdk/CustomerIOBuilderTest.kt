@@ -14,6 +14,7 @@ import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
+import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
@@ -143,7 +144,7 @@ class CustomerIOBuilderTest : BaseUnitTest() {
             .setAutoTrackActivityScreens(true)
             .build()
 
-        CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldNotBe null
+        CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldNotBeEqualTo null
     }
 
     @Test

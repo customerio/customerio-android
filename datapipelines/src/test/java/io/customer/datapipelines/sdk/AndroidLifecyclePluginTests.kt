@@ -8,14 +8,11 @@ import android.os.Bundle
 import androidx.test.platform.app.InstrumentationRegistry
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecyclePlugin
 import com.segment.analytics.kotlin.core.Analytics
-import com.segment.analytics.kotlin.core.Configuration
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.TrackEvent
-import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.core.UnitTest
-import io.customer.datapipelines.extensions.updateAnalyticsConfig
-import io.customer.datapipelines.stubs.TestCoroutineConfiguration
 import io.customer.datapipelines.utils.TestRunPlugin
+import io.customer.datapipelines.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.utils.mockHTTPClient
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.android.CustomerIO
@@ -80,18 +77,6 @@ class AndroidLifecyclePluginTests {
         mockHTTPClient()
     }
 
-    private fun createTestAnalyticsInstance(moduleConfig: DataPipelinesModuleConfig): Analytics {
-        val configuration = createAnalyticsConfig(moduleConfig)
-        return object : Analytics(configuration, TestCoroutineConfiguration(testDispatcher, testScope)) {}
-    }
-
-    private fun createAnalyticsConfig(moduleConfig: DataPipelinesModuleConfig): Configuration {
-        return Configuration(writeKey = moduleConfig.cdpApiKey, mockApplication).let { config ->
-            updateAnalyticsConfig(moduleConfig = moduleConfig).invoke(config)
-            config
-        }
-    }
-
     private fun createModuleInstance(
         cdpApiKey: String = UnitTest.TEST_CDP_API_KEY,
         applyConfig: CustomerIOBuilder.() -> Unit = {}
@@ -104,19 +89,13 @@ class AndroidLifecyclePluginTests {
 
     @Before
     fun setup() {
-        analytics = createTestAnalyticsInstance(createModuleInstance().moduleConfig)
-    }
-
-    private fun setupAnalyticsForTest() {
-        analytics.configuration.trackApplicationLifecycleEvents = true
-        analytics.configuration.trackDeepLinks = false
-        analytics.configuration.useLifecycleObserver = false
-        analytics.add(lifecyclePlugin)
+        analytics = createTestAnalyticsInstance(createModuleInstance().moduleConfig, mockApplication, testDispatcher, testScope)
     }
 
     @Test
     fun track_verifyApplicationOpenedIsTracked() {
-        setupAnalyticsForTest()
+        analytics.add(lifecyclePlugin)
+
         val mockPlugin = spyk(TestRunPlugin {})
         analytics.add(mockPlugin)
 
@@ -146,7 +125,8 @@ class AndroidLifecyclePluginTests {
 
     @Test
     fun track_verifyApplicationBackgroundIsTracked() {
-        setupAnalyticsForTest()
+        analytics.add(lifecyclePlugin)
+
         val mockPlugin = spyk(TestRunPlugin {})
         analytics.add(mockPlugin)
 
@@ -164,7 +144,8 @@ class AndroidLifecyclePluginTests {
 
     @Test
     fun track_verifyApplicationInstalledIsTracked() = runTest {
-        setupAnalyticsForTest()
+        analytics.add(lifecyclePlugin)
+
         analytics.storage.remove(Storage.Constants.AppBuild)
 
         val mockPlugin = spyk(TestRunPlugin {})
@@ -193,7 +174,8 @@ class AndroidLifecyclePluginTests {
 
     @Test
     fun track_verifyApplicationUpdatedIsTracked() = runTest {
-        setupAnalyticsForTest()
+        analytics.add(lifecyclePlugin)
+
         analytics.storage.write(Storage.Constants.AppVersion, "0.9")
         analytics.storage.write(Storage.Constants.AppBuild, "9")
 
@@ -226,8 +208,7 @@ class AndroidLifecyclePluginTests {
     @Test
     fun track_givenApplicationLifecycleDisabled_expectPluginsNotCalled() {
         analytics.configuration.trackApplicationLifecycleEvents = false
-        analytics.configuration.trackDeepLinks = false
-        analytics.configuration.useLifecycleObserver = false
+
         analytics.add(lifecyclePlugin)
         val mockPlugin = spyk(TestRunPlugin {})
         analytics.add(mockPlugin)
@@ -251,7 +232,7 @@ class AndroidLifecyclePluginTests {
         val spyLifecyclePlugin = spyk(lifecyclePlugin)
 
         // Mock analytics to use the mock application and set the lifecycle plugin
-        setupAnalyticsForTest()
+        analytics.add(lifecyclePlugin)
         analytics.add(spyLifecyclePlugin)
 
         // Call setup to simulate application creation

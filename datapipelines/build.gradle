@@ -50,6 +50,7 @@ dependencies {
     testImplementation(platform(Dependencies.junitBom))
     testImplementation(Dependencies.junitJupiter)
 
+    // enables running JUnit 4 tests within the JUnit 5 (jupitor) platform.
     testRuntimeOnly(Dependencies.junitEngine)
 }
 

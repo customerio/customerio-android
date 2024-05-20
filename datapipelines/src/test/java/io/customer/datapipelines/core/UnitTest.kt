@@ -69,6 +69,6 @@ abstract class UnitTest : BaseUnitTest() {
     }
 
     companion object {
-        private const val TEST_CDP_API_KEY: String = "TESTING_API_KEY"
+        internal const val TEST_CDP_API_KEY: String = "TESTING_API_KEY"
     }
 }

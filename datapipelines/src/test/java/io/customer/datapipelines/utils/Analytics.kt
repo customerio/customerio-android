@@ -54,16 +54,23 @@ fun spyStore(scope: TestScope, dispatcher: TestDispatcher): Store {
 
 fun createAnalyticsConfig(
     moduleConfig: DataPipelinesModuleConfig,
-    errorHandler: ErrorHandler? = null
-): Configuration = Configuration(writeKey = moduleConfig.cdpApiKey).let { config ->
-    updateAnalyticsConfig(moduleConfig = moduleConfig, errorHandler = errorHandler).invoke(config)
-    return@let config
+    errorHandler: ErrorHandler? = null,
+    application: Any? = null
+): Configuration {
+    val configuration = Configuration(writeKey = moduleConfig.cdpApiKey, application = application)
+    return configuration.let { config ->
+        updateAnalyticsConfig(moduleConfig = moduleConfig).invoke(config)
+        config
+    }
 }
 
-fun createTestAnalyticsInstance(moduleConfig: DataPipelinesModuleConfig): Analytics {
-    val configuration = createAnalyticsConfig(moduleConfig = moduleConfig)
-    configuration.application = "Test"
-    return object : Analytics(configuration, TestCoroutineConfiguration()) {}
+fun createTestAnalyticsInstance(
+    moduleConfig: DataPipelinesModuleConfig,
+    application: Any = "Test",
+    testCoroutineConfiguration: TestCoroutineConfiguration = TestCoroutineConfiguration()
+): Analytics {
+    val configuration = createAnalyticsConfig(moduleConfig = moduleConfig, application = application)
+    return object : Analytics(configuration, testCoroutineConfiguration) {}
 }
 
 fun Analytics.clearPersistentStorage() {

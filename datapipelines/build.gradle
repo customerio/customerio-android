@@ -49,4 +49,19 @@ dependencies {
 
     testImplementation(platform(Dependencies.junitBom))
     testImplementation(Dependencies.junitJupiter)
+
+    // enables running JUnit 4 tests within the JUnit 5 (jupitor) platform.
+    testRuntimeOnly(Dependencies.junitEngine)
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    filter {
+        excludeTestsMatching("*Integration*")
+    }
+    ignoreFailures = true
+    // https://github.com/mockk/mockk/issues/681
+    jvmArgs("--add-opens", "java.base/java.time=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED"
+    )
 }

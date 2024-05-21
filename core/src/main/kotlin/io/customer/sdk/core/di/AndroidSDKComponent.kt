@@ -8,6 +8,8 @@ import io.customer.sdk.data.store.BuildStoreImpl
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.DeviceStoreImpl
+import io.customer.sdk.data.store.GlobalPreferenceStore
+import io.customer.sdk.data.store.GlobalPreferenceStoreImpl
 
 /**
  * DIGraph component for Android-specific dependencies to ensure all SDK
@@ -32,4 +34,6 @@ class AndroidSDKComponent(
                 client = client
             )
         }
+    val globalPreferenceStore: GlobalPreferenceStore
+        get() = singleton { GlobalPreferenceStoreImpl(applicationContext) }
 }

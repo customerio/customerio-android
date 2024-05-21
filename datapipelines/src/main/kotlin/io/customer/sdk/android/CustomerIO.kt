@@ -17,6 +17,7 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
+import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -51,6 +52,7 @@ class CustomerIO private constructor(
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
+    private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
@@ -80,10 +82,15 @@ class CustomerIO private constructor(
         )
     )
 
+    private val contextPlugin: ContextPlugin = ContextPlugin(analytics)
+
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
         Analytics.setLogger(segmentLogger)
+
+        // Add required plugins to analytics instance
+        analytics.add(contextPlugin)
 
         if (moduleConfig.autoAddCustomerIODestination) {
             analytics.add(CustomerIODestination())
@@ -130,12 +137,34 @@ class CustomerIO private constructor(
             return
         }
 
+        val currentlyIdentifiedProfile = registeredUserId
+        val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
+        val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
+
+        if (isChangingIdentifiedProfile) {
+            logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
+            if (registeredDeviceToken != null) {
+                logger.debug("deleting device token before identifying new profile")
+                deleteDeviceToken()
+            }
+        }
+
         logger.info("identify profile with identifier $userId and traits $traits")
         analytics.identify(
             userId = userId,
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+
+        if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
+            logger.debug("first time identified or changing identified profile")
+            val existingDeviceToken = registeredDeviceToken
+            if (existingDeviceToken != null) {
+                logger.debug("automatically registering device token to newly identified profile")
+                // register device to newly identified profile
+                trackDeviceAttributes(token = existingDeviceToken)
+            }
+        }
     }
 
     /**
@@ -157,9 +186,68 @@ class CustomerIO private constructor(
     }
 
     override fun clearIdentify() {
-        val userId = registeredUserId ?: "anonymous"
-        logger.debug("resetting user profile with id $userId")
+        logger.info("resetting user profile with id $registeredUserId")
+
+        logger.debug("deleting device token to remove device from user profile")
+        deleteDeviceToken()
+
+        logger.debug("resetting user profile")
         analytics.reset()
+    }
+
+    override val registeredDeviceToken: String?
+        get() = globalPreferenceStore.getDeviceToken()
+
+    override var deviceAttributes: CustomAttributes
+        get() = emptyMap()
+        set(value) {
+            trackDeviceAttributes(registeredDeviceToken, value)
+        }
+
+    override fun registerDeviceToken(deviceToken: String) {
+        if (deviceToken.isBlank()) {
+            logger.debug("device token cannot be blank. ignoring request to register device token")
+            return
+        }
+
+        logger.info("registering device token $deviceToken for user profile: $registeredUserId")
+
+        logger.debug("storing device token to device storage")
+        globalPreferenceStore.saveDeviceToken(deviceToken)
+
+        trackDeviceAttributes(deviceToken)
+    }
+
+    private fun trackDeviceAttributes(token: String?, attributes: CustomAttributes = emptyMap()) {
+        if (token.isNullOrBlank()) {
+            logger.debug("no device token found. ignoring request to track device.")
+            return
+        }
+
+        val existingDeviceToken = contextPlugin.deviceToken
+        if (existingDeviceToken != null && existingDeviceToken != token) {
+            logger.debug("token has been refreshed, deleting old token to avoid registering same device multiple times")
+            deleteDeviceToken()
+        }
+
+        // TODO: Append auto tracked device attributes here
+        // Update plugin with updated device information
+        contextPlugin.updateDeviceProperties(token, attributes)
+
+        logger.info("updating device attributes: $attributes")
+        track("Device Created or Updated", attributes)
+    }
+
+    override fun deleteDeviceToken() {
+        logger.info("deleting device token")
+
+        val deviceToken = contextPlugin.deviceToken
+        if (deviceToken.isNullOrBlank()) {
+            logger.debug("No device token found to delete.")
+            return
+        }
+
+        track("Device Deleted")
     }
 
     override fun trackMetric(event: TrackMetric) {

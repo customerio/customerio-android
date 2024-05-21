@@ -37,6 +37,17 @@ public final class io/customer/datapipelines/plugins/AutomaticActivityScreenTrac
 	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
 }
 
+public final class io/customer/datapipelines/plugins/ContextPlugin : com/segment/analytics/kotlin/core/platform/Plugin {
+	public fun <init> (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun execute (Lcom/segment/analytics/kotlin/core/BaseEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
+	public fun getAnalytics ()Lcom/segment/analytics/kotlin/core/Analytics;
+	public fun getType ()Lcom/segment/analytics/kotlin/core/platform/Plugin$Type;
+	public fun setAnalytics (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun setup (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
+	public final fun updateDeviceProperties (Ljava/lang/String;Ljava/util/Map;)V
+}
+
 public final class io/customer/datapipelines/plugins/CustomerIODestination : com/segment/analytics/kotlin/core/platform/DestinationPlugin, com/segment/analytics/kotlin/core/platform/VersionedPlugin, sovran/kotlin/Subscriber {
 	public fun <init> ()V
 	public fun alias (Lcom/segment/analytics/kotlin/core/AliasEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
@@ -115,17 +126,22 @@ public final class io/customer/sdk/CustomerIOBuilder {
 public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/android/CustomerIOInstance {
 	public fun <init> ()V
 	public abstract fun clearIdentify ()V
+	public abstract fun deleteDeviceToken ()V
+	public abstract fun getDeviceAttributes ()Ljava/util/Map;
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
+	public abstract fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public final fun identify (Ljava/lang/String;)V
 	public abstract fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun identify (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
 	public static synthetic fun identify$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public abstract fun registerDeviceToken (Ljava/lang/String;)V
 	public final fun screen (Ljava/lang/String;)V
 	public abstract fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun screen (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun screen (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
 	public static synthetic fun screen$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public abstract fun setDeviceAttributes (Ljava/util/Map;)V
 	public abstract fun setProfileAttributes (Ljava/util/Map;)V
 	public final fun track (Ljava/lang/String;)V
 	public abstract fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
@@ -139,14 +155,19 @@ public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipe
 	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun clearIdentify ()V
+	public fun deleteDeviceToken ()V
+	public fun getDeviceAttributes ()Ljava/util/Map;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun getProfileAttributes ()Ljava/util/Map;
+	public fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
+	public fun registerDeviceToken (Ljava/lang/String;)V
 	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
 	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V

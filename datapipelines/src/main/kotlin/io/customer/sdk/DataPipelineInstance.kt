@@ -221,4 +221,28 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param event [TrackMetric] event to be tracked.
      */
     abstract fun trackMetric(event: TrackMetric)
+
+    /**
+     * The device token that is currently registered with the push notification service.
+     */
+    abstract val registeredDeviceToken: String?
+
+    /**
+     * Use to provide additional and custom device attributes
+     * apart from the ones the SDK is programmed to send to customer workspace.
+     */
+    abstract var deviceAttributes: CustomAttributes
+
+    /**
+     * Registers a new device token with Customer.io, associated with the current
+     * profile. If there is no profile identified yet, this will store the device
+     * token and associate it with anonymous profile, and later merge it to
+     * identified profile.
+     */
+    abstract fun registerDeviceToken(deviceToken: String)
+
+    /**
+     * Delete the currently registered device token
+     */
+    abstract fun deleteDeviceToken()
 }

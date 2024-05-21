@@ -1,3 +1,8 @@
+public final class io/customer/sdk/Version {
+	public static final field INSTANCE Lio/customer/sdk/Version;
+	public static final field version Ljava/lang/String;
+}
+
 public abstract interface class io/customer/sdk/android/CustomerIOInstance {
 }
 
@@ -9,9 +14,13 @@ public final class io/customer/sdk/core/BuildConfig {
 }
 
 public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk/core/di/DiGraph {
-	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/Context;Lio/customer/sdk/data/store/Client;)V
 	public final fun getApplicationContext ()Landroid/content/Context;
+	public final fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
+	public final fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
+	public final fun getClient ()Lio/customer/sdk/data/store/Client;
 	public final fun getContext ()Landroid/content/Context;
+	public final fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {
@@ -32,7 +41,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {
-	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/core/di/AndroidSDKComponent;
 }
 
 public abstract interface class io/customer/sdk/core/environment/BuildEnvironment {

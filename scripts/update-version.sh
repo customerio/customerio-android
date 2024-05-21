@@ -10,7 +10,7 @@ NEW_VERSION="$1"
 
 RELATIVE_PATH_TO_SCRIPTS_DIR=$(dirname "$0")
 ABSOLUTE_PATH_TO_SOURCE_CODE_ROOT_DIR=$(realpath "$RELATIVE_PATH_TO_SCRIPTS_DIR/..")
-KOTLIN_SOURCE_FILE="$ABSOLUTE_PATH_TO_SOURCE_CODE_ROOT_DIR/sdk/src/main/java/io/customer/sdk/Version.kt"
+KOTLIN_SOURCE_FILE="$ABSOLUTE_PATH_TO_SOURCE_CODE_ROOT_DIR/core/src/main/kotlin/io/customer/sdk/Version.kt"
 
 echo "Updating file: $KOTLIN_SOURCE_FILE to new version: $NEW_VERSION"
 

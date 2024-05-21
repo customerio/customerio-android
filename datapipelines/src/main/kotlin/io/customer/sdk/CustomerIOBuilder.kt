@@ -11,6 +11,7 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.Client
 
 /**
  * Creates a new instance of builder for CustomerIO SDK.
@@ -167,7 +168,10 @@ class CustomerIOBuilder(
 
     fun build(): CustomerIO {
         // Register AndroidSDKComponent to fulfill the dependencies required by the SDK modules
-        val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(context = applicationContext)
+        val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
+            context = applicationContext,
+            client = Client.Android(Version.version)
+        )
         val modules = SDKComponent.modules
 
         // Update the log level for the SDK

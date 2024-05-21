@@ -42,7 +42,7 @@
       {
         "assets": [
           "CHANGELOG.md",
-          "sdk/src/main/java/io/customer/sdk/Version.kt",
+          "core/src/main/kotlin/io/customer/sdk/Version.kt",
           "reports/sdk-binary-size.json"
         ],
         "message": "chore: prepare for ${nextRelease.version}\n\n${nextRelease.notes}"

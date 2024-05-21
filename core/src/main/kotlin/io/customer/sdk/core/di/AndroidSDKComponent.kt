@@ -25,7 +25,7 @@ class AndroidSDKComponent(
     val applicationStore: ApplicationStore
         get() = newInstance { ApplicationStoreImpl(context = applicationContext) }
     val deviceStore: DeviceStore
-        get() = singleton {
+        get() = newInstance {
             DeviceStoreImpl(
                 buildStore = buildStore,
                 applicationStore = applicationStore,

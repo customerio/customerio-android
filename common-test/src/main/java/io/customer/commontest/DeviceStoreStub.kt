@@ -4,14 +4,13 @@ import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.BuildStore
 import io.customer.sdk.data.store.DeviceStore
-import io.customer.sdk.data.store.DeviceStoreImp
+import io.customer.sdk.data.store.DeviceStoreImpl
 import java.util.*
 
 class DeviceStoreStub {
 
     fun getDeviceStore(cioConfig: CustomerIOConfig): DeviceStore {
-        return DeviceStoreImp(
-            sdkConfig = cioConfig,
+        return DeviceStoreImpl(
             buildStore = object : BuildStore {
                 override val deviceBrand: String
                     get() = "Google"
@@ -34,6 +33,7 @@ class DeviceStoreStub {
                 override val isPushEnabled: Boolean
                     get() = true
             },
+            client = cioConfig.client,
             version = "1.0.0-alpha.6"
         )
     }

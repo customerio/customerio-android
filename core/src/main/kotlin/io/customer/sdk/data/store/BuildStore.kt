@@ -21,7 +21,7 @@ interface BuildStore {
     val deviceLocale: String
 }
 
-internal class BuildStoreImp : BuildStore {
+internal class BuildStoreImpl : BuildStore {
 
     override val deviceBrand: String
         get() = Build.BRAND

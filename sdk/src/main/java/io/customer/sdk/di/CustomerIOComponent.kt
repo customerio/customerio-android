@@ -7,6 +7,8 @@ import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.api.*
 import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.core.di.DiGraph
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory
@@ -154,11 +156,14 @@ class CustomerIOComponent(
     private fun buildStore(): CustomerIOStore {
         return override() ?: object : CustomerIOStore {
             override val deviceStore: DeviceStore by lazy {
-                DeviceStoreImp(
-                    sdkConfig = sdkConfig,
-                    buildStore = BuildStoreImp(),
-                    applicationStore = ApplicationStoreImp(context),
-                    version = sdkConfig.client.sdkVersion
+                val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
+                    context = context,
+                    client = sdkConfig.client
+                )
+                return@lazy DeviceStoreImpl(
+                    buildStore = androidSDKComponent.buildStore,
+                    applicationStore = androidSDKComponent.applicationStore,
+                    client = sdkConfig.client
                 )
             }
         }

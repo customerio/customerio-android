@@ -1,8 +1,8 @@
 package io.customer.sdk.data.store
 
-import io.customer.sdk.CustomerIOConfig
-
 interface DeviceStore : BuildStore, ApplicationStore {
+    // Source SDK client
+    val customerIOClient: Client
 
     // SDK version
     val customerIOVersion: String
@@ -21,11 +21,11 @@ interface DeviceStore : BuildStore, ApplicationStore {
     fun buildDeviceAttributes(): Map<String, Any>
 }
 
-class DeviceStoreImp(
-    private val sdkConfig: CustomerIOConfig,
+class DeviceStoreImpl(
     private val buildStore: BuildStore,
     private val applicationStore: ApplicationStore,
-    private val version: String
+    client: Client,
+    version: String = client.sdkVersion
 ) : DeviceStore {
 
     override val deviceBrand: String
@@ -46,12 +46,12 @@ class DeviceStoreImp(
         get() = applicationStore.isPushEnabled
     override val customerPackageName: String
         get() = applicationStore.customerPackageName
-    override val customerIOVersion: String
-        get() = version
+    override val customerIOClient: Client = client
+    override val customerIOVersion: String = version
 
     override fun buildUserAgent(): String {
         return buildString {
-            append("Customer.io ${sdkConfig.client}")
+            append("Customer.io $customerIOClient")
             append(" ($deviceManufacturer $deviceModel; $deviceOSVersion)")
             append(" $customerPackageName/${customerAppVersion ?: "0.0.0"}")
         }

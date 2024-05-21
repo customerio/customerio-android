@@ -13,7 +13,7 @@ interface ApplicationStore {
     val isPushEnabled: Boolean
 }
 
-internal class ApplicationStoreImp(val context: Context) : ApplicationStore {
+internal class ApplicationStoreImpl(val context: Context) : ApplicationStore {
 
     override val customerAppName: String?
         get() = tryGetValueOrNull {

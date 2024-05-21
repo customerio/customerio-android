@@ -5,7 +5,6 @@ package io.customer.sdk
  * Keep this file as small as possible to make the automated updating script stable and easy to use.
  */
 
-internal object Version {
-
+object Version {
     const val version: String = "3.10.0"
 }

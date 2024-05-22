@@ -1,5 +1,7 @@
 package io.customer.android.sample.java_layout.sdk;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
@@ -33,6 +35,13 @@ public class CustomerIORepository {
         // This is because the push and in-app modules are still using properties only initialized in the old method
         io.customer.sdk.android.CustomerIO.Builder oldBuilder = new io.customer.sdk.android.CustomerIO.Builder(sdkConfig.getSiteId(), BuildConfig.API_KEY, application);
         oldBuilder.build();
+        // TODO: Remove this once push module is decoupled and started using EventBus
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            String token = io.customer.sdk.android.CustomerIO.instance().getRegisteredDeviceToken();
+            if (token != null) {
+                CustomerIO.instance().registerDeviceToken(token);
+            }
+        }, 3000);
 
         // Initialize Customer.io SDK builder
         CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());

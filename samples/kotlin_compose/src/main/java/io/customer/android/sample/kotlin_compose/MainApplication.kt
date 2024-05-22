@@ -1,6 +1,8 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
 import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
@@ -8,6 +10,7 @@ import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListe
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -33,6 +36,13 @@ class MainApplication : Application() {
             apiKey = BuildConfig.API_KEY,
             appContext = this
         ).build()
+        // TODO: Remove this once push module is decoupled and started using EventBus
+        Handler(Looper.getMainLooper()).postDelayed({
+            val token = io.customer.sdk.android.CustomerIO.instance().registeredDeviceToken
+            if (token != null) {
+                CustomerIO.instance().registerDeviceToken(token)
+            }
+        }, 3000)
 
         CustomerIOBuilder(
             applicationContext = this,

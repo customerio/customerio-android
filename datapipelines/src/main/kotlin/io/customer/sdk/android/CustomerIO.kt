@@ -210,9 +210,7 @@ class CustomerIO private constructor(
             return
         }
 
-        logger.info("registering device token $deviceToken for user profile: $registeredUserId")
-
-        logger.debug("storing device token to device storage")
+        logger.info("storing and registering device token $deviceToken for user profile: $registeredUserId")
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
         trackDeviceAttributes(deviceToken)

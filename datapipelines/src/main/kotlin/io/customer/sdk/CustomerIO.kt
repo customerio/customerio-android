@@ -78,7 +78,7 @@ class CustomerIO private constructor(
         )
     )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(analytics)
+    private val contextPlugin: ContextPlugin = ContextPlugin()
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -206,9 +206,7 @@ class CustomerIO private constructor(
             return
         }
 
-        logger.info("registering device token $deviceToken for user profile: $registeredUserId")
-
-        logger.debug("storing device token to device storage")
+        logger.info("storing and registering device token $deviceToken for user profile: $registeredUserId")
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
         trackDeviceAttributes(deviceToken)

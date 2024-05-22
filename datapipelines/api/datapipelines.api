@@ -38,7 +38,8 @@ public final class io/customer/datapipelines/plugins/AutomaticActivityScreenTrac
 }
 
 public final class io/customer/datapipelines/plugins/ContextPlugin : com/segment/analytics/kotlin/core/platform/Plugin {
-	public fun <init> (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public field analytics Lcom/segment/analytics/kotlin/core/Analytics;
+	public fun <init> ()V
 	public fun execute (Lcom/segment/analytics/kotlin/core/BaseEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
 	public fun getAnalytics ()Lcom/segment/analytics/kotlin/core/Analytics;
 	public fun getType ()Lcom/segment/analytics/kotlin/core/platform/Plugin$Type;

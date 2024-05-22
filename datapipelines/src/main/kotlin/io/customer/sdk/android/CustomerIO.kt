@@ -82,7 +82,7 @@ class CustomerIO private constructor(
         )
     )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(analytics)
+    private val contextPlugin: ContextPlugin = ContextPlugin()
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration

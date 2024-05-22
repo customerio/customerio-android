@@ -10,8 +10,9 @@ import io.customer.sdk.data.model.CustomAttributes
  * Plugin class responsible for updating the context properties in events
  * tracked by Customer.io SDK.
  */
-class ContextPlugin(override var analytics: Analytics) : Plugin {
+class ContextPlugin : Plugin {
     override val type: Plugin.Type = Plugin.Type.Before
+    override lateinit var analytics: Analytics
 
     internal var deviceToken: String? = null
         private set

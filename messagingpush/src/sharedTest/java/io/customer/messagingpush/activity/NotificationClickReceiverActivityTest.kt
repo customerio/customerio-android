@@ -8,7 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseIntegrationTest
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.processor.PushMessageProcessor
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Before

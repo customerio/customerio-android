@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.lifecycle.LifecycleCallback
 
 class CustomerIOActivityLifecycleCallbacks internal constructor(

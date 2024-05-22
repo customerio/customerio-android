@@ -46,7 +46,7 @@ fun LoginRoute(
     TrackScreenLifecycle(
         lifecycleOwner = LocalLifecycleOwner.current,
         onScreenEnter = {
-            io.customer.sdk.android.CustomerIO.instance().screen("Login")
+            CustomerIO.instance().screen("Login")
         }
     )
 

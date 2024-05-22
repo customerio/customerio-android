@@ -5,6 +5,7 @@ import io.customer.commontest.BaseIntegrationTest
 import io.customer.commontest.extensions.enqueue
 import io.customer.commontest.extensions.enqueueNoInternetConnection
 import io.customer.commontest.extensions.enqueueSuccessful
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import kotlinx.coroutines.test.runTest

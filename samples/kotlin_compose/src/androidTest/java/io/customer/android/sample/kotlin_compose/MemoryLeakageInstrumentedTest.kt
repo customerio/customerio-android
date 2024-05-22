@@ -67,7 +67,7 @@ class MemoryLeakageInstrumentedTest {
             preferences.getConfiguration().first()
         }
 
-        CustomerIO.Builder(
+        io.customer.sdk.android.CustomerIO.Builder(
             siteId = configuration.siteId,
             apiKey = BuildConfig.API_KEY,
             appContext = appContext as Application
@@ -86,7 +86,7 @@ class MemoryLeakageInstrumentedTest {
         }
 
         CustomerIOBuilder(
-            applicationContext = appContext as Application,
+            applicationContext = appContext,
             cdpApiKey = configuration.cdpApiKey
         ).apply {
             configuration.setValuesFromBuilder(this)

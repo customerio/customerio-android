@@ -44,7 +44,7 @@ fun CustomEventRoute(
     val context = LocalContext.current
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        io.customer.sdk.android.CustomerIO.instance().screen("Custom Event")
+        CustomerIO.instance().screen("Custom Event")
     })
 
     Column(
@@ -101,7 +101,7 @@ fun CustomEventRoute(
                 text = stringResource(R.string.send_event),
                 modifier = Modifier.testTag(stringResource(id = R.string.acd_send_event_button)),
                 onClick = {
-                    io.customer.sdk.android.CustomerIO.instance().track(
+                    CustomerIO.instance().track(
                         name = eventName,
                         properties = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
                     )

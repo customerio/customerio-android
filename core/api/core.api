@@ -1,9 +1,9 @@
+public abstract interface class io/customer/sdk/CustomerIOInstance {
+}
+
 public final class io/customer/sdk/Version {
 	public static final field INSTANCE Lio/customer/sdk/Version;
 	public static final field version Ljava/lang/String;
-}
-
-public abstract interface class io/customer/sdk/android/CustomerIOInstance {
 }
 
 public final class io/customer/sdk/core/BuildConfig {

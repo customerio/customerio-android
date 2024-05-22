@@ -12,7 +12,7 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.di.CustomerIOComponent
 

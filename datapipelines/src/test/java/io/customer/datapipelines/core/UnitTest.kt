@@ -6,8 +6,8 @@ import io.customer.datapipelines.extensions.registerAnalyticsFactory
 import io.customer.datapipelines.utils.clearPersistentStorage
 import io.customer.datapipelines.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.utils.mockHTTPClient
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import org.mockito.kotlin.mock
 

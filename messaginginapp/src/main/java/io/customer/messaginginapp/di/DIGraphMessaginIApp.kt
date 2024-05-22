@@ -5,7 +5,7 @@ import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistApiProvider
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
 import io.customer.messaginginapp.provider.InAppMessagesProvider
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.di.CustomerIOComponent
 
 internal val CustomerIOComponent.gistApiProvider: GistApi

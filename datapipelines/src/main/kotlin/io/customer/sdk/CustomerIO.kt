@@ -1,8 +1,4 @@
-// TODO: Move this class and its dependencies (CustomerIOInstance, DataPipelineInstance) to the correct package.
-// We need to move this class to the right package to avoid breaking imports for the users of the SDK.
-// We have placed the class in the wrong package for now to avoid breaking the build.
-// Once old implementations are removed, we can move the class to the correct package.
-package io.customer.sdk.android
+package io.customer.sdk
 
 import androidx.annotation.VisibleForTesting
 import com.segment.analytics.kotlin.android.Analytics
@@ -19,7 +15,6 @@ import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
-import io.customer.sdk.DataPipelineInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule

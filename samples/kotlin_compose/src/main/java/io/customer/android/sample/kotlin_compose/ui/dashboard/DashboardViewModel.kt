@@ -38,7 +38,7 @@ class DashboardViewModel @Inject constructor(
     fun logout(user: User, onLogout: () -> Unit) {
         viewModelScope.launch {
             userRepository.deleteUser(user)
-            io.customer.sdk.android.CustomerIO.instance().clearIdentify()
+            CustomerIO.instance().clearIdentify()
             onLogout.invoke()
         }
     }
@@ -46,19 +46,19 @@ class DashboardViewModel @Inject constructor(
     fun sendRandomEvent() {
         when (Random().nextInt(3)) {
             0 -> {
-                io.customer.sdk.android.CustomerIO.instance().track("Order Purchased")
+                CustomerIO.instance().track("Order Purchased")
             }
 
             1 -> {
                 val attributes = mapOf("movie_name" to "The Incredibles")
-                io.customer.sdk.android.CustomerIO.instance().track("movie_watched", attributes)
+                CustomerIO.instance().track("movie_watched", attributes)
             }
 
             2 -> {
                 val sevenDaysLater =
                     Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.time
                 val attributes = mapOf("appointmentTime" to sevenDaysLater)
-                io.customer.sdk.android.CustomerIO.instance().track("appointmentScheduled", attributes)
+                CustomerIO.instance().track("appointmentScheduled", attributes)
             }
         }
     }

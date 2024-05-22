@@ -16,7 +16,7 @@ import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.CustomerIOInstance
+import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random

@@ -8,8 +8,8 @@ import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import io.customer.messagingpush.ModuleMessagingPushFCM
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.android.CustomerIO
 
 @DrawableRes
 internal fun Context.getDrawableByName(name: String?): Int? = if (name.isNullOrBlank()) {

@@ -4,8 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.tracking.TrackableScreen
 

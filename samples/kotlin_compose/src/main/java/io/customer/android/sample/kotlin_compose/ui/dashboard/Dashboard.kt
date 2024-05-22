@@ -45,7 +45,7 @@ fun DashboardRoute(
     val userState = viewModel.uiState.collectAsState()
 
     TrackScreenLifecycle(lifecycleOwner = LocalLifecycleOwner.current, onScreenEnter = {
-        io.customer.sdk.android.CustomerIO.instance().screen("Dashboard")
+        CustomerIO.instance().screen("Dashboard")
     })
 
     DashboardScreen(

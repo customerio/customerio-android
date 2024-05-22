@@ -5,7 +5,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.extensions.getSDKInstanceOrNull
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.android.CustomerIO
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 

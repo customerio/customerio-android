@@ -60,7 +60,7 @@ public class InAppMessageEventListener implements InAppEventListener {
     }
 
     private void trackInAppEvent(@NonNull String eventName, @NonNull InAppMessage message, @Nullable Map<String, String> arguments) {
-        io.customer.sdk.android.CustomerIO.instance().track(
+        CustomerIO.instance().track(
                 "in-app message action",
                 new HashMap<String, String>() {{
                     if (arguments != null) {

@@ -31,7 +31,7 @@ public class CustomerIORepository {
         // TODO: Remove old builder and use new builder only to initialize the SDK
         // The new method should be called after the old method till the old method is removed
         // This is because the push and in-app modules are still using properties only initialized in the old method
-        CustomerIO.Builder oldBuilder = new CustomerIO.Builder(sdkConfig.getSiteId(), BuildConfig.API_KEY, application);
+        io.customer.sdk.android.CustomerIO.Builder oldBuilder = new io.customer.sdk.android.CustomerIO.Builder(sdkConfig.getSiteId(), BuildConfig.API_KEY, application);
         oldBuilder.build();
 
         // Initialize Customer.io SDK builder
@@ -96,15 +96,15 @@ public class CustomerIORepository {
     }
 
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {
-        io.customer.sdk.android.CustomerIO.instance().identify(email, attributes);
+        CustomerIO.instance().identify(email, attributes);
     }
 
     public void clearIdentify() {
-        io.customer.sdk.android.CustomerIO.instance().clearIdentify();
+        CustomerIO.instance().clearIdentify();
     }
 
     public void trackEvent(@NonNull String eventName, @NonNull Map<String, String> extras) {
-        io.customer.sdk.android.CustomerIO.instance().track(eventName, extras);
+        CustomerIO.instance().track(eventName, extras);
     }
 
     public void setDeviceAttributes(@NonNull Map<String, String> attributes) {
@@ -112,7 +112,7 @@ public class CustomerIORepository {
     }
 
     public void setProfileAttributes(@NonNull Map<String, String> attributes) {
-        io.customer.sdk.android.CustomerIO.instance().setProfileAttributes(attributes);
+        CustomerIO.instance().setProfileAttributes(attributes);
     }
 
     /*

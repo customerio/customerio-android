@@ -3,7 +3,6 @@ package io.customer.sdk
 import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.core.module.CustomerIOModule

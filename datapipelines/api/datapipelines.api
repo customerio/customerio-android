@@ -105,10 +105,37 @@ public abstract interface class io/customer/datapipelines/plugins/TrackableScree
 	public abstract fun getScreenName ()Ljava/lang/String;
 }
 
+public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
+	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
+	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun clearIdentify ()V
+	public fun deleteDeviceToken ()V
+	public fun getDeviceAttributes ()Ljava/util/Map;
+	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public fun getProfileAttributes ()Ljava/util/Map;
+	public fun getRegisteredDeviceToken ()Ljava/lang/String;
+	public fun getSdkVersion ()Ljava/lang/String;
+	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun initialize ()V
+	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+	public fun registerDeviceToken (Ljava/lang/String;)V
+	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun setDeviceAttributes (Ljava/util/Map;)V
+	public fun setProfileAttributes (Ljava/util/Map;)V
+	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
+}
+
+public final class io/customer/sdk/CustomerIO$Companion {
+	public final fun instance ()Lio/customer/sdk/CustomerIO;
+}
+
 public final class io/customer/sdk/CustomerIOBuilder {
 	public fun <init> (Landroid/app/Application;Ljava/lang/String;)V
 	public final fun addCustomerIOModule (Lio/customer/sdk/core/module/CustomerIOModule;)Lio/customer/sdk/CustomerIOBuilder;
-	public final fun build ()Lio/customer/sdk/android/CustomerIO;
+	public final fun build ()Lio/customer/sdk/CustomerIO;
 	public final fun setApiHost (Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun setAutoAddCustomerIODestination (Z)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun setAutoTrackActivityScreens (Z)Lio/customer/sdk/CustomerIOBuilder;
@@ -123,7 +150,7 @@ public final class io/customer/sdk/CustomerIOBuilder {
 	public final fun setTrackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOBuilder;
 }
 
-public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/android/CustomerIOInstance {
+public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/CustomerIOInstance {
 	public fun <init> ()V
 	public abstract fun clearIdentify ()V
 	public abstract fun deleteDeviceToken ()V
@@ -149,31 +176,5 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/and
 	public final fun track (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
 	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
 	public abstract fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
-}
-
-public final class io/customer/sdk/android/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
-	public static final field Companion Lio/customer/sdk/android/CustomerIO$Companion;
-	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun clearIdentify ()V
-	public fun deleteDeviceToken ()V
-	public fun getDeviceAttributes ()Ljava/util/Map;
-	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
-	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
-	public fun getModuleName ()Ljava/lang/String;
-	public fun getProfileAttributes ()Ljava/util/Map;
-	public fun getRegisteredDeviceToken ()Ljava/lang/String;
-	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
-	public fun initialize ()V
-	public static final fun instance ()Lio/customer/sdk/android/CustomerIO;
-	public fun registerDeviceToken (Ljava/lang/String;)V
-	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
-	public fun setDeviceAttributes (Ljava/util/Map;)V
-	public fun setProfileAttributes (Ljava/util/Map;)V
-	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
-	public fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
-}
-
-public final class io/customer/sdk/android/CustomerIO$Companion {
-	public final fun instance ()Lio/customer/sdk/android/CustomerIO;
 }
 

@@ -2,7 +2,7 @@ package io.customer.messaginginapp.hook
 
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.provider.InAppMessagesProvider
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.hooks.ModuleHook
 import io.customer.sdk.hooks.ModuleHookProvider

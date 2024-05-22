@@ -2,7 +2,6 @@ package io.customer.sdk
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
-import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
 import kotlinx.serialization.SerializationStrategy

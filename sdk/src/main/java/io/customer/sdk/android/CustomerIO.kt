@@ -1,4 +1,4 @@
-package io.customer.sdk
+package io.customer.sdk.android
 
 import android.app.Activity
 import android.app.Application
@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.annotation.VisibleForTesting
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.Version
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel

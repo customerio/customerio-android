@@ -23,8 +23,8 @@ import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.di.CustomerIOComponent
 import io.customer.sdk.di.CustomerIOStaticComponent

@@ -44,7 +44,7 @@ public final class io/customer/messaginginapp/databinding/ActivityGistBinding : 
 }
 
 public final class io/customer/messaginginapp/di/DIGraphMessaginIAppKt {
-	public static final fun inAppMessaging (Lio/customer/sdk/CustomerIO;)Lio/customer/messaginginapp/ModuleMessagingInApp;
+	public static final fun inAppMessaging (Lio/customer/sdk/android/CustomerIO;)Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public abstract class io/customer/messaginginapp/gist/GistEnvironment : java/lang/Enum, io/customer/messaginginapp/gist/GistEnvironmentEndpoints {

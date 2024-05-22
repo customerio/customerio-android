@@ -6,8 +6,8 @@ import io.customer.commontest.BaseUnitTest
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region

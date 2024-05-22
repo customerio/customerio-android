@@ -10,8 +10,8 @@ import io.customer.datapipelines.extensions.encodeToJsonElement
 import io.customer.datapipelines.extensions.shouldMatchTo
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.support.UserTraits
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric

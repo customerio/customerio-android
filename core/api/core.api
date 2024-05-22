@@ -21,6 +21,7 @@ public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk
 	public final fun getClient ()Lio/customer/sdk/data/store/Client;
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public final fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {

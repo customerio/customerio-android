@@ -1,5 +1,4 @@
 public abstract interface class io/customer/sdk/CustomerIOInstance {
-	public abstract fun getSdkVersion ()Ljava/lang/String;
 }
 
 public final class io/customer/sdk/Version {

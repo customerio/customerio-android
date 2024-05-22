@@ -45,7 +45,6 @@ class CustomerIO private constructor(
     overrideAnalytics: Analytics? = null
 ) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
     override val moduleName: String = MODULE_NAME
-    override val sdkVersion: String = androidSDKComponent.client.sdkVersion
 
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore

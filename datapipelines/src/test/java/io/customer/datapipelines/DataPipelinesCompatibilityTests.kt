@@ -29,7 +29,7 @@ import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
 class DataPipelinesCompatibilityTests : UnitTest() {
     //region Setup test environment

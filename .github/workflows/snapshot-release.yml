@@ -19,8 +19,10 @@ jobs:
       # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
       - name: Set snapshot version 
         id: set-snapshot-version
+        env:
+          PR_HEAD_REF: $(echo "${{ github.event.pull_request.head.ref }}" | sed -r 's/\//-/g')-SNAPSHOT
         # Get the current branch name and replace all / characters with - as / is invalid in gradle names. 
-        run: echo "::set-output name=VERSION::$(echo '${{ github.event.pull_request.head.ref }}' | sed -r 's/\//-/g')-SNAPSHOT"
+        run: echo "VERSION=${PR_HEAD_REF}" >> $GITHUB_OUTPUT
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

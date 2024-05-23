@@ -54,8 +54,12 @@ abstract class DiGraph {
      * Example:
      * ```
      * val logger: Logger
-     *   get() = newInstance { LoggerImpl(...) }
+     *   get() = newInstance<Logger> { LoggerImpl(...) }
      * ```
+     * If the implementation class is different from property type, please make
+     * sure to mention class type explicitly so that it can be used for type
+     * inference.
+     * e.g. use `newInstance<Logger>(...)` instead of `newInstance(...)`.
      */
     inline fun <reified Dependency : Any> newInstance(
         identifier: String? = null,
@@ -79,8 +83,12 @@ abstract class DiGraph {
      * Example:
      * ```
      * val logger: Logger
-     *   get() = singleton { LoggerImpl(...) }
+     *   get() = singleton<Logger> { LoggerImpl(...) }
      * ```
+     * If the implementation class is different from property type, please make
+     * sure to mention class type explicitly so that it can be used for type
+     * inference.
+     * e.g. use `singleton<Logger>(...)` instead of `singleton(...)`.
      */
     inline fun <reified Dependency : Any> singleton(
         identifier: String? = null,

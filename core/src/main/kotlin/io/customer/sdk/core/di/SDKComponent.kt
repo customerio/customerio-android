@@ -15,8 +15,8 @@ import io.customer.sdk.core.util.Logger
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 object SDKComponent : DiGraph() {
     val androidSDKComponent: AndroidSDKComponent? get() = getOrNull()
-    val buildEnvironment: BuildEnvironment get() = newInstance { DefaultBuildEnvironment() }
-    val logger: Logger get() = singleton { LogcatLogger(buildEnvironment = buildEnvironment) }
+    val buildEnvironment: BuildEnvironment get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
+    val logger: Logger get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
 
     override fun reset() {

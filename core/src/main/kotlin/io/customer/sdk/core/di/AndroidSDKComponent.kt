@@ -23,11 +23,11 @@ class AndroidSDKComponent(
     val applicationContext: Context
         get() = newInstance { context.applicationContext }
     val buildStore: BuildStore
-        get() = newInstance { BuildStoreImpl() }
+        get() = newInstance<BuildStore> { BuildStoreImpl() }
     val applicationStore: ApplicationStore
-        get() = newInstance { ApplicationStoreImpl(context = applicationContext) }
+        get() = newInstance<ApplicationStore> { ApplicationStoreImpl(context = applicationContext) }
     val deviceStore: DeviceStore
-        get() = newInstance {
+        get() = newInstance<DeviceStore> {
             DeviceStoreImpl(
                 buildStore = buildStore,
                 applicationStore = applicationStore,
@@ -35,5 +35,5 @@ class AndroidSDKComponent(
             )
         }
     val globalPreferenceStore: GlobalPreferenceStore
-        get() = singleton { GlobalPreferenceStoreImpl(applicationContext) }
+        get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
 }

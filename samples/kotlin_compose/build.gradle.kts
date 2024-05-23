@@ -8,6 +8,7 @@ plugins {
 
 apply {
     // Include Customer.io SDK dependencies and common gradle properties for sample apps
+    ext.set("appConfigKeyPrefix", "kotlinCompose_")
     from("$rootDir/samples/sample-app.gradle")
 }
 

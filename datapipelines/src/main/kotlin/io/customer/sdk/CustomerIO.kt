@@ -51,6 +51,9 @@ class CustomerIO private constructor(
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
+        // Use new logger reference to avoid memory leaks
+        private val logger: Logger = SDKComponent.logger
+
         override fun invoke(error: Throwable) {
             logger.error(error.message ?: error.stackTraceToString())
         }
@@ -58,6 +61,9 @@ class CustomerIO private constructor(
 
     // Logger implementation for Segment logger to display logs under CIO tag for easier filtering in logcat
     private val segmentLogger = object : com.segment.analytics.kotlin.core.platform.plugins.logger.Logger {
+        // Use new logger reference to avoid memory leaks
+        private val logger: Logger = SDKComponent.logger
+
         override fun parseLog(log: LogMessage) {
             val message = log.message
             when (log.kind) {
@@ -308,6 +314,8 @@ class CustomerIO private constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
+            // Reset SDKComponent to clear static references and avoid memory leaks
+            SDKComponent.reset()
             instance = null
         }
     }

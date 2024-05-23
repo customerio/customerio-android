@@ -15,6 +15,9 @@ android {
         }
 
         // Retrieve API keys using the helper method to allow key prefixing
+        // e.g. Java Layout sample app has prefix javaLayout_ for API keys
+        // javaLayout_cdpApiKey=KEY has higher priority than cdpApiKey=KEY
+        // cdpApiKey=KEY can be used as a fallback for all sample apps
         String apiKey = getConfigWithPrefix("apiKey")
         String cdpApiKey = getConfigWithPrefix("cdpApiKey")
         String siteId = getConfigWithPrefix("siteId")

@@ -22,7 +22,7 @@ jobs:
         env:
           # Get the current branch name and replace all / characters with - as / is invalid in gradle names.
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: echo "VERSION=$(echo \"${PR_HEAD_REF}\" | sed -r 's/\//-/g')-SNAPSHOT" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(echo ${PR_HEAD_REF} | sed -r 's/\//-/g')-SNAPSHOT" >> $GITHUB_OUTPUT
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository

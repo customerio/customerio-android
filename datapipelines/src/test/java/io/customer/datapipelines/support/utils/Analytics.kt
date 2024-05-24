@@ -1,4 +1,4 @@
-package io.customer.datapipelines.utils
+package io.customer.datapipelines.support.utils
 
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.Configuration
@@ -7,7 +7,7 @@ import com.segment.analytics.kotlin.core.ErrorHandler
 import com.segment.analytics.kotlin.core.HTTPClient
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
-import io.customer.datapipelines.stubs.TestCoroutineConfiguration
+import io.customer.datapipelines.support.stubs.TestCoroutineConfiguration
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkConstructor

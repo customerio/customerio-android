@@ -11,10 +11,10 @@ import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.TrackEvent
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
-import io.customer.datapipelines.core.UnitTest
-import io.customer.datapipelines.utils.TestRunPlugin
-import io.customer.datapipelines.utils.createTestAnalyticsInstance
-import io.customer.datapipelines.utils.mockHTTPClient
+import io.customer.datapipelines.support.core.UnitTest
+import io.customer.datapipelines.support.utils.TestRunPlugin
+import io.customer.datapipelines.support.utils.createTestAnalyticsInstance
+import io.customer.datapipelines.support.utils.mockHTTPClient
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.extensions.random
 import io.mockk.every

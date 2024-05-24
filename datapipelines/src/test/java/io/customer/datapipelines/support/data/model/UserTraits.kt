@@ -1,4 +1,4 @@
-package io.customer.datapipelines.support
+package io.customer.datapipelines.support.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

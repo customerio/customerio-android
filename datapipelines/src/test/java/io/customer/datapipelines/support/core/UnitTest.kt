@@ -1,10 +1,10 @@
-package io.customer.datapipelines.core
+package io.customer.datapipelines.support.core
 
 import com.segment.analytics.kotlin.core.Analytics
-import io.customer.datapipelines.extensions.registerAnalyticsFactory
-import io.customer.datapipelines.utils.clearPersistentStorage
-import io.customer.datapipelines.utils.createTestAnalyticsInstance
-import io.customer.datapipelines.utils.mockHTTPClient
+import io.customer.datapipelines.support.extensions.registerAnalyticsFactory
+import io.customer.datapipelines.support.utils.clearPersistentStorage
+import io.customer.datapipelines.support.utils.createTestAnalyticsInstance
+import io.customer.datapipelines.support.utils.mockHTTPClient
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.Version

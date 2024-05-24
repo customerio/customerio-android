@@ -1,7 +1,7 @@
-package io.customer.datapipelines.stubs
+package io.customer.datapipelines.support.stubs
 
 import com.segment.analytics.kotlin.core.CoroutineConfiguration
-import io.customer.datapipelines.utils.spyStore
+import io.customer.datapipelines.support.utils.spyStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi

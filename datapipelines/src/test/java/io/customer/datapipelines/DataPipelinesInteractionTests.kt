@@ -2,10 +2,12 @@ package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.datapipelines.core.UnitTest
+import io.customer.datapipelines.extensions.deviceToken
 import io.customer.datapipelines.extensions.encodeToJsonElement
 import io.customer.datapipelines.extensions.shouldMatchTo
 import io.customer.datapipelines.support.UserTraits
 import io.customer.datapipelines.utils.OutputReaderPlugin
+import io.customer.datapipelines.utils.TestConstants
 import io.customer.datapipelines.utils.identifyEvents
 import io.customer.datapipelines.utils.screenEvents
 import io.customer.datapipelines.utils.trackEvents
@@ -21,6 +23,11 @@ import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 class DataPipelinesInteractionTests : UnitTest() {
     //region Setup test environment
@@ -367,6 +374,233 @@ class DataPipelinesInteractionTests : UnitTest() {
         identifyEvent.userId shouldBeEqualTo givenIdentifier
         screenEvent.name shouldBeEqualTo givenTitle
         screenEvent.properties shouldBeEqualTo givenProperties
+    }
+
+    //endregion
+    //region Device
+
+    @Test
+    fun device_givenTokenRegistered_expectDeviceRegistered() {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+
+        sdkInstance.identify(givenIdentifier)
+        sdkInstance.registerDeviceToken(givenToken)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+        deviceRegisterEvent.properties.shouldBeEmpty()
+    }
+
+    @Test
+    fun device_givenAttributesUpdated_expectDeviceUpdatedWithAttributes() {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+        val givenAttributes = mapOf(
+            "source" to "test",
+            "debugMode" to true
+        )
+
+        sdkInstance.identify(givenIdentifier)
+        sdkInstance.registerDeviceToken(givenToken)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        sdkInstance.deviceAttributes = givenAttributes
+
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 2
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+        deviceRegisterEvent.properties shouldMatchTo givenAttributes
+    }
+
+    @Test
+    fun device_givenClearIdentify_expectDeviceUnregisteredFromProfile() {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+
+        sdkInstance.identify(givenIdentifier)
+        sdkInstance.registerDeviceToken(givenToken)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        outputReaderPlugin.reset()
+
+        sdkInstance.clearIdentify()
+
+        analytics.userId().shouldBeNull()
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
+
+        val deviceDeleteEvent = outputReaderPlugin.trackEvents.last()
+        deviceDeleteEvent.userId shouldBeEqualTo givenIdentifier
+        deviceDeleteEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenToken
+        deviceDeleteEvent.properties.shouldBeEmpty()
+    }
+
+    @Test
+    fun device_givenProfileChanged_expectDeleteDeviceTokenForOldProfile() {
+        val givenIdentifier = String.random
+        val givenPreviouslyIdentifiedProfile = String.random
+        val givenToken = String.random
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        sdkInstance.identify(givenPreviouslyIdentifiedProfile)
+        outputReaderPlugin.reset()
+
+        sdkInstance.identify(givenIdentifier)
+
+        outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 1
+        // 1. Device delete event for the old profile
+        // 2. Device update event for the new profile
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 2
+
+        val deviceDeleteEvent = outputReaderPlugin.trackEvents.first()
+        deviceDeleteEvent.userId shouldBeEqualTo givenPreviouslyIdentifiedProfile
+        deviceDeleteEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenToken
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenProfileReIdentified_expectNoDeviceEvents() {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        sdkInstance.identify(givenIdentifier)
+        outputReaderPlugin.reset()
+
+        sdkInstance.identify(givenIdentifier)
+
+        outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 1
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 0
+    }
+
+    // Since we do not allow empty identifiers, the empty string is used to simulate an anonymous profile
+    @ParameterizedTest
+    @ValueSource(strings = ["", "testProfile"])
+    fun device_givenTokenRefreshed_expectDeleteAndRegisterDeviceToken(givenIdentifier: String) {
+        val givenPreviousDeviceToken = String.random
+        val givenToken = String.random
+
+        sdkInstance.identify(givenIdentifier)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenPreviousDeviceToken)
+        sdkInstance.registerDeviceToken(givenPreviousDeviceToken)
+        outputReaderPlugin.reset()
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        sdkInstance.registerDeviceToken(givenToken)
+
+        // 1. Device delete event for the old token
+        // 2. Device update event for the new token
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 2
+
+        val deviceDeleteEvent = outputReaderPlugin.trackEvents.first()
+        deviceDeleteEvent.userId shouldBeEqualTo givenIdentifier
+        deviceDeleteEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenPreviousDeviceToken
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenProfileIdentifiedBefore_expectRegisterDeviceToken() {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        sdkInstance.identify(givenIdentifier)
+        outputReaderPlugin.reset()
+
+        sdkInstance.registerDeviceToken(givenToken)
+
+        outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 0
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenProfileIdentifiedAfter_expectRegisterDeviceToken() {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        sdkInstance.registerDeviceToken(givenToken)
+        outputReaderPlugin.reset()
+
+        sdkInstance.identify(givenIdentifier)
+
+        outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 1
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenRegisterTokenWhenNoProfileIdentified_expectStoreAndRegisterDeviceForAnonymousProfile() {
+        val givenToken = String.random
+
+        sdkInstance.registerDeviceToken(givenToken)
+
+        verify(globalPreferenceStore, times(1)).saveDeviceToken(givenToken)
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
+
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
+        deviceRegisterEvent.userId.shouldBeEmpty()
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenDeviceTokenStoredInStore_expectStoredValueForRegisteredToken() {
+        val givenToken = String.random
+
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        sdkInstance.registeredDeviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenDeleteDeviceWhenNoExistingPushToken_expectNoEventDispatched() {
+        sdkInstance.deleteDeviceToken()
+
+        outputReaderPlugin.trackEvents.shouldBeEmpty()
+    }
+
+    @Test
+    fun device_givenClearIdentifyWhenNoExistingPushToken_expectNoEventDispatched() {
+        sdkInstance.identify(String.random)
+        outputReaderPlugin.reset()
+
+        sdkInstance.clearIdentify()
+
+        outputReaderPlugin.trackEvents.shouldBeEmpty()
     }
 
     //endregion

@@ -6,10 +6,12 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.datapipelines.core.UnitTest
 import io.customer.datapipelines.extensions.decodeJson
+import io.customer.datapipelines.extensions.deviceToken
 import io.customer.datapipelines.extensions.encodeToJsonElement
 import io.customer.datapipelines.extensions.shouldMatchTo
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.support.UserTraits
+import io.customer.datapipelines.utils.TestConstants
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.data.model.CustomAttributes
@@ -24,12 +26,14 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBe
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.whenever
 
 class DataPipelinesCompatibilityTests : UnitTest() {
     //region Setup test environment
@@ -389,6 +393,90 @@ class DataPipelinesCompatibilityTests : UnitTest() {
             put("deliveryId", givenDeliveryId)
             putAll(givenMetadata)
         }
+    }
+
+    //endregion
+    //region Device token
+
+    @Test
+    fun device_givenTokenRegistered_expectFinalJSONHasCorrectDeviceAttributes() = runTest {
+        val givenToken = String.random
+
+        sdkInstance.identify(String.random)
+        sdkInstance.registerDeviceToken(givenToken)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        val queuedEvents = getQueuedEvents()
+        // 1. Identify event
+        // 2. Device registration event
+        queuedEvents.count() shouldBeEqualTo 2
+
+        val payload = queuedEvents.last().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+
+        val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
+        payloadContext.deviceToken shouldBeEqualTo givenToken
+        payload["properties"]?.jsonObject.shouldNotBeNull().shouldBeEmpty()
+        // server does not require 'last_used' and 'platform' and may fail if included
+        payloadContext.containsKey("last_used") shouldBeEqualTo false
+        payloadContext.containsKey("platform") shouldBeEqualTo false
+    }
+
+    @Test
+    fun device_givenAttributesUpdated_expectFinalJSONHasCustomDeviceAttributes() = runTest {
+        val givenToken = String.random
+        val givenAttributes = mapOf(
+            "source" to "test",
+            "debugMode" to true
+        )
+
+        sdkInstance.identify(String.random)
+        sdkInstance.registerDeviceToken(givenToken)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        sdkInstance.deviceAttributes = givenAttributes
+
+        val queuedEvents = getQueuedEvents()
+        // 1. Identify
+        // 2. Device register
+        // 3. Device attributes update
+        queuedEvents.count() shouldBeEqualTo 3
+
+        val payload = queuedEvents.last().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+
+        val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
+        payloadContext.deviceToken shouldBeEqualTo givenToken
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenAttributes
+    }
+
+    @Test
+    fun device_givenDeviceDeleted_expectFinalJSONHasCorrectDeletionAttributes() = runTest {
+        val givenIdentifier = String.random
+        val givenToken = String.random
+
+        sdkInstance.identify(givenIdentifier)
+        sdkInstance.registerDeviceToken(givenToken)
+        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+
+        sdkInstance.deleteDeviceToken()
+
+        val queuedEvents = getQueuedEvents()
+        // 1. Identify
+        // 2. Device register
+        // 3. Device delete
+        queuedEvents.count() shouldBeEqualTo 3
+        storage.read(Storage.Constants.UserId).shouldNotBeNull()
+
+        val payload = queuedEvents.last().jsonObject
+        payload.userId shouldBeEqualTo givenIdentifier
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+
+        val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
+        payloadContext.deviceToken shouldBeEqualTo givenToken
+        payload["properties"]?.jsonObject.shouldNotBeNull().shouldBeEmpty()
     }
 
     //endregion

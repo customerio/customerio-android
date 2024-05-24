@@ -12,13 +12,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.internal.assertEquals
 
 /**
  * Similar to Kluent's `shouldBeEqualTo` but for comparing JSON objects with custom attributes map.
  */
 infix fun JsonObject.shouldMatchTo(expected: CustomAttributes): JsonObject {
-    return this.apply { this shouldBeEqualTo expected.toJsonObject() }
+    return this.apply { assertEquals(expected.toJsonObject(), this) }
 }
 
 /**

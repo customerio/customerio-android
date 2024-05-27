@@ -1,4 +1,4 @@
-package io.customer.datapipelines.utils
+package io.customer.datapipelines.support.utils
 
 /**
  * Constants to help with testing and avoid code duplication in tests.

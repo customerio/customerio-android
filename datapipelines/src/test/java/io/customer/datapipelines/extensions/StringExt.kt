@@ -1,4 +1,5 @@
 package io.customer.datapipelines.extensions
+
 import io.customer.datapipelines.plugins.getScreenNameFromActivity
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test

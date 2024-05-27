@@ -1,16 +1,16 @@
 package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
-import io.customer.datapipelines.core.UnitTest
-import io.customer.datapipelines.extensions.deviceToken
-import io.customer.datapipelines.extensions.encodeToJsonElement
-import io.customer.datapipelines.extensions.shouldMatchTo
-import io.customer.datapipelines.support.UserTraits
-import io.customer.datapipelines.utils.OutputReaderPlugin
-import io.customer.datapipelines.utils.TestConstants
-import io.customer.datapipelines.utils.identifyEvents
-import io.customer.datapipelines.utils.screenEvents
-import io.customer.datapipelines.utils.trackEvents
+import io.customer.datapipelines.support.core.UnitTest
+import io.customer.datapipelines.support.data.model.UserTraits
+import io.customer.datapipelines.support.extensions.deviceToken
+import io.customer.datapipelines.support.extensions.encodeToJsonElement
+import io.customer.datapipelines.support.extensions.shouldMatchTo
+import io.customer.datapipelines.support.utils.OutputReaderPlugin
+import io.customer.datapipelines.support.utils.TestConstants
+import io.customer.datapipelines.support.utils.identifyEvents
+import io.customer.datapipelines.support.utils.screenEvents
+import io.customer.datapipelines.support.utils.trackEvents
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.extensions.random
 import kotlinx.serialization.json.buildJsonObject

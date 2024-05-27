@@ -1,4 +1,4 @@
-package io.customer.datapipelines.utils
+package io.customer.datapipelines.support.utils
 
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.BaseEvent

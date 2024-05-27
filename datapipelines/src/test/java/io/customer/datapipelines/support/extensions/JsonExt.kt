@@ -1,4 +1,4 @@
-package io.customer.datapipelines.extensions
+package io.customer.datapipelines.support.extensions
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.sdk.data.model.CustomAttributes

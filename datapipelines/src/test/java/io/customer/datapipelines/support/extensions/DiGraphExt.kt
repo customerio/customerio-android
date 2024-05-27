@@ -1,4 +1,4 @@
-package io.customer.datapipelines.extensions
+package io.customer.datapipelines.support.extensions
 
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.datapipelines.config.DataPipelinesModuleConfig

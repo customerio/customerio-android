@@ -18,6 +18,7 @@ import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.extensions.random
+import io.mockk.every
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -33,7 +34,6 @@ import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.whenever
 
 class DataPipelinesCompatibilityTests : UnitTest() {
     //region Setup test environment
@@ -404,7 +404,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         val queuedEvents = getQueuedEvents()
         // 1. Identify event
@@ -433,7 +433,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.deviceAttributes = givenAttributes
 
         val queuedEvents = getQueuedEvents()
@@ -458,7 +458,7 @@ class DataPipelinesCompatibilityTests : UnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.deleteDeviceToken()
 

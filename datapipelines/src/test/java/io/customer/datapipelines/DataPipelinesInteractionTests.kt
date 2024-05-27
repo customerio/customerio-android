@@ -13,6 +13,8 @@ import io.customer.datapipelines.support.utils.screenEvents
 import io.customer.datapipelines.support.utils.trackEvents
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.extensions.random
+import io.mockk.every
+import io.mockk.verify
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBe
@@ -25,9 +27,6 @@ import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
 
 class DataPipelinesInteractionTests : UnitTest() {
     //region Setup test environment
@@ -386,7 +385,7 @@ class DataPipelinesInteractionTests : UnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
@@ -409,7 +408,7 @@ class DataPipelinesInteractionTests : UnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.deviceAttributes = givenAttributes
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
@@ -429,7 +428,7 @@ class DataPipelinesInteractionTests : UnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
         outputReaderPlugin.reset()
 
         sdkInstance.clearIdentify()
@@ -450,7 +449,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         val givenPreviouslyIdentifiedProfile = String.random
         val givenToken = String.random
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.identify(givenPreviouslyIdentifiedProfile)
         outputReaderPlugin.reset()
@@ -478,7 +477,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.identify(givenIdentifier)
         outputReaderPlugin.reset()
@@ -497,11 +496,11 @@ class DataPipelinesInteractionTests : UnitTest() {
         val givenToken = String.random
 
         sdkInstance.identify(givenIdentifier)
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenPreviousDeviceToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenPreviousDeviceToken
         sdkInstance.registerDeviceToken(givenPreviousDeviceToken)
         outputReaderPlugin.reset()
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
 
         // 1. Device delete event for the old token
@@ -524,7 +523,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.identify(givenIdentifier)
         outputReaderPlugin.reset()
 
@@ -544,7 +543,7 @@ class DataPipelinesInteractionTests : UnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
         outputReaderPlugin.reset()
 
@@ -565,9 +564,9 @@ class DataPipelinesInteractionTests : UnitTest() {
 
         sdkInstance.registerDeviceToken(givenToken)
 
-        verify(globalPreferenceStore, times(1)).saveDeviceToken(givenToken)
+        verify(exactly = 1) { globalPreferenceStore.saveDeviceToken(givenToken) }
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
 
@@ -581,7 +580,7 @@ class DataPipelinesInteractionTests : UnitTest() {
     fun device_givenDeviceTokenStoredInStore_expectStoredValueForRegisteredToken() {
         val givenToken = String.random
 
-        whenever(globalPreferenceStore.getDeviceToken()).thenReturn(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.registeredDeviceToken shouldBeEqualTo givenToken
     }

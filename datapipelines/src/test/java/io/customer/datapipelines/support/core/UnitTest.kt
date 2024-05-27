@@ -12,9 +12,10 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.GlobalPreferenceStore
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
-import org.mockito.kotlin.mock
 
 /**
  * Base class for unit tests in the data pipelines module.
@@ -48,21 +49,29 @@ abstract class UnitTest {
         SDKComponent.registerAnalyticsFactory { moduleConfig ->
             return@registerAnalyticsFactory createTestAnalyticsInstance(moduleConfig)
         }
-        // Register Android SDK component with mocked dependencies as we are using real context in tests
+        // Register AndroidSDKComponent with mocked dependencies as we are not using real context in tests
+        mockAndroidSDKComponent()
+    }
+
+    protected open fun mockAndroidSDKComponent() {
+        // Setup AndroidSDKComponent by mocking dependencies that depends on Android context
+        // Prefer relaxed mocks to avoid unnecessary setup for methods that are not used in the test
         val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
-            context = mock(),
+            context = mockk(relaxed = true),
             client = Client.Android(Version.version)
         )
         // Mock global preference store to avoid reading/writing to shared preferences
-        globalPreferenceStore = mock()
-        androidSDKComponent.overrideDependency(GlobalPreferenceStore::class.java, globalPreferenceStore)
+        globalPreferenceStore = mockk<GlobalPreferenceStore>(relaxUnitFun = true).also { instance ->
+            androidSDKComponent.overrideDependency(GlobalPreferenceStore::class.java, instance)
+        }
+        every { globalPreferenceStore.getDeviceToken() } returns null
     }
 
     protected open fun createModuleInstance(
         cdpApiKey: String = TEST_CDP_API_KEY,
         applyConfig: CustomerIOBuilder.() -> Unit = {}
     ): CustomerIO {
-        val builder = CustomerIOBuilder(mock(), cdpApiKey)
+        val builder = CustomerIOBuilder(mockk(relaxed = true), cdpApiKey)
         // Disable adding destination to analytics instance so events are not sent to the server by default
         builder.setAutoAddCustomerIODestination(false)
         // Disable tracking application lifecycle events by default to avoid tracking unnecessary events while testing

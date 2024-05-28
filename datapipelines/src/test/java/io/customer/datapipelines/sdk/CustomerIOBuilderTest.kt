@@ -12,15 +12,14 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 
@@ -36,26 +35,30 @@ class CustomerIOBuilderTest : BaseUnitTest() {
         super.teardown()
     }
 
+    private fun mockGenericModule(): CustomerIOGenericModule {
+        return mockk<CustomerIOGenericModule>(relaxUnitFun = true)
+    }
+
     @Test
     fun build_givenModule_expectInitializeModule() {
-        val givenModule: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
-            whenever(this.moduleName).thenReturn(String.random)
+        val givenModule: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
         }
 
         createCustomerIOBuilder()
             .addCustomerIOModule(givenModule)
             .build()
 
-        verify(givenModule).initialize()
+        verify(exactly = 1) { givenModule.initialize() }
     }
 
     @Test
     fun build_givenMultipleModules_expectInitializeAllModules() {
-        val givenModule1: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
-            whenever(this.moduleName).thenReturn(String.random)
+        val givenModule1: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
         }
-        val givenModule2: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
-            whenever(this.moduleName).thenReturn(String.random)
+        val givenModule2: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
         }
 
         createCustomerIOBuilder()
@@ -63,17 +66,17 @@ class CustomerIOBuilderTest : BaseUnitTest() {
             .addCustomerIOModule(givenModule2)
             .build()
 
-        verify(givenModule1).initialize()
-        verify(givenModule2).initialize()
+        verify(exactly = 1) { givenModule1.initialize() }
+        verify(exactly = 1) { givenModule2.initialize() }
     }
 
     @Test
     fun build_givenMultipleModulesOfSameType_expectOnlyInitializeOneModuleInstance() {
-        val givenModule1: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
-            whenever(this.moduleName).thenReturn("shared-module-name")
+        val givenModule1: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns "shared-module-name"
         }
-        val givenModule2: CustomerIOGenericModule = mock<CustomerIOGenericModule>().apply {
-            whenever(this.moduleName).thenReturn("shared-module-name")
+        val givenModule2: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns "shared-module-name"
         }
 
         createCustomerIOBuilder()
@@ -81,8 +84,8 @@ class CustomerIOBuilderTest : BaseUnitTest() {
             .addCustomerIOModule(givenModule2)
             .build()
 
-        verify(givenModule1, never()).initialize()
-        verify(givenModule2).initialize()
+        verify(exactly = 0) { givenModule1.initialize() }
+        verify(exactly = 1) { givenModule2.initialize() }
     }
 
     @Test

@@ -1,7 +1,7 @@
 package io.customer.datapipelines.sdk
 
-import android.app.Activity
 import android.app.Application
+import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
@@ -20,13 +20,12 @@ import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class CustomerIOBuilderTest {
 
-    private val application: Application = Robolectric.buildActivity(Activity::class.java).setup().get().application
+    private val application: Application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
 
     @After
     fun teardown() {

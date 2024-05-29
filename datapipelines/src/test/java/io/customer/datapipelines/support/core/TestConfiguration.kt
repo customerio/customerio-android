@@ -46,7 +46,7 @@ class TestConfiguration private constructor(
 }
 
 /**
- * Creates a [TestConfiguration] using DSL builder
+ * Creates [TestConfiguration] using DSL-like option for convenient initialization
  *
  * @param block Configuration block for [TestConfiguration.Builder].
  */

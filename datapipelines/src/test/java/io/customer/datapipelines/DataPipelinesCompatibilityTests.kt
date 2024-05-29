@@ -403,6 +403,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
     fun device_givenTokenRegistered_expectFinalJSONHasCorrectDeviceAttributes() = runTest {
         val givenToken = String.random
 
+        every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
@@ -427,15 +428,16 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
     @Test
     fun device_givenAttributesUpdated_expectFinalJSONHasCustomDeviceAttributes() = runTest {
         val givenToken = String.random
-        val givenAttributes = mapOf(
+        val customAttributes = mapOf(
             "source" to "test",
-            "debugMode" to true
+            "debugMode" to true,
+            "device_model" to "Test Device"
         )
 
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
-        sdkInstance.deviceAttributes = givenAttributes
+        sdkInstance.deviceAttributes = customAttributes
 
         val queuedEvents = getQueuedEvents()
         // 1. Identify
@@ -449,6 +451,8 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
+
+        val givenAttributes = deviceStore.buildDeviceAttributes() + customAttributes
         payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenAttributes
     }
 

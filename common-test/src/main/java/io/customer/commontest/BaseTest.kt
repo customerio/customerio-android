@@ -119,7 +119,7 @@ abstract class BaseTest {
         dateUtilStub = DateUtilStub().also {
             di.overrideDependency(DateUtil::class.java, it)
         }
-        deviceStore = DeviceStoreStub().getDeviceStore(cioConfig)
+        deviceStore = DeviceStoreStub().getDeviceStore(cioConfig.client)
         dispatchersProviderStub = DispatchersProviderStub().also {
             staticDIComponent.overrideDependency(DispatchersProvider::class.java, it)
         }

@@ -22,6 +22,13 @@ infix fun JsonObject.shouldMatchTo(expected: CustomAttributes): JsonObject {
 }
 
 /**
+ * Encodes pair of key and value to pair of key and JSON element by encoding the value.
+ */
+inline fun <K, reified V> Pair<K, V>.encodeToJsonValue(): Pair<K, JsonElement> {
+    return first to second.encodeToJsonElement()
+}
+
+/**
  * Converts a map of custom attributes to a JSON object.
  * If the map is empty, it returns an empty JSON object.
  */

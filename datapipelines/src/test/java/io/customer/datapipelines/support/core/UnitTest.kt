@@ -2,6 +2,7 @@ package io.customer.datapipelines.support.core
 
 import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
+import io.customer.commontest.DeviceStoreStub
 import io.customer.datapipelines.support.extensions.registerAnalyticsFactory
 import io.customer.datapipelines.support.stubs.UnitTestLogger
 import io.customer.datapipelines.support.utils.clearPersistentStorage
@@ -11,9 +12,11 @@ import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 
 /**
  * Base class for unit tests in the data pipelines module.
@@ -29,7 +32,9 @@ abstract class UnitTest {
 
     protected lateinit var sdkInstance: CustomerIO
     protected lateinit var analytics: Analytics
+
     protected lateinit var globalPreferenceStore: GlobalPreferenceStore
+    protected lateinit var deviceStore: DeviceStore
 
     init {
         // Mock HTTP client to override CDP settings with test values
@@ -72,6 +77,12 @@ abstract class UnitTest {
             androidSDKComponent.overrideDependency(GlobalPreferenceStore::class.java, instance)
         }
         every { globalPreferenceStore.getDeviceToken() } returns null
+        // Mock device store to avoid reading/writing to device store
+        // Spy on the stub to provide custom implementation for the test
+        val deviceStoreStub = DeviceStoreStub().getDeviceStore(androidSDKComponent.client)
+        deviceStore = spyk(deviceStoreStub).also { instance ->
+            androidSDKComponent.overrideDependency(DeviceStore::class.java, instance)
+        }
     }
 
     protected open fun initializeSDKForTesting(testConfig: TestConfiguration): CustomerIO {

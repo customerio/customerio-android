@@ -12,6 +12,7 @@ import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
@@ -48,6 +49,7 @@ class CustomerIO private constructor(
 
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+    private val deviceStore = androidSDKComponent.deviceStore
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
@@ -83,7 +85,7 @@ class CustomerIO private constructor(
         )
     )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin()
+    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -99,6 +101,10 @@ class CustomerIO private constructor(
 
         if (moduleConfig.autoTrackActivityScreens) {
             analytics.add(AutomaticActivityScreenTrackingPlugin())
+        }
+        // Add auto track device attributes plugin only if enabled in config
+        if (moduleConfig.autoTrackDeviceAttributes) {
+            analytics.add(AutoTrackDeviceAttributesPlugin())
         }
     }
 
@@ -217,7 +223,7 @@ class CustomerIO private constructor(
         trackDeviceAttributes(deviceToken)
     }
 
-    private fun trackDeviceAttributes(token: String?, attributes: CustomAttributes = emptyMap()) {
+    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
         if (token.isNullOrBlank()) {
             logger.debug("no device token found. ignoring request to track device.")
             return
@@ -229,9 +235,15 @@ class CustomerIO private constructor(
             deleteDeviceToken()
         }
 
-        // TODO: Append auto tracked device attributes here
+        val attributes = if (moduleConfig.autoTrackDeviceAttributes) {
+            // order matters! allow customer to override default values if they wish.
+            deviceStore.buildDeviceAttributes() + customAddedAttributes
+        } else {
+            customAddedAttributes
+        }
+
         // Update plugin with updated device information
-        contextPlugin.updateDeviceProperties(token, attributes)
+        contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
         track("Device Created or Updated", attributes)

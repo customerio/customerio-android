@@ -46,7 +46,7 @@ class AndroidLifecyclePluginTests : RobolectricTest() {
     }
 
     private fun setupTestEnvironmentWithLifecyclePlugin() {
-        super.setupTestEnvironment(
+        setupTestEnvironment(
             testConfiguration {
                 sdkConfig {
                     setTrackApplicationLifecycleEvents(true)

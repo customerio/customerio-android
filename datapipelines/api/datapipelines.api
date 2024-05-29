@@ -19,6 +19,17 @@ public final class io/customer/datapipelines/extensions/RegionExtKt {
 	public static final fun cdnHost (Lio/customer/sdk/data/model/Region;)Ljava/lang/String;
 }
 
+public final class io/customer/datapipelines/plugins/AutoTrackDeviceAttributesPlugin : com/segment/analytics/kotlin/core/platform/Plugin {
+	public field analytics Lcom/segment/analytics/kotlin/core/Analytics;
+	public fun <init> ()V
+	public fun execute (Lcom/segment/analytics/kotlin/core/BaseEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
+	public fun getAnalytics ()Lcom/segment/analytics/kotlin/core/Analytics;
+	public fun getType ()Lcom/segment/analytics/kotlin/core/platform/Plugin$Type;
+	public fun setAnalytics (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun setup (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
+}
+
 public final class io/customer/datapipelines/plugins/AutomaticActivityScreenTrackingPlugin : com/segment/analytics/kotlin/android/plugins/AndroidLifecycle, com/segment/analytics/kotlin/core/platform/Plugin {
 	public field analytics Lcom/segment/analytics/kotlin/core/Analytics;
 	public fun <init> ()V
@@ -39,14 +50,13 @@ public final class io/customer/datapipelines/plugins/AutomaticActivityScreenTrac
 
 public final class io/customer/datapipelines/plugins/ContextPlugin : com/segment/analytics/kotlin/core/platform/Plugin {
 	public field analytics Lcom/segment/analytics/kotlin/core/Analytics;
-	public fun <init> ()V
+	public fun <init> (Lio/customer/sdk/data/store/DeviceStore;)V
 	public fun execute (Lcom/segment/analytics/kotlin/core/BaseEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
 	public fun getAnalytics ()Lcom/segment/analytics/kotlin/core/Analytics;
 	public fun getType ()Lcom/segment/analytics/kotlin/core/platform/Plugin$Type;
 	public fun setAnalytics (Lcom/segment/analytics/kotlin/core/Analytics;)V
 	public fun setup (Lcom/segment/analytics/kotlin/core/Analytics;)V
 	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
-	public final fun updateDeviceProperties (Ljava/lang/String;Ljava/util/Map;)V
 }
 
 public final class io/customer/datapipelines/plugins/CustomerIODestination : com/segment/analytics/kotlin/core/platform/DestinationPlugin, com/segment/analytics/kotlin/core/platform/VersionedPlugin, sovran/kotlin/Subscriber {

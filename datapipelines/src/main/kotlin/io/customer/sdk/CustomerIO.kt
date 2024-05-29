@@ -15,13 +15,17 @@ import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
+import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
+import io.customer.sdk.events.getMetric
 import kotlinx.serialization.SerializationStrategy
 
 /**
@@ -47,6 +51,7 @@ class CustomerIO private constructor(
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
+    private val eventBus = SDKComponent.eventBus
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
 
     // Display logs under the CIO tag for easier filtering in logcat
@@ -99,6 +104,23 @@ class CustomerIO private constructor(
 
         if (moduleConfig.autoTrackActivityScreens) {
             analytics.add(AutomaticActivityScreenTrackingPlugin())
+        }
+
+        analytics.add(DataPipelinePublishedEvents())
+
+        // subscribe to journey events emitted from push/in-app module to send them via data pipelines
+        subscribeToJourneyEvents()
+    }
+
+    private fun subscribeToJourneyEvents() {
+        eventBus.subscribe<Event.TrackPushMetricEvent> {
+            trackMetric(TrackMetric.Push(it.event.getMetric(), it.deliveryId, it.deviceToken))
+        }
+        eventBus.subscribe<Event.TrackInAppMetricEvent> {
+            trackMetric(TrackMetric.InApp(Metric.valueOf(it.event), it.deliveryID, it.params))
+        }
+        eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
+            registerDeviceToken(it.token)
         }
     }
 

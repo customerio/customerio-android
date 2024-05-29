@@ -79,13 +79,11 @@ class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
         super.setup(analytics)
 
         // convert flushAt and flushIntervals into FlushPolicies
-        flushPolicies = if (analytics.configuration.flushPolicies.isEmpty()) {
+        flushPolicies = analytics.configuration.flushPolicies.ifEmpty {
             listOf(
                 CountBasedFlushPolicy(analytics.configuration.flushAt),
                 FrequencyFlushPolicy(analytics.configuration.flushInterval * 1000L)
             )
-        } else {
-            analytics.configuration.flushPolicies
         }
 
         // Add DestinationMetadata enrichment plugin

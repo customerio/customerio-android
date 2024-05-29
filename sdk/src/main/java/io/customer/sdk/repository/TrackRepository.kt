@@ -17,6 +17,7 @@ interface TrackRepository {
         event: MetricEvent,
         metadata: Map<String, String> = emptyMap()
     )
+
     fun screen(name: String, attributes: CustomAttributes)
 }
 

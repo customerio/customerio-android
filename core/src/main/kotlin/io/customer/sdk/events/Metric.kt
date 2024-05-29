@@ -10,3 +10,11 @@ enum class Metric {
     Converted,
     Clicked
 }
+
+fun String.getMetric(): Metric {
+    return if (this.isBlank()) {
+        Metric.Delivered
+    } else {
+        Metric.values().find { value -> value.name.equals(this, ignoreCase = true) } ?: Metric.Delivered
+    }
+}

@@ -16,6 +16,7 @@ sealed interface TrackMetric {
      * @param deviceToken Device token to which the push notification was sent
      */
     data class Push(
+
         override val metric: Metric,
         override val deliveryId: String,
         val deviceToken: String

@@ -3,13 +3,13 @@ package io.customer.messaginginapp
 import android.app.Application
 import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.repository.TrackRepository
 
@@ -58,6 +58,8 @@ internal constructor(
 
     private val logger by lazy { diGraph.logger }
 
+    private val eventBus by lazy { SDKComponent.eventBus }
+
     private val config: CustomerIOConfig
         get() = diGraph.sdkConfig
 
@@ -102,10 +104,21 @@ internal constructor(
     }
 
     private fun setupHooks() {
-        hooksManager.add(
-            module = HookModule.MessagingInApp,
-            subscriber = ModuleInAppHookProvider()
-        )
+        eventBus.subscribe<Event.ScreenViewedEvent> {
+            gistProvider.setCurrentRoute(it.name)
+        }
+
+        eventBus.subscribe<Event.ProfileIdentifiedEvent> {
+            gistProvider.setUserToken(it.identifier)
+        }
+
+        eventBus.subscribe<Event.ResetEvent> {
+            gistProvider.clearUserToken()
+        }
+//        hooksManager.add(
+//            module = HookModule.MessagingInApp,
+//            subscriber = ModuleInAppHookProvider()
+//        )
     }
 
     private fun initializeGist(config: CustomerIOConfig) {
@@ -117,6 +130,6 @@ internal constructor(
 
         // if identifier is already present, set the userToken again so in case if the customer was already identified and
         // module was added later on, we can notify gist about it.
-        identifier?.let { gistProvider.setUserToken(it) }
+//        identifier?.let { gistProvider.setUserToken(it) }
     }
 }

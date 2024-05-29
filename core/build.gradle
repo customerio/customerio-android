@@ -37,4 +37,6 @@ android {
 dependencies {
     api project(":base")
     api Dependencies.androidxCoreKtx
+
+    api Dependencies.coroutinesAndroid
 }

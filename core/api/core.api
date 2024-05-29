@@ -6,6 +6,92 @@ public final class io/customer/sdk/Version {
 	public static final field version Ljava/lang/String;
 }
 
+public abstract class io/customer/sdk/communication/Event {
+	public final fun getParams ()Ljava/util/Map;
+	public final fun getStorageId ()Ljava/lang/String;
+	public final fun getTimestamp ()Ljava/util/Date;
+}
+
+public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : io/customer/sdk/communication/Event {
+	public fun <init> ()V
+}
+
+public final class io/customer/sdk/communication/Event$ProfileIdentifiedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIdentifier ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getToken ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$ResetEvent : io/customer/sdk/communication/Event {
+	public static final field INSTANCE Lio/customer/sdk/communication/Event$ResetEvent;
+}
+
+public final class io/customer/sdk/communication/Event$ScreenViewedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$ScreenViewedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$ScreenViewedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$ScreenViewedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$TrackInAppMetricEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryID ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$TrackPushMetricEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/communication/Event$TrackPushMetricEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackPushMetricEvent;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackPushMetricEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeviceToken ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/EventBus {
+	public fun <init> ()V
+	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/MutableSharedFlow;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/MutableSharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun cancel (Lkotlinx/coroutines/Job;)V
+	public final fun cancelAll ()V
+	public final fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun getScope ()Lkotlinx/coroutines/CoroutineScope;
+	public final fun publish (Lio/customer/sdk/communication/Event;)V
+}
+
 public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z
@@ -36,6 +122,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
 	public final fun getAndroidSDKComponent ()Lio/customer/sdk/core/di/AndroidSDKComponent;
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
+	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
 	public fun reset ()V
@@ -131,6 +218,10 @@ public final class io/customer/sdk/events/Metric : java/lang/Enum {
 	public static final field Opened Lio/customer/sdk/events/Metric;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/events/Metric;
 	public static fun values ()[Lio/customer/sdk/events/Metric;
+}
+
+public final class io/customer/sdk/events/MetricKt {
+	public static final fun getMetric (Ljava/lang/String;)Lio/customer/sdk/events/Metric;
 }
 
 public abstract interface class io/customer/sdk/events/TrackMetric {

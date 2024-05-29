@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
  * of the SDK and/or do not have the SDK run it's real implementation during automated tests.
  */
 interface CustomerIOInstance {
+
     val siteId: String
     val sdkVersion: String
     // For security reasons, do not expose the SDK config as anyone can get the API key from the SDK including 3rd parties.

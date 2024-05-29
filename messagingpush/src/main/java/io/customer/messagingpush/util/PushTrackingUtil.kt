@@ -1,6 +1,8 @@
 package io.customer.messagingpush.util
 
 import android.os.Bundle
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.repository.TrackRepository
 
@@ -23,11 +25,13 @@ class PushTrackingUtilImpl(
 
         if (deliveryId == null || deliveryToken == null) return false
 
-        trackRepository.trackMetric(
-            deliveryID = deliveryId,
-            deviceToken = deliveryToken,
-            event = MetricEvent.opened
-        )
+//        trackRepository.trackMetric(
+//            deliveryID = deliveryId,
+//            deviceToken = deliveryToken,
+//            event = MetricEvent.opened
+//        )
+
+        SDKComponent.eventBus.publish(Event.TrackPushMetricEvent(deliveryId, MetricEvent.opened.name, deliveryToken))
 
         return true
     }

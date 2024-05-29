@@ -37,6 +37,7 @@ class DeviceAttributesTests : RobolectricTest() {
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
     init {
+        // Return permission granted for network state permission so analytics can track network state
         every { mockApplication.checkCallingOrSelfPermission(Manifest.permission.ACCESS_NETWORK_STATE) } returns PackageManager.PERMISSION_GRANTED
     }
 
@@ -76,9 +77,6 @@ class DeviceAttributesTests : RobolectricTest() {
         sdkInstance.registerDeviceToken(givenToken)
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
-        println(deviceRegisterEvent.toString())
-        println(deviceRegisterEvent.properties)
-        println(deviceRegisterEvent.context)
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
@@ -112,7 +110,6 @@ class DeviceAttributesTests : RobolectricTest() {
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val properties = deviceRegisterEvent.properties
-        println(deviceRegisterEvent.properties)
         properties.keys shouldHaveSize 13
         properties shouldContain ("device_os" to 30).encodeToJsonValue()
         properties shouldContain ("device_model" to "Pixel 6").encodeToJsonValue()

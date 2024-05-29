@@ -9,8 +9,9 @@ import com.segment.analytics.kotlin.core.platform.Plugin
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 
-class OutputReaderPlugin(override var analytics: Analytics) : Plugin {
+class OutputReaderPlugin : Plugin {
     override val type: Plugin.Type = Plugin.Type.After
+    override lateinit var analytics: Analytics
 
     private val logger: Logger = SDKComponent.logger
     val allEvents: MutableList<BaseEvent> = mutableListOf()

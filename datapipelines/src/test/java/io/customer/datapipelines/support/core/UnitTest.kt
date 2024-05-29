@@ -1,65 +1,72 @@
 package io.customer.datapipelines.support.core
 
+import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.datapipelines.support.extensions.registerAnalyticsFactory
+import io.customer.datapipelines.support.stubs.UnitTestLogger
 import io.customer.datapipelines.support.utils.clearPersistentStorage
 import io.customer.datapipelines.support.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.support.utils.mockHTTPClient
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.Version
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.registerAndroidSDKComponent
-import io.customer.sdk.data.store.Client
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
 import io.mockk.mockk
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 
 /**
  * Base class for unit tests in the data pipelines module.
- * This class provides a setup for the CustomerIO instance and analytics instance
- * along with OutputReaderPlugin to read the events sent to the analytics instance.
+ * This class provides a setup for the CustomerIO instance and analytics instance.
+ * The class is abstract and requires the test application instance to be provided
+ * by child classes which allows running tests with or without depending on Android
+ * context and resources.
  */
 abstract class UnitTest {
+    // Keep application instance as Any to allow using different types of
+    // application instances for tests
+    abstract var testApplication: Any
+
     protected lateinit var sdkInstance: CustomerIO
     protected lateinit var analytics: Analytics
     protected lateinit var globalPreferenceStore: GlobalPreferenceStore
 
-    protected val cdpApiKey: String
-        get() = sdkInstance.moduleConfig.cdpApiKey
-
-    @BeforeEach
-    open fun setup() {
-        initializeModule()
+    init {
+        // Mock HTTP client to override CDP settings with test values
+        mockHTTPClient()
     }
 
-    protected open fun initializeModule() {
-        setupDependencies()
+    /**
+     * Sets up test environment based on the provided [TestConfiguration]
+     * This function initializes necessary components and configurations required for running local tests
+     *
+     * @param testConfig Configuration object containing all setups for the test environment
+     */
+    protected open fun setupTestEnvironment(testConfig: TestConfiguration = testConfiguration { }) {
+        setupSDKComponent(testConfig = testConfig)
 
-        sdkInstance = createModuleInstance()
+        sdkInstance = initializeSDKForTesting(testConfig = testConfig)
         analytics = sdkInstance.analytics
     }
 
-    protected open fun setupDependencies() {
-        // Mock HTTP client to override CDP settings with test values
-        mockHTTPClient()
+    protected open fun setupSDKComponent(testConfig: TestConfiguration) {
         // Setup analytics factory to create test analytics instance
         SDKComponent.registerAnalyticsFactory { moduleConfig ->
-            return@registerAnalyticsFactory createTestAnalyticsInstance(moduleConfig)
+            val testAnalyticsInstance = createTestAnalyticsInstance(moduleConfig, application = testApplication)
+            // Configure plugins for the test analytics instance to allow adding
+            // desired plugins before CustomerIO initialization
+            testConfig.configurePlugins(testAnalyticsInstance)
+            return@registerAnalyticsFactory testAnalyticsInstance
         }
-        // Register AndroidSDKComponent with mocked dependencies as we are not using real context in tests
-        mockAndroidSDKComponent()
+        // Override logger dependency with test logger so logs can be captured in tests
+        // This also makes logger independent of Android Logcat
+        SDKComponent.overrideDependency(Logger::class.java, UnitTestLogger())
     }
 
-    protected open fun mockAndroidSDKComponent() {
+    protected open fun setupAndroidSDKComponent() {
         // Setup AndroidSDKComponent by mocking dependencies that depends on Android context
         // Prefer relaxed mocks to avoid unnecessary setup for methods that are not used in the test
-        val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
-            context = mockk(relaxed = true),
-            client = Client.Android(Version.version)
-        )
+        val androidSDKComponent = SDKComponent.androidSDKComponent ?: throw IllegalStateException("AndroidSDKComponent is not initialized")
         // Mock global preference store to avoid reading/writing to shared preferences
         globalPreferenceStore = mockk<GlobalPreferenceStore>(relaxUnitFun = true).also { instance ->
             androidSDKComponent.overrideDependency(GlobalPreferenceStore::class.java, instance)
@@ -67,31 +74,24 @@ abstract class UnitTest {
         every { globalPreferenceStore.getDeviceToken() } returns null
     }
 
-    protected open fun createModuleInstance(
-        cdpApiKey: String = TEST_CDP_API_KEY,
-        applyConfig: CustomerIOBuilder.() -> Unit = {}
-    ): CustomerIO {
-        val builder = CustomerIOBuilder(mockk(relaxed = true), cdpApiKey)
+    protected open fun initializeSDKForTesting(testConfig: TestConfiguration): CustomerIO {
+        // Cast application mock to reuse mocked application context if provided
+        // Else create mocked application context to avoid using real context in tests
+        val applicationContext = testApplication as? Application ?: mockk(relaxed = true)
+        val builder = CustomerIOBuilder(applicationContext, testConfig.cdpApiKey)
+        // Register AndroidSDKComponent with mocked dependencies as we are not using real context in tests
+        setupAndroidSDKComponent()
         // Disable adding destination to analytics instance so events are not sent to the server by default
         builder.setAutoAddCustomerIODestination(false)
         // Disable tracking application lifecycle events by default to avoid tracking unnecessary events while testing
         builder.setTrackApplicationLifecycleEvents(false)
-        // Apply custom configuration for the test
-        builder.applyConfig()
+        // Apply custom configuration for the test at the end to allow overriding default configurations
+        testConfig.sdkConfig(builder)
         return builder.build()
-    }
-
-    @AfterEach
-    open fun teardown() {
-        deinitializeModule()
     }
 
     protected open fun deinitializeModule() {
         analytics.clearPersistentStorage()
         CustomerIO.clearInstance()
-    }
-
-    companion object {
-        internal const val TEST_CDP_API_KEY: String = "TESTING_API_KEY"
     }
 }

@@ -1,7 +1,8 @@
 package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
-import io.customer.datapipelines.support.core.UnitTest
+import io.customer.datapipelines.support.core.JUnitTest
+import io.customer.datapipelines.support.core.TestConfiguration
 import io.customer.datapipelines.support.data.model.UserTraits
 import io.customer.datapipelines.support.extensions.deviceToken
 import io.customer.datapipelines.support.extensions.encodeToJsonElement
@@ -28,15 +29,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
-class DataPipelinesInteractionTests : UnitTest() {
+class DataPipelinesInteractionTests : JUnitTest() {
     //region Setup test environment
 
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
-    override fun initializeModule() {
-        super.initializeModule()
+    override fun setupTestEnvironment(testConfig: TestConfiguration) {
+        super.setupTestEnvironment(testConfig)
 
-        outputReaderPlugin = OutputReaderPlugin(analytics)
+        outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
     }
 

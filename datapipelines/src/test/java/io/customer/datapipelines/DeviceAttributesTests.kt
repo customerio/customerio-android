@@ -32,8 +32,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class DeviceAttributesTests : RobolectricTest() {
-    //region Setup test environment
-
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
     init {

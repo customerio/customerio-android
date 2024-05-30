@@ -82,7 +82,7 @@ class DeviceAttributesTests : RobolectricTest() {
     }
 
     @Test
-    fun track_givenAutoTrackDeviceAttributesEnabled_expectDeviceAttributesInContextNotProperties() {
+    fun track_givenAutoTrackDeviceAttributesEnabled_expectDeviceAttributesInProperties() {
         setupTestEnvironment(
             testConfiguration {
                 sdkConfig {
@@ -111,6 +111,66 @@ class DeviceAttributesTests : RobolectricTest() {
         properties.keys shouldHaveSize 13
         properties shouldContain ("device_os" to 30).encodeToJsonValue()
         properties shouldContain ("device_model" to "Pixel 6").encodeToJsonValue()
+        properties shouldContain ("device_manufacturer" to "Google").encodeToJsonValue()
+        properties shouldContain ("app_version" to "1.0").encodeToJsonValue()
+        properties shouldContain ("cio_sdk_version" to "1.0.0-alpha.6").encodeToJsonValue()
+        properties shouldContain ("device_locale" to "en-US").encodeToJsonValue()
+        properties shouldContain ("push_enabled" to true).encodeToJsonValue()
+        properties["timezone"]?.jsonPrimitive?.content.shouldNotBeNullOrBlank()
+        properties["screen_width"]?.jsonPrimitive?.intOrNull.shouldNotBeNull()
+        properties["screen_height"]?.jsonPrimitive?.intOrNull.shouldNotBeNull()
+        properties["network_wifi"]?.jsonPrimitive?.booleanOrNull.shouldNotBeNull()
+        properties["network_cellular"]?.jsonPrimitive?.booleanOrNull.shouldNotBeNull()
+        properties["network_bluetooth"]?.jsonPrimitive?.booleanOrNull.shouldNotBeNull()
+    }
+
+    @Test
+    fun track_givenCustomAttributes_expectPreferCustomAttributesInProperties() {
+        setupTestEnvironment(
+            testConfiguration {
+                sdkConfig {
+                    setAutoTrackDeviceAttributes(true)
+                }
+                configurePlugins {
+                    // Add Android context plugin so that device attributes can be tracked by analytics
+                    add(AndroidContextPlugin())
+                }
+            }
+        )
+
+        val givenIdentifier = String.random
+        val givenToken = String.random
+        val givenAttributes = mapOf(
+            "device_os" to "Custom OS",
+            "device_model" to "Fake Device",
+            "source" to "test",
+            "debugMode" to true
+        )
+
+        sdkInstance.identify(givenIdentifier)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        sdkInstance.registerDeviceToken(givenToken)
+        sdkInstance.deviceAttributes = givenAttributes
+
+        // 1. Device Created
+        // 2. Device Updated
+        val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSize(2).last()
+        deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
+        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+
+        val properties = deviceRegisterEvent.properties
+        // Auto tracked device attributes => 13
+        // Custom device attributes => 4
+        // Overlapping attributes => 2
+        properties.keys shouldHaveSize 15
+        // Verify new custom attributes are present
+        properties shouldContain ("source" to "test").encodeToJsonValue()
+        properties shouldContain ("debugMode" to true).encodeToJsonValue()
+        // Verify custom attributes are preferred over auto tracked attributes
+        properties shouldContain ("device_os" to "Custom OS").encodeToJsonValue()
+        properties shouldContain ("device_model" to "Fake Device").encodeToJsonValue()
+        // Verify remaining auto tracked attributes are present
         properties shouldContain ("device_manufacturer" to "Google").encodeToJsonValue()
         properties shouldContain ("app_version" to "1.0").encodeToJsonValue()
         properties shouldContain ("cio_sdk_version" to "1.0.0-alpha.6").encodeToJsonValue()

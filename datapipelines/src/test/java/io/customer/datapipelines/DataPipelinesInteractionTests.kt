@@ -384,6 +384,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
+        every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
@@ -407,6 +408,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
             "debugMode" to true
         )
 
+        every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken

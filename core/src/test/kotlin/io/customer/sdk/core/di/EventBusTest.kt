@@ -27,43 +27,43 @@ class EventBusTest : BaseUnitTest() {
 
     @Test
     fun givenPublishEventVerifySubscribe() = testScope.runTest {
-        val events = mutableListOf<Event.DummyEvent>()
-        val job = eventBus.subscribe<Event.DummyEvent> { event ->
+        val events = mutableListOf<Event>()
+        val job = eventBus.subscribe<Event.ProfileIdentifiedEvent> { event ->
             events.add(event)
         }
 
-        val testEvent = Event.DummyEvent("Test Message")
+        val testEvent = Event.ProfileIdentifiedEvent("Test Message")
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
         delay(100) // Give some time for the event to be collected
 
         events.size shouldBeEqualTo 1
-        events[0].message shouldBeEqualTo testEvent.message
+        (events[0] as Event.ProfileIdentifiedEvent).identifier shouldBeEqualTo testEvent.identifier
 
         job.cancel()
     }
 
     @Test
     fun givenCancelAllShouldStopReceivingEvents() = testScope.runTest {
-        val events = mutableListOf<Event.DummyEvent>()
-        eventBus.subscribe<Event.DummyEvent> { event ->
+        val events = mutableListOf<Event>()
+        eventBus.subscribe<Event.ScreenViewedEvent> { event ->
             events.add(event)
         }
 
-        val firstEvent = Event.DummyEvent("First Message")
+        val firstEvent = Event.ScreenViewedEvent("First Message")
         println("Publishing first event: $firstEvent")
         eventBus.publish(firstEvent)
 
         delay(100) // Give some time for the event to be collected
 
         assertEquals(1, events.size)
-        assertEquals(firstEvent.message, events[0].message) // Verify the message
+        assertEquals(firstEvent.name, (events[0] as Event.ScreenViewedEvent).name)
 
         println("Cancelling all...")
         eventBus.cancelAll()
 
-        val secondEvent = Event.DummyEvent("Second Message")
+        val secondEvent = Event.ScreenViewedEvent("Second Message")
         println("Publishing second event: $secondEvent")
         eventBus.publish(secondEvent)
 
@@ -74,48 +74,56 @@ class EventBusTest : BaseUnitTest() {
 
     @Test
     fun givenMultipleSubscribersShouldReceiveMultipleEvents() = testScope.runTest {
-        val events1 = mutableListOf<Event.DummyEvent>()
-        val events2 = mutableListOf<Event.DummyEvent>()
+        val subscriber1 = mutableListOf<Event>()
+        val subscriber2 = mutableListOf<Event>()
 
-        val job1 = eventBus.subscribe<Event.DummyEvent> { event ->
-            events1.add(event)
+        val job1 = eventBus.subscribe<Event.TrackPushMetricEvent> { event ->
+            subscriber1.add(event)
         }
 
-        val job2 = eventBus.subscribe<Event.DummyEvent> { event ->
-            events2.add(event)
+        val job2 = eventBus.subscribe<Event.TrackPushMetricEvent> { event ->
+            subscriber2.add(event)
         }
 
-        val testEvent = Event.DummyEvent("Test Message")
+        val testEvent = Event.TrackPushMetricEvent("Delivery ID", "Event", "Device Token")
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
         delay(100) // Give some time for the event to be collected
 
-        events1.size shouldBeEqualTo 1
-        events1[0].message shouldBeEqualTo testEvent.message // Verify the message
+        subscriber1.size shouldBeEqualTo 1
+        (subscriber1[0] as Event.TrackPushMetricEvent).also {
+            it.deliveryId shouldBeEqualTo testEvent.deliveryId
+            it.event shouldBeEqualTo testEvent.event
+            it.deviceToken shouldBeEqualTo testEvent.deviceToken
+        }
 
-        events2.size shouldBeEqualTo 1
-        events2[0].message shouldBeEqualTo testEvent.message // Verify the message
+        subscriber2.size shouldBeEqualTo 1
+        (subscriber2[0] as Event.TrackPushMetricEvent).also {
+            it.deliveryId shouldBeEqualTo testEvent.deliveryId
+            it.event shouldBeEqualTo testEvent.event
+            it.deviceToken shouldBeEqualTo testEvent.deviceToken
+        }
 
         job1.cancel()
         job2.cancel()
     }
 
     @Test
-    fun `publish multiple events to multiple subscribers`() = testScope.runTest {
-        val subscriber1 = mutableListOf<Event.DummyEvent>()
-        val subscriber2 = mutableListOf<Event.DummyEvent>()
+    fun givePublishMultipleEventsToMultipleSubscribersExpectAllEventsReceived() = testScope.runTest {
+        val subscriber1 = mutableListOf<Event>()
+        val subscriber2 = mutableListOf<Event>()
 
-        val job1 = eventBus.subscribe<Event.DummyEvent> { event ->
+        val job1 = eventBus.subscribe<Event.RegisterDeviceTokenEvent> { event ->
             subscriber1.add(event)
         }
 
-        val job2 = eventBus.subscribe<Event.DummyEvent> { event ->
+        val job2 = eventBus.subscribe<Event.RegisterDeviceTokenEvent> { event ->
             subscriber2.add(event)
         }
 
-        val testEvent1 = Event.DummyEvent("Message 1")
-        val testEvent2 = Event.DummyEvent("Message 2")
+        val testEvent1 = Event.RegisterDeviceTokenEvent("Token 1")
+        val testEvent2 = Event.RegisterDeviceTokenEvent("Token 2")
         println("Publishing events: $testEvent1, $testEvent2")
         eventBus.publish(testEvent1)
         eventBus.publish(testEvent2)
@@ -123,12 +131,12 @@ class EventBusTest : BaseUnitTest() {
         delay(100) // Give some time for the events to be collected
 
         subscriber1.size shouldBeEqualTo 2
-        subscriber1.any { it.message == "Message 1" } shouldBe true
-        subscriber1.any { it.message == "Message 2" } shouldBe true
+        subscriber1.map { it as Event.RegisterDeviceTokenEvent }.any { it.token == "Token 1" } shouldBe true
+        subscriber1.map { it as Event.RegisterDeviceTokenEvent }.any { it.token == "Token 2" } shouldBe true
 
         subscriber2.size shouldBeEqualTo 2
-        subscriber2.any { it.message == "Message 1" } shouldBe true
-        subscriber2.any { it.message == "Message 2" } shouldBe true
+        subscriber2.map { it as Event.RegisterDeviceTokenEvent }.any { it.token == "Token 1" } shouldBe true
+        subscriber2.map { it as Event.RegisterDeviceTokenEvent }.any { it.token == "Token 2" } shouldBe true
 
         job1.cancel()
         job2.cancel()
@@ -137,16 +145,43 @@ class EventBusTest : BaseUnitTest() {
     @Test
     fun givenSubscribeToEventTypeNeverPublishedExpectNoEvents() = testScope.runTest {
         val events = mutableListOf<Event>()
-        val job = eventBus.subscribe<Event.DummyEvent> { event ->
+        val job = eventBus.subscribe<Event.TrackInAppMetricEvent> { event ->
             events.add(event)
         }
 
-        val unrelatedEvent = Event.DummyEmptyEvent()
+        val unrelatedEvent = Event.ResetEvent
         eventBus.publish(unrelatedEvent)
 
         delay(100) // Give some time to ensure no events are collected
 
         assertEquals(0, events.size) // No events should be collected
+
+        job.cancel()
+    }
+
+    @Test
+    fun givenBufferEventsAndReplayToNewSubscriberExpectAllEventsReceived() = testScope.runTest {
+        // Publish multiple events without any subscribers
+        repeat(15) { index ->
+            val event = Event.TrackInAppMetricEvent("deliveryId$index", "event$index", params = mapOf("message" to "Message $index"))
+            println("Publishing event: $event")
+            eventBus.publish(event)
+        }
+
+        delay(100) // Give some time for the events to be published
+
+        val events = mutableListOf<Event>()
+        val job = eventBus.subscribe<Event.TrackInAppMetricEvent> { event ->
+            events.add(event)
+        }
+
+        delay(100) // Give some time for the events to be collected by the new subscriber
+
+        for (i in 0 until 15) {
+            (events[i] as Event.TrackInAppMetricEvent).event shouldBeEqualTo "event$i"
+            (events[i] as Event.TrackInAppMetricEvent).deliveryID shouldBeEqualTo "deliveryId$i"
+            (events[i] as Event.TrackInAppMetricEvent).params shouldBeEqualTo mapOf("message" to "Message $i")
+        }
 
         job.cancel()
     }

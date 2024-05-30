@@ -12,26 +12,22 @@ class UnitTestLogger : Logger {
     override var logLevel: CioLogLevel = CioLogLevel.ERROR
 
     override fun info(message: String) {
-        runIfMeetsLogLevelCriteria(CioLogLevel.INFO) {
-            println("[INFO]: $message")
-        }
+        log(CioLogLevel.INFO, message)
     }
 
     override fun debug(message: String) {
-        runIfMeetsLogLevelCriteria(CioLogLevel.DEBUG) {
-            println("[DEBUG]: $message")
-        }
+        log(CioLogLevel.DEBUG, message)
     }
 
     override fun error(message: String) {
-        runIfMeetsLogLevelCriteria(CioLogLevel.ERROR) {
-            println("[ERROR]: $message")
-        }
+        log(CioLogLevel.ERROR, message)
     }
 
-    private fun runIfMeetsLogLevelCriteria(levelForMessage: CioLogLevel, block: () -> Unit) {
+    private fun log(levelForMessage: CioLogLevel, message: String) {
         val shouldLog = logLevel >= levelForMessage
 
-        if (shouldLog) block()
+        if (shouldLog) {
+            println("[$levelForMessage]: $message")
+        }
     }
 }

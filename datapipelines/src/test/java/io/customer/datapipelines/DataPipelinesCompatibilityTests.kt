@@ -4,7 +4,9 @@ import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.emptyJsonArray
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
-import io.customer.datapipelines.support.core.UnitTest
+import io.customer.datapipelines.support.core.JUnitTest
+import io.customer.datapipelines.support.core.TestConfiguration
+import io.customer.datapipelines.support.core.testConfiguration
 import io.customer.datapipelines.support.data.model.UserTraits
 import io.customer.datapipelines.support.extensions.decodeJson
 import io.customer.datapipelines.support.extensions.deviceToken
@@ -12,8 +14,6 @@ import io.customer.datapipelines.support.extensions.encodeToJsonElement
 import io.customer.datapipelines.support.extensions.shouldMatchTo
 import io.customer.datapipelines.support.extensions.toJsonObject
 import io.customer.datapipelines.support.utils.TestConstants
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
@@ -35,28 +35,29 @@ import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
-class DataPipelinesCompatibilityTests : UnitTest() {
+class DataPipelinesCompatibilityTests : JUnitTest() {
     //region Setup test environment
 
     private lateinit var storage: Storage
 
-    override fun initializeModule() {
-        super.initializeModule()
+    override fun setupTestEnvironment(testConfig: TestConfiguration) {
+        super.setupTestEnvironment(
+            testConfiguration {
+                sdkConfig {
+                    // Enable adding destination so events are processed and stored in the storage
+                    setAutoAddCustomerIODestination(true)
+                }
+            }
+        )
 
         storage = analytics.storage
-    }
-
-    override fun createModuleInstance(cdpApiKey: String, applyConfig: CustomerIOBuilder.() -> Unit): CustomerIO {
-        return super.createModuleInstance(cdpApiKey) {
-            // Enable adding destination so events are processed and stored in the storage
-            setAutoAddCustomerIODestination(true)
-        }
     }
 
     private suspend fun getQueuedEvents(): JsonArray {
         // Rollover to ensure that analytics completes writing to the current file
         // and update file contents with valid JSON
         storage.rollover()
+        val cdpApiKey = sdkInstance.moduleConfig.cdpApiKey
         // Find all files that contain the CDP API key in the name
         // The file we are looking for is named after the CDP API key
         // /tmp/analytics-kotlin/{CDP_API_KEY}/events/{CDP_API_KEY}-{N}.tmp before the rollover

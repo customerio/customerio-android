@@ -1,8 +1,7 @@
 package io.customer.datapipelines.sdk
 
-import android.app.Activity
 import android.app.Application
-import io.customer.commontest.BaseUnitTest
+import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
@@ -18,21 +17,20 @@ import io.mockk.verify
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class CustomerIOBuilderTest : BaseUnitTest() {
+class CustomerIOBuilderTest {
 
-    private val application: Application = Robolectric.buildActivity(Activity::class.java).setup().get().application
+    private val application: Application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
 
-    override fun teardown() {
+    @After
+    fun teardown() {
         // Clear the instance after each test to reset SDK to initial state
         CustomerIO.clearInstance()
-
-        super.teardown()
     }
 
     private fun mockGenericModule(): CustomerIOGenericModule {

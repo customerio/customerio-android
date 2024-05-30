@@ -28,12 +28,21 @@ import io.customer.sdk.data.store.Client
  * ```
  */
 class CustomerIOBuilder(
-    private val applicationContext: Application,
+    applicationContext: Application,
     private val cdpApiKey: String
 ) {
+    // Initialize AndroidSDKComponent as soon as the builder is created so that
+    // it can be used by the modules.
+    // Also, it is needed to override test dependencies in the test environment
+    private val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
+        context = applicationContext,
+        client = Client.Android(Version.version)
+    )
 
+    // List of modules to be initialized with the SDK
     private val registeredModules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
 
+    // Logging configuration
     private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
     private val logger: Logger = SDKComponent.logger
 
@@ -166,11 +175,6 @@ class CustomerIOBuilder(
     }
 
     fun build(): CustomerIO {
-        // Register AndroidSDKComponent to fulfill the dependencies required by the SDK modules
-        val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
-            context = applicationContext,
-            client = Client.Android(Version.version)
-        )
         val modules = SDKComponent.modules
 
         // Update the log level for the SDK

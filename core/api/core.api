@@ -6,6 +6,38 @@ public final class io/customer/sdk/Version {
 	public static final field version Ljava/lang/String;
 }
 
+public abstract class io/customer/sdk/communication/Event {
+	public final fun getParams ()Ljava/util/Map;
+	public final fun getStorageId ()Ljava/lang/String;
+	public final fun getTimestamp ()Ljava/util/Date;
+}
+
+public final class io/customer/sdk/communication/Event$DummyEmptyEvent : io/customer/sdk/communication/Event {
+	public fun <init> ()V
+}
+
+public final class io/customer/sdk/communication/Event$DummyEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getMessage ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/sdk/communication/EventBus {
+	public abstract fun cancelAll ()V
+	public abstract fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
+	public abstract fun publish (Lio/customer/sdk/communication/Event;)V
+}
+
+public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/communication/EventBus {
+	public fun <init> ()V
+	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/SharedFlow;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/SharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun cancelAll ()V
+	public fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun getJobs ()Ljava/util/List;
+	public final fun getScope ()Lkotlinx/coroutines/CoroutineScope;
+	public fun publish (Lio/customer/sdk/communication/Event;)V
+}
+
 public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z

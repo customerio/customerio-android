@@ -1,5 +1,7 @@
 package io.customer.sdk.core.di
 
+import io.customer.sdk.communication.EventBus
+import io.customer.sdk.communication.EventBusImpl
 import io.customer.sdk.core.environment.BuildEnvironment
 import io.customer.sdk.core.environment.DefaultBuildEnvironment
 import io.customer.sdk.core.module.CustomerIOModule
@@ -18,6 +20,7 @@ object SDKComponent : DiGraph() {
     val buildEnvironment: BuildEnvironment get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
     val logger: Logger get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
+    val eventBus: EventBus = singleton { EventBusImpl() }
 
     override fun reset() {
         androidSDKComponent?.reset()

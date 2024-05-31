@@ -2,7 +2,9 @@ package io.customer.sdk.core.di
 
 import io.customer.commontest.BaseUnitTest
 import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
 import io.customer.sdk.communication.EventBusImpl
+import io.customer.sdk.communication.subscribe
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -13,7 +15,7 @@ import org.junit.Test
 
 class EventBusTest : BaseUnitTest() {
 
-    private lateinit var eventBus: EventBusImpl
+    private lateinit var eventBus: EventBus
     private var testScope: TestScope = TestScope()
 
     override fun setup() {

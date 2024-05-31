@@ -93,6 +93,7 @@ public abstract interface class io/customer/sdk/communication/EventBus {
 	public abstract fun cancelAll ()V
 	public abstract fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
 	public abstract fun publish (Lio/customer/sdk/communication/Event;)V
+	public abstract fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
 }
 
 public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/communication/EventBus {
@@ -104,6 +105,7 @@ public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/
 	public final fun getJobs ()Ljava/util/List;
 	public final fun getScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun publish (Lio/customer/sdk/communication/Event;)V
+	public fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
 }
 
 public final class io/customer/sdk/core/BuildConfig {
@@ -136,6 +138,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
 	public final fun getAndroidSDKComponent ()Lio/customer/sdk/core/di/AndroidSDKComponent;
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
+	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
 	public fun reset ()V

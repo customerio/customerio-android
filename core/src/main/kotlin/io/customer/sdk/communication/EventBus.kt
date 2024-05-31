@@ -1,5 +1,6 @@
 package io.customer.sdk.communication
 
+import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,7 +16,7 @@ import kotlinx.coroutines.launch
 interface EventBus {
     val flow: SharedFlow<Event>
     fun publish(event: Event)
-    fun shutdown()
+    fun removeAllSubscriptions()
 }
 
 /**
@@ -24,13 +25,15 @@ interface EventBus {
  * param flow: [SharedFlow] to be used for event handling and buffer for replay.
  */
 class EventBusImpl(
-    val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
     private val sharedFlow: MutableSharedFlow<Event> = MutableSharedFlow(replay = 100)
 ) : EventBus {
 
     override val flow: SharedFlow<Event> get() = sharedFlow
 
     val jobs = mutableListOf<Job>()
+
+    val scope: CoroutineScope = SDKComponent.androidSDKComponent?.scopeProvider?.eventBusScope
+        ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun publish(event: Event) {
         scope.launch {
@@ -48,7 +51,7 @@ class EventBusImpl(
         return job
     }
 
-    override fun shutdown() {
+    override fun removeAllSubscriptions() {
         jobs.forEach { it.cancel() }
         jobs.clear()
     }

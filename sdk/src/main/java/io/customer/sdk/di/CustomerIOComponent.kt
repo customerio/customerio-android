@@ -9,6 +9,7 @@ import io.customer.sdk.api.interceptors.HeadersInterceptor
 import io.customer.sdk.core.di.DiGraph
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.registerAndroidSDKComponent
+import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.moshi.adapter.BigDecimalAdapter
 import io.customer.sdk.data.moshi.adapter.CustomAttributesFactory

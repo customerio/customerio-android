@@ -1,11 +1,12 @@
 package io.customer.sdk.core.di
 
 import io.customer.commontest.BaseUnitTest
+import io.customer.commontest.util.ScopeProviderStub
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBusImpl
+import io.customer.sdk.core.util.ScopeProvider
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -16,19 +17,20 @@ import org.junit.Test
 class EventBusTest : BaseUnitTest() {
 
     private lateinit var eventBus: EventBusImpl
-    private var testScope: TestScope = TestScope()
+    private var testScopeProvider = ScopeProviderStub()
 
     override fun setup() {
-        eventBus = EventBusImpl(scope = testScope)
+        SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProvider)
+        eventBus = EventBusImpl()
     }
 
     override fun teardown() {
-        eventBus.shutdown()
+        eventBus.removeAllSubscriptions()
         super.teardown()
     }
 
     @Test
-    fun givenPublishEventVerifySubscribe() = testScope.runTest {
+    fun givenPublishEventVerifySubscribe() = runBlocking {
         val events = mutableListOf<Event>()
         val job = eventBus.subscribe<Event.ProfileIdentifiedEvent> { event ->
             events.add(event)
@@ -48,7 +50,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     @Test
-    fun givenCancelAllShouldStopReceivingEvents() = testScope.runTest {
+    fun givenCancelAllShouldStopReceivingEvents(): Unit = runBlocking {
         val events = mutableListOf<Event>()
         eventBus.subscribe<Event.ScreenViewedEvent> { event ->
             events.add(event)
@@ -64,7 +66,7 @@ class EventBusTest : BaseUnitTest() {
         assertEquals(firstEvent.name, (events[0] as Event.ScreenViewedEvent).name)
 
         println("Cancelling all...")
-        eventBus.shutdown()
+        eventBus.removeAllSubscriptions()
 
         val secondEvent = Event.ScreenViewedEvent("Second Message")
         println("Publishing second event: $secondEvent")
@@ -76,7 +78,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     @Test
-    fun givenMultipleSubscribersExpectAllSubscribersReceiveEvents() = testScope.runTest {
+    fun givenMultipleSubscribersExpectAllSubscribersReceiveEvents() = runBlocking {
         val subscriber1 = mutableListOf<Event>()
         val subscriber2 = mutableListOf<Event>()
 
@@ -115,7 +117,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     @Test
-    fun givePublishMultipleEventsToMultipleSubscribersExpectAllEventsReceived() = testScope.runTest {
+    fun givePublishMultipleEventsToMultipleSubscribersExpectAllEventsReceived() = runBlocking {
         val subscriber1 = mutableListOf<Event>()
         val subscriber2 = mutableListOf<Event>()
 
@@ -148,7 +150,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     @Test
-    fun givenSubscribeToEventTypeNeverPublishedExpectNoEvents() = testScope.runTest {
+    fun givenSubscribeToEventTypeNeverPublishedExpectNoEvents() = runBlocking {
         val events = mutableListOf<Event>()
         val job = eventBus.subscribe<Event.TrackInAppMetricEvent> { event ->
             events.add(event)
@@ -165,7 +167,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     @Test
-    fun givenBufferEventsAndReplayToNewSubscriberExpectAllEventsReceived() = testScope.runTest {
+    fun givenBufferEventsAndReplayToNewSubscriberExpectAllEventsReceived() = runBlocking {
         // Publish multiple events without any subscribers
         repeat(15) { index ->
             val event = Event.TrackInAppMetricEvent("deliveryId$index", "event$index", params = mapOf("message" to "Message $index"))

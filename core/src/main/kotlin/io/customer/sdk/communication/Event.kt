@@ -8,17 +8,39 @@ import java.util.UUID
  */
 sealed class Event {
     // Unique identifier for the event
-    val storageId: String = UUID.randomUUID().toString()
+    open val storageId: String = UUID.randomUUID().toString()
 
-    // Metadata associated with the event
-    val params: Map<String, String> = emptyMap()
+    // Additional metadata associated with the event
+    open val params: Map<String, String> = emptyMap()
 
-    // Timestamp when the event was created
-    val timestamp: Date = Date()
+    // Timestamp of the event
+    open val timestamp: Date = Date()
 
-    // Dummy event for testing purposes
-    class DummyEvent(val message: String) : Event()
+    data class ProfileIdentifiedEvent(
+        val identifier: String
+    ) : Event()
 
-    // Dummy event for testing purposes
-    class DummyEmptyEvent : Event()
+    data class ScreenViewedEvent(
+        val name: String
+    ) : Event()
+
+    object ResetEvent : Event()
+
+    data class TrackPushMetricEvent(
+        val deliveryId: String,
+        val event: String,
+        val deviceToken: String
+    ) : Event()
+
+    data class TrackInAppMetricEvent(
+        val deliveryID: String,
+        val event: String,
+        override val params: Map<String, String>
+    ) : Event()
+
+    data class RegisterDeviceTokenEvent(
+        val token: String
+    ) : Event()
+
+    class DeleteDeviceTokenEvent : Event()
 }

@@ -7,18 +7,80 @@ public final class io/customer/sdk/Version {
 }
 
 public abstract class io/customer/sdk/communication/Event {
-	public final fun getParams ()Ljava/util/Map;
-	public final fun getStorageId ()Ljava/lang/String;
-	public final fun getTimestamp ()Ljava/util/Date;
+	public fun getParams ()Ljava/util/Map;
+	public fun getStorageId ()Ljava/lang/String;
+	public fun getTimestamp ()Ljava/util/Date;
 }
 
-public final class io/customer/sdk/communication/Event$DummyEmptyEvent : io/customer/sdk/communication/Event {
+public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> ()V
 }
 
-public final class io/customer/sdk/communication/Event$DummyEvent : io/customer/sdk/communication/Event {
+public final class io/customer/sdk/communication/Event$ProfileIdentifiedEvent : io/customer/sdk/communication/Event {
 	public fun <init> (Ljava/lang/String;)V
-	public final fun getMessage ()Ljava/lang/String;
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIdentifier ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getToken ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$ResetEvent : io/customer/sdk/communication/Event {
+	public static final field INSTANCE Lio/customer/sdk/communication/Event$ResetEvent;
+}
+
+public final class io/customer/sdk/communication/Event$ScreenViewedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$ScreenViewedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$ScreenViewedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$ScreenViewedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$TrackInAppMetricEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryID ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun getParams ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$TrackPushMetricEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/communication/Event$TrackPushMetricEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackPushMetricEvent;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackPushMetricEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeviceToken ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class io/customer/sdk/communication/EventBus {

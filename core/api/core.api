@@ -84,20 +84,20 @@ public final class io/customer/sdk/communication/Event$TrackPushMetricEvent : io
 }
 
 public abstract interface class io/customer/sdk/communication/EventBus {
-	public abstract fun cancelAll ()V
 	public abstract fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
 	public abstract fun publish (Lio/customer/sdk/communication/Event;)V
+	public abstract fun shutdown ()V
 }
 
 public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/communication/EventBus {
 	public fun <init> ()V
-	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/SharedFlow;)V
-	public synthetic fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/SharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun cancelAll ()V
+	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/MutableSharedFlow;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/MutableSharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getJobs ()Ljava/util/List;
 	public final fun getScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun publish (Lio/customer/sdk/communication/Event;)V
+	public fun shutdown ()V
 }
 
 public final class io/customer/sdk/core/BuildConfig {

@@ -23,7 +23,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     override fun teardown() {
-        eventBus.cancelAll()
+        eventBus.shutdown()
         super.teardown()
     }
 
@@ -64,7 +64,7 @@ class EventBusTest : BaseUnitTest() {
         assertEquals(firstEvent.name, (events[0] as Event.ScreenViewedEvent).name)
 
         println("Cancelling all...")
-        eventBus.cancelAll()
+        eventBus.shutdown()
 
         val secondEvent = Event.ScreenViewedEvent("Second Message")
         println("Publishing second event: $secondEvent")
@@ -76,7 +76,7 @@ class EventBusTest : BaseUnitTest() {
     }
 
     @Test
-    fun givenMultipleSubscribersShouldReceiveMultipleEvents() = testScope.runTest {
+    fun givenMultipleSubscribersExpectAllSubscribersReceiveEvents() = testScope.runTest {
         val subscriber1 = mutableListOf<Event>()
         val subscriber2 = mutableListOf<Event>()
 

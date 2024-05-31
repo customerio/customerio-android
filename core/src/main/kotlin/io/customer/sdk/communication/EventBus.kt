@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 interface EventBus {
     val flow: SharedFlow<Event>
     fun publish(event: Event)
-    fun cancelAll()
+    fun shutdown()
 }
 
 /**
@@ -25,11 +25,10 @@ interface EventBus {
  */
 class EventBusImpl(
     val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-    override val flow: SharedFlow<Event> = MutableSharedFlow(replay = 100)
+    private val sharedFlow: MutableSharedFlow<Event> = MutableSharedFlow(replay = 100)
 ) : EventBus {
 
-    private val sharedFlow: MutableSharedFlow<Event>
-        get() = flow as MutableSharedFlow<Event>
+    override val flow: SharedFlow<Event> get() = sharedFlow
 
     val jobs = mutableListOf<Job>()
 
@@ -49,7 +48,7 @@ class EventBusImpl(
         return job
     }
 
-    override fun cancelAll() {
+    override fun shutdown() {
         jobs.forEach { it.cancel() }
         jobs.clear()
     }

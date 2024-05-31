@@ -6,16 +6,10 @@ public final class io/customer/sdk/Version {
 	public static final field version Ljava/lang/String;
 }
 
-public abstract class io/customer/sdk/communication/BaseEvent {
-	public fun <init> ()V
-	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/util/Date;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/util/Date;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+public abstract class io/customer/sdk/communication/Event {
 	public fun getParams ()Ljava/util/Map;
 	public fun getStorageId ()Ljava/lang/String;
 	public fun getTimestamp ()Ljava/util/Date;
-}
-
-public abstract class io/customer/sdk/communication/Event : io/customer/sdk/communication/BaseEvent {
 }
 
 public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : io/customer/sdk/communication/Event {

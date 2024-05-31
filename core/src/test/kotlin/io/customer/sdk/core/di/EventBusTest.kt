@@ -9,6 +9,8 @@ import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInstanceOf
+import org.amshove.kluent.shouldHaveSingleItem
 import org.junit.Test
 
 class EventBusTest : BaseUnitTest() {
@@ -38,8 +40,9 @@ class EventBusTest : BaseUnitTest() {
 
         delay(100) // Give some time for the event to be collected
 
-        events.size shouldBeEqualTo 1
-        (events[0] as Event.ProfileIdentifiedEvent).identifier shouldBeEqualTo testEvent.identifier
+        events.shouldHaveSingleItem()
+            .shouldBeInstanceOf<Event.ProfileIdentifiedEvent>()
+            .identifier shouldBeEqualTo testEvent.identifier
 
         job.cancel()
     }
@@ -91,19 +94,21 @@ class EventBusTest : BaseUnitTest() {
 
         delay(100) // Give some time for the event to be collected
 
-        subscriber1.size shouldBeEqualTo 1
-        (subscriber1[0] as Event.TrackPushMetricEvent).also {
-            it.deliveryId shouldBeEqualTo testEvent.deliveryId
-            it.event shouldBeEqualTo testEvent.event
-            it.deviceToken shouldBeEqualTo testEvent.deviceToken
-        }
+        subscriber1.shouldHaveSingleItem()
+            .shouldBeInstanceOf<Event.TrackPushMetricEvent>()
+            .also {
+                it.deliveryId shouldBeEqualTo testEvent.deliveryId
+                it.event shouldBeEqualTo testEvent.event
+                it.deviceToken shouldBeEqualTo testEvent.deviceToken
+            }
 
-        subscriber2.size shouldBeEqualTo 1
-        (subscriber2[0] as Event.TrackPushMetricEvent).also {
-            it.deliveryId shouldBeEqualTo testEvent.deliveryId
-            it.event shouldBeEqualTo testEvent.event
-            it.deviceToken shouldBeEqualTo testEvent.deviceToken
-        }
+        subscriber2.shouldHaveSingleItem()
+            .shouldBeInstanceOf<Event.TrackPushMetricEvent>()
+            .also {
+                it.deliveryId shouldBeEqualTo testEvent.deliveryId
+                it.event shouldBeEqualTo testEvent.event
+                it.deviceToken shouldBeEqualTo testEvent.deviceToken
+            }
 
         job1.cancel()
         job2.cancel()

@@ -4,18 +4,18 @@ import java.util.Date
 import java.util.UUID
 
 /**
- * Base class containing common properties for all events.
- */
-abstract class BaseEvent(
-    open val storageId: String = UUID.randomUUID().toString(),
-    open val params: Map<String, String> = emptyMap(),
-    open val timestamp: Date = Date()
-)
-
-/**
  * Class to represent an event that can be published and subscribed to using [EventBus].
  */
-sealed class Event : BaseEvent() {
+sealed class Event {
+    // Unique identifier for the event
+    open val storageId: String = UUID.randomUUID().toString()
+
+    // Additional metadata associated with the event
+    open val params: Map<String, String> = emptyMap()
+
+    // Timestamp of the event
+    open val timestamp: Date = Date()
+
     data class ProfileIdentifiedEvent(
         val identifier: String
     ) : Event()

@@ -1,5 +1,6 @@
 package io.customer.sdk.communication
 
+import io.customer.sdk.core.di.SDKComponent
 import kotlin.reflect.KClass
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +18,7 @@ import kotlinx.coroutines.launch
 interface EventBus {
     val flow: SharedFlow<Event>
     fun publish(event: Event)
-    fun cancelAll()
+    fun removeAllSubscriptions()
     fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job
 }
 
@@ -30,14 +31,15 @@ inline fun <reified T : Event> EventBus.subscribe(noinline action: (T) -> Unit) 
  * param flow: [SharedFlow] to be used for event handling and buffer for replay.
  */
 class EventBusImpl(
-    val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-    override val flow: SharedFlow<Event> = MutableSharedFlow(replay = 100)
+    private val sharedFlow: MutableSharedFlow<Event> = MutableSharedFlow(replay = 100)
 ) : EventBus {
 
-    private val sharedFlow: MutableSharedFlow<Event>
-        get() = flow as MutableSharedFlow<Event>
+    override val flow: SharedFlow<Event> get() = sharedFlow
 
     val jobs = mutableListOf<Job>()
+
+    val scope: CoroutineScope = SDKComponent.androidSDKComponent?.scopeProvider?.eventBusScope
+        ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun publish(event: Event) {
         scope.launch {
@@ -55,7 +57,7 @@ class EventBusImpl(
         return job
     }
 
-    override fun cancelAll() {
+    override fun removeAllSubscriptions() {
         jobs.forEach { it.cancel() }
         jobs.clear()
     }

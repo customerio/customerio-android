@@ -6,16 +6,10 @@ public final class io/customer/sdk/Version {
 	public static final field version Ljava/lang/String;
 }
 
-public abstract class io/customer/sdk/communication/BaseEvent {
-	public fun <init> ()V
-	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/util/Date;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/util/Date;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+public abstract class io/customer/sdk/communication/Event {
 	public fun getParams ()Ljava/util/Map;
 	public fun getStorageId ()Ljava/lang/String;
 	public fun getTimestamp ()Ljava/util/Date;
-}
-
-public abstract class io/customer/sdk/communication/Event : io/customer/sdk/communication/BaseEvent {
 }
 
 public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : io/customer/sdk/communication/Event {
@@ -90,21 +84,21 @@ public final class io/customer/sdk/communication/Event$TrackPushMetricEvent : io
 }
 
 public abstract interface class io/customer/sdk/communication/EventBus {
-	public abstract fun cancelAll ()V
 	public abstract fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
 	public abstract fun publish (Lio/customer/sdk/communication/Event;)V
+	public abstract fun removeAllSubscriptions ()V
 	public abstract fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
 }
 
 public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/communication/EventBus {
 	public fun <init> ()V
-	public fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/SharedFlow;)V
-	public synthetic fun <init> (Lkotlinx/coroutines/CoroutineScope;Lkotlinx/coroutines/flow/SharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun cancelAll ()V
+	public fun <init> (Lkotlinx/coroutines/flow/MutableSharedFlow;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/flow/MutableSharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getJobs ()Ljava/util/List;
 	public final fun getScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun publish (Lio/customer/sdk/communication/Event;)V
+	public fun removeAllSubscriptions ()V
 	public fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
 }
 
@@ -123,7 +117,9 @@ public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk
 	public final fun getClient ()Lio/customer/sdk/data/store/Client;
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+	public final fun getScopeProvider ()Lio/customer/sdk/core/util/ScopeProvider;
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {
@@ -186,6 +182,12 @@ public final class io/customer/sdk/core/util/CioLogLevel$Companion {
 	public static synthetic fun getLogLevel$default (Lio/customer/sdk/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/sdk/core/util/CioLogLevel;
 }
 
+public abstract interface class io/customer/sdk/core/util/DispatchersProvider {
+	public abstract fun getBackground ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public abstract fun getDefault ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public abstract fun getMain ()Lkotlinx/coroutines/CoroutineDispatcher;
+}
+
 public final class io/customer/sdk/core/util/LogcatLogger : io/customer/sdk/core/util/Logger {
 	public static final field Companion Lio/customer/sdk/core/util/LogcatLogger$Companion;
 	public static final field TAG Ljava/lang/String;
@@ -206,6 +208,22 @@ public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
 	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
+}
+
+public abstract interface class io/customer/sdk/core/util/ScopeProvider {
+	public abstract fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
+}
+
+public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/core/util/DispatchersProvider {
+	public fun <init> ()V
+	public fun getBackground ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public fun getDefault ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public fun getMain ()Lkotlinx/coroutines/CoroutineDispatcher;
+}
+
+public final class io/customer/sdk/core/util/SdkScopeProvider : io/customer/sdk/core/util/ScopeProvider {
+	public fun <init> (Lio/customer/sdk/core/util/DispatchersProvider;)V
+	public fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
 }
 
 public abstract class io/customer/sdk/data/model/Region {

@@ -3,9 +3,10 @@ package io.customer.sdk.di
 import io.customer.sdk.core.di.DiGraph
 import io.customer.sdk.core.environment.BuildEnvironment
 import io.customer.sdk.core.environment.DefaultBuildEnvironment
+import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.LogcatLogger
 import io.customer.sdk.core.util.Logger
-import io.customer.sdk.util.*
+import io.customer.sdk.core.util.SdkDispatchers
 
 /**
  * Static/shared component dependency graph to satisfy independent dependencies

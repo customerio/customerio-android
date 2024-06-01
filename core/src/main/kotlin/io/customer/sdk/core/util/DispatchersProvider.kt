@@ -1,4 +1,4 @@
-package io.customer.sdk.util
+package io.customer.sdk.core.util
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 interface DispatchersProvider {
     val background: CoroutineDispatcher
     val main: CoroutineDispatcher
+    val default: CoroutineDispatcher
 }
 
 class SdkDispatchers : DispatchersProvider {
@@ -15,4 +16,7 @@ class SdkDispatchers : DispatchersProvider {
 
     override val main: CoroutineDispatcher
         get() = Dispatchers.Main
+
+    override val default: CoroutineDispatcher
+        get() = Dispatchers.Default
 }

@@ -6,6 +6,100 @@ public final class io/customer/sdk/Version {
 	public static final field version Ljava/lang/String;
 }
 
+public abstract class io/customer/sdk/communication/Event {
+	public fun getParams ()Ljava/util/Map;
+	public fun getStorageId ()Ljava/lang/String;
+	public fun getTimestamp ()Ljava/util/Date;
+}
+
+public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : io/customer/sdk/communication/Event {
+	public fun <init> ()V
+}
+
+public final class io/customer/sdk/communication/Event$ProfileIdentifiedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$ProfileIdentifiedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIdentifier ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$RegisterDeviceTokenEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getToken ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$ResetEvent : io/customer/sdk/communication/Event {
+	public static final field INSTANCE Lio/customer/sdk/communication/Event$ResetEvent;
+}
+
+public final class io/customer/sdk/communication/Event$ScreenViewedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$ScreenViewedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$ScreenViewedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$ScreenViewedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$TrackInAppMetricEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackInAppMetricEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryID ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun getParams ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$TrackPushMetricEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/communication/Event$TrackPushMetricEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackPushMetricEvent;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackPushMetricEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeviceToken ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/sdk/communication/EventBus {
+	public abstract fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
+	public abstract fun publish (Lio/customer/sdk/communication/Event;)V
+	public abstract fun removeAllSubscriptions ()V
+}
+
+public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/communication/EventBus {
+	public fun <init> ()V
+	public fun <init> (Lkotlinx/coroutines/flow/MutableSharedFlow;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/flow/MutableSharedFlow;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun getJobs ()Ljava/util/List;
+	public final fun getScope ()Lkotlinx/coroutines/CoroutineScope;
+	public fun publish (Lio/customer/sdk/communication/Event;)V
+	public fun removeAllSubscriptions ()V
+}
+
 public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z
@@ -21,7 +115,9 @@ public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk
 	public final fun getClient ()Lio/customer/sdk/data/store/Client;
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+	public final fun getScopeProvider ()Lio/customer/sdk/core/util/ScopeProvider;
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {
@@ -83,6 +179,12 @@ public final class io/customer/sdk/core/util/CioLogLevel$Companion {
 	public static synthetic fun getLogLevel$default (Lio/customer/sdk/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/sdk/core/util/CioLogLevel;
 }
 
+public abstract interface class io/customer/sdk/core/util/DispatchersProvider {
+	public abstract fun getBackground ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public abstract fun getDefault ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public abstract fun getMain ()Lkotlinx/coroutines/CoroutineDispatcher;
+}
+
 public final class io/customer/sdk/core/util/LogcatLogger : io/customer/sdk/core/util/Logger {
 	public static final field Companion Lio/customer/sdk/core/util/LogcatLogger$Companion;
 	public static final field TAG Ljava/lang/String;
@@ -103,6 +205,22 @@ public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
 	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
+}
+
+public abstract interface class io/customer/sdk/core/util/ScopeProvider {
+	public abstract fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
+}
+
+public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/core/util/DispatchersProvider {
+	public fun <init> ()V
+	public fun getBackground ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public fun getDefault ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public fun getMain ()Lkotlinx/coroutines/CoroutineDispatcher;
+}
+
+public final class io/customer/sdk/core/util/SdkScopeProvider : io/customer/sdk/core/util/ScopeProvider {
+	public fun <init> (Lio/customer/sdk/core/util/DispatchersProvider;)V
+	public fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
 }
 
 public abstract class io/customer/sdk/data/model/Region {

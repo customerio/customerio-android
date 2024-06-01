@@ -37,4 +37,12 @@ android {
 dependencies {
     api project(":base")
     api Dependencies.androidxCoreKtx
+
+    implementation Dependencies.coroutinesAndroid
+
+    testImplementation(Dependencies.mockk)
+    testImplementation(Dependencies.coroutinesTest)
+
+    testImplementation(platform(Dependencies.junitBom))
+    testImplementation(Dependencies.junitJupiter)
 }

@@ -223,7 +223,7 @@ public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/core
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDateUtil ()Lio/customer/sdk/util/DateUtil;
 	public final fun getDeviceRepository ()Lio/customer/sdk/repository/DeviceRepository;
-	public final fun getDispatchersProvider ()Lio/customer/sdk/util/DispatchersProvider;
+	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getFileStorage ()Lio/customer/sdk/data/store/FileStorage;
 	public final fun getHooksManager ()Lio/customer/sdk/hooks/HooksManager;
 	public final fun getJsonAdapter ()Lio/customer/sdk/util/JsonAdapter;
@@ -248,7 +248,7 @@ public final class io/customer/sdk/di/CustomerIOSharedComponent : io/customer/sd
 public final class io/customer/sdk/di/CustomerIOStaticComponent : io/customer/sdk/core/di/DiGraph {
 	public fun <init> ()V
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
-	public final fun getDispatchersProvider ()Lio/customer/sdk/util/DispatchersProvider;
+	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 }
 

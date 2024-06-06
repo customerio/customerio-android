@@ -1,10 +1,6 @@
 package io.customer.sdk.core.di
 
 import android.content.Context
-import io.customer.sdk.core.util.DispatchersProvider
-import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.core.util.SdkDispatchers
-import io.customer.sdk.core.util.SdkScopeProvider
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.ApplicationStoreImpl
 import io.customer.sdk.data.store.BuildStore
@@ -40,10 +36,4 @@ class AndroidSDKComponent(
         }
     val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
-
-    val dispatchersProvider: DispatchersProvider
-        get() = newInstance { SdkDispatchers() }
-
-    val scopeProvider: ScopeProvider
-        get() = newInstance { SdkScopeProvider(dispatchersProvider) }
 }

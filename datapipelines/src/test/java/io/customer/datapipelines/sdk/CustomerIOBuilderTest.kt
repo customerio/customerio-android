@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
+import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
@@ -84,6 +85,13 @@ class CustomerIOBuilderTest {
 
         verify(exactly = 0) { givenModule1.initialize() }
         verify(exactly = 1) { givenModule2.initialize() }
+    }
+
+    @Test
+    fun build_givenModuleInitialized_expectDataPipelinePublishedEventsPluginAdded() {
+        createCustomerIOBuilder().build()
+
+        CustomerIO.instance().analytics.find(DataPipelinePublishedEvents::class) shouldNotBe null
     }
 
     @Test

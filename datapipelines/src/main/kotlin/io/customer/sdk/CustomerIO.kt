@@ -16,6 +16,9 @@ import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
+import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
@@ -50,6 +53,7 @@ class CustomerIO private constructor(
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val deviceStore = androidSDKComponent.deviceStore
+    private val eventBus = SDKComponent.eventBus
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
@@ -106,6 +110,17 @@ class CustomerIO private constructor(
         if (moduleConfig.autoTrackDeviceAttributes) {
             analytics.add(AutoTrackDeviceAttributesPlugin())
         }
+        // Add plugin to publish events to EventBus for other modules to consume
+        analytics.add(DataPipelinePublishedEvents())
+
+        // subscribe to journey events emitted from push/in-app module to send them via data pipelines
+        subscribeToJourneyEvents()
+    }
+
+    private fun subscribeToJourneyEvents() {
+        eventBus.subscribe<Event.TrackPushMetricEvent> {}
+        eventBus.subscribe<Event.TrackInAppMetricEvent> {}
+        eventBus.subscribe<Event.RegisterDeviceTokenEvent> {}
     }
 
     override fun initialize() {

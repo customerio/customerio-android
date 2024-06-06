@@ -1,13 +1,14 @@
 package io.customer.sdk.communication
 
 import io.customer.sdk.core.di.SDKComponent
+import kotlin.reflect.KClass
+import kotlin.reflect.safeCast
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
 /**
@@ -17,7 +18,10 @@ interface EventBus {
     val flow: SharedFlow<Event>
     fun publish(event: Event)
     fun removeAllSubscriptions()
+    fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job
 }
+
+inline fun <reified T : Event> EventBus.subscribe(noinline action: (T) -> Unit) = subscribe(T::class, action)
 
 /**
  * Implementation of [EventBus] using [SharedFlow] for event handling.
@@ -32,8 +36,7 @@ class EventBusImpl(
 
     val jobs = mutableListOf<Job>()
 
-    val scope: CoroutineScope = SDKComponent.androidSDKComponent?.scopeProvider?.eventBusScope
-        ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
+    val scope: CoroutineScope = SDKComponent.scopeProvider.eventBusScope
 
     override fun publish(event: Event) {
         scope.launch {
@@ -54,5 +57,15 @@ class EventBusImpl(
     override fun removeAllSubscriptions() {
         jobs.forEach { it.cancel() }
         jobs.clear()
+    }
+
+    override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
+        val job = scope.launch {
+            flow.mapNotNull { type.safeCast(it) }.collect { event ->
+                action(event)
+            }
+        }
+        jobs.add(job)
+        return job
     }
 }

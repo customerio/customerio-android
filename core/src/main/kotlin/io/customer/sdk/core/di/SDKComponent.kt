@@ -5,8 +5,12 @@ import io.customer.sdk.communication.EventBusImpl
 import io.customer.sdk.core.environment.BuildEnvironment
 import io.customer.sdk.core.environment.DefaultBuildEnvironment
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.LogcatLogger
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.core.util.ScopeProvider
+import io.customer.sdk.core.util.SdkDispatchers
+import io.customer.sdk.core.util.SdkScopeProvider
 
 /**
  * Object level DiGraph for the SDK. Provides a centralized way to manage all
@@ -21,6 +25,8 @@ object SDKComponent : DiGraph() {
     val logger: Logger get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
     val eventBus: EventBus get() = singleton<EventBus> { EventBusImpl() }
+    val dispatchersProvider: DispatchersProvider get() = newInstance { SdkDispatchers() }
+    val scopeProvider: ScopeProvider get() = newInstance { SdkScopeProvider(dispatchersProvider) }
 
     override fun reset() {
         androidSDKComponent?.reset()

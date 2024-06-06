@@ -4,12 +4,9 @@ import io.customer.sdk.core.di.SDKComponent
 import kotlin.reflect.KClass
 import kotlin.reflect.cast
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
@@ -39,7 +36,7 @@ class EventBusImpl(
 
     val jobs = mutableListOf<Job>()
 
-    val scope: CoroutineScope = SDKComponent.androidSDKComponent?.scopeProvider?.eventBusScope ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
+    val scope: CoroutineScope = SDKComponent.scopeProvider.eventBusScope
 
     override fun publish(event: Event) {
         scope.launch {
@@ -64,7 +61,7 @@ class EventBusImpl(
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
         val job = scope.launch {
-            flow.filter { type.isInstance(it) }.mapNotNull { it.safeCast(type) }.collect { event ->
+            flow.mapNotNull { it.safeCast(type) }.collect { event ->
                 action(event)
             }
         }

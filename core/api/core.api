@@ -117,9 +117,7 @@ public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk
 	public final fun getClient ()Lio/customer/sdk/data/store/Client;
 	public final fun getContext ()Landroid/content/Context;
 	public final fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
-	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
-	public final fun getScopeProvider ()Lio/customer/sdk/core/util/ScopeProvider;
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {
@@ -134,9 +132,11 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
 	public final fun getAndroidSDKComponent ()Lio/customer/sdk/core/di/AndroidSDKComponent;
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
+	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
+	public final fun getScopeProvider ()Lio/customer/sdk/core/util/ScopeProvider;
 	public fun reset ()V
 }
 

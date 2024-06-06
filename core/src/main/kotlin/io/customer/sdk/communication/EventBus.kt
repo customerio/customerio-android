@@ -2,6 +2,7 @@ package io.customer.sdk.communication
 
 import io.customer.sdk.core.di.SDKComponent
 import kotlin.reflect.KClass
+import kotlin.reflect.cast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
 /**
@@ -22,8 +24,7 @@ interface EventBus {
     fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job
 }
 
-inline fun <reified T : Event> EventBus.subscribe(noinline action: (T) -> Unit) =
-    subscribe(T::class, action)
+inline fun <reified T : Event> EventBus.subscribe(noinline action: (T) -> Unit) = subscribe(T::class, action)
 
 /**
  * Implementation of [EventBus] using [SharedFlow] for event handling.
@@ -38,8 +39,7 @@ class EventBusImpl(
 
     val jobs = mutableListOf<Job>()
 
-    val scope: CoroutineScope = SDKComponent.androidSDKComponent?.scopeProvider?.eventBusScope
-        ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
+    val scope: CoroutineScope = SDKComponent.androidSDKComponent?.scopeProvider?.eventBusScope ?: CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun publish(event: Event) {
         scope.launch {
@@ -64,11 +64,14 @@ class EventBusImpl(
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
         val job = scope.launch {
-            flow.filter { type.isInstance(it) }.collect { event ->
-                action(event as T)
+            flow.filter { type.isInstance(it) }.mapNotNull { it.safeCast(type) }.collect { event ->
+                action(event)
             }
         }
         jobs.add(job)
         return job
+    }
+    private fun <T : Event> Event.safeCast(type: KClass<T>): T? {
+        return if (type.isInstance(this)) type.cast(this) else null
     }
 }

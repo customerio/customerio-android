@@ -2,7 +2,7 @@ package io.customer.sdk.communication
 
 import io.customer.sdk.core.di.SDKComponent
 import kotlin.reflect.KClass
-import kotlin.reflect.cast
+import kotlin.reflect.safeCast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -61,14 +61,11 @@ class EventBusImpl(
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
         val job = scope.launch {
-            flow.mapNotNull { it.safeCast(type) }.collect { event ->
+            flow.mapNotNull { type.safeCast(it) }.collect { event ->
                 action(event)
             }
         }
         jobs.add(job)
         return job
-    }
-    private fun <T : Event> Event.safeCast(type: KClass<T>): T? {
-        return if (type.isInstance(this)) type.cast(this) else null
     }
 }

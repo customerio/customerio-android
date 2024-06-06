@@ -20,7 +20,7 @@ object SDKComponent : DiGraph() {
     val buildEnvironment: BuildEnvironment get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
     val logger: Logger get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
-    val eventBus: EventBus = singleton<EventBus> { EventBusImpl() }
+    val eventBus: EventBus get() = singleton<EventBus> { EventBusImpl() }
 
     override fun reset() {
         androidSDKComponent?.reset()

@@ -30,6 +30,10 @@ class GistView @JvmOverloads constructor(
     private var firstLoad: Boolean = true
     var listener: GistViewListener? = null
 
+    // Indicates if the message is visible to user or not
+    internal val isEngineVisible: Boolean
+        get() = engineWebView?.alpha == 1.0f
+
     init {
         engineWebView?.let { engineWebView ->
             engineWebView.alpha = 0.0f
@@ -51,6 +55,10 @@ class GistView @JvmOverloads constructor(
             )
             engineWebView?.setup(engineWebConfiguration)
         }
+    }
+
+    fun stopLoading() {
+        engineWebView?.stopLoading()
     }
 
     override fun tap(name: String, action: String, system: Boolean) {

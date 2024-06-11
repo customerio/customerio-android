@@ -138,6 +138,9 @@ internal class GistSdkListenersTest : BaseTest() {
         override fun onMessageDismissed(message: Message) {
         }
 
+        override fun onMessageCancelled(message: Message) {
+        }
+
         override fun onError(message: Message) {
         }
 

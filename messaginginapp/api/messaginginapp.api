@@ -75,6 +75,7 @@ public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/cus
 	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -173,6 +174,7 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public abstract fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public abstract fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public abstract fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -185,6 +187,7 @@ public final class io/customer/messaginginapp/gist/presentation/GistModalActivit
 	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onGistViewSizeChanged (II)V
+	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -245,6 +248,7 @@ public final class io/customer/messaginginapp/gist/presentation/GistView : andro
 	public final fun setListener (Lio/customer/messaginginapp/gist/presentation/GistViewListener;)V
 	public final fun setup (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun sizeChanged (DD)V
+	public final fun stopLoading ()V
 	public fun tap (Ljava/lang/String;Ljava/lang/String;Z)V
 }
 

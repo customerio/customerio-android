@@ -12,7 +12,6 @@ import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import java.io.File
 import java.util.regex.PatternSyntaxException
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okhttp3.Cache
 import okhttp3.Headers
@@ -23,8 +22,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 class Queue : GistListener {
 
-    private var localMessageStore: MutableList<Message> = mutableListOf()
-    private var shownMessageQueueIds = mutableSetOf<String>()
+    internal var localMessageStore: MutableList<Message> = mutableListOf()
+    internal var shownMessageQueueIds = mutableSetOf<String>()
 
     init {
         GistSdk.addListener(this)
@@ -116,7 +115,7 @@ class Queue : GistListener {
     }
 
     internal fun fetchUserMessages() {
-        GlobalScope.launch {
+        GistSdk.coroutineScope.launch {
             try {
                 Log.i(GIST_TAG, "Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
@@ -205,7 +204,7 @@ class Queue : GistListener {
     }
 
     internal fun logView(message: Message) {
-        GlobalScope.launch {
+        GistSdk.coroutineScope.launch {
             try {
                 if (message.queueId != null) {
                     Log.i(
@@ -249,6 +248,16 @@ class Queue : GistListener {
     override fun embedMessage(message: Message, elementId: String) {}
 
     override fun onMessageDismissed(message: Message) {}
+
+    override fun onMessageCancelled(message: Message) {
+        val gistProperties = GistMessageProperties.getGistProperties(message)
+        val routeRule = gistProperties.routeRule
+        Log.i(
+            GIST_TAG,
+            "Message cancelled. Adding message back to queue with route rule: $routeRule"
+        )
+        addMessageToLocalStore(message)
+    }
 
     override fun onError(message: Message) {}
 

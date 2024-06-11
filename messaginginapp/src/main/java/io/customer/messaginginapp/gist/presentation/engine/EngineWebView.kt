@@ -27,6 +27,8 @@ internal class EngineWebView @JvmOverloads constructor(
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
+    private var engineWebViewClientInterceptor: EngineWebViewClientInterceptor? = null
+    private val engineWebViewInterface = EngineWebViewInterface(this)
 
     init {
         // exception handling is required for webview in-case webview is not supported in the device
@@ -36,6 +38,19 @@ internal class EngineWebView @JvmOverloads constructor(
         } catch (e: Exception) {
             Log.e(GIST_TAG, "Error while creating EngineWebView: ${e.message}")
         }
+        // Get WebViewClientInterceptor from GistSdk directly
+        engineWebViewClientInterceptor = GistSdk.engineWebViewClientInterceptor
+    }
+
+    fun stopLoading() {
+        webView?.let {
+            // stop loading the WebView
+            it.stopLoading()
+            // detach engine interface from the WebView
+            engineWebViewInterface.detach(webView = it)
+        }
+        // stop the timer and clean up
+        bootstrapped()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -55,11 +70,12 @@ internal class EngineWebView @JvmOverloads constructor(
                 it.settings.domStorageEnabled = true
                 it.settings.textZoom = 100
                 it.setBackgroundColor(Color.TRANSPARENT)
-                it.addJavascriptInterface(EngineWebViewInterface(this), "appInterface")
+                engineWebViewInterface.attach(webView = it)
 
                 it.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
-                        view.loadUrl("javascript:window.parent.postMessage = function(message) {window.appInterface.postMessage(JSON.stringify(message))}")
+                        view.loadUrl("javascript:window.parent.postMessage = function(message) {window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message))}")
+                        engineWebViewClientInterceptor?.onPageFinished(view, url)
                     }
 
                     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {

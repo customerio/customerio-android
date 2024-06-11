@@ -7,7 +7,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 
 internal class GistModalManager : GistListener {
-    private var currentMessage: Message? = null
+    internal var currentMessage: Message? = null
 
     init {
         GistSdk.addListener(this)
@@ -42,6 +42,12 @@ internal class GistModalManager : GistListener {
     }
 
     override fun onMessageDismissed(message: Message) {
+        if (message.instanceId == currentMessage?.instanceId) {
+            currentMessage = null
+        }
+    }
+
+    override fun onMessageCancelled(message: Message) {
         if (message.instanceId == currentMessage?.instanceId) {
             currentMessage = null
         }

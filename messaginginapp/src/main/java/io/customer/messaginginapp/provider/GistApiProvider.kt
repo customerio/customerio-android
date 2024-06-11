@@ -78,6 +78,9 @@ internal class GistApiProvider : GistApi {
             override fun onMessageDismissed(message: Message) {
             }
 
+            override fun onMessageCancelled(message: Message) {
+            }
+
             override fun onMessageShown(message: Message) {
                 val deliveryID = GistMessageProperties.getGistProperties(message).campaignId
                 deliveryID?.let { onMessageShown(it) }

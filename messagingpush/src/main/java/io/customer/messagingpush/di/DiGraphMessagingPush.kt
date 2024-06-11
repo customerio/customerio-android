@@ -35,15 +35,14 @@ internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
 
 @InternalCustomerIOApi
 val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
-    get() = override() ?: PushTrackingUtilImpl(trackRepository)
+    get() = override() ?: PushTrackingUtilImpl()
 
 internal val CustomerIOComponent.pushMessageProcessor: PushMessageProcessor
     get() = override() ?: getSingletonInstanceCreate {
         PushMessageProcessorImpl(
             logger = logger,
             moduleConfig = moduleConfig,
-            deepLinkUtil = deepLinkUtil,
-            trackRepository = trackRepository
+            deepLinkUtil = deepLinkUtil
         )
     }
 

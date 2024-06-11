@@ -6,6 +6,8 @@ import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.android.CustomerIOInstance
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.di.CustomerIOComponent
 
@@ -52,7 +54,11 @@ internal constructor(
      */
     private fun getCurrentFcmToken() {
         fcmTokenProvider.getCurrentToken { token ->
-            token?.let { customerIO.registerDeviceToken(token) }
+            token?.let {
+                eventBus.publish(Event.RegisterDeviceTokenEvent(token))
+                // todo: remove this
+                customerIO.registerDeviceToken(token)
+            }
         }
     }
 

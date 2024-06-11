@@ -162,7 +162,7 @@ public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
 }
 
 public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
-	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
+	public fun <init> ()V
 	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
 }
 

@@ -6,6 +6,8 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.extensions.getSDKInstanceOrNull
 import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent.eventBus
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -91,6 +93,10 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         private fun handleNewToken(context: Context, token: String) {
+            eventBus.publish(
+                Event.RegisterDeviceTokenEvent(token)
+            )
+            // todo: remove this
             context.getSDKInstanceOrNull()?.registerDeviceToken(deviceToken = token)
         }
 

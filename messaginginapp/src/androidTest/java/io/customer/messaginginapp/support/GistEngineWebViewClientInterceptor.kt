@@ -18,6 +18,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 
+/**
+ * This class is responsible for intercepting WebViewClient events and simulate
+ * behavior of actual in-app messaging loaded in WebView by leveraging GistEngineMessageDriver.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GistEngineWebViewClientInterceptor(
     private val testCoroutineScope: TestScope
@@ -29,6 +33,7 @@ class GistEngineWebViewClientInterceptor(
         return messageDriversMap.getOrPut(message.messageId) { GistEngineMessageDriver(message) }
     }
 
+    // Used to reset the message driver for cases where the message is dismissed or cancelled
     private fun clearMessageDriver(message: Message) {
         messageDriversMap.remove(message.messageId)
     }
@@ -94,6 +99,7 @@ class GistEngineWebViewClientInterceptor(
     }
 
     private fun postMessage(driver: GistEngineMessageDriver, engineMessage: EngineWebMessage?, messageState: MessageState) {
+        // If the engine message is null, then the message state is already completed
         if (engineMessage == null) {
             driver.onStateComplete(messageState)
             return
@@ -101,9 +107,12 @@ class GistEngineWebViewClientInterceptor(
 
         val message = gson.toJson(engineMessage)
         testCoroutineScope.launch(Dispatchers.Main) {
+            // Use the JavaScript interface to post the message to the WebView
+            // similar to how the actual in-app messaging would interact with the WebView
             val script = "window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify($message));"
+            // Evaluate the script in the WebView and notify the driver when the message has been posted successfully
             driver.webView.evaluateJavascript(script) { response ->
-                println("$GIST_TAG postMessage, response: $response, messageId: ${driver.message.messageId}")
+                println("$GIST_TAG postMessage->evaluateJavascript - state: $messageState, response: $response, messageId: ${driver.message.messageId}")
                 driver.onStateComplete(messageState)
             }
         }
@@ -112,7 +121,7 @@ class GistEngineWebViewClientInterceptor(
     override fun embedMessage(message: Message, elementId: String) {}
 
     override fun onMessageShown(message: Message) {
-        clearMessageDriver(message)
+        // Do nothing as we don't need to clear the message driver until the message is dismissed or cancelled
     }
 
     override fun onMessageDismissed(message: Message) {

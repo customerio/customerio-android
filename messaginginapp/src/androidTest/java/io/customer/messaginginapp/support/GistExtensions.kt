@@ -7,19 +7,14 @@ import androidx.test.runner.lifecycle.Stage
 import com.google.gson.JsonParser
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
-import io.customer.messaginginapp.support.GistConstants.IN_APP_MESSAGE_DEFERRED_MAX_DELAY
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.extensions.random
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 
-fun Message.asInAppMessage(): InAppMessage = InAppMessage.getFromGistMessage(gistMessage = this)
+fun mapToInAppMessage(message: Message): InAppMessage = InAppMessage.getFromGistMessage(gistMessage = message)
 
-fun String.toPageRuleContains(): String = "^(.*$this.*)\$"
+fun pageRuleContains(route: String): String = "^(.*$route.*)\$"
 
-fun String.toPageRuleEquals(): String = "^($this)\$"
+fun pageRuleEquals(route: String): String = "^($route)\$"
 
 fun decodeOptionsString(options: String): Message {
     val decodedOptions = String(Base64.decode(options, Base64.DEFAULT), Charsets.UTF_8)
@@ -67,16 +62,3 @@ fun getInAppMessageActivity(): GistModalActivity? {
 
     return runningActivity
 }
-
-val isInAppMessageLoading: Boolean
-    get() = getInAppMessageActivity() != null
-val isInAppMessageVisible: Boolean
-    get() = getInAppMessageActivity()?.isEngineVisible ?: false
-
-fun <T> Deferred<T>.awaitWithTimeoutBlocking(
-    timeMillis: Long = IN_APP_MESSAGE_DEFERRED_MAX_DELAY
-): T = runBlocking { withTimeout(timeMillis) { await() } }
-
-fun <T> Collection<Deferred<T>>.awaitWithTimeoutBlocking(
-    timeMillis: Long = IN_APP_MESSAGE_DEFERRED_MAX_DELAY
-): List<T> = runBlocking { withTimeout(timeMillis) { awaitAll(*toTypedArray()) } }

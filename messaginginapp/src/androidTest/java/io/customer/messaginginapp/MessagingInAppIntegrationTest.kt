@@ -11,14 +11,12 @@ import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.support.GistEngineMessageDriver.MessageState
 import io.customer.messaginginapp.support.GistEngineWebViewClientInterceptor
 import io.customer.messaginginapp.support.GistServerResponseDispatcher
-import io.customer.messaginginapp.support.asInAppMessage
 import io.customer.messaginginapp.support.awaitWithTimeoutBlocking
 import io.customer.messaginginapp.support.createInAppMessage
 import io.customer.messaginginapp.support.getInAppMessageActivity
-import io.customer.messaginginapp.support.isInAppMessageLoading
-import io.customer.messaginginapp.support.isInAppMessageVisible
-import io.customer.messaginginapp.support.toPageRuleContains
-import io.customer.messaginginapp.support.toPageRuleEquals
+import io.customer.messaginginapp.support.mapToInAppMessage
+import io.customer.messaginginapp.support.pageRuleContains
+import io.customer.messaginginapp.support.pageRuleEquals
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import kotlin.system.measureTimeMillis
@@ -87,9 +85,15 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
             // Specify the port number to avoid conflicts with other mock servers
             start(52002)
         }
-        whenever(gistEnvironmentMock.getGistQueueApiUrl()).thenReturn(gistWebServerMock.url("/api/").toString())
-        whenever(gistEnvironmentMock.getEngineApiUrl()).thenReturn(gistWebServerMock.url("/engine").toString())
-        whenever(gistEnvironmentMock.getGistRendererUrl()).thenReturn(gistWebServerMock.url("/renderer").toString())
+        whenever(gistEnvironmentMock.getGistQueueApiUrl()).thenReturn(
+            gistWebServerMock.url("/api/").toString()
+        )
+        whenever(gistEnvironmentMock.getEngineApiUrl()).thenReturn(
+            gistWebServerMock.url("/engine").toString()
+        )
+        whenever(gistEnvironmentMock.getGistRendererUrl()).thenReturn(
+            gistWebServerMock.url("/renderer").toString()
+        )
 
         GistSdk.gistEnvironment = gistEnvironmentMock
         GistSdk.addListener(gistEngineClientInterceptor)
@@ -113,7 +117,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     fun givenUserNavigatedToDifferentScreenWhileMessageLoading_expectDoNotShowModalMessage() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
-            pageRule = "Dashboard".toPageRuleContains()
+            pageRule = pageRuleContains("Dashboard")
         )
         mockGistQueue(listOf(givenDashboardMessage))
 
@@ -141,7 +145,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     fun givenUserStillOnSameScreenAfterMessageLoads_expectShowModalMessage() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
-            pageRule = "Dashboard".toPageRuleContains()
+            pageRule = pageRuleContains("Dashboard")
         )
         mockGistQueue(listOf(givenDashboardMessage))
 
@@ -150,7 +154,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         messageDriver.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
-        verify(inAppEventListenerMock).messageShown(givenDashboardMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageShown(mapToInAppMessage(givenDashboardMessage))
         verifyNoMoreInteractions(inAppEventListenerMock)
 
         GistSdk.dismissMessage()
@@ -179,7 +183,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         messageDriver.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
-        verify(inAppEventListenerMock).messageShown(givenNoPageRuleMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageShown(mapToInAppMessage(givenNoPageRuleMessage))
         verifyNoMoreInteractions(inAppEventListenerMock)
 
         GistSdk.dismissMessage()
@@ -190,14 +194,16 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     fun givenUserOnScreenDuringFetch_givenUserNavigatedToDifferentScreenWhileMessageLoading_expectShowModalMessageAfterGoBack() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
-            pageRule = "Dashboard".toPageRuleContains()
+            pageRule = pageRuleContains("Dashboard")
         )
         mockGistQueue(listOf(givenDashboardMessage))
 
-        val messageDriverAttemptOne = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
+        val messageDriverAttemptOne =
+            gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
         messageDriverAttemptOne.blockAt(MessageState.HTML_LOADED)
         setCurrentRoute("Dashboard")
-        messageDriverAttemptOne.messageStateDeferred(MessageState.HTML_LOADED).awaitWithTimeoutBlocking()
+        messageDriverAttemptOne.messageStateDeferred(MessageState.HTML_LOADED)
+            .awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageLoading.shouldBeTrue()
         isInAppMessageVisible.shouldBeFalse()
@@ -206,16 +212,19 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         messageDriverAttemptOne.unblock()
         isInAppMessageLoading.shouldBeFalse()
         verifyNoInteractions(inAppEventListenerMock)
-        messageDriverAttemptOne.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        messageDriverAttemptOne.messageStateDeferred(MessageState.COMPLETED)
+            .awaitWithTimeoutBlocking()
         inAppMessagesQueued.shouldHaveSingleItem().shouldBeEqualTo(givenDashboardMessage)
         inAppMessageDisplayed.shouldBeNull()
 
         setCurrentRoute("Dashboard")
-        val messageDriverAttemptTwo = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
-        messageDriverAttemptTwo.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        val messageDriverAttemptTwo =
+            gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
+        messageDriverAttemptTwo.messageStateDeferred(MessageState.COMPLETED)
+            .awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
-        verify(inAppEventListenerMock).messageShown(givenDashboardMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageShown(mapToInAppMessage(givenDashboardMessage))
         verifyNoMoreInteractions(inAppEventListenerMock)
     }
 
@@ -223,7 +232,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     fun givenRouteChangedToSameRoute_expectDoNotDismissModal() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
-            pageRule = "Dashboard".toPageRuleContains()
+            pageRule = pageRuleContains("Dashboard")
         )
         mockGistQueue(listOf(givenDashboardMessage))
 
@@ -240,7 +249,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         messageDriver.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
-        verify(inAppEventListenerMock).messageShown(givenDashboardMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageShown(mapToInAppMessage(givenDashboardMessage))
         verifyNoMoreInteractions(inAppEventListenerMock)
     }
 
@@ -248,43 +257,51 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     fun givenMultipleMessageQueued_givenUserNavigatedToDifferentScreenWhileMessageLoading_expectShowCorrectModalMessages() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
-            pageRule = "Dashboard".toPageRuleContains()
+            pageRule = pageRuleContains("Dashboard")
         )
         val givenSettingsMessage = createInAppMessage(
             messageId = "promotion-banner",
-            pageRule = "Settings".toPageRuleEquals()
+            pageRule = pageRuleEquals("Settings")
         )
+        val givenDashboardInAppMessage = mapToInAppMessage(givenDashboardMessage)
+        val givenSettingsInAppMessage = mapToInAppMessage(givenSettingsMessage)
         mockGistQueue(listOf(givenDashboardMessage, givenSettingsMessage))
 
-        val messageDriverDashboardAttemptOne = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
+        val messageDriverDashboardAttemptOne =
+            gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
         messageDriverDashboardAttemptOne.blockAt(MessageState.HTML_LOADED)
         setCurrentRoute("Dashboard")
-        messageDriverDashboardAttemptOne.messageStateDeferred(MessageState.HTML_LOADED).awaitWithTimeoutBlocking()
+        messageDriverDashboardAttemptOne.messageStateDeferred(MessageState.HTML_LOADED)
+            .awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageLoading.shouldBeTrue()
         isInAppMessageVisible.shouldBeFalse()
 
-        val messageDriverSettings = gistEngineClientInterceptor.getMessageDriver(givenSettingsMessage)
+        val messageDriverSettings =
+            gistEngineClientInterceptor.getMessageDriver(givenSettingsMessage)
         setCurrentRoute("Settings")
         messageDriverDashboardAttemptOne.unblock()
         isInAppMessageLoading.shouldBeFalse()
         verifyNoInteractions(inAppEventListenerMock)
-        messageDriverSettings.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        messageDriverSettings.messageStateDeferred(MessageState.COMPLETED)
+            .awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
-        verify(inAppEventListenerMock).messageShown(givenSettingsMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageShown(givenSettingsInAppMessage)
         ensureMessageDismissed()
-        verify(inAppEventListenerMock).messageDismissed(givenSettingsMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageDismissed(givenSettingsInAppMessage)
         verifyNoMoreInteractions(inAppEventListenerMock)
 
-        val messageDriverDashboardAttemptTwo = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
+        val messageDriverDashboardAttemptTwo =
+            gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
         setCurrentRoute("Dashboard")
-        messageDriverDashboardAttemptTwo.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        messageDriverDashboardAttemptTwo.messageStateDeferred(MessageState.COMPLETED)
+            .awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
-        verify(inAppEventListenerMock).messageShown(givenDashboardMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageShown(givenDashboardInAppMessage)
         ensureMessageDismissed()
-        verify(inAppEventListenerMock).messageDismissed(givenDashboardMessage.asInAppMessage())
+        verify(inAppEventListenerMock).messageDismissed(givenDashboardInAppMessage)
         verifyNoMoreInteractions(inAppEventListenerMock)
 
         clearInvocations(inAppEventListenerMock)
@@ -300,10 +317,17 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         inAppMessagesQueued.shouldBeEmpty()
     }
 
+    // Helper methods and properties
+
     private val inAppMessageDisplayed: Message?
         get() = gistModalManager.currentMessage
     private val inAppMessagesQueued: List<Message>
         get() = gistQueue.localMessageStore
+
+    private val isInAppMessageLoading: Boolean
+        get() = getInAppMessageActivity() != null
+    private val isInAppMessageVisible: Boolean
+        get() = getInAppMessageActivity()?.isEngineVisible ?: false
 
     private fun setCurrentRoute(route: String) {
         GistSdk.setCurrentRoute(route)

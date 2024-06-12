@@ -5,6 +5,12 @@ import io.customer.messaginginapp.gist.data.model.Message
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CompletableDeferred
 
+/**
+ * In-app message driver responsible for mocking message lifecycle behavior similar
+ * to actual message rendered in WebView.
+ * The driver allows to block at specific message state and unblock when needed.
+ * The driver also provides deferred values to listen for specific message state changes.
+ */
 class GistEngineMessageDriver(val message: Message) {
     private val messageStatesDeferred: ConcurrentHashMap<MessageState, CompletableDeferred<Unit>> = ConcurrentHashMap()
     private var currentState: MessageState? = null
@@ -49,6 +55,9 @@ class GistEngineMessageDriver(val message: Message) {
         }
     }
 
+    // Message state enum to represent message lifecycle states same as actual message rendered in WebView
+    // The sequence of message state is same as actual message rendered in WebView
+    // i.e. HTML_LOADED -> BOOTSTRAPPED -> COMPLETED
     enum class MessageState {
         HTML_LOADED,
         BOOTSTRAPPED,

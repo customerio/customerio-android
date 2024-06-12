@@ -9,6 +9,9 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.RecordedRequest
 import okio.Buffer
 
+/**
+ * Dispatcher to mock Gist server responses for user messages and renderer requests.
+ */
 class GistServerResponseDispatcher : Dispatcher() {
     private val emptyResponse = MockResponse()
         .setResponseCode(HttpURLConnection.HTTP_OK)
@@ -66,7 +69,7 @@ class GistServerResponseDispatcher : Dispatcher() {
         .setResponseCode(HttpURLConnection.HTTP_OK)
         .setBody(Gson().toJson(messages))
 
-    private fun getInAppMessageHtmlMock(delay: Long = GistConstants.IN_APP_MESSAGE_LOAD_DELAY): MockResponse {
+    private fun getInAppMessageHtmlMock(delay: Long = 200L): MockResponse {
         val htmlContent = """
             <html>
             <head><title>Mocked Message</title></head>

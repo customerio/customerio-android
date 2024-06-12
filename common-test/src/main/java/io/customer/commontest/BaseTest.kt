@@ -99,8 +99,7 @@ abstract class BaseTest {
 
         // Initialize the mock web server before constructing DI graph as dependencies may require information such as hostname.
         mockWebServer = MockWebServer().apply {
-            // Specify the port number to avoid conflicts with other mock servers
-            start(52001)
+            start()
         }
         cioConfig.trackingApiUrl = mockWebServer.url("/").toString()
         if (!cioConfig.trackingApiUrl!!.contains("localhost")) {

@@ -82,8 +82,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
 
         gistWebServerMock = MockWebServer().apply {
             dispatcher = gistWebServerResponseDispatcher
-            // Specify the port number to avoid conflicts with other mock servers
-            start(52002)
+            start()
         }
         whenever(gistEnvironmentMock.getGistQueueApiUrl()).thenReturn(
             gistWebServerMock.url("/api/").toString()

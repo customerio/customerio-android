@@ -140,36 +140,38 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
             return
         }
 
-        cancelActiveMessage()
+        cancelActiveMessage(newRoute = route)
         currentRoute = route
-        gistQueue.fetchUserMessagesFromLocalStore()
         Log.i(GIST_TAG, "Current gist route set to: $currentRoute")
+        gistQueue.fetchUserMessagesFromLocalStore()
     }
 
     /**
      * Cancels any active message being loaded if the page rule does not match the new route.
      */
-    private fun cancelActiveMessage() {
+    private fun cancelActiveMessage(newRoute: String) {
         val currentMessage = gistModalManager.currentMessage
-        val currentMessageProperties = currentMessage?.let { message ->
-            GistMessageProperties.getGistProperties(message)
-        }
+        val isRouteMatch = runCatching {
+            val routeRule = currentMessage?.let { message ->
+                GistMessageProperties.getGistProperties(message).routeRule
+            }
+            routeRule == null || routeRule.toRegex().matches(newRoute)
+        }.getOrNull() ?: true
 
         // If there is no active message or the message does not have a route rule, we don't need to do anything
-        if (currentMessage == null || currentMessageProperties?.routeRule == null) {
+        if (currentMessage == null || isRouteMatch) {
             return
         }
 
         Log.i(GIST_TAG, "Cancelling message being loaded: ${currentMessage.messageId}")
-        for (listener in listeners) {
-            listener.onMessageCancelled(currentMessage)
-        }
+        handleGistCancelled(currentMessage)
     }
 
     // User Token
 
     fun clearUserToken() {
         ensureInitialized()
+        cancelActiveMessage(newRoute = "")
         gistQueue.clearUserMessagesFromLocalStore()
         // Remove user token from preferences & cancel job / timer.
         sharedPreferences.edit().remove(SHARED_PREFERENCES_USER_TOKEN_KEY).apply()
@@ -282,6 +284,12 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     internal fun handleGistClosed(message: Message) {
         for (listener in listeners) {
             listener.onMessageDismissed(message)
+        }
+    }
+
+    private fun handleGistCancelled(message: Message) {
+        for (listener in listeners) {
+            listener.onMessageCancelled(message)
         }
     }
 

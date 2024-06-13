@@ -130,7 +130,11 @@ class Queue : GistListener {
                         GIST_TAG,
                         "Found ${latestMessagesResponse.body()?.count()} messages for user"
                     )
-                    latestMessagesResponse.body()?.let { handleMessages(it) }
+                    latestMessagesResponse.body()?.let { messages ->
+                        handleMessages(messages) { message ->
+                            addMessageToLocalStore(message)
+                        }
+                    }
                 }
 
                 // Check if the polling interval changed and update timer.
@@ -158,10 +162,18 @@ class Queue : GistListener {
         }
     }
 
-    private fun handleMessages(messages: List<Message>) {
+    /**
+     * Handles messages by sorting them by priority and placing nulls last.
+     *
+     * @param messages List of messages to handle
+     * @param preProcessMessageAction Action to perform before processing each message, e.g. adding to local store, etc.
+     */
+    @Synchronized
+    private fun handleMessages(messages: List<Message>, preProcessMessageAction: (Message) -> Unit = {}) {
         // Sorting messages by priority and placing nulls last
         val sortedMessages = messages.sortedWith(compareBy(nullsLast()) { it.priority })
         for (message in sortedMessages) {
+            preProcessMessageAction(message)
             processMessage(message)
         }
     }
@@ -180,7 +192,6 @@ class Queue : GistListener {
                         GIST_TAG,
                         "Message route: $routeRule does not match current route: ${GistSdk.currentRoute}"
                     )
-                    addMessageToLocalStore(message)
                     return
                 }
             } catch (e: PatternSyntaxException) {
@@ -249,15 +260,7 @@ class Queue : GistListener {
 
     override fun onMessageDismissed(message: Message) {}
 
-    override fun onMessageCancelled(message: Message) {
-        val gistProperties = GistMessageProperties.getGistProperties(message)
-        val routeRule = gistProperties.routeRule
-        Log.i(
-            GIST_TAG,
-            "Message cancelled. Adding message back to queue with route rule: $routeRule"
-        )
-        addMessageToLocalStore(message)
-    }
+    override fun onMessageCancelled(message: Message) {}
 
     override fun onError(message: Message) {}
 

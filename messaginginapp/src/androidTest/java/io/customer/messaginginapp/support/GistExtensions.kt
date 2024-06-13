@@ -31,10 +31,12 @@ fun createInAppMessage(
     messageId: String = String.random,
     campaignId: String? = String.random,
     queueId: String? = String.random,
+    priority: Int? = null,
     pageRule: String? = null
 ): Message = Message(
     messageId = messageId,
     queueId = queueId,
+    priority = priority,
     properties = buildMap {
         put(
             "gist",

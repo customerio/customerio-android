@@ -32,6 +32,7 @@ import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldHaveSingleItem
+import org.amshove.kluent.shouldHaveSize
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Before
 import org.junit.Test
@@ -113,7 +114,28 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     }
 
     @Test
-    fun givenUserNavigatedToDifferentScreenWhileMessageLoading_expectDoNotShowModalMessage() {
+    fun stayOnSameScreenAfterMessageLoaded_givenNoAction_expectShowMessage() {
+        val givenDashboardMessage = createInAppMessage(
+            messageId = "welcome-banner",
+            pageRule = pageRuleContains("Dashboard")
+        )
+        mockGistQueue(listOf(givenDashboardMessage))
+
+        val messageDriver = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
+        setCurrentRoute("Dashboard")
+        messageDriver.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        inAppMessageDisplayed.shouldNotBeNull()
+        isInAppMessageVisible.shouldBeTrue()
+        verify(inAppEventListenerMock).messageShown(mapToInAppMessage(givenDashboardMessage))
+        verifyNoMoreInteractions(inAppEventListenerMock)
+
+        GistSdk.dismissMessage()
+        inAppMessageDisplayed.shouldBeNull()
+        inAppMessagesQueued.shouldBeEmpty()
+    }
+
+    @Test
+    fun navigateToDifferentScreenWhileMessageLoading_givenRouteDoesNotMatch_expectDoNotShowMessage() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
             pageRule = pageRuleContains("Dashboard")
@@ -141,7 +163,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     }
 
     @Test
-    fun givenUserStillOnSameScreenAfterMessageLoads_expectShowModalMessage() {
+    fun navigateToDifferentScreenWhileMessageLoading_givenRouteMatches_expectShowMessage() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
             pageRule = pageRuleContains("Dashboard")
@@ -149,20 +171,24 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         mockGistQueue(listOf(givenDashboardMessage))
 
         val messageDriver = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessage)
-        setCurrentRoute("Dashboard")
+        messageDriver.blockAt(MessageState.HTML_LOADED)
+        setCurrentRoute("DashboardOne")
+        messageDriver.messageStateDeferred(MessageState.HTML_LOADED).awaitWithTimeoutBlocking()
+        inAppMessageDisplayed.shouldNotBeNull()
+        isInAppMessageLoading.shouldBeTrue()
+        isInAppMessageVisible.shouldBeFalse()
+
+        setCurrentRoute("DashboardTwo")
+        messageDriver.unblock()
         messageDriver.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
         inAppMessageDisplayed.shouldNotBeNull()
         isInAppMessageVisible.shouldBeTrue()
         verify(inAppEventListenerMock).messageShown(mapToInAppMessage(givenDashboardMessage))
         verifyNoMoreInteractions(inAppEventListenerMock)
-
-        GistSdk.dismissMessage()
-        inAppMessageDisplayed.shouldBeNull()
-        inAppMessagesQueued.shouldBeEmpty()
     }
 
     @Test
-    fun givenMessageHasNoPageRules_givenUserNavigatedToDifferentScreenWhileMessageLoaded_expectShowModalMessage() {
+    fun navigateToDifferentScreenWhileMessageLoading_givenNoPageRules_expectShowMessage() {
         val givenNoPageRuleMessage = createInAppMessage(
             messageId = "welcome-banner",
             pageRule = null
@@ -190,7 +216,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     }
 
     @Test
-    fun givenUserOnScreenDuringFetch_givenUserNavigatedToDifferentScreenWhileMessageLoading_expectShowModalMessageAfterGoBack() {
+    fun navigateToDifferentScreenWhileMessageLoading_givenRouteDoesNotMatch_expectShowMessageWhenNavigatedBack() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
             pageRule = pageRuleContains("Dashboard")
@@ -228,7 +254,57 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     }
 
     @Test
-    fun givenRouteChangedToSameRoute_expectDoNotDismissModal() {
+    fun navigateToDifferentScreenWhileMessageLoading_givenMultipleMessagesQueued_expectShowMessageOnlyWhenNavigatedBack() {
+        val givenDashboardMessageOne = createInAppMessage(
+            messageId = "welcome-banner",
+            pageRule = pageRuleContains("Dashboard"),
+            priority = 1
+        )
+        val givenDashboardMessageTwo = createInAppMessage(
+            messageId = "promotion-banner",
+            pageRule = pageRuleContains("Dashboard"),
+            priority = 2
+        )
+        val givenDashboardInAppMessageOne = mapToInAppMessage(givenDashboardMessageOne)
+        val givenDashboardInAppMessageTwo = mapToInAppMessage(givenDashboardMessageTwo)
+        mockGistQueue(listOf(givenDashboardMessageOne, givenDashboardMessageTwo))
+
+        val messageDriverOneAttemptOne = gistEngineClientInterceptor.getMessageDriver(givenDashboardMessageOne)
+        messageDriverOneAttemptOne.blockAt(MessageState.HTML_LOADED)
+        setCurrentRoute("Dashboard")
+        messageDriverOneAttemptOne.messageStateDeferred(MessageState.HTML_LOADED).awaitWithTimeoutBlocking()
+        inAppMessageDisplayed.shouldNotBeNull()
+        isInAppMessageLoading.shouldBeTrue()
+        isInAppMessageVisible.shouldBeFalse()
+
+        setCurrentRoute("Settings")
+        messageDriverOneAttemptOne.unblock()
+        isInAppMessageLoading.shouldBeFalse()
+        verifyNoInteractions(inAppEventListenerMock)
+        messageDriverOneAttemptOne.messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        inAppMessagesQueued.shouldHaveSize(2)
+        inAppMessageDisplayed.shouldBeNull()
+
+        setCurrentRoute("Dashboard")
+        gistEngineClientInterceptor.getMessageDriver(givenDashboardMessageOne).messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        inAppMessageDisplayed.shouldNotBeNull()
+        isInAppMessageVisible.shouldBeTrue()
+        verify(inAppEventListenerMock).messageShown(givenDashboardInAppMessageOne)
+        inAppMessagesQueued.shouldHaveSingleItem().shouldBeEqualTo(givenDashboardMessageTwo)
+        ensureMessageDismissed()
+        verify(inAppEventListenerMock).messageDismissed(givenDashboardInAppMessageOne)
+        verifyNoMoreInteractions(inAppEventListenerMock)
+
+        gistQueue.fetchUserMessagesFromLocalStore()
+        gistEngineClientInterceptor.getMessageDriver(givenDashboardMessageTwo).messageStateDeferred(MessageState.COMPLETED).awaitWithTimeoutBlocking()
+        inAppMessageDisplayed.shouldNotBeNull()
+        isInAppMessageVisible.shouldBeTrue()
+        verify(inAppEventListenerMock).messageShown(givenDashboardInAppMessageTwo)
+        verifyNoMoreInteractions(inAppEventListenerMock)
+    }
+
+    @Test
+    fun stayOnSameScreenAfterMessageLoaded_givenSameRouteSetAgain_expectShowMessage() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
             pageRule = pageRuleContains("Dashboard")
@@ -253,7 +329,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     }
 
     @Test
-    fun givenMultipleMessageQueued_givenUserNavigatedToDifferentScreenWhileMessageLoading_expectShowCorrectModalMessages() {
+    fun navigateToDifferentScreenWhileMessageLoading_givenRouteMatchesForBothScreens_expectShowCorrectMessageMatchingPageRules() {
         val givenDashboardMessage = createInAppMessage(
             messageId = "welcome-banner",
             pageRule = pageRuleContains("Dashboard")

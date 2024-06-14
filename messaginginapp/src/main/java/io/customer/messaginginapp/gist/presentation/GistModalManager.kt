@@ -9,6 +9,11 @@ import io.customer.messaginginapp.gist.data.model.MessagePosition
 internal class GistModalManager : GistListener {
     internal var currentMessage: Message? = null
 
+    // Flag to indicate if the modal is currently visible
+    // This is used to prevent showing multiple modals at the same time while
+    // modal is being dismissed with animation
+    internal var isMessageModalVisible: Boolean = false
+
     init {
         GistSdk.addListener(this)
     }
@@ -21,8 +26,13 @@ internal class GistModalManager : GistListener {
             )
             return false
         }
+        if (isMessageModalVisible) {
+            Log.i(GIST_TAG, "Message ${message.messageId} not shown, modal is being dismissed.")
+            return false
+        }
 
         Log.i(GIST_TAG, "Showing message: ${message.messageId}")
+        isMessageModalVisible = true
         currentMessage = message
 
         val intent = GistModalActivity.newIntent(GistSdk.application)

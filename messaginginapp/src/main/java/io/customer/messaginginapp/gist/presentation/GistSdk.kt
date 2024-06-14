@@ -173,6 +173,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         ensureInitialized()
         cancelActiveMessage(newRoute = "")
         gistQueue.clearUserMessagesFromLocalStore()
+        gistQueue.clearPrefs(application)
         // Remove user token from preferences & cancel job / timer.
         sharedPreferences.edit().remove(SHARED_PREFERENCES_USER_TOKEN_KEY).apply()
         observeUserMessagesJob?.cancel()

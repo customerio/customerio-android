@@ -18,11 +18,12 @@ import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.sdk.tracking.TrackableScreen
 
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
-class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
+class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
     private var currentMessage: Message? = null
     private var messagePosition: MessagePosition = MessagePosition.CENTER
@@ -34,6 +35,11 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
     // Indicates if the message is visible to user or not
     internal val isEngineVisible: Boolean
         get() = binding.gistView.isEngineVisible
+
+    override fun getScreenName(): String? {
+        // Return null to prevent this screen from being tracked
+        return null
+    }
 
     companion object {
         fun newIntent(context: Context): Intent {

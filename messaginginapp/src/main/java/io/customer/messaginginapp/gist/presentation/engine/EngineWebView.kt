@@ -27,8 +27,11 @@ internal class EngineWebView @JvmOverloads constructor(
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
-    private var engineWebViewClientInterceptor: EngineWebViewClientInterceptor? = null
     private val engineWebViewInterface = EngineWebViewInterface(this)
+
+    // Get WebViewClientInterceptor from GistSdk directly
+    private val engineWebViewClientInterceptor: EngineWebViewClientInterceptor?
+        get() = GistSdk.engineWebViewClientInterceptor
 
     init {
         // exception handling is required for webview in-case webview is not supported in the device
@@ -38,8 +41,6 @@ internal class EngineWebView @JvmOverloads constructor(
         } catch (e: Exception) {
             Log.e(GIST_TAG, "Error while creating EngineWebView: ${e.message}")
         }
-        // Get WebViewClientInterceptor from GistSdk directly
-        engineWebViewClientInterceptor = GistSdk.engineWebViewClientInterceptor
     }
 
     fun stopLoading() {

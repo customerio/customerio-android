@@ -114,17 +114,15 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
         GistSdk.removeListener(this)
         // If the message has been cancelled, do not perform any further actions
         // to avoid sending any callbacks to the client app
-        if (isCancelled) {
-            super.onDestroy()
-            return
+        if (!isCancelled) {
+            // If the message is not persistent, dismiss it and inform the callback
+            if (!isPersistentMessage()) {
+                GistSdk.dismissMessage()
+            } else {
+                GistSdk.clearCurrentMessage()
+            }
         }
-
-        // If the message is not persistent, dismiss it and inform the callback
-        if (!isPersistentMessage()) {
-            GistSdk.dismissMessage()
-        } else {
-            GistSdk.clearCurrentMessage()
-        }
+        GistSdk.gistModalManager.isMessageModalVisible = false
         super.onDestroy()
     }
 

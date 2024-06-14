@@ -43,6 +43,10 @@ class Queue : GistListener {
         return prefs.getString(key, null)
     }
 
+    internal fun clearPrefs(context: Context) {
+        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
     private val gistQueueService by lazy {
         // Interceptor to set up request headers like site ID, data center, and user token.
         val httpClient: OkHttpClient =

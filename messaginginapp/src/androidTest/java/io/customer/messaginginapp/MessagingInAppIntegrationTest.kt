@@ -1,5 +1,7 @@
 package io.customer.messaginginapp
 
+import android.app.Activity
+import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseIntegrationTest
 import io.customer.messaginginapp.gist.GistEnvironment
@@ -8,6 +10,8 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.messaginginapp.gist.presentation.GistModalManager
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.provider.GistApi
+import io.customer.messaginginapp.support.GistApiProviderDelegate
 import io.customer.messaginginapp.support.GistEngineMessageDriver.MessageState
 import io.customer.messaginginapp.support.GistEngineWebViewClientInterceptor
 import io.customer.messaginginapp.support.GistServerResponseDispatcher
@@ -17,8 +21,12 @@ import io.customer.messaginginapp.support.getInAppMessageActivity
 import io.customer.messaginginapp.support.mapToInAppMessage
 import io.customer.messaginginapp.support.pageRuleContains
 import io.customer.messaginginapp.support.pageRuleEquals
+import io.customer.messaginginapp.support.runOnUIThreadBlocking
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.extensions.random
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -34,12 +42,13 @@ import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldHaveSize
 import org.amshove.kluent.shouldNotBeNull
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.clearInvocations
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.verifyNoMoreInteractions
@@ -48,8 +57,10 @@ import org.mockito.kotlin.whenever
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class MessagingInAppIntegrationTest : BaseIntegrationTest() {
+    private val consumerAppActivityMock: Activity = mock()
     private val inAppEventListenerMock: InAppEventListener = mock()
     private val gistEnvironmentMock: GistEnvironment = mock()
+    private val gistApi: GistApi = spy(GistApiProviderDelegate())
 
     private val testCoroutineScope = TestScope(UnconfinedTestDispatcher())
     private val gistEngineClientInterceptor = GistEngineWebViewClientInterceptor(testCoroutineScope)
@@ -63,14 +74,38 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         GistSdk.coroutineScope = testCoroutineScope
         GistSdk.engineWebViewClientInterceptor = gistEngineClientInterceptor
 
-        whenever(inAppEventListenerMock.errorWithMessage(any())).then { invocation ->
+        // Mocking InAppEventListener
+        doAnswer { invocation ->
             val message: InAppMessage = invocation.arguments.first() as InAppMessage
             println("$GIST_TAG: Error with message: $message")
-        }
+        }.whenever(inAppEventListenerMock).errorWithMessage(any())
+
+        // Mocking Gist environment
+        doAnswer { gistWebServerMock.url("/api/").toString() }
+            .whenever(gistEnvironmentMock).getGistQueueApiUrl()
+        doAnswer { gistWebServerMock.url("/engine").toString() }
+            .whenever(gistEnvironmentMock).getEngineApiUrl()
+        doAnswer { gistWebServerMock.url("/renderer").toString() }
+            .whenever(gistEnvironmentMock).getGistRendererUrl()
+
+        // Mocking Gist API initialization
+        doAnswer { invocation ->
+            GistSdk.init(
+                application = invocation.arguments[0] as Application,
+                siteId = invocation.arguments[1] as String,
+                dataCenter = invocation.arguments[2] as String,
+                environment = gistEnvironmentMock
+            )
+        }.whenever(gistApi).initProvider(any(), any(), any())
     }
 
-    @Before
-    override fun setup() {
+    override fun overrideDependencies() {
+        super.overrideDependencies()
+
+        di.overrideDependency(GistApi::class.java, gistApi)
+    }
+
+    override fun setup(cioConfig: CustomerIOConfig) {
         modules.add(
             ModuleMessagingInApp(
                 config = MessagingInAppModuleConfig.Builder()
@@ -78,31 +113,28 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
                     .build()
             )
         )
-
-        super.setup()
-
         gistWebServerMock = MockWebServer().apply {
             dispatcher = gistWebServerResponseDispatcher
             start()
         }
-        whenever(gistEnvironmentMock.getGistQueueApiUrl()).thenReturn(
-            gistWebServerMock.url("/api/").toString()
-        )
-        whenever(gistEnvironmentMock.getEngineApiUrl()).thenReturn(
-            gistWebServerMock.url("/engine").toString()
-        )
-        whenever(gistEnvironmentMock.getGistRendererUrl()).thenReturn(
-            gistWebServerMock.url("/renderer").toString()
-        )
 
-        GistSdk.gistEnvironment = gistEnvironmentMock
+        super.setup(cioConfig)
+
         GistSdk.addListener(gistEngineClientInterceptor)
         gistQueue = GistSdk.gistQueue
         gistModalManager = GistSdk.gistModalManager
+        testCoroutineScope.runOnUIThreadBlocking {
+            CustomerIO.instance().identify(String.random)
+            GistSdk.onActivityResumed(consumerAppActivityMock)
+        }
     }
 
     override fun teardown() {
         ensureMessageDismissed()
+        testCoroutineScope.runOnUIThreadBlocking {
+            CustomerIO.instance().clearIdentify()
+            GistSdk.onActivityPaused(consumerAppActivityMock)
+        }
         GistSdk.reset()
 
         gistWebServerMock.shutdown()

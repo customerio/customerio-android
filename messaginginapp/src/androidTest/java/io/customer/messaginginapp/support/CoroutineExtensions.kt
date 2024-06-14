@@ -1,8 +1,11 @@
 package io.customer.messaginginapp.support
 
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -22,4 +25,10 @@ fun <T> Collection<Deferred<T>>.awaitWithTimeoutBlocking(
     withTimeoutOrNull(timeMillis) {
         awaitAll(*toTypedArray())
     } ?: throw CancellationException("Failed to await deferred within $timeMillis milliseconds.")
+}
+
+fun CoroutineScope.runOnUIThreadBlocking(block: () -> Unit) {
+    runBlocking {
+        this@runOnUIThreadBlocking.launch(Dispatchers.Main) { block() }
+    }
 }

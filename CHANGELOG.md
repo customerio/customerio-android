@@ -1,3 +1,9 @@
+## [3.11.0](https://github.com/customerio/customerio-android/compare/3.10.0...3.11.0) (2024-06-17)
+
+### Features
+
+* do not show modal message if screen changes and page rule mismatches ([#355](https://github.com/customerio/customerio-android/issues/355)) ([ee756d6](https://github.com/customerio/customerio-android/commit/ee756d64a791657ec2f05cedb173a2870db923f1))
+
 ## [3.10.0](https://github.com/customerio/customerio-android/compare/3.9.2...3.10.0) (2024-04-18)
 
 

@@ -12,7 +12,6 @@ import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import java.io.File
 import java.util.regex.PatternSyntaxException
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okhttp3.Cache
 import okhttp3.Headers
@@ -23,8 +22,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 class Queue : GistListener {
 
-    private var localMessageStore: MutableList<Message> = mutableListOf()
-    private var shownMessageQueueIds = mutableSetOf<String>()
+    internal var localMessageStore: MutableList<Message> = mutableListOf()
+    internal var shownMessageQueueIds = mutableSetOf<String>()
 
     init {
         GistSdk.addListener(this)
@@ -42,6 +41,10 @@ class Queue : GistListener {
     private fun getFromPrefs(context: Context, key: String): String? {
         val prefs = context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
         return prefs.getString(key, null)
+    }
+
+    internal fun clearPrefs(context: Context) {
+        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE).edit().clear().apply()
     }
 
     private val gistQueueService by lazy {
@@ -116,7 +119,7 @@ class Queue : GistListener {
     }
 
     internal fun fetchUserMessages() {
-        GlobalScope.launch {
+        GistSdk.coroutineScope.launch {
             try {
                 Log.i(GIST_TAG, "Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
@@ -131,7 +134,11 @@ class Queue : GistListener {
                         GIST_TAG,
                         "Found ${latestMessagesResponse.body()?.count()} messages for user"
                     )
-                    latestMessagesResponse.body()?.let { handleMessages(it) }
+                    latestMessagesResponse.body()?.let { messages ->
+                        handleMessages(messages) { message ->
+                            addMessageToLocalStore(message)
+                        }
+                    }
                 }
 
                 // Check if the polling interval changed and update timer.
@@ -159,10 +166,18 @@ class Queue : GistListener {
         }
     }
 
-    private fun handleMessages(messages: List<Message>) {
+    /**
+     * Handles messages by sorting them by priority and placing nulls last.
+     *
+     * @param messages List of messages to handle
+     * @param preProcessMessageAction Action to perform before processing each message, e.g. adding to local store, etc.
+     */
+    @Synchronized
+    private fun handleMessages(messages: List<Message>, preProcessMessageAction: (Message) -> Unit = {}) {
         // Sorting messages by priority and placing nulls last
         val sortedMessages = messages.sortedWith(compareBy(nullsLast()) { it.priority })
         for (message in sortedMessages) {
+            preProcessMessageAction(message)
             processMessage(message)
         }
     }
@@ -181,7 +196,6 @@ class Queue : GistListener {
                         GIST_TAG,
                         "Message route: $routeRule does not match current route: ${GistSdk.currentRoute}"
                     )
-                    addMessageToLocalStore(message)
                     return
                 }
             } catch (e: PatternSyntaxException) {
@@ -205,7 +219,7 @@ class Queue : GistListener {
     }
 
     internal fun logView(message: Message) {
-        GlobalScope.launch {
+        GistSdk.coroutineScope.launch {
             try {
                 if (message.queueId != null) {
                     Log.i(
@@ -249,6 +263,8 @@ class Queue : GistListener {
     override fun embedMessage(message: Message, elementId: String) {}
 
     override fun onMessageDismissed(message: Message) {}
+
+    override fun onMessageCancelled(message: Message) {}
 
     override fun onError(message: Message) {}
 

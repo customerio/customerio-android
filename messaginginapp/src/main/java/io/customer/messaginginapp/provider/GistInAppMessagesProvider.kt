@@ -95,6 +95,10 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
         listener?.messageDismissed(InAppMessage.getFromGistMessage(message))
     }
 
+    override fun onMessageCancelled(message: Message) {
+        // Do nothing as we don't need to notify customer about this event
+    }
+
     override fun onMessageShown(message: Message) {
         listener?.messageShown(InAppMessage.getFromGistMessage(message))
     }

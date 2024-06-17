@@ -1,12 +1,13 @@
 package io.customer.messagingpush
 
 import androidx.annotation.VisibleForTesting
+import io.customer.messagingpush.di.appLifecycleCallbacks
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.di.CustomerIOComponent
@@ -26,18 +27,17 @@ internal constructor(
         overrideDiGraph = null
     )
 
-    private val customerIO: CustomerIOInstance
-        get() = overrideCustomerIO ?: CustomerIO.instance()
-    private val diGraph: CustomerIOComponent
-        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
-    private val fcmTokenProvider by lazy { diGraph.fcmTokenProvider }
+    private val diGraph: SDKComponent
+        get() = SDKComponent
+
+    private val fcmTokenProvider by lazy { diGraph.androidSDKComponent?.fcmTokenProvider }
 
     override val moduleName: String
         get() = MODULE_NAME
 
     override fun initialize() {
         getCurrentFcmToken()
-        diGraph.activityLifecycleCallbacks.registerCallback(
+        diGraph.appLifecycleCallbacks.registerCallback(
             MessagingPushLifecycleCallback(
                 moduleConfig = moduleConfig,
                 pushTrackingUtil = diGraph.pushTrackingUtil
@@ -53,11 +53,9 @@ internal constructor(
      * To fix this, it's recommended that each time your app starts up, you get the current push token and register it to the SDK. We do it for you automatically here as long as you initialize the MessagingPush module with the SDK.
      */
     private fun getCurrentFcmToken() {
-        fcmTokenProvider.getCurrentToken { token ->
+        fcmTokenProvider?.getCurrentToken { token ->
             token?.let {
                 eventBus.publish(Event.RegisterDeviceTokenEvent(token))
-                // todo: remove this
-                customerIO.registerDeviceToken(token)
             }
         }
     }

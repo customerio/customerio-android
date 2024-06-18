@@ -8,13 +8,15 @@ import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
+import io.customer.messagingpush.util.AppLifecycleCallbacks
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
 import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.core.di.AndroidSDKComponent
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.device.DeviceTokenProvider
-import io.customer.sdk.di.CustomerIOComponent
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -22,28 +24,28 @@ This file contains a series of extensions to the common module's Dependency inje
 The use of extensions was chosen over creating a separate graph class for each module. This simplifies the SDK code as well as automated tests code dramatically.
  */
 
-internal val CustomerIOComponent.fcmTokenProvider: DeviceTokenProvider
-    get() = override() ?: FCMTokenProviderImpl(logger = logger, context = context)
+internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
+    get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = context) }
 
-internal val CustomerIOComponent.moduleConfig: MessagingPushModuleConfig
-    get() = override()
-        ?: sdkConfig.modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig
-        ?: MessagingPushModuleConfig.default()
+internal val SDKComponent.moduleConfig: MessagingPushModuleConfig
+    get() = newInstance { modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default() }
 
-internal val CustomerIOComponent.deepLinkUtil: DeepLinkUtil
-    get() = override() ?: DeepLinkUtilImpl(logger, moduleConfig)
+internal val SDKComponent.deepLinkUtil: DeepLinkUtil
+    get() = newInstance { DeepLinkUtilImpl(logger, moduleConfig) }
 
 @InternalCustomerIOApi
-val CustomerIOComponent.pushTrackingUtil: PushTrackingUtil
-    get() = override() ?: PushTrackingUtilImpl(trackRepository)
+val SDKComponent.pushTrackingUtil: PushTrackingUtil
+    get() = newInstance { PushTrackingUtilImpl() }
 
-internal val CustomerIOComponent.pushMessageProcessor: PushMessageProcessor
-    get() = override() ?: getSingletonInstanceCreate {
+val SDKComponent.appLifecycleCallbacks: AppLifecycleCallbacks
+    get() = newInstance { AppLifecycleCallbacks() }
+
+internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
+    get() = singleton {
         PushMessageProcessorImpl(
             logger = logger,
             moduleConfig = moduleConfig,
-            deepLinkUtil = deepLinkUtil,
-            trackRepository = trackRepository
+            deepLinkUtil = deepLinkUtil
         )
     }
 

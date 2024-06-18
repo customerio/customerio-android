@@ -16,12 +16,8 @@ public class io/customer/messagingpush/CustomerIOFirebaseMessagingService : com/
 public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion {
 	public final fun onMessageReceived (Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;)Z
 	public final fun onMessageReceived (Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;Z)Z
-	public final fun onMessageReceived (Lcom/google/firebase/messaging/RemoteMessage;)Z
-	public final fun onMessageReceived (Lcom/google/firebase/messaging/RemoteMessage;Z)Z
 	public static synthetic fun onMessageReceived$default (Lio/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion;Landroid/content/Context;Lcom/google/firebase/messaging/RemoteMessage;ZILjava/lang/Object;)Z
-	public static synthetic fun onMessageReceived$default (Lio/customer/messagingpush/CustomerIOFirebaseMessagingService$Companion;Lcom/google/firebase/messaging/RemoteMessage;ZILjava/lang/Object;)Z
 	public final fun onNewToken (Landroid/content/Context;Ljava/lang/String;)V
-	public final fun onNewToken (Ljava/lang/String;)V
 }
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
@@ -122,6 +118,7 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 }
 
 public final class io/customer/messagingpush/di/DiGraphMessagingPushKt {
+	public static final fun getAppLifecycleCallbacks (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/util/AppLifecycleCallbacks;
 	public static final fun pushMessaging (Lio/customer/sdk/android/CustomerIO;)Lio/customer/messagingpush/ModuleMessagingPushFCM;
 }
 
@@ -131,9 +128,21 @@ public final class io/customer/messagingpush/processor/PushMessageProcessor$Comp
 }
 
 public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {
-	public fun <init> (Lio/customer/sdk/core/util/Logger;Landroid/content/Context;)V
+	public fun <init> (Landroid/content/Context;)V
 	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
+	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public fun isValidForThisDevice (Landroid/content/Context;)Z
+}
+
+public final class io/customer/messagingpush/util/AppLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
+	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityDestroyed (Landroid/app/Activity;)V
+	public fun onActivityPaused (Landroid/app/Activity;)V
+	public fun onActivityResumed (Landroid/app/Activity;)V
+	public fun onActivitySaveInstanceState (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityStarted (Landroid/app/Activity;)V
+	public fun onActivityStopped (Landroid/app/Activity;)V
+	public final fun registerCallback (Lio/customer/sdk/lifecycle/LifecycleCallback;)V
 }
 
 public abstract interface class io/customer/messagingpush/util/DeepLinkUtil {
@@ -162,7 +171,7 @@ public final class io/customer/messagingpush/util/PushTrackingUtil$Companion {
 }
 
 public final class io/customer/messagingpush/util/PushTrackingUtilImpl : io/customer/messagingpush/util/PushTrackingUtil {
-	public fun <init> (Lio/customer/sdk/repository/TrackRepository;)V
+	public fun <init> ()V
 	public fun parseLaunchedActivityForTracking (Landroid/os/Bundle;)Z
 }
 

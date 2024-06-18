@@ -3,12 +3,12 @@ package io.customer.messagingpush.extensions
 
 import android.graphics.Color
 import androidx.annotation.ColorInt
-import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.core.di.SDKComponent
 
 @ColorInt
 internal fun String.toColorOrNull(): Int? = try {
     Color.parseColor(this)
 } catch (ex: IllegalArgumentException) {
-    CustomerIOShared.instance().diStaticGraph.logger.error("Invalid color string $this, ${ex.message}")
+    SDKComponent.logger.error("Invalid color string $this, ${ex.message}")
     null
 }

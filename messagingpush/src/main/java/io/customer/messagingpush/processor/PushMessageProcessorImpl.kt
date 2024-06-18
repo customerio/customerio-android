@@ -11,16 +11,16 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.takeIfNotBlank
-import io.customer.sdk.repository.TrackRepository
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig,
-    private val deepLinkUtil: DeepLinkUtil,
-    private val trackRepository: TrackRepository
+    private val deepLinkUtil: DeepLinkUtil
 ) : PushMessageProcessor {
 
     /**
@@ -87,10 +87,12 @@ internal class PushMessageProcessorImpl(
     private fun trackDeliveredMetrics(deliveryId: String, deliveryToken: String) {
         // Track delivered event only if auto-tracking is enabled
         if (moduleConfig.autoTrackPushEvents) {
-            trackRepository.trackMetric(
-                deliveryID = deliveryId,
-                deviceToken = deliveryToken,
-                event = MetricEvent.delivered
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = MetricEvent.delivered.name,
+                    deliveryId = deliveryId,
+                    deviceToken = deliveryToken
+                )
             )
         }
     }
@@ -119,10 +121,12 @@ internal class PushMessageProcessorImpl(
 
     private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
         if (moduleConfig.autoTrackPushEvents) {
-            trackRepository.trackMetric(
-                deliveryID = payload.cioDeliveryId,
-                event = MetricEvent.opened,
-                deviceToken = payload.cioDeliveryToken
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = MetricEvent.opened.name,
+                    deliveryId = payload.cioDeliveryId,
+                    deviceToken = payload.cioDeliveryToken
+                )
             )
         }
     }

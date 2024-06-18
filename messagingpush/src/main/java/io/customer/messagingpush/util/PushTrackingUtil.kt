@@ -2,7 +2,7 @@ package io.customer.messagingpush.util
 
 import android.os.Bundle
 import io.customer.sdk.communication.Event
-import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.request.MetricEvent
 
 interface PushTrackingUtil {
@@ -16,6 +16,8 @@ interface PushTrackingUtil {
 
 class PushTrackingUtilImpl : PushTrackingUtil {
 
+    private val eventBus = SDKComponent.eventBus
+
     override fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean {
         val deliveryId = bundle.getString(PushTrackingUtil.DELIVERY_ID_KEY)
         val deliveryToken = bundle.getString(PushTrackingUtil.DELIVERY_TOKEN_KEY)
@@ -24,8 +26,8 @@ class PushTrackingUtilImpl : PushTrackingUtil {
 
         eventBus.publish(
             Event.TrackPushMetricEvent(
-                deliveryId = deliveryId,
                 event = MetricEvent.opened.name,
+                deliveryId = deliveryId,
                 deviceToken = deliveryToken
             )
         )

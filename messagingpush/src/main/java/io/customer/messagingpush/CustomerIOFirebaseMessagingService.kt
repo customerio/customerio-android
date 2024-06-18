@@ -7,11 +7,13 @@ import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.extensions.getSDKInstanceOrNull
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.SDKComponent.eventBus
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
+
+        private val eventBus = SDKComponent.eventBus
+
         /**
          * Handles receiving an incoming push notification.
          *

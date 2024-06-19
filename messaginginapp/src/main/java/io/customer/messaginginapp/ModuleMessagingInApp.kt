@@ -3,15 +3,14 @@ package io.customer.messaginginapp
 import android.app.Application
 import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.hook.ModuleInAppHookProvider
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.subscribe
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.hooks.HookModule
-import io.customer.sdk.hooks.HooksManager
-import io.customer.sdk.repository.TrackRepository
 
 class ModuleMessagingInApp
 @VisibleForTesting
@@ -19,7 +18,6 @@ internal constructor(
     override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
     private val overrideDiGraph: CustomerIOComponent?
 ) : CustomerIOModule<MessagingInAppModuleConfig> {
-
     @JvmOverloads
     @Deprecated(
         "organizationId no longer required and will be removed in future",
@@ -43,23 +41,19 @@ internal constructor(
 
     override val moduleName: String = ModuleMessagingInApp.moduleName
 
-    private val diGraph: CustomerIOComponent
-        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
+    private val diGraph: SDKComponent = SDKComponent
 
-    private val trackRepository: TrackRepository
-        get() = diGraph.trackRepository
-
-    private val identifier: String?
-        get() = diGraph.sitePreferenceRepository.getIdentifier()
-
-    private val hooksManager: HooksManager by lazy { diGraph.hooksManager }
+    private val eventBus = diGraph.eventBus
 
     private val gistProvider by lazy { diGraph.gistProvider }
 
-    private val logger by lazy { diGraph.logger }
+    private val logger = diGraph.logger
+
+    private val oldDiGraph: CustomerIOComponent
+        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
 
     private val config: CustomerIOConfig
-        get() = diGraph.sdkConfig
+        get() = oldDiGraph.sdkConfig
 
     companion object {
         const val moduleName: String = "MessagingInApp"
@@ -85,16 +79,20 @@ internal constructor(
     private fun setupGistCallbacks() {
         gistProvider.subscribeToEvents(onMessageShown = { deliveryID ->
             logger.debug("in-app message shown $deliveryID")
-            trackRepository.trackInAppMetric(
-                deliveryID = deliveryID,
-                event = MetricEvent.opened
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryID,
+                    event = MetricEvent.opened.name
+                )
             )
         }, onAction = { deliveryID: String, _: String, action: String, name: String ->
             logger.debug("in-app message clicked $deliveryID")
-            trackRepository.trackInAppMetric(
-                deliveryID = deliveryID,
-                event = MetricEvent.clicked,
-                metadata = mapOf("action_name" to name, "action_value" to action)
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryID,
+                    event = MetricEvent.clicked.name,
+                    params = mapOf("action_name" to name, "action_value" to action)
+                )
             )
         }, onError = { errorMessage ->
             logger.error("in-app message error occurred $errorMessage")
@@ -102,21 +100,26 @@ internal constructor(
     }
 
     private fun setupHooks() {
-        hooksManager.add(
-            module = HookModule.MessagingInApp,
-            subscriber = ModuleInAppHookProvider()
-        )
+        eventBus.subscribe<Event.ScreenViewedEvent> {
+            gistProvider.setCurrentRoute(it.name)
+        }
+
+        eventBus.subscribe<Event.ProfileIdentifiedEvent> {
+            gistProvider.setUserToken(it.identifier)
+        }
+
+        eventBus.subscribe<Event.ResetEvent> {
+            gistProvider.clearUserToken()
+        }
     }
 
+    // TODO: Remove config and replace it with moduleConfig
     private fun initializeGist(config: CustomerIOConfig) {
         gistProvider.initProvider(
-            application = diGraph.context.applicationContext as Application,
+            // TODO: This should not be nullable
+            application = diGraph.androidSDKComponent?.applicationContext as Application,
             siteId = config.siteId,
             region = config.region.code
         )
-
-        // if identifier is already present, set the userToken again so in case if the customer was already identified and
-        // module was added later on, we can notify gist about it.
-        identifier?.let { gistProvider.setUserToken(it) }
     }
 }

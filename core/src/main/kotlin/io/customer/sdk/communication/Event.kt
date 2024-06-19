@@ -35,7 +35,7 @@ sealed class Event {
     data class TrackInAppMetricEvent(
         val deliveryID: String,
         val event: String,
-        override val params: Map<String, String>
+        override val params: Map<String, String> = emptyMap()
     ) : Event()
 
     data class RegisterDeviceTokenEvent(

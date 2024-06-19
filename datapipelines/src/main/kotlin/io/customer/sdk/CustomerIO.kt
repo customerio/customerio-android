@@ -115,6 +115,15 @@ class CustomerIO private constructor(
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
+        // if profile is already identified, republish identifier for late-added modules.
+        postProfileAlreadyIdentified()
+    }
+
+    private fun postProfileAlreadyIdentified() {
+        // TODO: Need to check SitePreferences for userId and then publish event
+        analytics.userId()?.let { userId ->
+            eventBus.publish(Event.ProfileIdentifiedEvent(identifier = userId))
+        }
     }
 
     private fun subscribeToJourneyEvents() {

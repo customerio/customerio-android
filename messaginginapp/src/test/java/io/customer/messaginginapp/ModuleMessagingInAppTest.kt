@@ -53,6 +53,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProviderStub)
         SDKComponent.overrideDependency(InAppMessagesProvider::class.java, inAppMessagesProviderMock)
+        // Because we are not initializing the SDK, we need to register the
+        // Android SDK component manually so that the module can utilize it
         SDKComponent.registerAndroidSDKComponent(applicationContextMock, Client.Android(sdkVersion = "3.0.0"))
     }
 
@@ -70,8 +72,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         verify(exactly = 1) {
             inAppMessagesProviderMock.initProvider(
                 any(),
-                eq(moduleConfig.siteId),
-                eq(moduleConfig.region.code)
+                moduleConfig.siteId,
+                moduleConfig.region.code
             )
         }
 
@@ -80,6 +82,26 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         // verify given event listener gets registered
         verify(exactly = 1) { inAppMessagesProviderMock.setListener(inAppEventListenerMock) }
+    }
+
+    @Test
+    fun initialize_givenProfileIdentified_expectGistToSetUserToken() {
+        val givenIdentifier = String.random
+        module.initialize()
+
+        // verify gist is initialized
+        verify(exactly = 1) {
+            inAppMessagesProviderMock.initProvider(
+                any(),
+                moduleConfig.siteId,
+                moduleConfig.region.code
+            )
+        }
+
+        // publish profile identified event
+        eventBus.publish(Event.ProfileIdentifiedEvent(identifier = givenIdentifier))
+        // verify gist sets userToken
+        verify(exactly = 1) { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
     }
 
     @Test
@@ -93,8 +115,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         verify(exactly = 1) {
             inAppMessagesProviderMock.initProvider(
                 any(),
-                eq(moduleConfig.siteId),
-                eq(moduleConfig.region.code)
+                moduleConfig.siteId,
+                moduleConfig.region.code
             )
         }
 
@@ -110,8 +132,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         verify(exactly = 1) {
             inAppMessagesProviderMock.initProvider(
                 any(),
-                eq(moduleConfig.siteId),
-                eq(moduleConfig.region.code)
+                moduleConfig.siteId,
+                moduleConfig.region.code
             )
         }
 

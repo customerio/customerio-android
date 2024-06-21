@@ -23,7 +23,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     private lateinit var eventBus: EventBus
     private lateinit var module: ModuleMessagingInApp
 
-    private val applicationContextMock: Application = mockk<Application>(relaxed = true)
+    private val applicationContextMock: Application = mockk(relaxed = true)
     private val inAppEventListenerMock: InAppEventListener = mockk(relaxed = true)
     private val inAppMessagesProviderMock: InAppMessagesProvider = mockk(relaxed = true)
     private val testScopeProviderStub = ScopeProviderStub()

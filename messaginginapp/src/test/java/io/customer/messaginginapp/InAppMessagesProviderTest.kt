@@ -8,20 +8,20 @@ import io.customer.messaginginapp.support.extension.getNewRandom
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.extensions.random
+import io.mockk.Call
+import io.mockk.Called
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
-import org.mockito.kotlin.whenever
 
 internal class InAppMessagesProviderTest : JUnitTest() {
 
     private lateinit var gistInAppMessagesProvider: GistInAppMessagesProvider
-    private val gistApiProvider: GistApi = mock()
-    private val eventListenerMock: InAppEventListener = mock()
+    private val gistApiProvider: GistApi = mockk(relaxed = true)
+    private val eventListenerMock: InAppEventListener = mockk(relaxed = true)
 
     override fun setupTestEnvironment() {
         gistInAppMessagesProvider = GistInAppMessagesProvider(gistApiProvider)
@@ -29,10 +29,34 @@ internal class InAppMessagesProviderTest : JUnitTest() {
         super.setupTestEnvironment()
     }
 
+    /**
+     * Helper function to intercept the gistApiProvider.subscribeToEvents method and provide a callback
+     * so that caller can forward calls as needed.
+     */
+    private fun interceptGistApiProviderMockSubscribeToEvents(
+        callback: (
+            call: Call,
+            onMessageShown: (deliveryId: String) -> Unit,
+            onAction: (deliveryId: String?, currentRoute: String, action: String, name: String) -> Unit,
+            onError: (errorMessage: String) -> Unit
+        ) -> Unit
+    ) {
+        every { gistApiProvider.subscribeToEvents(any(), any(), any()) }.answers { call ->
+            val args = call.invocation.args
+            @Suppress("UNCHECKED_CAST")
+            callback(
+                call,
+                args[0] as (String) -> Unit,
+                args[1] as (deliveryId: String?, currentRoute: String, action: String, name: String) -> Unit,
+                args[2] as (errorMessage: String) -> Unit
+            )
+        }
+    }
+
     @Test
     fun whenSubscribedToEvents_expectMessageShownWithDeliveryId() {
-        whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
-            (invocation.arguments[0] as (deliveryId: String) -> Unit).invoke("test-deliveryId")
+        interceptGistApiProviderMockSubscribeToEvents { _, onMessageShown, _, _ ->
+            onMessageShown("test-deliveryId")
         }
 
         var wasOnMessageShownCalled = false
@@ -59,8 +83,8 @@ internal class InAppMessagesProviderTest : JUnitTest() {
 
     @Test
     fun whenSubscribedToEvents_expectOnActionWithDeliveryIdCurrentRouteAndAction() {
-        whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
-            (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit).invoke(
+        interceptGistApiProviderMockSubscribeToEvents { _, _, onAction, _ ->
+            onAction(
                 "test-deliveryId",
                 "test-route",
                 "test-action",
@@ -95,8 +119,8 @@ internal class InAppMessagesProviderTest : JUnitTest() {
 
     @Test
     fun whenSubscribedToEvents_expectOnActionWithCloseAction_expectOnActionCallbackToBeIgnored() {
-        whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
-            (invocation.arguments[1] as (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit).invoke(
+        interceptGistApiProviderMockSubscribeToEvents { _, _, onAction, _ ->
+            onAction(
                 "test-deliveryId",
                 "test-route",
                 "gist://close",
@@ -128,8 +152,8 @@ internal class InAppMessagesProviderTest : JUnitTest() {
 
     @Test
     fun whenSubscribedToEvents_expectOnError() {
-        whenever(gistApiProvider.subscribeToEvents(any(), any(), any())).then { invocation ->
-            (invocation.arguments[2] as (errorMessage: String) -> Unit).invoke("test-error-message")
+        interceptGistApiProviderMockSubscribeToEvents { _, _, _, onError ->
+            onError("test-error-message")
         }
 
         var wasOnMessageShownCalled = false
@@ -160,22 +184,22 @@ internal class InAppMessagesProviderTest : JUnitTest() {
         val expectedInAppMessage = InAppMessage.getFromGistMessage(givenMessage)
 
         gistInAppMessagesProvider.setListener(eventListenerMock)
-        verifyNoInteractions(eventListenerMock)
+        verify { eventListenerMock wasNot Called }
 
         gistInAppMessagesProvider.onMessageShown(givenMessage)
-        verify(eventListenerMock).messageShown(expectedInAppMessage)
+        verify(exactly = 1) { eventListenerMock.messageShown(expectedInAppMessage) }
 
         gistInAppMessagesProvider.onError(givenMessage)
-        verify(eventListenerMock).errorWithMessage(expectedInAppMessage)
+        verify(exactly = 1) { eventListenerMock.errorWithMessage(expectedInAppMessage) }
 
         gistInAppMessagesProvider.onMessageDismissed(givenMessage)
-        verify(eventListenerMock).messageDismissed(expectedInAppMessage)
+        verify(exactly = 1) { eventListenerMock.messageDismissed(expectedInAppMessage) }
 
         val givenCurrentRoute = String.random
         val givenAction = String.random
         val givenName = String.random
         gistInAppMessagesProvider.onAction(givenMessage, givenCurrentRoute, givenAction, givenName)
-        verify(eventListenerMock).messageActionTaken(expectedInAppMessage, actionValue = givenAction, actionName = givenName)
+        verify(exactly = 1) { eventListenerMock.messageActionTaken(expectedInAppMessage, actionValue = givenAction, actionName = givenName) }
     }
 
     @Test
@@ -186,11 +210,11 @@ internal class InAppMessagesProviderTest : JUnitTest() {
         val expectedInAppMessage2 = InAppMessage.getFromGistMessage(givenMessage2)
 
         gistInAppMessagesProvider.setListener(eventListenerMock)
-        verifyNoInteractions(eventListenerMock)
+        verify { eventListenerMock wasNot Called }
 
         gistInAppMessagesProvider.onMessageShown(givenMessage1)
-        verify(eventListenerMock).messageShown(expectedInAppMessage1)
+        verify(exactly = 1) { eventListenerMock.messageShown(expectedInAppMessage1) }
         gistInAppMessagesProvider.onMessageShown(givenMessage2)
-        verify(eventListenerMock).messageShown(expectedInAppMessage2)
+        verify(exactly = 1) { eventListenerMock.messageShown(expectedInAppMessage2) }
     }
 }

@@ -1,28 +1,21 @@
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
-	public static final field Companion Lio/customer/messaginginapp/MessagingInAppModuleConfig$Companion;
-	public synthetic fun <init> (Lio/customer/messaginginapp/type/InAppEventListener;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Lio/customer/messaginginapp/type/InAppEventListener;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getEventListener ()Lio/customer/messaginginapp/type/InAppEventListener;
+	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
+	public final fun getSiteId ()Ljava/lang/String;
 }
 
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
-	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;)V
 	public fun build ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public final fun setEventListener (Lio/customer/messaginginapp/type/InAppEventListener;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 }
 
-public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Companion {
-}
-
 public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/messaginginapp/ModuleMessagingInApp$Companion;
-	public static final field moduleName Ljava/lang/String;
-	public fun <init> ()V
+	public static final field MODULE_NAME Ljava/lang/String;
 	public fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
-	public synthetic fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun <init> (Ljava/lang/String;)V
-	public fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
-	public synthetic fun <init> (Ljava/lang/String;Lio/customer/messaginginapp/MessagingInAppModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun dismissMessage ()V
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
@@ -43,8 +36,8 @@ public final class io/customer/messaginginapp/databinding/ActivityGistBinding : 
 	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
 }
 
-public final class io/customer/messaginginapp/di/DIGraphMessaginIAppKt {
-	public static final fun inAppMessaging (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messaginginapp/ModuleMessagingInApp;
+public final class io/customer/messaginginapp/di/DIGraphMessagingInAppKt {
+	public static final fun inAppMessaging (Lio/customer/sdk/android/CustomerIO;)Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public abstract class io/customer/messaginginapp/gist/GistEnvironment : java/lang/Enum, io/customer/messaginginapp/gist/GistEnvironmentEndpoints {

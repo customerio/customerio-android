@@ -1,36 +1,32 @@
 package io.customer.messaginginapp
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
-import io.customer.messaginginapp.testutils.extension.getNewRandom
+import io.customer.messaginginapp.support.core.JUnitTest
+import io.customer.messaginginapp.support.extension.getNewRandom
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.extensions.random
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
+import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
-@RunWith(AndroidJUnit4::class)
-internal class InAppMessagesProviderTest : BaseTest() {
+internal class InAppMessagesProviderTest : JUnitTest() {
 
     private lateinit var gistInAppMessagesProvider: GistInAppMessagesProvider
     private val gistApiProvider: GistApi = mock()
     private val eventListenerMock: InAppEventListener = mock()
 
-    @Before
-    override fun setup() {
-        super.setup()
+    override fun setupTestEnvironment() {
         gistInAppMessagesProvider = GistInAppMessagesProvider(gistApiProvider)
+
+        super.setupTestEnvironment()
     }
 
     @Test

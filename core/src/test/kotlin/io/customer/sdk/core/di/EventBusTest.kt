@@ -17,11 +17,11 @@ import org.junit.Test
 class EventBusTest : BaseUnitTest() {
 
     private lateinit var eventBus: EventBusImpl
-    private var testScopeProvider = ScopeProviderStub()
+    private val testScopeProvider = ScopeProviderStub()
 
     override fun setup() {
         SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProvider)
-        eventBus = EventBusImpl()
+        eventBus = SDKComponent.eventBus as EventBusImpl
     }
 
     override fun teardown() {

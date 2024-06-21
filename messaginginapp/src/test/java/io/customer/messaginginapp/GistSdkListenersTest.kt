@@ -1,19 +1,16 @@
 package io.customer.messaginginapp
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.support.core.JUnitTest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import org.amshove.kluent.internal.assertEquals
-import org.junit.Test
-import org.junit.runner.RunWith
+import org.junit.jupiter.api.Test
 
-@RunWith(AndroidJUnit4::class)
-internal class GistSdkListenersTest : BaseTest() {
+internal class GistSdkListenersTest : JUnitTest() {
     /**
      * This test validates if individual listeners can be removed without any exceptions.
      * See https://github.com/customerio/customerio-android/issues/245 for more details.

@@ -3,8 +3,8 @@ package io.customer.datapipelines.support.core
 import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.DeviceStoreStub
+import io.customer.commontest.core.util.UnitTestLogger
 import io.customer.datapipelines.support.extensions.registerAnalyticsFactory
-import io.customer.datapipelines.support.stubs.UnitTestLogger
 import io.customer.datapipelines.support.utils.clearPersistentStorage
 import io.customer.datapipelines.support.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.support.utils.mockHTTPClient

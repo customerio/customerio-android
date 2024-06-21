@@ -1,53 +1,65 @@
 package io.customer.messaginginapp
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import android.app.Application
+import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
+import io.customer.messaginginapp.support.core.JUnitTest
 import io.customer.messaginginapp.type.InAppEventListener
-import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.android.CustomerIO
-import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.registerAndroidSDKComponent
+import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.extensions.random
-import io.customer.sdk.hooks.HookModule
-import io.customer.sdk.hooks.HooksManager
-import io.customer.sdk.repository.preference.SitePreferenceRepository
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.kotlin.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import org.junit.jupiter.api.Test
 
-@RunWith(AndroidJUnit4::class)
-internal class ModuleMessagingInAppTest : BaseTest() {
-
+internal class ModuleMessagingInAppTest : JUnitTest() {
+    private lateinit var eventBus: EventBus
     private lateinit var module: ModuleMessagingInApp
-    private val gistInAppMessagesProvider: InAppMessagesProvider = mock()
-    private val hooksManager: HooksManager = mock()
-    private val eventListenerMock: InAppEventListener = mock()
-    private val prefRepository: SitePreferenceRepository
-        get() = di.sitePreferenceRepository
 
-    private val modules = hashMapOf<String, CustomerIOModule<*>>()
+    private val applicationContextMock: Application = mockk<Application>(relaxed = true)
+    private val inAppEventListenerMock: InAppEventListener = mockk(relaxed = true)
+    private val inAppMessagesProviderMock: InAppMessagesProvider = mockk(relaxed = true)
+    private val testScopeProviderStub = ScopeProviderStub()
 
-    override fun setupConfig(): CustomerIOConfig = createConfig(
-        modules = modules
-    )
+    private val moduleConfig: MessagingInAppModuleConfig
+        get() = module.moduleConfig
 
-    @Before
-    override fun setup() {
-        super.setup()
+    init {
+        every { applicationContextMock.applicationContext } returns applicationContextMock
+    }
 
-        di.overrideDependency(InAppMessagesProvider::class.java, gistInAppMessagesProvider)
-        di.overrideDependency(HooksManager::class.java, hooksManager)
+    override fun setupTestEnvironment() {
+        super.setupTestEnvironment()
 
+        eventBus = SDKComponent.eventBus
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = siteId,
+                siteId = TEST_SITE_ID,
                 region = Region.US
-            ).setEventListener(eventListenerMock).build()
+            ).setEventListener(inAppEventListenerMock).build()
         )
-        modules[ModuleMessagingInApp.MODULE_NAME] = module
+        SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] = module
+    }
+
+    override fun setupSDKComponent() {
+        super.setupSDKComponent()
+
+        SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProviderStub)
+        SDKComponent.overrideDependency(InAppMessagesProvider::class.java, inAppMessagesProviderMock)
+        SDKComponent.registerAndroidSDKComponent(applicationContextMock, Client.Android(sdkVersion = "3.0.0"))
+    }
+
+    override fun teardown() {
+        eventBus.removeAllSubscriptions()
+
+        super.teardown()
     }
 
     @Test
@@ -55,37 +67,39 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(gistInAppMessagesProvider).initProvider(
-            any(),
-            eq(cioConfig.siteId),
-            eq(cioConfig.region.code)
-        )
-
-        // verify hook was added
-        verify(hooksManager).add(eq(HookModule.MessagingInApp), any())
+        verify(exactly = 1) {
+            inAppMessagesProviderMock.initProvider(
+                any(),
+                eq(moduleConfig.siteId),
+                eq(moduleConfig.region.code)
+            )
+        }
 
         // verify events
-        verify(gistInAppMessagesProvider).subscribeToEvents(any(), any(), any())
+        verify(exactly = 1) { inAppMessagesProviderMock.subscribeToEvents(any(), any(), any()) }
 
         // verify given event listener gets registered
-        verify(gistInAppMessagesProvider).setListener(eventListenerMock)
+        verify(exactly = 1) { inAppMessagesProviderMock.setListener(inAppEventListenerMock) }
     }
 
     @Test
     fun initialize_givenProfilePreviouslyIdentified_expectGistToSetUserToken() {
-        prefRepository.saveIdentifier("identifier")
+        val givenIdentifier = String.random
+        eventBus.publish(Event.ProfileIdentifiedEvent(identifier = givenIdentifier))
 
         module.initialize()
 
         // verify gist is initialized
-        verify(gistInAppMessagesProvider).initProvider(
-            any(),
-            eq(cioConfig.siteId),
-            eq(cioConfig.region.code)
-        )
+        verify(exactly = 1) {
+            inAppMessagesProviderMock.initProvider(
+                any(),
+                eq(moduleConfig.siteId),
+                eq(moduleConfig.region.code)
+            )
+        }
 
         // verify gist sets userToken
-        verify(gistInAppMessagesProvider).setUserToken(eq("identifier"))
+        verify(exactly = 1) { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
     }
 
     @Test
@@ -93,32 +107,26 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(gistInAppMessagesProvider).initProvider(
-            any(),
-            eq(cioConfig.siteId),
-            eq(cioConfig.region.code)
-        )
+        verify(exactly = 1) {
+            inAppMessagesProviderMock.initProvider(
+                any(),
+                eq(moduleConfig.siteId),
+                eq(moduleConfig.region.code)
+            )
+        }
 
         // verify gist doesn't userToken
-        verify(gistInAppMessagesProvider, never()).setUserToken(any())
+        verify(exactly = 0) { inAppMessagesProviderMock.setUserToken(any()) }
     }
 
     @Test
     fun whenDismissMessageCalledOnCustomerIO_thenDismissMessageIsCalledOnGist() {
-        // initialize the SDK
-        val customerIO = CustomerIO.Builder(
-            siteId = siteId,
-            apiKey = String.random,
-            region = Region.US,
-            appContext = application
-        ).apply {
-            overrideDiGraph = di
-        }.build()
+        module.initialize()
 
         // call dismissMessage on the CustomerIO instance
-        customerIO.inAppMessaging().dismissMessage()
+        SDKComponent.inAppMessaging().dismissMessage()
 
         // verify that the module's dismissMessage method was called
-        verify(gistInAppMessagesProvider).dismissMessage()
+        verify(exactly = 1) { inAppMessagesProviderMock.dismissMessage() }
     }
 }

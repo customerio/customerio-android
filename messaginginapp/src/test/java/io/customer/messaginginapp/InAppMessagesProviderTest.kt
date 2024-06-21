@@ -24,9 +24,9 @@ internal class InAppMessagesProviderTest : JUnitTest() {
     private val eventListenerMock: InAppEventListener = mockk(relaxed = true)
 
     override fun setupTestEnvironment() {
-        gistInAppMessagesProvider = GistInAppMessagesProvider(gistApiProvider)
-
         super.setupTestEnvironment()
+
+        gistInAppMessagesProvider = GistInAppMessagesProvider(gistApiProvider)
     }
 
     /**

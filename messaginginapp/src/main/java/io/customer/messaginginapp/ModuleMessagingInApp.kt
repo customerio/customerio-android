@@ -115,11 +115,13 @@ internal constructor(
 
     // TODO: Remove config and replace it with moduleConfig
     private fun initializeGist(config: CustomerIOConfig) {
-        gistProvider.initProvider(
-            // TODO: This should not be nullable
-            application = diGraph.androidSDKComponent?.applicationContext as Application,
-            siteId = config.siteId,
-            region = config.region.code
-        )
+        // TODO: This should not be nullable
+        (diGraph.androidSDKComponent?.applicationContext as? Application)?.let {
+            gistProvider.initProvider(
+                application = it,
+                siteId = config.siteId,
+                region = config.region.code
+            )
+        }
     }
 }

@@ -1,4 +1,4 @@
-package io.customer.datapipelines.support.stubs
+package io.customer.commontest.core.util
 
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
@@ -9,7 +9,7 @@ import io.customer.sdk.core.util.Logger
  * the log level set to help debug issues while running unit tests.
  */
 class UnitTestLogger : Logger {
-    override var logLevel: CioLogLevel = CioLogLevel.ERROR
+    override var logLevel: CioLogLevel = CioLogLevel.DEBUG
 
     override fun info(message: String) {
         log(CioLogLevel.INFO, message)

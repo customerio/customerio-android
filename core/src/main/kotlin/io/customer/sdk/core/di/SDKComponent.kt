@@ -26,7 +26,7 @@ object SDKComponent : DiGraph() {
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
     val eventBus: EventBus get() = singleton<EventBus> { EventBusImpl() }
     val dispatchersProvider: DispatchersProvider get() = newInstance { SdkDispatchers() }
-    val scopeProvider: ScopeProvider get() = newInstance { SdkScopeProvider(dispatchersProvider) }
+    val scopeProvider: ScopeProvider get() = newInstance<ScopeProvider> { SdkScopeProvider(dispatchersProvider) }
 
     override fun reset() {
         androidSDKComponent?.reset()

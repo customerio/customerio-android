@@ -26,7 +26,7 @@ class CustomerIOCloudMessagingReceiver : BroadcastReceiver() {
         val extras = intent.extras
         // Ignore event if no data was received in extras
         if (extras == null || extras.isEmpty) return
-
+        // TODO: Make sure PushMessageProcessor works as expected even if the SDK is not initialized
         SDKComponent.pushMessageProcessor.processGCMMessageIntent(intent = intent)
     }
 }

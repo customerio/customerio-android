@@ -57,6 +57,7 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
+            // TODO: Make sure PushNotificationHandler works as expected even if the SDK is not initialized
             val handler = CustomerIOPushNotificationHandler(
                 pushMessageProcessor = SDKComponent.pushMessageProcessor,
                 remoteMessage = remoteMessage

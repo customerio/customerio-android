@@ -3,7 +3,8 @@ package io.customer.sdk.core.di
 import io.customer.commontest.BaseUnitTest
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.EventBusImpl
+import io.customer.sdk.communication.EventBus
+import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.util.ScopeProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -16,12 +17,12 @@ import org.junit.Test
 
 class EventBusTest : BaseUnitTest() {
 
-    private lateinit var eventBus: EventBusImpl
-    private var testScopeProvider = ScopeProviderStub()
+    private lateinit var eventBus: EventBus
+    private val testScopeProvider = ScopeProviderStub()
 
     override fun setup() {
         SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProvider)
-        eventBus = EventBusImpl()
+        eventBus = SDKComponent.eventBus
     }
 
     override fun teardown() {

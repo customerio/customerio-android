@@ -20,6 +20,7 @@ import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOBuilder;
 import io.customer.sdk.core.util.CioLogLevel;
+import io.customer.sdk.data.model.Region;
 
 /**
  * Repository class to hold all Customer.io related operations at single place
@@ -56,7 +57,7 @@ public class CustomerIORepository {
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
         builder.addCustomerIOModule(new ModuleMessagingInApp(
-                new MessagingInAppModuleConfig.Builder()
+                new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), Region.US.INSTANCE)
                         .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                         .build()
         ));

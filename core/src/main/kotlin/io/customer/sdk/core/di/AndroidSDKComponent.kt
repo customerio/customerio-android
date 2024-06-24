@@ -1,5 +1,6 @@
 package io.customer.sdk.core.di
 
+import android.app.Application
 import android.content.Context
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.ApplicationStoreImpl
@@ -20,6 +21,8 @@ class AndroidSDKComponent(
     val context: Context,
     val client: Client
 ) : DiGraph() {
+    val application: Application
+        get() = newInstance { context.applicationContext as Application }
     val applicationContext: Context
         get() = newInstance { context.applicationContext }
     val buildStore: BuildStore

@@ -1,6 +1,5 @@
 package io.customer.messaginginapp
 
-import android.app.Application
 import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.sdk.CustomerIOConfig
@@ -116,7 +115,7 @@ internal constructor(
     // TODO: Remove config and replace it with moduleConfig
     private fun initializeGist(config: CustomerIOConfig) {
         // TODO: This should not be nullable
-        (diGraph.androidSDKComponent?.applicationContext as? Application)?.let {
+        diGraph.androidSDKComponent?.application?.let {
             gistProvider.initProvider(
                 application = it,
                 siteId = config.siteId,

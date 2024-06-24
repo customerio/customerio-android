@@ -14,8 +14,7 @@ import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.util.Logger
-import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.extensions.takeIfNotBlank
+import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
@@ -89,7 +88,7 @@ internal class PushMessageProcessorImpl(
         if (moduleConfig.autoTrackPushEvents) {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = MetricEvent.delivered.name,
+                    event = Metric.Delivered.name,
                     deliveryId = deliveryId,
                     deviceToken = deliveryToken
                 )
@@ -123,7 +122,7 @@ internal class PushMessageProcessorImpl(
         if (moduleConfig.autoTrackPushEvents) {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = MetricEvent.opened.name,
+                    event = Metric.Opened.name,
                     deliveryId = payload.cioDeliveryId,
                     deviceToken = payload.cioDeliveryToken
                 )
@@ -135,7 +134,7 @@ internal class PushMessageProcessorImpl(
         activityContext: Context,
         payload: CustomerIOParsedPushPayload
     ) {
-        val deepLink = payload.deepLink?.takeIfNotBlank()
+        val deepLink = payload.deepLink?.takeIf { link -> link.isNotBlank() }
 
         // check if host app overrides the handling of deeplink
         val notificationCallback = moduleConfig.notificationCallback

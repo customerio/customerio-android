@@ -334,10 +334,6 @@ public abstract interface class io/customer/sdk/repository/preference/SitePrefer
 	public abstract fun setHttpRequestsPauseEnds (Ljava/util/Date;)V
 }
 
-public abstract interface class io/customer/sdk/tracking/TrackableScreen {
-	public abstract fun getScreenName ()Ljava/lang/String;
-}
-
 public final class io/customer/tracking/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z

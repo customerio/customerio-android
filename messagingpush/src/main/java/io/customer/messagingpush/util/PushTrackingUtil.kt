@@ -3,7 +3,7 @@ package io.customer.messagingpush.util
 import android.os.Bundle
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.events.Metric
 
 interface PushTrackingUtil {
     fun parseLaunchedActivityForTracking(bundle: Bundle): Boolean
@@ -26,7 +26,7 @@ class PushTrackingUtilImpl : PushTrackingUtil {
 
         eventBus.publish(
             Event.TrackPushMetricEvent(
-                event = MetricEvent.opened.name,
+                event = Metric.Opened.name,
                 deliveryId = deliveryId,
                 deviceToken = deliveryToken
             )

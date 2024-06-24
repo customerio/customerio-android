@@ -119,7 +119,7 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 
 public final class io/customer/messagingpush/di/DiGraphMessagingPushKt {
 	public static final fun getAppLifecycleCallbacks (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/util/AppLifecycleCallbacks;
-	public static final fun pushMessaging (Lio/customer/sdk/android/CustomerIO;)Lio/customer/messagingpush/ModuleMessagingPushFCM;
+	public static final fun pushMessaging (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/ModuleMessagingPushFCM;
 }
 
 public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {

@@ -4,7 +4,6 @@ import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.messagingpush.extensions.getSDKInstanceOrNull
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 
@@ -58,9 +57,6 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            // if CustomerIO instance isn't initialized, we can't handle the notification
-            val sdkInstance = context.getSDKInstanceOrNull() ?: return false
-
             val handler = CustomerIOPushNotificationHandler(
                 pushMessageProcessor = SDKComponent.pushMessageProcessor,
                 remoteMessage = remoteMessage

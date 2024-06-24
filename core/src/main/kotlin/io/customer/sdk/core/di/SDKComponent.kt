@@ -20,13 +20,26 @@ import io.customer.sdk.core.util.SdkScopeProvider
  */
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 object SDKComponent : DiGraph() {
-    val androidSDKComponent: AndroidSDKComponent? get() = getOrNull()
-    val buildEnvironment: BuildEnvironment get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
-    val logger: Logger get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
+    // Static map to store all the modules registered with the SDK
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
-    val eventBus: EventBus get() = singleton<EventBus> { EventBusImpl() }
-    val dispatchersProvider: DispatchersProvider get() = newInstance { SdkDispatchers() }
-    val scopeProvider: ScopeProvider get() = newInstance { SdkScopeProvider(dispatchersProvider) }
+
+    // Android specific dependencies
+    val androidSDKComponent: AndroidSDKComponent?
+        get() = getOrNull()
+
+    // Core dependencies
+    val buildEnvironment: BuildEnvironment
+        get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
+    val logger: Logger
+        get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
+
+    // Communication dependencies
+    val eventBus: EventBus
+        get() = singleton<EventBus> { EventBusImpl() }
+    val dispatchersProvider: DispatchersProvider
+        get() = newInstance { SdkDispatchers() }
+    val scopeProvider: ScopeProvider
+        get() = newInstance { SdkScopeProvider(dispatchersProvider) }
 
     override fun reset() {
         androidSDKComponent?.reset()

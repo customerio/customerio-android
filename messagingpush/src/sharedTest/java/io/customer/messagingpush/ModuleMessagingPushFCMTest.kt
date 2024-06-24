@@ -2,8 +2,8 @@ package io.customer.messagingpush
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.BaseTest
+import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.sdk.android.CustomerIOInstance
-import io.customer.sdk.device.DeviceTokenProvider
 import io.customer.sdk.extensions.random
 import org.junit.Before
 import org.junit.Test

@@ -211,11 +211,6 @@ public final class io/customer/sdk/data/request/MetricEvent$Companion {
 	public final fun getEvent (Ljava/lang/String;)Lio/customer/sdk/data/request/MetricEvent;
 }
 
-public abstract interface class io/customer/sdk/device/DeviceTokenProvider {
-	public abstract fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
-	public abstract fun isValidForThisDevice (Landroid/content/Context;)Z
-}
-
 public final class io/customer/sdk/di/CustomerIOComponent : io/customer/sdk/core/di/DiGraph {
 	public fun <init> (Lio/customer/sdk/di/CustomerIOStaticComponent;Landroid/content/Context;Lio/customer/sdk/CustomerIOConfig;)V
 	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/CustomerIOActivityLifecycleCallbacks;
@@ -332,10 +327,6 @@ public abstract interface class io/customer/sdk/repository/preference/SitePrefer
 	public abstract fun saveDeviceToken (Ljava/lang/String;)V
 	public abstract fun saveIdentifier (Ljava/lang/String;)V
 	public abstract fun setHttpRequestsPauseEnds (Ljava/util/Date;)V
-}
-
-public abstract interface class io/customer/sdk/tracking/TrackableScreen {
-	public abstract fun getScreenName ()Ljava/lang/String;
 }
 
 public final class io/customer/tracking/BuildConfig {

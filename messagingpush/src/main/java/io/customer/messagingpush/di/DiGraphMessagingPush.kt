@@ -7,16 +7,15 @@ import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
+import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.util.AppLifecycleCallbacks
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.device.DeviceTokenProvider
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -49,7 +48,7 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
         )
     }
 
-fun CustomerIO.pushMessaging(): ModuleMessagingPushFCM {
-    return diGraph.sdkConfig.modules[ModuleMessagingPushFCM.MODULE_NAME] as? ModuleMessagingPushFCM
+fun SDKComponent.pushMessaging(): ModuleMessagingPushFCM {
+    return modules[ModuleMessagingPushFCM.MODULE_NAME] as? ModuleMessagingPushFCM
         ?: throw IllegalStateException("ModuleMessagingPushFCM not initialized")
 }

@@ -1,7 +1,7 @@
 package io.customer.datapipelines.extensions
 
 import io.customer.sdk.events.TrackMetric
-import java.util.Locale
+import io.customer.sdk.events.serializedName
 
 /**
  * Extension function to convert [TrackMetric] to a map for tracking metrics.
@@ -19,7 +19,7 @@ internal fun TrackMetric.asMap(): Map<String, Any> {
             result.putAll(metadata)
         }
     }
-    result["metric"] = metric.name.lowercase(Locale.ENGLISH)
+    result["metric"] = metric.serializedName
     result["deliveryId"] = deliveryId
     return result
 }

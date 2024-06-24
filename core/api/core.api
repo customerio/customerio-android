@@ -112,6 +112,7 @@ public final class io/customer/sdk/core/BuildConfig {
 
 public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk/core/di/DiGraph {
 	public fun <init> (Landroid/content/Context;Lio/customer/sdk/data/store/Client;)V
+	public final fun getApplication ()Landroid/app/Application;
 	public final fun getApplicationContext ()Landroid/content/Context;
 	public final fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
 	public final fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
@@ -255,6 +256,10 @@ public final class io/customer/sdk/events/Metric : java/lang/Enum {
 	public static fun values ()[Lio/customer/sdk/events/Metric;
 }
 
+public final class io/customer/sdk/events/MetricKt {
+	public static final fun getSerializedName (Lio/customer/sdk/events/Metric;)Ljava/lang/String;
+}
+
 public abstract interface class io/customer/sdk/events/TrackMetric {
 	public abstract fun getDeliveryId ()Ljava/lang/String;
 	public abstract fun getMetric ()Lio/customer/sdk/events/Metric;
@@ -290,5 +295,9 @@ public final class io/customer/sdk/events/TrackMetric$Push : io/customer/sdk/eve
 	public fun getMetric ()Lio/customer/sdk/events/Metric;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/sdk/tracking/TrackableScreen {
+	public abstract fun getScreenName ()Ljava/lang/String;
 }
 

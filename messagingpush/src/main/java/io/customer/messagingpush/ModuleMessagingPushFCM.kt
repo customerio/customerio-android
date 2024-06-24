@@ -1,31 +1,17 @@
 package io.customer.messagingpush
 
-import androidx.annotation.VisibleForTesting
 import io.customer.messagingpush.di.appLifecycleCallbacks
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
-import io.customer.sdk.android.CustomerIOInstance
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
-import io.customer.sdk.di.CustomerIOComponent
 
-class ModuleMessagingPushFCM
-@VisibleForTesting
-internal constructor(
-    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default(),
-    private val overrideCustomerIO: CustomerIOInstance?,
-    private val overrideDiGraph: CustomerIOComponent?
+class ModuleMessagingPushFCM @JvmOverloads constructor(
+    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
 ) : CustomerIOModule<MessagingPushModuleConfig> {
-
-    @JvmOverloads
-    constructor(config: MessagingPushModuleConfig = MessagingPushModuleConfig.default()) : this(
-        moduleConfig = config,
-        overrideCustomerIO = null,
-        overrideDiGraph = null
-    )
 
     private val diGraph: SDKComponent
         get() = SDKComponent

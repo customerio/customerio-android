@@ -34,7 +34,6 @@ android {
 dependencies {
     api project(":base")
     api project(":core")
-    api project(":tracking")
 
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid

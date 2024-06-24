@@ -127,7 +127,12 @@ public final class io/customer/messagingpush/processor/PushMessageProcessor$Comp
 	public final fun getRecentMessagesQueue ()Ljava/util/concurrent/LinkedBlockingDeque;
 }
 
-public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/sdk/device/DeviceTokenProvider {
+public abstract interface class io/customer/messagingpush/provider/DeviceTokenProvider {
+	public abstract fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
+	public abstract fun isValidForThisDevice (Landroid/content/Context;)Z
+}
+
+public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/messagingpush/provider/DeviceTokenProvider {
 	public fun <init> (Landroid/content/Context;)V
 	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;

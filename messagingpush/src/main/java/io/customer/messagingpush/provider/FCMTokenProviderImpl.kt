@@ -5,7 +5,14 @@ import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.device.DeviceTokenProvider
+
+/**
+ *  Responsible for token generation and validity
+ */
+interface DeviceTokenProvider {
+    fun isValidForThisDevice(context: Context): Boolean
+    fun getCurrentToken(onComplete: (String?) -> Unit)
+}
 
 /**
  * Wrapper around FCM SDK to make the code base more testable. There is no concept of checked-exceptions in Kotlin

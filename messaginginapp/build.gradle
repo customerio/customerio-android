@@ -49,8 +49,6 @@ dependencies {
     implementation Dependencies.androidxAppCompat
     implementation Dependencies.retrofit
     implementation Dependencies.okhttpLoggingInterceptor
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.junit4
 
     // MockK dependencies for testing
     testImplementation(Dependencies.mockk)

@@ -13,8 +13,6 @@ import io.customer.sdk.extensions.random
 import io.customer.sdk.hooks.HookModule
 import io.customer.sdk.hooks.HooksManager
 import io.customer.sdk.repository.preference.SitePreferenceRepository
-import java.lang.reflect.Field
-import org.amshove.kluent.shouldBe
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,11 +42,12 @@ internal class ModuleMessagingInAppTest : BaseTest() {
         di.overrideDependency(HooksManager::class.java, hooksManager)
 
         module = ModuleMessagingInApp(
-            moduleConfig = MessagingInAppModuleConfig.Builder().setEventListener(eventListenerMock)
-                .build(),
-            overrideDiGraph = di
+            config = MessagingInAppModuleConfig.Builder(
+                siteId = siteId,
+                region = Region.US
+            ).setEventListener(eventListenerMock).build()
         )
-        modules[ModuleMessagingInApp.moduleName] = module
+        modules[ModuleMessagingInApp.MODULE_NAME] = module
     }
 
     @Test
@@ -102,27 +101,6 @@ internal class ModuleMessagingInAppTest : BaseTest() {
 
         // verify gist doesn't userToken
         verify(gistInAppMessagesProvider, never()).setUserToken(any())
-    }
-
-    @Test
-    fun initialize_givenComponentInitializedWithOrganizationId_expectOrganizationIdToBeIgnored() {
-        // since `organizationId` is a private member, to check if its being used we have to use reflection
-        // this test will be deleted when the deprecated variable is removed
-
-        val orgId = String.random
-        val module = ModuleMessagingInApp(
-            organizationId = orgId
-        )
-        val fields = ModuleMessagingInApp::class.java.declaredFields
-        var organizationId: Field? = null
-        for (field in fields) {
-            if (field.name == "organizationId") {
-                organizationId = field
-                break
-            }
-        }
-        organizationId?.isAccessible = true
-        (organizationId?.get(module)) shouldBe null
     }
 
     @Test

@@ -14,6 +14,6 @@ internal val SDKComponent.gistProvider: InAppMessagesProvider
     get() = newInstance<InAppMessagesProvider> { GistInAppMessagesProvider(gistApiProvider) }
 
 fun SDKComponent.inAppMessaging(): ModuleMessagingInApp {
-    return modules[ModuleMessagingInApp.moduleName] as? ModuleMessagingInApp
+    return modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
         ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
 }

@@ -1,70 +1,30 @@
 package io.customer.messaginginapp
 
 import android.app.Application
-import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.di.CustomerIOComponent
 
-class ModuleMessagingInApp
-@VisibleForTesting
-internal constructor(
-    override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
-    private val overrideDiGraph: CustomerIOComponent?
+class ModuleMessagingInApp(
+    config: MessagingInAppModuleConfig
 ) : CustomerIOModule<MessagingInAppModuleConfig> {
-    @JvmOverloads
-    @Deprecated(
-        "organizationId no longer required and will be removed in future",
-        replaceWith = ReplaceWith("constructor(config: MessagingInAppModuleConfig)")
-    )
-    constructor(
-        organizationId: String,
-        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
-    ) : this(
-        moduleConfig = config,
-        overrideDiGraph = null
-    )
-
-    @JvmOverloads
-    constructor(
-        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
-    ) : this(
-        moduleConfig = config,
-        overrideDiGraph = null
-    )
-
-    override val moduleName: String = ModuleMessagingInApp.moduleName
+    override val moduleName: String = MODULE_NAME
+    override val moduleConfig: MessagingInAppModuleConfig = config
 
     private val diGraph: SDKComponent = SDKComponent
-
     private val eventBus = diGraph.eventBus
-
     private val gistProvider by lazy { diGraph.gistProvider }
-
     private val logger = diGraph.logger
-
-    private val oldDiGraph: CustomerIOComponent
-        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
-
-    private val config: CustomerIOConfig
-        get() = oldDiGraph.sdkConfig
-
-    companion object {
-        const val moduleName: String = "MessagingInApp"
-    }
 
     fun dismissMessage() {
         gistProvider.dismissMessage()
     }
 
     override fun initialize() {
-        initializeGist(config)
+        initializeGist()
         setupHooks()
         configureSdkModule(moduleConfig)
         setupGistCallbacks()
@@ -114,14 +74,18 @@ internal constructor(
     }
 
     // TODO: Remove config and replace it with moduleConfig
-    private fun initializeGist(config: CustomerIOConfig) {
+    private fun initializeGist() {
         // TODO: This should not be nullable
         (diGraph.androidSDKComponent?.applicationContext as? Application)?.let {
             gistProvider.initProvider(
                 application = it,
-                siteId = config.siteId,
-                region = config.region.code
+                siteId = moduleConfig.siteId,
+                region = moduleConfig.region.code
             )
         }
+    }
+
+    companion object {
+        const val MODULE_NAME: String = "MessagingInApp"
     }
 }

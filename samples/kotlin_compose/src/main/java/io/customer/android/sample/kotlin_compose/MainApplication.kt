@@ -12,6 +12,7 @@ import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.data.model.Region
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -52,8 +53,10 @@ class MainApplication : Application() {
 
             addCustomerIOModule(
                 ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder()
-                        .setEventListener(InAppMessageEventListener()).build()
+                    config = MessagingInAppModuleConfig.Builder(
+                        siteId = configuration.siteId,
+                        region = Region.US
+                    ).setEventListener(InAppMessageEventListener()).build()
                 )
             )
             addCustomerIOModule(ModuleMessagingPushFCM())

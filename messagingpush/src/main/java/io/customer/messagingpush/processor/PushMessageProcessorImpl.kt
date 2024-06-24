@@ -15,6 +15,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.events.Metric
+import io.customer.sdk.events.serializedName
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
@@ -88,7 +89,7 @@ internal class PushMessageProcessorImpl(
         if (moduleConfig.autoTrackPushEvents) {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = Metric.Delivered.name,
+                    event = Metric.Delivered.serializedName,
                     deliveryId = deliveryId,
                     deviceToken = deliveryToken
                 )
@@ -122,7 +123,7 @@ internal class PushMessageProcessorImpl(
         if (moduleConfig.autoTrackPushEvents) {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = Metric.Opened.name,
+                    event = Metric.Opened.serializedName,
                     deliveryId = payload.cioDeliveryId,
                     deviceToken = payload.cioDeliveryToken
                 )

@@ -256,6 +256,10 @@ public final class io/customer/sdk/events/Metric : java/lang/Enum {
 	public static fun values ()[Lio/customer/sdk/events/Metric;
 }
 
+public final class io/customer/sdk/events/MetricKt {
+	public static final fun getSerializedName (Lio/customer/sdk/events/Metric;)Ljava/lang/String;
+}
+
 public abstract interface class io/customer/sdk/events/TrackMetric {
 	public abstract fun getDeliveryId ()Ljava/lang/String;
 	public abstract fun getMetric ()Lio/customer/sdk/events/Metric;

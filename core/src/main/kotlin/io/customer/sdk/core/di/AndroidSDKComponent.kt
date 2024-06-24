@@ -22,9 +22,9 @@ class AndroidSDKComponent(
     val client: Client
 ) : DiGraph() {
     val application: Application
-        get() = newInstance { context.applicationContext as Application }
+        get() = newInstance<Application> { context.applicationContext as Application }
     val applicationContext: Context
-        get() = newInstance { context.applicationContext }
+        get() = newInstance<Context> { context.applicationContext }
     val buildStore: BuildStore
         get() = newInstance<BuildStore> { BuildStoreImpl() }
     val applicationStore: ApplicationStore

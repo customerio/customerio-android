@@ -37,9 +37,9 @@ object SDKComponent : DiGraph() {
     val eventBus: EventBus
         get() = singleton<EventBus> { EventBusImpl() }
     val dispatchersProvider: DispatchersProvider
-        get() = newInstance { SdkDispatchers() }
+        get() = newInstance<DispatchersProvider> { SdkDispatchers() }
     val scopeProvider: ScopeProvider
-        get() = newInstance { SdkScopeProvider(dispatchersProvider) }
+        get() = newInstance<ScopeProvider> { SdkScopeProvider(dispatchersProvider) }
 
     override fun reset() {
         androidSDKComponent?.reset()

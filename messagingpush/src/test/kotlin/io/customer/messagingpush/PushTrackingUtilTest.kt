@@ -21,16 +21,15 @@ class PushTrackingUtilTest : JUnitTest() {
     private lateinit var util: PushTrackingUtil
 
     override fun setupTestEnvironment() {
-        util = PushTrackingUtilImpl()
-        eventBus = mockk(relaxed = true)
-
         super.setupTestEnvironment()
+        util = PushTrackingUtilImpl()
+        eventBus = SDKComponent.eventBus
     }
 
     override fun setupSDKComponent() {
         super.setupSDKComponent()
 
-        SDKComponent.overrideDependency(EventBus::class.java, eventBus)
+        SDKComponent.overrideDependency(EventBus::class.java, mockk(relaxed = true))
     }
 
     @Test

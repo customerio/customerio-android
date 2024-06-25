@@ -38,7 +38,6 @@ internal class ModuleMessagingConfigTest : JUnitTest() {
 
     override fun setupTestEnvironment() {
         super.setupTestEnvironment()
-
         eventBus = SDKComponent.eventBus
         module = ModuleMessagingPushFCM()
     }

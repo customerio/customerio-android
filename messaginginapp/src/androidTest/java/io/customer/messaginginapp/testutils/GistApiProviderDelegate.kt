@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.support
+package io.customer.messaginginapp.testutils
 
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistApiProvider

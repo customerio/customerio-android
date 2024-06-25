@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.support
+package io.customer.messaginginapp.testutils
 
 import android.net.Uri
 import android.webkit.WebView
@@ -10,8 +10,8 @@ import io.customer.messaginginapp.gist.presentation.engine.EngineWebEvent
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebMessage
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewClientInterceptor
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewInterface
-import io.customer.messaginginapp.support.GistEngineMessageDriver.Callback
-import io.customer.messaginginapp.support.GistEngineMessageDriver.MessageState
+import io.customer.messaginginapp.testutils.GistEngineMessageDriver.Callback
+import io.customer.messaginginapp.testutils.GistEngineMessageDriver.MessageState
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

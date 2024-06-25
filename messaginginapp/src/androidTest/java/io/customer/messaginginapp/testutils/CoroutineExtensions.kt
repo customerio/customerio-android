@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.support
+package io.customer.messaginginapp.testutils
 
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope

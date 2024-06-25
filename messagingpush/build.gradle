@@ -40,17 +40,17 @@ dependencies {
     implementation Dependencies.retrofit
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.junit4
 
     api Dependencies.firebaseMessaging
     implementation Dependencies.googlePlayServicesBase
 
+    // MockK dependencies for testing
+    testImplementation(Dependencies.mockk)
+    testImplementation(Dependencies.coroutinesTest)
+    // JUnit 5 dependencies for testing
     testImplementation(platform(Dependencies.junitBom))
     testImplementation(Dependencies.junitJupiter)
-    testImplementation(Dependencies.mockk)
-
-    // enables running JUnit 4 tests within the JUnit 5 (jupiter) platform.
+    // Enables running JUnit 4 tests within the JUnit 5 (jupiter) platform.
     testRuntimeOnly(Dependencies.junitVintageEngine)
 }
 

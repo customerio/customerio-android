@@ -1,6 +1,7 @@
 package io.customer.messagingpush
 
 import android.os.Bundle
+import io.customer.messagingpush.support.core.JUnitTest
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
 import io.customer.sdk.communication.Event
@@ -12,19 +13,23 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.amshove.kluent.shouldBe
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class PushTrackingUtilTest {
+class PushTrackingUtilTest : JUnitTest() {
 
     private lateinit var eventBus: EventBus
     private lateinit var util: PushTrackingUtil
 
-    @BeforeEach
-    fun setup() {
+    override fun setupTestEnvironment() {
+        super.setupTestEnvironment()
         util = PushTrackingUtilImpl()
-        eventBus = mockk(relaxed = true)
-        SDKComponent.overrideDependency(EventBus::class.java, eventBus)
+        eventBus = SDKComponent.eventBus
+    }
+
+    override fun setupSDKComponent() {
+        super.setupSDKComponent()
+
+        SDKComponent.overrideDependency(EventBus::class.java, mockk(relaxed = true))
     }
 
     @Test

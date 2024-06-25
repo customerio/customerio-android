@@ -1,11 +1,10 @@
 package io.customer.messagingpush.processor
 
+import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.core.app.TaskStackBuilder
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
@@ -13,51 +12,46 @@ import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.pushMessageProcessor
+import io.customer.messagingpush.provider.DeviceTokenProvider
+import io.customer.messagingpush.support.core.JUnitTest
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
-import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.android.CustomerIOInstance
-import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.data.store.Client
 import io.customer.sdk.extensions.random
 import io.customer.sdk.repository.TrackRepository
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBe
-import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
-import org.mockito.kotlin.whenever
 import org.robolectric.Shadows
 
-@RunWith(AndroidJUnit4::class)
-class PushMessageProcessorTest : BaseTest() {
-    private val modules = hashMapOf<String, CustomerIOModule<*>>()
-    private val customerIOMock: CustomerIOInstance = mock()
-    private val deepLinkUtilMock: DeepLinkUtil = mock()
-    private val trackRepositoryMock: TrackRepository = mock()
+class PushMessageProcessorTest : JUnitTest() {
+    private val deepLinkUtilMock: DeepLinkUtil = mockk(relaxed = true)
+    private val trackRepositoryMock: TrackRepository = mockk(relaxed = true)
+    private val applicationContextMock: Application = mockk(relaxed = true)
+    private val fcmTokenProviderMock: DeviceTokenProvider = mockk(relaxed = true)
 
-    override fun setupConfig(): CustomerIOConfig = createConfig(
-        modules = modules
-    )
+    override fun setupSDKComponent() {
+        super.setupSDKComponent()
 
-    @Before
-    override fun setup() {
-        super.setup()
-
-        di.overrideDependency(DeepLinkUtil::class.java, deepLinkUtilMock)
-        di.overrideDependency(TrackRepository::class.java, trackRepositoryMock)
+        // Because we are not initializing the SDK, we need to register the
+        // Android SDK component manually so that the module can utilize it
+        SDKComponent.registerAndroidSDKComponent(applicationContextMock, Client.Android(sdkVersion = "3.0.0"))
+        SDKComponent.overrideDependency(DeviceTokenProvider::class.java, fcmTokenProviderMock)
+        SDKComponent.overrideDependency(TrackRepository::class.java, trackRepositoryMock)
+        SDKComponent.overrideDependency(DeepLinkUtil::class.java, deepLinkUtilMock)
     }
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
-        return di.pushMessageProcessor as PushMessageProcessorImpl
+        return SDKComponent.pushMessageProcessor as PushMessageProcessorImpl
     }
 
     private fun pushMessagePayload(deepLink: String? = null): CustomerIOParsedPushPayload {
@@ -76,9 +70,7 @@ class PushMessageProcessorTest : BaseTest() {
         autoTrackPushEvents: Boolean? = null,
         notificationCallback: CustomerIOPushNotificationCallback? = null
     ) {
-        modules[ModuleMessagingPushFCM.MODULE_NAME] = ModuleMessagingPushFCM(
-            overrideCustomerIO = customerIOMock,
-            overrideDiGraph = di,
+        SDKComponent.modules[ModuleMessagingPushFCM.MODULE_NAME] = ModuleMessagingPushFCM(
             moduleConfig = with(MessagingPushModuleConfig.Builder()) {
                 autoTrackPushEvents?.let { setAutoTrackPushEvents(it) }
                 notificationCallback?.let { setNotificationCallback(it) }
@@ -150,12 +142,12 @@ class PushMessageProcessorTest : BaseTest() {
             putString("message_id", String.random)
         }
         val processor = pushMessageProcessor()
-        val gcmIntent: Intent = mock()
-        whenever(gcmIntent.extras).thenReturn(givenBundle)
+        val gcmIntent: Intent = mockk(relaxed = true)
+        every { gcmIntent.extras } returns givenBundle
 
         processor.processGCMMessageIntent(gcmIntent)
 
-        verifyNoInteractions(trackRepositoryMock)
+        verify(exactly = 0) { trackRepositoryMock }
     }
 
     @Test
@@ -167,18 +159,17 @@ class PushMessageProcessorTest : BaseTest() {
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
         val module = ModuleMessagingPushFCM(
-            overrideCustomerIO = customerIOMock,
-            overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()
         )
-        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
+
+        SDKComponent.modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
-        val gcmIntent: Intent = mock()
-        whenever(gcmIntent.extras).thenReturn(givenBundle)
+        val gcmIntent: Intent = mockk(relaxed = true)
+        every { gcmIntent.extras } returns givenBundle
 
         processor.processGCMMessageIntent(gcmIntent)
 
-        verifyNoInteractions(trackRepositoryMock)
+        verify(exactly = 0) { trackRepositoryMock }
     }
 
     @Test
@@ -190,22 +181,16 @@ class PushMessageProcessorTest : BaseTest() {
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
         }
         val module = ModuleMessagingPushFCM(
-            overrideCustomerIO = customerIOMock,
-            overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
         )
-        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
+        SDKComponent.modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
-        val gcmIntent: Intent = mock()
-        whenever(gcmIntent.extras).thenReturn(givenBundle)
+        val gcmIntent: Intent = mockk(relaxed = true)
+        every { gcmIntent.extras } returns givenBundle
 
         processor.processGCMMessageIntent(gcmIntent)
 
-        verify(trackRepositoryMock).trackMetric(
-            givenDeliveryId,
-            MetricEvent.delivered,
-            givenDeviceToken
-        )
+        verify(exactly = 1) { trackRepositoryMock.trackMetric(givenDeliveryId, MetricEvent.delivered, givenDeviceToken) }
     }
 
     @Test
@@ -213,16 +198,14 @@ class PushMessageProcessorTest : BaseTest() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
         val module = ModuleMessagingPushFCM(
-            overrideCustomerIO = customerIOMock,
-            overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()
         )
-        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
+        SDKComponent.modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
-        verifyNoInteractions(trackRepositoryMock)
+        verify(exactly = 0) { trackRepositoryMock }
     }
 
     @Test
@@ -230,20 +213,14 @@ class PushMessageProcessorTest : BaseTest() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
         val module = ModuleMessagingPushFCM(
-            overrideCustomerIO = customerIOMock,
-            overrideDiGraph = di,
             moduleConfig = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build()
         )
-        modules[ModuleMessagingPushFCM.MODULE_NAME] = module
+        SDKComponent.modules[ModuleMessagingPushFCM.MODULE_NAME] = module
         val processor = pushMessageProcessor()
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
-        verify(trackRepositoryMock).trackMetric(
-            givenDeliveryId,
-            MetricEvent.delivered,
-            givenDeviceToken
-        )
+        verify(exactly = 1) { trackRepositoryMock.trackMetric(givenDeliveryId, MetricEvent.delivered, givenDeviceToken) }
     }
 
     @Test
@@ -256,16 +233,12 @@ class PushMessageProcessorTest : BaseTest() {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
-        verify(trackRepositoryMock).trackMetric(
-            givenPayload.cioDeliveryId,
-            MetricEvent.opened,
-            givenPayload.cioDeliveryToken
-        )
-        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(context, givenDeepLink)
-        verify(deepLinkUtilMock).createDeepLinkExternalIntent(context, givenDeepLink)
-        verify(deepLinkUtilMock).createDefaultHostAppIntent(context)
+        verify(exactly = 1) { trackRepositoryMock.trackMetric(givenPayload.cioDeliveryId, MetricEvent.opened, givenPayload.cioDeliveryToken) }
+        verify(exactly = 1) { deepLinkUtilMock.createDeepLinkHostAppIntent(applicationContextMock, givenDeepLink) }
+        verify(exactly = 1) { deepLinkUtilMock.createDefaultHostAppIntent(applicationContextMock) }
+        verify(exactly = 1) { deepLinkUtilMock.createDeepLinkExternalIntent(applicationContextMock, givenDeepLink) }
     }
 
     @Test
@@ -277,9 +250,9 @@ class PushMessageProcessorTest : BaseTest() {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
-        verifyNoInteractions(trackRepositoryMock)
+        verify(exactly = 0) { trackRepositoryMock }
     }
 
     @Test
@@ -290,19 +263,17 @@ class PushMessageProcessorTest : BaseTest() {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
-        verify(deepLinkUtilMock, never()).createDeepLinkHostAppIntent(any(), any())
-        verify(deepLinkUtilMock, never()).createDeepLinkExternalIntent(any(), any())
-        verify(deepLinkUtilMock).createDefaultHostAppIntent(any())
+        verify(exactly = 0) { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) }
+        verify(exactly = 0) { deepLinkUtilMock.createDeepLinkExternalIntent(any(), any()) }
+        verify(exactly = 1) { deepLinkUtilMock.createDefaultHostAppIntent(any()) }
     }
 
     @Test
     fun processNotificationClick_givenCallbackWithDeepLink_expectOpenCallbackIntent() {
-        val notificationCallback: CustomerIOPushNotificationCallback = mock()
-        whenever(notificationCallback.createTaskStackFromPayload(any(), any())).thenReturn(
-            TaskStackBuilder.create(context)
-        )
+        val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
+        every { notificationCallback.createTaskStackFromPayload(any(), any()) } returns TaskStackBuilder.create(applicationContextMock)
         val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
 
         // Make sure that the callback as expected for all behaviors
@@ -316,18 +287,16 @@ class PushMessageProcessorTest : BaseTest() {
                 putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
             }
 
-            processor.processNotificationClick(context, intent)
+            processor.processNotificationClick(applicationContextMock, intent)
 
-            verifyNoInteractions(deepLinkUtilMock)
+            verify(exactly = 0) { deepLinkUtilMock }
         }
     }
 
     @Test
     fun processNotificationClick_givenCallbackWithoutDeepLink_expectOpenCallbackIntent() {
-        val notificationCallback: CustomerIOPushNotificationCallback = mock()
-        whenever(notificationCallback.createTaskStackFromPayload(any(), any())).thenReturn(
-            TaskStackBuilder.create(context)
-        )
+        val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
+        every { notificationCallback.createTaskStackFromPayload(any(), any()) } returns TaskStackBuilder.create(applicationContextMock)
         val givenPayload = pushMessagePayload()
 
         // Make sure that the callback as expected for all behaviors
@@ -341,9 +310,9 @@ class PushMessageProcessorTest : BaseTest() {
                 putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
             }
 
-            processor.processNotificationClick(context, intent)
+            processor.processNotificationClick(applicationContextMock, intent)
 
-            verifyNoInteractions(deepLinkUtilMock)
+            verify(exactly = 0) { deepLinkUtilMock }
         }
     }
 
@@ -354,13 +323,13 @@ class PushMessageProcessorTest : BaseTest() {
         val intent = Intent().apply {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
-        whenever(deepLinkUtilMock.createDeepLinkExternalIntent(any(), any())).thenReturn(Intent())
+        every { deepLinkUtilMock.createDeepLinkExternalIntent(any(), any()) } returns Intent()
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
-        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(any(), any())
-        verify(deepLinkUtilMock).createDeepLinkExternalIntent(any(), any())
-        verify(deepLinkUtilMock, never()).createDefaultHostAppIntent(any())
+        verify(exactly = 1) { deepLinkUtilMock.createDeepLinkExternalIntent(any(), any()) }
+        verify(exactly = 0) { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) }
+        verify(exactly = 0) { deepLinkUtilMock.createDefaultHostAppIntent(any()) }
     }
 
     @Test
@@ -370,14 +339,14 @@ class PushMessageProcessorTest : BaseTest() {
         val intent = Intent().apply {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
-        whenever(deepLinkUtilMock.createDeepLinkExternalIntent(any(), any())).thenReturn(Intent())
-        whenever(deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any())).thenReturn(Intent())
+        every { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) } returns Intent()
+        every { deepLinkUtilMock.createDefaultHostAppIntent(any()) } returns Intent()
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
-        verify(deepLinkUtilMock).createDeepLinkHostAppIntent(any(), any())
-        verify(deepLinkUtilMock, never()).createDeepLinkExternalIntent(any(), any())
-        verify(deepLinkUtilMock).createDefaultHostAppIntent(any())
+        verify(exactly = 1) { deepLinkUtilMock.createDefaultHostAppIntent(any()) }
+        verify(exactly = 0) { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) }
+        verify(exactly = 1) { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) }
     }
 
     @Test
@@ -388,24 +357,23 @@ class PushMessageProcessorTest : BaseTest() {
         )
         val givenPackageName = "io.customer.example"
         val givenDeepLink = "https://cio.example.com/"
-        whenever(deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any())).thenReturn(
-            Intent(Intent.ACTION_VIEW, Uri.parse(givenDeepLink)).apply {
-                setPackage(givenPackageName)
-            }
-        )
+
+        every { deepLinkUtilMock.createDefaultHostAppIntent(any()) } returns Intent(Intent.ACTION_VIEW, Uri.parse(givenDeepLink)).apply {
+            setPackage(givenPackageName)
+        }
         val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
         val processor = pushMessageProcessor()
         val intent = Intent().apply {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
         // The intent will be started with the default flags based on the activity launch mode
         // Also, we cannot verify the back stack as it is not exposed by the testing framework
         val expectedIntentFlags =
             Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_TASK_ON_HOME
-        val nextStartedActivity = Shadows.shadowOf(application).nextStartedActivity
+        val nextStartedActivity = Shadows.shadowOf(applicationContextMock).nextStartedActivity
         nextStartedActivity shouldNotBe null
         nextStartedActivity.action shouldBeEqualTo Intent.ACTION_VIEW
         nextStartedActivity.dataString shouldBeEqualTo givenDeepLink
@@ -421,21 +389,20 @@ class PushMessageProcessorTest : BaseTest() {
         )
         val givenPackageName = "io.customer.example"
         val givenDeepLink = "https://cio.example.com/"
-        whenever(deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any())).thenReturn(
-            Intent(Intent.ACTION_VIEW, Uri.parse(givenDeepLink)).apply {
-                setPackage(givenPackageName)
-            }
-        )
+
+        every { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) } returns Intent(Intent.ACTION_VIEW, Uri.parse(givenDeepLink)).apply {
+            setPackage(givenPackageName)
+        }
         val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
         val processor = pushMessageProcessor()
         val intent = Intent().apply {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
         val expectedIntentFlags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        val nextStartedActivity = Shadows.shadowOf(application).nextStartedActivity
+        val nextStartedActivity = Shadows.shadowOf(applicationContextMock).nextStartedActivity
         nextStartedActivity shouldNotBe null
         nextStartedActivity.action shouldBeEqualTo Intent.ACTION_VIEW
         nextStartedActivity.dataString shouldBeEqualTo givenDeepLink
@@ -456,21 +423,20 @@ class PushMessageProcessorTest : BaseTest() {
         )
         val givenPackageName = "io.customer.example"
         val givenDeepLink = "https://cio.example.com/"
-        whenever(deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any())).thenReturn(
-            Intent(Intent.ACTION_VIEW, Uri.parse(givenDeepLink)).apply {
-                setPackage(givenPackageName)
-            }
-        )
+
+        every { deepLinkUtilMock.createDeepLinkHostAppIntent(any(), any()) } returns Intent(Intent.ACTION_VIEW, Uri.parse(givenDeepLink)).apply {
+            setPackage(givenPackageName)
+        }
         val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
         val processor = pushMessageProcessor()
         val intent = Intent().apply {
             putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
         }
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
         // The intent will be started with the default flags based on the activity launch mode
-        val nextStartedActivity = Shadows.shadowOf(application).nextStartedActivity
+        val nextStartedActivity = Shadows.shadowOf(applicationContextMock).nextStartedActivity
         nextStartedActivity shouldNotBe null
         nextStartedActivity.action shouldBeEqualTo Intent.ACTION_VIEW
         nextStartedActivity.dataString shouldBeEqualTo givenDeepLink
@@ -483,9 +449,9 @@ class PushMessageProcessorTest : BaseTest() {
         val processor = pushMessageProcessor()
         val intent = Intent()
 
-        processor.processNotificationClick(context, intent)
+        processor.processNotificationClick(applicationContextMock, intent)
 
-        verifyNoInteractions(trackRepositoryMock)
-        verifyNoInteractions(deepLinkUtilMock)
+        verify(exactly = 0) { trackRepositoryMock }
+        verify(exactly = 0) { deepLinkUtilMock }
     }
 }

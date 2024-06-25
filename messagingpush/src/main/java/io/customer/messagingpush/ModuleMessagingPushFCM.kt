@@ -16,7 +16,8 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     private val diGraph: SDKComponent
         get() = SDKComponent
 
-    private val fcmTokenProvider by lazy { diGraph.androidSDKComponent?.fcmTokenProvider }
+    private val fcmTokenProvider
+        get() = diGraph.androidSDKComponent?.fcmTokenProvider
 
     override val moduleName: String
         get() = MODULE_NAME

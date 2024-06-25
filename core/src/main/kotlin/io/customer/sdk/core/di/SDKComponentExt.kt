@@ -14,6 +14,8 @@ import io.customer.sdk.data.store.Client
 fun SDKComponent.registerAndroidSDKComponent(
     context: Context,
     client: Client
-) = registerDependency {
-    AndroidSDKComponent(context, client)
+): AndroidSDKComponent {
+    return AndroidSDKComponentImpl(context, client).apply {
+        androidSDKComponent = registerDependency<AndroidSDKComponent> { this }
+    }
 }

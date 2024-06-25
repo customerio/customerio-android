@@ -73,10 +73,8 @@ class ModuleMessagingInApp(
         }
     }
 
-    // TODO: Remove config and replace it with moduleConfig
     private fun initializeGist() {
-        // TODO: This should not be nullable
-        diGraph.androidSDKComponent?.application?.let {
+        diGraph.android().application.let {
             gistProvider.initProvider(
                 application = it,
                 siteId = moduleConfig.siteId,

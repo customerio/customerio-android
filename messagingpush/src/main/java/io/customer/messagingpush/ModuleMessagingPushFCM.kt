@@ -17,7 +17,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = SDKComponent
 
     private val fcmTokenProvider
-        get() = diGraph.androidSDKComponent?.fcmTokenProvider
+        get() = diGraph.android().fcmTokenProvider
 
     override val moduleName: String
         get() = MODULE_NAME
@@ -40,7 +40,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * To fix this, it's recommended that each time your app starts up, you get the current push token and register it to the SDK. We do it for you automatically here as long as you initialize the MessagingPush module with the SDK.
      */
     private fun getCurrentFcmToken() {
-        fcmTokenProvider?.getCurrentToken { token ->
+        fcmTokenProvider.getCurrentToken { token ->
             token?.let {
                 eventBus.publish(Event.RegisterDeviceTokenEvent(token))
             }

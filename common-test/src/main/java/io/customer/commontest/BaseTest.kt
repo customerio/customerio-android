@@ -124,6 +124,12 @@ abstract class BaseTest {
         dispatchersProviderStub = DispatchersProviderStub().also {
             staticDIComponent.overrideDependency(DispatchersProvider::class.java, it)
         }
+        // Override dependencies here before initializing the SDK
+        overrideDependencies()
+    }
+
+    protected open fun overrideDependencies() {
+        // override dependencies here
     }
 
     @After

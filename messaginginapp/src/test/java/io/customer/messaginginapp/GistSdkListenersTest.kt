@@ -135,6 +135,9 @@ internal class GistSdkListenersTest : JUnitTest() {
         override fun onMessageDismissed(message: Message) {
         }
 
+        override fun onMessageCancelled(message: Message) {
+        }
+
         override fun onError(message: Message) {
         }
 

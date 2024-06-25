@@ -12,8 +12,10 @@ import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewClientInterceptor
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ticker
@@ -42,10 +44,16 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
 
     private var observeUserMessagesJob: Job? = null
     private var isInitialized = false
-    private var gistQueue: Queue = Queue()
 
-    private var gistModalManager: GistModalManager = GistModalManager()
+    internal var gistQueue: Queue = Queue()
+    internal var gistModalManager: GistModalManager = GistModalManager()
     internal var currentRoute: String = ""
+
+    // Global CoroutineScope for Gist Engine, all Gist classes should use same scope
+    internal var coroutineScope: CoroutineScope = GlobalScope
+
+    // Global WebViewClientInterceptor for Gist Engine, used to intercept WebViewClient events while testing
+    internal var engineWebViewClientInterceptor: EngineWebViewClientInterceptor? = null
 
     @JvmStatic
     fun getInstance() = this
@@ -86,7 +94,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
 
         application.registerActivityLifecycleCallbacks(this)
 
-        GlobalScope.launch {
+        coroutineScope.launch {
             try {
                 // Observe user messages if user token is set
                 if (getUserToken() != null) {
@@ -107,17 +115,65 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         }
     }
 
+    /**
+     * Reset the Gist SDK to its initial state.
+     * This method is used for testing purposes only.
+     */
+    internal fun reset() {
+        isInitialized = false
+        application.unregisterActivityLifecycleCallbacks(this)
+        observeUserMessagesJob?.cancel()
+        observeUserMessagesJob = null
+        gistQueue.clearUserMessagesFromLocalStore()
+        gistModalManager.clearCurrentMessage()
+        resumedActivities.clear()
+        listeners.clear()
+
+        gistQueue = Queue()
+        gistModalManager = GistModalManager()
+        currentRoute = ""
+    }
+
     fun setCurrentRoute(route: String) {
+        if (currentRoute == route) {
+            Log.i(GIST_TAG, "Current gist route is already set to: $currentRoute, ignoring new route")
+            return
+        }
+
+        cancelActiveMessage(newRoute = route)
         currentRoute = route
-        gistQueue.fetchUserMessagesFromLocalStore()
         Log.i(GIST_TAG, "Current gist route set to: $currentRoute")
+        gistQueue.fetchUserMessagesFromLocalStore()
+    }
+
+    /**
+     * Cancels any active message being loaded if the page rule does not match the new route.
+     */
+    private fun cancelActiveMessage(newRoute: String) {
+        val currentMessage = gistModalManager.currentMessage
+        val isRouteMatch = runCatching {
+            val routeRule = currentMessage?.let { message ->
+                GistMessageProperties.getGistProperties(message).routeRule
+            }
+            routeRule == null || routeRule.toRegex().matches(newRoute)
+        }.getOrNull() ?: true
+
+        // If there is no active message or the message does not have a route rule, we don't need to do anything
+        if (currentMessage == null || isRouteMatch) {
+            return
+        }
+
+        Log.i(GIST_TAG, "Cancelling message being loaded: ${currentMessage.messageId}")
+        handleGistCancelled(currentMessage)
     }
 
     // User Token
 
     fun clearUserToken() {
         ensureInitialized()
+        cancelActiveMessage(newRoute = "")
         gistQueue.clearUserMessagesFromLocalStore()
+        gistQueue.clearPrefs(application)
         // Remove user token from preferences & cancel job / timer.
         sharedPreferences.edit().remove(SHARED_PREFERENCES_USER_TOKEN_KEY).apply()
         observeUserMessagesJob?.cancel()
@@ -146,7 +202,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         ensureInitialized()
         var messageShown = false
 
-        GlobalScope.launch {
+        coroutineScope.launch {
             try {
                 messageShown = gistModalManager.showModalMessage(message, position)
             } catch (e: Exception) {
@@ -195,7 +251,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         if (!skipQueueCheck) {
             gistQueue.fetchUserMessages()
         }
-        observeUserMessagesJob = GlobalScope.launch {
+        observeUserMessagesJob = coroutineScope.launch {
             try {
                 // Poll for user messages
                 val ticker = ticker(pollInterval, context = this.coroutineContext)
@@ -229,6 +285,12 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     internal fun handleGistClosed(message: Message) {
         for (listener in listeners) {
             listener.onMessageDismissed(message)
+        }
+    }
+
+    private fun handleGistCancelled(message: Message) {
+        for (listener in listeners) {
+            listener.onMessageCancelled(message)
         }
     }
 
@@ -280,6 +342,7 @@ interface GistListener {
     fun embedMessage(message: Message, elementId: String)
     fun onMessageShown(message: Message)
     fun onMessageDismissed(message: Message)
+    fun onMessageCancelled(message: Message)
     fun onError(message: Message)
     fun onAction(message: Message, currentRoute: String, action: String, name: String)
 }

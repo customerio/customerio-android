@@ -18,15 +18,28 @@ import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.sdk.tracking.TrackableScreen
 
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
-class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
+class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
     private var currentMessage: Message? = null
     private var messagePosition: MessagePosition = MessagePosition.CENTER
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
+
+    // Flag to indicate if the message has been cancelled and should not perform any further actions
+    private var isCancelled: Boolean = false
+
+    // Indicates if the message is visible to user or not
+    internal val isEngineVisible: Boolean
+        get() = binding.gistView.isEngineVisible
+
+    override fun getScreenName(): String? {
+        // Return null to prevent this screen from being tracked
+        return null
+    }
 
     companion object {
         fun newIntent(context: Context): Intent {
@@ -44,6 +57,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
         Gson().fromJson(messageStr, Message::class.java)?.let { messageObj ->
             currentMessage = messageObj
+            isCancelled = false
             currentMessage?.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
                 binding.gistView.listener = this
@@ -98,12 +112,17 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
 
     override fun onDestroy() {
         GistSdk.removeListener(this)
-        // If the message is not persistent, dismiss it and inform the callback
-        if (!isPersistentMessage()) {
-            GistSdk.dismissMessage()
-        } else {
-            GistSdk.clearCurrentMessage()
+        // If the message has been cancelled, do not perform any further actions
+        // to avoid sending any callbacks to the client app
+        if (!isCancelled) {
+            // If the message is not persistent, dismiss it and inform the callback
+            if (!isPersistentMessage()) {
+                GistSdk.dismissMessage()
+            } else {
+                GistSdk.clearCurrentMessage()
+            }
         }
+        GistSdk.gistModalManager.isMessageModalVisible = false
         super.onDestroy()
     }
 
@@ -134,6 +153,22 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener {
         currentMessage?.let { currentMessage ->
             if (currentMessage.instanceId == message.instanceId) {
                 finish()
+            }
+        }
+    }
+
+    override fun onMessageCancelled(message: Message) {
+        Log.i(GIST_TAG, "Message Cancelled")
+        currentMessage?.let { currentMessage ->
+            if (currentMessage.instanceId == message.instanceId) {
+                // Set the flag to indicate that the message has been cancelled
+                isCancelled = true
+                // Stop loading the message
+                runOnUiThread {
+                    binding.gistView.stopLoading()
+                }
+                // And finish the activity without performing any further actions
+                super.finish()
             }
         }
     }

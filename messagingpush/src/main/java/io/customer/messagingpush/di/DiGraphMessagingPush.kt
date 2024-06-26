@@ -9,7 +9,6 @@ import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
-import io.customer.messagingpush.util.AppLifecycleCallbacks
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -27,20 +26,19 @@ internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
     get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = context) }
 
 internal val SDKComponent.moduleConfig: MessagingPushModuleConfig
-    get() = newInstance { modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default() }
+    get() = newInstance {
+        modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
+    }
 
 internal val SDKComponent.deepLinkUtil: DeepLinkUtil
-    get() = newInstance { DeepLinkUtilImpl(logger, moduleConfig) }
+    get() = newInstance<DeepLinkUtil> { DeepLinkUtilImpl(logger, moduleConfig) }
 
 @InternalCustomerIOApi
 val SDKComponent.pushTrackingUtil: PushTrackingUtil
-    get() = newInstance { PushTrackingUtilImpl() }
-
-val SDKComponent.appLifecycleCallbacks: AppLifecycleCallbacks
-    get() = newInstance { AppLifecycleCallbacks() }
+    get() = newInstance<PushTrackingUtil> { PushTrackingUtilImpl() }
 
 internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
-    get() = singleton {
+    get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
             logger = logger,
             moduleConfig = moduleConfig,

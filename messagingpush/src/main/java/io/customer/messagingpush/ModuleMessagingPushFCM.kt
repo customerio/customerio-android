@@ -1,35 +1,50 @@
 package io.customer.messagingpush
 
-import io.customer.messagingpush.di.appLifecycleCallbacks
+import androidx.lifecycle.Lifecycle
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
-import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
+import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
+import kotlinx.coroutines.flow.filter
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
 ) : CustomerIOModule<MessagingPushModuleConfig> {
 
-    private val diGraph: SDKComponent
-        get() = SDKComponent
-
-    private val fcmTokenProvider
-        get() = diGraph.androidSDKComponent?.fcmTokenProvider
+    private val fcmTokenProvider: DeviceTokenProvider?
+        get() = SDKComponent.androidSDKComponent?.fcmTokenProvider
+    private val pushTrackingUtil = SDKComponent.pushTrackingUtil
+    private val activityLifecycleCallbacks = SDKComponent.activityLifecycleCallbacks
 
     override val moduleName: String
         get() = MODULE_NAME
 
     override fun initialize() {
         getCurrentFcmToken()
-        diGraph.appLifecycleCallbacks.registerCallback(
-            MessagingPushLifecycleCallback(
-                moduleConfig = moduleConfig,
-                pushTrackingUtil = diGraph.pushTrackingUtil
-            )
-        )
+        subscribeToLifecycleEvents()
+    }
+
+    private fun subscribeToLifecycleEvents() {
+        activityLifecycleCallbacks.subscribe { events ->
+            events.filter { state ->
+                state.event == Lifecycle.Event.ON_CREATE
+            }.collect { state ->
+                when (state.event) {
+                    Lifecycle.Event.ON_CREATE -> {
+                        val intentArguments = state.activity.intent.extras ?: return@collect
+
+                        if (moduleConfig.autoTrackPushEvents) {
+                            pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                        }
+                    }
+
+                    else -> {}
+                }
+            }
+        }
     }
 
     /**

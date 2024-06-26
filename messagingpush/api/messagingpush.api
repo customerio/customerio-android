@@ -118,7 +118,6 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 }
 
 public final class io/customer/messagingpush/di/DiGraphMessagingPushKt {
-	public static final fun getAppLifecycleCallbacks (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/util/AppLifecycleCallbacks;
 	public static final fun pushMessaging (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/ModuleMessagingPushFCM;
 }
 
@@ -137,17 +136,6 @@ public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/
 	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public fun isValidForThisDevice (Landroid/content/Context;)Z
-}
-
-public final class io/customer/messagingpush/util/AppLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
-	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
-	public fun onActivityDestroyed (Landroid/app/Activity;)V
-	public fun onActivityPaused (Landroid/app/Activity;)V
-	public fun onActivityResumed (Landroid/app/Activity;)V
-	public fun onActivitySaveInstanceState (Landroid/app/Activity;Landroid/os/Bundle;)V
-	public fun onActivityStarted (Landroid/app/Activity;)V
-	public fun onActivityStopped (Landroid/app/Activity;)V
-	public final fun registerCallback (Lio/customer/sdk/lifecycle/LifecycleCallback;)V
 }
 
 public abstract interface class io/customer/messagingpush/util/DeepLinkUtil {

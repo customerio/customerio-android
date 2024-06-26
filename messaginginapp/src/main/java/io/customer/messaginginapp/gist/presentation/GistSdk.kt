@@ -3,28 +3,30 @@ package io.customer.messaginginapp.gist.presentation
 import android.app.Activity
 import android.app.Application
 import android.content.Context.MODE_PRIVATE
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewClientInterceptor
+import io.customer.sdk.core.di.SDKComponent
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ticker
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 // replace with: CustomerIOLogger
 const val GIST_TAG: String = "[CIO]"
 
-object GistSdk : Application.ActivityLifecycleCallbacks {
+object GistSdk {
     private const val SHARED_PREFERENCES_NAME = "gist-sdk"
     private const val SHARED_PREFERENCES_USER_TOKEN_KEY = "userToken"
 
@@ -58,7 +60,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     @JvmStatic
     fun getInstance() = this
 
-    override fun onActivityResumed(activity: Activity) {
+    private fun onActivityResumed(activity: Activity) {
         resumedActivities.add(activity.javaClass.name)
 
         // Start polling if app is resumed and user messages are not being observed
@@ -70,7 +72,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         }
     }
 
-    override fun onActivityPaused(activity: Activity) {
+    private fun onActivityPaused(activity: Activity) {
         resumedActivities.remove(activity.javaClass.name)
 
         // Stop polling if app is in background
@@ -92,7 +94,7 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         isInitialized = true
         gistEnvironment = environment
 
-        application.registerActivityLifecycleCallbacks(this)
+        subscribeToLifecycleEvents()
 
         coroutineScope.launch {
             try {
@@ -121,7 +123,6 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
      */
     internal fun reset() {
         isInitialized = false
-        application.unregisterActivityLifecycleCallbacks(this)
         observeUserMessagesJob?.cancel()
         observeUserMessagesJob = null
         gistQueue.clearUserMessagesFromLocalStore()
@@ -132,6 +133,20 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
         gistQueue = Queue()
         gistModalManager = GistModalManager()
         currentRoute = ""
+    }
+
+    private fun subscribeToLifecycleEvents() {
+        SDKComponent.activityLifecycleCallbacks.subscribe { events ->
+            events.filter { state ->
+                state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
+            }.collect { state ->
+                when (state.event) {
+                    Lifecycle.Event.ON_RESUME -> onActivityResumed(state.activity)
+                    Lifecycle.Event.ON_PAUSE -> onActivityPaused(state.activity)
+                    else -> {}
+                }
+            }
+        }
     }
 
     fun setCurrentRoute(route: String) {
@@ -326,16 +341,6 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
     }
 
     private fun isAppResumed() = resumedActivities.isNotEmpty()
-
-    override fun onActivityCreated(activity: Activity, p1: Bundle?) {}
-
-    override fun onActivityStarted(activity: Activity) {}
-
-    override fun onActivityStopped(activity: Activity) {}
-
-    override fun onActivityDestroyed(activity: Activity) {}
-
-    override fun onActivitySaveInstanceState(activity: Activity, p1: Bundle) {}
 }
 
 interface GistListener {

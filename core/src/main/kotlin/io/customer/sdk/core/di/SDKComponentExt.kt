@@ -16,6 +16,6 @@ fun SDKComponent.registerAndroidSDKComponent(
     client: Client
 ): AndroidSDKComponent {
     return AndroidSDKComponentImpl(context, client).apply {
-        androidSDKComponent = registerDependency<AndroidSDKComponent> { this }
+        registerDependency<AndroidSDKComponent> { this }
     }
 }

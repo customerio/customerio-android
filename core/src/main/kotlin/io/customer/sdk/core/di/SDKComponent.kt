@@ -23,15 +23,13 @@ object SDKComponent : DiGraph() {
     // Static map to store all the modules registered with the SDK
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
 
-    // Android specific dependencies
-    internal lateinit var androidSDKComponent: AndroidSDKComponent
+    internal val androidSDKComponent: AndroidSDKComponent?
+        get() = getOrNull()
 
-    // Accessor for Android dependencies
+    // public non-nullable accessor for Android dependencies
+    // this should not be null if the CustomerIO is initialized
     fun android(): AndroidSDKComponent {
-        if (!::androidSDKComponent.isInitialized) {
-            throw IllegalStateException("AndroidSDKComponent has not been initialized. Call initialize() first.")
-        }
-        return androidSDKComponent
+        return androidSDKComponent ?: throw IllegalStateException("AndroidSDKComponent has not been initialized. Call initialize() first.")
     }
 
     // Core dependencies
@@ -49,9 +47,7 @@ object SDKComponent : DiGraph() {
         get() = newInstance<ScopeProvider> { SdkScopeProvider(dispatchersProvider) }
 
     override fun reset() {
-        if (::androidSDKComponent.isInitialized) {
-            (androidSDKComponent as DiGraph).reset()
-        }
+        androidSDKComponent?.reset()
         modules.clear()
 
         super.reset()

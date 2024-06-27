@@ -12,29 +12,39 @@ import io.customer.sdk.data.store.DeviceStoreImpl
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.data.store.GlobalPreferenceStoreImpl
 
+abstract class AndroidSDKComponent : DiGraph() {
+    abstract val client: Client
+    abstract val application: Application
+    abstract val applicationContext: Context
+    abstract val buildStore: BuildStore
+    abstract val applicationStore: ApplicationStore
+    abstract val deviceStore: DeviceStore
+    abstract val globalPreferenceStore: GlobalPreferenceStore
+}
+
 /**
  * DIGraph component for Android-specific dependencies to ensure all SDK
  * modules can access them.
  * Integrate this graph at SDK startup using from Android entry point.
  */
-class AndroidSDKComponent(
-    val context: Context,
-    val client: Client
-) : DiGraph() {
-    val application: Application
+class AndroidSDKComponentImpl(
+    private val context: Context,
+    override val client: Client
+) : AndroidSDKComponent() {
+    override val application: Application
         get() = newInstance<Application> { context.applicationContext as Application }
 
     init {
         SDKComponent.activityLifecycleCallbacks.register(application)
     }
 
-    val applicationContext: Context
+    override val applicationContext: Context
         get() = newInstance<Context> { context.applicationContext }
-    val buildStore: BuildStore
+    override val buildStore: BuildStore
         get() = newInstance<BuildStore> { BuildStoreImpl() }
-    val applicationStore: ApplicationStore
+    override val applicationStore: ApplicationStore
         get() = newInstance<ApplicationStore> { ApplicationStoreImpl(context = applicationContext) }
-    val deviceStore: DeviceStore
+    override val deviceStore: DeviceStore
         get() = newInstance<DeviceStore> {
             DeviceStoreImpl(
                 buildStore = buildStore,
@@ -42,7 +52,7 @@ class AndroidSDKComponent(
                 client = client
             )
         }
-    val globalPreferenceStore: GlobalPreferenceStore
+    override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
 
     override fun reset() {

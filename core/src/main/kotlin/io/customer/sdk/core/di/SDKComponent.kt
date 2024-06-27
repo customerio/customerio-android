@@ -27,8 +27,17 @@ object SDKComponent : DiGraph() {
     // Android specific dependencies
     val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks
         get() = singleton<CustomerIOActivityLifecycleCallbacks> { CustomerIOActivityLifecycleCallbacks() }
-    val androidSDKComponent: AndroidSDKComponent?
+    internal val androidSDKComponent: AndroidSDKComponent?
         get() = getOrNull()
+
+    /**
+     * Public method to access non-null instance of Android specific dependencies.
+     * AndroidSDKComponent should never be null if CustomerIO is initialized before accessing it.
+     * If CustomerIO is not initialized, it will throw an IllegalStateException.
+     */
+    fun android(): AndroidSDKComponent {
+        return androidSDKComponent ?: throw IllegalStateException("AndroidSDKComponent is not initialized. Make sure to initialize SDK components with context before accessing it.")
+    }
 
     // Core dependencies
     val buildEnvironment: BuildEnvironment

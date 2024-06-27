@@ -21,13 +21,14 @@ import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.data.model.Region
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import leakcanary.AppWatcher
 import leakcanary.DetectLeaksAfterTestSuccess
 import leakcanary.LeakAssertions
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -77,7 +78,10 @@ class MemoryLeakageInstrumentedTest {
             setBackgroundQueueSecondsDelay(5.0)
             addCustomerIOModule(
                 ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder()
+                    config = MessagingInAppModuleConfig.Builder(
+                        siteId = configuration.siteId,
+                        region = Region.US
+                    )
                         .setEventListener(InAppMessageEventListener()).build()
                 )
             )
@@ -93,7 +97,10 @@ class MemoryLeakageInstrumentedTest {
 
             addCustomerIOModule(
                 ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder()
+                    config = MessagingInAppModuleConfig.Builder(
+                        siteId = configuration.siteId,
+                        region = Region.US
+                    )
                         .setEventListener(InAppMessageEventListener()).build()
                 )
             )

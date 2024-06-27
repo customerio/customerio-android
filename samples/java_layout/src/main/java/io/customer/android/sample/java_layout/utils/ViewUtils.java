@@ -54,11 +54,8 @@ public class ViewUtils {
     }
 
     public static void setBuildInfo(@NonNull TextView textView) {
-        AndroidSDKComponent androidSDKComponent = SDKComponent.INSTANCE.getAndroidSDKComponent();
-        String sdkVersion = "null";
-        if (androidSDKComponent != null) {
-            sdkVersion = androidSDKComponent.getClient().getSdkVersion();
-        }
+        AndroidSDKComponent androidSDKComponent = SDKComponent.INSTANCE.android();
+        String sdkVersion = androidSDKComponent.getClient().getSdkVersion();
         String buildInfo = String.format(Locale.ENGLISH,
                 "Customer.io Android SDK %s Java Layout %s (%s)",
                 sdkVersion,

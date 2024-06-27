@@ -23,7 +23,7 @@ The use of extensions was chosen over creating a separate graph class for each m
  */
 
 internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
-    get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = context) }
+    get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = applicationContext) }
 
 internal val SDKComponent.moduleConfig: MessagingPushModuleConfig
     get() = newInstance {

@@ -14,8 +14,8 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
 ) : CustomerIOModule<MessagingPushModuleConfig> {
 
-    private val fcmTokenProvider: DeviceTokenProvider?
-        get() = SDKComponent.androidSDKComponent?.fcmTokenProvider
+    private val fcmTokenProvider: DeviceTokenProvider
+        get() = SDKComponent.android().fcmTokenProvider
     private val pushTrackingUtil = SDKComponent.pushTrackingUtil
     private val activityLifecycleCallbacks = SDKComponent.activityLifecycleCallbacks
 
@@ -55,7 +55,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * To fix this, it's recommended that each time your app starts up, you get the current push token and register it to the SDK. We do it for you automatically here as long as you initialize the MessagingPush module with the SDK.
      */
     private fun getCurrentFcmToken() {
-        fcmTokenProvider?.getCurrentToken { token ->
+        fcmTokenProvider.getCurrentToken { token ->
             token?.let {
                 eventBus.publish(Event.RegisterDeviceTokenEvent(token))
             }

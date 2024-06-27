@@ -26,10 +26,13 @@ object SDKComponent : DiGraph() {
     internal val androidSDKComponent: AndroidSDKComponent?
         get() = getOrNull()
 
-    // public non-nullable accessor for Android dependencies
-    // this should not be null if the CustomerIO is initialized
+    /**
+     * Public method to access non-null instance of Android specific dependencies.
+     * AndroidSDKComponent should never be null if CustomerIO is initialized before accessing it.
+     * If CustomerIO is not initialized, it will throw an IllegalStateException.
+     */
     fun android(): AndroidSDKComponent {
-        return androidSDKComponent ?: throw IllegalStateException("AndroidSDKComponent has not been initialized. Call initialize() first.")
+        return androidSDKComponent ?: throw IllegalStateException("AndroidSDKComponent is not initialized. Make sure to initialize SDK components with context before accessing it.")
     }
 
     // Core dependencies

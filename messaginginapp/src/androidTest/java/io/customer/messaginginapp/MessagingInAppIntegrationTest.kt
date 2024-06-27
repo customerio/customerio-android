@@ -24,8 +24,10 @@ import io.customer.messaginginapp.testutils.pageRuleEquals
 import io.customer.messaginginapp.testutils.runOnUIThreadBlocking
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfig
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,9 +110,10 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     override fun setup(cioConfig: CustomerIOConfig) {
         modules.add(
             ModuleMessagingInApp(
-                config = MessagingInAppModuleConfig.Builder()
-                    .setEventListener(inAppEventListenerMock)
-                    .build()
+                config = MessagingInAppModuleConfig.Builder(
+                    siteId = "test-site-id",
+                    region = Region.US
+                ).build()
             )
         )
         gistWebServerMock = MockWebServer().apply {
@@ -124,7 +127,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         gistQueue = GistSdk.gistQueue
         gistModalManager = GistSdk.gistModalManager
         testCoroutineScope.runOnUIThreadBlocking {
-            CustomerIO.instance().identify(String.random)
+            SDKComponent.eventBus.publish(Event.ScreenViewedEvent(String.random))
             GistSdk.onActivityResumed(consumerAppActivityMock)
         }
     }
@@ -132,7 +135,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
     override fun teardown() {
         ensureMessageDismissed()
         testCoroutineScope.runOnUIThreadBlocking {
-            CustomerIO.instance().clearIdentify()
+            SDKComponent.eventBus.publish(Event.ResetEvent)
             GistSdk.onActivityPaused(consumerAppActivityMock)
         }
         GistSdk.reset()

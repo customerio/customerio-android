@@ -2,9 +2,9 @@ package io.customer.commontest
 
 import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
-import io.customer.sdk.module.CustomerIOModule
 
 /**
  * Base class for a integration test class to subclass. If you want to create unit tests, use [BaseTest].

@@ -110,16 +110,26 @@ public final class io/customer/sdk/core/BuildConfig {
 	public fun <init> ()V
 }
 
-public final class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk/core/di/DiGraph {
+public abstract class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/sdk/core/di/DiGraph {
+	public fun <init> ()V
+	public abstract fun getApplication ()Landroid/app/Application;
+	public abstract fun getApplicationContext ()Landroid/content/Context;
+	public abstract fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
+	public abstract fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
+	public abstract fun getClient ()Lio/customer/sdk/data/store/Client;
+	public abstract fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public abstract fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+}
+
+public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer/sdk/core/di/AndroidSDKComponent {
 	public fun <init> (Landroid/content/Context;Lio/customer/sdk/data/store/Client;)V
-	public final fun getApplication ()Landroid/app/Application;
-	public final fun getApplicationContext ()Landroid/content/Context;
-	public final fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
-	public final fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
-	public final fun getClient ()Lio/customer/sdk/data/store/Client;
-	public final fun getContext ()Landroid/content/Context;
-	public final fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
-	public final fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+	public fun getApplication ()Landroid/app/Application;
+	public fun getApplicationContext ()Landroid/content/Context;
+	public fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
+	public fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
+	public fun getClient ()Lio/customer/sdk/data/store/Client;
+	public fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {
@@ -132,7 +142,7 @@ public abstract class io/customer/sdk/core/di/DiGraph {
 
 public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/di/DiGraph {
 	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
-	public final fun getAndroidSDKComponent ()Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public final fun android ()Lio/customer/sdk/core/di/AndroidSDKComponent;
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
 	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;

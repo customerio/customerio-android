@@ -71,7 +71,7 @@ abstract class UnitTest {
     protected open fun setupAndroidSDKComponent() {
         // Setup AndroidSDKComponent by mocking dependencies that depends on Android context
         // Prefer relaxed mocks to avoid unnecessary setup for methods that are not used in the test
-        val androidSDKComponent = SDKComponent.androidSDKComponent ?: throw IllegalStateException("AndroidSDKComponent is not initialized")
+        val androidSDKComponent = SDKComponent.android()
         // Mock global preference store to avoid reading/writing to shared preferences
         globalPreferenceStore = mockk<GlobalPreferenceStore>(relaxUnitFun = true).also { instance ->
             androidSDKComponent.overrideDependency(GlobalPreferenceStore::class.java, instance)

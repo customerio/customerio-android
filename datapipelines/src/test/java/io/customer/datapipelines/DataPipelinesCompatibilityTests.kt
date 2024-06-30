@@ -4,20 +4,23 @@ import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.emptyJsonArray
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
-import io.customer.datapipelines.support.core.JUnitTest
-import io.customer.datapipelines.support.core.TestConfiguration
-import io.customer.datapipelines.support.core.testConfiguration
-import io.customer.datapipelines.support.data.model.UserTraits
-import io.customer.datapipelines.support.extensions.decodeJson
-import io.customer.datapipelines.support.extensions.deviceToken
-import io.customer.datapipelines.support.extensions.encodeToJsonElement
-import io.customer.datapipelines.support.extensions.shouldMatchTo
-import io.customer.datapipelines.support.extensions.toJsonObject
-import io.customer.datapipelines.support.utils.TestConstants
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.extensions.random
+import io.customer.datapipelines.testutils.core.JUnitTest
+import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.datapipelines.testutils.data.model.UserTraits
+import io.customer.datapipelines.testutils.extensions.decodeJson
+import io.customer.datapipelines.testutils.extensions.deviceToken
+import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
+import io.customer.datapipelines.testutils.extensions.shouldMatchTo
+import io.customer.datapipelines.testutils.extensions.toJsonObject
+import io.customer.datapipelines.testutils.utils.TestConstants
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.store.DeviceStore
+import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
-import io.customer.sdk.extensions.random
 import io.mockk.every
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
@@ -38,10 +41,12 @@ import org.junit.jupiter.api.Test
 class DataPipelinesCompatibilityTests : JUnitTest() {
     //region Setup test environment
 
+    private lateinit var globalPreferenceStore: GlobalPreferenceStore
+    private lateinit var deviceStore: DeviceStore
     private lateinit var storage: Storage
 
-    override fun setupTestEnvironment(testConfig: TestConfiguration) {
-        super.setupTestEnvironment(
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
             testConfiguration {
                 sdkConfig {
                     // Enable adding destination so events are processed and stored in the storage
@@ -49,6 +54,10 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
                 }
             }
         )
+
+        val androidSDKComponent = SDKComponent.android()
+        globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+        deviceStore = androidSDKComponent.deviceStore
 
         storage = analytics.storage
     }

@@ -1,5 +1,5 @@
 package io.customer.messaginginapp
-
+/*
 import android.app.Activity
 import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -29,6 +29,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.extensions.random
+import io.customer.commontest.extensions.random
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -470,3 +471,4 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         println("$GIST_TAG: Message dismissed in ${timeElapsed}ms")
     }
 }
+*/

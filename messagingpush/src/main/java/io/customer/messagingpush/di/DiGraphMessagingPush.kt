@@ -30,17 +30,17 @@ internal val SDKComponent.moduleConfig: MessagingPushModuleConfig
     get() = newInstance { modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default() }
 
 internal val SDKComponent.deepLinkUtil: DeepLinkUtil
-    get() = newInstance { DeepLinkUtilImpl(logger, moduleConfig) }
+    get() = newInstance<DeepLinkUtil> { DeepLinkUtilImpl(logger, moduleConfig) }
 
 @InternalCustomerIOApi
 val SDKComponent.pushTrackingUtil: PushTrackingUtil
-    get() = newInstance { PushTrackingUtilImpl() }
+    get() = newInstance<PushTrackingUtil> { PushTrackingUtilImpl() }
 
 val SDKComponent.appLifecycleCallbacks: AppLifecycleCallbacks
     get() = newInstance { AppLifecycleCallbacks() }
 
 internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
-    get() = singleton {
+    get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
             logger = logger,
             moduleConfig = moduleConfig,

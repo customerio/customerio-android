@@ -1,7 +1,7 @@
 package io.customer.sdk.data.moshi.model
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import io.customer.sdk.data.request.Device
 import io.customer.sdk.util.JsonAdapter
 import java.util.Date

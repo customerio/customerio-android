@@ -34,9 +34,8 @@ android {
         }
     }
     sourceSets {
-        androidTest {
-            java.srcDirs += 'src/sharedTest/java'
-        }
+        androidTest { java.srcDirs += 'src/sharedTest/java' }
+        test { java.srcDirs += 'src/sharedTest/java' }
     }
 }
 
@@ -55,5 +54,14 @@ dependencies {
     kapt(Dependencies.moshiCodeGen)
     kaptTest(Dependencies.moshiCodeGen)
     kaptAndroidTest(Dependencies.moshiCodeGen)
+
+    testImplementation Dependencies.mockito
+    androidTestImplementation Dependencies.mockito
+    testImplementation Dependencies.mockitoKotlin
+    androidTestImplementation Dependencies.mockitoKotlin
+    testImplementation Dependencies.okhttpMockWebserver
+    androidTestImplementation Dependencies.okhttpMockWebserver
+    testImplementation Dependencies.robolectric
+    androidTestImplementation Dependencies.robolectric
 }
 

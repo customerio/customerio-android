@@ -5,10 +5,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.google.gson.JsonParser
+import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.type.InAppMessage
-import io.customer.sdk.extensions.random
 
 fun mapToInAppMessage(message: Message): InAppMessage = InAppMessage.getFromGistMessage(gistMessage = message)
 

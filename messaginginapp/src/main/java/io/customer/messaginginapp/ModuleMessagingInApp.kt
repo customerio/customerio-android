@@ -1,6 +1,7 @@
 package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
@@ -16,7 +17,7 @@ class ModuleMessagingInApp(
 
     private val diGraph: SDKComponent = SDKComponent
     private val eventBus = diGraph.eventBus
-    private val gistProvider by lazy { diGraph.gistProvider }
+    private val gistProvider: InAppMessagesProvider by lazy { diGraph.gistProvider }
     private val logger = diGraph.logger
 
     fun dismissMessage() {

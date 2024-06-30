@@ -2,7 +2,7 @@ package io.customer.sdk.queue
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.squareup.moshi.JsonClass
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import io.customer.sdk.extensions.random
 import io.customer.sdk.queue.type.QueueModifyResult
 import io.customer.sdk.queue.type.QueueStatus

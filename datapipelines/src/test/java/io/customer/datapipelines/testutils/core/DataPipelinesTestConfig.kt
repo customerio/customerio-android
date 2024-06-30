@@ -3,6 +3,7 @@ package io.customer.datapipelines.testutils.core
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.config.ConfigDSL
 import io.customer.commontest.config.DIGraphConfiguration
+import io.customer.commontest.config.TestArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.TestConfigBuilder
 import io.customer.commontest.config.plus
@@ -18,15 +19,18 @@ import io.customer.sdk.CustomerIOBuilder
  * we add more plugins to it in CustomerIO initialization
  */
 class DataPipelinesTestConfig private constructor(
+    override val arguments: List<TestArgument>,
     override val diGraph: DIGraphConfiguration,
     val cdpApiKey: String,
     val sdkConfig: ConfigDSL<CustomerIOBuilder>,
     val analytics: ConfigDSL<Analytics>
 ) : TestConfig {
     override fun plus(other: TestConfig): DataPipelinesTestConfig {
+        val args = arguments + other.arguments
         val diGraphConfig = diGraph + other.diGraph
         if (other !is DataPipelinesTestConfig) {
             return DataPipelinesTestConfig(
+                arguments = args,
                 diGraph = diGraphConfig,
                 cdpApiKey = cdpApiKey,
                 sdkConfig = sdkConfig,
@@ -35,6 +39,7 @@ class DataPipelinesTestConfig private constructor(
         }
 
         return DataPipelinesTestConfig(
+            arguments = args,
             diGraph = diGraphConfig,
             cdpApiKey = other.cdpApiKey,
             sdkConfig = sdkConfig + other.sdkConfig,
@@ -60,6 +65,7 @@ class DataPipelinesTestConfig private constructor(
         }
 
         override fun build(): DataPipelinesTestConfig = DataPipelinesTestConfig(
+            arguments = arguments,
             diGraph = diGraphConfiguration,
             cdpApiKey = cdpApiKey,
             sdkConfig = sdkConfig,

@@ -2,9 +2,7 @@ package io.customer.commontest.core
 
 import android.app.Application
 import android.content.Context
-import io.customer.commontest.config.DIGraphConfiguration
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.config.setupAndroidSDKComponent
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.overrideDependency
 import io.customer.commontest.util.UnitTestLogger
@@ -26,9 +24,5 @@ abstract class UnitTest : BaseTest() {
 
     override fun setup(testConfig: TestConfig) {
         super.setup(defaultTestConfiguration + testConfig)
-    }
-
-    fun DIGraphConfiguration.registerAndroidSDKComponent() {
-        setupAndroidSDKComponent(application = applicationMock)
     }
 }

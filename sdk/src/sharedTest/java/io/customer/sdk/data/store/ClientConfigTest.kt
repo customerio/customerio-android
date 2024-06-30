@@ -7,7 +7,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class ClientTest : BaseTest() {
+class ClientConfigTest : BaseTest() {
     @Test
     fun initialize_givenAndroid_expectAndroidClient() {
         val androidClient = Client.Android(sdkVersion = "2.6.3")

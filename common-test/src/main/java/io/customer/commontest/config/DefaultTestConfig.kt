@@ -1,14 +1,21 @@
 package io.customer.commontest.config
 
 class DefaultTestConfig internal constructor(
+    override val arguments: List<TestArgument>,
     override val diGraph: DIGraphConfiguration
 ) : TestConfig {
     override fun plus(other: TestConfig): TestConfig {
-        return DefaultTestConfig(diGraph = diGraph + other.diGraph)
+        return DefaultTestConfig(
+            arguments = arguments + other.arguments,
+            diGraph = diGraph + other.diGraph
+        )
     }
 
     class Builder : TestConfigBuilder<DefaultTestConfig>() {
-        override fun build(): DefaultTestConfig = DefaultTestConfig(diGraph = diGraphConfiguration)
+        override fun build(): DefaultTestConfig = DefaultTestConfig(
+            arguments = arguments,
+            diGraph = diGraphConfiguration
+        )
     }
 }
 

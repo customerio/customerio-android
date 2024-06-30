@@ -29,7 +29,7 @@ class ModuleMessagingPushFCMTest : JUnitTest() {
                         overrideDependency<EventBus>(mockk(relaxed = true))
                     }
                     android {
-                        overrideDependency<DeviceTokenProvider>(mockk(relaxed = true))
+                        overrideDependency(DeviceTokenProvider::class.java, mockk(relaxed = true))
                     }
                 }
             }

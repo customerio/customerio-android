@@ -4,7 +4,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
-import io.customer.datapipelines.testutils.core.JUnitTestDelegate
+import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.data.model.UserTraits
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
-class DataPipelinesInteractionTests : JUnitTestDelegate() {
+class DataPipelinesInteractionTests : JUnitTest() {
     //region Setup test environment
 
     private lateinit var outputReaderPlugin: OutputReaderPlugin

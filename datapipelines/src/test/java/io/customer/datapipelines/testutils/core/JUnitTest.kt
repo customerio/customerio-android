@@ -9,7 +9,7 @@ import org.junit.jupiter.api.BeforeEach
  * Thr class uses test application instance to allow running tests without depending
  * on Android context and resources.
  */
-open class JUnitTestDelegate : UnitTestDelegate() {
+open class JUnitTest : UnitTestDelegate() {
     override var testApplication: Any = "Test"
 
     @BeforeEach

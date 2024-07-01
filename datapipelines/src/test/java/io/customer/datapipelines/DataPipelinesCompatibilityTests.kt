@@ -7,7 +7,7 @@ import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
-import io.customer.datapipelines.testutils.core.JUnitTestDelegate
+import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.data.model.UserTraits
 import io.customer.datapipelines.testutils.extensions.decodeJson
@@ -35,7 +35,7 @@ import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
-class DataPipelinesCompatibilityTests : JUnitTestDelegate() {
+class DataPipelinesCompatibilityTests : JUnitTest() {
     //region Setup test environment
 
     private lateinit var storage: Storage

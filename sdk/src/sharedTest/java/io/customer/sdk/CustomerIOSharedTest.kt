@@ -1,7 +1,7 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.core.BaseTest
+import io.customer.sdk.commontest.BaseTest
 import io.customer.sdk.core.environment.BuildEnvironment
 import io.customer.sdk.di.CustomerIOSharedComponent
 import io.customer.sdk.di.CustomerIOStaticComponent

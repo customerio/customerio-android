@@ -4,8 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.add
 import io.customer.base.extenstions.hasPassed
 import io.customer.base.extenstions.subtract
-import io.customer.commontest.core.BaseTest
-import io.customer.commontest.extensions.toResponseBody
+import io.customer.sdk.commontest.BaseTest
+import io.customer.sdk.commontest.toResponseBody
 import io.customer.sdk.error.CustomerIOApiErrorResponse
 import io.customer.sdk.error.CustomerIOApiErrorsResponse
 import io.customer.sdk.error.CustomerIOError

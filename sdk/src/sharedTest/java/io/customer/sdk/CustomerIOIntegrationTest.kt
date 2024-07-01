@@ -1,11 +1,11 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.core.RobolectricTest
-import io.customer.commontest.extensions.enqueue
-import io.customer.commontest.extensions.enqueueNoInternetConnection
-import io.customer.commontest.extensions.enqueueSuccessful
 import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.commontest.RobolectricTest
+import io.customer.sdk.commontest.enqueue
+import io.customer.sdk.commontest.enqueueNoInternetConnection
+import io.customer.sdk.commontest.enqueueSuccessful
 import io.customer.sdk.data.request.MetricEvent
 import io.customer.sdk.extensions.random
 import kotlinx.coroutines.test.runTest

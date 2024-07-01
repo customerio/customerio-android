@@ -2,7 +2,7 @@ package io.customer.sdk.util
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.squareup.moshi.JsonClass
-import io.customer.commontest.core.BaseTest
+import io.customer.sdk.commontest.BaseTest
 import org.amshove.kluent.AnyException
 import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEqualTo

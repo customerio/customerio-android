@@ -1,8 +1,8 @@
 package io.customer.sdk.data.moshi.adapter
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.core.BaseTest
-import io.customer.sdk.utils.TestCustomAttributesDataSet
+import io.customer.sdk.commontest.BaseTest
+import io.customer.sdk.commontest.TestCustomAttributesDataSet
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.junit.Before

@@ -2,7 +2,7 @@ package io.customer.sdk.repository
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.base.extenstions.unixTimeToDate
-import io.customer.commontest.core.BaseTest
+import io.customer.sdk.commontest.BaseTest
 import io.customer.sdk.repository.preference.SitePreferenceRepository
 import io.customer.sdk.repository.preference.SitePreferenceRepositoryImpl
 import java.util.*

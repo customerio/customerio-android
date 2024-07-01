@@ -1,7 +1,7 @@
 package io.customer.sdk.api
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import io.customer.sdk.util.Seconds
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeEqualTo

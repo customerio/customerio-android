@@ -4,20 +4,20 @@ import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.emptyJsonArray
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
-import io.customer.datapipelines.support.core.JUnitTest
-import io.customer.datapipelines.support.core.TestConfiguration
-import io.customer.datapipelines.support.core.testConfiguration
-import io.customer.datapipelines.support.data.model.UserTraits
-import io.customer.datapipelines.support.extensions.decodeJson
-import io.customer.datapipelines.support.extensions.deviceToken
-import io.customer.datapipelines.support.extensions.encodeToJsonElement
-import io.customer.datapipelines.support.extensions.shouldMatchTo
-import io.customer.datapipelines.support.extensions.toJsonObject
-import io.customer.datapipelines.support.utils.TestConstants
+import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.random
+import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
+import io.customer.datapipelines.testutils.core.JUnitTestDelegate
+import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.datapipelines.testutils.data.model.UserTraits
+import io.customer.datapipelines.testutils.extensions.decodeJson
+import io.customer.datapipelines.testutils.extensions.deviceToken
+import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
+import io.customer.datapipelines.testutils.extensions.shouldMatchTo
+import io.customer.datapipelines.testutils.extensions.toJsonObject
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
-import io.customer.sdk.extensions.random
 import io.mockk.every
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
@@ -35,12 +35,12 @@ import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
-class DataPipelinesCompatibilityTests : JUnitTest() {
+class DataPipelinesCompatibilityTests : JUnitTestDelegate() {
     //region Setup test environment
 
     private lateinit var storage: Storage
 
-    override fun setupTestEnvironment(testConfig: TestConfiguration) {
+    override fun setupTestEnvironment(testConfig: DataPipelinesTestConfig) {
         super.setupTestEnvironment(
             testConfiguration {
                 sdkConfig {

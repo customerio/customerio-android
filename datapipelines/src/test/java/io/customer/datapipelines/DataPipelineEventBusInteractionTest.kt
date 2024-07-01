@@ -1,6 +1,6 @@
 package io.customer.datapipelines
 
-import io.customer.datapipelines.support.core.JUnitTest
+import io.customer.datapipelines.testutils.core.JUnitTestDelegate
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
@@ -9,7 +9,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 
-class DataPipelineEventBusInteractionTest : JUnitTest() {
+class DataPipelineEventBusInteractionTest : JUnitTestDelegate() {
 
     private lateinit var eventBus: EventBus
 

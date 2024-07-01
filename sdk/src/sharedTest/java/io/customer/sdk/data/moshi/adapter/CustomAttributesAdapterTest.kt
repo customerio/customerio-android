@@ -1,7 +1,7 @@
 package io.customer.sdk.data.moshi.adapter
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import io.customer.sdk.utils.TestCustomAttributesDataSet
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse

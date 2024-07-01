@@ -1,19 +1,19 @@
 package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
-import io.customer.datapipelines.support.core.JUnitTest
-import io.customer.datapipelines.support.core.TestConfiguration
-import io.customer.datapipelines.support.data.model.UserTraits
-import io.customer.datapipelines.support.extensions.deviceToken
-import io.customer.datapipelines.support.extensions.encodeToJsonElement
-import io.customer.datapipelines.support.extensions.shouldMatchTo
-import io.customer.datapipelines.support.utils.OutputReaderPlugin
-import io.customer.datapipelines.support.utils.TestConstants
-import io.customer.datapipelines.support.utils.identifyEvents
-import io.customer.datapipelines.support.utils.screenEvents
-import io.customer.datapipelines.support.utils.trackEvents
+import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.random
+import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
+import io.customer.datapipelines.testutils.core.JUnitTestDelegate
+import io.customer.datapipelines.testutils.data.model.UserTraits
+import io.customer.datapipelines.testutils.extensions.deviceToken
+import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
+import io.customer.datapipelines.testutils.extensions.shouldMatchTo
+import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.identifyEvents
+import io.customer.datapipelines.testutils.utils.screenEvents
+import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.data.model.CustomAttributes
-import io.customer.sdk.extensions.random
 import io.mockk.every
 import io.mockk.verify
 import kotlinx.serialization.json.buildJsonObject
@@ -29,12 +29,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
-class DataPipelinesInteractionTests : JUnitTest() {
+class DataPipelinesInteractionTests : JUnitTestDelegate() {
     //region Setup test environment
 
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
-    override fun setupTestEnvironment(testConfig: TestConfiguration) {
+    override fun setupTestEnvironment(testConfig: DataPipelinesTestConfig) {
         super.setupTestEnvironment(testConfig)
 
         outputReaderPlugin = OutputReaderPlugin()

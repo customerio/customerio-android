@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
@@ -111,7 +112,7 @@ class MessagingInAppIntegrationTest : RobolectricTest() {
         modules.add(
             ModuleMessagingInApp(
                 config = MessagingInAppModuleConfig.Builder(
-                    siteId = "test-site-id",
+                    siteId = TestConstants.Keys.SITE_ID,
                     region = Region.US
                 ).build()
             )

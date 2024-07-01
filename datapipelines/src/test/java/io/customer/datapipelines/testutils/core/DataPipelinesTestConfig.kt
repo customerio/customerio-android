@@ -1,6 +1,7 @@
 package io.customer.datapipelines.testutils.core
 
 import com.segment.analytics.kotlin.core.Analytics
+import io.customer.commontest.core.TestConstants
 import io.customer.sdk.CustomerIOBuilder
 
 /**
@@ -17,7 +18,7 @@ class DataPipelinesTestConfig private constructor(
     val configurePlugins: Analytics.() -> Unit
 ) {
     class Builder {
-        private var cdpApiKey: String = TEST_CDP_API_KEY
+        private var cdpApiKey: String = TestConstants.Keys.CDP_API_KEY
         private var sdkConfig: CustomerIOBuilder.() -> Unit = {}
         private var configurePlugins: Analytics.() -> Unit = {}
 
@@ -38,10 +39,6 @@ class DataPipelinesTestConfig private constructor(
             sdkConfig = sdkConfig,
             configurePlugins = configurePlugins
         )
-
-        companion object {
-            const val TEST_CDP_API_KEY = "TESTING_API_KEY"
-        }
     }
 }
 

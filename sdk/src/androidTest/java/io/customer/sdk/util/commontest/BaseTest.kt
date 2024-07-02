@@ -1,4 +1,4 @@
-package io.customer.commontest.core
+package io.customer.sdk.util.commontest
 
 import android.app.Application
 import android.content.Context
@@ -50,6 +50,7 @@ abstract class BaseTest {
         get() = di.jsonAdapter
 
     protected lateinit var mockWebServer: MockWebServer
+    protected lateinit var dateUtilStub: DateUtilStub
 
     // convenient method for test functions to test a failed HTTP request
     protected fun getHttpError(code: Int, body: String = "{}"): HttpException {
@@ -117,6 +118,9 @@ abstract class BaseTest {
         di.fileStorage.deleteAllSdkFiles()
         di.sitePreferenceRepository.clearAll()
 
+        dateUtilStub = DateUtilStub().also {
+            di.overrideDependency(DateUtil::class.java, it)
+        }
         deviceStore = DeviceStoreStub().getDeviceStore(cioConfig.client)
         dispatchersProviderStub = DispatchersProviderStub().also {
             staticDIComponent.overrideDependency(DispatchersProvider::class.java, it)

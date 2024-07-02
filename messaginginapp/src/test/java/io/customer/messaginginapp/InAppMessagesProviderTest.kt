@@ -1,13 +1,13 @@
 package io.customer.messaginginapp
 
+import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
-import io.customer.messaginginapp.support.core.JUnitTest
-import io.customer.messaginginapp.support.extension.getNewRandom
+import io.customer.messaginginapp.testutils.core.JUnitTest
+import io.customer.messaginginapp.testutils.extension.getNewRandom
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
-import io.customer.sdk.extensions.random
 import io.mockk.Call
 import io.mockk.Called
 import io.mockk.every

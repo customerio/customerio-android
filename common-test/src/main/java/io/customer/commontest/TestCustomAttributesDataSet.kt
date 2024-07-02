@@ -1,8 +1,8 @@
 package io.customer.sdk.utils
 
 import io.customer.base.extenstions.unixTimeToDate
+import io.customer.commontest.extensions.random
 import io.customer.sdk.data.model.CustomAttributes
-import io.customer.sdk.extensions.random
 import java.util.*
 
 /**

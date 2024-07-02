@@ -1,7 +1,7 @@
 package io.customer.sdk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.sdk.android.CustomerIO
 import io.customer.sdk.core.util.CioLogLevel

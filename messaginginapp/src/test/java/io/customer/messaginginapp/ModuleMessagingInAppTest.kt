@@ -1,10 +1,12 @@
 package io.customer.messaginginapp
 
 import android.app.Application
+import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
-import io.customer.messaginginapp.support.core.JUnitTest
+import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
@@ -13,7 +15,6 @@ import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.store.Client
-import io.customer.sdk.extensions.random
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -41,7 +42,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         eventBus = SDKComponent.eventBus
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TEST_SITE_ID,
+                siteId = TestConstants.Keys.SITE_ID,
                 region = Region.US
             ).setEventListener(inAppEventListenerMock).build()
         )

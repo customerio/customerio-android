@@ -2,7 +2,7 @@ package io.customer.sdk.util
 
 import androidx.test.annotation.UiThreadTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.After

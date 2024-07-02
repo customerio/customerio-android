@@ -1,7 +1,7 @@
 package io.customer.sdk.util
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseTest
+import io.customer.commontest.core.BaseTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith

@@ -24,7 +24,7 @@ object SDKComponent : DiGraph() {
     // Static map to store all the modules registered with the SDK
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
 
-    // Android specific dependencies
+    // Android component dependencies
     val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks
         get() = singleton<CustomerIOActivityLifecycleCallbacks> { CustomerIOActivityLifecycleCallbacks() }
     internal val androidSDKComponent: AndroidSDKComponent?

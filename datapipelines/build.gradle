@@ -44,7 +44,7 @@ dependencies {
     testImplementation(Dependencies.mockitoKotlin)
     testImplementation(Dependencies.robolectric)
 
-    testImplementation(Dependencies.mockk)
+    testImplementation(Dependencies.mockK)
     testImplementation(Dependencies.coroutinesTest)
 
     testImplementation(platform(Dependencies.junitBom))

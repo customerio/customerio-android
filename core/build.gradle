@@ -40,7 +40,7 @@ dependencies {
 
     implementation Dependencies.coroutinesAndroid
 
-    testImplementation(Dependencies.mockk)
+    testImplementation(Dependencies.mockK)
     testImplementation(Dependencies.coroutinesTest)
 
     testImplementation(platform(Dependencies.junitBom))

@@ -45,7 +45,7 @@ dependencies {
     implementation Dependencies.googlePlayServicesBase
 
     // MockK dependencies for testing
-    testImplementation(Dependencies.mockk)
+    testImplementation(Dependencies.mockK)
     testImplementation(Dependencies.coroutinesTest)
     // JUnit 5 dependencies for testing
     testImplementation(platform(Dependencies.junitBom))

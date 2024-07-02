@@ -105,8 +105,9 @@ abstract class DiGraph {
      * `di.overrideDependency(CustomerIOInstance::class.java, customerIOMock)`
      * See `CustomerIOTest` (or any other class that is top-level of the module) for an example on use.
      */
-    fun <Dependency : Any> overrideDependency(dependency: Class<Dependency>, value: Dependency) {
-        overrides[dependency.name] = value as Any
+    inline fun <reified Dependency : Any> overrideDependency(value: Dependency, identifier: String? = null) {
+        val key = dependencyKey<Dependency>(identifier)
+        overrides[key] = value as Any
     }
 
     /**

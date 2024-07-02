@@ -13,7 +13,6 @@ object Versions {
     internal const val APK_SCALE = "0.1.7"
     internal const val COROUTINES = "1.6.4"
     internal const val DOKKA = "1.5.0"
-    internal const val JUNIT4 = "4.13.2"
     internal const val JUNIT_BOM = "5.9.3"
     internal const val ESPRESSO = "3.4.0"
     internal const val FIREBASE_MESSAGING = "23.1.0"

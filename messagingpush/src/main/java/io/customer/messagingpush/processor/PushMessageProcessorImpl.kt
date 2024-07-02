@@ -139,13 +139,13 @@ internal class PushMessageProcessorImpl(
 
         // check if host app overrides the handling of deeplink
         val notificationCallback = moduleConfig.notificationCallback
-        val taskStackFromPayload = notificationCallback?.createTaskStackFromPayload(
+        val wasClicked = notificationCallback?.onNotificationClicked(
             context = activityContext,
             payload = payload
         )
-        if (taskStackFromPayload != null) {
+
+        if (wasClicked != null) {
             logger.info("Notification target overridden by createTaskStackFromPayload, starting new stack for link $deepLink")
-            taskStackFromPayload.startActivities()
             return
         }
 

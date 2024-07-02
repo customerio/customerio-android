@@ -3,7 +3,7 @@ package io.customer.messaginginapp
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
-import io.customer.messaginginapp.support.core.JUnitTest
+import io.customer.messaginginapp.testutils.core.JUnitTest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread

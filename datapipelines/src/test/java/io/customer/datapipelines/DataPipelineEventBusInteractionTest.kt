@@ -1,6 +1,6 @@
 package io.customer.datapipelines
 
-import io.customer.datapipelines.support.core.JUnitTest
+import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent

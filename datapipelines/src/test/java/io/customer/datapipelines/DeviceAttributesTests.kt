@@ -3,15 +3,15 @@ package io.customer.datapipelines
 import android.Manifest
 import android.content.pm.PackageManager
 import com.segment.analytics.kotlin.android.plugins.AndroidContextPlugin
-import io.customer.datapipelines.support.core.RobolectricTest
-import io.customer.datapipelines.support.core.TestConfiguration
-import io.customer.datapipelines.support.core.testConfiguration
-import io.customer.datapipelines.support.extensions.deviceToken
-import io.customer.datapipelines.support.extensions.encodeToJsonValue
-import io.customer.datapipelines.support.utils.OutputReaderPlugin
-import io.customer.datapipelines.support.utils.TestConstants
-import io.customer.datapipelines.support.utils.trackEvents
-import io.customer.sdk.extensions.random
+import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.random
+import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
+import io.customer.datapipelines.testutils.core.IntegrationTest
+import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.datapipelines.testutils.extensions.deviceToken
+import io.customer.datapipelines.testutils.extensions.encodeToJsonValue
+import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.trackEvents
 import io.mockk.every
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -31,7 +31,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
-class DeviceAttributesTests : RobolectricTest() {
+class DeviceAttributesTests : IntegrationTest() {
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
     init {
@@ -45,7 +45,7 @@ class DeviceAttributesTests : RobolectricTest() {
         // and we want to test the SDK with different configurations in each test
     }
 
-    override fun setupTestEnvironment(testConfig: TestConfiguration) {
+    override fun setupTestEnvironment(testConfig: DataPipelinesTestConfig) {
         super.setupTestEnvironment(testConfig)
 
         outputReaderPlugin = OutputReaderPlugin()

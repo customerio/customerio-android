@@ -5,10 +5,10 @@ import android.os.Bundle
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecyclePlugin
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.TrackEvent
-import io.customer.datapipelines.support.core.RobolectricTest
-import io.customer.datapipelines.support.core.testConfiguration
-import io.customer.datapipelines.support.utils.TestRunPlugin
-import io.customer.sdk.extensions.random
+import io.customer.commontest.extensions.random
+import io.customer.datapipelines.testutils.core.IntegrationTest
+import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.datapipelines.testutils.utils.TestRunPlugin
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -30,7 +30,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
-class AndroidLifecyclePluginTests : RobolectricTest() {
+class AndroidLifecyclePluginTests : IntegrationTest() {
     private val lifecyclePlugin = AndroidLifecyclePlugin()
 
     init {

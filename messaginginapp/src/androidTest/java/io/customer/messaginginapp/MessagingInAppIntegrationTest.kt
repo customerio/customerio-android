@@ -3,7 +3,9 @@ package io.customer.messaginginapp
 import android.app.Activity
 import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.BaseIntegrationTest
+import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.Message
@@ -28,7 +30,6 @@ import io.customer.sdk.CustomerIOConfig
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.extensions.random
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -58,7 +59,7 @@ import org.mockito.kotlin.whenever
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
-class MessagingInAppIntegrationTest : BaseIntegrationTest() {
+class MessagingInAppIntegrationTest : RobolectricTest() {
     private val consumerAppActivityMock: Activity = mock()
     private val inAppEventListenerMock: InAppEventListener = mock()
     private val gistEnvironmentMock: GistEnvironment = mock()
@@ -111,7 +112,7 @@ class MessagingInAppIntegrationTest : BaseIntegrationTest() {
         modules.add(
             ModuleMessagingInApp(
                 config = MessagingInAppModuleConfig.Builder(
-                    siteId = "test-site-id",
+                    siteId = TestConstants.Keys.SITE_ID,
                     region = Region.US
                 ).build()
             )

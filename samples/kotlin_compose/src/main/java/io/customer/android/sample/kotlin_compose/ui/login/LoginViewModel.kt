@@ -1,8 +1,6 @@
 package io.customer.android.sample.kotlin_compose.ui.login
 
-import android.os.Build
 import android.util.Patterns
-import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -43,7 +41,6 @@ class LoginViewModel @Inject constructor(
         loadData()
     }
 
-    @RequiresApi(Build.VERSION_CODES.FROYO)
     fun loginUser(email: String, name: String, onLoginSuccess: () -> Unit) {
         if (email.isEmpty() || Patterns.EMAIL_ADDRESS.matcher(email).matches().not()) {
             _uiState.update {

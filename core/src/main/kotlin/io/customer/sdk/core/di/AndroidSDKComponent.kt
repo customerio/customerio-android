@@ -33,6 +33,11 @@ class AndroidSDKComponentImpl(
 ) : AndroidSDKComponent() {
     override val application: Application
         get() = newInstance<Application> { context.applicationContext as Application }
+
+    init {
+        SDKComponent.activityLifecycleCallbacks.register(application)
+    }
+
     override val applicationContext: Context
         get() = newInstance<Context> { context.applicationContext }
     override val buildStore: BuildStore
@@ -49,4 +54,10 @@ class AndroidSDKComponentImpl(
         }
     override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
+
+    override fun reset() {
+        super.reset()
+
+        SDKComponent.activityLifecycleCallbacks.unregister(application)
+    }
 }

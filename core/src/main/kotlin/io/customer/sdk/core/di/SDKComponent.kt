@@ -11,6 +11,7 @@ import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.core.util.SdkDispatchers
 import io.customer.sdk.core.util.SdkScopeProvider
+import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
 
 /**
  * Object level DiGraph for the SDK. Provides a centralized way to manage all
@@ -23,6 +24,9 @@ object SDKComponent : DiGraph() {
     // Static map to store all the modules registered with the SDK
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
 
+    // Android component dependencies
+    val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks
+        get() = singleton<CustomerIOActivityLifecycleCallbacks> { CustomerIOActivityLifecycleCallbacks() }
     internal val androidSDKComponent: AndroidSDKComponent?
         get() = getOrNull()
 

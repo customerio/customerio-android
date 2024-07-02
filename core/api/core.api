@@ -130,6 +130,7 @@ public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer
 	public fun getClient ()Lio/customer/sdk/data/store/Client;
 	public fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
 	public fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+	public fun reset ()V
 }
 
 public abstract class io/customer/sdk/core/di/DiGraph {
@@ -143,6 +144,7 @@ public abstract class io/customer/sdk/core/di/DiGraph {
 public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/di/DiGraph {
 	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
 	public final fun android ()Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks;
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
 	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;
@@ -224,6 +226,7 @@ public abstract interface class io/customer/sdk/core/util/Logger {
 
 public abstract interface class io/customer/sdk/core/util/ScopeProvider {
 	public abstract fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
+	public abstract fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
 }
 
 public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/core/util/DispatchersProvider {
@@ -236,6 +239,7 @@ public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/co
 public final class io/customer/sdk/core/util/SdkScopeProvider : io/customer/sdk/core/util/ScopeProvider {
 	public fun <init> (Lio/customer/sdk/core/util/DispatchersProvider;)V
 	public fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
+	public fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
 }
 
 public abstract class io/customer/sdk/data/model/Region {
@@ -307,14 +311,33 @@ public final class io/customer/sdk/events/TrackMetric$Push : io/customer/sdk/eve
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/customer/sdk/lifecycle/LifecycleCallback {
-	public abstract fun getEventsToObserve ()Ljava/util/List;
-	public abstract fun onEventChanged (Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
+public final class io/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
+	public fun <init> ()V
+	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityDestroyed (Landroid/app/Activity;)V
+	public fun onActivityPaused (Landroid/app/Activity;)V
+	public fun onActivityResumed (Landroid/app/Activity;)V
+	public fun onActivitySaveInstanceState (Landroid/app/Activity;Landroid/os/Bundle;)V
+	public fun onActivityStarted (Landroid/app/Activity;)V
+	public fun onActivityStopped (Landroid/app/Activity;)V
+	public final fun register (Landroid/app/Application;)V
+	public final fun subscribe (Lkotlin/jvm/functions/Function3;)V
+	public final fun unregister (Landroid/app/Application;)V
 }
 
-public final class io/customer/sdk/lifecycle/LifecycleCallback$DefaultImpls {
-	public static fun onEventChanged (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
-	public static synthetic fun onEventChanged$default (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;ILjava/lang/Object;)V
+public final class io/customer/sdk/lifecycle/LifecycleStateChange {
+	public fun <init> (Landroid/app/Activity;Landroidx/lifecycle/Lifecycle$Event;Landroid/os/Bundle;)V
+	public final fun component1 ()Landroid/app/Activity;
+	public final fun component2 ()Landroidx/lifecycle/Lifecycle$Event;
+	public final fun component3 ()Landroid/os/Bundle;
+	public final fun copy (Landroid/app/Activity;Landroidx/lifecycle/Lifecycle$Event;Landroid/os/Bundle;)Lio/customer/sdk/lifecycle/LifecycleStateChange;
+	public static synthetic fun copy$default (Lio/customer/sdk/lifecycle/LifecycleStateChange;Landroid/app/Activity;Landroidx/lifecycle/Lifecycle$Event;Landroid/os/Bundle;ILjava/lang/Object;)Lio/customer/sdk/lifecycle/LifecycleStateChange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActivity ()Landroid/app/Activity;
+	public final fun getBundle ()Landroid/os/Bundle;
+	public final fun getEvent ()Landroidx/lifecycle/Lifecycle$Event;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class io/customer/sdk/tracking/TrackableScreen {

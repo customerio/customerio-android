@@ -284,6 +284,16 @@ public abstract class io/customer/sdk/hooks/ModuleHookProvider {
 	public fun screenTrackedHook (Lio/customer/sdk/hooks/ModuleHook$ScreenTrackedHook;)V
 }
 
+public abstract interface class io/customer/sdk/lifecycle/LifecycleCallback {
+	public abstract fun getEventsToObserve ()Ljava/util/List;
+	public abstract fun onEventChanged (Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
+}
+
+public final class io/customer/sdk/lifecycle/LifecycleCallback$DefaultImpls {
+	public static fun onEventChanged (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;)V
+	public static synthetic fun onEventChanged$default (Lio/customer/sdk/lifecycle/LifecycleCallback;Landroidx/lifecycle/Lifecycle$Event;Landroid/app/Activity;Landroid/os/Bundle;ILjava/lang/Object;)V
+}
+
 public abstract interface class io/customer/sdk/repository/DeviceRepository {
 	public abstract fun addCustomDeviceAttributes (Ljava/util/Map;)V
 	public abstract fun deleteDeviceToken ()V

@@ -134,6 +134,11 @@ abstract class DiGraph {
     }
 
     // TODO: Remove deprecated functions after all usages are removed.
+    @Deprecated("Use overrideDependency<Dependency> instead", ReplaceWith("overrideDependency<Dependency>(value)"))
+    fun <Dependency : Any> overrideDependency(dependency: Class<Dependency>, value: Dependency) {
+        overrides[dependency.name] = value as Any
+    }
+
     @Deprecated("Use newInstance or singleton instead", ReplaceWith("newInstance()"))
     inline fun <reified DEP : Any> override(): DEP? = overrides[dependencyKey<DEP>(identifier = null)] as? DEP
 

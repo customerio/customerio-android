@@ -17,6 +17,14 @@ import io.mockk.clearAllMocks
  * initializing the SDK component and clearing all mocks.
  * The class should only contain the common setup and teardown logic for all tests.
  * Any additional setup or teardown logic should be implemented in respective child classes.
+ *
+ * Current hierarchy of base test classes:
+ *
+ * [BaseTest]
+ *  ├─ [AndroidTest] (for all Android tests running on device/emulator with JUnit4)
+ *  └─ [UnitTest] (for all unit tests running on JVM)
+ *      ├─ [JUnit5Test] (for all JVM tests using JUnit5)
+ *      └─ [RobolectricTest] (for all JVM tests using Robolectric with JUnit4)
  */
 abstract class BaseTest {
     protected open fun setup(testConfig: TestConfig = testConfigurationDefault { }) {

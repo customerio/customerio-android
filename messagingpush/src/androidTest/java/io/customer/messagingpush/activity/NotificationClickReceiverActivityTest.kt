@@ -5,29 +5,42 @@ import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.core.AndroidTest
+import io.customer.commontest.extensions.overrideDependency
 import io.customer.commontest.extensions.random
+import io.customer.commontest.extensions.verifyNoInteractions
+import io.customer.commontest.extensions.verifyOnce
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessor
-import io.customer.sdk.android.CustomerIO
+import io.customer.sdk.communication.EventBus
+import io.customer.sdk.core.di.SDKComponent
+import io.mockk.mockk
 import org.amshove.kluent.shouldBeEqualTo
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
 
 @RunWith(AndroidJUnit4::class)
-class NotificationClickReceiverActivityTest : RobolectricTest() {
-    private val pushMessageProcessorMock: PushMessageProcessor = mock()
+class NotificationClickReceiverActivityTest : AndroidTest() {
+    private lateinit var eventBus: EventBus
+    private lateinit var pushMessageProcessorMock: PushMessageProcessor
 
-    @Before
-    override fun setup() {
-        super.setup()
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<EventBus>(mockk(relaxed = true))
+                        overrideDependency<PushMessageProcessor>(mockk(relaxed = true))
+                    }
+                }
+            }
+        )
 
-        di.overrideDependency(PushMessageProcessor::class.java, pushMessageProcessorMock)
+        eventBus = SDKComponent.eventBus
+        pushMessageProcessorMock = SDKComponent.pushMessageProcessor
     }
 
     private fun pushActivityExtras(): Bundle {
@@ -53,21 +66,22 @@ class NotificationClickReceiverActivityTest : RobolectricTest() {
 
         val scenario = ActivityScenario.launch<NotificationClickReceiverActivity>(intent)
 
-        verify(pushMessageProcessorMock).processNotificationClick(any(), any())
+        verifyOnce {
+            pushMessageProcessorMock.processNotificationClick(any(), any())
+        }
         scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
     }
 
     @Test
-    fun clickNotification_givenSDKNotInitialized_expectDoNoProcessPush() {
+    fun clickNotification_givenSDKNotInitialized_expectProcessPush() {
         val extras = pushActivityExtras()
 
         val intent = Intent(context, NotificationClickReceiverActivity::class.java)
         intent.putExtras(extras)
 
-        CustomerIO.clearInstance()
         val scenario = ActivityScenario.launch<NotificationClickReceiverActivity>(intent)
 
-        verifyNoInteractions(pushMessageProcessorMock)
+        verifyOnce { pushMessageProcessorMock.processNotificationClick(any(), any()) }
         scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
     }
 

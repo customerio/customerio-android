@@ -60,7 +60,7 @@ object GistSdk {
     @JvmStatic
     fun getInstance() = this
 
-    private fun onActivityResumed(activity: Activity) {
+    internal fun onActivityResumed(activity: Activity) {
         resumedActivities.add(activity.javaClass.name)
 
         // Start polling if app is resumed and user messages are not being observed
@@ -72,7 +72,7 @@ object GistSdk {
         }
     }
 
-    private fun onActivityPaused(activity: Activity) {
+    internal fun onActivityPaused(activity: Activity) {
         resumedActivities.remove(activity.javaClass.name)
 
         // Stop polling if app is in background

@@ -3,6 +3,7 @@ package io.customer.datapipelines
 import android.Manifest
 import android.content.pm.PackageManager
 import com.segment.analytics.kotlin.android.plugins.AndroidContextPlugin
+import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
@@ -12,6 +13,8 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonValue
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -23,30 +26,30 @@ import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldHaveSize
 import org.amshove.kluent.shouldNotBeNull
 import org.amshove.kluent.shouldNotBeNullOrBlank
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
 class DeviceAttributesTests : IntegrationTest() {
+    private lateinit var globalPreferenceStore: GlobalPreferenceStore
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
     init {
         // Return permission granted for network state permission so analytics can track network state
-        every { mockApplication.checkCallingOrSelfPermission(Manifest.permission.ACCESS_NETWORK_STATE) } returns PackageManager.PERMISSION_GRANTED
+        every { applicationMock.checkCallingOrSelfPermission(Manifest.permission.ACCESS_NETWORK_STATE) } returns PackageManager.PERMISSION_GRANTED
     }
 
-    @Before
-    override fun setup() {
+    override fun setup(testConfig: TestConfig) {
         // Keep setup empty to avoid calling super.setup() as it will initialize the SDK
         // and we want to test the SDK with different configurations in each test
     }
 
-    override fun setupTestEnvironment(testConfig: DataPipelinesTestConfig) {
-        super.setupTestEnvironment(testConfig)
+    private fun setupWithConfig(testConfig: DataPipelinesTestConfig) {
+        super.setup(testConfig)
+
+        val androidSDKComponent = SDKComponent.android()
+        globalPreferenceStore = androidSDKComponent.globalPreferenceStore
 
         outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
@@ -54,13 +57,13 @@ class DeviceAttributesTests : IntegrationTest() {
 
     @Test
     fun track_givenAutoTrackDeviceAttributesDisabled_expectNoDeviceAttributesInProperties() {
-        setupTestEnvironment(
+        setupWithConfig(
             testConfiguration {
                 sdkConfig {
                     // Disable auto tracking of device attributes
                     setAutoTrackDeviceAttributes(false)
                 }
-                configurePlugins {
+                analytics {
                     // Add Android context plugin so that device attributes can be tracked by analytics
                     add(AndroidContextPlugin())
                 }
@@ -83,12 +86,10 @@ class DeviceAttributesTests : IntegrationTest() {
 
     @Test
     fun track_givenAutoTrackDeviceAttributesEnabled_expectDeviceAttributesInProperties() {
-        setupTestEnvironment(
+        setupWithConfig(
             testConfiguration {
-                sdkConfig {
-                    setAutoTrackDeviceAttributes(true)
-                }
-                configurePlugins {
+                sdkConfig { setAutoTrackDeviceAttributes(true) }
+                analytics {
                     // Add Android context plugin so that device attributes can be tracked by analytics
                     add(AndroidContextPlugin())
                 }
@@ -126,12 +127,10 @@ class DeviceAttributesTests : IntegrationTest() {
 
     @Test
     fun track_givenCustomAttributes_expectPreferCustomAttributesInProperties() {
-        setupTestEnvironment(
+        setupWithConfig(
             testConfiguration {
-                sdkConfig {
-                    setAutoTrackDeviceAttributes(true)
-                }
-                configurePlugins {
+                sdkConfig { setAutoTrackDeviceAttributes(true) }
+                analytics {
                     // Add Android context plugin so that device attributes can be tracked by analytics
                     add(AndroidContextPlugin())
                 }

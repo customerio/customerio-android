@@ -1,16 +1,13 @@
 package io.customer.sdk.core.util
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.customer.commontest.core.BaseTest
+import io.customer.commontest.core.JUnit5Test
 import io.customer.sdk.core.environment.BuildEnvironment
+import io.mockk.every
+import io.mockk.mockk
 import org.amshove.kluent.shouldBeEqualTo
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
+import org.junit.jupiter.api.Test
 
-@RunWith(AndroidJUnit4::class)
-class LoggerTest : BaseTest() {
+class LoggerTest : JUnit5Test() {
 
     // Test log levels
 
@@ -75,8 +72,8 @@ class LoggerTest : BaseTest() {
 
     @Test
     fun verifySDKNotInitialized_givenDebugEnvironment_expectLogLevelDebug() {
-        val buildEnvironment: BuildEnvironment = mock()
-        whenever(buildEnvironment.debugModeEnabled).thenReturn(true)
+        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
+        every { buildEnvironment.debugModeEnabled } returns true
 
         val logger = LogcatLogger(buildEnvironment)
 
@@ -85,8 +82,8 @@ class LoggerTest : BaseTest() {
 
     @Test
     fun verifySDKNotInitialized_givenReleaseEnvironment_expectLogLevelErrors() {
-        val buildEnvironment: BuildEnvironment = mock()
-        whenever(buildEnvironment.debugModeEnabled).thenReturn(false)
+        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
+        every { buildEnvironment.debugModeEnabled } returns false
 
         val logger = LogcatLogger(buildEnvironment)
 
@@ -95,8 +92,8 @@ class LoggerTest : BaseTest() {
 
     @Test
     fun verifySDKInitialized_givenDebugEnvironment_expectLogLevelAsDefined() {
-        val buildEnvironment: BuildEnvironment = mock()
-        whenever(buildEnvironment.debugModeEnabled).thenReturn(true)
+        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
+        every { buildEnvironment.debugModeEnabled } returns true
         val givenLogLevel = CioLogLevel.INFO
 
         val logger = LogcatLogger(buildEnvironment)
@@ -107,8 +104,8 @@ class LoggerTest : BaseTest() {
 
     @Test
     fun verifySDKInitialized_givenReleaseEnvironment_expectLogLevelAsDefined() {
-        val buildEnvironment: BuildEnvironment = mock()
-        whenever(buildEnvironment.debugModeEnabled).thenReturn(false)
+        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
+        every { buildEnvironment.debugModeEnabled } returns false
         val givenLogLevel = CioLogLevel.NONE
 
         val logger = LogcatLogger(buildEnvironment)

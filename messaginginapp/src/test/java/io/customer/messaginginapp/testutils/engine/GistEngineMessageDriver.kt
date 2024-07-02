@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.testutils
+package io.customer.messaginginapp.testutils.engine
 
 import android.webkit.WebView
 import io.customer.messaginginapp.gist.data.model.Message

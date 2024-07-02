@@ -1,35 +1,42 @@
 package io.customer.messagingpush
 
 import android.os.Bundle
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.extensions.overrideDependency
 import io.customer.commontest.extensions.random
+import io.customer.commontest.extensions.verifyNever
+import io.customer.commontest.extensions.verifyOnce
 import io.customer.messagingpush.testutils.core.JUnitTest
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.data.request.MetricEvent
+import io.customer.sdk.events.Metric
+import io.customer.sdk.events.serializedName
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.amshove.kluent.shouldBe
 import org.junit.jupiter.api.Test
 
 class PushTrackingUtilTest : JUnitTest() {
-
     private lateinit var eventBus: EventBus
-    private lateinit var util: PushTrackingUtil
+    private lateinit var pushTrackingUtil: PushTrackingUtil
 
-    override fun setupTestEnvironment() {
-        super.setupTestEnvironment()
-        util = PushTrackingUtilImpl()
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<EventBus>(mockk(relaxed = true))
+                    }
+                }
+            }
+        )
+
         eventBus = SDKComponent.eventBus
-    }
-
-    override fun setupSDKComponent() {
-        super.setupSDKComponent()
-
-        SDKComponent.overrideDependency(EventBus::class.java, mockk(relaxed = true))
+        pushTrackingUtil = PushTrackingUtilImpl()
     }
 
     @Test
@@ -39,11 +46,11 @@ class PushTrackingUtilTest : JUnitTest() {
         every { givenBundle.getString(PushTrackingUtil.DELIVERY_ID_KEY) } returns null
         every { givenBundle.getString(PushTrackingUtil.DELIVERY_TOKEN_KEY) } returns null
 
-        val result = util.parseLaunchedActivityForTracking(givenBundle)
+        val result = pushTrackingUtil.parseLaunchedActivityForTracking(givenBundle)
 
         result shouldBe false
 
-        verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        verifyNever { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
     }
 
     @Test
@@ -55,15 +62,15 @@ class PushTrackingUtilTest : JUnitTest() {
         every { givenBundle.getString(PushTrackingUtil.DELIVERY_ID_KEY) } returns givenDeliveryId
         every { givenBundle.getString(PushTrackingUtil.DELIVERY_TOKEN_KEY) } returns givenDeviceToken
 
-        val result = util.parseLaunchedActivityForTracking(givenBundle)
+        val result = pushTrackingUtil.parseLaunchedActivityForTracking(givenBundle)
 
         result shouldBe true
 
-        verify(exactly = 1) {
+        verifyOnce {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
+                    event = Metric.Opened.serializedName,
                     deliveryId = givenDeliveryId,
-                    event = MetricEvent.opened.name,
                     deviceToken = givenDeviceToken
                 )
             )

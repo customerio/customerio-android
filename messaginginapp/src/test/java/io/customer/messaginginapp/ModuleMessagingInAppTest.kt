@@ -1,9 +1,15 @@
 package io.customer.messaginginapp
 
-import android.app.Application
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.overrideDependency
 import io.customer.commontest.extensions.random
+import io.customer.commontest.extensions.registerModule
+import io.customer.commontest.extensions.verifyNever
+import io.customer.commontest.extensions.verifyOnce
 import io.customer.commontest.util.ScopeProviderStub
+import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.testutils.core.JUnitTest
@@ -11,52 +17,45 @@ import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.registerAndroidSDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.data.store.Client
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Test
 
 internal class ModuleMessagingInAppTest : JUnitTest() {
     private lateinit var eventBus: EventBus
+    private lateinit var inAppMessagesProviderMock: InAppMessagesProvider
     private lateinit var module: ModuleMessagingInApp
 
-    private val applicationContextMock: Application = mockk(relaxed = true)
     private val inAppEventListenerMock: InAppEventListener = mockk(relaxed = true)
-    private val inAppMessagesProviderMock: InAppMessagesProvider = mockk(relaxed = true)
     private val testScopeProviderStub = ScopeProviderStub()
 
     private val moduleConfig: MessagingInAppModuleConfig
         get() = module.moduleConfig
 
-    init {
-        every { applicationContextMock.applicationContext } returns applicationContextMock
-    }
-
-    override fun setupTestEnvironment() {
-        super.setupTestEnvironment()
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<ScopeProvider>(testScopeProviderStub)
+                        overrideDependency(mockk<InAppMessagesProvider>(relaxed = true))
+                    }
+                }
+            }
+        )
 
         eventBus = SDKComponent.eventBus
-        module = ModuleMessagingInApp(
-            config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = Region.US
-            ).setEventListener(inAppEventListenerMock).build()
+        inAppMessagesProviderMock = SDKComponent.gistProvider
+
+        module = registerModule(
+            ModuleMessagingInApp(
+                config = MessagingInAppModuleConfig.Builder(
+                    siteId = TestConstants.Keys.SITE_ID,
+                    region = Region.US
+                ).setEventListener(inAppEventListenerMock).build()
+            )
         )
-        SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] = module
-    }
-
-    override fun setupSDKComponent() {
-        super.setupSDKComponent()
-
-        SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProviderStub)
-        SDKComponent.overrideDependency(InAppMessagesProvider::class.java, inAppMessagesProviderMock)
-        // Because we are not initializing the SDK, we need to register the
-        // Android SDK component manually so that the module can utilize it
-        SDKComponent.registerAndroidSDKComponent(applicationContextMock, Client.Android(sdkVersion = "3.0.0"))
     }
 
     override fun teardown() {
@@ -70,7 +69,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(exactly = 1) {
+        verifyOnce {
             inAppMessagesProviderMock.initProvider(
                 any(),
                 moduleConfig.siteId,
@@ -79,10 +78,10 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         }
 
         // verify events
-        verify(exactly = 1) { inAppMessagesProviderMock.subscribeToEvents(any(), any(), any()) }
+        verifyOnce { inAppMessagesProviderMock.subscribeToEvents(any(), any(), any()) }
 
         // verify given event listener gets registered
-        verify(exactly = 1) { inAppMessagesProviderMock.setListener(inAppEventListenerMock) }
+        verifyOnce { inAppMessagesProviderMock.setListener(inAppEventListenerMock) }
     }
 
     @Test
@@ -91,7 +90,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(exactly = 1) {
+        verifyOnce {
             inAppMessagesProviderMock.initProvider(
                 any(),
                 moduleConfig.siteId,
@@ -102,7 +101,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         // publish profile identified event
         eventBus.publish(Event.ProfileIdentifiedEvent(identifier = givenIdentifier))
         // verify gist sets userToken
-        verify(exactly = 1) { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
+        verifyOnce { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
     }
 
     @Test
@@ -113,7 +112,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(exactly = 1) {
+        verifyOnce {
             inAppMessagesProviderMock.initProvider(
                 any(),
                 moduleConfig.siteId,
@@ -122,7 +121,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         }
 
         // verify gist sets userToken
-        verify(exactly = 1) { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
+        verifyOnce { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
     }
 
     @Test
@@ -130,7 +129,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         module.initialize()
 
         // verify gist is initialized
-        verify(exactly = 1) {
+        verifyOnce {
             inAppMessagesProviderMock.initProvider(
                 any(),
                 moduleConfig.siteId,
@@ -139,7 +138,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         }
 
         // verify gist doesn't userToken
-        verify(exactly = 0) { inAppMessagesProviderMock.setUserToken(any()) }
+        verifyNever { inAppMessagesProviderMock.setUserToken(any()) }
     }
 
     @Test
@@ -150,6 +149,6 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         SDKComponent.inAppMessaging().dismissMessage()
 
         // verify that the module's dismissMessage method was called
-        verify(exactly = 1) { inAppMessagesProviderMock.dismissMessage() }
+        verifyOnce { inAppMessagesProviderMock.dismissMessage() }
     }
 }

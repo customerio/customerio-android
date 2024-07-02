@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.testutils
+package io.customer.messaginginapp.testutils.extension
 
 import android.util.Base64
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,6 +9,9 @@ import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.getMessage
+
+fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random).getMessage()
 
 fun mapToInAppMessage(message: Message): InAppMessage = InAppMessage.getFromGistMessage(gistMessage = message)
 

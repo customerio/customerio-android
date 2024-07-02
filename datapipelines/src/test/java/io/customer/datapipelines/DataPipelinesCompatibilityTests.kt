@@ -4,9 +4,9 @@ import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.emptyJsonArray
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
+import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
-import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.data.model.UserTraits
@@ -15,7 +15,10 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.extensions.toJsonObject
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.store.DeviceStore
+import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
 import io.mockk.every
@@ -38,10 +41,12 @@ import org.junit.jupiter.api.Test
 class DataPipelinesCompatibilityTests : JUnitTest() {
     //region Setup test environment
 
+    private lateinit var globalPreferenceStore: GlobalPreferenceStore
+    private lateinit var deviceStore: DeviceStore
     private lateinit var storage: Storage
 
-    override fun setupTestEnvironment(testConfig: DataPipelinesTestConfig) {
-        super.setupTestEnvironment(
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
             testConfiguration {
                 sdkConfig {
                     // Enable adding destination so events are processed and stored in the storage
@@ -49,6 +54,10 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
                 }
             }
         )
+
+        val androidSDKComponent = SDKComponent.android()
+        globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+        deviceStore = androidSDKComponent.deviceStore
 
         storage = analytics.storage
     }

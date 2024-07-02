@@ -1,7 +1,9 @@
 package io.customer.datapipelines.testutils.core
 
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
+import com.segment.analytics.kotlin.core.Analytics
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.core.JUnit5Test
+import io.customer.sdk.CustomerIO
 
 /**
  * Extension of the [UnitTestDelegate] class to provide setup and teardown methods for
@@ -9,16 +11,23 @@ import org.junit.jupiter.api.BeforeEach
  * Thr class uses test application instance to allow running tests without depending
  * on Android context and resources.
  */
-open class JUnitTest : UnitTestDelegate() {
-    override var testApplication: Any = "Test"
+abstract class JUnitTest : JUnit5Test() {
+    private val delegate: UnitTestDelegate = UnitTestDelegate(applicationInstance = "Test")
+    private val defaultTestConfiguration: DataPipelinesTestConfig = testConfiguration {}
 
-    @BeforeEach
-    open fun setup() {
-        setupTestEnvironment()
+    val sdkInstance: CustomerIO get() = delegate.sdkInstance
+    val analytics: Analytics get() = delegate.analytics
+
+    override fun setup(testConfig: TestConfig) {
+        val config = defaultTestConfiguration + testConfig
+
+        super.setup(config)
+        delegate.setup(config)
     }
 
-    @AfterEach
-    open fun teardown() {
-        deinitializeModule()
+    override fun teardown() {
+        delegate.teardownSDKComponent()
+
+        super.teardown()
     }
 }

@@ -1,7 +1,8 @@
-package io.customer.messaginginapp.testutils
+package io.customer.messaginginapp.testutils.engine
 
 import com.google.gson.Gson
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.testutils.extension.decodeOptionsString
 import java.net.HttpURLConnection
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.Dispatcher

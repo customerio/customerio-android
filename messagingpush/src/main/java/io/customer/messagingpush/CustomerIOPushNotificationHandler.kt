@@ -214,8 +214,10 @@ internal class CustomerIOPushNotificationHandler(
         requestCode: Int,
         payload: CustomerIOParsedPushPayload
     ): PendingIntent {
-        val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java)
-        notifyIntent.putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
+        val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java).apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         // In Android M, you must specify the mutability of each PendingIntent
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

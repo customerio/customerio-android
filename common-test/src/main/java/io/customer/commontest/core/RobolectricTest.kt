@@ -1,36 +1,52 @@
 package io.customer.commontest.core
 
-import io.customer.commontest.extensions.random
-import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.android.CustomerIO
-import io.customer.sdk.core.module.CustomerIOModule
-import io.customer.sdk.data.model.Region
+import android.app.Application
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.spyk
+import org.junit.After
+import org.junit.Before
 
-/**
- * Base class for a integration test class to subclass. If you want to create unit tests, use [BaseTest].
- * Meant to provide convenience to test classes with properties and functions tests may use.
- *
- * This class should avoid overriding dependencies as much as possible. The more *real* (not mocked) dependencies executed in these
- * integration test functions, the closer the tests are to the production environment.
- */
-abstract class RobolectricTest : BaseTest() {
-    protected val modules = mutableListOf<CustomerIOModule<*>>()
+abstract class RobolectricTest : UnitTest() {
+    final override val applicationMock: Application = spyk(ApplicationProvider.getApplicationContext())
+    final override val contextMock: Context = spyk(InstrumentationRegistry.getInstrumentation().targetContext)
 
-    // Call this function again in your integration test function if you need to modify the SDK configuration
-    override fun setup(cioConfig: CustomerIOConfig) {
-        super.setup(cioConfig)
+    init {
+        val testPackageName = "com.example.test_app"
 
-        // Initialize the SDK but with an injected DI graph.
-        // Test setup should use the same SDK initialization that customers do to make test as close to production environment as possible.
-        CustomerIO.Builder(siteId = siteId, apiKey = String.random, region = Region.US, appContext = application).apply {
-            overrideDiGraph = di
-            modules.forEach { module -> addCustomerIOModule(module) }
-        }.build()
+        val applicationInfoMock = mockk<ApplicationInfo>(relaxed = true)
+        val packageInfo = PackageInfo().apply {
+            versionCode = 100
+            versionName = "1.0.0"
+            applicationInfo = applicationInfoMock
+        }
+        val packageManagerMock = mockk<PackageManager>(relaxed = true) {
+            every { this@mockk.getPackageInfo(testPackageName, 0) } returns packageInfo
+            every { this@mockk.getApplicationInfo(testPackageName, 0) } returns applicationInfoMock
+        }
+
+        every { applicationMock.applicationContext } returns applicationMock
+        every { applicationMock.packageName } returns testPackageName
+        every { applicationMock.packageManager } returns packageManagerMock
+
+        every { contextMock.applicationContext } returns applicationMock
+        every { contextMock.packageName } returns applicationMock.packageName
+        every { contextMock.packageManager } returns applicationMock.packageManager
     }
 
-    override fun teardown() {
-        modules.clear()
+    @Before
+    fun setupTestEnvironment() {
+        setup()
+    }
 
-        super.teardown()
+    @After
+    fun teardownTestEnvironment() {
+        teardown()
     }
 }

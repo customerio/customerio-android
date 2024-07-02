@@ -1,5 +1,6 @@
 import io.customer.android.Configurations
 import io.customer.android.Dependencies
+import io.customer.android.Versions
 
 plugins {
     id 'java-library'
@@ -32,6 +33,6 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.androidxAnnotations
 
-    testImplementation Dependencies.junit4
+    testImplementation "${Dependencies.junit4}:${Versions.JUNIT4}"
     testImplementation Dependencies.kluentJava
 }

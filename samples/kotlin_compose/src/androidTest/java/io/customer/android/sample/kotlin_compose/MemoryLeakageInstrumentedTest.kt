@@ -10,7 +10,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.persistance.AppDatabase
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
@@ -68,32 +67,13 @@ class MemoryLeakageInstrumentedTest {
             preferences.getConfiguration().first()
         }
 
-        io.customer.sdk.android.CustomerIO.Builder(
-            siteId = configuration.siteId,
-            apiKey = BuildConfig.API_KEY,
-            appContext = appContext as Application
-        ).apply {
-            setLogLevel(CioLogLevel.DEBUG)
-            setBackgroundQueueMinNumberOfTasks(5)
-            setBackgroundQueueSecondsDelay(5.0)
-            addCustomerIOModule(
-                ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder(
-                        siteId = configuration.siteId,
-                        region = Region.US
-                    )
-                        .setEventListener(InAppMessageEventListener()).build()
-                )
-            )
-            addCustomerIOModule(ModuleMessagingPushFCM())
-            build()
-        }
-
         CustomerIOBuilder(
-            applicationContext = appContext,
+            applicationContext = appContext as Application,
             cdpApiKey = configuration.cdpApiKey
         ).apply {
-            configuration.setValuesFromBuilder(this)
+            setLogLevel(CioLogLevel.DEBUG)
+            setFlushAt(5)
+            setFlushInterval(5)
 
             addCustomerIOModule(
                 ModuleMessagingInApp(

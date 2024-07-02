@@ -5,7 +5,9 @@ import android.os.Bundle
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecyclePlugin
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.TrackEvent
+import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
+import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.TestRunPlugin
@@ -26,10 +28,8 @@ import kotlinx.serialization.json.put
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
 class AndroidLifecyclePluginTests : IntegrationTest() {
     private val lifecyclePlugin = AndroidLifecyclePlugin()
 
@@ -40,20 +40,20 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
         every { UUID.randomUUID().toString() } returns String.random
     }
 
-    override fun setup() {
+    override fun setup(testConfig: TestConfig) {
         // Keep setup empty to avoid calling super.setup() as it will initialize the SDK
         // and we want to test the SDK with different configurations in each test
     }
 
+    private fun setupWithConfig(testConfig: DataPipelinesTestConfig) {
+        super.setup(testConfig)
+    }
+
     private fun setupTestEnvironmentWithLifecyclePlugin() {
-        setupTestEnvironment(
+        setupWithConfig(
             testConfiguration {
-                sdkConfig {
-                    setTrackApplicationLifecycleEvents(true)
-                }
-                configurePlugins {
-                    add(lifecyclePlugin)
-                }
+                sdkConfig { setTrackApplicationLifecycleEvents(true) }
+                analytics { add(lifecyclePlugin) }
             }
         )
     }
@@ -175,14 +175,10 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
 
     @Test
     fun track_givenApplicationLifecycleDisabled_expectPluginsNotCalled() {
-        setupTestEnvironment(
+        setupWithConfig(
             testConfiguration {
-                sdkConfig {
-                    setTrackApplicationLifecycleEvents(false)
-                }
-                configurePlugins {
-                    add(lifecyclePlugin)
-                }
+                sdkConfig { setTrackApplicationLifecycleEvents(false) }
+                analytics { add(lifecyclePlugin) }
             }
         )
 
@@ -208,19 +204,15 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
         val spyLifecyclePlugin = spyk(lifecyclePlugin)
 
         // Mock analytics to use the mock application and set the lifecycle plugin
-        setupTestEnvironment(
+        setupWithConfig(
             testConfiguration {
-                sdkConfig {
-                    setTrackApplicationLifecycleEvents(true)
-                }
-                configurePlugins {
-                    add(spyLifecyclePlugin)
-                }
+                sdkConfig { setTrackApplicationLifecycleEvents(true) }
+                analytics { add(spyLifecyclePlugin) }
             }
         )
 
         // Verify that registerActivityLifecycleCallbacks was called on the mock application
-        verify { mockApplication.registerActivityLifecycleCallbacks(spyLifecyclePlugin) }
+        verify { applicationMock.registerActivityLifecycleCallbacks(spyLifecyclePlugin) }
 
         // Mock the activity and bundle
         val mockActivity = mockk<Activity>()

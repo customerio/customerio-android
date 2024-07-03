@@ -1,9 +1,10 @@
 package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
+import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
-import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.data.model.UserTraits
 import io.customer.datapipelines.testutils.extensions.deviceToken
@@ -13,9 +14,11 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.store.DeviceStore
+import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
-import io.mockk.verify
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBe
@@ -32,10 +35,16 @@ import org.junit.jupiter.params.provider.ValueSource
 class DataPipelinesInteractionTests : JUnitTest() {
     //region Setup test environment
 
+    private lateinit var globalPreferenceStore: GlobalPreferenceStore
+    private lateinit var deviceStore: DeviceStore
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
-    override fun setupTestEnvironment(testConfig: DataPipelinesTestConfig) {
-        super.setupTestEnvironment(testConfig)
+    override fun setup(testConfig: TestConfig) {
+        super.setup(testConfig)
+
+        val androidSDKComponent = SDKComponent.android()
+        globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+        deviceStore = androidSDKComponent.deviceStore
 
         outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
@@ -567,7 +576,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.registerDeviceToken(givenToken)
 
-        verify(exactly = 1) { globalPreferenceStore.saveDeviceToken(givenToken) }
+        assertCalledOnce { globalPreferenceStore.saveDeviceToken(givenToken) }
 
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
 

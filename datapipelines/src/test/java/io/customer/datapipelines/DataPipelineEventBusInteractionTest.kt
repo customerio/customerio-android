@@ -1,23 +1,29 @@
 package io.customer.datapipelines
 
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.datapipelines.testutils.core.JUnitTest
+import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Test
 
 class DataPipelineEventBusInteractionTest : JUnitTest() {
-
     private lateinit var eventBus: EventBus
 
-    override fun setupAndroidSDKComponent() {
-        eventBus = mockk(relaxed = true)
-        SDKComponent.overrideDependency(EventBus::class.java, eventBus)
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfiguration {
+                diGraph {
+                    sdk { overrideDependency<EventBus>(mockk(relaxed = true)) }
+                }
+            }
+        )
 
-        super.setupAndroidSDKComponent()
+        eventBus = SDKComponent.eventBus
     }
 
     @Test
@@ -27,8 +33,8 @@ class DataPipelineEventBusInteractionTest : JUnitTest() {
         every { eventBus.subscribe(Event.RegisterDeviceTokenEvent::class, any()) } returns mockk()
 
         // Verify the subscribe method is called with the correct event classes
-        verify(exactly = 1) { eventBus.subscribe(Event.TrackPushMetricEvent::class, any()) }
-        verify(exactly = 1) { eventBus.subscribe(Event.TrackInAppMetricEvent::class, any()) }
-        verify(exactly = 1) { eventBus.subscribe(Event.RegisterDeviceTokenEvent::class, any()) }
+        assertCalledOnce { eventBus.subscribe(Event.TrackPushMetricEvent::class, any()) }
+        assertCalledOnce { eventBus.subscribe(Event.TrackInAppMetricEvent::class, any()) }
+        assertCalledOnce { eventBus.subscribe(Event.RegisterDeviceTokenEvent::class, any()) }
     }
 }

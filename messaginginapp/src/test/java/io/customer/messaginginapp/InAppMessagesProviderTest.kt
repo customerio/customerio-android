@@ -1,18 +1,18 @@
 package io.customer.messaginginapp
 
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.commontest.extensions.random
-import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
 import io.customer.messaginginapp.testutils.core.JUnitTest
-import io.customer.messaginginapp.testutils.extension.getNewRandom
+import io.customer.messaginginapp.testutils.extension.getNewRandomMessage
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.mockk.Call
-import io.mockk.Called
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
@@ -20,12 +20,14 @@ import org.junit.jupiter.api.Test
 internal class InAppMessagesProviderTest : JUnitTest() {
 
     private lateinit var gistInAppMessagesProvider: GistInAppMessagesProvider
-    private val gistApiProvider: GistApi = mockk(relaxed = true)
-    private val eventListenerMock: InAppEventListener = mockk(relaxed = true)
+    private lateinit var gistApiProvider: GistApi
+    private lateinit var eventListenerMock: InAppEventListener
 
-    override fun setupTestEnvironment() {
-        super.setupTestEnvironment()
+    override fun setup(testConfig: TestConfig) {
+        super.setup(testConfig)
 
+        gistApiProvider = mockk(relaxed = true)
+        eventListenerMock = mockk(relaxed = true)
         gistInAppMessagesProvider = GistInAppMessagesProvider(gistApiProvider)
     }
 
@@ -42,14 +44,7 @@ internal class InAppMessagesProviderTest : JUnitTest() {
         ) -> Unit
     ) {
         every { gistApiProvider.subscribeToEvents(any(), any(), any()) }.answers { call ->
-            val args = call.invocation.args
-            @Suppress("UNCHECKED_CAST")
-            callback(
-                call,
-                args[0] as (String) -> Unit,
-                args[1] as (deliveryId: String?, currentRoute: String, action: String, name: String) -> Unit,
-                args[2] as (errorMessage: String) -> Unit
-            )
+            callback(call, firstArg(), secondArg(), thirdArg())
         }
     }
 
@@ -180,41 +175,41 @@ internal class InAppMessagesProviderTest : JUnitTest() {
 
     @Test
     fun eventListener_givenEventListenerSet_expectCallEventListenerOnGistEvents() {
-        val givenMessage = Message().getNewRandom()
+        val givenMessage = getNewRandomMessage()
         val expectedInAppMessage = InAppMessage.getFromGistMessage(givenMessage)
 
         gistInAppMessagesProvider.setListener(eventListenerMock)
-        verify { eventListenerMock wasNot Called }
+        assertNoInteractions(eventListenerMock)
 
         gistInAppMessagesProvider.onMessageShown(givenMessage)
-        verify(exactly = 1) { eventListenerMock.messageShown(expectedInAppMessage) }
+        assertCalledOnce { eventListenerMock.messageShown(expectedInAppMessage) }
 
         gistInAppMessagesProvider.onError(givenMessage)
-        verify(exactly = 1) { eventListenerMock.errorWithMessage(expectedInAppMessage) }
+        assertCalledOnce { eventListenerMock.errorWithMessage(expectedInAppMessage) }
 
         gistInAppMessagesProvider.onMessageDismissed(givenMessage)
-        verify(exactly = 1) { eventListenerMock.messageDismissed(expectedInAppMessage) }
+        assertCalledOnce { eventListenerMock.messageDismissed(expectedInAppMessage) }
 
         val givenCurrentRoute = String.random
         val givenAction = String.random
         val givenName = String.random
         gistInAppMessagesProvider.onAction(givenMessage, givenCurrentRoute, givenAction, givenName)
-        verify(exactly = 1) { eventListenerMock.messageActionTaken(expectedInAppMessage, actionValue = givenAction, actionName = givenName) }
+        assertCalledOnce { eventListenerMock.messageActionTaken(expectedInAppMessage, actionValue = givenAction, actionName = givenName) }
     }
 
     @Test
     fun eventListener_givenEventListenerSet_expectCallEventListenerForEachEvent() {
-        val givenMessage1 = Message().getNewRandom()
+        val givenMessage1 = getNewRandomMessage()
         val expectedInAppMessage1 = InAppMessage.getFromGistMessage(givenMessage1)
-        val givenMessage2 = Message().getNewRandom()
+        val givenMessage2 = getNewRandomMessage()
         val expectedInAppMessage2 = InAppMessage.getFromGistMessage(givenMessage2)
 
         gistInAppMessagesProvider.setListener(eventListenerMock)
-        verify { eventListenerMock wasNot Called }
+        assertNoInteractions(eventListenerMock)
 
         gistInAppMessagesProvider.onMessageShown(givenMessage1)
-        verify(exactly = 1) { eventListenerMock.messageShown(expectedInAppMessage1) }
+        assertCalledOnce { eventListenerMock.messageShown(expectedInAppMessage1) }
         gistInAppMessagesProvider.onMessageShown(givenMessage2)
-        verify(exactly = 1) { eventListenerMock.messageShown(expectedInAppMessage2) }
+        assertCalledOnce { eventListenerMock.messageShown(expectedInAppMessage2) }
     }
 }

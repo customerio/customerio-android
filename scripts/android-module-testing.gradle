@@ -14,14 +14,6 @@ android {
             includeAndroidResources = true
         }
     }
-
-    sourceSets {
-        // Preferred to put test classes in `src/sharedTest/` so the tests will run on both
-        // JVM (for speed) and Android (for confidence).
-        String sharedTestDir = 'src/sharedTest/java'
-        test.java.srcDirs += sharedTestDir
-        androidTest.java.srcDirs += sharedTestDir
-    }
 }
 
 dependencies {
@@ -29,27 +21,30 @@ dependencies {
     androidTestImplementation project(':common-test')
 
     testImplementation Dependencies.coroutinesTest
-    // compile time bug when trying to run Android tests: https://github.com/Kotlin/kotlinx.coroutines/issues/2023
-    // Solution from: https://github.com/Kotlin/kotlinx.coroutines/tree/master/kotlinx-coroutines-debug#debug-agent-and-android
-    androidTestImplementation(Dependencies.coroutinesTest) {
-        exclude group: "org.jetbrains.kotlinx", module: "kotlinx-coroutines-debug"
-    }
-
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.androidxTestRunner
-    androidTestImplementation Dependencies.androidxTestRules
-
-    testImplementation Dependencies.mockito
-    androidTestImplementation Dependencies.mockitoAndroid
-    testImplementation Dependencies.mockitoKotlin
-    androidTestImplementation Dependencies.mockitoKotlin
+    testImplementation Dependencies.junitJupiter
+    testImplementation Dependencies.mockK
+    testImplementation Dependencies.okhttpMockWebserver
     testImplementation Dependencies.robolectric
 
-    testImplementation Dependencies.kluent
-    androidTestImplementation Dependencies.kluent
-    testImplementation Dependencies.okhttpMockWebserver
+    // Enables running JUnit 4 tests within the JUnit 5 (jupiter) platform.
+    testRuntimeOnly Dependencies.junitVintageEngine
 
-    testImplementation Dependencies.junit4
-    androidTestImplementation Dependencies.junit4
+    androidTestImplementation Dependencies.androidxTestRunner
+    androidTestImplementation Dependencies.androidxTestRules
+    androidTestImplementation Dependencies.espressoCore
+    androidTestImplementation Dependencies.espressoIntents
+    androidTestImplementation Dependencies.mockKAndroid
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    filter {
+        // Allows tests inheriting from RobolectricTest to be excluded to run with JUnit4
+        excludeTestsMatching("*Robolectric*")
+    }
+    ignoreFailures = true
+    // https://github.com/mockk/mockk/issues/681
+    jvmArgs("--add-opens", "java.base/java.time=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED"
+    )
 }

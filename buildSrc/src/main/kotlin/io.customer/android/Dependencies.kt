@@ -20,6 +20,7 @@ object Dependencies {
     const val coroutinesTest =
         "org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.COROUTINES}"
     const val espressoCore = "androidx.test.espresso:espresso-core:${Versions.ESPRESSO}"
+    const val espressoIntents = "androidx.test.espresso:espresso-intents:${Versions.ESPRESSO}"
     const val dokka = "org.jetbrains.dokka:dokka-gradle-plugin:${Versions.DOKKA}"
     const val hiltGradlePlugin = "com.google.dagger:hilt-android-gradle-plugin:${Versions.HILT}"
     const val firebaseMessaging =
@@ -30,7 +31,7 @@ object Dependencies {
         "com.google.gms:google-services:${Versions.GOOGLE_SERVICES_PLUGIN}"
     const val gradleNexusPublishPlugin =
         "io.github.gradle-nexus:publish-plugin:${Versions.GRADLE_NEXUS_PUBLISH_PLUGIN}"
-    const val junit4 = "junit:junit:${Versions.JUNIT4}"
+    const val junit4 = "junit:junit"
     const val junitBom = "org.junit:junit-bom:${Versions.JUNIT_BOM}"
     const val junitJupiter = "org.junit.jupiter:junit-jupiter"
     const val junitVintageEngine = "org.junit.vintage:junit-vintage-engine"
@@ -46,7 +47,8 @@ object Dependencies {
     const val mockito = "org.mockito:mockito-core:${Versions.MOCKITO}"
     const val mockitoAndroid = "org.mockito:mockito-android:${Versions.MOCKITO}"
     const val mockitoKotlin = "org.mockito.kotlin:mockito-kotlin:${Versions.MOCKITO_KOTLIN}"
-    const val mockk = "io.mockk:mockk:${Versions.MOCKK}"
+    const val mockK = "io.mockk:mockk:${Versions.MOCKK}"
+    const val mockKAndroid = "io.mockk:mockk-android:${Versions.MOCKK}"
     const val moshiCodeGen = "com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"

@@ -1,27 +1,18 @@
 package io.customer.messagingpush.testutils.core
 
-import io.customer.commontest.util.UnitTestLogger
-import io.customer.messagingpush.testutils.UnitTest
-import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.util.Logger
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
+import io.customer.commontest.config.ApplicationArgument
+import io.customer.commontest.config.ClientArgument
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.core.JUnit5Test
 
-open class JUnitTest : UnitTest() {
-    @BeforeEach
-    open fun setup() {
-        setupTestEnvironment()
+abstract class JUnitTest : JUnit5Test() {
+    private val defaultTestConfiguration: TestConfig = testConfigurationDefault {
+        argument(ApplicationArgument(applicationMock))
+        argument(ClientArgument())
     }
 
-    @AfterEach
-    open fun teardown() {
-        deinitializeModule()
-    }
-
-    override fun setupSDKComponent() {
-        super.setupSDKComponent()
-        // Override logger dependency with test logger so logs can be captured in tests
-        // This also makes logger independent of Android Logcat
-        SDKComponent.overrideDependency(Logger::class.java, UnitTestLogger())
+    override fun setup(testConfig: TestConfig) {
+        super.setup(defaultTestConfiguration + testConfig)
     }
 }

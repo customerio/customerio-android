@@ -32,6 +32,6 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.androidxAnnotations
 
-    testImplementation Dependencies.junit4
+    testImplementation "junit:junit:4.13.2"
     testImplementation Dependencies.kluentJava
 }

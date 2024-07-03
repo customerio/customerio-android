@@ -37,6 +37,9 @@ android {
         androidTest {
             java.srcDirs += 'src/sharedTest/java'
         }
+        test {
+            java.srcDirs += 'src/sharedTest/java'
+        }
     }
 }
 
@@ -55,5 +58,13 @@ dependencies {
     kapt(Dependencies.moshiCodeGen)
     kaptTest(Dependencies.moshiCodeGen)
     kaptAndroidTest(Dependencies.moshiCodeGen)
-}
 
+    // Dependencies for tests that were removed from common-test module
+    // Adding them here to avoid breaking the tests in tracking module
+    testImplementation Dependencies.mockito
+    testImplementation Dependencies.mockitoKotlin
+    androidTestImplementation Dependencies.coroutinesTest
+    androidTestImplementation Dependencies.mockito
+    androidTestImplementation Dependencies.mockitoKotlin
+    androidTestImplementation Dependencies.okhttpMockWebserver
+}

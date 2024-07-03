@@ -1,47 +1,38 @@
 package io.customer.messagingpush
 
-import android.app.Application
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.extensions.assertCalledNever
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
+import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.testutils.core.JUnitTest
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.registerAndroidSDKComponent
-import io.customer.sdk.data.store.Client
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Test
 
-internal class ModuleMessagingPushFCMTest : JUnitTest() {
-
-    private val fcmTokenProviderMock: DeviceTokenProvider = mockk(relaxed = true)
-
-    private val applicationContextMock: Application = mockk(relaxed = true)
-
+class ModuleMessagingPushFCMTest : JUnitTest() {
     private lateinit var eventBus: EventBus
+    private lateinit var fcmTokenProviderMock: DeviceTokenProvider
     private lateinit var module: ModuleMessagingPushFCM
 
-    init {
-        every { applicationContextMock.applicationContext } returns applicationContextMock
-    }
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk { overrideDependency<EventBus>(mockk(relaxed = true)) }
+                    android { overrideDependency<DeviceTokenProvider>(mockk(relaxed = true)) }
+                }
+            }
+        )
 
-    override fun setupTestEnvironment() {
-        super.setupTestEnvironment()
-        module = ModuleMessagingPushFCM()
         eventBus = SDKComponent.eventBus
-    }
-
-    override fun setupSDKComponent() {
-        super.setupSDKComponent()
-
-        // Because we are not initializing the SDK, we need to register the
-        // Android SDK component manually so that the module can utilize it
-        val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(applicationContextMock, Client.Android(sdkVersion = "3.0.0"))
-        androidSDKComponent.overrideDependency(DeviceTokenProvider::class.java, fcmTokenProviderMock)
-        SDKComponent.overrideDependency(MessagingPushModuleConfig::class.java, MessagingPushModuleConfig.default())
-        SDKComponent.overrideDependency(EventBus::class.java, mockk(relaxed = true))
+        fcmTokenProviderMock = SDKComponent.android().fcmTokenProvider
+        module = ModuleMessagingPushFCM()
     }
 
     override fun teardown() {
@@ -59,7 +50,7 @@ internal class ModuleMessagingPushFCMTest : JUnitTest() {
 
         module.initialize()
 
-        verify(exactly = 0) { eventBus.publish(any<Event.RegisterDeviceTokenEvent>()) }
+        assertCalledNever { eventBus.publish(any<Event.RegisterDeviceTokenEvent>()) }
     }
 
     @Test
@@ -73,6 +64,6 @@ internal class ModuleMessagingPushFCMTest : JUnitTest() {
 
         module.initialize()
 
-        verify(exactly = 1) { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenToken)) }
+        assertCalledOnce { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenToken)) }
     }
 }

@@ -40,28 +40,6 @@ dependencies {
     implementation Dependencies.retrofit
     implementation Dependencies.retrofitMoshiConverter
     implementation Dependencies.okhttpLoggingInterceptor
-
-    api Dependencies.firebaseMessaging
     implementation Dependencies.googlePlayServicesBase
-
-    // MockK dependencies for testing
-    testImplementation(Dependencies.mockK)
-    testImplementation(Dependencies.coroutinesTest)
-    // JUnit 5 dependencies for testing
-    testImplementation(platform(Dependencies.junitBom))
-    testImplementation(Dependencies.junitJupiter)
-    // Enables running JUnit 4 tests within the JUnit 5 (jupiter) platform.
-    testRuntimeOnly(Dependencies.junitVintageEngine)
-}
-
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-    filter {
-        excludeTestsMatching("*Integration*")
-    }
-    ignoreFailures = true
-    // https://github.com/mockk/mockk/issues/681
-    jvmArgs("--add-opens", "java.base/java.time=ALL-UNNAMED",
-            "--add-opens", "java.base/java.util=ALL-UNNAMED"
-    )
+    api Dependencies.firebaseMessaging
 }

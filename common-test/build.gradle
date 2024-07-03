@@ -13,31 +13,22 @@ android {
 }
 
 dependencies {
-    api project(":core")
-    // since all modules in project inherit the base tracking SDK, add it here to our shared testing module as all modules in project should have access to this module.
-    api project(':tracking')
-
-    // Non-testing tools that all modules use.
-    api Dependencies.retrofit
-    api Dependencies.moshi
-
-    // Testing tools that source code in this module require to compile.
+    // Since core module is the only required module by all modules, it is added as dependency here.
+    // No other module should be added as dependency to avoid false positive compilation.
+    implementation project(":core")
+    // Common test dependencies used by both JVM and Android tests
     api Dependencies.androidxTestJunit
-    api Dependencies.androidxTestRunner
-    api Dependencies.androidxTestRules
-
-    api Dependencies.mockito
-    api Dependencies.mockitoKotlin
-    api Dependencies.robolectric
-
     api Dependencies.kluent
-    api Dependencies.okhttpMockWebserver
-
+    // JUnit BOM to manage JUnit dependencies across the SDK
+    api platform(Dependencies.junitBom)
+    // Since JUnit4 is used by Robolectric in JVM tests, and by Android instrumentation tests
+    // in androidTest, we need to include it as api dependency to be available in both tests.
     api Dependencies.junit4
-
-    // compile time bug when trying to run Android tests: https://github.com/Kotlin/kotlinx.coroutines/issues/2023
-    // Solution from: https://github.com/Kotlin/kotlinx.coroutines/tree/master/kotlinx-coroutines-debug#debug-agent-and-android
-    api(Dependencies.coroutinesTest) {
-        exclude group: "org.jetbrains.kotlinx", module: "kotlinx-coroutines-debug"
-    }
+    // Compile only dependencies so common test classes can use them without exposing them to other modules
+    // Final dependencies are added to JVM and Android tests separately in the android-module-testing.gradle
+    compileOnly Dependencies.coroutinesTest
+    compileOnly Dependencies.espressoIntents
+    compileOnly Dependencies.junitJupiter
+    compileOnly Dependencies.mockK
+    compileOnly Dependencies.robolectric
 }

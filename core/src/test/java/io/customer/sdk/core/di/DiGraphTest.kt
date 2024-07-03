@@ -1,6 +1,7 @@
 package io.customer.sdk.core.di
 
-import io.customer.commontest.core.BaseUnitTest
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.core.JUnit5Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -9,27 +10,27 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
-// Custom data class to test dependency injection with the same class name.
-private data class Pair(val value: Int)
-class DiGraphTest : BaseUnitTest() {
+class DiGraphTest : JUnit5Test() {
     private lateinit var diGraph: DiGraph
 
-    override fun setup() {
-        super.setup()
+    override fun setup(testConfig: TestConfig) {
+        super.setup(testConfig)
+
         diGraph = object : DiGraph() {}
     }
 
     override fun teardown() {
         diGraph.reset()
+
         super.teardown()
     }
 
     @Test
     fun newInstance_givenDependencyOverridden_expectOverriddenInstanceRetrieved() {
         val givenInstance = "OverriddenString"
-        diGraph.overrideDependency(String::class.java, givenInstance)
+        diGraph.overrideDependency<String>(givenInstance)
 
         val actualInstance = diGraph.newInstance { "NewInstance" }
 
@@ -39,7 +40,7 @@ class DiGraphTest : BaseUnitTest() {
     @Test
     fun getOrNull_givenDependencyOverridden_expectOverriddenInstanceRetrieved() {
         val givenInstance = "OverriddenString"
-        diGraph.overrideDependency(String::class.java, givenInstance)
+        diGraph.overrideDependency<String>(givenInstance)
 
         val actualInstance = diGraph.getOrNull<String>()
 
@@ -49,7 +50,7 @@ class DiGraphTest : BaseUnitTest() {
     @Test
     fun singletonInstance_givenDependencyOverridden_expectOverriddenInstanceRetrieved() {
         val givenInstance = "OverriddenString"
-        diGraph.overrideDependency(String::class.java, givenInstance)
+        diGraph.overrideDependency<String>(givenInstance)
 
         val actualInstance = diGraph.singleton { "NewInstance" }
 
@@ -59,9 +60,9 @@ class DiGraphTest : BaseUnitTest() {
     @Test
     fun getOrNull_givenDependencySameClassName_expectDifferentInstancesRetrieved() {
         val givenNativePairInstance = "value" to 1
-        diGraph.overrideDependency(kotlin.Pair::class.java, givenNativePairInstance)
+        diGraph.overrideDependency<kotlin.Pair<*, *>>(givenNativePairInstance)
         val givenCustomPairInstance = Pair(value = 2)
-        diGraph.overrideDependency(Pair::class.java, givenCustomPairInstance)
+        diGraph.overrideDependency<Pair>(givenCustomPairInstance)
 
         val actualNativePairInstance = diGraph.getOrNull<kotlin.Pair<String, Int>>()
         val actualCustomPairInstance = diGraph.getOrNull<Pair>()
@@ -85,9 +86,9 @@ class DiGraphTest : BaseUnitTest() {
     @Test
     fun singletonInstanceWithOverride_givenDependencySameClassName_expectDifferentInstancesRetrieved() {
         val givenNativePairInstance = "value" to 1
-        diGraph.overrideDependency(kotlin.Pair::class.java, givenNativePairInstance)
+        diGraph.overrideDependency<kotlin.Pair<*, *>>(givenNativePairInstance)
         val givenCustomPairInstance = Pair(value = 2)
-        diGraph.overrideDependency(Pair::class.java, givenCustomPairInstance)
+        diGraph.overrideDependency<Pair>(givenCustomPairInstance)
 
         val actualNativePairInstance = diGraph.singleton { "value" to 3 }
         val actualCustomPairInstance = diGraph.singleton { Pair(value = 4) }
@@ -218,7 +219,7 @@ class DiGraphTest : BaseUnitTest() {
 
     @Test
     fun reset_givenDependenciesSet_expectDependenciesCleared() {
-        diGraph.overrideDependency(String::class.java, "OverriddenString")
+        diGraph.overrideDependency<String>("OverriddenString")
         diGraph.newInstance<Int> { 1 }
         diGraph.singleton<Float> { 2.0F }
 
@@ -231,3 +232,6 @@ class DiGraphTest : BaseUnitTest() {
         diGraph.getOrNull<Float>().shouldBeNull()
     }
 }
+
+// Custom data class to test dependency injection with the same class name.
+private data class Pair(val value: Int)

@@ -61,11 +61,6 @@ class DeepLinkUtilImpl(
     }
 
     override fun createDeepLinkExternalIntent(context: Context, link: String): Intent? {
-        // check config if the deep link should be opened by any other app or not
-        if (!moduleConfig.redirectDeepLinksToOtherApps) {
-            return null
-        }
-
         val linkUri = Uri.parse(link)
         val intent = queryDeepLinksForThirdPartyApps(context = context, uri = linkUri)
         if (intent == null) {

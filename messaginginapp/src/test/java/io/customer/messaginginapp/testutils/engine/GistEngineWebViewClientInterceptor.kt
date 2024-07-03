@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.testutils
+package io.customer.messaginginapp.testutils.engine
 
 import android.net.Uri
 import android.webkit.WebView
@@ -10,21 +10,20 @@ import io.customer.messaginginapp.gist.presentation.engine.EngineWebEvent
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebMessage
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewClientInterceptor
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewInterface
-import io.customer.messaginginapp.testutils.GistEngineMessageDriver.Callback
-import io.customer.messaginginapp.testutils.GistEngineMessageDriver.MessageState
+import io.customer.messaginginapp.testutils.engine.GistEngineMessageDriver.Callback
+import io.customer.messaginginapp.testutils.engine.GistEngineMessageDriver.MessageState
+import io.customer.messaginginapp.testutils.extension.decodeOptionsString
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
 
 /**
  * This class is responsible for intercepting WebViewClient events and simulate
  * behavior of actual in-app messaging loaded in WebView by leveraging GistEngineMessageDriver.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class GistEngineWebViewClientInterceptor(
-    private val testCoroutineScope: TestScope
+    private val testCoroutineScope: CoroutineScope
 ) : EngineWebViewClientInterceptor, Callback, GistListener {
     private val gson: Gson = Gson()
     private val messageDriversMap: ConcurrentHashMap<String, GistEngineMessageDriver> = ConcurrentHashMap()

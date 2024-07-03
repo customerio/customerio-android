@@ -1,14 +1,11 @@
 package io.customer.android.sample.java_layout.sdk;
 
-import android.os.Handler;
-import android.os.Looper;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 
 import java.util.Map;
 
-import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -30,19 +27,6 @@ public class CustomerIORepository {
         ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
-
-        // TODO: Remove old builder and use new builder only to initialize the SDK
-        // The new method should be called after the old method till the old method is removed
-        // This is because the push and in-app modules are still using properties only initialized in the old method
-        io.customer.sdk.android.CustomerIO.Builder oldBuilder = new io.customer.sdk.android.CustomerIO.Builder(sdkConfig.getSiteId(), BuildConfig.API_KEY, application);
-        oldBuilder.build();
-        // TODO: Remove this once push module is decoupled and started using EventBus
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            String token = io.customer.sdk.android.CustomerIO.instance().getRegisteredDeviceToken();
-            if (token != null) {
-                CustomerIO.instance().registerDeviceToken(token);
-            }
-        }, 3000);
 
         // Initialize Customer.io SDK builder
         CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());

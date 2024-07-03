@@ -22,11 +22,10 @@ public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService$
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
 	public static final field Companion Lio/customer/messagingpush/MessagingPushModuleConfig$Companion;
-	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;ZLio/customer/messagingpush/config/PushClickBehavior;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAutoTrackPushEvents ()Z
 	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
 	public final fun getPushClickBehavior ()Lio/customer/messagingpush/config/PushClickBehavior;
-	public final fun getRedirectDeepLinksToOtherApps ()Z
 }
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
@@ -36,7 +35,6 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder :
 	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setPushClickBehavior (Lio/customer/messagingpush/config/PushClickBehavior;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
-	public final fun setRedirectDeepLinksToOtherApps (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 }
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig$Companion {
@@ -76,12 +74,12 @@ public final class io/customer/messagingpush/config/PushClickBehavior : java/lan
 }
 
 public abstract interface class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback {
-	public abstract fun createTaskStackFromPayload (Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
+	public abstract fun onNotificationClicked (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/content/Context;)Lkotlin/Unit;
 	public abstract fun onNotificationComposed (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
 }
 
 public final class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback$DefaultImpls {
-	public static fun createTaskStackFromPayload (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Landroid/content/Context;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;)Landroidx/core/app/TaskStackBuilder;
+	public static fun onNotificationClicked (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/content/Context;)Lkotlin/Unit;
 	public static fun onNotificationComposed (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
 }
 

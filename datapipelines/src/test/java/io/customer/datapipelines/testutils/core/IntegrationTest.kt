@@ -1,58 +1,31 @@
 package io.customer.datapipelines.testutils.core
 
-import android.Manifest
-import android.app.Application
-import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
-import androidx.test.platform.app.InstrumentationRegistry
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.spyk
-import org.junit.After
-import org.junit.Before
+import com.segment.analytics.kotlin.core.Analytics
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.core.RobolectricTest
+import io.customer.sdk.CustomerIO
 
 /**
- * Extension of the [UnitTestDelegate] class to provide setup and teardown methods for
- * Robolectric tests. Since Robolectric is not compatible with JUnit 5, this class
- * uses JUnit 4 annotations to provide setup and teardown methods for the test environment.
- * The class uses mock application instance to allow running tests using Robolectric API for Android.
+ * Extension of [RobolectricTest] that utilizes [UnitTestDelegate] to setup test environment.
+ * This class should be used for running integration tests using Robolectric.
  */
-open class IntegrationTest : UnitTestDelegate() {
-    protected val mockContext: Context = spyk(InstrumentationRegistry.getInstrumentation().targetContext)
-    protected val mockApplication: Application
+abstract class IntegrationTest : RobolectricTest() {
+    private val delegate: UnitTestDelegate = UnitTestDelegate(applicationMock)
+    private val defaultTestConfiguration: DataPipelinesTestConfig = testConfiguration {}
 
-    init {
-        val testPackageName = "com.example.test_app"
+    val sdkInstance: CustomerIO get() = delegate.sdkInstance
+    val analytics: Analytics get() = delegate.analytics
 
-        val applicationInfoMock = mockk<ApplicationInfo>(relaxed = true)
-        val packageInfo = PackageInfo().apply {
-            versionCode = 100
-            versionName = "1.0.0"
-            applicationInfo = applicationInfoMock
-        }
-        val packageManagerMock = mockk<PackageManager>(relaxed = true) {
-            every { this@mockk.getPackageInfo(testPackageName, 0) } returns packageInfo
-            every { this@mockk.getApplicationInfo(testPackageName, 0) } returns applicationInfoMock
-        }
+    override fun setup(testConfig: TestConfig) {
+        val config = defaultTestConfiguration + testConfig
 
-        mockApplication = spyk(spyk<Application>(mockContext.applicationContext as Application)) {
-            every { this@spyk.packageName } returns testPackageName
-            every { this@spyk.packageManager } returns packageManagerMock
-            every { this@spyk.checkCallingOrSelfPermission(Manifest.permission.ACCESS_NETWORK_STATE) } returns PackageManager.PERMISSION_GRANTED
-        }
+        super.setup(config)
+        delegate.setup(config)
     }
 
-    override var testApplication: Any = mockApplication
+    override fun teardown() {
+        delegate.teardownSDKComponent()
 
-    @Before
-    open fun setup() {
-        setupTestEnvironment()
-    }
-
-    @After
-    open fun teardown() {
-        deinitializeModule()
+        super.teardown()
     }
 }

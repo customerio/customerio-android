@@ -4,9 +4,9 @@ import io.customer.commontest.extensions.random
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
 import org.amshove.kluent.shouldBeEqualTo
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
-class TrackMetricExtTests {
+class TrackMetricExtensionsTest {
     @Test
     fun validate_givenAnyMetric_expectCorrectSerialization() {
         for (metric in Metric.values()) {

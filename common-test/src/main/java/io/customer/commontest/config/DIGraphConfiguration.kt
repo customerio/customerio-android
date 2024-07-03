@@ -13,10 +13,10 @@ class DIGraphConfiguration {
         private set
 
     operator fun plus(other: DIGraphConfiguration): DIGraphConfiguration {
-        val copy = DIGraphConfiguration()
-        copy.sdkComponent = sdkComponent + other.sdkComponent
-        copy.androidSDKComponent = androidSDKComponent + other.androidSDKComponent
-        return copy
+        return DIGraphConfiguration().apply {
+            sdkComponent = this@DIGraphConfiguration.sdkComponent + other.sdkComponent
+            androidSDKComponent = this@DIGraphConfiguration.androidSDKComponent + other.androidSDKComponent
+        }
     }
 
     fun sdk(block: ConfigDSL<SDKComponent>) {

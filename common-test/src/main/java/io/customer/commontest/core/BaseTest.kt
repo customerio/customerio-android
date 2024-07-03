@@ -33,10 +33,6 @@ abstract class BaseTest {
     }
 
     protected open fun teardown() {
-        clearAllComponents()
-    }
-
-    protected open fun clearAllComponents() {
         SDKComponent.reset()
         clearAllMocks()
     }

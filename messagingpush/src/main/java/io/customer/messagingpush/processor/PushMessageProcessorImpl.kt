@@ -145,7 +145,7 @@ internal class PushMessageProcessorImpl(
         )
 
         if (wasClicked != null) {
-            logger.info("Notification target overridden by createTaskStackFromPayload, starting new stack for link $deepLink")
+            logger.info("Notification target overridden by onNotificationClicked, link $deepLink handled by host app")
             return
         }
 

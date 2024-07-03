@@ -44,12 +44,7 @@ internal class InAppMessagesProviderTest : JUnitTest() {
         ) -> Unit
     ) {
         every { gistApiProvider.subscribeToEvents(any(), any(), any()) }.answers { call ->
-            callback(
-                call,
-                firstArg<(String) -> Unit>(),
-                secondArg<(String?, String, String, String) -> Unit>(),
-                thirdArg()
-            )
+            callback(call, firstArg(), secondArg(), thirdArg())
         }
     }
 

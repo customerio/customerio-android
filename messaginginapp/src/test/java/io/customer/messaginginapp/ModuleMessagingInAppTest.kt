@@ -22,11 +22,10 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Test
 
 internal class ModuleMessagingInAppTest : JUnitTest() {
-    private lateinit var eventBus: EventBus
-    private lateinit var inAppMessagesProviderMock: InAppMessagesProvider
     private lateinit var module: ModuleMessagingInApp
-
-    private val inAppEventListenerMock: InAppEventListener = mockk(relaxed = true)
+    private lateinit var eventBus: EventBus
+    private lateinit var inAppEventListenerMock: InAppEventListener
+    private lateinit var inAppMessagesProviderMock: InAppMessagesProvider
     private val testScopeProviderStub = ScopeProviderStub()
 
     private val moduleConfig: MessagingInAppModuleConfig
@@ -43,6 +42,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
                 }
             }
         )
+
+        inAppEventListenerMock = mockk(relaxed = true)
 
         eventBus = SDKComponent.eventBus
         inAppMessagesProviderMock = SDKComponent.gistProvider

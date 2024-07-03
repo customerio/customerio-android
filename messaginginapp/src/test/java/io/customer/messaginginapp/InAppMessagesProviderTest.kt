@@ -20,12 +20,14 @@ import org.junit.jupiter.api.Test
 internal class InAppMessagesProviderTest : JUnitTest() {
 
     private lateinit var gistInAppMessagesProvider: GistInAppMessagesProvider
-    private val gistApiProvider: GistApi = mockk(relaxed = true)
-    private val eventListenerMock: InAppEventListener = mockk(relaxed = true)
+    private lateinit var gistApiProvider: GistApi
+    private lateinit var eventListenerMock: InAppEventListener
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfig)
 
+        gistApiProvider = mockk(relaxed = true)
+        eventListenerMock = mockk(relaxed = true)
         gistInAppMessagesProvider = GistInAppMessagesProvider(gistApiProvider)
     }
 

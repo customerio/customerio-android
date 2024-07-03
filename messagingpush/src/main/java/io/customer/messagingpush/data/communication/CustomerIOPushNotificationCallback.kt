@@ -20,7 +20,9 @@ interface CustomerIOPushNotificationCallback {
     fun onNotificationClicked(
         payload: CustomerIOParsedPushPayload,
         context: Context
-    ): Unit? = null
+    ): Unit? {
+        return null
+    }
 
     /**
      * Called when all attributes for the notification has been set by the SDK

@@ -1,7 +1,8 @@
 package io.customer.datapipelines.sdk
 
-import android.app.Application
-import androidx.test.platform.app.InstrumentationRegistry
+import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.extensions.assertCalledNever
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
@@ -14,24 +15,21 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
-import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class CustomerIOBuilderTest {
+class CustomerIOBuilderTest : RobolectricTest() {
 
-    private val application: Application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
-
-    @After
-    fun teardown() {
+    override fun teardown() {
         // Clear the instance after each test to reset SDK to initial state
         CustomerIO.clearInstance()
+
+        super.teardown()
     }
 
     private fun mockGenericModule(): CustomerIOGenericModule {
@@ -48,7 +46,7 @@ class CustomerIOBuilderTest {
             .addCustomerIOModule(givenModule)
             .build()
 
-        verify(exactly = 1) { givenModule.initialize() }
+        assertCalledOnce { givenModule.initialize() }
     }
 
     @Test
@@ -65,8 +63,8 @@ class CustomerIOBuilderTest {
             .addCustomerIOModule(givenModule2)
             .build()
 
-        verify(exactly = 1) { givenModule1.initialize() }
-        verify(exactly = 1) { givenModule2.initialize() }
+        assertCalledOnce { givenModule1.initialize() }
+        assertCalledOnce { givenModule2.initialize() }
     }
 
     @Test
@@ -83,8 +81,8 @@ class CustomerIOBuilderTest {
             .addCustomerIOModule(givenModule2)
             .build()
 
-        verify(exactly = 0) { givenModule1.initialize() }
-        verify(exactly = 1) { givenModule2.initialize() }
+        assertCalledNever { givenModule1.initialize() }
+        assertCalledOnce { givenModule2.initialize() }
     }
 
     @Test
@@ -203,7 +201,7 @@ class CustomerIOBuilderTest {
     }
 
     private fun createCustomerIOBuilder(givenCdpApiKey: String? = null): CustomerIOBuilder = CustomerIOBuilder(
-        applicationContext = application,
+        applicationContext = applicationMock,
         cdpApiKey = givenCdpApiKey ?: String.random
     )
 }

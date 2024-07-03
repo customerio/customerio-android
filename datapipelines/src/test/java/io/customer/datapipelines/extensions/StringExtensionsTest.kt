@@ -2,10 +2,9 @@ package io.customer.datapipelines.extensions
 
 import io.customer.datapipelines.plugins.getScreenNameFromActivity
 import org.amshove.kluent.shouldBeEqualTo
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
-internal class StringExt {
-
+internal class StringExtensionsTest {
     @Test
     fun verify_activityScreenFormatting_expectFormattedScreenName() {
         "HomeActivity".getScreenNameFromActivity() shouldBeEqualTo "Home"

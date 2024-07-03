@@ -1,10 +1,10 @@
-package io.customer.sdk.core.di
+package io.customer.sdk.communication
 
-import io.customer.commontest.core.BaseUnitTest
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.util.ScopeProviderStub
-import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.EventBus
-import io.customer.sdk.communication.subscribe
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -13,20 +13,27 @@ import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
 import org.amshove.kluent.shouldHaveSingleItem
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
-class EventBusTest : BaseUnitTest() {
-
+class EventBusTest : JUnit5Test() {
     private lateinit var eventBus: EventBus
     private val testScopeProvider = ScopeProviderStub()
 
-    override fun setup() {
-        SDKComponent.overrideDependency(ScopeProvider::class.java, testScopeProvider)
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk { overrideDependency<ScopeProvider>(testScopeProvider) }
+                }
+            }
+        )
+
         eventBus = SDKComponent.eventBus
     }
 
     override fun teardown() {
         eventBus.removeAllSubscriptions()
+
         super.teardown()
     }
 

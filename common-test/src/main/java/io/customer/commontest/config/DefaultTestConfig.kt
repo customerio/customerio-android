@@ -18,7 +18,7 @@ class DefaultTestConfig internal constructor(
 
     class Builder : TestConfigBuilder<DefaultTestConfig>() {
         override fun build(): DefaultTestConfig = DefaultTestConfig(
-            arguments = arguments,
+            arguments = configArguments,
             diGraph = diGraphConfiguration
         )
     }

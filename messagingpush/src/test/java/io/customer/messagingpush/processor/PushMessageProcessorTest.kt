@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.core.app.TaskStackBuilder
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledNever
@@ -346,8 +345,8 @@ class PushMessageProcessorTest : IntegrationTest() {
         val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
         val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
         every {
-            notificationCallback.createTaskStackFromPayload(any(), givenPayload)
-        } returns mockk<TaskStackBuilder>(relaxed = true)
+            notificationCallback.onNotificationClicked(givenPayload, any())
+        } answers { }
 
         // Make sure that the callback as expected for all behaviors
         for (pushClickBehavior in PushClickBehavior.values()) {
@@ -371,8 +370,8 @@ class PushMessageProcessorTest : IntegrationTest() {
         val givenPayload = pushMessagePayload()
         val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
         every {
-            notificationCallback.createTaskStackFromPayload(contextMock, givenPayload)
-        } returns mockk<TaskStackBuilder>(relaxed = true)
+            notificationCallback.onNotificationClicked(givenPayload, any())
+        } answers { }
 
         // Make sure that the callback as expected for all behaviors
         for (pushClickBehavior in PushClickBehavior.values()) {

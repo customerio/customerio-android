@@ -42,8 +42,8 @@ class ModuleMessagingConfigTest : JUnitTest() {
 
         val moduleConfig = SDKComponent.moduleConfig
 
+        moduleConfig.autoTrackPushEvents shouldBe true
         moduleConfig.notificationCallback shouldBe null
-        moduleConfig.redirectDeepLinksToOtherApps shouldBe true
         moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_PREVENT_RESTART
     }
 
@@ -57,7 +57,6 @@ class ModuleMessagingConfigTest : JUnitTest() {
 
         moduleConfig.autoTrackPushEvents shouldBe true
         moduleConfig.notificationCallback shouldBe null
-        moduleConfig.redirectDeepLinksToOtherApps shouldBe true
         moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.ACTIVITY_PREVENT_RESTART
     }
 
@@ -67,7 +66,6 @@ class ModuleMessagingConfigTest : JUnitTest() {
             moduleConfig = MessagingPushModuleConfig.Builder().apply {
                 setAutoTrackPushEvents(false)
                 setNotificationCallback(object : CustomerIOPushNotificationCallback {})
-                setRedirectDeepLinksToOtherApps(false)
                 setPushClickBehavior(PushClickBehavior.RESET_TASK_STACK)
             }.build()
         ).attachToSDKComponent()
@@ -76,7 +74,6 @@ class ModuleMessagingConfigTest : JUnitTest() {
 
         moduleConfig.autoTrackPushEvents shouldBe false
         moduleConfig.notificationCallback shouldNotBe null
-        moduleConfig.redirectDeepLinksToOtherApps shouldBe false
         moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.RESET_TASK_STACK
     }
 }

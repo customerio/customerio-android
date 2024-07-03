@@ -1,8 +1,10 @@
 package io.customer.messagingpush
 
 import android.app.Application
+import android.content.Context
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.testutils.core.JUnitTest
 import io.customer.sdk.communication.EventBus
@@ -87,7 +89,11 @@ internal class ModuleMessagingConfigTest : JUnitTest() {
         module = ModuleMessagingPushFCM(
             moduleConfig = MessagingPushModuleConfig.Builder().apply {
                 setAutoTrackPushEvents(false)
-                setNotificationCallback(object : CustomerIOPushNotificationCallback {})
+                setNotificationCallback(object : CustomerIOPushNotificationCallback {
+                    override fun onNotificationClicked(payload: CustomerIOParsedPushPayload, context: Context) {
+                        println("")
+                    }
+                })
                 setRedirectDeepLinksToOtherApps(false)
                 setPushClickBehavior(PushClickBehavior.RESET_TASK_STACK)
             }.build()

@@ -44,13 +44,11 @@ internal class InAppMessagesProviderTest : JUnitTest() {
         ) -> Unit
     ) {
         every { gistApiProvider.subscribeToEvents(any(), any(), any()) }.answers { call ->
-            val args = call.invocation.args
-            @Suppress("UNCHECKED_CAST")
             callback(
                 call,
-                args[0] as (String) -> Unit,
-                args[1] as (deliveryId: String?, currentRoute: String, action: String, name: String) -> Unit,
-                args[2] as (errorMessage: String) -> Unit
+                firstArg<(String) -> Unit>(),
+                secondArg<(String?, String, String, String) -> Unit>(),
+                thirdArg()
             )
         }
     }

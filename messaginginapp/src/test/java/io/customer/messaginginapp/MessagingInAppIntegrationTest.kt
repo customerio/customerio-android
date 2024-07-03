@@ -2,7 +2,6 @@ package io.customer.messaginginapp
 
 import android.Manifest
 import android.app.Activity
-import android.app.Application
 import android.content.pm.PackageManager
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -100,12 +99,11 @@ class MessagingInAppIntegrationTest : IntegrationTest() {
 
         val gistApi = SDKComponent.gistApiProvider
         // Mocking Gist API initialization
-        every { gistApi.initProvider(any(), any(), any()) } answers { call ->
-            val args = call.invocation.args
+        every { gistApi.initProvider(any(), any(), any()) } answers {
             GistSdk.init(
-                application = args[0] as Application,
-                siteId = args[1] as String,
-                dataCenter = args[2] as String,
+                application = firstArg(),
+                siteId = secondArg(),
+                dataCenter = thirdArg(),
                 environment = gistEnvironmentMock
             )
         }
@@ -138,7 +136,7 @@ class MessagingInAppIntegrationTest : IntegrationTest() {
 
         // Mocking InAppEventListener
         every { inAppEventListenerMock.errorWithMessage(any()) } answers { call ->
-            val message: InAppMessage = call.invocation.args.first() as InAppMessage
+            val message: InAppMessage = firstArg()
             println("$GIST_TAG: Error with message: $message")
         }
 

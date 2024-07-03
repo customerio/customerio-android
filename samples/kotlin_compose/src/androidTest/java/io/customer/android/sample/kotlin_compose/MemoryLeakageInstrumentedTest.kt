@@ -20,7 +20,6 @@ import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -68,29 +67,8 @@ class MemoryLeakageInstrumentedTest {
             preferences.getConfiguration().first()
         }
 
-        io.customer.sdk.android.CustomerIO.Builder(
-            siteId = configuration.siteId,
-            apiKey = BuildConfig.API_KEY,
-            appContext = appContext as Application
-        ).apply {
-            setLogLevel(CioLogLevel.DEBUG)
-            setBackgroundQueueMinNumberOfTasks(5)
-            setBackgroundQueueSecondsDelay(5.0)
-            addCustomerIOModule(
-                ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder(
-                        siteId = configuration.siteId,
-                        region = Region.US
-                    )
-                        .setEventListener(InAppMessageEventListener()).build()
-                )
-            )
-            addCustomerIOModule(ModuleMessagingPushFCM())
-            build()
-        }
-
         CustomerIOBuilder(
-            applicationContext = appContext,
+            applicationContext = appContext as Application,
             cdpApiKey = configuration.cdpApiKey
         ).apply {
             configuration.setValuesFromBuilder(this)

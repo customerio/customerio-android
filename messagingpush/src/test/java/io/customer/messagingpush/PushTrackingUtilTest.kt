@@ -27,9 +27,7 @@ class PushTrackingUtilTest : JUnitTest() {
         super.setup(
             testConfigurationDefault {
                 diGraph {
-                    sdk {
-                        overrideDependency<EventBus>(mockk(relaxed = true))
-                    }
+                    sdk { overrideDependency<EventBus>(mockk(relaxed = true)) }
                 }
             }
         )

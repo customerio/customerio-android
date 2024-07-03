@@ -14,7 +14,6 @@ import io.customer.commontest.extensions.random
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessor
-import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEqualTo
@@ -23,22 +22,17 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class NotificationClickReceiverActivityTest : AndroidTest() {
-    private lateinit var eventBus: EventBus
     private lateinit var pushMessageProcessorMock: PushMessageProcessor
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
             testConfigurationDefault {
                 diGraph {
-                    sdk {
-                        overrideDependency<EventBus>(mockk(relaxed = true))
-                        overrideDependency<PushMessageProcessor>(mockk(relaxed = true))
-                    }
+                    sdk { overrideDependency<PushMessageProcessor>(mockk(relaxed = true)) }
                 }
             }
         )
 
-        eventBus = SDKComponent.eventBus
         pushMessageProcessorMock = SDKComponent.pushMessageProcessor
     }
 

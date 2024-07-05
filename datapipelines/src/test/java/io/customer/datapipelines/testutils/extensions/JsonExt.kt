@@ -1,6 +1,7 @@
 package io.customer.datapipelines.testutils.extensions
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
+import io.customer.datapipelines.plugins.findAtPath
 import io.customer.sdk.data.model.CustomAttributes
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -11,7 +12,6 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.amshove.kluent.internal.assertEquals
 
 /**
@@ -81,28 +81,10 @@ private fun <T> Json.encode(value: T?): JsonElement = when (value) {
 internal val JsonObject.deviceToken: String?
     get() = this.getStringAtPath("device.token")
 
-/**
- * Get the value at the nested path in the JSON object.
- * Example: `{"a": {"b": "c"}}.getNestedString("a.b")` returns c
- */
-fun JsonObject.getJsonPrimitiveAtPath(path: String): JsonPrimitive? {
-    // Split the path into keys
-    val keys = path.split(".")
-    // Start with the current JSON object
-    var currentElement = this
-    // Traverse the JSON object to find the value at the path
-    for (key in keys.dropLast(1)) {
-        // If the key does not exist, return null
-        currentElement = currentElement[key]?.jsonObject ?: return null
-    }
-    // Return the value at the last key in the path
-    return currentElement[keys.last()]?.jsonPrimitive
-}
-
 fun JsonObject.getStringAtPath(path: String): String? {
-    return getJsonPrimitiveAtPath(path)?.content
+    return findAtPath(path)?.content
 }
 
 fun JsonObject.getJsonObjectAtPath(path: String): JsonObject? {
-    return getJsonPrimitiveAtPath(path)?.jsonObject
+    return findAtPath(path)?.jsonObject
 }

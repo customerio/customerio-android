@@ -25,7 +25,10 @@ class ContextPlugin(private val deviceStore: DeviceStore) : Plugin {
         // SDK information is being sent through user-agent
         event.removeFromContext("library")
 
-        deviceToken?.let { token ->
+        // In case of migration from older versions, the token might already be present in the context
+        // We need to ensure that the token is not overridden to avoid corruption of data
+        // If the token is not present in the context, we add current token to the context
+        event.findInContextAtPath("device.token")?.content ?: deviceToken?.let { token ->
             // Device token is expected to be attached to device in context
             event.putInContextUnderKey("device", "token", token)
         }

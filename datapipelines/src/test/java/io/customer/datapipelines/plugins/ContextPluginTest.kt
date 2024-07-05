@@ -60,8 +60,8 @@ class ContextPluginTest : JUnitTest() {
         migrationTokenPlugin.newToken = givenNewToken
         analytics.process(TrackEvent(emptyJsonObject, givenEventName))
 
-        // To avoid false positives, ensure that the original token is not null
-        // and ContextPlugin is attached later than MigrationTokenPlugin
+        // To avoid false positives, ensure that original token is not null
+        // and ContextPlugin was attached after MigrationTokenPlugin
         migrationTokenPlugin.originalToken.shouldBeNull()
 
         val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()

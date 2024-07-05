@@ -71,7 +71,7 @@ dependencies {
         implementation(project(":datapipelines"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
-        implementation(project(":migration"))
+        implementation(project(":tracking-migration"))
     } else {
         // Stable releases dependency, use published versions directly
         implementation "io.customer.android:datapipelines:$cioSDKVersion"

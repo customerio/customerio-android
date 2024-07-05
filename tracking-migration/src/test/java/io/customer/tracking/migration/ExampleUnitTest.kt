@@ -1,4 +1,4 @@
-package io.customer.migration
+package io.customer.tracking.migration
 
 import org.junit.Assert.*
 import org.junit.Test

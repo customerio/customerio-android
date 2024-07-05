@@ -17,7 +17,7 @@ apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
-    namespace 'io.customer.migration'
+    namespace 'io.customer.tracking.migration'
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -32,5 +32,4 @@ android {
 
 dependencies {
     api project(":base")
-    api project(":datapipelines")
 }

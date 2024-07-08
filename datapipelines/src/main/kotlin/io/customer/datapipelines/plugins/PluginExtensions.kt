@@ -8,7 +8,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Gets the value at nested path in the JSON object.
- * Example: `{"a": {"b": "c"}}.getNestedString("a.b")` returns c
+ * Example: `{"a": {"b": "c"}}.findAtPath("a.b")` returns c
  */
 internal fun JsonObject.findAtPath(path: String): JsonPrimitive? = kotlin.runCatching {
     // Split the path into keys

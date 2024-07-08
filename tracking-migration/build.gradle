@@ -1,16 +1,14 @@
 import io.customer.android.Configurations
-import io.customer.android.Dependencies
 
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
     id 'com.twilio.apkscale'
-    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 ext {
     PUBLISH_GROUP_ID = Configurations.artifactGroup
-    PUBLISH_ARTIFACT_ID = "datapipelines"
+    PUBLISH_ARTIFACT_ID = "tracking-migration"
 }
 
 apply from: "${rootDir}/scripts/publish-module.gradle"
@@ -19,7 +17,7 @@ apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
 
 android {
-    namespace 'io.customer.datapipelines'
+    namespace 'io.customer.tracking.migration'
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -35,10 +33,4 @@ android {
 dependencies {
     api project(":base")
     api project(":core")
-    implementation project(":tracking-migration")
-
-    implementation(Dependencies.segment)
-    // Use this as API so customers can provide objects serializations without
-    // needing to add it as a dependency to their app
-    api(Dependencies.kotlinxSerializationJson)
 }

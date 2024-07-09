@@ -1,9 +1,9 @@
 package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.Logger
-import io.customer.sdk.queue.type.QueueRunTaskResult
-import io.customer.sdk.queue.type.QueueTask
-import io.customer.sdk.queue.type.QueueTaskType
+import io.customer.tracking.migration.type.QueueRunTaskResult
+import io.customer.tracking.migration.type.QueueTask
+import io.customer.tracking.migration.type.QueueTaskType
 import java.io.IOException
 
 interface QueueRunner {

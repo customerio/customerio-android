@@ -1,7 +1,6 @@
-package io.customer.sdk.queue.taskdata
+package io.customer.tracking.migration.taskdata
 
-import io.customer.sdk.data.request.Device
-import java.util.*
+import io.customer.tracking.migration.request.Device
 
 internal data class RegisterPushNotificationQueueTaskData(
     val profileIdentified: String,

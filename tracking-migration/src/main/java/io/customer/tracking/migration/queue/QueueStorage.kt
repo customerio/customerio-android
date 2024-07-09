@@ -1,12 +1,12 @@
 package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.Logger
-import io.customer.sdk.data.store.FileStorage
-import io.customer.sdk.data.store.FileType
-import io.customer.sdk.queue.type.QueueInventory
-import io.customer.sdk.queue.type.QueueModifyResult
-import io.customer.sdk.queue.type.QueueStatus
-import io.customer.sdk.queue.type.QueueTask
+import io.customer.tracking.migration.store.FileStorage
+import io.customer.tracking.migration.store.FileType
+import io.customer.tracking.migration.type.QueueInventory
+import io.customer.tracking.migration.type.QueueModifyResult
+import io.customer.tracking.migration.type.QueueStatus
+import io.customer.tracking.migration.type.QueueTask
 
 interface QueueStorage {
     fun getInventory(): QueueInventory

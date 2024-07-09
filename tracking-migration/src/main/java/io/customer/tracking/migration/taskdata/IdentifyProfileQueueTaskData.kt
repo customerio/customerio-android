@@ -1,4 +1,4 @@
-package io.customer.sdk.queue.taskdata
+package io.customer.tracking.migration.taskdata
 
 data class IdentifyProfileQueueTaskData(
     val identifier: String,

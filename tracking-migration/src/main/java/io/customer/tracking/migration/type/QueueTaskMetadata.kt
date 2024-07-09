@@ -1,4 +1,4 @@
-package io.customer.sdk.queue.type
+package io.customer.tracking.migration.type
 
 import java.util.Date
 

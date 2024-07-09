@@ -1,4 +1,4 @@
-package io.customer.sdk.queue.type
+package io.customer.tracking.migration.type
 
 data class QueueTask(
     val storageId: String,

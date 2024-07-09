@@ -1,3 +1,3 @@
-package io.customer.sdk.queue.type
+package io.customer.tracking.migration.type
 
 typealias QueueInventory = List<QueueTaskMetadata>

@@ -2,7 +2,7 @@ package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
-import io.customer.sdk.queue.type.QueueStatus
+import io.customer.tracking.migration.type.QueueStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

@@ -1,4 +1,4 @@
-package io.customer.sdk.data.store
+package io.customer.tracking.migration.store
 
 import android.content.Context
 import io.customer.sdk.core.util.Logger

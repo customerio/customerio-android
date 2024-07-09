@@ -1,4 +1,4 @@
-package io.customer.sdk.data.request
+package io.customer.tracking.migration.request
 
 import java.util.*
 

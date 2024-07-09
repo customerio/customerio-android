@@ -1,4 +1,4 @@
-package io.customer.sdk.data.request
+package io.customer.tracking.migration.request
 
 import java.util.*
 
@@ -7,10 +7,10 @@ internal enum class DeliveryType {
 }
 
 internal data class DeliveryPayload(
-//    @field:Json(name = "delivery_id") val deliveryID: String,
+//    @field:Json(name = "delivery_id") val deliveryID: String, // TODO: Add this field without moshi
     val event: MetricEvent,
     val timestamp: Date
-//    @field:Json(name = "metadata") val metaData: Map<String, String>
+//    @field:Json(name = "metadata") val metaData: Map<String, String> // TODO: Add this field without moshi
 )
 
 internal data class DeliveryEvent(

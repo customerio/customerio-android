@@ -3,6 +3,7 @@ package io.customer.sdk.lifecycle
 import android.app.Activity
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
+import java.lang.ref.WeakReference
 
 /**
  * Represents an event in the lifecycle of an Activity.
@@ -12,7 +13,7 @@ import androidx.lifecycle.Lifecycle
  * @property bundle Optional data associated with the lifecycle event
  */
 data class LifecycleStateChange(
-    val activity: Activity,
+    val activity: WeakReference<Activity>,
     val event: Lifecycle.Event,
     val bundle: Bundle?
 )

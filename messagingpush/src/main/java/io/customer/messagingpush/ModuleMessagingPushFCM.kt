@@ -9,6 +9,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
@@ -29,21 +30,23 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     private fun subscribeToLifecycleEvents() {
         activityLifecycleCallbacks.subscribe { events ->
-            events.filter { state ->
-                state.event == Lifecycle.Event.ON_CREATE
-            }.collect { state ->
-                when (state.event) {
-                    Lifecycle.Event.ON_CREATE -> {
-                        val intentArguments = state.activity.intent.extras ?: return@collect
+            events
+                .filterNotNull()
+                .filter { state ->
+                    state.event == Lifecycle.Event.ON_CREATE
+                }.collect { state ->
+                    when (state.event) {
+                        Lifecycle.Event.ON_CREATE -> {
+                            val intentArguments = state.activity.get()?.intent?.extras ?: return@collect
 
-                        if (moduleConfig.autoTrackPushEvents) {
-                            pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                            if (moduleConfig.autoTrackPushEvents) {
+                                pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                            }
                         }
-                    }
 
-                    else -> {}
+                        else -> {}
+                    }
                 }
-            }
         }
     }
 

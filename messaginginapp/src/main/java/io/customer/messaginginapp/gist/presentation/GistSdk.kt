@@ -21,6 +21,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 // replace with: CustomerIOLogger
@@ -137,15 +138,17 @@ object GistSdk {
 
     private fun subscribeToLifecycleEvents() {
         SDKComponent.activityLifecycleCallbacks.subscribe { events ->
-            events.filter { state ->
-                state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
-            }.collect { state ->
-                when (state.event) {
-                    Lifecycle.Event.ON_RESUME -> onActivityResumed(state.activity)
-                    Lifecycle.Event.ON_PAUSE -> onActivityPaused(state.activity)
-                    else -> {}
+            events
+                .filterNotNull()
+                .filter { state ->
+                    state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
+                }.collect { state ->
+                    when (state.event) {
+                        Lifecycle.Event.ON_RESUME -> state.activity.get()?.let { onActivityResumed(it) }
+                        Lifecycle.Event.ON_PAUSE -> state.activity.get()?.let { onActivityPaused(it) }
+                        else -> {}
+                    }
                 }
-            }
         }
     }
 

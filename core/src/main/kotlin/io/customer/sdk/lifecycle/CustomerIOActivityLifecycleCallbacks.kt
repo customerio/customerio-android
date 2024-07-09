@@ -8,8 +8,8 @@ import io.customer.sdk.core.di.SDKComponent
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -19,12 +19,18 @@ import kotlinx.coroutines.launch
  * and should avoid listening to events from ActivityLifecycleCallbacks directly.
  */
 class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallbacks {
-    private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>()
-    private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
+    /**
+     * Store last emitted lifecycle state to provide current state to new subscribers.
+     * */
+    private val _lifecycleEvents = MutableStateFlow<LifecycleStateChange?>(null)
 
-    // Stores last emitted lifecycle state to provide current state to new subscribers.
-    // The reference is weak to avoid memory leaks.
-    private var currentLifecycleStateRef: WeakReference<LifecycleStateChange>? = null
+    /**
+     * New subscribers can subscribe to get current state after subscribing
+     * to simulate behavior of replaying events.
+     */
+    val lifecycleEvents: StateFlow<LifecycleStateChange?> = _lifecycleEvents
+
+    private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
 
     /**
      * Register the lifecycle callbacks to start receiving events.
@@ -39,18 +45,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     fun unregister(application: Application) {
         application.unregisterActivityLifecycleCallbacks(this)
         subscriberScope.cancel()
-        currentLifecycleStateRef?.clear()
-        currentLifecycleStateRef = null
-    }
-
-    /**
-     * Returns last emitted lifecycle state.
-     * The function returns null if no event has been emitted yet.
-     * New subscribers can use this function to get current state after subscribing
-     * to simulate behavior of replaying events.
-     */
-    fun currentLifecycleState(): LifecycleStateChange? {
-        return currentLifecycleStateRef?.get()
+        _lifecycleEvents.value = null
     }
 
     /**
@@ -58,8 +53,8 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
      * The function receives lambda so subscribers can apply operations like
      * filtering, mapping, etc. before collecting the events.
      */
-    fun subscribe(block: suspend CoroutineScope.(SharedFlow<LifecycleStateChange>) -> Unit) {
-        subscriberScope.launch { block(lifecycleEvents) }
+    fun subscribe(block: suspend CoroutineScope.(StateFlow<LifecycleStateChange?>) -> Unit) {
+        subscriberScope.launch { block(_lifecycleEvents) }
     }
 
     /**
@@ -70,9 +65,8 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         event: Lifecycle.Event,
         bundle: Bundle? = null
     ): Boolean {
-        val value = LifecycleStateChange(activity = activity, event = event, bundle = bundle)
-        currentLifecycleStateRef = WeakReference(value)
-        return lifecycleEvents.tryEmit(value)
+        val value = LifecycleStateChange(activity = WeakReference(activity), event = event, bundle = bundle)
+        return _lifecycleEvents.tryEmit(value)
     }
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {

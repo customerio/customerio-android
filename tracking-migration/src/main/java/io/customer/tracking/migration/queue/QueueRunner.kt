@@ -42,6 +42,7 @@ internal class QueueRunnerImpl(
         }
     }
 
+    // TODO: send this to Data pipeline
     private suspend fun identifyProfile(task: QueueTask): QueueRunTaskResult? {
 //        val taskData: IdentifyProfileQueueTaskData =
 //            jsonAdapter.fromJsonOrNull(task.data) ?: return null
@@ -50,6 +51,7 @@ internal class QueueRunnerImpl(
         return null
     }
 
+    // TODO: send this to Data pipeline
     private suspend fun trackEvent(task: QueueTask): QueueRunTaskResult? {
 //        val taskData: TrackEventQueueTaskData = jsonAdapter.fromJsonOrNull(task.data) ?: return null
 //
@@ -57,6 +59,7 @@ internal class QueueRunnerImpl(
         return null
     }
 
+    // TODO: send this to Data pipeline
     private suspend fun deleteDeviceToken(task: QueueTask): QueueRunTaskResult? {
 //        val taskData: DeletePushNotificationQueueTaskData =
 //            jsonAdapter.fromJsonOrNull(task.data) ?: return null
@@ -65,6 +68,7 @@ internal class QueueRunnerImpl(
         return null
     }
 
+    // TODO: send this to Data pipeline
     private suspend fun registerDeviceToken(task: QueueTask): QueueRunTaskResult? {
 //        val taskData: RegisterPushNotificationQueueTaskData =
 //            jsonAdapter.fromJsonOrNull(task.data) ?: return null
@@ -76,6 +80,7 @@ internal class QueueRunnerImpl(
         return null
     }
 
+    // TODO: send this to Data pipeline
     private suspend fun trackPushMetrics(task: QueueTask): QueueRunTaskResult? {
 //        val taskData: Metric = jsonAdapter.fromJsonOrNull(task.data) ?: return null
 //
@@ -83,6 +88,7 @@ internal class QueueRunnerImpl(
         return null
     }
 
+    // TODO: send this to Data pipeline
     @Throws(IOException::class, RuntimeException::class)
     private suspend fun trackDeliveryEvents(task: QueueTask): QueueRunTaskResult? {
 //        val taskData: DeliveryEvent = jsonAdapter.fromJsonOrNull(task.data) ?: return null

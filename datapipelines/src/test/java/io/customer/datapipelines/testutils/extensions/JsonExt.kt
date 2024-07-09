@@ -82,9 +82,9 @@ internal val JsonObject.deviceToken: String?
     get() = this.getStringAtPath("device.token")
 
 fun JsonObject.getStringAtPath(path: String): String? {
-    return findAtPath(path)?.content
+    return findAtPath(path).firstOrNull()?.content
 }
 
 fun JsonObject.getJsonObjectAtPath(path: String): JsonObject? {
-    return findAtPath(path)?.jsonObject
+    return findAtPath(path).firstOrNull()?.jsonObject
 }

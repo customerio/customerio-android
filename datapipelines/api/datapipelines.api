@@ -127,7 +127,8 @@ public final class io/customer/datapipelines/plugins/DataPipelinePublishedEvents
 }
 
 public final class io/customer/datapipelines/plugins/PluginExtensionsKt {
-	public static final fun findInContextAtPath (Lcom/segment/analytics/kotlin/core/BaseEvent;Ljava/lang/String;)Lkotlinx/serialization/json/JsonPrimitive;
+	public static final fun findAtPath (Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;)Ljava/util/List;
+	public static final fun findInContextAtPath (Lcom/segment/analytics/kotlin/core/BaseEvent;Ljava/lang/String;)Ljava/util/List;
 }
 
 public final class io/customer/datapipelines/plugins/StringExtensionsKt {

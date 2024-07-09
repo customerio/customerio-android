@@ -43,6 +43,12 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         currentLifecycleStateRef = null
     }
 
+    /**
+     * Returns last emitted lifecycle state.
+     * The function returns null if no event has been emitted yet.
+     * New subscribers can use this function to get current state after subscribing
+     * to simulate behavior of replaying events.
+     */
     fun currentLifecycleState(): LifecycleStateChange? {
         return currentLifecycleStateRef?.get()
     }

@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import io.customer.sdk.core.di.SDKComponent
+import java.lang.ref.WeakReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,8 +19,12 @@ import kotlinx.coroutines.launch
  * and should avoid listening to events from ActivityLifecycleCallbacks directly.
  */
 class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallbacks {
-    private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>(replay = 1)
+    private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>()
     private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
+
+    // Stores last emitted lifecycle state to provide current state to new subscribers.
+    // The reference is weak to avoid memory leaks.
+    private var currentLifecycleStateRef: WeakReference<LifecycleStateChange>? = null
 
     /**
      * Register the lifecycle callbacks to start receiving events.
@@ -34,6 +39,12 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     fun unregister(application: Application) {
         application.unregisterActivityLifecycleCallbacks(this)
         subscriberScope.cancel()
+        currentLifecycleStateRef?.clear()
+        currentLifecycleStateRef = null
+    }
+
+    fun currentLifecycleState(): LifecycleStateChange? {
+        return currentLifecycleStateRef?.get()
     }
 
     /**
@@ -52,9 +63,11 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         activity: Activity,
         event: Lifecycle.Event,
         bundle: Bundle? = null
-    ): Boolean = lifecycleEvents.tryEmit(
-        LifecycleStateChange(activity = activity, event = event, bundle = bundle)
-    )
+    ): Boolean {
+        val value = LifecycleStateChange(activity = activity, event = event, bundle = bundle)
+        currentLifecycleStateRef = WeakReference(value)
+        return lifecycleEvents.tryEmit(value)
+    }
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {
         sendEventToCallbacks(activity, Lifecycle.Event.ON_CREATE, bundle)

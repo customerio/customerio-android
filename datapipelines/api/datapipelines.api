@@ -126,6 +126,11 @@ public final class io/customer/datapipelines/plugins/DataPipelinePublishedEvents
 	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
 }
 
+public final class io/customer/datapipelines/plugins/PluginExtensionsKt {
+	public static final fun findAtPath (Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;)Ljava/util/List;
+	public static final fun findInContextAtPath (Lcom/segment/analytics/kotlin/core/BaseEvent;Ljava/lang/String;)Ljava/util/List;
+}
+
 public final class io/customer/datapipelines/plugins/StringExtensionsKt {
 	public static final fun getScreenNameFromActivity (Ljava/lang/String;)Ljava/lang/String;
 }

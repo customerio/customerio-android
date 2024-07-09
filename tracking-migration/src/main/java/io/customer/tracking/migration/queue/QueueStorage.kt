@@ -18,7 +18,7 @@ interface QueueStorage {
 internal class QueueStorageImpl internal constructor(
     private val fileStorage: FileStorage,
     private val siteId: String,
-//    private val jsonAdapter: JsonAdapter,
+//    private val jsonAdapter: JsonAdapter, // TODO: Json Adapter without Moshi
     private val logger: Logger
 ) : QueueStorage {
 
@@ -56,11 +56,5 @@ internal class QueueStorageImpl internal constructor(
         }
 
         return QueueModifyResult(true, QueueStatus(siteId, existingInventory.count()))
-    }
-
-    private fun update(queueTask: QueueTask): Boolean {
-//        val fileContents = jsonAdapter.toJson(queueTask)
-//        return fileStorage.save(FileType.QueueTask(queueTask.storageId), fileContents)
-        return false // TODO: Implement this
     }
 }

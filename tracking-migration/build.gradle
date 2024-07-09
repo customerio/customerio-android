@@ -33,4 +33,8 @@ android {
 dependencies {
     api project(":base")
     api project(":core")
+
+    implementation io.customer.android.Dependencies.coroutinesCore
+    implementation io.customer.android.Dependencies.coroutinesAndroid
+
 }

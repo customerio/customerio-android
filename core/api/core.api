@@ -313,7 +313,6 @@ public final class io/customer/sdk/events/TrackMetric$Push : io/customer/sdk/eve
 
 public final class io/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {
 	public fun <init> ()V
-	public final fun getLifecycleEvents ()Lkotlinx/coroutines/flow/StateFlow;
 	public fun onActivityCreated (Landroid/app/Activity;Landroid/os/Bundle;)V
 	public fun onActivityDestroyed (Landroid/app/Activity;)V
 	public fun onActivityPaused (Landroid/app/Activity;)V

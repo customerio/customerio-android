@@ -8,8 +8,8 @@ import io.customer.sdk.core.di.SDKComponent
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -20,15 +20,9 @@ import kotlinx.coroutines.launch
  */
 class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallbacks {
     /**
-     * Store last emitted lifecycle state to provide current state to new subscribers.
+     * remits the last emitted lifecycle state to provide last state to new subscribers.
      * */
-    private val _lifecycleEvents = MutableStateFlow<LifecycleStateChange?>(null)
-
-    /**
-     * New subscribers can subscribe to get current state after subscribing
-     * to simulate behavior of replaying events.
-     */
-    val lifecycleEvents: StateFlow<LifecycleStateChange?> = _lifecycleEvents
+    private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>(1)
 
     private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
 
@@ -45,7 +39,6 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     fun unregister(application: Application) {
         application.unregisterActivityLifecycleCallbacks(this)
         subscriberScope.cancel()
-        _lifecycleEvents.value = null
     }
 
     /**
@@ -53,8 +46,8 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
      * The function receives lambda so subscribers can apply operations like
      * filtering, mapping, etc. before collecting the events.
      */
-    fun subscribe(block: suspend CoroutineScope.(StateFlow<LifecycleStateChange?>) -> Unit) {
-        subscriberScope.launch { block(_lifecycleEvents) }
+    fun subscribe(block: suspend CoroutineScope.(SharedFlow<LifecycleStateChange>) -> Unit) {
+        subscriberScope.launch { block(lifecycleEvents) }
     }
 
     /**
@@ -66,7 +59,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         bundle: Bundle? = null
     ): Boolean {
         val value = LifecycleStateChange(activity = WeakReference(activity), event = event, bundle = bundle)
-        return _lifecycleEvents.tryEmit(value)
+        return lifecycleEvents.tryEmit(value)
     }
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {

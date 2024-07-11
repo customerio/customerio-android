@@ -13,7 +13,6 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.events.Metric
-import io.customer.sdk.events.serializedName
 import io.mockk.every
 import io.mockk.mockk
 import org.amshove.kluent.shouldBe
@@ -66,7 +65,7 @@ class PushTrackingUtilTest : JUnitTest() {
         assertCalledOnce {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = Metric.Opened.serializedName,
+                    event = Metric.Opened,
                     deliveryId = givenDeliveryId,
                     deviceToken = givenDeviceToken
                 )

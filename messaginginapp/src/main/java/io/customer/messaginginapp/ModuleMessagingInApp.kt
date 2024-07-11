@@ -6,7 +6,6 @@ import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.events.Metric
-import io.customer.sdk.events.serializedName
 
 class ModuleMessagingInApp(
     config: MessagingInAppModuleConfig
@@ -42,7 +41,7 @@ class ModuleMessagingInApp(
             eventBus.publish(
                 Event.TrackInAppMetricEvent(
                     deliveryID = deliveryID,
-                    event = Metric.Opened.serializedName
+                    event = Metric.Opened
                 )
             )
         }, onAction = { deliveryID: String, _: String, action: String, name: String ->
@@ -50,7 +49,7 @@ class ModuleMessagingInApp(
             eventBus.publish(
                 Event.TrackInAppMetricEvent(
                     deliveryID = deliveryID,
-                    event = Metric.Clicked.serializedName,
+                    event = Metric.Clicked,
                     params = mapOf("action_name" to name, "action_value" to action)
                 )
             )

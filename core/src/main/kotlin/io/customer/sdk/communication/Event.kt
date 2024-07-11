@@ -1,5 +1,6 @@
 package io.customer.sdk.communication
 
+import io.customer.sdk.events.Metric
 import java.util.Date
 import java.util.UUID
 
@@ -28,13 +29,13 @@ sealed class Event {
 
     data class TrackPushMetricEvent(
         val deliveryId: String,
-        val event: String,
+        val event: Metric,
         val deviceToken: String
     ) : Event()
 
     data class TrackInAppMetricEvent(
         val deliveryID: String,
-        val event: String,
+        val event: Metric,
         override val params: Map<String, String> = emptyMap()
     ) : Event()
 

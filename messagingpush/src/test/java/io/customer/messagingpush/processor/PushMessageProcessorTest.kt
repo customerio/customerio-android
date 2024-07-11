@@ -26,7 +26,6 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.events.Metric
-import io.customer.sdk.events.serializedName
 import io.mockk.every
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEqualTo
@@ -222,7 +221,7 @@ class PushMessageProcessorTest : IntegrationTest() {
         assertCalledOnce {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = Metric.Delivered.serializedName,
+                    event = Metric.Delivered,
                     deliveryId = givenDeliveryId,
                     deviceToken = givenDeviceToken
                 )
@@ -262,7 +261,7 @@ class PushMessageProcessorTest : IntegrationTest() {
         assertCalledOnce {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = Metric.Delivered.serializedName,
+                    event = Metric.Delivered,
                     deliveryId = givenDeliveryId,
                     deviceToken = givenDeviceToken
                 )
@@ -289,7 +288,7 @@ class PushMessageProcessorTest : IntegrationTest() {
         assertCalledOnce {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
-                    event = Metric.Opened.serializedName,
+                    event = Metric.Opened,
                     deliveryId = givenPayload.cioDeliveryId,
                     deviceToken = givenPayload.cioDeliveryToken
                 )

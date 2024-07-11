@@ -127,9 +127,15 @@ class CustomerIO private constructor(
     }
 
     private fun subscribeToJourneyEvents() {
-        eventBus.subscribe<Event.TrackPushMetricEvent> {}
-        eventBus.subscribe<Event.TrackInAppMetricEvent> {}
-        eventBus.subscribe<Event.RegisterDeviceTokenEvent> {}
+        eventBus.subscribe<Event.TrackPushMetricEvent> {
+            trackMetric(TrackMetric.Push(metric = it.event, deliveryId = it.deliveryId, deviceToken = it.deviceToken))
+        }
+        eventBus.subscribe<Event.TrackInAppMetricEvent> {
+            trackMetric(TrackMetric.InApp(metric = it.event, deliveryId = it.deliveryID, metadata = it.params))
+        }
+        eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
+            registerDeviceToken(deviceToken = it.token)
+        }
     }
 
     override fun initialize() {

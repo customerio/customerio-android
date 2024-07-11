@@ -1,7 +1,6 @@
 package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.Logger
-import io.customer.tracking.migration.type.QueueTaskMetadata
 
 interface QueueRunRequest {
     suspend fun run()
@@ -19,13 +18,11 @@ internal class QueueRunRequestImpl internal constructor(
         val inventory = queueStorage.getInventory()
         val tasksToRun = inventory.toMutableList()
 
-        var lastFailedTask: QueueTaskMetadata? = null
-
         while (tasksToRun.isNotEmpty()) {
             // get the next task to run using the query criteria
-            val currentTaskMetadata = queryRunner.getNextTask(tasksToRun, lastFailedTask)
+            val currentTaskMetadata = queryRunner.getNextTask(tasksToRun)
             if (currentTaskMetadata == null) {
-                logger.debug("queue out of tasks to run...")
+                logger.debug("all queue tasks have been migrated or failed to run. Exiting queue run.")
                 break
             }
 
@@ -36,9 +33,9 @@ internal class QueueRunRequestImpl internal constructor(
 
             if (taskToRun == null) {
                 logger.error("Tried to get queue task with storage id: $taskStorageId but storage couldn't find it.")
-                // The task failed to execute because it couldn't be found. Gracefully handle the scenario by
-                // behaving the same way a failed HTTP request does. Run next task with an updated `lastFailedTask`.
-                lastFailedTask = currentTaskMetadata
+                // The task failed to execute because it couldn't be found. Which means it's a failed task
+                // If we can't find the task, we can't run it, so we should delete it from the queue
+                queueStorage.delete(taskStorageId)
                 continue
             }
 
@@ -51,23 +48,17 @@ internal class QueueRunRequestImpl internal constructor(
                 result.isSuccess -> {
                     logger.debug("queue task $taskStorageId ran successfully")
                     logger.debug("queue deleting task $taskStorageId")
-                    queueStorage.delete(taskStorageId)
                 }
-
                 result.isFailure -> {
                     val error = result.exceptionOrNull()
                     logger.debug("queue task $taskStorageId run failed $error")
-
-                    val previousRunResults = taskToRun.runResults
-                    val newRunResults =
-                        taskToRun.runResults.copy(totalRuns = previousRunResults.totalRuns + 1)
-                    logger.debug("queue task $taskStorageId, updating run history from: $previousRunResults to: $newRunResults")
-
-                    lastFailedTask = currentTaskMetadata
                 }
             }
+
+            // delete the task from the queue regardless of success or failure
+            // this task has been forwarded to the data pipeline so we are going to delete it regardless of success or failure
+            queueStorage.delete(taskStorageId)
         }
         logger.debug("queue done running tasks")
-        queryRunner.reset()
     }
 }

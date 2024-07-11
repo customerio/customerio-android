@@ -41,7 +41,6 @@ internal class QueueStorageImpl internal constructor(
             logger.error("error trying to delete task with storage id: $taskStorageId from queue")
             return false
         }
-        logger.debug("task with storage id: $taskStorageId deleted from queue")
 
         return true
     }

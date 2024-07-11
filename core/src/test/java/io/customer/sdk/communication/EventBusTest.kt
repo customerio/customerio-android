@@ -6,6 +6,7 @@ import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
+import io.customer.sdk.events.Metric
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.internal.assertEquals
@@ -98,7 +99,7 @@ class EventBusTest : JUnit5Test() {
             subscriber2.add(event)
         }
 
-        val testEvent = Event.TrackPushMetricEvent("Delivery ID", "Event", "Device Token")
+        val testEvent = Event.TrackPushMetricEvent("Delivery ID", Metric.Opened, "Device Token")
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
@@ -178,7 +179,7 @@ class EventBusTest : JUnit5Test() {
     fun givenBufferEventsAndReplayToNewSubscriberExpectAllEventsReceived() = runBlocking {
         // Publish multiple events without any subscribers
         repeat(15) { index ->
-            val event = Event.TrackInAppMetricEvent("deliveryId$index", "event$index", params = mapOf("message" to "Message $index"))
+            val event = Event.TrackInAppMetricEvent("deliveryId$index", Metric.Delivered, params = mapOf("message" to "Message $index"))
             println("Publishing event: $event")
             eventBus.publish(event)
         }
@@ -193,7 +194,7 @@ class EventBusTest : JUnit5Test() {
         delay(100) // Give some time for the events to be collected by the new subscriber
 
         for (i in 0 until 15) {
-            (events[i] as Event.TrackInAppMetricEvent).event shouldBeEqualTo "event$i"
+            (events[i] as Event.TrackInAppMetricEvent).event shouldBeEqualTo Metric.Delivered
             (events[i] as Event.TrackInAppMetricEvent).deliveryID shouldBeEqualTo "deliveryId$i"
             (events[i] as Event.TrackInAppMetricEvent).params shouldBeEqualTo mapOf("message" to "Message $i")
         }

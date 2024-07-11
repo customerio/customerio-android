@@ -13,6 +13,8 @@ import java.lang.ref.WeakReference
  * @property bundle Optional data associated with the lifecycle event
  */
 data class LifecycleStateChange(
+    // since we are holding a strong reference of LifecycleStateChange in the MutableSharedFlow via reply, we should use WeakReference
+    // of activity to avoid memory leaks
     val activity: WeakReference<Activity>,
     val event: Lifecycle.Event,
     val bundle: Bundle?

@@ -22,7 +22,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     /**
      * remits the last emitted lifecycle state to provide last state to new subscribers.
      * */
-    private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>(1)
+    private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>(replay = 1)
 
     private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
 
@@ -57,10 +57,9 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         activity: Activity,
         event: Lifecycle.Event,
         bundle: Bundle? = null
-    ): Boolean {
-        val value = LifecycleStateChange(activity = WeakReference(activity), event = event, bundle = bundle)
-        return lifecycleEvents.tryEmit(value)
-    }
+    ): Boolean = lifecycleEvents.tryEmit(
+        LifecycleStateChange(activity = WeakReference(activity), event = event, bundle = bundle)
+    )
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {
         sendEventToCallbacks(activity, Lifecycle.Event.ON_CREATE, bundle)

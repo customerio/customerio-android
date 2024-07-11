@@ -141,9 +141,10 @@ object GistSdk {
                 .filter { state ->
                     state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
                 }.collect { state ->
+                    val activity = state.activity.get() ?: return@collect
                     when (state.event) {
-                        Lifecycle.Event.ON_RESUME -> state.activity.get()?.let { onActivityResumed(it) }
-                        Lifecycle.Event.ON_PAUSE -> state.activity.get()?.let { onActivityPaused(it) }
+                        Lifecycle.Event.ON_RESUME -> onActivityResumed(activity)
+                        Lifecycle.Event.ON_PAUSE -> onActivityPaused(activity)
                         else -> {}
                     }
                 }

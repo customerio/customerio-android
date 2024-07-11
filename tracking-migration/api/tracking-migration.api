@@ -3,8 +3,7 @@ public abstract interface class io/customer/tracking/migration/queue/Queue {
 }
 
 public abstract interface class io/customer/tracking/migration/queue/QueueQueryRunner {
-	public abstract fun getNextTask (Ljava/util/List;Lio/customer/tracking/migration/type/QueueTaskMetadata;)Lio/customer/tracking/migration/type/QueueTaskMetadata;
-	public abstract fun reset ()V
+	public abstract fun getNextTask (Ljava/util/List;)Lio/customer/tracking/migration/type/QueueTaskMetadata;
 }
 
 public abstract interface class io/customer/tracking/migration/queue/QueueRunRequest {

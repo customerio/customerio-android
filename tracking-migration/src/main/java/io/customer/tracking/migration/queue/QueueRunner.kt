@@ -1,29 +1,22 @@
 package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.Logger
-import io.customer.tracking.migration.type.QueueRunTaskResult
-import io.customer.tracking.migration.type.QueueTask
+import io.customer.sdk.core.util.enumValueOfOrNull
 import io.customer.tracking.migration.type.QueueTaskType
+import io.customer.tracking.migration.util.JsonAdapter
 import java.io.IOException
 
 interface QueueRunner {
     suspend fun runTask(task: QueueTask): QueueRunTaskResult
 }
 
-inline fun <reified T : Enum<T>> valueOfOrNull(type: String): T? {
-    return try {
-        java.lang.Enum.valueOf(T::class.java, type)
-    } catch (e: Exception) {
-        null
-    }
-}
-
 internal class QueueRunnerImpl(
-//    private val jsonAdapter: JsonAdapter,
+    private val jsonAdapter: JsonAdapter,
     private val logger: Logger
 ) : QueueRunner {
     override suspend fun runTask(task: QueueTask): QueueRunTaskResult {
-        val taskResult = when (valueOfOrNull<QueueTaskType>(task.type)) {
+        val taskType = task.type
+        val taskResult = when (taskType?.let { enumValueOfOrNull<QueueTaskType>(it) }) {
             QueueTaskType.IdentifyProfile -> identifyProfile(task)
             QueueTaskType.TrackEvent -> trackEvent(task)
             QueueTaskType.RegisterDeviceToken -> registerDeviceToken(task)
@@ -36,7 +29,7 @@ internal class QueueRunnerImpl(
             taskResult
         } else {
             val errorMessage =
-                "Queue task ${task.type} could not find an enum to map to. Could not run task."
+                "Queue task $taskType could not find an enum to map to. Could not run task."
             logger.error(errorMessage)
             Result.failure(RuntimeException(errorMessage))
         }

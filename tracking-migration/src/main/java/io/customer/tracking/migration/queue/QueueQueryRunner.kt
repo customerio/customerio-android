@@ -1,7 +1,6 @@
 package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.Logger
-import io.customer.tracking.migration.type.QueueTaskMetadata
 
 interface QueueQueryRunner {
     fun getNextTask(queue: List<QueueTaskMetadata>): QueueTaskMetadata?

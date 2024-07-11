@@ -29,18 +29,18 @@ internal class QueueRunRequestImpl internal constructor(
             tasksToRun.remove(currentTaskMetadata)
 
             val taskStorageId = currentTaskMetadata.taskPersistedId
-            val taskToRun = queueStorage.get(taskStorageId)
+            val taskToRun = taskStorageId?.let { queueStorage.get(it) }
 
             if (taskToRun == null) {
                 logger.error("Tried to get queue task with storage id: $taskStorageId but storage couldn't find it.")
                 // The task failed to execute because it couldn't be found. Which means it's a failed task
                 // If we can't find the task, we can't run it, so we should delete it from the queue
-                queueStorage.delete(taskStorageId)
+                taskStorageId?.let { queueStorage.delete(it) }
                 continue
             }
 
             logger.debug("queue tasks left to run: ${tasksToRun.size}")
-            logger.debug("queue next task to run: $taskStorageId, ${taskToRun.type}, ${taskToRun.data}, ${taskToRun.runResults}")
+            logger.debug("queue next task to run: $taskStorageId, $taskToRun")
 
             val result = runner.runTask(taskToRun)
 
@@ -49,6 +49,7 @@ internal class QueueRunRequestImpl internal constructor(
                     logger.debug("queue task $taskStorageId ran successfully")
                     logger.debug("queue deleting task $taskStorageId")
                 }
+
                 result.isFailure -> {
                     val error = result.exceptionOrNull()
                     logger.debug("queue task $taskStorageId run failed $error")

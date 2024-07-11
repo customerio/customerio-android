@@ -6,10 +6,10 @@ import android.content.SharedPreferences
 /**
  * Base preference repository that can be reused among different preference repositories.
  */
-internal abstract class PreferenceStore(val context: Context) {
+abstract class PreferenceStore(val context: Context) {
     abstract val prefsName: String
 
-    internal val prefs: SharedPreferences
+    protected val prefs: SharedPreferences
         get() = context.applicationContext.getSharedPreferences(
             prefsName,
             Context.MODE_PRIVATE

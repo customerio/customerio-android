@@ -20,6 +20,15 @@ public abstract interface class io/customer/tracking/migration/queue/QueueStorag
 	public abstract fun getInventory ()Ljava/util/List;
 }
 
+public abstract interface class io/customer/tracking/migration/repository/preference/SitePreferenceRepository {
+	public abstract fun clearAll ()V
+	public abstract fun getDeviceToken ()Ljava/lang/String;
+	public abstract fun getIdentifier ()Ljava/lang/String;
+	public abstract fun removeIdentifier (Ljava/lang/String;)V
+	public abstract fun saveDeviceToken (Ljava/lang/String;)V
+	public abstract fun saveIdentifier (Ljava/lang/String;)V
+}
+
 public final class io/customer/tracking/migration/request/Device {
 	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V

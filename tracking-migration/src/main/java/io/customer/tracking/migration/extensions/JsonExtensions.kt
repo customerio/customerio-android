@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal fun JSONArray.toList(): List<JSONObject> {
-    return (0 until length()).mapNotNull { index -> optJSONObject(index) }
+    return (0 until length()).mapNotNull(::optJSONObject)
 }
 
 internal fun JSONObject.stringOrNull(key: String): String? {

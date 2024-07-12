@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import com.segment.analytics.kotlin.android.plugins.AndroidContextPlugin
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.IntegrationTest
@@ -13,6 +12,7 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonValue
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
@@ -79,7 +79,7 @@ class DeviceAttributesTests : IntegrationTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
         deviceRegisterEvent.properties.shouldBeEmpty()
     }
@@ -105,7 +105,7 @@ class DeviceAttributesTests : IntegrationTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val properties = deviceRegisterEvent.properties
@@ -155,7 +155,7 @@ class DeviceAttributesTests : IntegrationTest() {
         // 2. Device Updated
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSize(2).last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val properties = deviceRegisterEvent.properties

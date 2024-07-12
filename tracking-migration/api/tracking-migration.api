@@ -1,5 +1,17 @@
+public final class io/customer/tracking/migration/MigrationAssistant {
+	public fun <init> (Landroid/content/Context;Lio/customer/tracking/migration/MigrationProcessor;Ljava/lang/String;)V
+	public final fun migrate ()V
+}
+
 public abstract interface class io/customer/tracking/migration/MigrationProcessor {
+	public abstract fun processProfileMigration-IoAF18A (Ljava/lang/String;)Ljava/lang/Object;
 	public abstract fun processTask-gIAlu-s (Lio/customer/tracking/migration/request/MigrationTask;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/customer/tracking/migration/di/MigrationSDKComponent : io/customer/sdk/core/di/DiGraph {
+	public fun <init> (Landroid/content/Context;Lio/customer/tracking/migration/MigrationProcessor;Ljava/lang/String;)V
+	public final fun getQueue ()Lio/customer/tracking/migration/queue/Queue;
+	public final fun getSitePreferences ()Lio/customer/tracking/migration/repository/preference/SitePreferenceRepository;
 }
 
 public abstract interface class io/customer/tracking/migration/queue/Queue {

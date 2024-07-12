@@ -4,12 +4,19 @@ import androidx.annotation.VisibleForTesting
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.ErrorHandler
+import com.segment.analytics.kotlin.core.IdentifyEvent
+import com.segment.analytics.kotlin.core.ScreenEvent
+import com.segment.analytics.kotlin.core.TrackEvent
+import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
+import com.segment.analytics.kotlin.core.utilities.putAll
+import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.extensions.asMap
+import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -27,7 +34,12 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
+import io.customer.tracking.migration.MigrationAssistant
+import io.customer.tracking.migration.MigrationProcessor
+import io.customer.tracking.migration.request.MigrationTask
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Welcome to the Customer.io Android SDK!
@@ -48,7 +60,7 @@ class CustomerIO private constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig,
     overrideAnalytics: Analytics? = null
-) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
+) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance(), MigrationProcessor {
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
@@ -118,6 +130,8 @@ class CustomerIO private constructor(
         subscribeToJourneyEvents()
         // if profile is already identified, republish identifier for late-added modules.
         postProfileAlreadyIdentified()
+        // Migrate unsent events from previous version
+        migrateUnsentEvents(androidSDKComponent)
     }
 
     private fun postProfileAlreadyIdentified() {
@@ -137,6 +151,20 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
         }
+    }
+
+    private fun migrateUnsentEvents(androidSDKComponent: AndroidSDKComponent) {
+        val migrationSiteId = moduleConfig.migrationSiteId
+        if (migrationSiteId.isNullOrBlank()) return
+
+        logger.info("Migration site id found, migrating data from previous version.")
+
+        val migrationAssistant = MigrationAssistant(
+            context = androidSDKComponent.applicationContext,
+            migrationProcessor = this,
+            migrationSiteId = migrationSiteId
+        )
+        migrationAssistant.migrate()
     }
 
     override fun initialize() {
@@ -297,6 +325,78 @@ class CustomerIO private constructor(
         logger.debug("tracking ${event.type} metric event with properties $event")
 
         track(EventNames.METRIC_DELIVERY, event.asMap())
+    }
+
+    override fun processProfileMigration(identifier: String): Result<Unit> {
+        identify(userId = identifier)
+        return Result.success(Unit)
+    }
+
+    override suspend fun processTask(task: MigrationTask): Result<Unit> {
+        val trackEvent = when (task) {
+            is MigrationTask.IdentifyProfile -> IdentifyEvent(
+                userId = task.identifier,
+                traits = task.attributes.toJsonObject()
+            )
+
+            is MigrationTask.TrackEvent -> if (task.type == "screen") {
+                ScreenEvent(
+                    name = task.event,
+                    category = "",
+                    properties = task.properties.toJsonObject()
+                )
+            } else {
+                TrackEvent(
+                    event = task.event,
+                    properties = task.properties.toJsonObject()
+                )
+            }
+
+            is MigrationTask.TrackPushMetric -> TrackEvent(
+                event = EventNames.METRIC_DELIVERY,
+                properties = buildJsonObject {
+                    put("recipient", task.deviceToken)
+                    put("deliveryId", task.deliveryId)
+                    put("metric", task.event)
+                }
+            )
+
+            is MigrationTask.TrackDeliveryEvent -> TrackEvent(
+                event = EventNames.METRIC_DELIVERY,
+                properties = buildJsonObject {
+                    putAll(task.metadata.toJsonObject())
+                    put("deliveryId", task.deliveryId)
+                    put("metric", task.event)
+                }
+            )
+
+            is MigrationTask.RegisterDeviceToken -> TrackEvent(
+                event = EventNames.DEVICE_UPDATE,
+                properties = buildJsonObject {
+                    put("token", task.token)
+                    put("properties", task.attributes.toJsonObject())
+                }
+            ).apply {
+                putInContextUnderKey("device", "token", task.token)
+                putInContextUnderKey("device", "type", "android")
+            }
+
+            is MigrationTask.DeletePushToken -> TrackEvent(
+                event = EventNames.DEVICE_DELETE,
+                properties = emptyJsonObject
+            ).apply {
+                putInContextUnderKey("device", "token", task.token)
+                putInContextUnderKey("device", "type", "android")
+            }
+        }
+
+        trackEvent.timestamp = task.timestamp.toString()
+        task.identifier?.let { trackEvent.userId = it }
+
+        logger.debug("processing migrated task: $trackEvent")
+        analytics.process(trackEvent)
+
+        return Result.success(Unit)
     }
 
     companion object {

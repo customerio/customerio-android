@@ -9,6 +9,12 @@ import io.customer.tracking.migration.request.MigrationTask
  */
 interface MigrationProcessor {
     /**
+     * Processes profile migration so profile data can be migrated to new
+     * implementation without needing to re-identify the user.
+     */
+    fun processProfileMigration(identifier: String): Result<Unit>
+
+    /**
      * Method responsible for processing the migration task.
      * Processor class should be able to handle the task and process it accordingly
      * and return result of processing so the queue can decide if the task should

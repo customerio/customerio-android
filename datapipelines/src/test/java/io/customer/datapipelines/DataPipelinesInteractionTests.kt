@@ -2,7 +2,6 @@ package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.JUnitTest
@@ -14,6 +13,7 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.store.DeviceStore
@@ -403,7 +403,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
         deviceRegisterEvent.properties.shouldBeEmpty()
     }
@@ -428,7 +428,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
         deviceRegisterEvent.properties shouldMatchTo givenAttributes
     }
@@ -450,7 +450,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceDeleteEvent = outputReaderPlugin.trackEvents.last()
         deviceDeleteEvent.userId shouldBeEqualTo givenIdentifier
-        deviceDeleteEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenToken
         deviceDeleteEvent.properties.shouldBeEmpty()
     }
@@ -475,12 +475,12 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceDeleteEvent = outputReaderPlugin.trackEvents.first()
         deviceDeleteEvent.userId shouldBeEqualTo givenPreviouslyIdentifiedProfile
-        deviceDeleteEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
     }
 
@@ -521,12 +521,12 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceDeleteEvent = outputReaderPlugin.trackEvents.first()
         deviceDeleteEvent.userId shouldBeEqualTo givenIdentifier
-        deviceDeleteEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenPreviousDeviceToken
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
     }
 
@@ -546,7 +546,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
     }
 
@@ -566,7 +566,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
     }
 
@@ -584,7 +584,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.last()
         deviceRegisterEvent.userId.shouldBeEmpty()
-        deviceRegisterEvent.event shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
     }
 

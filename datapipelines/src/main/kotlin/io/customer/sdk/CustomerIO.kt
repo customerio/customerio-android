@@ -17,6 +17,7 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
+import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -276,7 +277,7 @@ class CustomerIO private constructor(
         contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
-        track("Device Created or Updated", attributes)
+        track(EventNames.DEVICE_UPDATE, attributes)
     }
 
     override fun deleteDeviceToken() {
@@ -288,14 +289,14 @@ class CustomerIO private constructor(
             return
         }
 
-        track("Device Deleted")
+        track(EventNames.DEVICE_DELETE)
     }
 
     override fun trackMetric(event: TrackMetric) {
         logger.info("${event.type} metric received for ${event.metric} event")
         logger.debug("tracking ${event.type} metric event with properties $event")
 
-        track("Report Delivery Event", event.asMap())
+        track(EventNames.METRIC_DELIVERY, event.asMap())
     }
 
     companion object {

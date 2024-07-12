@@ -11,9 +11,4 @@ object TestConstants {
         const val SITE_ID = "TESTING_SITE_ID"
         const val CDP_API_KEY = "TESTING_API_KEY"
     }
-
-    object Events {
-        const val DEVICE_CREATED = "Device Created or Updated"
-        const val DEVICE_DELETED = "Device Deleted"
-    }
 }

@@ -5,6 +5,7 @@ import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.utilities.putAll
+import io.customer.datapipelines.util.EventNames
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 
@@ -16,7 +17,7 @@ class AutoTrackDeviceAttributesPlugin : Plugin {
     override lateinit var analytics: Analytics
 
     override fun execute(event: BaseEvent): BaseEvent {
-        if ((event as? TrackEvent)?.event != "Device Created or Updated") {
+        if ((event as? TrackEvent)?.event != EventNames.DEVICE_UPDATE) {
             return event
         }
 

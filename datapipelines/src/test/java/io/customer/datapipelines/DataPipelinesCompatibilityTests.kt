@@ -5,7 +5,6 @@ import com.segment.analytics.kotlin.core.emptyJsonArray
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
@@ -15,6 +14,7 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.extensions.toJsonObject
+import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.store.DeviceStore
@@ -368,7 +368,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payload = queuedEvents.first().jsonObject
         payload.eventType shouldBeEqualTo "track"
-        payload.eventName shouldBeEqualTo "Report Delivery Event"
+        payload.eventName shouldBeEqualTo EventNames.METRIC_DELIVERY
         payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo mapOf(
             "metric" to "delivered",
             "deliveryId" to givenDeliveryId,
@@ -397,7 +397,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payload = queuedEvents.first().jsonObject
         payload.eventType shouldBeEqualTo "track"
-        payload.eventName shouldBeEqualTo "Report Delivery Event"
+        payload.eventName shouldBeEqualTo EventNames.METRIC_DELIVERY
         payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo buildMap {
             put("metric", "clicked")
             put("deliveryId", givenDeliveryId)
@@ -424,7 +424,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payload = queuedEvents.last().jsonObject
         payload.eventType shouldBeEqualTo "track"
-        payload.eventName shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        payload.eventName shouldBeEqualTo EventNames.DEVICE_UPDATE
 
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
@@ -456,7 +456,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payload = queuedEvents.last().jsonObject
         payload.eventType shouldBeEqualTo "track"
-        payload.eventName shouldBeEqualTo TestConstants.Events.DEVICE_CREATED
+        payload.eventName shouldBeEqualTo EventNames.DEVICE_UPDATE
 
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
@@ -486,7 +486,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         val payload = queuedEvents.last().jsonObject
         payload.userId shouldBeEqualTo givenIdentifier
         payload.eventType shouldBeEqualTo "track"
-        payload.eventName shouldBeEqualTo TestConstants.Events.DEVICE_DELETED
+        payload.eventName shouldBeEqualTo EventNames.DEVICE_DELETE
 
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken

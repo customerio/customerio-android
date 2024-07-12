@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
 import io.customer.sdk.core.di.SDKComponent
+import java.lang.ref.WeakReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,7 +19,11 @@ import kotlinx.coroutines.launch
  * and should avoid listening to events from ActivityLifecycleCallbacks directly.
  */
 class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallbacks {
+    /**
+     * remits the last emitted lifecycle state to provide last state to new subscribers.
+     * */
     private val lifecycleEvents = MutableSharedFlow<LifecycleStateChange>(replay = 1)
+
     private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
 
     /**
@@ -53,7 +58,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         event: Lifecycle.Event,
         bundle: Bundle? = null
     ): Boolean = lifecycleEvents.tryEmit(
-        LifecycleStateChange(activity = activity, event = event, bundle = bundle)
+        LifecycleStateChange(activity = WeakReference(activity), event = event, bundle = bundle)
     )
 
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {

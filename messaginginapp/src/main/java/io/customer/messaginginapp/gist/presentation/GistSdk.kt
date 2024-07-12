@@ -137,15 +137,17 @@ object GistSdk {
 
     private fun subscribeToLifecycleEvents() {
         SDKComponent.activityLifecycleCallbacks.subscribe { events ->
-            events.filter { state ->
-                state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
-            }.collect { state ->
-                when (state.event) {
-                    Lifecycle.Event.ON_RESUME -> onActivityResumed(state.activity)
-                    Lifecycle.Event.ON_PAUSE -> onActivityPaused(state.activity)
-                    else -> {}
+            events
+                .filter { state ->
+                    state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
+                }.collect { state ->
+                    val activity = state.activity.get() ?: return@collect
+                    when (state.event) {
+                        Lifecycle.Event.ON_RESUME -> onActivityResumed(activity)
+                        Lifecycle.Event.ON_PAUSE -> onActivityPaused(activity)
+                        else -> {}
+                    }
                 }
-            }
         }
     }
 

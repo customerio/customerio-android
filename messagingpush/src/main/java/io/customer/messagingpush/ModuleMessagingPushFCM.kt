@@ -29,21 +29,22 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     private fun subscribeToLifecycleEvents() {
         activityLifecycleCallbacks.subscribe { events ->
-            events.filter { state ->
-                state.event == Lifecycle.Event.ON_CREATE
-            }.collect { state ->
-                when (state.event) {
-                    Lifecycle.Event.ON_CREATE -> {
-                        val intentArguments = state.activity.intent.extras ?: return@collect
+            events
+                .filter { state ->
+                    state.event == Lifecycle.Event.ON_CREATE
+                }.collect { state ->
+                    when (state.event) {
+                        Lifecycle.Event.ON_CREATE -> {
+                            val intentArguments = state.activity.get()?.intent?.extras ?: return@collect
 
-                        if (moduleConfig.autoTrackPushEvents) {
-                            pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                            if (moduleConfig.autoTrackPushEvents) {
+                                pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                            }
                         }
-                    }
 
-                    else -> {}
+                        else -> {}
+                    }
                 }
-            }
         }
     }
 

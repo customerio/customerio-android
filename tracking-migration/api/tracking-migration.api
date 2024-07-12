@@ -1,9 +1,10 @@
 public abstract interface class io/customer/tracking/migration/queue/Queue {
 	public abstract fun run (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun runAsync ()V
 }
 
 public abstract interface class io/customer/tracking/migration/queue/QueueQueryRunner {
-	public abstract fun getNextTask (Ljava/util/List;)Lio/customer/tracking/migration/type/QueueTaskMetadata;
+	public abstract fun getNextTask (Ljava/util/List;)Lorg/json/JSONObject;
 }
 
 public abstract interface class io/customer/tracking/migration/queue/QueueRunRequest {
@@ -11,12 +12,12 @@ public abstract interface class io/customer/tracking/migration/queue/QueueRunReq
 }
 
 public abstract interface class io/customer/tracking/migration/queue/QueueRunner {
-	public abstract fun runTask-gIAlu-s (Lio/customer/tracking/migration/type/QueueTask;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun runTask-gIAlu-s (Lorg/json/JSONObject;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface class io/customer/tracking/migration/queue/QueueStorage {
-	public abstract fun delete (Ljava/lang/String;)Lio/customer/tracking/migration/type/QueueModifyResult;
-	public abstract fun get (Ljava/lang/String;)Lio/customer/tracking/migration/type/QueueTask;
+	public abstract fun delete (Ljava/lang/String;)Z
+	public abstract fun get (Ljava/lang/String;)Lorg/json/JSONObject;
 	public abstract fun getInventory ()Ljava/util/List;
 }
 
@@ -97,101 +98,9 @@ public final class io/customer/tracking/migration/taskdata/IdentifyProfileQueueT
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/customer/tracking/migration/type/QueueModifyResult {
-	public fun <init> (ZLio/customer/tracking/migration/type/QueueStatus;)V
-	public final fun component1 ()Z
-	public final fun component2 ()Lio/customer/tracking/migration/type/QueueStatus;
-	public final fun copy (ZLio/customer/tracking/migration/type/QueueStatus;)Lio/customer/tracking/migration/type/QueueModifyResult;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueModifyResult;ZLio/customer/tracking/migration/type/QueueStatus;ILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueModifyResult;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getQueueStatus ()Lio/customer/tracking/migration/type/QueueStatus;
-	public final fun getSuccess ()Z
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/tracking/migration/type/QueueStatus {
-	public fun <init> (Ljava/lang/String;I)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()I
-	public final fun copy (Ljava/lang/String;I)Lio/customer/tracking/migration/type/QueueStatus;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueStatus;Ljava/lang/String;IILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueStatus;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getNumTasksInQueue ()I
-	public final fun getSiteId ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/tracking/migration/type/QueueTask {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/tracking/migration/type/QueueTaskRunResults;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Lio/customer/tracking/migration/type/QueueTaskRunResults;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/tracking/migration/type/QueueTaskRunResults;)Lio/customer/tracking/migration/type/QueueTask;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueTask;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/tracking/migration/type/QueueTaskRunResults;ILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueTask;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getData ()Ljava/lang/String;
-	public final fun getRunResults ()Lio/customer/tracking/migration/type/QueueTaskRunResults;
-	public final fun getStorageId ()Ljava/lang/String;
-	public final fun getType ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public abstract class io/customer/tracking/migration/type/QueueTaskGroup {
-}
-
-public final class io/customer/tracking/migration/type/QueueTaskGroup$IdentifyProfile : io/customer/tracking/migration/type/QueueTaskGroup {
-	public fun <init> (Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/customer/tracking/migration/type/QueueTaskGroup$IdentifyProfile;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueTaskGroup$IdentifyProfile;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueTaskGroup$IdentifyProfile;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getIdentifier ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/tracking/migration/type/QueueTaskGroup$RegisterPushToken : io/customer/tracking/migration/type/QueueTaskGroup {
-	public fun <init> (Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/customer/tracking/migration/type/QueueTaskGroup$RegisterPushToken;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueTaskGroup$RegisterPushToken;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueTaskGroup$RegisterPushToken;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getToken ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/tracking/migration/type/QueueTaskMetadata {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/Date;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Ljava/util/List;
-	public final fun component5 ()Ljava/util/Date;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/Date;)Lio/customer/tracking/migration/type/QueueTaskMetadata;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueTaskMetadata;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/Date;ILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueTaskMetadata;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getCreatedAt ()Ljava/util/Date;
-	public final fun getGroupMember ()Ljava/util/List;
-	public final fun getGroupStart ()Ljava/lang/String;
-	public final fun getTaskPersistedId ()Ljava/lang/String;
-	public final fun getTaskType ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/tracking/migration/type/QueueTaskRunResults {
-	public fun <init> (I)V
-	public final fun component1 ()I
-	public final fun copy (I)Lio/customer/tracking/migration/type/QueueTaskRunResults;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/type/QueueTaskRunResults;IILjava/lang/Object;)Lio/customer/tracking/migration/type/QueueTaskRunResults;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getTotalRuns ()I
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+public final class io/customer/tracking/migration/util/JsonAdapter {
+	public fun <init> ()V
+	public final fun fromJsonOrNull (Ljava/lang/String;)Lorg/json/JSONObject;
+	public final fun fromJsonToListOrNull (Ljava/lang/String;)Lorg/json/JSONArray;
 }
 

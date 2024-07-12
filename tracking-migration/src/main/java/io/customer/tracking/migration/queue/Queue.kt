@@ -2,18 +2,16 @@ package io.customer.tracking.migration.queue
 
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
-import io.customer.tracking.migration.type.QueueStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 interface Queue {
-
     suspend fun run()
+    fun runAsync()
 }
 
 internal class QueueImpl internal constructor(
     private val dispatchersProvider: DispatchersProvider,
-    private val storage: QueueStorage,
     private val runRequest: QueueRunRequest,
     private val logger: Logger
 ) : Queue {
@@ -37,21 +35,10 @@ internal class QueueImpl internal constructor(
         }
     }
 
-    internal fun runAsync() {
+    override fun runAsync() {
+        logger.debug("Starting migration queue runner...")
         CoroutineScope(dispatchersProvider.background).launch {
             run()
-        }
-    }
-
-    private fun processQueueStatus(queueStatus: QueueStatus) {
-        logger.debug("processing queue status $queueStatus")
-        val isManyTasksInQueue =
-            queueStatus.numTasksInQueue >= 0
-
-        if (isManyTasksInQueue) {
-            logger.info("queue met criteria to run automatically")
-
-            runAsync()
         }
     }
 }

@@ -36,14 +36,9 @@ internal class TrackingMigrationProcessor(
                 migrationProcessor = this,
                 migrationSiteId = migrationSiteId
             )
-        }.fold(
-            onSuccess = {
-                logger.debug("Migration completed successfully")
-            },
-            onFailure = { ex ->
-                logger.error("Migration failed with exception: $ex")
-            }
-        )
+        }.onFailure { ex ->
+            logger.error("Migration failed with exception: $ex")
+        }
     }
 
     override fun processProfileMigration(identifier: String): Result<Unit> {

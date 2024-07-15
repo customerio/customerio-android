@@ -1,3 +1,9 @@
+## [3.11.1](https://github.com/customerio/customerio-android/compare/3.11.0...3.11.1) (2024-07-15)
+
+### Bug Fixes
+
+* remove gist pre-loading ([#393](https://github.com/customerio/customerio-android/issues/393)) ([8c8ee89](https://github.com/customerio/customerio-android/commit/8c8ee8900eeb0ef8008b8cb1b955b17fb0bd425e))
+
 ## [3.11.0](https://github.com/customerio/customerio-android/compare/3.10.0...3.11.0) (2024-06-17)
 
 ### Features

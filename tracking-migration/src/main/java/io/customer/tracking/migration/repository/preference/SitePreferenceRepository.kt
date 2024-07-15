@@ -12,6 +12,7 @@ interface SitePreferenceRepository {
 
     fun saveDeviceToken(token: String)
     fun getDeviceToken(): String?
+    fun removeDeviceToken()
 
     fun clearAll()
 }
@@ -48,5 +49,9 @@ internal class SitePreferenceRepositoryImpl(
 
     override fun getDeviceToken(): String? = prefs.read {
         getString(KEY_DEVICE_TOKEN, null)
+    }
+
+    override fun removeDeviceToken() = prefs.edit {
+        remove(KEY_IDENTIFIER)
     }
 }

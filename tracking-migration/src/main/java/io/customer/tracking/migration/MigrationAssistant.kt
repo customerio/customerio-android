@@ -23,6 +23,7 @@ class MigrationAssistant private constructor(
     private val queue: Queue = migrationSDKComponent.queue
     private val logger = SDKComponent.logger
     private val dispatchersProvider = SDKComponent.dispatchersProvider
+    private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
 
     /**
      * Starts the migration process by migrating the existing tracking data to the new
@@ -36,6 +37,7 @@ class MigrationAssistant private constructor(
             // Re-identify old profile to new implementation
             logger.debug("Migrating existing profile...")
             migrateExistingProfile()
+            migrateExistingDevice()
             // Run the queue to process any pending events
             logger.debug("Requesting migration queue to run...")
             queue.run()
@@ -53,6 +55,16 @@ class MigrationAssistant private constructor(
         if (migrationProcessor.processProfileMigration(oldIdentifier).isSuccess) {
             sitePreferences.removeIdentifier(oldIdentifier)
         }
+    }
+
+    private fun migrateExistingDevice() {
+        // If there is no old device token, then either the device was never added or it was already migrated
+        val oldDeviceIdentifier = sitePreferences.getDeviceToken() ?: return
+
+        logger.debug("Migrating existing device with token: $oldDeviceIdentifier")
+        globalPreferenceStore.saveDeviceToken(oldDeviceIdentifier)
+        // remove the old device token to prevent updating GlobalPreferenceStore again
+        sitePreferences.removeDeviceToken()
     }
 
     companion object {

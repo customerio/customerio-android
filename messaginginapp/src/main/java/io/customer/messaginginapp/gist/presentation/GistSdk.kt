@@ -4,8 +4,6 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context.MODE_PRIVATE
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
@@ -103,15 +101,6 @@ object GistSdk : Application.ActivityLifecycleCallbacks {
             } catch (e: Exception) {
                 Log.e(GIST_TAG, e.message, e)
             }
-        }
-
-        // Create a Handler for the main (UI) thread
-        val mainHandler = Handler(Looper.getMainLooper())
-
-        // Use the Handler to run code on the main thread
-        mainHandler.post {
-            // Initialize GistView on the main thread with an empty message to fetch assets
-            GistView(GistSdk.application, null).setup(Message(messageId = ""))
         }
     }
 

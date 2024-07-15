@@ -14,6 +14,8 @@ internal class QueueRunnerImpl(
     private val migrationProcessor: MigrationProcessor
 ) : QueueRunner {
     override suspend fun runTask(task: QueueTask): QueueRunTaskResult {
+        logger.debug("migrating task: $task")
+
         return jsonAdapter.parseMigrationTask(task).fold(
             onSuccess = { result ->
                 migrationProcessor.processTask(result)

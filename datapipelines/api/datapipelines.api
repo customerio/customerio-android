@@ -14,6 +14,11 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 	public final fun getTrackApplicationLifecycleEvents ()Z
 }
 
+public final class io/customer/datapipelines/extensions/JsonExtensionsKt {
+	public static final fun toJsonArray (Lorg/json/JSONArray;)Lkotlinx/serialization/json/JsonArray;
+	public static final fun toJsonObject (Lorg/json/JSONObject;)Lkotlinx/serialization/json/JsonObject;
+}
+
 public final class io/customer/datapipelines/extensions/RegionExtKt {
 	public static final fun apiHost (Lio/customer/sdk/data/model/Region;)Ljava/lang/String;
 	public static final fun cdnHost (Lio/customer/sdk/data/model/Region;)Ljava/lang/String;

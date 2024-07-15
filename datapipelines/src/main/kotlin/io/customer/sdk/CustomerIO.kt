@@ -12,6 +12,7 @@ import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
@@ -118,6 +119,8 @@ class CustomerIO private constructor(
         subscribeToJourneyEvents()
         // if profile is already identified, republish identifier for late-added modules.
         postProfileAlreadyIdentified()
+        // Migrate unsent events from previous version
+        migrateTrackingEvents()
     }
 
     private fun postProfileAlreadyIdentified() {
@@ -137,6 +140,20 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
         }
+    }
+
+    private fun migrateTrackingEvents() {
+        val migrationSiteId = moduleConfig.migrationSiteId
+        // If migration site id is not provided, skip migration as it is only
+        // required when upgrading from previous version with tracking implementation
+        if (migrationSiteId.isNullOrBlank()) return
+
+        logger.info("Migration site id found, migrating data from previous version.")
+        // Initialize migration processor to perform migration
+        TrackingMigrationProcessor(
+            dataPipelineInstance = this,
+            migrationSiteId = migrationSiteId
+        )
     }
 
     override fun initialize() {

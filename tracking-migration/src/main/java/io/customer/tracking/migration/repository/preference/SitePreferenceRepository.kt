@@ -52,6 +52,6 @@ internal class SitePreferenceRepositoryImpl(
     }
 
     override fun removeDeviceToken() = prefs.edit {
-        remove(KEY_IDENTIFIER)
+        remove(KEY_DEVICE_TOKEN)
     }
 }

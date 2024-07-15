@@ -144,7 +144,7 @@ public abstract interface class io/customer/datapipelines/plugins/TrackableScree
 	public abstract fun getScreenName ()Ljava/lang/String;
 }
 
-public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule, io/customer/tracking/migration/MigrationProcessor {
+public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun clearIdentify ()V
@@ -158,8 +158,6 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
-	public fun processProfileMigration-IoAF18A (Ljava/lang/String;)Ljava/lang/Object;
-	public fun processTask-gIAlu-s (Lio/customer/tracking/migration/request/MigrationTask;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun registerDeviceToken (Ljava/lang/String;)V
 	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun setDeviceAttributes (Ljava/util/Map;)V

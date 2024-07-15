@@ -1,6 +1,7 @@
 package io.customer.tracking.migration.di
 
 import android.content.Context
+import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.DiGraph
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -26,12 +27,12 @@ import io.customer.tracking.migration.util.JsonAdapter
  * The graph is not registered in SDKComponent as it is not required outside of migration module.
  */
 class MigrationSDKComponent(
-    private val applicationContext: Context,
+    androidSDKComponent: AndroidSDKComponent = SDKComponent.android(),
     private val migrationProcessor: MigrationProcessor,
     private val migrationSiteId: String
 ) : DiGraph() {
-    private val logger: Logger
-        get() = SDKComponent.logger
+    private val applicationContext: Context = androidSDKComponent.applicationContext
+    private val logger: Logger = SDKComponent.logger
 
     val sitePreferences: SitePreferenceRepository
         get() = singleton<SitePreferenceRepository> {
@@ -79,9 +80,8 @@ class MigrationSDKComponent(
     val queue: Queue
         get() = singleton<Queue> {
             QueueImpl(
-                dispatchersProvider = SDKComponent.dispatchersProvider,
-                runRequest = queueRunRequest,
-                logger = logger
+                logger = logger,
+                runRequest = queueRunRequest
             )
         }
 }

@@ -3,6 +3,8 @@ package io.customer.tracking.migration.util
 import io.customer.sdk.core.util.enumValueOfOrNull
 import io.customer.tracking.migration.extensions.jsonObjectOrNull
 import io.customer.tracking.migration.extensions.longOrNull
+import io.customer.tracking.migration.extensions.requireAndRemoveField
+import io.customer.tracking.migration.extensions.requireField
 import io.customer.tracking.migration.extensions.stringOrNull
 import io.customer.tracking.migration.request.MigrationTask
 import io.customer.tracking.migration.type.QueueTaskType
@@ -45,39 +47,31 @@ class JsonAdapter {
             QueueTaskType.IdentifyProfile -> {
                 MigrationTask.IdentifyProfile(
                     timestamp = timestamp,
-                    identifier = taskJson.requireField("identifier") { stringOrNull(it) },
+                    identifier = taskJson.requireField("identifier"),
                     attributes = taskJson.jsonObjectOrNull("attributes") ?: JSONObject()
                 )
             }
 
             QueueTaskType.TrackEvent -> {
-                val eventJson = taskJson.requireField("event") { jsonObjectOrNull(it) }
+                val eventJson = taskJson.requireField<JSONObject>("event")
 
                 MigrationTask.TrackEvent(
                     timestamp = eventJson.longOrNull("timestamp") ?: timestamp,
-                    identifier = taskJson.requireField("identifier") { stringOrNull(it) },
-                    event = eventJson.requireField("name") {
-                        val value = stringOrNull(it)
-                        remove(it)
-                        return@requireField value
-                    },
-                    type = eventJson.requireField("type") {
-                        val value = stringOrNull(it)
-                        remove(it)
-                        return@requireField value
-                    },
+                    identifier = taskJson.requireField("identifier"),
+                    event = eventJson.requireAndRemoveField("name"),
+                    type = eventJson.requireAndRemoveField("type"),
                     properties = eventJson
                 )
             }
 
             QueueTaskType.RegisterDeviceToken -> {
-                val deviceJson = taskJson.requireField("device") { jsonObjectOrNull(it) }
+                val deviceJson = taskJson.requireField<JSONObject>("device")
 
                 MigrationTask.RegisterDeviceToken(
                     timestamp = timestamp,
-                    identifier = taskJson.requireField("profileIdentified") { stringOrNull(it) },
-                    token = deviceJson.requireField("id") { stringOrNull(it) },
-                    platform = deviceJson.requireField("platform") { stringOrNull(it) },
+                    identifier = taskJson.requireField("profileIdentified"),
+                    token = deviceJson.requireField("id"),
+                    platform = deviceJson.requireField("platform"),
                     lastUsed = deviceJson.longOrNull("last_used") ?: deviceJson.longOrNull("lastUsed") ?: timestamp,
                     attributes = deviceJson.jsonObjectOrNull("attributes") ?: JSONObject()
                 )
@@ -86,28 +80,28 @@ class JsonAdapter {
             QueueTaskType.DeletePushToken -> {
                 MigrationTask.DeletePushToken(
                     timestamp = timestamp,
-                    identifier = taskJson.requireField("profileIdentified") { stringOrNull(it) },
-                    token = taskJson.requireField("deviceToken") { stringOrNull(it) }
+                    identifier = taskJson.requireField("profileIdentified"),
+                    token = taskJson.requireField("deviceToken")
                 )
             }
 
             QueueTaskType.TrackPushMetric -> {
                 MigrationTask.TrackPushMetric(
                     timestamp = timestamp,
-                    deliveryId = taskJson.requireField("delivery_id") { stringOrNull(it) },
-                    deviceToken = taskJson.requireField("device_id") { stringOrNull(it) },
-                    event = taskJson.requireField("event") { stringOrNull(it) }
+                    deliveryId = taskJson.requireField("delivery_id"),
+                    deviceToken = taskJson.requireField("device_id"),
+                    event = taskJson.requireField("event")
                 )
             }
 
             QueueTaskType.TrackDeliveryEvent -> {
-                val payloadJson = taskJson.requireField("payload") { jsonObjectOrNull(it) }
+                val payloadJson = taskJson.requireField<JSONObject>("payload")
 
                 MigrationTask.TrackDeliveryEvent(
                     timestamp = payloadJson.longOrNull("timestamp") ?: timestamp,
-                    deliveryType = taskJson.requireField("type") { stringOrNull(it) },
-                    deliveryId = payloadJson.requireField("delivery_id") { stringOrNull(it) },
-                    event = payloadJson.requireField("event") { stringOrNull(it) },
+                    deliveryType = taskJson.requireField("type"),
+                    deliveryId = payloadJson.requireField("delivery_id"),
+                    event = payloadJson.requireField("event"),
                     metadata = payloadJson.jsonObjectOrNull("metadata") ?: JSONObject()
                 )
             }
@@ -115,8 +109,4 @@ class JsonAdapter {
 
         return Result.success(result)
     }
-}
-
-private fun <T> JSONObject?.requireField(key: String, getter: JSONObject.(String) -> T?): T {
-    return requireNotNull(this?.getter(key)) { "Required key '$key' is missing or null in $this. Could not parse task." }
 }

@@ -18,3 +18,30 @@ internal fun JSONObject.stringOrNull(key: String): String? {
 internal fun JSONObject.longOrNull(key: String): Long? {
     return if (isNull(key)) null else optLong(key)
 }
+
+/**
+ * Extension function to ensure that the required field is present in JSON object.
+ * The function will throw an exception if the field is missing, null or cannot be parsed.
+ * The function supports parsing of String, Long and JSONObject types directly.
+ * For other types, the function will throw an exception if the type cannot be casted directly.
+ */
+internal inline fun <reified T : Any> JSONObject.requireField(key: String): T {
+    val value: T? = when (T::class) {
+        String::class -> stringOrNull(key) as? T
+        Long::class -> longOrNull(key) as? T
+        JSONObject::class -> jsonObjectOrNull(key) as? T
+        else -> if (isNull(key)) null else opt(key) as? T ?: throw IllegalArgumentException("Type: ${T::class} is not supported by migration JSON parser.")
+    }
+
+    return requireNotNull(value) { "Required key '$key' is missing or null in $this. Could not parse task." }
+}
+
+/**
+ * Similar to [requireField] but also removes the field from the JSON object.
+ * This is useful when parsing the JSON object and removing the field after parsing.
+ */
+internal inline fun <reified T : Any> JSONObject.requireAndRemoveField(key: String): T {
+    val value = requireField<T>(key)
+    remove(key)
+    return value
+}

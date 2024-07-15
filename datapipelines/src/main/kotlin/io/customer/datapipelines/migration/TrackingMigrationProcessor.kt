@@ -41,12 +41,11 @@ internal class TrackingMigrationProcessor(
         }
     }
 
-    override fun processProfileMigration(identifier: String): Result<Unit> {
+    override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
         dataPipelineInstance.identify(userId = identifier)
-        return Result.success(Unit)
     }
 
-    override suspend fun processTask(task: MigrationTask): Result<Unit> {
+    override suspend fun processTask(task: MigrationTask): Result<Unit> = runCatching {
         val trackEvent = when (task) {
             is MigrationTask.IdentifyProfile -> IdentifyEvent(
                 userId = task.identifier,
@@ -109,7 +108,5 @@ internal class TrackingMigrationProcessor(
 
         logger.debug("processing migrated task: $trackEvent")
         dataPipelineInstance.analytics.process(trackEvent)
-
-        return Result.success(Unit)
     }
 }

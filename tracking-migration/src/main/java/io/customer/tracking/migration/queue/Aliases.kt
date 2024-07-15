@@ -16,10 +16,5 @@ internal typealias QueueRunTaskResult = Result<Unit>
 internal typealias QueueTask = JSONObject
 internal typealias QueueTaskMetadata = JSONObject
 
-internal val QueueTask.type: String?
-    get() = stringOrNull("type")
-internal val QueueTask.data: String?
-    get() = stringOrNull("data")
-
 internal val QueueTaskMetadata.taskPersistedId: String?
     get() = stringOrNull("taskPersistedId")

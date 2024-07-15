@@ -1,3 +1,7 @@
+public abstract interface class io/customer/tracking/migration/MigrationProcessor {
+	public abstract fun processTask-gIAlu-s (Lio/customer/tracking/migration/request/MigrationTask;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public abstract interface class io/customer/tracking/migration/queue/Queue {
 	public abstract fun run (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun runAsync ()V
@@ -30,32 +34,121 @@ public abstract interface class io/customer/tracking/migration/repository/prefer
 	public abstract fun saveIdentifier (Ljava/lang/String;)V
 }
 
-public final class io/customer/tracking/migration/request/Device {
-	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/util/Map;
-	public final fun copy (Ljava/lang/String;Ljava/util/Map;)Lio/customer/tracking/migration/request/Device;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/Device;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/tracking/migration/request/Device;
+public abstract interface class io/customer/tracking/migration/request/MigrationTask {
+	public abstract fun getIdentifier ()Ljava/lang/String;
+	public abstract fun getTimestamp ()J
+}
+
+public final class io/customer/tracking/migration/request/MigrationTask$DeletePushToken : io/customer/tracking/migration/request/MigrationTask {
+	public fun <init> (JLjava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (JLjava/lang/String;Ljava/lang/String;)Lio/customer/tracking/migration/request/MigrationTask$DeletePushToken;
+	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/MigrationTask$DeletePushToken;JLjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/tracking/migration/request/MigrationTask$DeletePushToken;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAttributes ()Ljava/util/Map;
-	public final fun getPlatform ()Ljava/lang/String;
+	public fun getIdentifier ()Ljava/lang/String;
+	public fun getTimestamp ()J
+	public final fun getToken ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/customer/tracking/migration/request/MetricEvent : java/lang/Enum {
-	public static final field Companion Lio/customer/tracking/migration/request/MetricEvent$Companion;
-	public static final field clicked Lio/customer/tracking/migration/request/MetricEvent;
-	public static final field converted Lio/customer/tracking/migration/request/MetricEvent;
-	public static final field delivered Lio/customer/tracking/migration/request/MetricEvent;
-	public static final field opened Lio/customer/tracking/migration/request/MetricEvent;
-	public static fun valueOf (Ljava/lang/String;)Lio/customer/tracking/migration/request/MetricEvent;
-	public static fun values ()[Lio/customer/tracking/migration/request/MetricEvent;
+public final class io/customer/tracking/migration/request/MigrationTask$IdentifyProfile : io/customer/tracking/migration/request/MigrationTask {
+	public fun <init> (JLjava/lang/String;Lorg/json/JSONObject;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lorg/json/JSONObject;
+	public final fun copy (JLjava/lang/String;Lorg/json/JSONObject;)Lio/customer/tracking/migration/request/MigrationTask$IdentifyProfile;
+	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/MigrationTask$IdentifyProfile;JLjava/lang/String;Lorg/json/JSONObject;ILjava/lang/Object;)Lio/customer/tracking/migration/request/MigrationTask$IdentifyProfile;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttributes ()Lorg/json/JSONObject;
+	public fun getIdentifier ()Ljava/lang/String;
+	public fun getTimestamp ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/customer/tracking/migration/request/MetricEvent$Companion {
-	public final fun getEvent (Ljava/lang/String;)Lio/customer/tracking/migration/request/MetricEvent;
+public final class io/customer/tracking/migration/request/MigrationTask$RegisterDeviceToken : io/customer/tracking/migration/request/MigrationTask {
+	public fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;JLorg/json/JSONObject;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()J
+	public final fun component6 ()Lorg/json/JSONObject;
+	public final fun copy (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;JLorg/json/JSONObject;)Lio/customer/tracking/migration/request/MigrationTask$RegisterDeviceToken;
+	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/MigrationTask$RegisterDeviceToken;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;JLorg/json/JSONObject;ILjava/lang/Object;)Lio/customer/tracking/migration/request/MigrationTask$RegisterDeviceToken;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttributes ()Lorg/json/JSONObject;
+	public fun getIdentifier ()Ljava/lang/String;
+	public final fun getLastUsed ()J
+	public final fun getPlatform ()Ljava/lang/String;
+	public fun getTimestamp ()J
+	public final fun getToken ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/tracking/migration/request/MigrationTask$TrackDeliveryEvent : io/customer/tracking/migration/request/MigrationTask {
+	public fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;)V
+	public synthetic fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Lorg/json/JSONObject;
+	public final fun copy (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;)Lio/customer/tracking/migration/request/MigrationTask$TrackDeliveryEvent;
+	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/MigrationTask$TrackDeliveryEvent;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;ILjava/lang/Object;)Lio/customer/tracking/migration/request/MigrationTask$TrackDeliveryEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeliveryType ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun getIdentifier ()Ljava/lang/String;
+	public final fun getMetadata ()Lorg/json/JSONObject;
+	public fun getTimestamp ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/tracking/migration/request/MigrationTask$TrackEvent : io/customer/tracking/migration/request/MigrationTask {
+	public fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Lorg/json/JSONObject;
+	public final fun copy (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;)Lio/customer/tracking/migration/request/MigrationTask$TrackEvent;
+	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/MigrationTask$TrackEvent;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;ILjava/lang/Object;)Lio/customer/tracking/migration/request/MigrationTask$TrackEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEvent ()Ljava/lang/String;
+	public fun getIdentifier ()Ljava/lang/String;
+	public final fun getProperties ()Lorg/json/JSONObject;
+	public fun getTimestamp ()J
+	public final fun getType ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/tracking/migration/request/MigrationTask$TrackPushMetric : io/customer/tracking/migration/request/MigrationTask {
+	public fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/tracking/migration/request/MigrationTask$TrackPushMetric;
+	public static synthetic fun copy$default (Lio/customer/tracking/migration/request/MigrationTask$TrackPushMetric;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/tracking/migration/request/MigrationTask$TrackPushMetric;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeviceToken ()Ljava/lang/String;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun getIdentifier ()Ljava/lang/String;
+	public fun getTimestamp ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/customer/tracking/migration/store/FileStorage {
@@ -85,22 +178,10 @@ public final class io/customer/tracking/migration/store/FileType$QueueTask : io/
 	public fun getFilePath (Ljava/io/File;)Ljava/io/File;
 }
 
-public final class io/customer/tracking/migration/taskdata/IdentifyProfileQueueTaskData {
-	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/util/Map;
-	public final fun copy (Ljava/lang/String;Ljava/util/Map;)Lio/customer/tracking/migration/taskdata/IdentifyProfileQueueTaskData;
-	public static synthetic fun copy$default (Lio/customer/tracking/migration/taskdata/IdentifyProfileQueueTaskData;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/tracking/migration/taskdata/IdentifyProfileQueueTaskData;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAttributes ()Ljava/util/Map;
-	public final fun getIdentifier ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public final class io/customer/tracking/migration/util/JsonAdapter {
 	public fun <init> ()V
 	public final fun fromJsonOrNull (Ljava/lang/String;)Lorg/json/JSONObject;
 	public final fun fromJsonToListOrNull (Ljava/lang/String;)Lorg/json/JSONArray;
+	public final fun parseMigrationTask-IoAF18A (Lorg/json/JSONObject;)Ljava/lang/Object;
 }
 

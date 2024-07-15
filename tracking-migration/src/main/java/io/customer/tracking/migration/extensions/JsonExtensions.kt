@@ -26,11 +26,16 @@ internal fun JSONObject.longOrNull(key: String): Long? {
  * For other types, the function will throw an exception if the type cannot be casted directly.
  */
 internal inline fun <reified T : Any> JSONObject.requireField(key: String): T {
-    val value: T? = when (T::class) {
-        String::class -> stringOrNull(key) as? T
-        Long::class -> longOrNull(key) as? T
-        JSONObject::class -> jsonObjectOrNull(key) as? T
-        else -> if (isNull(key)) null else opt(key) as? T ?: throw IllegalArgumentException("Type: ${T::class} is not supported by migration JSON parser for key: $key in $this. Could not parse task.")
+    val value: T? = when {
+        isNull(key) -> null
+        else -> when (T::class) {
+            String::class -> optString(key) as? T
+            Long::class -> optLong(key) as? T
+            JSONObject::class -> optJSONObject(key) as? T
+            else -> opt(key) as? T ?: throw IllegalArgumentException(
+                "Type: ${T::class} is not supported by migration JSON parser for key: $key in $this. Could not parse task."
+            )
+        }
     }
 
     return requireNotNull(value) { "Required key '$key' is missing or null in $this. Could not parse task." }

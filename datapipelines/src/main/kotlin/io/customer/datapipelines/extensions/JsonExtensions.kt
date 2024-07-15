@@ -16,11 +16,8 @@ import org.json.JSONObject
  * it to JsonObject for processing.
  */
 fun JSONObject.toJsonObject(): JsonObject = buildJsonObject {
-    val keys = keys()
-    while (keys.hasNext()) {
-        val key = keys.next()
-        val value = get(key)
-        put(key, value.toSerializableJson())
+    for (key in this@toJsonObject.keys()) {
+        put(key, opt(key).toSerializableJson())
     }
 }
 
@@ -28,9 +25,9 @@ fun JSONObject.toJsonObject(): JsonObject = buildJsonObject {
  * Transforms [JSONArray] to [JsonArray] by leveraging kotlinx.serialization.json.
  */
 fun JSONArray.toJsonArray(): JsonArray = buildJsonArray {
-    for (i in 0 until length()) {
-        val value = get(i)
-        add(value.toSerializableJson())
+    val range = 0 until length()
+    for (index in range) {
+        add(opt(index).toSerializableJson())
     }
 }
 

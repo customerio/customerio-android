@@ -1,8 +1,10 @@
 import io.customer.android.Configurations
+import io.customer.android.Dependencies
 
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
+    id 'org.jetbrains.kotlin.kapt'
     id 'com.twilio.apkscale'
 }
 
@@ -34,7 +36,9 @@ dependencies {
     api project(":base")
     api project(":core")
 
-    implementation io.customer.android.Dependencies.coroutinesCore
-    implementation io.customer.android.Dependencies.coroutinesAndroid
-
+    implementation Dependencies.coroutinesCore
+    implementation Dependencies.coroutinesAndroid
+    // Only required for testing data classes from old tracking module
+    testImplementation Dependencies.moshi
+    kaptTest Dependencies.moshiCodeGen
 }

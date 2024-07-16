@@ -8,6 +8,7 @@ public final class io/customer/tracking/migration/MigrationAssistant$Companion {
 }
 
 public abstract interface class io/customer/tracking/migration/MigrationProcessor {
+	public abstract fun processDeviceMigration-IoAF18A (Ljava/lang/String;)Ljava/lang/Object;
 	public abstract fun processProfileMigration-IoAF18A (Ljava/lang/String;)Ljava/lang/Object;
 	public abstract fun processTask-gIAlu-s (Lio/customer/tracking/migration/request/MigrationTask;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }

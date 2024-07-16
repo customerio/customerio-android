@@ -15,6 +15,12 @@ interface MigrationProcessor {
     fun processProfileMigration(identifier: String): Result<Unit>
 
     /**
+     * Processes device migration so device data can be migrated to new
+     * implementation without needing to re-fetch the device token from FCM.
+     */
+    fun processDeviceMigration(oldDeviceToken: String): Result<Unit>
+
+    /**
      * Method responsible for processing the migration task.
      * Processor class should be able to handle the task and process it accordingly
      * and return result of processing so the queue can decide if the task should

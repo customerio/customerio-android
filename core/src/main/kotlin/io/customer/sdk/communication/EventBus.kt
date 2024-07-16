@@ -1,13 +1,13 @@
 package io.customer.sdk.communication
 
 import io.customer.sdk.core.di.SDKComponent
+import java.lang.ref.WeakReference
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
@@ -44,15 +44,7 @@ class EventBusImpl(
         }
     }
 
-    inline fun <reified T : Event> subscribe(crossinline action: suspend (T) -> Unit): Job {
-        val job = scope.launch {
-            flow.filterIsInstance<T>().collect { event ->
-                action(event)
-            }
-        }
-        jobs.add(job)
-        return job
-    }
+    inline fun <reified T : Event> EventBus.subscribe(noinline action: suspend (T) -> Unit) = subscribe(T::class, action)
 
     override fun removeAllSubscriptions() {
         jobs.forEach { it.cancel() }
@@ -60,12 +52,15 @@ class EventBusImpl(
     }
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
+        val weakAction = WeakReference(action)
         val job = scope.launch {
             flow.mapNotNull { type.safeCast(it) }.collect { event ->
-                action(event)
+                weakAction.get()?.invoke(event)
             }
         }
-        jobs.add(job)
+        synchronized(jobs) {
+            jobs.add(job)
+        }
         return job
     }
 }

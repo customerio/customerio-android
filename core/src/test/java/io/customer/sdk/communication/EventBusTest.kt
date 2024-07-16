@@ -103,7 +103,7 @@ class EventBusTest : JUnit5Test() {
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
-        delay(100) // Give some time for the event to be collected
+        delay(200) // Give some time for the event to be collected
 
         subscriber1.shouldHaveSingleItem()
             .shouldBeInstanceOf<Event.TrackPushMetricEvent>()

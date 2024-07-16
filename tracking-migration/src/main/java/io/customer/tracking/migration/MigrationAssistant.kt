@@ -34,7 +34,9 @@ class MigrationAssistant private constructor(
         logger.debug("Starting migration tracking data...")
         CoroutineScope(dispatchersProvider.background).launch {
             // Re-identify old profile to new implementation
-            logger.debug("Migrating existing profile...")
+            logger.debug("Migrating existing token and profile...")
+            // token goes first since it is used to identify the profile
+            migrateExistingDevice()
             migrateExistingProfile()
             // Run the queue to process any pending events
             logger.debug("Requesting migration queue to run...")
@@ -53,6 +55,16 @@ class MigrationAssistant private constructor(
         // If the migration is successful, remove the old identifier to prevent re-migration
         if (migrationProcessor.processProfileMigration(oldIdentifier).isSuccess) {
             sitePreferences.removeIdentifier(oldIdentifier)
+        }
+    }
+
+    private fun migrateExistingDevice() {
+        // If there is no old device token, then either the device was never added or it was already migrated
+        val oldDeviceToken = sitePreferences.getDeviceToken() ?: return
+
+        if (migrationProcessor.processDeviceMigration(oldDeviceToken).isSuccess) {
+            // remove the old device token to prevent updating GlobalPreferenceStore again
+            sitePreferences.removeDeviceToken()
         }
     }
 

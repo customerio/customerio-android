@@ -28,6 +28,7 @@ internal class TrackingMigrationProcessor(
     migrationSiteId: String
 ) : MigrationProcessor {
     private val logger: Logger = SDKComponent.logger
+    private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
     private val analytics: Analytics = dataPipelineInstance.analytics
     private val trackingMigrationPlugin = TrackingMigrationPlugin()
 
@@ -58,6 +59,11 @@ internal class TrackingMigrationProcessor(
 
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
         dataPipelineInstance.identify(userId = identifier)
+    }
+
+    override fun processDeviceMigration(oldDeviceToken: String) = runCatching {
+        logger.debug("Migrating existing device with token: $oldDeviceToken")
+        globalPreferenceStore.saveDeviceToken(oldDeviceToken)
     }
 
     override suspend fun processTask(task: MigrationTask): Result<Unit> = runCatching {

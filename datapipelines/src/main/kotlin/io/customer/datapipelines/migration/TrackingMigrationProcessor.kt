@@ -26,6 +26,7 @@ internal class TrackingMigrationProcessor(
     migrationSiteId: String
 ) : MigrationProcessor {
     private val logger: Logger = SDKComponent.logger
+    private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
 
     // Start the migration process in init block to start migration as soon as possible
     // and to avoid any manual calls to replay migration.
@@ -43,6 +44,11 @@ internal class TrackingMigrationProcessor(
 
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
         dataPipelineInstance.identify(userId = identifier)
+    }
+
+    override fun processDeviceMigration(oldDeviceIdentifier: String) = runCatching {
+        logger.debug("Migrating existing device with token: $oldDeviceIdentifier")
+        globalPreferenceStore.saveDeviceToken(oldDeviceIdentifier)
     }
 
     override suspend fun processTask(task: MigrationTask): Result<Unit> = runCatching {

@@ -1,11 +1,12 @@
 package io.customer.datapipelines.migration
 
+import com.segment.analytics.kotlin.core.Analytics
+import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.ScreenEvent
 import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.putAll
-import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.CustomerIO
@@ -14,6 +15,7 @@ import io.customer.sdk.core.util.Logger
 import io.customer.tracking.migration.MigrationAssistant
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -27,11 +29,14 @@ internal class TrackingMigrationProcessor(
 ) : MigrationProcessor {
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
+    private val analytics: Analytics = dataPipelineInstance.analytics
+    private val trackingMigrationPlugin = TrackingMigrationPlugin()
 
     // Start the migration process in init block to start migration as soon as possible
     // and to avoid any manual calls to replay migration.
     init {
         runCatching {
+            analytics.add(trackingMigrationPlugin)
             // Start the migration process by initializing MigrationAssistant
             MigrationAssistant.start(
                 migrationProcessor = this,
@@ -39,6 +44,16 @@ internal class TrackingMigrationProcessor(
             )
         }.onFailure { ex ->
             logger.error("Migration failed with exception: $ex")
+        }
+    }
+
+    override fun onMigrationCompleted() {
+        // Remove tracking migration plugin after migration is completed to
+        // avoid any further processing unnecessarily
+        // Remove the plugin in same dispatcher as analytics uses to process the events
+        // so that it is removed after all the pending migration events are processed.
+        analytics.analyticsScope.launch(analytics.analyticsDispatcher) {
+            analytics.remove(trackingMigrationPlugin)
         }
     }
 
@@ -95,24 +110,26 @@ internal class TrackingMigrationProcessor(
                     put("token", task.token)
                     put("properties", task.attributes.toJsonObject())
                 }
-            ).apply {
-                putInContextUnderKey("device", "token", task.token)
-                putInContextUnderKey("device", "type", "android")
-            }
+            ).addDeviceContextExtras(
+                mapOf("token" to task.token, "type" to "android")
+            )
 
             is MigrationTask.DeletePushToken -> TrackEvent(
                 event = EventNames.DEVICE_DELETE,
                 properties = emptyJsonObject
-            ).apply {
-                putInContextUnderKey("device", "token", task.token)
-                putInContextUnderKey("device", "type", "android")
-            }
+            ).addDeviceContextExtras(
+                mapOf("token" to task.token, "type" to "android")
+            )
         }
 
         trackEvent.timestamp = task.timestamp.toString()
         task.identifier?.let { trackEvent.userId = it }
 
         logger.debug("processing migrated task: $trackEvent")
-        dataPipelineInstance.analytics.process(trackEvent)
+        analytics.process(trackEvent)
+    }
+
+    private fun <E : BaseEvent> E.addDeviceContextExtras(extras: Map<String, String>): E = this.apply {
+        trackingMigrationPlugin.addDeviceContextExtras(this, extras)
     }
 }

@@ -1,5 +1,6 @@
 package io.customer.datapipelines.migration
 
+import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.ScreenEvent
@@ -14,6 +15,7 @@ import io.customer.sdk.core.util.Logger
 import io.customer.tracking.migration.MigrationAssistant
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -26,13 +28,14 @@ internal class TrackingMigrationProcessor(
     migrationSiteId: String
 ) : MigrationProcessor {
     private val logger: Logger = SDKComponent.logger
+    private val analytics: Analytics = dataPipelineInstance.analytics
     private val trackingMigrationPlugin = TrackingMigrationPlugin()
 
     // Start the migration process in init block to start migration as soon as possible
     // and to avoid any manual calls to replay migration.
     init {
         runCatching {
-            dataPipelineInstance.analytics.add(trackingMigrationPlugin)
+            analytics.add(trackingMigrationPlugin)
             // Start the migration process by initializing MigrationAssistant
             MigrationAssistant.start(
                 migrationProcessor = this,
@@ -46,7 +49,11 @@ internal class TrackingMigrationProcessor(
     override fun onMigrationCompleted() {
         // Remove tracking migration plugin after migration is completed to
         // avoid any further processing unnecessarily
-        dataPipelineInstance.analytics.remove(trackingMigrationPlugin)
+        // Remove the plugin in same dispatcher as analytics uses to process the events
+        // so that it is removed after all the pending migration events are processed.
+        analytics.analyticsScope.launch(analytics.analyticsDispatcher) {
+            analytics.remove(trackingMigrationPlugin)
+        }
     }
 
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
@@ -113,7 +120,7 @@ internal class TrackingMigrationProcessor(
         task.identifier?.let { trackEvent.userId = it }
 
         logger.debug("processing migrated task: $trackEvent")
-        dataPipelineInstance.analytics.process(trackEvent)
+        analytics.process(trackEvent)
     }
 
     private fun <E : BaseEvent> E.addDeviceContextExtras(extras: Map<String, String>): E = this.apply {

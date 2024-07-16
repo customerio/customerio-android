@@ -124,7 +124,6 @@ class CustomerIO private constructor(
     }
 
     private fun postProfileAlreadyIdentified() {
-        // TODO: Need to check SitePreferences for userId and then publish event
         analytics.userId()?.let { userId ->
             eventBus.publish(Event.ProfileIdentifiedEvent(identifier = userId))
         }

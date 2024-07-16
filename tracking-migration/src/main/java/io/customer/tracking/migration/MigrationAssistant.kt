@@ -41,6 +41,7 @@ class MigrationAssistant private constructor(
             queue.run()
             // Log completion of migration
             logger.debug("Migration completed successfully")
+            migrationProcessor.onMigrationCompleted()
         }
     }
 

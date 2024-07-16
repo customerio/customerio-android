@@ -1,11 +1,11 @@
 package io.customer.datapipelines.migration
 
+import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.ScreenEvent
 import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.putAll
-import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.CustomerIO
@@ -26,11 +26,13 @@ internal class TrackingMigrationProcessor(
     migrationSiteId: String
 ) : MigrationProcessor {
     private val logger: Logger = SDKComponent.logger
+    private val trackingMigrationPlugin = TrackingMigrationPlugin()
 
     // Start the migration process in init block to start migration as soon as possible
     // and to avoid any manual calls to replay migration.
     init {
         runCatching {
+            dataPipelineInstance.analytics.add(trackingMigrationPlugin)
             // Start the migration process by initializing MigrationAssistant
             MigrationAssistant.start(
                 migrationProcessor = this,
@@ -39,6 +41,12 @@ internal class TrackingMigrationProcessor(
         }.onFailure { ex ->
             logger.error("Migration failed with exception: $ex")
         }
+    }
+
+    override fun onMigrationCompleted() {
+        // Remove tracking migration plugin after migration is completed to
+        // avoid any further processing unnecessarily
+        dataPipelineInstance.analytics.remove(trackingMigrationPlugin)
     }
 
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
@@ -89,18 +97,16 @@ internal class TrackingMigrationProcessor(
                     put("token", task.token)
                     put("properties", task.attributes.toJsonObject())
                 }
-            ).apply {
-                putInContextUnderKey("device", "token", task.token)
-                putInContextUnderKey("device", "type", "android")
-            }
+            ).addDeviceContextExtras(
+                mapOf("token" to task.token, "type" to "android")
+            )
 
             is MigrationTask.DeletePushToken -> TrackEvent(
                 event = EventNames.DEVICE_DELETE,
                 properties = emptyJsonObject
-            ).apply {
-                putInContextUnderKey("device", "token", task.token)
-                putInContextUnderKey("device", "type", "android")
-            }
+            ).addDeviceContextExtras(
+                mapOf("token" to task.token, "type" to "android")
+            )
         }
 
         trackEvent.timestamp = task.timestamp.toString()
@@ -108,5 +114,9 @@ internal class TrackingMigrationProcessor(
 
         logger.debug("processing migrated task: $trackEvent")
         dataPipelineInstance.analytics.process(trackEvent)
+    }
+
+    private fun <E : BaseEvent> E.addDeviceContextExtras(extras: Map<String, String>): E = this.apply {
+        trackingMigrationPlugin.addDeviceContextExtras(this, extras)
     }
 }

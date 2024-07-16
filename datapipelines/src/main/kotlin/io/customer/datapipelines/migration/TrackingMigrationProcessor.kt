@@ -46,9 +46,9 @@ internal class TrackingMigrationProcessor(
         dataPipelineInstance.identify(userId = identifier)
     }
 
-    override fun processDeviceMigration(oldDeviceIdentifier: String) = runCatching {
-        logger.debug("Migrating existing device with token: $oldDeviceIdentifier")
-        globalPreferenceStore.saveDeviceToken(oldDeviceIdentifier)
+    override fun processDeviceMigration(oldDeviceToken: String) = runCatching {
+        logger.debug("Migrating existing device with token: $oldDeviceToken")
+        globalPreferenceStore.saveDeviceToken(oldDeviceToken)
     }
 
     override suspend fun processTask(task: MigrationTask): Result<Unit> = runCatching {

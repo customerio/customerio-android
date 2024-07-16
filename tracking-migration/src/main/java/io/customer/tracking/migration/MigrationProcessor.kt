@@ -18,7 +18,7 @@ interface MigrationProcessor {
      * Processes device migration so device data can be migrated to new
      * implementation without needing to re-fetch the device token from FCM.
      */
-    fun processDeviceMigration(token: String): Result<Unit>
+    fun processDeviceMigration(oldDeviceToken: String): Result<Unit>
 
     /**
      * Method responsible for processing the migration task.

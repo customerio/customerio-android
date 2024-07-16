@@ -59,9 +59,9 @@ class MigrationAssistant private constructor(
 
     private fun migrateExistingDevice() {
         // If there is no old device token, then either the device was never added or it was already migrated
-        val oldDeviceIdentifier = sitePreferences.getDeviceToken() ?: return
+        val oldDeviceToken = sitePreferences.getDeviceToken() ?: return
 
-        if (migrationProcessor.processDeviceMigration(oldDeviceIdentifier).isSuccess) {
+        if (migrationProcessor.processDeviceMigration(oldDeviceToken).isSuccess) {
             // remove the old device token to prevent updating GlobalPreferenceStore again
             sitePreferences.removeDeviceToken()
         }

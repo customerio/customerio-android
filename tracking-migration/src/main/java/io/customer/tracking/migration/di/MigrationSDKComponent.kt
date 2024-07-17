@@ -20,6 +20,7 @@ import io.customer.tracking.migration.repository.preference.SitePreferenceReposi
 import io.customer.tracking.migration.repository.preference.SitePreferenceRepositoryImpl
 import io.customer.tracking.migration.store.FileStorage
 import io.customer.tracking.migration.util.JsonAdapter
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * Migration SDK component responsible for providing the necessary dependencies for migration.
@@ -34,6 +35,10 @@ class MigrationSDKComponent(
     private val applicationContext: Context = androidSDKComponent.applicationContext
     private val logger: Logger = SDKComponent.logger
 
+    val migrationQueueScope: CoroutineScope
+        get() = singleton<CoroutineScope> {
+            CoroutineScope(SDKComponent.dispatchersProvider.background)
+        }
     val sitePreferences: SitePreferenceRepository
         get() = singleton<SitePreferenceRepository> {
             SitePreferenceRepositoryImpl(applicationContext, migrationSiteId)

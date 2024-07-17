@@ -1,6 +1,7 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
+import android.os.StrictMode
 import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
@@ -43,5 +44,23 @@ class MainApplication : Application() {
             addCustomerIOModule(ModuleMessagingPushFCM())
             build()
         }
+
+        StrictMode.setThreadPolicy(
+            StrictMode.ThreadPolicy.Builder()
+                .detectDiskReads()
+                .detectDiskWrites()
+                .detectNetwork()
+                .penaltyLog()
+                .build()
+        )
+
+        StrictMode.setVmPolicy(
+            StrictMode.VmPolicy.Builder()
+                .detectLeakedSqlLiteObjects()
+                .detectLeakedClosableObjects()
+                .penaltyLog()
+                .penaltyDeath()
+                .build()
+        )
     }
 }

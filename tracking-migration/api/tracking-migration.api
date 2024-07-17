@@ -111,7 +111,6 @@ public final class io/customer/tracking/migration/request/MigrationTask$Register
 
 public final class io/customer/tracking/migration/request/MigrationTask$TrackDeliveryEvent : io/customer/tracking/migration/request/MigrationTask {
 	public fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;)V
-	public synthetic fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/json/JSONObject;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()J
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
@@ -152,7 +151,6 @@ public final class io/customer/tracking/migration/request/MigrationTask$TrackEve
 
 public final class io/customer/tracking/migration/request/MigrationTask$TrackPushMetric : io/customer/tracking/migration/request/MigrationTask {
 	public fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
-	public synthetic fun <init> (JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()J
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;

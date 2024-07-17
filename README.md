@@ -5,7 +5,7 @@
 </p>
 
 ![min Android SDK version is 21](https://img.shields.io/badge/min%20Android%20SDK-21-green)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg)](code_of_conduct.md) 
 [![codecov](https://codecov.io/gh/customerio/customerio-android/branch/develop/graph/badge.svg?token=PYV1XQTKGO)](https://codecov.io/gh/customerio/customerio-android)
 
@@ -52,15 +52,15 @@ We separated our SDK into packages to minimize our impact on your app's size. Yo
 
 | Package | Required? | Description |
 | :-- | :---: | :--- |
-| `tracking` | Yes | [`identify`](https://customer.io/docs/sdk/android/identify/) people/devices and [send events](https://customer.io/docs/sdk/android/track-events/) (to trigger campaigns, track metrics, etc). |
+| `datapipelines` | Yes | [`identify`](https://customer.io/docs/sdk/android/identify/) people/devices and [send events](https://customer.io/docs/sdk/android/track-events/) (to trigger campaigns, track metrics, etc). |
 | `messaging-push-fcm` | No | [Push](https://customer.io/docs/sdk/android/push/) and [rich push](https://customer.io/docs/sdk/android/rich-push/) notifications using Google Firebase Cloud Messaging (FCM). |
 
 ```groovy
-implementation 'io.customer.android:tracking:<version-here>'
+implementation 'io.customer.android:datapipelines:<version-here>'
 implementation 'io.customer.android:messaging-push-fcm:<version-here>'
 ```
 
-Replace `version-here` with the the latest version: ![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/tracking/badge.svg)
+Replace `version-here` with the the latest version: ![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines/badge.svg)
 
 
 ## Initialize the SDK
@@ -71,27 +71,24 @@ Before you can use the Customer.io SDK, you need to initialize it. `CustomerIO` 
 class App : Application() {
    override fun onCreate() {
        super.onCreate()
-      val customerIO = CustomerIO.Builder(
-            siteId = "your-site-id",
-            apiKey = "your-api-key",
-            appContext = this
+      val customerIO = CustomerIOBuilder(
+            applicationContext = this,
+            cdpApiKey = "your-cdp-api-key"
         ).build()
-
-
    }
 }
 ```
+
 The `Builder` for CustomerIO exposes configuration options for features such `region`,`timeout`.
 
 ```kotlin
-        val builder = CustomerIO.Builder(
-            siteId = "YOUR-SITE-ID",
-            apiKey = "YOUR-API-KEY",
-            appContext = this
+        val builder = CustomerIOBuilder(
+            applicationContext = this,
+            cdpApiKey = "your-cdp-api-key"
         )
         builder.setRegion(Region.EU)
-        // set the request timeout for all the API requests sent from SDK
-        builder.setRequestTimeout(8000L)
+        // set the number of events that should be queued before they are flushed to the server.
+        builder.setFlushAt(10)
         builder.build()
 ```
 

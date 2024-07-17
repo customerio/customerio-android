@@ -10,7 +10,7 @@ import org.json.JSONObject
  */
 sealed interface MigrationTask {
     val timestamp: Long
-    val identifier: String?
+    val identifier: String
 
     data class IdentifyProfile(
         override val timestamp: Long,
@@ -28,7 +28,7 @@ sealed interface MigrationTask {
 
     data class TrackPushMetric(
         override val timestamp: Long,
-        override val identifier: String? = null,
+        override val identifier: String,
         val deliveryId: String,
         val deviceToken: String,
         val event: String
@@ -36,7 +36,7 @@ sealed interface MigrationTask {
 
     data class TrackDeliveryEvent(
         override val timestamp: Long,
-        override val identifier: String? = null,
+        override val identifier: String,
         val deliveryType: String,
         val deliveryId: String,
         val event: String,

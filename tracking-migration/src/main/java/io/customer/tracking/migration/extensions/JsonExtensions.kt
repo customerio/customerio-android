@@ -40,13 +40,3 @@ internal inline fun <reified T : Any> JSONObject.requireField(key: String): T {
 
     return requireNotNull(value) { "Required key '$key' is missing or null in $this. Could not parse task." }
 }
-
-/**
- * Similar to [requireField] but also removes the field from the JSON object.
- * This is useful when parsing the JSON object and removing the field after parsing.
- */
-internal inline fun <reified T : Any> JSONObject.requireAndRemoveField(key: String): T {
-    val value = requireField<T>(key)
-    remove(key)
-    return value
-}

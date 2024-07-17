@@ -123,7 +123,7 @@ internal class TrackingMigrationProcessor(
         }
 
         trackEvent.timestamp = task.timestamp.toString()
-        task.identifier?.let { trackEvent.userId = it }
+        trackEvent.userId = task.identifier
 
         logger.debug("processing migrated task: $trackEvent")
         analytics.process(trackEvent)

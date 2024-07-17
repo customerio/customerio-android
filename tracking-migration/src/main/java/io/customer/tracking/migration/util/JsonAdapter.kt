@@ -1,9 +1,9 @@
 package io.customer.tracking.migration.util
 
+import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.sdk.core.util.enumValueOfOrNull
 import io.customer.tracking.migration.extensions.jsonObjectOrNull
 import io.customer.tracking.migration.extensions.longOrNull
-import io.customer.tracking.migration.extensions.requireAndRemoveField
 import io.customer.tracking.migration.extensions.requireField
 import io.customer.tracking.migration.extensions.stringOrNull
 import io.customer.tracking.migration.request.MigrationTask
@@ -41,7 +41,7 @@ class JsonAdapter {
         val taskJson = runCatching { JSONObject(data) }.getOrElse {
             throw RuntimeException("Queue task data is invalid for $task. Could not run task.")
         }
-        val timestamp = taskJson.longOrNull("timestamp") ?: Date().time
+        val timestamp = taskJson.longOrNull("timestamp") ?: Date().getUnixTimestamp()
 
         val result = when (type) {
             QueueTaskType.IdentifyProfile -> {
@@ -58,9 +58,9 @@ class JsonAdapter {
                 MigrationTask.TrackEvent(
                     timestamp = eventJson.longOrNull("timestamp") ?: timestamp,
                     identifier = taskJson.requireField("identifier"),
-                    event = eventJson.requireAndRemoveField("name"),
-                    type = eventJson.requireAndRemoveField("type"),
-                    properties = eventJson
+                    event = eventJson.requireField("name"),
+                    type = eventJson.requireField("type"),
+                    properties = eventJson.requireField<JSONObject>("data")
                 )
             }
 
@@ -86,9 +86,12 @@ class JsonAdapter {
             }
 
             QueueTaskType.TrackPushMetric -> {
+                val deliveryId = taskJson.requireField<String>("delivery_id")
+
                 MigrationTask.TrackPushMetric(
                     timestamp = timestamp,
-                    deliveryId = taskJson.requireField("delivery_id"),
+                    identifier = deliveryId,
+                    deliveryId = deliveryId,
                     deviceToken = taskJson.requireField("device_id"),
                     event = taskJson.requireField("event")
                 )
@@ -96,11 +99,13 @@ class JsonAdapter {
 
             QueueTaskType.TrackDeliveryEvent -> {
                 val payloadJson = taskJson.requireField<JSONObject>("payload")
+                val deliveryId = payloadJson.requireField<String>("delivery_id")
 
                 MigrationTask.TrackDeliveryEvent(
                     timestamp = payloadJson.longOrNull("timestamp") ?: timestamp,
+                    identifier = deliveryId,
                     deliveryType = taskJson.requireField("type"),
-                    deliveryId = payloadJson.requireField("delivery_id"),
+                    deliveryId = deliveryId,
                     event = payloadJson.requireField("event"),
                     metadata = payloadJson.jsonObjectOrNull("metadata") ?: JSONObject()
                 )

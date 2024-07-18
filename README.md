@@ -72,8 +72,8 @@ class App : Application() {
    override fun onCreate() {
        super.onCreate()
       val customerIO = CustomerIOBuilder(
-            cdpApiKey = "your-cdp-api-key",
-            applicationContext = this
+            applicationContext = this,
+            cdpApiKey = "your-cdp-api-key"
         ).build()
    }
 }
@@ -83,8 +83,8 @@ The `Builder` for CustomerIO exposes configuration options for features such `re
 
 ```kotlin
         val builder = CustomerIOBuilder(
-            cdpApiKey = "your-cdp-api-key",
-            applicationContext = this
+            applicationContext = this,
+            cdpApiKey = "your-cdp-api-key"
         )
         builder.setRegion(Region.EU)
         // set the number of events that should be queued before they are flushed to the server.

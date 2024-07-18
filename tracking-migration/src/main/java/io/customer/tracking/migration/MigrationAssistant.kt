@@ -11,18 +11,18 @@ import kotlinx.coroutines.launch
  * Class responsible for migrating the existing tracking data to the new data
  * pipelines implementation.
  */
-class MigrationAssistant private constructor(
+class MigrationAssistant internal constructor(
     private val migrationProcessor: MigrationProcessor,
-    migrationSiteId: String
-) {
-    private val migrationSDKComponent = MigrationSDKComponent(
+    migrationSiteId: String,
+    migrationSDKComponent: MigrationSDKComponent = MigrationSDKComponent(
         migrationProcessor = migrationProcessor,
         migrationSiteId = migrationSiteId
     )
+) {
     private val sitePreferences: SitePreferenceRepository = migrationSDKComponent.sitePreferences
     private val queue: Queue = migrationSDKComponent.queue
     private val logger = SDKComponent.logger
-    private val dispatchersProvider = SDKComponent.dispatchersProvider
+    private val coroutineScope: CoroutineScope = migrationSDKComponent.migrationQueueScope
 
     /**
      * Starts the migration process by migrating the existing tracking data to the new
@@ -32,7 +32,7 @@ class MigrationAssistant private constructor(
      */
     init {
         logger.debug("Starting migration tracking data...")
-        CoroutineScope(dispatchersProvider.background).launch {
+        coroutineScope.launch {
             // Re-identify old profile to new implementation
             logger.debug("Migrating existing token and profile...")
             // token goes first since it is used to identify the profile

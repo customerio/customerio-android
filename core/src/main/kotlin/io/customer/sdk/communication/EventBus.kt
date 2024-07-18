@@ -1,13 +1,14 @@
 package io.customer.sdk.communication
 
+import androidx.lifecycle.Lifecycle
 import io.customer.sdk.core.di.SDKComponent
-import java.lang.ref.WeakReference
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
@@ -44,6 +45,18 @@ class EventBusImpl(
         }
     }
 
+    // Remove all subscriptions when the application is destroyed
+    init {
+        SDKComponent.activityLifecycleCallbacks.subscribe { events ->
+            events
+                .filter { state ->
+                    state.event == Lifecycle.Event.ON_DESTROY
+                }.collect { _ ->
+                    removeAllSubscriptions()
+                }
+        }
+    }
+
     inline fun <reified T : Event> EventBus.subscribe(noinline action: suspend (T) -> Unit) = subscribe(T::class, action)
 
     override fun removeAllSubscriptions() {
@@ -52,10 +65,9 @@ class EventBusImpl(
     }
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
-        val weakAction = WeakReference(action)
         val job = scope.launch {
             flow.mapNotNull { type.safeCast(it) }.collect { event ->
-                weakAction.get()?.invoke(event)
+                action.invoke(event)
             }
         }
         synchronized(jobs) {

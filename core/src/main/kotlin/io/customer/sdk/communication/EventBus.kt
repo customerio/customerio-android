@@ -1,6 +1,5 @@
 package io.customer.sdk.communication
 
-import androidx.lifecycle.Lifecycle
 import io.customer.sdk.core.di.SDKComponent
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
@@ -8,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
@@ -42,18 +40,6 @@ class EventBusImpl(
     override fun publish(event: Event) {
         scope.launch {
             sharedFlow.emit(event)
-        }
-    }
-
-    // Remove all subscriptions when the application is destroyed
-    init {
-        SDKComponent.activityLifecycleCallbacks.subscribe { events ->
-            events
-                .filter { state ->
-                    state.event == Lifecycle.Event.ON_DESTROY
-                }.collect { _ ->
-                    removeAllSubscriptions()
-                }
         }
     }
 

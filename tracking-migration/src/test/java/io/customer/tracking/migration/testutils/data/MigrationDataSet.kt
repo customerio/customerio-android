@@ -224,3 +224,68 @@ sealed interface DeletePushNotificationQueueTaskData : MigrationDataSet {
         """.trimIndent()
     }
 }
+
+sealed interface InvalidMigrationDataSet : MigrationDataSet {
+    object NullType : InvalidMigrationDataSet {
+        override val rawJson: String = """
+            {
+              "storageId": "39b4f3a3-9fcf-45e5-99f6-6027fed59912",
+              "data": "{\"identifier\":\"wcjzkxfxer\",\"event\":{\"name\":\"qrorchephz\",\"type\":\"event\",\"data\":{},\"timestamp\":1721381260}}",
+              "runResults": {
+                "totalRuns": 1
+              }
+            }
+        """.trimIndent()
+    }
+
+    object UnsupportedType : InvalidMigrationDataSet {
+        override val rawJson: String = """
+            {
+              "storageId": "f7ed672b-d3c7-4f80-bf19-9addfd0c8043",
+              "type": "TrackScreen",
+              "data": "{\"identifier\":\"oqfbtoeusq\",\"event\":{\"name\":\"pvaupgtxbj\",\"type\":\"screen\",\"data\":{},\"timestamp\":1721381260}}",
+              "runResults": {
+                "totalRuns": 5
+              }
+            }
+        """.trimIndent()
+    }
+
+    object NullData : InvalidMigrationDataSet {
+        override val rawJson: String = """
+            {
+              "storageId": "c3cd6aa8-9d4c-4394-88aa-62562f2a1f1e",
+              "type": "TrackEvent",
+              "runResults": {
+                "totalRuns": 10
+              }
+            }
+        """.trimIndent()
+    }
+
+    object UnsupportedData : InvalidMigrationDataSet {
+        override val rawJson: String = """
+            {
+              "storageId": "c8568fcd-dd92-4fbb-b6c6-0cf736915984",
+              "type": "TrackEvent",
+              "data": "{\"identifier\":\"cwbukbdlqo\",\"event\":{\"name\":\"zqnrgtfrbp\",\"timestamp\":1721381260}}",
+              "runResults": {
+                "totalRuns": 4
+              }
+            }
+        """.trimIndent()
+    }
+
+    object MalformedData : InvalidMigrationDataSet {
+        override val rawJson: String = """
+            {
+              "storageId": "37e064dc-a399-4627-8f69-1658eabbf3cf",
+              "type": "TrackEvent",
+              "data": "{invalid json}",
+              "runResults": {
+                "totalRuns": 7
+              }
+            }
+        """.trimIndent()
+    }
+}

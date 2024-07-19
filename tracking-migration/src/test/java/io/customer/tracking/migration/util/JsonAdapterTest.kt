@@ -2,11 +2,13 @@ package io.customer.tracking.migration.util
 
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.extensions.shouldBeFailure
 import io.customer.tracking.migration.request.MigrationTask
+import io.customer.tracking.migration.testutils.core.IntegrationTest
 import io.customer.tracking.migration.testutils.data.DeletePushNotificationQueueTaskData
 import io.customer.tracking.migration.testutils.data.IdentifyProfileQueueTaskData
 import io.customer.tracking.migration.testutils.data.InAppDelivery
+import io.customer.tracking.migration.testutils.data.InvalidMigrationDataSet
 import io.customer.tracking.migration.testutils.data.PushMetric
 import io.customer.tracking.migration.testutils.data.RegisterPushNotificationQueueTaskData
 import io.customer.tracking.migration.testutils.data.TrackEventQueueTaskData
@@ -18,13 +20,14 @@ import java.util.Date
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
 import org.amshove.kluent.shouldNotBeNull
+import org.json.JSONException
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class JsonAdapterTest : RobolectricTest() {
+class JsonAdapterTest : IntegrationTest() {
     private val jsonAdapter = JsonAdapter()
     private val mockedTime: Long
     private val mockedTimestamp: Long
@@ -176,6 +179,41 @@ class JsonAdapterTest : RobolectricTest() {
         val result = decode<MigrationTask.DeletePushToken>(queueTask)
 
         result shouldMatchTo queueTask.data
+    }
+
+    @Test
+    fun parse_givenInvalidJsonNullType_expectFailureResult() {
+        val queueTask = InvalidMigrationDataSet.NullType.encodedJson()
+
+        jsonAdapter.parseMigrationTask(queueTask).shouldBeFailure<IllegalArgumentException>()
+    }
+
+    @Test
+    fun parse_givenInvalidJsonUnsupportedType_expectFailureResult() {
+        val queueTask = InvalidMigrationDataSet.UnsupportedType.encodedJson()
+
+        jsonAdapter.parseMigrationTask(queueTask).shouldBeFailure<IllegalArgumentException>()
+    }
+
+    @Test
+    fun parse_givenInvalidJsonNullData_expectFailureResult() {
+        val queueTask = InvalidMigrationDataSet.NullData.encodedJson()
+
+        jsonAdapter.parseMigrationTask(queueTask).shouldBeFailure<IllegalArgumentException>()
+    }
+
+    @Test
+    fun parse_givenInvalidJsonUnsupportedData_expectFailureResult() {
+        val queueTask = InvalidMigrationDataSet.UnsupportedData.encodedJson()
+
+        jsonAdapter.parseMigrationTask(queueTask).shouldBeFailure<IllegalArgumentException>()
+    }
+
+    @Test
+    fun parse_givenInvalidJsonMalformedData_expectFailureResult() {
+        val queueTask = InvalidMigrationDataSet.MalformedData.encodedJson()
+
+        jsonAdapter.parseMigrationTask(queueTask).shouldBeFailure<JSONException>()
     }
 
     /**

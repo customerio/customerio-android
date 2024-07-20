@@ -1,7 +1,6 @@
 package io.customer.sdk.communication
 
 import io.customer.sdk.core.di.SDKComponent
-import java.lang.ref.WeakReference
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
 import kotlinx.coroutines.CoroutineScope
@@ -52,10 +51,9 @@ class EventBusImpl(
     }
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {
-        val weakAction = WeakReference(action)
         val job = scope.launch {
             flow.mapNotNull { type.safeCast(it) }.collect { event ->
-                weakAction.get()?.invoke(event)
+                action.invoke(event)
             }
         }
         synchronized(jobs) {

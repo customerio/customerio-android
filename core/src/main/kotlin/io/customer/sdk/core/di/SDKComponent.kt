@@ -56,6 +56,7 @@ object SDKComponent : DiGraph() {
     override fun reset() {
         androidSDKComponent?.reset()
         modules.clear()
+        eventBus.removeAllSubscriptions()
 
         super.reset()
     }

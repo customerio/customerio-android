@@ -3,6 +3,8 @@ package io.customer.tracking.migration.queue
 import io.customer.commontest.config.TestConfig
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.tracking.migration.testutils.core.JUnitTest
+import io.customer.tracking.migration.testutils.core.testConfiguration
+import io.customer.tracking.migration.testutils.extensions.migrationSDKComponent
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -22,16 +24,25 @@ class QueueTest : JUnitTest() {
     private val testDispatcher = UnconfinedTestDispatcher()
     private val testCoroutineScope: CoroutineScope = TestScope(testDispatcher)
 
-    private lateinit var queueRunRequest: QueueRunRequest
+    private lateinit var queueRunRequestMock: QueueRunRequest
     private lateinit var queue: QueueImpl
 
     override fun setup(testConfig: TestConfig) {
-        super.setup(testConfig)
+        super.setup(
+            testConfiguration {
+                diGraph {
+                    migrationSDKComponent {
+                        overrideDependency<QueueRunRequest>(mockk())
+                    }
+                }
+            }
+        )
 
-        queueRunRequest = mockk<QueueRunRequest>(relaxed = true)
-        queue = QueueImpl(SDKComponent.logger, queueRunRequest)
+        val migrationSDKComponent = SDKComponent.migrationSDKComponent
+        queueRunRequestMock = migrationSDKComponent.queueRunRequest
+        queue = migrationSDKComponent.queue as QueueImpl
 
-        coEvery { queueRunRequest.run() } coAnswers { delay(200L) }
+        coEvery { queueRunRequestMock.run() } coAnswers { delay(200L) }
     }
 
     @Test
@@ -40,7 +51,7 @@ class QueueTest : JUnitTest() {
         testCoroutineScope.launch { queue.run() }
 
         queue.isRunningRequest shouldBeEqualTo true
-        coVerify(exactly = 1) { queueRunRequest.run() }
+        coVerify(exactly = 1) { queueRunRequestMock.run() }
     }
 
     @Test
@@ -49,6 +60,6 @@ class QueueTest : JUnitTest() {
         runBlocking { queue.run() }
 
         queue.isRunningRequest shouldBeEqualTo false
-        coVerify(exactly = 2) { queueRunRequest.run() }
+        coVerify(exactly = 2) { queueRunRequestMock.run() }
     }
 }

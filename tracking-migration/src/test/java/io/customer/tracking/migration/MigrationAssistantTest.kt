@@ -69,7 +69,6 @@ class MigrationAssistantTest : JUnitTest() {
             sitePreferencesMock.getDeviceToken()
             sitePreferencesMock.getIdentifier()
             queueMock.run()
-            migrationProcessorMock.onMigrationCompleted()
         }
     }
 

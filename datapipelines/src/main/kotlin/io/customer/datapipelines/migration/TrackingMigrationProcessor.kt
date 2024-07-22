@@ -109,8 +109,8 @@ internal class TrackingMigrationProcessor(
                 trackEvent = TrackEvent(
                     event = EventNames.DEVICE_UPDATE,
                     properties = buildJsonObject {
-                        put("token", task.token)
                         putAll(task.attributes.toJsonObject())
+                        put("token", task.token)
                     }
                 ),
                 enrichmentClosure = { event ->

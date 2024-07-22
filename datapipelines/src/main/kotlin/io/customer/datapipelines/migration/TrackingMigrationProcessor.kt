@@ -55,12 +55,11 @@ internal class TrackingMigrationProcessor(
         globalPreferenceStore.saveDeviceToken(oldDeviceToken)
     }
 
+    private data class MigrationEventData(
+        val trackEvent: BaseEvent,
+        val enrichmentClosure: EnrichmentClosure? = null
+    )
     override suspend fun processTask(task: MigrationTask): Result<Unit> = runCatching {
-        data class MigrationEventData(
-            val trackEvent: BaseEvent,
-            val enrichmentClosure: EnrichmentClosure? = null
-        )
-
         val eventData = when (task) {
             is MigrationTask.IdentifyProfile -> MigrationEventData(
                 trackEvent = IdentifyEvent(

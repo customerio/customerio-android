@@ -61,7 +61,6 @@ class MigrationAssistantTest : JUnitTest() {
             sitePreferenceRepository.getDeviceToken()
             sitePreferenceRepository.getIdentifier()
             migrationSDKComponent.queue.run()
-            migrationProcessor.onMigrationCompleted()
         }
     }
 

@@ -29,11 +29,11 @@ import kotlinx.coroutines.CoroutineScope
  */
 class MigrationSDKComponent(
     androidSDKComponent: AndroidSDKComponent = SDKComponent.android(),
-    private val migrationProcessor: MigrationProcessor,
-    private val migrationSiteId: String
+    internal val migrationProcessor: MigrationProcessor,
+    internal val migrationSiteId: String
 ) : DiGraph() {
-    private val applicationContext: Context = androidSDKComponent.applicationContext
-    private val logger: Logger = SDKComponent.logger
+    internal val applicationContext: Context = androidSDKComponent.applicationContext
+    internal val logger: Logger = SDKComponent.logger
 
     val migrationQueueScope: CoroutineScope
         get() = singleton<CoroutineScope> {
@@ -43,9 +43,9 @@ class MigrationSDKComponent(
         get() = singleton<SitePreferenceRepository> {
             SitePreferenceRepositoryImpl(applicationContext, migrationSiteId)
         }
-    private val jsonAdapter: JsonAdapter
+    internal val jsonAdapter: JsonAdapter
         get() = singleton<JsonAdapter> { JsonAdapter() }
-    private val fileStorage: FileStorage
+    internal val fileStorage: FileStorage
         get() = singleton<FileStorage> {
             FileStorage(
                 siteId = migrationSiteId,
@@ -53,11 +53,11 @@ class MigrationSDKComponent(
                 logger = logger
             )
         }
-    private val queueQueryRunner: QueueQueryRunner
+    internal val queueQueryRunner: QueueQueryRunner
         get() = singleton<QueueQueryRunner> {
             QueueQueryRunnerImpl(logger = logger)
         }
-    private val queueRunner: QueueRunner
+    internal val queueRunner: QueueRunner
         get() = singleton<QueueRunner> {
             QueueRunnerImpl(
                 jsonAdapter = jsonAdapter,
@@ -65,7 +65,7 @@ class MigrationSDKComponent(
                 migrationProcessor = migrationProcessor
             )
         }
-    private val queueRunRequest: QueueRunRequest
+    internal val queueRunRequest: QueueRunRequest
         get() = singleton<QueueRunRequest> {
             QueueRunRequestImpl(
                 runner = queueRunner,
@@ -74,7 +74,7 @@ class MigrationSDKComponent(
                 queryRunner = queueQueryRunner
             )
         }
-    private val queueStorage: QueueStorage
+    internal val queueStorage: QueueStorage
         get() = singleton<QueueStorage> {
             QueueStorageImpl(
                 fileStorage = fileStorage,

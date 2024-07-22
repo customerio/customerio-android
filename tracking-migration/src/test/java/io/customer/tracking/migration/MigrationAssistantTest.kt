@@ -5,10 +5,12 @@ import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
-import io.customer.tracking.migration.di.MigrationSDKComponent
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.tracking.migration.queue.Queue
 import io.customer.tracking.migration.repository.preference.SitePreferenceRepository
 import io.customer.tracking.migration.testutils.core.JUnitTest
+import io.customer.tracking.migration.testutils.core.testConfiguration
+import io.customer.tracking.migration.testutils.extensions.migrationSDKComponent
 import io.mockk.coVerifySequence
 import io.mockk.every
 import io.mockk.mockk
@@ -23,33 +25,39 @@ class MigrationAssistantTest : JUnitTest() {
     private val migrationSiteId = TestConstants.Keys.SITE_ID
     private val testCoroutineScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
 
-    private lateinit var migrationProcessor: MigrationProcessor
-    private lateinit var sitePreferenceRepository: SitePreferenceRepository
-    private lateinit var migrationSDKComponent: MigrationSDKComponent
+    private lateinit var migrationProcessorMock: MigrationProcessor
+    private lateinit var sitePreferencesMock: SitePreferenceRepository
+    private lateinit var queueMock: Queue
 
     override fun setup(testConfig: TestConfig) {
-        super.setup(testConfig)
-
-        // Use relaxed unit mocks instead of full relaxed mocks to minimize false positives
-        migrationProcessor = mockk(relaxUnitFun = true)
-        sitePreferenceRepository = mockk(relaxUnitFun = true)
-        every { sitePreferenceRepository.getIdentifier() } returns null
-        every { sitePreferenceRepository.getDeviceToken() } returns null
-
-        migrationSDKComponent = MigrationSDKComponent(
-            migrationProcessor = migrationProcessor,
-            migrationSiteId = migrationSiteId
+        super.setup(
+            testConfiguration {
+                diGraph {
+                    migrationSDKComponent {
+                        overrideDependency<CoroutineScope>(testCoroutineScope)
+                        overrideDependency<SitePreferenceRepository>(mockk())
+                        // Use relaxed unit mock instead of full relaxed mocks to minimize false positives
+                        overrideDependency<Queue>(mockk(relaxUnitFun = true))
+                    }
+                }
+                migrationSiteId(migrationSiteId)
+            }
         )
-        migrationSDKComponent.overrideDependency<CoroutineScope>(testCoroutineScope)
-        migrationSDKComponent.overrideDependency<SitePreferenceRepository>(sitePreferenceRepository)
-        migrationSDKComponent.overrideDependency<Queue>(mockk(relaxed = true))
+
+        val migrationSDKComponent = SDKComponent.migrationSDKComponent
+        migrationProcessorMock = migrationSDKComponent.migrationProcessor
+        queueMock = migrationSDKComponent.queue
+        sitePreferencesMock = migrationSDKComponent.sitePreferences
+
+        every { sitePreferencesMock.getIdentifier() } returns null
+        every { sitePreferencesMock.getDeviceToken() } returns null
     }
 
     private fun initializeAssistant(): MigrationAssistant {
         return MigrationAssistant(
-            migrationProcessor = migrationProcessor,
+            migrationProcessor = migrationProcessorMock,
             migrationSiteId = migrationSiteId,
-            migrationSDKComponent = migrationSDKComponent
+            migrationSDKComponent = SDKComponent.migrationSDKComponent
         )
     }
 
@@ -58,85 +66,85 @@ class MigrationAssistantTest : JUnitTest() {
         initializeAssistant()
 
         coVerifySequence {
-            sitePreferenceRepository.getDeviceToken()
-            sitePreferenceRepository.getIdentifier()
-            migrationSDKComponent.queue.run()
+            sitePreferencesMock.getDeviceToken()
+            sitePreferencesMock.getIdentifier()
+            queueMock.run()
         }
     }
 
     @Test
     fun initializeAssistant_givenNoProfileIdentified_expectDoNotMigrateProfile() {
-        every { sitePreferenceRepository.getIdentifier() } returns null
+        every { sitePreferencesMock.getIdentifier() } returns null
 
         initializeAssistant()
 
         assertCalledNever {
-            migrationProcessor.processProfileMigration(any())
-            sitePreferenceRepository.removeIdentifier(any())
+            migrationProcessorMock.processProfileMigration(any())
+            sitePreferencesMock.removeIdentifier(any())
         }
     }
 
     @Test
     fun initializeAssistant_givenProfileIdentifiedAndMigrationFails_expectDoNotClearProfile() {
         val givenIdentifier = String.random
-        every { sitePreferenceRepository.getIdentifier() } returns givenIdentifier
-        every { migrationProcessor.processProfileMigration(givenIdentifier) } returns Result.failure(mockk())
+        every { sitePreferencesMock.getIdentifier() } returns givenIdentifier
+        every { migrationProcessorMock.processProfileMigration(givenIdentifier) } returns Result.failure(mockk())
 
         initializeAssistant()
 
-        assertCalledOnce { migrationProcessor.processProfileMigration(givenIdentifier) }
-        assertCalledNever { sitePreferenceRepository.removeIdentifier(any()) }
+        assertCalledOnce { migrationProcessorMock.processProfileMigration(givenIdentifier) }
+        assertCalledNever { sitePreferencesMock.removeIdentifier(any()) }
     }
 
     @Test
     fun initializeAssistant_givenProfileIdentified_expectMigrateProfile() {
         val givenIdentifier = String.random
-        every { sitePreferenceRepository.getIdentifier() } returns givenIdentifier
-        every { migrationProcessor.processProfileMigration(givenIdentifier) } returns Result.success(Unit)
+        every { sitePreferencesMock.getIdentifier() } returns givenIdentifier
+        every { migrationProcessorMock.processProfileMigration(givenIdentifier) } returns Result.success(Unit)
 
         initializeAssistant()
 
         assertCalledOnce {
-            migrationProcessor.processProfileMigration(givenIdentifier)
-            sitePreferenceRepository.removeIdentifier(givenIdentifier)
+            migrationProcessorMock.processProfileMigration(givenIdentifier)
+            sitePreferencesMock.removeIdentifier(givenIdentifier)
         }
     }
 
     @Test
     fun initializeAssistant_givenNoDeviceIdentified_expectDoNotMigrateDevice() {
-        every { sitePreferenceRepository.getDeviceToken() } returns null
+        every { sitePreferencesMock.getDeviceToken() } returns null
 
         initializeAssistant()
 
         assertCalledNever {
-            migrationProcessor.processDeviceMigration(any())
-            sitePreferenceRepository.removeDeviceToken()
+            migrationProcessorMock.processDeviceMigration(any())
+            sitePreferencesMock.removeDeviceToken()
         }
     }
 
     @Test
     fun initializeAssistant_givenDeviceIdentifiedAndMigrationFails_expectDoNotClearDevice() {
         val givenToken = String.random
-        every { sitePreferenceRepository.getDeviceToken() } returns givenToken
-        every { migrationProcessor.processDeviceMigration(givenToken) } returns Result.failure(mockk())
+        every { sitePreferencesMock.getDeviceToken() } returns givenToken
+        every { migrationProcessorMock.processDeviceMigration(givenToken) } returns Result.failure(mockk())
 
         initializeAssistant()
 
-        assertCalledOnce { migrationProcessor.processDeviceMigration(givenToken) }
-        assertCalledNever { sitePreferenceRepository.removeDeviceToken() }
+        assertCalledOnce { migrationProcessorMock.processDeviceMigration(givenToken) }
+        assertCalledNever { sitePreferencesMock.removeDeviceToken() }
     }
 
     @Test
     fun initializeAssistant_givenDeviceIdentified_expectMigrateDevice() {
         val givenToken = String.random
-        every { sitePreferenceRepository.getDeviceToken() } returns givenToken
-        every { migrationProcessor.processDeviceMigration(givenToken) } returns Result.success(Unit)
+        every { sitePreferencesMock.getDeviceToken() } returns givenToken
+        every { migrationProcessorMock.processDeviceMigration(givenToken) } returns Result.success(Unit)
 
         initializeAssistant()
 
         assertCalledOnce {
-            migrationProcessor.processDeviceMigration(givenToken)
-            sitePreferenceRepository.removeDeviceToken()
+            migrationProcessorMock.processDeviceMigration(givenToken)
+            sitePreferencesMock.removeDeviceToken()
         }
     }
 }

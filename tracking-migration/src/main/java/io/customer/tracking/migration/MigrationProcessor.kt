@@ -9,11 +9,6 @@ import io.customer.tracking.migration.request.MigrationTask
  */
 interface MigrationProcessor {
     /**
-     * Method to be called when migration is completed.
-     */
-    fun onMigrationCompleted()
-
-    /**
      * Processes profile migration so profile data can be migrated to new
      * implementation without needing to re-identify the user.
      */

@@ -46,9 +46,6 @@ internal class TrackingMigrationProcessor(
         }
     }
 
-    override fun onMigrationCompleted() {
-    }
-
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
         dataPipelineInstance.identify(userId = identifier)
     }

@@ -5,7 +5,6 @@ import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.ScreenEvent
 import com.segment.analytics.kotlin.core.TrackEvent
-import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
@@ -59,6 +58,7 @@ internal class TrackingMigrationProcessor(
         val trackEvent: BaseEvent,
         val enrichmentClosure: EnrichmentClosure? = null
     )
+
     override suspend fun processTask(task: MigrationTask): Result<Unit> = runCatching {
         val eventData = when (task) {
             is MigrationTask.IdentifyProfile -> MigrationEventData(
@@ -110,7 +110,7 @@ internal class TrackingMigrationProcessor(
                     event = EventNames.DEVICE_UPDATE,
                     properties = buildJsonObject {
                         put("token", task.token)
-                        put("properties", task.attributes.toJsonObject())
+                        putAll(task.attributes.toJsonObject())
                     }
                 ),
                 enrichmentClosure = { event ->
@@ -122,7 +122,9 @@ internal class TrackingMigrationProcessor(
             is MigrationTask.DeletePushToken -> MigrationEventData(
                 trackEvent = TrackEvent(
                     event = EventNames.DEVICE_DELETE,
-                    properties = emptyJsonObject
+                    properties = buildJsonObject {
+                        put("token", task.token)
+                    }
                 ),
                 enrichmentClosure = { event ->
                     event?.putInContextUnderKey("device", "token", task.token)

@@ -10,6 +10,7 @@ import io.customer.tracking.migration.request.MigrationTask
 import io.customer.tracking.migration.type.QueueTaskType
 import java.util.Date
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 
 /**
@@ -39,7 +40,7 @@ class JsonAdapter {
         requireNotNull(type) { "Queue task type is invalid for $task. Could not run task." }
 
         val taskJson = runCatching { JSONObject(data) }.getOrElse {
-            throw RuntimeException("Queue task data is invalid for $task. Could not run task.")
+            throw JSONException("Queue task data is invalid for $task. Could not run task.")
         }
         val timestamp = taskJson.longOrNull("timestamp") ?: Date().getUnixTimestamp()
 
@@ -60,7 +61,7 @@ class JsonAdapter {
                     identifier = taskJson.requireField("identifier"),
                     event = eventJson.requireField("name"),
                     type = eventJson.requireField("type"),
-                    properties = eventJson.requireField<JSONObject>("data")
+                    properties = eventJson.jsonObjectOrNull("data") ?: JSONObject()
                 )
             }
 

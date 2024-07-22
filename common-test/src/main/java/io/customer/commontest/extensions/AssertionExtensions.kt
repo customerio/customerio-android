@@ -8,8 +8,9 @@ inline fun <reified E : Throwable> Result<Any>.shouldBeFailure(): E {
         "Expected failure but the result was successful"
     }
 
-    return assertNotNull(exceptionOrNull() as? E) {
-        "Expected exception of type ${E::class} but was ${exceptionOrNull()?.let { it::class } ?: "null"}"
+    val exception = exceptionOrNull()
+    return assertNotNull(exception as? E) {
+        "Expected exception of type ${E::class} but was ${exception?.let { it::class } ?: "null"}"
     }
 }
 

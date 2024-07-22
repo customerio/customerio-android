@@ -197,6 +197,14 @@ class QueueRunRequestTest : IntegrationTest() {
     }
 
     @Test
+    fun run_givenQueueStorageGetInventoryEmpty_expectQueueRunnerNeverRuns() = runTest(testDispatcher) {
+        queueRunRequest.run()
+
+        assertCalledOnce { queueStorageSpy.getInventory() }
+        confirmVerified(queueStorageSpy, queueRunnerSpy, jsonAdapterMock, migrationProcessorMock)
+    }
+
+    @Test
     fun run_givenQueueStorageGetInventoryThrows_expectQueueFailsWithoutCrash() = runTest(testDispatcher) {
         coEvery { queueStorageSpy.getInventory() } answers {
             throw RuntimeException(String.random)
@@ -207,6 +215,22 @@ class QueueRunRequestTest : IntegrationTest() {
 
         assertCalledOnce { queueStorageSpy.getInventory() }
         confirmVerified(queueStorageSpy, queueRunnerSpy, jsonAdapterMock, migrationProcessorMock)
+    }
+
+    @Test
+    fun run_givenQueueStorageGetReturnsNull_expectQueueContinueForNextTasks() = runTest(testDispatcher) {
+        val givenTaskPersistedId = String.random
+        coEvery { queueStorageSpy.get(givenTaskPersistedId) } returns null
+        queueStorageStub.populateInventory {
+            createTask(QueueTaskType.TrackEvent)
+            createTask(QueueTaskType.TrackEvent, taskPersistedId = givenTaskPersistedId)
+            createTask(QueueTaskType.TrackEvent)
+        }
+
+        queueRunRequest.run()
+
+        coVerify(exactly = 2) { queueRunnerSpy.runTask(any()) }
+        coVerify(exactly = 3) { queueStorageSpy.delete(any()) }
     }
 
     @Test

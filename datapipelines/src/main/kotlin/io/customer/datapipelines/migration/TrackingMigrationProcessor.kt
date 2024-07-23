@@ -19,6 +19,7 @@ import io.customer.tracking.migration.MigrationAssistant
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import sovran.kotlin.Subscriber
@@ -41,13 +42,15 @@ internal class TrackingMigrationProcessor(
     // and to avoid any manual calls to replay migration.
     init {
         with(analytics) {
-            analyticsScope.launch(analyticsDispatcher) {
-                subscriptionID = store.subscribe(
-                    subscriber = this@TrackingMigrationProcessor,
-                    stateClazz = System::class,
-                    initialState = true,
-                    handler = this@TrackingMigrationProcessor::start
-                )
+            analyticsScope.launch {
+                withContext(analyticsDispatcher) {
+                    analytics.store.subscribe(
+                        subscriber = this@TrackingMigrationProcessor,
+                        stateClazz = System::class,
+                        initialState = true,
+                        handler = this@TrackingMigrationProcessor::start
+                    )
+                }
             }
         }
     }

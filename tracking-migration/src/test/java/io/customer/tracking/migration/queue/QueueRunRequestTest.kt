@@ -112,7 +112,7 @@ class QueueRunRequestTest : IntegrationTest() {
         jsonAdapterMock.mockParseTaskWithSuccess()
         migrationProcessorMock.mockProcessTaskWithSuccess()
 
-        val inventory = queueStorageStub.populateInventory {
+        queueStorageStub.populateInventory {
             createTask(QueueTaskType.TrackEvent)
             createTask(QueueTaskType.TrackEvent)
             createTask(QueueTaskType.TrackEvent)

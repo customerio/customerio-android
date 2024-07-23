@@ -17,6 +17,7 @@ import io.mockk.MockKMatcherScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.confirmVerified
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,7 @@ class QueueRunRequestTest : IntegrationTest() {
 
     private lateinit var jsonAdapterMock: JsonAdapter
     private lateinit var migrationProcessorMock: MigrationProcessor
+    private lateinit var queueQueryRunnerSpy: QueueQueryRunner
     private lateinit var queueRunnerSpy: QueueRunner
     private lateinit var queueRunRequest: QueueRunRequest
     private lateinit var queueStorageSpy: QueueStorage
@@ -51,6 +53,7 @@ class QueueRunRequestTest : IntegrationTest() {
                         overrideDependency<CoroutineScope>(TestScope(testDispatcher))
                         overrideDependency<JsonAdapter>(mockk())
                         overrideDependency<QueueStorage>(spyk(queueStorageStub))
+                        overrideDependency<QueueQueryRunner>(spyk(QueueQueryRunnerImpl(logger = logger)))
                         overrideDependency<QueueRunner>(
                             spyk(
                                 QueueRunnerImpl(
@@ -68,6 +71,7 @@ class QueueRunRequestTest : IntegrationTest() {
         val migrationSDKComponent = SDKComponent.migrationSDKComponent
         jsonAdapterMock = migrationSDKComponent.jsonAdapter
         migrationProcessorMock = migrationSDKComponent.migrationProcessor
+        queueQueryRunnerSpy = migrationSDKComponent.queueQueryRunner
         queueRunnerSpy = migrationSDKComponent.queueRunner
         queueRunRequest = migrationSDKComponent.queueRunRequest
         queueStorageSpy = migrationSDKComponent.queueStorage
@@ -268,6 +272,31 @@ class QueueRunRequestTest : IntegrationTest() {
         queueRunRequest.run()
 
         coVerify(exactly = 3) {
+            queueRunnerSpy.runTask(any())
+            queueStorageSpy.delete(any())
+        }
+    }
+
+    @Test
+    fun run_givenQueueQueryRunnerGetNextTaskNull_expectSkipExecutionForGivenTask() = runTest(testDispatcher) {
+        every { queueQueryRunnerSpy.getNextTask(any()) } answers {
+            val inventory = firstArg<List<QueueTaskMetadata>>()
+            if (inventory.size == 2) {
+                null
+            } else {
+                callOriginal()
+            }
+        }
+
+        queueStorageStub.populateInventory {
+            createTask(QueueTaskType.TrackEvent)
+            createTask(QueueTaskType.TrackEvent)
+            createTask(QueueTaskType.TrackEvent)
+        }
+
+        queueRunRequest.run()
+
+        coVerify(exactly = 1) {
             queueRunnerSpy.runTask(any())
             queueStorageSpy.delete(any())
         }

@@ -51,10 +51,6 @@ internal class QueueStorageStub : QueueStorage {
     }
 
     override fun delete(taskStorageId: String): QueueModifyResult {
-        return inventory
-            .find { it.taskPersistedId == taskStorageId }
-            ?.let { task ->
-                inventory.remove(task)
-            } ?: false
+        return inventory.removeIf { it.taskPersistedId == taskStorageId }
     }
 }

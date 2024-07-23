@@ -13,7 +13,7 @@ internal class QueueRunnerImpl(
     private val logger: Logger,
     private val migrationProcessor: MigrationProcessor
 ) : QueueRunner {
-    override suspend fun runTask(task: QueueTask): QueueRunTaskResult {
+    override suspend fun runTask(task: QueueTask): QueueRunTaskResult = runCatching {
         logger.debug("migrating task: $task")
 
         return jsonAdapter.parseMigrationTask(task).fold(

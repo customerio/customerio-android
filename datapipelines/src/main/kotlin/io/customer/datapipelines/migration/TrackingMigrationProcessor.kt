@@ -4,6 +4,7 @@ import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.ScreenEvent
+import com.segment.analytics.kotlin.core.System
 import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.putAll
@@ -17,8 +18,12 @@ import io.customer.sdk.core.util.Logger
 import io.customer.tracking.migration.MigrationAssistant
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import sovran.kotlin.Subscriber
+import sovran.kotlin.SubscriptionID
 
 /**
  * Class responsible for migrating the existing tracking data to the new data-pipelines implementation.
@@ -26,23 +31,48 @@ import kotlinx.serialization.json.put
  */
 internal class TrackingMigrationProcessor(
     private val dataPipelineInstance: CustomerIO,
-    migrationSiteId: String
-) : MigrationProcessor {
+    private val migrationSiteId: String
+) : MigrationProcessor, Subscriber {
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
     private val analytics: Analytics = dataPipelineInstance.analytics
+    private var subscriptionID: SubscriptionID? = null
 
     // Start the migration process in init block to start migration as soon as possible
     // and to avoid any manual calls to replay migration.
     init {
-        runCatching {
-            // Start the migration process by initializing MigrationAssistant
-            MigrationAssistant.start(
-                migrationProcessor = this,
-                migrationSiteId = migrationSiteId
-            )
-        }.onFailure { ex ->
-            logger.error("Migration failed with exception: $ex")
+        with(analytics) {
+            analyticsScope.launch {
+                withContext(analyticsDispatcher) {
+                    analytics.store.subscribe(
+                        subscriber = this@TrackingMigrationProcessor,
+                        stateClazz = System::class,
+                        initialState = true,
+                        handler = this@TrackingMigrationProcessor::start
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun start(state: System) {
+        if (!state.running) return
+
+        synchronized(this) {
+            runCatching {
+                // Start the migration process by initializing MigrationAssistant
+                MigrationAssistant.start(
+                    migrationProcessor = this,
+                    migrationSiteId = migrationSiteId
+                )
+            }.onFailure { ex ->
+                logger.error("Migration failed with exception: $ex")
+            }
+        }
+
+        subscriptionID?.let { id ->
+            analytics.store.unsubscribe(id)
+            subscriptionID = null
         }
     }
 
@@ -172,6 +202,7 @@ internal class TrackingMigrationProcessor(
             SegmentInstantFormatter.from(task.timestamp)?.let { timestamp ->
                 event.timestamp = timestamp
             }
+            logger.debug("forwarding migrated event: $event")
         }
         analytics.process(eventData.trackEvent) { event ->
             event?.apply(enrichmentClosure)

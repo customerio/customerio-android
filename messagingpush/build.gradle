@@ -37,9 +37,6 @@ dependencies {
 
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
-    implementation Dependencies.retrofit
-    implementation Dependencies.retrofitMoshiConverter
-    implementation Dependencies.okhttpLoggingInterceptor
     implementation Dependencies.googlePlayServicesBase
     api Dependencies.firebaseMessaging
 }

@@ -32,6 +32,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import java.util.Date
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -201,17 +202,12 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
     }
 
     @Test
-    fun migrate_givenTaskIdentifyProfileWithoutTraits_expectIdentifyProfileEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskIdentifyProfileWithoutTraits_expectIdentifyProfileEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.IdentifyProfile(
             timestamp = mockedTimestamp,
             identifier = String.random,
             attributes = JSONObject()
         )
-
-        // Identify a user to ensure the migration processor overrides the existing profile
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
 
         migrationProcessorSpy.processTask(givenTask)
 
@@ -219,14 +215,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         identifyEvent.timestamp shouldBeEqualTo mockedTimestampFormatted
         identifyEvent.userId shouldBeEqualTo givenTask.identifier
         identifyEvent.traits shouldBeEqualTo emptyJsonObject
-
-        // Reset the identify to avoid side effects on other tests
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskIdentifyProfileWithTraits_expectIdentifyProfileEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskIdentifyProfileWithTraits_expectIdentifyProfileEvent() = runTestWithIdentifiedProfile {
         val givenTraits = JSONObject().apply {
             put("first_name", "Dana")
             put("ageInYears", 30)
@@ -237,24 +229,16 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             attributes = givenTraits
         )
 
-        // Identify a user to ensure the migration processor overrides the existing profile
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
-
         migrationProcessorSpy.processTask(givenTask)
 
         val identifyEvent = outputReaderPlugin.identifyEvents.shouldHaveSingleItem()
         identifyEvent.timestamp shouldBeEqualTo mockedTimestampFormatted
         identifyEvent.userId shouldBeEqualTo givenTask.identifier
         identifyEvent.traits.shouldNotBeNull() shouldMatchTo givenTraits
-
-        // Reset the identify to avoid side effects on other tests
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackEvent_expectTrackEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackEvent_expectTrackEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.TrackEvent(
             timestamp = mockedTimestamp,
             identifier = String.random,
@@ -263,9 +247,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             properties = JSONObject()
         )
 
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
-
         migrationProcessorSpy.processTask(givenTask)
 
         val trackEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
@@ -273,13 +254,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         trackEvent.userId shouldBeEqualTo givenTask.identifier
         trackEvent.event shouldBeEqualTo givenTask.event
         trackEvent.properties shouldBeEqualTo emptyJsonObject
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackEventWithProperties_expectTrackEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackEventWithProperties_expectTrackEvent() = runTestWithIdentifiedProfile {
         val givenProperties = JSONObject().apply {
             put("action", "dismiss")
             put("validity", 30)
@@ -292,9 +270,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             properties = givenProperties
         )
 
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
-
         migrationProcessorSpy.processTask(givenTask)
 
         val trackEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
@@ -302,13 +277,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         trackEvent.userId shouldBeEqualTo givenTask.identifier
         trackEvent.event shouldBeEqualTo givenTask.event
         trackEvent.properties shouldMatchTo givenProperties
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackScreen_expectScreenEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackScreen_expectScreenEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.TrackEvent(
             timestamp = mockedTimestamp,
             identifier = String.random,
@@ -316,9 +288,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             type = "screen",
             properties = JSONObject()
         )
-
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
 
         migrationProcessorSpy.processTask(givenTask)
 
@@ -328,13 +297,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         screenEvent.name shouldBeEqualTo givenTask.event
         screenEvent.category shouldBeEqualTo ""
         screenEvent.properties shouldBeEqualTo emptyJsonObject
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackScreenWithProperties_expectScreenEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackScreenWithProperties_expectScreenEvent() = runTestWithIdentifiedProfile {
         val givenProperties = JSONObject().apply {
             put("cool", "dude")
             put("age", 53)
@@ -347,9 +313,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             properties = givenProperties
         )
 
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
-
         migrationProcessorSpy.processTask(givenTask)
 
         val screenEvent = outputReaderPlugin.screenEvents.shouldHaveSingleItem()
@@ -358,13 +321,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         screenEvent.name shouldBeEqualTo givenTask.event
         screenEvent.category shouldBeEqualTo ""
         screenEvent.properties shouldMatchTo givenProperties
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackPushMetric_expectMetricDeliveryEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackPushMetric_expectMetricDeliveryEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.TrackPushMetric(
             timestamp = mockedTimestamp,
             identifier = String.random,
@@ -372,9 +332,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             deviceToken = String.random,
             event = Metric.Delivered.serializedName
         )
-
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
 
         migrationProcessorSpy.processTask(givenTask)
 
@@ -387,13 +344,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             put("deliveryId", givenTask.deliveryId)
             put("metric", givenTask.event)
         }
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackDeliveryEvent_expectMetricDeliveryEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackDeliveryEvent_expectMetricDeliveryEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.TrackDeliveryEvent(
             timestamp = mockedTimestamp,
             identifier = String.random,
@@ -402,9 +356,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             event = Metric.Opened.serializedName,
             metadata = JSONObject()
         )
-
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
 
         migrationProcessorSpy.processTask(givenTask)
 
@@ -416,13 +367,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             put("deliveryId", givenTask.deliveryId)
             put("metric", givenTask.event)
         }
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskTrackDeliveryEventWithMetadata_expectMetricDeliveryEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskTrackDeliveryEventWithMetadata_expectMetricDeliveryEvent() = runTestWithIdentifiedProfile {
         val givenMetadata = JSONObject().apply {
             put("action", "dismiss")
             put("validity", 30)
@@ -436,9 +384,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             metadata = givenMetadata
         )
 
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
-
         migrationProcessorSpy.processTask(givenTask)
 
         val inAppMetricEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
@@ -450,13 +395,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             put("deliveryId", givenTask.deliveryId)
             put("metric", givenTask.event)
         }
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskRegisterDeviceToken_expectDeviceUpdateEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskRegisterDeviceToken_expectDeviceUpdateEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.RegisterDeviceToken(
             timestamp = mockedTimestamp,
             identifier = String.random,
@@ -465,9 +407,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             lastUsed = 1687603200L, // should be in past
             attributes = JSONObject()
         )
-
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
 
         migrationProcessorSpy.processTask(givenTask)
 
@@ -479,13 +418,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
             put("token", givenTask.token)
         }
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskRegisterDeviceTokenWithAttributes_expectDeviceUpdateEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskRegisterDeviceTokenWithAttributes_expectDeviceUpdateEvent() = runTestWithIdentifiedProfile {
         val givenAttributes = JSONObject().apply {
             put("color", "blue")
             put("isNew", false)
@@ -499,9 +435,6 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             attributes = givenAttributes
         )
 
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
-
         migrationProcessorSpy.processTask(givenTask)
 
         val deviceUpdateEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
@@ -513,21 +446,15 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
             putAll(givenAttributes.toJsonObject())
             put("token", givenTask.token)
         }
-
-        sdkInstance.clearIdentify()
     }
 
     @Test
-    fun migrate_givenTaskDeletePushToken_expectDeviceDeleteEvent() = runTest(testDispatcher) {
-        setupWithMigrationProcessorSpy()
+    fun migrate_givenTaskDeletePushToken_expectDeviceDeleteEvent() = runTestWithIdentifiedProfile {
         val givenTask = MigrationTask.DeletePushToken(
             timestamp = mockedTimestamp,
             identifier = String.random,
             token = String.random
         )
-
-        sdkInstance.identify(String.random)
-        outputReaderPlugin.reset()
 
         migrationProcessorSpy.processTask(givenTask)
 
@@ -539,7 +466,25 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceDeleteEvent.properties shouldBeEqualTo buildJsonObject {
             put("token", givenTask.token)
         }
+    }
 
+    /**
+     * Run a test with an identified profile to ensure migration processor overrides any existing profile.
+     * The test body will be executed after identifying a user and the profile will be cleared after the test
+     * is completed to avoid side effects on other tests.
+     */
+    private fun runTestWithIdentifiedProfile(
+        testBody: suspend TestScope.() -> Unit
+    ) = runTest(testDispatcher) {
+        setupWithMigrationProcessorSpy()
+
+        // Identify a user to ensure the migration processor overrides any existing profile
+        sdkInstance.identify(String.random)
+        outputReaderPlugin.reset()
+
+        testBody()
+
+        // Reset the identify to avoid side effects on other tests
         sdkInstance.clearIdentify()
     }
 }

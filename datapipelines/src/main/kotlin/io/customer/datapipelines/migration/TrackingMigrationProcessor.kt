@@ -166,8 +166,8 @@ internal class TrackingMigrationProcessor(
 
         val enrichmentClosure: (event: BaseEvent) -> Unit = { event ->
             eventData.enrichmentClosure?.invoke(event)
-            // Update the event with the task identifier and timestamp at the end
-            // to make sure these properties are not overridden by any other plugin.
+            // Update event with task identifier and timestamp at the end to
+            // make sure these properties are not overridden by any other plugin.
             event.userId = task.identifier
             SegmentInstantFormatter.from(task.timestamp)?.let { timestamp ->
                 event.timestamp = timestamp

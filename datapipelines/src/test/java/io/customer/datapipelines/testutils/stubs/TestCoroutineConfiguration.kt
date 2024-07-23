@@ -4,10 +4,8 @@ import com.segment.analytics.kotlin.core.CoroutineConfiguration
 import io.customer.datapipelines.testutils.utils.spyStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import sovran.kotlin.Store
 
 /**
@@ -15,9 +13,8 @@ import sovran.kotlin.Store
  * [TestScope] for testing.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-@OptIn(ExperimentalCoroutinesApi::class)
 class TestCoroutineConfiguration(
-    val testDispatcher: TestDispatcher = UnconfinedTestDispatcher(),
+    val testDispatcher: TestDispatcher,
     val testScope: TestScope = TestScope(testDispatcher)
 ) : CoroutineConfiguration {
     override val store: Store = spyStore(testScope, testDispatcher)

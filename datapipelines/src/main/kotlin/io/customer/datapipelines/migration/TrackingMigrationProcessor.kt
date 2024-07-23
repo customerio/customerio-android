@@ -10,6 +10,7 @@ import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.util.EventNames
+import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -46,12 +47,40 @@ internal class TrackingMigrationProcessor(
     }
 
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
+        val currentUserId = analytics.userId()
+        if (currentUserId != null) {
+            logger.error("User already identified with userId: $currentUserId, skipping migration profile for: $identifier")
+            return@runCatching
+        }
+
         dataPipelineInstance.identify(userId = identifier)
     }
 
     override fun processDeviceMigration(oldDeviceToken: String) = runCatching {
-        logger.debug("Migrating existing device with token: $oldDeviceToken")
-        globalPreferenceStore.saveDeviceToken(oldDeviceToken)
+        when (globalPreferenceStore.getDeviceToken()) {
+            null -> {
+                logger.debug("Migrating existing device with token: $oldDeviceToken")
+                dataPipelineInstance.registerDeviceToken(oldDeviceToken)
+            }
+
+            oldDeviceToken -> {
+                logger.debug("Device token already migrated: $oldDeviceToken")
+            }
+
+            else -> {
+                logger.debug("Device token refreshed, deleting old device token from migration: $oldDeviceToken")
+                val deleteDeviceEvent = TrackEvent(
+                    event = EventNames.DEVICE_DELETE,
+                    properties = buildJsonObject {
+                        put("token", oldDeviceToken)
+                    }
+                )
+                analytics.process(deleteDeviceEvent) { event ->
+                    event?.putInContextUnderKey("device", "token", oldDeviceToken)
+                    event?.putInContextUnderKey("device", "type", "android")
+                }
+            }
+        }
     }
 
     private data class MigrationEventData(
@@ -133,10 +162,19 @@ internal class TrackingMigrationProcessor(
             )
         }
 
-        eventData.trackEvent.timestamp = task.timestamp.toString()
-        eventData.trackEvent.userId = task.identifier
-
         logger.debug("processing migrated task: $eventData")
-        analytics.process(eventData.trackEvent, eventData.enrichmentClosure)
+
+        val enrichmentClosure: (event: BaseEvent) -> Unit = { event ->
+            eventData.enrichmentClosure?.invoke(event)
+            // Update event with task identifier and timestamp at the end to
+            // make sure these properties are not overridden by any other plugin.
+            event.userId = task.identifier
+            SegmentInstantFormatter.from(task.timestamp)?.let { timestamp ->
+                event.timestamp = timestamp
+            }
+        }
+        analytics.process(eventData.trackEvent) { event ->
+            event?.apply(enrichmentClosure)
+        }
     }
 }

@@ -9,7 +9,6 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
-import io.customer.datapipelines.di.migrationProcessor
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
@@ -29,6 +28,7 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
+import io.customer.tracking.migration.MigrationProcessor
 import kotlinx.serialization.SerializationStrategy
 
 /**
@@ -57,6 +57,7 @@ class CustomerIO private constructor(
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
+    internal var migrationProcessor: MigrationProcessor? = null
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
@@ -150,7 +151,7 @@ class CustomerIO private constructor(
 
         logger.info("Migration site id found, migrating data from previous version.")
         // Initialize migration processor to perform migration
-        SDKComponent.migrationProcessor?.invoke(this) ?: TrackingMigrationProcessor(
+        migrationProcessor = TrackingMigrationProcessor(
             dataPipelineInstance = this,
             migrationSiteId = migrationSiteId
         )

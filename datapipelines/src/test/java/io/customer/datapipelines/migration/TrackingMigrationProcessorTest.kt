@@ -13,7 +13,6 @@ import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
-import io.customer.datapipelines.testutils.extensions.registerMigrationProcessor
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
@@ -21,7 +20,6 @@ import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.datapipelines.util.EventNames
 import io.customer.datapipelines.util.SegmentInstantFormatter
-import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
@@ -29,7 +27,6 @@ import io.customer.sdk.events.serializedName
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.spyk
 import java.util.Date
 import kotlinx.coroutines.test.TestScope
@@ -38,6 +35,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldNotBeNull
 import org.json.JSONObject
@@ -68,23 +66,15 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
 
         outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
+
+        sdkInstance.migrationProcessor?.let {
+            migrationProcessorSpy = spyk(it)
+        }
     }
 
     private fun setupWithMigrationProcessorSpy() {
         setupWithConfig(
             testConfiguration {
-                diGraph {
-                    sdk {
-                        registerMigrationProcessor { dataPipelineInstance ->
-                            spyk(
-                                TrackingMigrationProcessor(
-                                    dataPipelineInstance = dataPipelineInstance,
-                                    migrationSiteId = requireNotNull(dataPipelineInstance.moduleConfig.migrationSiteId)
-                                )
-                            ).apply { migrationProcessorSpy = this }
-                        }
-                    }
-                }
                 sdkConfig {
                     setMigrationSiteId(TestConstants.Keys.SITE_ID)
                     // To simplify validating device migration, disable auto track device attributes
@@ -96,37 +86,22 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
 
     @Test
     fun initializeSDK_givenMigrationSiteIdNull_expectDoNotInitializeMigrationProcessor() {
-        // Use spy to verify the migration processor factory is called
-        val migrationProcessorFactorySpy = spyk<(dataPipelineInstance: CustomerIO) -> MigrationProcessor>({ mockk() })
+        setupWithConfig(testConfiguration {})
 
-        setupWithConfig(
-            testConfiguration {
-                diGraph {
-                    sdk { registerMigrationProcessor(migrationProcessorFactorySpy) }
-                }
-            }
-        )
-
-        assertCalledNever { migrationProcessorFactorySpy(any()) }
+        sdkInstance.migrationProcessor.shouldBeNull()
     }
 
     @Test
     fun initializeSDK_givenMigrationSiteIdNonNull_expectInitializeMigrationProcessor() {
-        // Use spy to verify the migration processor factory is called
-        val migrationProcessorFactorySpy = spyk<(dataPipelineInstance: CustomerIO) -> MigrationProcessor>({ mockk() })
-
         setupWithConfig(
             testConfiguration {
-                diGraph {
-                    sdk { registerMigrationProcessor(migrationProcessorFactorySpy) }
-                }
                 sdkConfig {
                     setMigrationSiteId(TestConstants.Keys.SITE_ID)
                 }
             }
         )
 
-        assertCalledOnce { migrationProcessorFactorySpy(any()) }
+        sdkInstance.migrationProcessor.shouldNotBeNull()
     }
 
     @Test

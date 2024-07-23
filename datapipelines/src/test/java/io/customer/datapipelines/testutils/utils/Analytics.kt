@@ -17,8 +17,10 @@ import java.io.File
 import java.net.HttpURLConnection
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import sovran.kotlin.Store
 
 val settingsDefault = """
@@ -64,10 +66,12 @@ fun createAnalyticsConfig(
     }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 fun createTestAnalyticsInstance(
     moduleConfig: DataPipelinesModuleConfig,
     application: Any = "Test",
-    testCoroutineConfiguration: TestCoroutineConfiguration = TestCoroutineConfiguration()
+    testDispatcher: TestDispatcher = UnconfinedTestDispatcher(),
+    testCoroutineConfiguration: TestCoroutineConfiguration = TestCoroutineConfiguration(testDispatcher)
 ): Analytics {
     val configuration = createAnalyticsConfig(moduleConfig = moduleConfig, application = application)
     return object : Analytics(configuration, testCoroutineConfiguration) {}

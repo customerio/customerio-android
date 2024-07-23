@@ -1,6 +1,7 @@
 package io.customer.datapipelines.testutils.extensions
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
+import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.plugins.findAtPath
 import io.customer.sdk.data.model.CustomAttributes
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -13,11 +14,19 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import org.amshove.kluent.internal.assertEquals
+import org.json.JSONObject
 
 /**
  * Similar to Kluent's `shouldBeEqualTo` but for comparing JSON objects with custom attributes map.
  */
 infix fun JsonObject.shouldMatchTo(expected: CustomAttributes): JsonObject {
+    return this.apply { assertEquals(expected.toJsonObject(), this) }
+}
+
+/**
+ * Similar to Kluent's `shouldBeEqualTo` but for comparing Json objects with JSON objects.
+ */
+infix fun JsonObject.shouldMatchTo(expected: JSONObject): JsonObject {
     return this.apply { assertEquals(expected.toJsonObject(), this) }
 }
 

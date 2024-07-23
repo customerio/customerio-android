@@ -16,12 +16,18 @@ import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
 /**
  * Delegate class for setting up test environment for running unit tests.
  * The class makes it easy to setup both JUnit and Robolectric tests by delegating setup to this class.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class UnitTestDelegate(private val applicationInstance: Any) {
+    val testDispatcher: TestDispatcher = UnconfinedTestDispatcher()
+
     private lateinit var testConfig: DataPipelinesTestConfig
     lateinit var sdkInstance: CustomerIO
     lateinit var analytics: Analytics
@@ -47,7 +53,11 @@ class UnitTestDelegate(private val applicationInstance: Any) {
     private fun mockAnalytics() {
         // Setup analytics factory to create test analytics instance
         SDKComponent.registerAnalyticsFactory { moduleConfig ->
-            val testAnalyticsInstance = createTestAnalyticsInstance(moduleConfig, application = applicationInstance)
+            val testAnalyticsInstance = createTestAnalyticsInstance(
+                moduleConfig = moduleConfig,
+                application = applicationInstance,
+                testDispatcher = testDispatcher
+            )
             // Configure plugins for the test analytics instance to allow adding
             // desired plugins before CustomerIO initialization
             testConfig.analytics(testAnalyticsInstance)

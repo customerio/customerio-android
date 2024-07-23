@@ -9,6 +9,7 @@ import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
+import io.customer.datapipelines.di.migrationProcessor
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
@@ -149,7 +150,7 @@ class CustomerIO private constructor(
 
         logger.info("Migration site id found, migrating data from previous version.")
         // Initialize migration processor to perform migration
-        TrackingMigrationProcessor(
+        SDKComponent.migrationProcessor?.invoke(this) ?: TrackingMigrationProcessor(
             dataPipelineInstance = this,
             migrationSiteId = migrationSiteId
         )

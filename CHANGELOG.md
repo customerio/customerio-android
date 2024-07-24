@@ -1,3 +1,18 @@
+## [4.0.0](https://github.com/customerio/customerio-android/compare/3.11.1...4.0.0) (2024-07-24)
+
+### ⚠ BREAKING CHANGES
+
+* android as CDP source (#412)
+
+### Features
+
+* add support for automatic activity screen tracking ([#334](https://github.com/customerio/customerio-android/issues/334)) ([9d239c8](https://github.com/customerio/customerio-android/commit/9d239c895a975b7980c39e0ae0cb587cb1fb07a9))
+* added track methods ([#328](https://github.com/customerio/customerio-android/issues/328)) ([81d825f](https://github.com/customerio/customerio-android/commit/81d825f0b5e6c56acf8d850057246def849b7ef4))
+* android as CDP source ([#412](https://github.com/customerio/customerio-android/issues/412)) ([772b489](https://github.com/customerio/customerio-android/commit/772b4895a5d0599f6b4b375e925a012545d70cc3))
+* expose public APIs to identify and clear profiles ([#322](https://github.com/customerio/customerio-android/issues/322)) ([09dea32](https://github.com/customerio/customerio-android/commit/09dea3274af83e767cfbc1d8615e7893e2156c90))
+* track device with attributes ([#341](https://github.com/customerio/customerio-android/issues/341)) ([7cb17c1](https://github.com/customerio/customerio-android/commit/7cb17c1e8e7aa9f1ad8e71c01f2f80dab38ee7d9))
+* track metric event ([#335](https://github.com/customerio/customerio-android/issues/335)) ([f7af4e6](https://github.com/customerio/customerio-android/commit/f7af4e6ae899cde5a28683d2e0995e65fe01ddb9))
+
 ## [3.11.1](https://github.com/customerio/customerio-android/compare/3.11.0...3.11.1) (2024-07-15)
 
 ### Bug Fixes

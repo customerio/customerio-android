@@ -17,13 +17,13 @@ data class Configuration(
 )
 
 fun Configuration.setValuesFromBuilder(builder: CustomerIOBuilder): CustomerIOBuilder {
-    builder.setMigrationSiteId(this.siteId)
-    this.apiHost?.let { builder.setApiHost(it) }
-    this.cdnHost?.let { builder.setCdnHost(it) }
-    builder.setFlushInterval(this.flushInterval)
-    builder.setFlushAt(this.flushAt)
-    builder.setAutoTrackActivityScreens(this.trackScreen)
-    builder.setAutoTrackDeviceAttributes(this.trackDeviceAttributes)
-    builder.setLogLevel(if (this.debugMode) CioLogLevel.DEBUG else CioLogLevel.ERROR)
+    builder.migrationSiteId(this.siteId)
+    this.apiHost?.let { builder.apiHost(it) }
+    this.cdnHost?.let { builder.cdnHost(it) }
+    builder.flushInterval(this.flushInterval)
+    builder.flushAt(this.flushAt)
+    builder.autoTrackActivityScreens(this.trackScreen)
+    builder.autoTrackDeviceAttributes(this.trackDeviceAttributes)
+    builder.logLevel(if (this.debugMode) CioLogLevel.DEBUG else CioLogLevel.ERROR)
     return builder
 }

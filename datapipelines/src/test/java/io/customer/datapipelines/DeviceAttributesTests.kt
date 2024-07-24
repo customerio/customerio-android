@@ -61,7 +61,7 @@ class DeviceAttributesTests : IntegrationTest() {
             testConfiguration {
                 sdkConfig {
                     // Disable auto tracking of device attributes
-                    setAutoTrackDeviceAttributes(false)
+                    autoTrackDeviceAttributes(false)
                 }
                 analytics {
                     // Add Android context plugin so that device attributes can be tracked by analytics
@@ -88,7 +88,7 @@ class DeviceAttributesTests : IntegrationTest() {
     fun track_givenAutoTrackDeviceAttributesEnabled_expectDeviceAttributesInProperties() {
         setupWithConfig(
             testConfiguration {
-                sdkConfig { setAutoTrackDeviceAttributes(true) }
+                sdkConfig { autoTrackDeviceAttributes(true) }
                 analytics {
                     // Add Android context plugin so that device attributes can be tracked by analytics
                     add(AndroidContextPlugin())
@@ -129,7 +129,7 @@ class DeviceAttributesTests : IntegrationTest() {
     fun track_givenCustomAttributes_expectPreferCustomAttributesInProperties() {
         setupWithConfig(
             testConfiguration {
-                sdkConfig { setAutoTrackDeviceAttributes(true) }
+                sdkConfig { autoTrackDeviceAttributes(true) }
                 analytics {
                     // Add Android context plugin so that device attributes can be tracked by analytics
                     add(AndroidContextPlugin())

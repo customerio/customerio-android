@@ -52,7 +52,7 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
     private fun setupTestEnvironmentWithLifecyclePlugin() {
         setupWithConfig(
             testConfiguration {
-                sdkConfig { setTrackApplicationLifecycleEvents(true) }
+                sdkConfig { trackApplicationLifecycleEvents(true) }
                 analytics { add(lifecyclePlugin) }
             }
         )
@@ -177,7 +177,7 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
     fun track_givenApplicationLifecycleDisabled_expectPluginsNotCalled() {
         setupWithConfig(
             testConfiguration {
-                sdkConfig { setTrackApplicationLifecycleEvents(false) }
+                sdkConfig { trackApplicationLifecycleEvents(false) }
                 analytics { add(lifecyclePlugin) }
             }
         )
@@ -206,7 +206,7 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
         // Mock analytics to use the mock application and set the lifecycle plugin
         setupWithConfig(
             testConfiguration {
-                sdkConfig { setTrackApplicationLifecycleEvents(true) }
+                sdkConfig { trackApplicationLifecycleEvents(true) }
                 analytics { add(spyLifecyclePlugin) }
             }
         )

@@ -75,7 +75,7 @@ class CustomerIOBuilder(
      * Specifies the log level for the SDK.
      * Default value is [CioLogLevel.ERROR].
      */
-    fun setLogLevel(level: CioLogLevel): CustomerIOBuilder {
+    fun logLevel(level: CioLogLevel): CustomerIOBuilder {
         this.logLevel = level
         return this
     }
@@ -85,17 +85,17 @@ class CustomerIOBuilder(
      * Default values for apiHost and cdnHost are determined by the region.
      * However, if apiHost or cdnHost are manually specified, those values override region-based defaults.
      */
-    fun setRegion(region: Region): CustomerIOBuilder {
+    fun region(region: Region): CustomerIOBuilder {
         this.region = region
         return this
     }
 
-    fun setApiHost(apiHost: String): CustomerIOBuilder {
+    fun apiHost(apiHost: String): CustomerIOBuilder {
         this.apiHost = apiHost
         return this
     }
 
-    fun setCdnHost(cdnHost: String): CustomerIOBuilder {
+    fun cdnHost(cdnHost: String): CustomerIOBuilder {
         this.cdnHost = cdnHost
         return this
     }
@@ -104,7 +104,7 @@ class CustomerIOBuilder(
      * Specifies the number of events that should be queued before they are flushed to the server.
      * Default value is 20.
      */
-    fun setFlushAt(flushAt: Int): CustomerIOBuilder {
+    fun flushAt(flushAt: Int): CustomerIOBuilder {
         this.flushAt = flushAt
         return this
     }
@@ -113,7 +113,7 @@ class CustomerIOBuilder(
      * Specifies the interval in seconds at which events should be flushed to the server.
      * Default value is 30 seconds.
      */
-    fun setFlushInterval(flushInterval: Int): CustomerIOBuilder {
+    fun flushInterval(flushInterval: Int): CustomerIOBuilder {
         this.flushInterval = flushInterval
         return this
     }
@@ -122,7 +122,7 @@ class CustomerIOBuilder(
      * Specifies the list of flush policies that should be applied to the event queue.
      * Default value is an empty list.
      */
-    fun setFlushPolicies(flushPolicies: List<FlushPolicy>): CustomerIOBuilder {
+    fun flushPolicies(flushPolicies: List<FlushPolicy>): CustomerIOBuilder {
         this.flushPolicies = flushPolicies
         return this
     }
@@ -130,7 +130,7 @@ class CustomerIOBuilder(
     /**
      * Automatically add Customer.io destination plugin, defaults to `true`
      */
-    fun setAutoAddCustomerIODestination(autoAdd: Boolean): CustomerIOBuilder {
+    fun autoAddCustomerIODestination(autoAdd: Boolean): CustomerIOBuilder {
         this.autoAddCustomerIODestination = autoAdd
         return this
     }
@@ -138,7 +138,7 @@ class CustomerIOBuilder(
     /**
      * Automatically send track for Lifecycle events (eg: Application Opened, Application Backgrounded, etc.), defaults to `true`
      */
-    fun setTrackApplicationLifecycleEvents(track: Boolean): CustomerIOBuilder {
+    fun trackApplicationLifecycleEvents(track: Boolean): CustomerIOBuilder {
         this.trackApplicationLifecycleEvents = track
         return this
     }
@@ -147,7 +147,7 @@ class CustomerIOBuilder(
      * Enable this property if you want SDK to automatic track device attributes such as
      * operating system, device locale, device model, app version etc.
      */
-    fun setAutoTrackDeviceAttributes(track: Boolean): CustomerIOBuilder {
+    fun autoTrackDeviceAttributes(track: Boolean): CustomerIOBuilder {
         this.autoTrackDeviceAttributes = track
         return this
     }
@@ -156,7 +156,7 @@ class CustomerIOBuilder(
      * Enable this property if you want SDK to automatic track screen views for Activities.
      * Note: This feature is not useful for UI toolkit like Jetpack Compose as it consist of only one Activity and multiple Composable.
      */
-    fun setAutoTrackActivityScreens(track: Boolean): CustomerIOBuilder {
+    fun autoTrackActivityScreens(track: Boolean): CustomerIOBuilder {
         this.autoTrackActivityScreens = track
         return this
     }
@@ -164,7 +164,7 @@ class CustomerIOBuilder(
     /**
      * Set the migration site id to migrate the events from the tracking SDK version.
      */
-    fun setMigrationSiteId(migrationSiteId: String?): CustomerIOBuilder {
+    fun migrationSiteId(migrationSiteId: String?): CustomerIOBuilder {
         this.migrationSiteId = migrationSiteId
         return this
     }

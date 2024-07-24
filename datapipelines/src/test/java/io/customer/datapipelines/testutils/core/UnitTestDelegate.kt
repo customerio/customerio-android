@@ -94,9 +94,9 @@ class UnitTestDelegate(private val applicationInstance: Any) {
         // Register AndroidSDKComponent with mocked dependencies as we are not using real context in tests
         overrideAndroidComponentDependencies()
         // Disable adding destination to analytics instance so events are not sent to the server by default
-        builder.setAutoAddCustomerIODestination(false)
+        builder.autoAddCustomerIODestination(false)
         // Disable tracking application lifecycle events by default to avoid tracking unnecessary events while testing
-        builder.setTrackApplicationLifecycleEvents(false)
+        builder.trackApplicationLifecycleEvents(false)
         // Apply custom configuration for the test at the end to allow overriding default configurations
         testConfig.sdkConfig(builder)
         return builder.build()

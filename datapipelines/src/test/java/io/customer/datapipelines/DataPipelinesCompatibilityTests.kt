@@ -50,7 +50,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
             testConfiguration {
                 sdkConfig {
                     // Enable adding destination so events are processed and stored in the storage
-                    setAutoAddCustomerIODestination(true)
+                    autoAddCustomerIODestination(true)
                 }
             }
         )

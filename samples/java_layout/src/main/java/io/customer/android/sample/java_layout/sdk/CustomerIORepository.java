@@ -33,7 +33,7 @@ public class CustomerIORepository {
 
         // Enable detailed logging for debug builds.
         if (sdkConfig.debugModeEnabled()) {
-            builder.setLogLevel(CioLogLevel.DEBUG);
+            builder.logLevel(CioLogLevel.DEBUG);
         }
 
         // Enable optional features of the SDK by adding desired modules.
@@ -60,32 +60,32 @@ public class CustomerIORepository {
      * default configuration from the SDK.
      */
     private void configureSdk(CustomerIOBuilder builder, final CustomerIOSDKConfig sdkConfig) {
-        builder.setMigrationSiteId(sdkConfig.getSiteId());
+        builder.migrationSiteId(sdkConfig.getSiteId());
 
         final String apiHost = sdkConfig.getApiHost();
         if (!TextUtils.isEmpty(apiHost)) {
-            builder.setApiHost(apiHost);
+            builder.apiHost(apiHost);
         }
 
         final String cdnHost = sdkConfig.getCdnHost();
         if (!TextUtils.isEmpty(cdnHost)) {
-            builder.setCdnHost(cdnHost);
+            builder.cdnHost(cdnHost);
         }
 
         if (sdkConfig.getFlushAt() != null) {
-            builder.setFlushAt(sdkConfig.getFlushAt());
+            builder.flushAt(sdkConfig.getFlushAt());
         }
         if (sdkConfig.getFlushInterval() != null) {
-            builder.setFlushInterval(sdkConfig.getFlushInterval());
+            builder.flushInterval(sdkConfig.getFlushInterval());
         }
 
         final Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
         if (screenTrackingEnabled != null) {
-            builder.setAutoTrackActivityScreens(screenTrackingEnabled);
+            builder.autoTrackActivityScreens(screenTrackingEnabled);
         }
         final Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
         if (deviceAttributesTrackingEnabled != null) {
-            builder.setAutoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
+            builder.autoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
         }
     }
 

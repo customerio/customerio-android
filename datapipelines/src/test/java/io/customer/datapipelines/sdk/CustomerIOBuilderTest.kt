@@ -114,14 +114,15 @@ class CustomerIOBuilderTest : RobolectricTest() {
         val givenRegion = Region.EU
 
         createCustomerIOBuilder(givenCdpApiKey)
-            .setLogLevel(CioLogLevel.DEBUG)
-            .setMigrationSiteId(givenMigrationSiteId)
-            .setRegion(givenRegion)
-            .setAutoTrackDeviceAttributes(false)
-            .setAutoTrackActivityScreens(true)
-            .setTrackApplicationLifecycleEvents(false)
-            .setFlushAt(100)
-            .setFlushInterval(2)
+            .logLevel(CioLogLevel.DEBUG)
+            .migrationSiteId(givenMigrationSiteId)
+            .region(givenRegion)
+            .autoTrackDeviceAttributes(false)
+            .autoTrackActivityScreens(true)
+            .trackApplicationLifecycleEvents(false)
+            .flushAt(100)
+            .flushInterval(2)
+            .flushPolicies(emptyList())
             .build()
 
         // verify the customerIOBuilder config with DataPipelinesModuleConfig
@@ -148,7 +149,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
     fun build_givenAutoTrackActivityScreensEnabled_expectCorrectPluginsToBeAdded() {
         val givenCdpApiKey = String.random
         createCustomerIOBuilder(givenCdpApiKey)
-            .setAutoTrackActivityScreens(true)
+            .autoTrackActivityScreens(true)
             .build()
 
         CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldNotBeEqualTo null
@@ -158,7 +159,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
     fun build_givenAutoTrackActivityScreensDisabled_expectCorrectPluginsToBeAdded() {
         val givenCdpApiKey = String.random
         createCustomerIOBuilder(givenCdpApiKey)
-            .setAutoTrackActivityScreens(false)
+            .autoTrackActivityScreens(false)
             .build()
 
         CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldBe null
@@ -171,9 +172,9 @@ class CustomerIOBuilderTest : RobolectricTest() {
         val givenCdnHost = "https://eu.cdn.example.com"
 
         createCustomerIOBuilder()
-            .setRegion(givenRegion)
-            .setApiHost(givenApiHost)
-            .setCdnHost(givenCdnHost)
+            .region(givenRegion)
+            .apiHost(givenApiHost)
+            .cdnHost(givenCdnHost)
             .build()
 
         // verify apiHost and cdnHost are not overridden by region
@@ -189,9 +190,9 @@ class CustomerIOBuilderTest : RobolectricTest() {
         val givenUSCdnHost = "https://us.cdn.example.com"
 
         createCustomerIOBuilder()
-            .setRegion(givenUSRegion)
-            .setApiHost(givenUSApiHost)
-            .setCdnHost(givenUSCdnHost)
+            .region(givenUSRegion)
+            .apiHost(givenUSApiHost)
+            .cdnHost(givenUSCdnHost)
             .build()
 
         // verify apiHost and cdnHost are not overridden by region

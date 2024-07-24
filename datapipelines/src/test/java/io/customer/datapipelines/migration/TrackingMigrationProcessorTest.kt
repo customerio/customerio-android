@@ -76,9 +76,9 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         setupWithConfig(
             testConfiguration {
                 sdkConfig {
-                    setMigrationSiteId(TestConstants.Keys.SITE_ID)
+                    migrationSiteId(TestConstants.Keys.SITE_ID)
                     // To simplify validating device migration, disable auto track device attributes
-                    setAutoTrackDeviceAttributes(false)
+                    autoTrackDeviceAttributes(false)
                 }
             }
         )
@@ -96,7 +96,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         setupWithConfig(
             testConfiguration {
                 sdkConfig {
-                    setMigrationSiteId(TestConstants.Keys.SITE_ID)
+                    migrationSiteId(TestConstants.Keys.SITE_ID)
                 }
             }
         )

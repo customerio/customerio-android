@@ -4,17 +4,25 @@ import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
-import io.customer.sdk.device.DeviceTokenProvider
-import io.customer.sdk.util.Logger
+import io.customer.sdk.core.di.SDKComponent
+
+/**
+ *  Responsible for token generation and validity
+ */
+interface DeviceTokenProvider {
+    fun isValidForThisDevice(context: Context): Boolean
+    fun getCurrentToken(onComplete: (String?) -> Unit)
+}
 
 /**
  * Wrapper around FCM SDK to make the code base more testable. There is no concept of checked-exceptions in Kotlin
  * so we need to handle the exception manually.
  */
 class FCMTokenProviderImpl(
-    private val logger: Logger,
     private val context: Context
 ) : DeviceTokenProvider {
+
+    val logger = SDKComponent.logger
 
     override fun isValidForThisDevice(context: Context): Boolean {
         return try {

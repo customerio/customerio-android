@@ -23,11 +23,7 @@ import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOShared
-import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.di.CustomerIOStaticComponent
-import io.customer.sdk.util.Logger
+import io.customer.sdk.core.di.SDKComponent
 import java.net.URL
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
@@ -57,14 +53,8 @@ internal class CustomerIOPushNotificationHandler(
             "com.google.firebase.messaging.default_notification_color"
     }
 
-    private val diGraph: CustomerIOComponent
-        get() = CustomerIO.instance().diGraph
-
-    private val staticGraph: CustomerIOStaticComponent
-        get() = CustomerIOShared.instance().diStaticGraph
-
-    private val logger: Logger
-        get() = staticGraph.logger
+    private val diGraph = SDKComponent
+    private val logger = SDKComponent.logger
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.moduleConfig

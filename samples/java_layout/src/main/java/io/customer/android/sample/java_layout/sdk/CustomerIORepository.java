@@ -15,7 +15,9 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
-import io.customer.sdk.util.CioLogLevel;
+import io.customer.sdk.CustomerIOBuilder;
+import io.customer.sdk.core.util.CioLogLevel;
+import io.customer.sdk.data.model.Region;
 
 /**
  * Repository class to hold all Customer.io related operations at single place
@@ -27,11 +29,11 @@ public class CustomerIORepository {
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
 
         // Initialize Customer.io SDK builder
-        CustomerIO.Builder builder = new CustomerIO.Builder(sdkConfig.getSiteId(), sdkConfig.getApiKey(), application);
+        CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
 
         // Enable detailed logging for debug builds.
         if (sdkConfig.debugModeEnabled()) {
-            builder.setLogLevel(CioLogLevel.DEBUG);
+            builder.logLevel(CioLogLevel.DEBUG);
         }
 
         // Enable optional features of the SDK by adding desired modules.
@@ -39,7 +41,7 @@ public class CustomerIORepository {
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
         // Enables in-app messages
         builder.addCustomerIOModule(new ModuleMessagingInApp(
-                new MessagingInAppModuleConfig.Builder()
+                new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), Region.US.INSTANCE)
                         .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                         .build()
         ));
@@ -57,24 +59,29 @@ public class CustomerIORepository {
      * purposes and may not be needed unless there is a need to override any
      * default configuration from the SDK.
      */
-    private void configureSdk(CustomerIO.Builder builder, final CustomerIOSDKConfig sdkConfig) {
-        final String trackingApiUrl = sdkConfig.getTrackingURL();
-        if (!TextUtils.isEmpty(trackingApiUrl)) {
-            builder.setTrackingApiURL(trackingApiUrl);
+    private void configureSdk(CustomerIOBuilder builder, final CustomerIOSDKConfig sdkConfig) {
+        builder.migrationSiteId(sdkConfig.getSiteId());
+
+        final String apiHost = sdkConfig.getApiHost();
+        if (!TextUtils.isEmpty(apiHost)) {
+            builder.apiHost(apiHost);
         }
 
-        final Double bqSecondsDelay = sdkConfig.getBackgroundQueueSecondsDelay();
-        if (bqSecondsDelay != null) {
-            builder.setBackgroundQueueSecondsDelay(bqSecondsDelay);
+        final String cdnHost = sdkConfig.getCdnHost();
+        if (!TextUtils.isEmpty(cdnHost)) {
+            builder.cdnHost(cdnHost);
         }
-        final Integer bqMinTasks = sdkConfig.getBackgroundQueueMinNumOfTasks();
-        if (bqMinTasks != null) {
-            builder.setBackgroundQueueMinNumberOfTasks(bqMinTasks);
+
+        if (sdkConfig.getFlushAt() != null) {
+            builder.flushAt(sdkConfig.getFlushAt());
+        }
+        if (sdkConfig.getFlushInterval() != null) {
+            builder.flushInterval(sdkConfig.getFlushInterval());
         }
 
         final Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
         if (screenTrackingEnabled != null) {
-            builder.autoTrackScreenViews(screenTrackingEnabled);
+            builder.autoTrackActivityScreens(screenTrackingEnabled);
         }
         final Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
         if (deviceAttributesTrackingEnabled != null) {

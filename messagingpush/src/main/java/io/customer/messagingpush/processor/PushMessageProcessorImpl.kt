@@ -11,16 +11,15 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
-import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.extensions.takeIfNotBlank
-import io.customer.sdk.repository.TrackRepository
-import io.customer.sdk.util.Logger
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.core.util.Logger
+import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
     private val moduleConfig: MessagingPushModuleConfig,
-    private val deepLinkUtil: DeepLinkUtil,
-    private val trackRepository: TrackRepository
+    private val deepLinkUtil: DeepLinkUtil
 ) : PushMessageProcessor {
 
     /**
@@ -87,10 +86,12 @@ internal class PushMessageProcessorImpl(
     private fun trackDeliveredMetrics(deliveryId: String, deliveryToken: String) {
         // Track delivered event only if auto-tracking is enabled
         if (moduleConfig.autoTrackPushEvents) {
-            trackRepository.trackMetric(
-                deliveryID = deliveryId,
-                deviceToken = deliveryToken,
-                event = MetricEvent.delivered
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = Metric.Delivered,
+                    deliveryId = deliveryId,
+                    deviceToken = deliveryToken
+                )
             )
         }
     }
@@ -119,10 +120,12 @@ internal class PushMessageProcessorImpl(
 
     private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
         if (moduleConfig.autoTrackPushEvents) {
-            trackRepository.trackMetric(
-                deliveryID = payload.cioDeliveryId,
-                event = MetricEvent.opened,
-                deviceToken = payload.cioDeliveryToken
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = Metric.Opened,
+                    deliveryId = payload.cioDeliveryId,
+                    deviceToken = payload.cioDeliveryToken
+                )
             )
         }
     }
@@ -131,17 +134,17 @@ internal class PushMessageProcessorImpl(
         activityContext: Context,
         payload: CustomerIOParsedPushPayload
     ) {
-        val deepLink = payload.deepLink?.takeIfNotBlank()
+        val deepLink = payload.deepLink?.takeIf { link -> link.isNotBlank() }
 
         // check if host app overrides the handling of deeplink
         val notificationCallback = moduleConfig.notificationCallback
-        val taskStackFromPayload = notificationCallback?.createTaskStackFromPayload(
+        val wasClicked = notificationCallback?.onNotificationClicked(
             context = activityContext,
             payload = payload
         )
-        if (taskStackFromPayload != null) {
-            logger.info("Notification target overridden by createTaskStackFromPayload, starting new stack for link $deepLink")
-            taskStackFromPayload.startActivities()
+
+        if (wasClicked != null) {
+            logger.info("Notification target overridden by onNotificationClicked, link $deepLink handled by host app")
             return
         }
 

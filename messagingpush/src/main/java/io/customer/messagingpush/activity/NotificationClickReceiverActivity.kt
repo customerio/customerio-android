@@ -4,10 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOShared
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
-import io.customer.sdk.util.Logger
 
 /**
  * Activity to handle notification click events.
@@ -16,7 +14,8 @@ import io.customer.sdk.util.Logger
  * metrics, handles the deep link and opens the desired activity in the host app.
  */
 class NotificationClickReceiverActivity : Activity(), TrackableScreen {
-    val logger: Logger by lazy { CustomerIOShared.instance().diStaticGraph.logger }
+    private val diGraph = SDKComponent
+    val logger = SDKComponent.logger
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -38,15 +37,10 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
             // This should never happen ideally
             logger.error("Intent is null, cannot process notification click")
         } else {
-            val sdkInstance = CustomerIO.instanceOrNull(context = this)
-            if (sdkInstance == null) {
-                logger.error("SDK is not initialized, cannot handle notification intent")
-            } else {
-                sdkInstance.diGraph.pushMessageProcessor.processNotificationClick(
-                    activityContext = this,
-                    intent = data
-                )
-            }
+            diGraph.pushMessageProcessor.processNotificationClick(
+                activityContext = this,
+                intent = data
+            )
         }
         finish()
     }

@@ -1,0 +1,41 @@
+import io.customer.android.Configurations
+import io.customer.android.Dependencies
+
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
+    id 'com.twilio.apkscale'
+}
+
+ext {
+    PUBLISH_GROUP_ID = Configurations.artifactGroup
+    PUBLISH_ARTIFACT_ID = "core"
+}
+
+apply from: "${rootDir}/scripts/publish-module.gradle"
+apply from: "${rootDir}/scripts/android-config.gradle"
+apply from: "${rootDir}/scripts/codecov-android.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
+
+android {
+    namespace 'io.customer.sdk.core'
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+    buildFeatures {
+        // BuildConfig is required currently to differentiate between debug and release environments in the SDK
+        buildConfig = true
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    api project(":base")
+    api Dependencies.androidxCoreKtx
+    implementation Dependencies.coroutinesAndroid
+}

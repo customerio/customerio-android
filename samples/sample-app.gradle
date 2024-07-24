@@ -6,8 +6,26 @@ if (localPropertiesFile.exists()) {
 
 android {
     defaultConfig {
-        buildConfigField "String", "API_KEY", "\"${localProperties["apiKey"]}\""
-        buildConfigField "String", "SITE_ID", "\"${localProperties["siteId"]}\""
+        // Sets the configuration key prefix, with fallback to empty string if not set
+        String configKeyPrefix = project.findProperty("appConfigKeyPrefix") ?: ""
+
+        // Helper method to retrieve the property with prefix or fallback to default key
+        Closure<String> getConfigWithPrefix = { String key ->
+            localProperties."${configKeyPrefix}${key}" ?: localProperties."${key}"
+        }
+
+        // Retrieve API keys using the helper method to allow key prefixing
+        // e.g. Java Layout sample app has prefix javaLayout_ for API keys
+        // javaLayout_cdpApiKey=KEY has higher priority than cdpApiKey=KEY
+        // cdpApiKey=KEY can be used as a fallback for all sample apps
+        String apiKey = getConfigWithPrefix("apiKey")
+        String cdpApiKey = getConfigWithPrefix("cdpApiKey")
+        String siteId = getConfigWithPrefix("siteId")
+
+        // Set build config fields for API keys
+        buildConfigField "String", "API_KEY", "\"${apiKey}\""
+        buildConfigField "String", "CDP_API_KEY", "\"${cdpApiKey}\""
+        buildConfigField "String", "SITE_ID", "\"${siteId}\""
     }
     // Avoid redefining signing configs in sample apps to avoid breaking release
     // builds (specially on CI servers)
@@ -50,12 +68,12 @@ dependencies {
     def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
         // Add local dependency for SDK modules, helpful for debugging
-        implementation(project(":tracking"))
+        implementation(project(":datapipelines"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
     } else {
         // Stable releases dependency, use published versions directly
-        implementation "io.customer.android:tracking:$cioSDKVersion"
+        implementation "io.customer.android:datapipelines:$cioSDKVersion"
         implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
     }

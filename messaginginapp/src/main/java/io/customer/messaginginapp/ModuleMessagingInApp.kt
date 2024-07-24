@@ -1,76 +1,29 @@
 package io.customer.messaginginapp
 
-import android.app.Application
-import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.hook.ModuleInAppHookProvider
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOConfig
-import io.customer.sdk.data.request.MetricEvent
-import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.hooks.HookModule
-import io.customer.sdk.hooks.HooksManager
-import io.customer.sdk.module.CustomerIOModule
-import io.customer.sdk.repository.TrackRepository
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.subscribe
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.events.Metric
 
-class ModuleMessagingInApp
-@VisibleForTesting
-internal constructor(
-    override val moduleConfig: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default(),
-    private val overrideDiGraph: CustomerIOComponent?
+class ModuleMessagingInApp(
+    config: MessagingInAppModuleConfig
 ) : CustomerIOModule<MessagingInAppModuleConfig> {
+    override val moduleName: String = MODULE_NAME
+    override val moduleConfig: MessagingInAppModuleConfig = config
 
-    @JvmOverloads
-    @Deprecated(
-        "organizationId no longer required and will be removed in future",
-        replaceWith = ReplaceWith("constructor(config: MessagingInAppModuleConfig)")
-    )
-    constructor(
-        organizationId: String,
-        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
-    ) : this(
-        moduleConfig = config,
-        overrideDiGraph = null
-    )
-
-    @JvmOverloads
-    constructor(
-        config: MessagingInAppModuleConfig = MessagingInAppModuleConfig.default()
-    ) : this(
-        moduleConfig = config,
-        overrideDiGraph = null
-    )
-
-    override val moduleName: String = ModuleMessagingInApp.moduleName
-
-    private val diGraph: CustomerIOComponent
-        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
-
-    private val trackRepository: TrackRepository
-        get() = diGraph.trackRepository
-
-    private val identifier: String?
-        get() = diGraph.sitePreferenceRepository.getIdentifier()
-
-    private val hooksManager: HooksManager by lazy { diGraph.hooksManager }
-
+    private val diGraph: SDKComponent = SDKComponent
+    private val eventBus = diGraph.eventBus
     private val gistProvider by lazy { diGraph.gistProvider }
-
-    private val logger by lazy { diGraph.logger }
-
-    private val config: CustomerIOConfig
-        get() = diGraph.sdkConfig
-
-    companion object {
-        const val moduleName: String = "MessagingInApp"
-    }
+    private val logger = diGraph.logger
 
     fun dismissMessage() {
         gistProvider.dismissMessage()
     }
 
     override fun initialize() {
-        initializeGist(config)
+        initializeGist()
         setupHooks()
         configureSdkModule(moduleConfig)
         setupGistCallbacks()
@@ -85,16 +38,20 @@ internal constructor(
     private fun setupGistCallbacks() {
         gistProvider.subscribeToEvents(onMessageShown = { deliveryID ->
             logger.debug("in-app message shown $deliveryID")
-            trackRepository.trackInAppMetric(
-                deliveryID = deliveryID,
-                event = MetricEvent.opened
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryID,
+                    event = Metric.Opened
+                )
             )
         }, onAction = { deliveryID: String, _: String, action: String, name: String ->
             logger.debug("in-app message clicked $deliveryID")
-            trackRepository.trackInAppMetric(
-                deliveryID = deliveryID,
-                event = MetricEvent.clicked,
-                metadata = mapOf("action_name" to name, "action_value" to action)
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryID,
+                    event = Metric.Clicked,
+                    params = mapOf("action_name" to name, "action_value" to action)
+                )
             )
         }, onError = { errorMessage ->
             logger.error("in-app message error occurred $errorMessage")
@@ -102,21 +59,28 @@ internal constructor(
     }
 
     private fun setupHooks() {
-        hooksManager.add(
-            module = HookModule.MessagingInApp,
-            subscriber = ModuleInAppHookProvider()
+        eventBus.subscribe<Event.ScreenViewedEvent> {
+            gistProvider.setCurrentRoute(it.name)
+        }
+
+        eventBus.subscribe<Event.ProfileIdentifiedEvent> {
+            gistProvider.setUserToken(it.identifier)
+        }
+
+        eventBus.subscribe<Event.ResetEvent> {
+            gistProvider.clearUserToken()
+        }
+    }
+
+    private fun initializeGist() {
+        gistProvider.initProvider(
+            application = diGraph.android().application,
+            siteId = moduleConfig.siteId,
+            region = moduleConfig.region.code
         )
     }
 
-    private fun initializeGist(config: CustomerIOConfig) {
-        gistProvider.initProvider(
-            application = diGraph.context.applicationContext as Application,
-            siteId = config.siteId,
-            region = config.region.code
-        )
-
-        // if identifier is already present, set the userToken again so in case if the customer was already identified and
-        // module was added later on, we can notify gist about it.
-        identifier?.let { gistProvider.setUserToken(it) }
+    companion object {
+        const val MODULE_NAME: String = "MessagingInApp"
     }
 }

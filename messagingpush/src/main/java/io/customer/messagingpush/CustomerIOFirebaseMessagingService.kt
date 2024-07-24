@@ -4,12 +4,15 @@ import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.messagingpush.extensions.getSDKInstanceOrNull
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
+
+        private val eventBus = SDKComponent.eventBus
+
         /**
          * Handles receiving an incoming push notification.
          *
@@ -32,53 +35,6 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         /**
-         * Handles receiving an incoming push notification.
-         *
-         * Call this from a custom [FirebaseMessagingService] to pass push messages to
-         * CustomerIO SDK for tracking and rendering
-         * @param remoteMessage Remote message received from Firebase in
-         * [FirebaseMessagingService.onMessageReceived]
-         * @param handleNotificationTrigger indicating if the local notification should be triggered
-         * @return Boolean indicating whether this will be handled by CustomerIO
-         */
-        @Deprecated(
-            "This method is deprecated and will be removed in future releases. Use the one with context",
-            ReplaceWith("onMessageReceived(context = applicationContext, remoteMessage = remoteMessage, handleNotificationTrigger = handleNotificationTrigger)")
-        )
-        @JvmOverloads
-        fun onMessageReceived(
-            remoteMessage: RemoteMessage,
-            handleNotificationTrigger: Boolean = true
-        ): Boolean {
-            val diGraph = getInstanceOrNull()?.diGraph ?: return false
-            return handleMessageReceived(diGraph.context, remoteMessage, handleNotificationTrigger)
-        }
-
-        // Only to be used by deprecated methods relying on DI graphs from CustomerIO instance, should be removed with deprecated methods
-        private fun getInstanceOrNull(): CustomerIO? {
-            return try {
-                CustomerIO.instance()
-            } catch (e: Exception) {
-                null
-            }
-        }
-
-        /**
-         * Handles new or refreshed token
-         * Call this from [FirebaseMessagingService] to register the new device token
-         *
-         * @param token new or refreshed token
-         */
-        @Deprecated(
-            "This method is deprecated and will be removed in future releases. Use the one with context",
-            ReplaceWith("onNewToken(context = applicationContext, token = token)")
-        )
-        fun onNewToken(token: String) {
-            val diGraph = getInstanceOrNull()?.diGraph ?: return
-            handleNewToken(diGraph.context, token)
-        }
-
-        /**
          * Handles new or refreshed token
          * Call this from [FirebaseMessagingService] to register the new device token
          *
@@ -91,7 +47,9 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         private fun handleNewToken(context: Context, token: String) {
-            context.getSDKInstanceOrNull()?.registerDeviceToken(deviceToken = token)
+            eventBus.publish(
+                Event.RegisterDeviceTokenEvent(token)
+            )
         }
 
         private fun handleMessageReceived(
@@ -99,11 +57,9 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            // if CustomerIO instance isn't initialized, we can't handle the notification
-            val sdkInstance = context.getSDKInstanceOrNull() ?: return false
-
+            // TODO: Make sure PushNotificationHandler works as expected even if the SDK is not initialized
             val handler = CustomerIOPushNotificationHandler(
-                pushMessageProcessor = sdkInstance.diGraph.pushMessageProcessor,
+                pushMessageProcessor = SDKComponent.pushMessageProcessor,
                 remoteMessage = remoteMessage
             )
             return handler.handleMessage(context, handleNotificationTrigger)

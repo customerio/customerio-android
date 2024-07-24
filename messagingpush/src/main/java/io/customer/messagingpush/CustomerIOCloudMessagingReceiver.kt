@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import com.google.android.gms.cloudmessaging.CloudMessagingReceiver
 import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.messagingpush.extensions.getSDKInstanceOrNull
 import io.customer.messagingpush.processor.PushMessageProcessor
+import io.customer.sdk.core.di.SDKComponent
 
 /**
  * Broadcast receiver for listening to push events from GoogleCloudMessaging (GCM).
@@ -26,9 +26,7 @@ class CustomerIOCloudMessagingReceiver : BroadcastReceiver() {
         val extras = intent.extras
         // Ignore event if no data was received in extras
         if (extras == null || extras.isEmpty) return
-        // If CustomerIO instance isn't initialized, we cannot process the notification
-        val sdkInstance = context.getSDKInstanceOrNull() ?: return
-
-        sdkInstance.diGraph.pushMessageProcessor.processGCMMessageIntent(intent = intent)
+        // TODO: Make sure PushMessageProcessor works as expected even if the SDK is not initialized
+        SDKComponent.pushMessageProcessor.processGCMMessageIntent(intent = intent)
     }
 }

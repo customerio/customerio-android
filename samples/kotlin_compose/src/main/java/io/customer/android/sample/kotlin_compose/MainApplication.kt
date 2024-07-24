@@ -8,7 +8,8 @@ import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListe
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.data.model.Region
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -25,21 +26,21 @@ class MainApplication : Application() {
             preferences.getConfiguration().first()
         }
 
-        CustomerIO.Builder(
-            siteId = configuration.siteId,
-            apiKey = configuration.apiKey,
-            appContext = this
+        CustomerIOBuilder(
+            applicationContext = this,
+            cdpApiKey = configuration.cdpApiKey
         ).apply {
             configuration.setValuesFromBuilder(this)
 
             addCustomerIOModule(
                 ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder()
-                        .setEventListener(InAppMessageEventListener()).build()
+                    config = MessagingInAppModuleConfig.Builder(
+                        siteId = configuration.siteId,
+                        region = Region.US
+                    ).setEventListener(InAppMessageEventListener()).build()
                 )
             )
             addCustomerIOModule(ModuleMessagingPushFCM())
-
             build()
         }
     }

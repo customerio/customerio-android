@@ -18,7 +18,8 @@ import java.util.Locale;
 
 import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.R;
-import io.customer.sdk.CustomerIO;
+import io.customer.sdk.core.di.AndroidSDKComponent;
+import io.customer.sdk.core.di.SDKComponent;
 
 public class ViewUtils {
     public static void prepareForAutomatedTests(@NonNull View view, @StringRes int contentDescResId) {
@@ -53,9 +54,11 @@ public class ViewUtils {
     }
 
     public static void setBuildInfo(@NonNull TextView textView) {
+        AndroidSDKComponent androidSDKComponent = SDKComponent.INSTANCE.android();
+        String sdkVersion = androidSDKComponent.getClient().getSdkVersion();
         String buildInfo = String.format(Locale.ENGLISH,
                 "Customer.io Android SDK %s Java Layout %s (%s)",
-                CustomerIO.instance().getSdkVersion(),
+                sdkVersion,
                 BuildConfig.VERSION_NAME,
                 BuildConfig.VERSION_CODE);
         textView.setText(buildInfo);

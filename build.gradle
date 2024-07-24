@@ -15,6 +15,7 @@ buildscript {
     dependencies {
         classpath Dependencies.androidGradlePlugin
         classpath Dependencies.kotlinGradlePlugin
+        classpath Dependencies.kotlinSerialization
         classpath Dependencies.kotlinBinaryValidator
         classpath Dependencies.gradleNexusPublishPlugin
         classpath Dependencies.dokka

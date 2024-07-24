@@ -36,7 +36,7 @@ android {
 
 dependencies {
     api project(":base")
-    api project(":tracking")
+    api project(":core")
 
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"
@@ -48,6 +48,4 @@ dependencies {
     implementation Dependencies.androidxAppCompat
     implementation Dependencies.retrofit
     implementation Dependencies.okhttpLoggingInterceptor
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.junit4
 }

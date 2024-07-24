@@ -105,16 +105,16 @@ internal fun NavGraphBuilder.addSettingsRoute(
         deepLinks = (
             getDeepLink(
                 screen = "settings",
-                arguments = "site_id={site_id}&api_key={api_key}"
+                arguments = "cdp_api_key={cdp_api_key}&site_id={site_id}"
             )
             )
     ) {
+        val cdpApiKey = it.arguments?.getString("cdp_api_key")
         val siteId = it.arguments?.getString("site_id")
-        val apiKey = it.arguments?.getString("api_key")
 
         SettingsRoute(
+            cdpApiKey = cdpApiKey,
             siteId = siteId,
-            apiKey = apiKey,
             onBackPressed = {
                 navController.navigateUp()
             }

@@ -1,46 +1,51 @@
 package io.customer.messagingpush
 
-import androidx.annotation.VisibleForTesting
+import androidx.lifecycle.Lifecycle
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pushTrackingUtil
-import io.customer.messagingpush.lifecycle.MessagingPushLifecycleCallback
-import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOInstance
-import io.customer.sdk.di.CustomerIOComponent
-import io.customer.sdk.module.CustomerIOModule
+import io.customer.messagingpush.provider.DeviceTokenProvider
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.core.module.CustomerIOModule
+import kotlinx.coroutines.flow.filter
 
-class ModuleMessagingPushFCM
-@VisibleForTesting
-internal constructor(
-    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default(),
-    private val overrideCustomerIO: CustomerIOInstance?,
-    private val overrideDiGraph: CustomerIOComponent?
+class ModuleMessagingPushFCM @JvmOverloads constructor(
+    override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
 ) : CustomerIOModule<MessagingPushModuleConfig> {
 
-    @JvmOverloads
-    constructor(config: MessagingPushModuleConfig = MessagingPushModuleConfig.default()) : this(
-        moduleConfig = config,
-        overrideCustomerIO = null,
-        overrideDiGraph = null
-    )
-
-    private val customerIO: CustomerIOInstance
-        get() = overrideCustomerIO ?: CustomerIO.instance()
-    private val diGraph: CustomerIOComponent
-        get() = overrideDiGraph ?: CustomerIO.instance().diGraph
-    private val fcmTokenProvider by lazy { diGraph.fcmTokenProvider }
+    private val fcmTokenProvider: DeviceTokenProvider
+        get() = SDKComponent.android().fcmTokenProvider
+    private val pushTrackingUtil = SDKComponent.pushTrackingUtil
+    private val activityLifecycleCallbacks = SDKComponent.activityLifecycleCallbacks
 
     override val moduleName: String
         get() = MODULE_NAME
 
     override fun initialize() {
         getCurrentFcmToken()
-        diGraph.activityLifecycleCallbacks.registerCallback(
-            MessagingPushLifecycleCallback(
-                moduleConfig = moduleConfig,
-                pushTrackingUtil = diGraph.pushTrackingUtil
-            )
-        )
+        subscribeToLifecycleEvents()
+    }
+
+    private fun subscribeToLifecycleEvents() {
+        activityLifecycleCallbacks.subscribe { events ->
+            events
+                .filter { state ->
+                    state.event == Lifecycle.Event.ON_CREATE
+                }.collect { state ->
+                    when (state.event) {
+                        Lifecycle.Event.ON_CREATE -> {
+                            val intentArguments = state.activity.get()?.intent?.extras ?: return@collect
+
+                            if (moduleConfig.autoTrackPushEvents) {
+                                pushTrackingUtil.parseLaunchedActivityForTracking(intentArguments)
+                            }
+                        }
+
+                        else -> {}
+                    }
+                }
+        }
     }
 
     /**
@@ -52,7 +57,9 @@ internal constructor(
      */
     private fun getCurrentFcmToken() {
         fcmTokenProvider.getCurrentToken { token ->
-            token?.let { customerIO.registerDeviceToken(token) }
+            token?.let {
+                eventBus.publish(Event.RegisterDeviceTokenEvent(token))
+            }
         }
     }
 

@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.persistance.AppDatabase
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
@@ -18,14 +19,15 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.util.CioLogLevel
+import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.data.model.Region
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import leakcanary.AppWatcher
 import leakcanary.DetectLeaksAfterTestSuccess
 import leakcanary.LeakAssertions
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -65,17 +67,18 @@ class MemoryLeakageInstrumentedTest {
             preferences.getConfiguration().first()
         }
 
-        CustomerIO.Builder(
-            siteId = configuration.siteId,
-            apiKey = configuration.apiKey,
-            appContext = appContext as Application
+        CustomerIOBuilder(
+            applicationContext = appContext as Application,
+            cdpApiKey = configuration.cdpApiKey
         ).apply {
-            setLogLevel(CioLogLevel.DEBUG)
-            setBackgroundQueueMinNumberOfTasks(5)
-            setBackgroundQueueSecondsDelay(5.0)
+            configuration.setValuesFromBuilder(this)
+
             addCustomerIOModule(
                 ModuleMessagingInApp(
-                    config = MessagingInAppModuleConfig.Builder()
+                    config = MessagingInAppModuleConfig.Builder(
+                        siteId = configuration.siteId,
+                        region = Region.US
+                    )
                         .setEventListener(InAppMessageEventListener()).build()
                 )
             )

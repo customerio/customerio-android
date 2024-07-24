@@ -10,11 +10,12 @@
     <string name="acd_login_button">Login Button</string>
     <string name="acd_random_login_button">Random Login Button</string>
     <string name="acd_device_token_input">Device Token Input</string>
-    <string name="acd_tracking_url_input">Track URL Input</string>
+    <string name="acd_api_host_input">Track URL Input</string>
+    <string name="acd_cdn_host_input">CDN Host Input</string>
+    <string name="acd_cdp_api_key_input">API Key Input</string>
     <string name="acd_site_id_input">Site ID Input</string>
-    <string name="acd_api_key_input">API Key Input</string>
-    <string name="acd_bq_seconds_delay_input">BQ Seconds Delay Input</string>
-    <string name="acd_bq_min_tasks_input">BQ Min Number of Tasks Input</string>
+    <string name="acd_flush_interval_input">BQ Seconds Delay Input</string>
+    <string name="acd_flush_at_input">BQ Min Number of Tasks Input</string>
     <string name="acd_track_screens_switch">Track Screens Toggle</string>
     <string name="acd_track_device_attributes_switch">Track Device Attributes Toggle</string>
     <string name="acd_debug_mode_switch">Debug Mode Toggle</string>

@@ -33,16 +33,10 @@ android {
 
 dependencies {
     api project(":base")
-    api project(":tracking")
+    api project(":core")
 
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
-    implementation Dependencies.retrofit
-    implementation Dependencies.retrofitMoshiConverter
-    implementation Dependencies.okhttpLoggingInterceptor
-    testImplementation Dependencies.androidxTestJunit
-    androidTestImplementation Dependencies.junit4
-
-    api Dependencies.firebaseMessaging
     implementation Dependencies.googlePlayServicesBase
+    api Dependencies.firebaseMessaging
 }

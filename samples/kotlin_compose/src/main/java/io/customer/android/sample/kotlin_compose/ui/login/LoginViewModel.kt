@@ -63,12 +63,12 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             userRepository.login(email = email, name = name, isGuest = isGuest)
             CustomerIO.instance().identify(
-                identifier = email,
-                attributes = mapOf("name" to name, "is_guest" to isGuest)
+                userId = email,
+                traits = mapOf("name" to name, "is_guest" to isGuest)
             )
             CustomerIO.instance().track(
                 name = "login",
-                attributes = mapOf("name" to name, "email" to email)
+                properties = mapOf("name" to name, "email" to email)
             )
             withContext(Dispatchers.Main) {
                 onLoginSuccess.invoke()

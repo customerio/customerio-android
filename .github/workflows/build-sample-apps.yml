@@ -3,7 +3,7 @@ name: Build sample apps
 on: 
   pull_request: # build sample apps for every commit pushed to an open pull request (including drafts)
   push: 
-    branches: [main] 
+    branches: [main, feature/*] 
   release: # build sample apps for every git tag created. These are known as "stable" builds that are suitable for people outside the mobile team. 
     types: [published]
 
@@ -59,9 +59,11 @@ jobs:
         - "kotlin_compose"
         include: # Add additional variables to each sample app build: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
         - sample-app: "java_layout"
+          cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
           cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
           cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
         - sample-app: "kotlin_compose"
+          cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
           cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
           cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
           
@@ -86,6 +88,7 @@ jobs:
     - name: Setup local.properties file for sample app
       run: |
         touch "samples/local.properties"
+        echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
         echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
         echo "apiKey=${{ secrets[matrix.cio-apikey-secret-key] }}" >> "samples/local.properties"  
 

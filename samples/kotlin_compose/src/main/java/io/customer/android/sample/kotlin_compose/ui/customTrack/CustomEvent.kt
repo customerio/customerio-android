@@ -103,7 +103,7 @@ fun CustomEventRoute(
                 onClick = {
                     CustomerIO.instance().track(
                         name = eventName,
-                        attributes = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
+                        properties = if (propertyName.isEmpty()) emptyMap() else mapOf(propertyName to propertyValue)
                     )
                     scope.launch {
                         snackbarHostState.showSnackbar(message = context.getString(R.string.event_sent_successfully))

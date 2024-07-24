@@ -121,8 +121,6 @@ class CustomerIO private constructor(
         subscribeToJourneyEvents()
         // if profile is already identified, republish identifier for late-added modules.
         postProfileAlreadyIdentified()
-        // Migrate unsent events from previous version
-        migrateTrackingEvents()
     }
 
     private fun postProfileAlreadyIdentified() {
@@ -152,13 +150,15 @@ class CustomerIO private constructor(
         logger.info("Migration site id found, migrating data from previous version.")
         // Initialize migration processor to perform migration
         migrationProcessor = TrackingMigrationProcessor(
-            dataPipelineInstance = this,
+            analytics = analytics,
             migrationSiteId = migrationSiteId
         )
     }
 
     override fun initialize() {
         logger.debug("CustomerIO SDK initialized with DataPipelines module.")
+        // Migrate unsent events from previous version
+        migrateTrackingEvents()
     }
 
     // Gets the userId registered by a previous identify call

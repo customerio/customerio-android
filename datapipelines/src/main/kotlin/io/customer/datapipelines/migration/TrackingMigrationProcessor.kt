@@ -30,12 +30,11 @@ import sovran.kotlin.SubscriptionID
  * It implements the [MigrationProcessor] interface to process old existing tasks and migrate them to newer implementation.
  */
 internal class TrackingMigrationProcessor(
-    private val dataPipelineInstance: CustomerIO,
+    private val analytics: Analytics,
     private val migrationSiteId: String
 ) : MigrationProcessor, Subscriber {
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
-    private val analytics: Analytics = dataPipelineInstance.analytics
     private var subscriptionID: SubscriptionID? = null
 
     // Start the migration process in init block to start migration as soon as possible
@@ -83,14 +82,14 @@ internal class TrackingMigrationProcessor(
             return@runCatching
         }
 
-        dataPipelineInstance.identify(userId = identifier)
+        CustomerIO.instance().identify(userId = identifier)
     }
 
-    override fun processDeviceMigration(oldDeviceToken: String) = runCatching {
+    override fun processDeviceMigration(oldDeviceToken: String): Result<Unit> = runCatching {
         when (globalPreferenceStore.getDeviceToken()) {
             null -> {
                 logger.debug("Migrating existing device with token: $oldDeviceToken")
-                dataPipelineInstance.registerDeviceToken(oldDeviceToken)
+                CustomerIO.instance().registerDeviceToken(oldDeviceToken)
             }
 
             oldDeviceToken -> {

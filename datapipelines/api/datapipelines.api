@@ -149,12 +149,14 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun clearIdentify ()V
 	public fun deleteDeviceToken ()V
+	public fun getAnonymousId ()Ljava/lang/String;
 	public fun getDeviceAttributes ()Ljava/util/Map;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun getProfileAttributes ()Ljava/util/Map;
 	public fun getRegisteredDeviceToken ()Ljava/lang/String;
+	public fun getUserId ()Ljava/lang/String;
 	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
@@ -192,9 +194,11 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public fun <init> ()V
 	public abstract fun clearIdentify ()V
 	public abstract fun deleteDeviceToken ()V
+	public abstract fun getAnonymousId ()Ljava/lang/String;
 	public abstract fun getDeviceAttributes ()Ljava/util/Map;
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
 	public abstract fun getRegisteredDeviceToken ()Ljava/lang/String;
+	public abstract fun getUserId ()Ljava/lang/String;
 	public final fun identify (Ljava/lang/String;)V
 	public abstract fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun identify (Ljava/lang/String;Ljava/util/Map;)V

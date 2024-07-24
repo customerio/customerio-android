@@ -161,16 +161,12 @@ class CustomerIO private constructor(
         logger.debug("CustomerIO SDK initialized with DataPipelines module.")
     }
 
-    // Gets the userId registered by a previous identify call
-    // or null if no user is registered
-    private val registeredUserId: String? get() = analytics.userId()
-
     override var profileAttributes: CustomAttributes
         get() = analytics.traits() ?: emptyMap()
         set(value) {
-            val userId = registeredUserId
-            if (userId != null) {
-                identify(userId = userId, traits = value)
+            val identifier = this.userId
+            if (identifier != null) {
+                identify(userId = identifier, traits = value)
             } else {
                 logger.debug("No user profile found, updating traits for anonymous user ${analytics.anonymousId()}")
                 analytics.identify(traits = value)
@@ -193,7 +189,8 @@ class CustomerIO private constructor(
             return
         }
 
-        val currentlyIdentifiedProfile = registeredUserId
+        // this is the current userId that is identified in the SDK
+        val currentlyIdentifiedProfile = this.userId
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
@@ -242,7 +239,7 @@ class CustomerIO private constructor(
     }
 
     override fun clearIdentify() {
-        logger.info("resetting user profile with id $registeredUserId")
+        logger.info("resetting user profile with id ${this.userId}")
 
         logger.debug("deleting device token to remove device from user profile")
         deleteDeviceToken()
@@ -253,6 +250,12 @@ class CustomerIO private constructor(
 
     override val registeredDeviceToken: String?
         get() = globalPreferenceStore.getDeviceToken()
+
+    override val anonymousId: String
+        get() = analytics.anonymousId()
+
+    override val userId: String?
+        get() = analytics.userId()
 
     override var deviceAttributes: CustomAttributes
         get() = emptyMap()
@@ -266,7 +269,7 @@ class CustomerIO private constructor(
             return
         }
 
-        logger.info("storing and registering device token $deviceToken for user profile: $registeredUserId")
+        logger.info("storing and registering device token $deviceToken for user profile: ${this.userId}")
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
         trackDeviceAttributes(deviceToken)

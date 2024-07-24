@@ -227,6 +227,16 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     abstract val registeredDeviceToken: String?
 
     /**
+     * The anonymousId that is currently associated with the user.
+     */
+    abstract val anonymousId: String
+
+    /**
+     * The userId that is currently associated with the user.
+     */
+    abstract val userId: String?
+
+    /**
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */

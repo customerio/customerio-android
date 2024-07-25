@@ -1,3 +1,9 @@
+## [4.0.1](https://github.com/customerio/customerio-android/compare/4.0.0...4.0.1) (2024-07-25)
+
+### Bug Fixes
+
+* android user agent version ([#415](https://github.com/customerio/customerio-android/issues/415)) ([1358719](https://github.com/customerio/customerio-android/commit/13587190e45d0b25c97846dc41d9cbc91e8bce48))
+
 ## [4.0.0](https://github.com/customerio/customerio-android/compare/3.11.1...4.0.0) (2024-07-24)
 
 ### ⚠ BREAKING CHANGES

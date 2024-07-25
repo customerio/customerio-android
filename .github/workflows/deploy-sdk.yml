@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout git tag that got created in previous step
-      - uses: actions/checkout@v4
+        uses: actions/checkout@v4
         with:
           ref: ${{ needs.deploy-git-tag.outputs.new_release_version }}
       - uses: ./.github/actions/setup-android

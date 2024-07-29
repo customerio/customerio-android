@@ -55,7 +55,7 @@ jobs:
 
       # Cache the Android Virtual Device (AVD) to avoid recreating it each time
       - name: AVD cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: avd-cache
         with:
           path: |

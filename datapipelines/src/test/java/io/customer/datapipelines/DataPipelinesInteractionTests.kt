@@ -4,12 +4,14 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
+import io.customer.datapipelines.data.model.TraitsBuilder
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.data.model.UserTraits
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.groupEvents
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
@@ -25,6 +27,7 @@ import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
@@ -38,6 +41,12 @@ class DataPipelinesInteractionTests : JUnitTest() {
     private lateinit var globalPreferenceStore: GlobalPreferenceStore
     private lateinit var deviceStore: DeviceStore
     private lateinit var outputReaderPlugin: OutputReaderPlugin
+
+    private val customUserTraitsJson = buildJsonObject {
+        put("name", "John Doe")
+        put("age", 30)
+        put("isTestUser", true)
+    }
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfig)
@@ -612,6 +621,132 @@ class DataPipelinesInteractionTests : JUnitTest() {
         sdkInstance.clearIdentify()
 
         outputReaderPlugin.trackEvents.shouldBeEmpty()
+    }
+
+    //endregion
+    //region Group
+
+    @Test
+    fun group_givenGroupIdOnly_expectAttachProfileWithGroupWithoutGroupAttributeUpdates() {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId)
+
+        val groupEvent = outputReaderPlugin.groupEvents.shouldHaveSingleItem()
+        groupEvent.userId shouldBeEqualTo givenIdentifier
+        groupEvent.groupId shouldBeEqualTo givenGroupId
+        groupEvent.traits shouldBeEqualTo emptyJsonObject
+    }
+
+    @Test
+    fun group_givenGroupWithMap_expectAttachProfileWithGroupAndUpdateAttributes() {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+        val givenTraits: CustomAttributes = buildMap {
+            put("name", "RandomCompany")
+            put("isActive", true)
+        }
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId, givenTraits)
+
+        val groupEvent = outputReaderPlugin.groupEvents.shouldHaveSingleItem()
+        groupEvent.userId shouldBeEqualTo givenIdentifier
+        groupEvent.groupId shouldBeEqualTo givenGroupId
+        groupEvent.traits shouldMatchTo givenTraits
+    }
+
+    @Test
+    fun group_givenGroupWithJson_expectAttachProfileWithGroupAndUpdateAttributes() {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+        val givenTraits = buildJsonObject {
+            put("name", "RandomCompany")
+            put("isActive", true)
+        }
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId, givenTraits)
+
+        val groupEvent = outputReaderPlugin.groupEvents.shouldHaveSingleItem()
+        groupEvent.userId shouldBeEqualTo givenIdentifier
+        groupEvent.groupId shouldBeEqualTo givenGroupId
+        groupEvent.traits shouldBeEqualTo givenTraits
+    }
+
+    @Test
+    fun group_givenGroupWithSerializable_expectAttachProfileWithGroupAndUpdateAttributes() {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+        val givenTraits = UserTraits(
+            firstName = "RandomCompany",
+            ageInYears = 10
+        )
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId, givenTraits)
+
+        val groupEvent = outputReaderPlugin.groupEvents.shouldHaveSingleItem()
+        groupEvent.userId shouldBeEqualTo givenIdentifier
+        groupEvent.groupId shouldBeEqualTo givenGroupId
+        groupEvent.traits shouldBeEqualTo givenTraits.encodeToJsonElement()
+    }
+
+    @Test
+    fun group_givenGroupWithTraitsBuilder_expectAttachProfileWithGroupAndUpdateAttributes() {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+        val givenCompanyName = "name" to "RandomCompany"
+        val givenIsActive = "isActive" to true
+        val givenObjectTypeId = Long.random(min = 0, max = 1000)
+        val givenRelationshipAttributes = buildMap {
+            put("manager", "jane@ceo.com")
+            put("department", "Engineering")
+        }
+
+        val givenTraitsBuilder: TraitsBuilder = TraitsBuilder()
+            .addTrait(givenCompanyName)
+            .addTrait(givenIsActive.first, givenIsActive.second)
+            .addObjectTypeId(givenObjectTypeId)
+            .addRelationshipAttributes(givenRelationshipAttributes)
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId, givenTraitsBuilder.build())
+
+        val groupEvent = outputReaderPlugin.groupEvents.shouldHaveSingleItem()
+        groupEvent.userId shouldBeEqualTo givenIdentifier
+        groupEvent.groupId shouldBeEqualTo givenGroupId
+        groupEvent.traits shouldMatchTo mapOf(
+            givenCompanyName,
+            givenIsActive,
+            "objectTypeId" to givenObjectTypeId,
+            "relationshipAttributes" to givenRelationshipAttributes
+        )
+    }
+
+    @Test
+    fun group_givenEmptyGroupId_expectIgnoreRequest() {
+        val givenIdentifier = String.random
+        val givenGroupId = ""
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId)
+
+        outputReaderPlugin.groupEvents.shouldBeEmpty()
+    }
+
+    @Test
+    fun group_givenProfileNotIdentified_expectProcessGroupRequest() {
+        val givenGroupId = String.random
+
+        sdkInstance.group(givenGroupId)
+
+        val groupEvent = outputReaderPlugin.groupEvents.shouldHaveSingleItem()
+        groupEvent.userId.shouldBeEmpty()
+        groupEvent.groupId shouldBeEqualTo givenGroupId
+        groupEvent.traits shouldBeEqualTo emptyJsonObject
     }
 
     //endregion

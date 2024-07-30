@@ -2,6 +2,7 @@ package io.customer.datapipelines.testutils.utils
 
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.BaseEvent
+import com.segment.analytics.kotlin.core.GroupEvent
 import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.ScreenEvent
 import com.segment.analytics.kotlin.core.TrackEvent
@@ -36,3 +37,5 @@ val OutputReaderPlugin.screenEvents: List<ScreenEvent>
     get() = allEvents.filterIsInstance<ScreenEvent>()
 val OutputReaderPlugin.trackEvents: List<TrackEvent>
     get() = allEvents.filterIsInstance<TrackEvent>()
+val OutputReaderPlugin.groupEvents: List<GroupEvent>
+    get() = allEvents.filterIsInstance<GroupEvent>()

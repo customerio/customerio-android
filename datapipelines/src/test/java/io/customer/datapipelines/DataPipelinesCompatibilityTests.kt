@@ -6,6 +6,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
+import io.customer.datapipelines.data.model.TraitsBuilder
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.data.model.UserTraits
@@ -33,6 +34,7 @@ import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldHaveSize
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
@@ -44,6 +46,12 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
     private lateinit var globalPreferenceStore: GlobalPreferenceStore
     private lateinit var deviceStore: DeviceStore
     private lateinit var storage: Storage
+
+    private val customUserTraitsJson = buildJsonObject {
+        put("name", "John Doe")
+        put("age", 30)
+        put("isTestUser", true)
+    }
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -491,6 +499,92 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
         payload["properties"]?.jsonObject.shouldNotBeNull().shouldBeEmpty()
+    }
+
+    //endregion
+    //region Group
+
+    @Test
+    fun group_givenGroupIdOnly_expectFinalJsonHasGroupWithoutAttributes() = runTest {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents shouldHaveSize 2 // 1. Identify, 2. Group
+
+        val payload = queuedEvents.lastOrNull().shouldNotBeNull().jsonObject
+        payload.userId shouldBeEqualTo givenIdentifier
+        payload.eventType shouldBeEqualTo "group"
+        payload.getString("groupId") shouldBeEqualTo givenGroupId
+        payload["traits"]?.jsonObject.shouldBeNull()
+    }
+
+    @Test
+    fun group_givenGroupWithTraitsBuilder_expectFinalJsonHasGroupWithAttributes() = runTest {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+        val givenCompanyName = "name" to "RandomCompany"
+        val givenIsActive = "isActive" to true
+        val givenObjectTypeId = Long.random(min = 0, max = 1000)
+
+        val givenTraitsBuilder: TraitsBuilder = TraitsBuilder()
+            .addTrait(givenCompanyName)
+            .addTrait(givenIsActive.first, givenIsActive.second)
+            .addObjectTypeId(givenObjectTypeId)
+            .addRelationshipAttributes(
+                buildMap {
+                    put("manager", "jane@ceo.com")
+                    put("department", "Engineering")
+                }
+            )
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId, givenTraitsBuilder.build())
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents shouldHaveSize 2 // 1. Identify, 2. Group
+
+        val payload = queuedEvents.lastOrNull().shouldNotBeNull().jsonObject
+        payload.userId shouldBeEqualTo givenIdentifier
+        payload.eventType shouldBeEqualTo "group"
+        payload.getString("groupId") shouldBeEqualTo givenGroupId
+        payload["traits"]?.jsonObject.shouldNotBeNull() shouldBeEqualTo buildJsonObject {
+            put(givenCompanyName.first, givenCompanyName.second)
+            put(givenIsActive.first, givenIsActive.second)
+            put("objectTypeId", givenObjectTypeId)
+            put(
+                "relationshipAttributes",
+                buildJsonObject {
+                    put("manager", "jane@ceo.com")
+                    put("department", "Engineering")
+                }
+            )
+        }
+    }
+
+    @Test
+    fun group_givenGroupWithSerializable_expectFinalJsonHasGroupWithAttributes() = runTest {
+        val givenIdentifier = String.random
+        val givenGroupId = String.random
+        val givenTraits = UserTraits(
+            firstName = "RandomCompany",
+            ageInYears = 10
+        )
+
+        sdkInstance.identify(givenIdentifier, customUserTraitsJson)
+        sdkInstance.group(givenGroupId, givenTraits)
+
+        val queuedEvents = getQueuedEvents()
+        queuedEvents shouldHaveSize 2 // 1. Identify, 2. Group
+
+        val payload = queuedEvents.lastOrNull().shouldNotBeNull().jsonObject
+        payload.userId shouldBeEqualTo givenIdentifier
+        payload.eventType shouldBeEqualTo "group"
+        payload.getString("groupId") shouldBeEqualTo givenGroupId
+        payload["traits"]?.jsonObject shouldBeEqualTo givenTraits.encodeToJsonElement()
     }
 
     //endregion

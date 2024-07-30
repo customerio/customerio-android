@@ -14,6 +14,15 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 	public final fun getTrackApplicationLifecycleEvents ()Z
 }
 
+public final class io/customer/datapipelines/data/model/TraitsBuilder {
+	public fun <init> ()V
+	public final fun addObjectTypeId (J)Lio/customer/datapipelines/data/model/TraitsBuilder;
+	public final fun addRelationshipAttributes (Ljava/util/Map;)Lio/customer/datapipelines/data/model/TraitsBuilder;
+	public final fun addTrait (Ljava/lang/String;Ljava/lang/Object;)Lio/customer/datapipelines/data/model/TraitsBuilder;
+	public final fun addTrait (Lkotlin/Pair;)Lio/customer/datapipelines/data/model/TraitsBuilder;
+	public final fun build ()Ljava/util/Map;
+}
+
 public final class io/customer/datapipelines/extensions/JsonExtensionsKt {
 	public static final fun toJsonArray (Lorg/json/JSONArray;)Lkotlinx/serialization/json/JsonArray;
 	public static final fun toJsonObject (Lorg/json/JSONObject;)Lkotlinx/serialization/json/JsonObject;
@@ -157,6 +166,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun getProfileAttributes ()Ljava/util/Map;
 	public fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public fun getUserId ()Ljava/lang/String;
+	public fun group (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
@@ -199,6 +209,11 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
 	public abstract fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public abstract fun getUserId ()Ljava/lang/String;
+	public final fun group (Ljava/lang/String;)V
+	public abstract fun group (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public final fun group (Ljava/lang/String;Ljava/util/Map;)V
+	public final fun group (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public static synthetic fun group$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
 	public final fun identify (Ljava/lang/String;)V
 	public abstract fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun identify (Ljava/lang/String;Ljava/util/Map;)V

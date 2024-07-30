@@ -205,6 +205,67 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     }
 
     /**
+     * The group method is allows to associate a person with a group, like the
+     * company they work for or the school they attend. It's a bit like an identify
+     * call, but for an organization instead of a person.
+     * [Learn more](https://www.customer.io/docs/cdp/sources/source-spec/group-spec/) about groups in Customer.io
+     *
+     * @param Traits Serializable json object to be added.
+     * @param groupId Identifier representing the group to be associated with the user.
+     * @param traits [Traits] containing additional information to be associated with the group.
+     * Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
+     */
+    inline fun <reified Traits> group(groupId: String, traits: Traits) {
+        group(groupId, traits, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The group method is allows to associate a person with a group, like the
+     * company they work for or the school they attend. It's a bit like an identify
+     * call, but for an organization instead of a person.
+     * [Learn more](https://www.customer.io/docs/cdp/sources/source-spec/group-spec/) about groups in Customer.io
+     *
+     * @param groupId Identifier representing the group to be associated with the user.
+     * @param traits JsonObject containing additional information to be associated with the group.
+     */
+    @JvmOverloads
+    fun group(groupId: String, traits: JsonObject = emptyJsonObject) {
+        group(groupId, traits, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The group method is allows to associate a person with a group, like the
+     * company they work for or the school they attend. It's a bit like an identify
+     * call, but for an organization instead of a person.
+     * [Learn more](https://www.customer.io/docs/cdp/sources/source-spec/group-spec/) about groups in Customer.io
+     *
+     * @param groupId Identifier representing the group to be associated with the user.
+     * @param traits Map of <String, Any> containing additional information to be associated with the group.
+     */
+    fun group(groupId: String, traits: CustomAttributes) {
+        // Method needed for Java interop as inline doesn't work with Java
+        group(groupId, traits, JsonAnySerializer.serializersModule.serializer())
+    }
+
+    /**
+     * The group method is allows to associate a person with a group, like the
+     * company they work for or the school they attend. It's a bit like an identify
+     * call, but for an organization instead of a person.
+     * [Learn more](https://www.customer.io/docs/cdp/sources/source-spec/group-spec/) about groups in Customer.io
+     *
+     * @param Traits Serializable json object to be added.
+     * @param groupId Identifier representing the group to be associated with the user.
+     * @param traits [Traits] containing additional information to be associated with the group.
+     * Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
+     * @param serializationStrategy strategy to serialize [traits]
+     */
+    abstract fun <Traits> group(
+        groupId: String,
+        traits: Traits,
+        serializationStrategy: SerializationStrategy<Traits>
+    )
+
+    /**
      * Stop identifying the currently persisted customer. All future calls to the SDK will no longer
      * be associated with the previously identified customer.
      * Note: If you simply want to identify a *new* customer, this function call is optional. Simply

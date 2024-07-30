@@ -320,6 +320,20 @@ class CustomerIO private constructor(
         track(EventNames.METRIC_DELIVERY, event.asMap())
     }
 
+    override fun <Traits> group(groupId: String, traits: Traits, serializationStrategy: SerializationStrategy<Traits>) {
+        if (groupId.isBlank()) {
+            logger.debug("group id cannot be blank. ignoring request to associate profile with group.")
+            return
+        }
+
+        logger.info("associating profile $userId with group id $groupId and traits $traits")
+        analytics.group(
+            groupId = groupId,
+            traits = traits,
+            serializationStrategy = serializationStrategy
+        )
+    }
+
     companion object {
         /**
          * Module identifier for DataPipelines module.

@@ -14,11 +14,27 @@ import java.io.File
 import java.util.regex.PatternSyntaxException
 import kotlinx.coroutines.launch
 import okhttp3.Cache
+import okhttp3.Cookie
+import okhttp3.CookieJar
 import okhttp3.Headers
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+
+class InAppCookieJar : CookieJar {
+    private val cookieStore: MutableMap<String, List<Cookie>> = HashMap()
+
+    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        cookieStore[url.host] = cookies
+    }
+
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val cookies = cookieStore[url.host]
+        return cookies ?: ArrayList()
+    }
+}
 
 class Queue : GistListener {
 
@@ -50,7 +66,9 @@ class Queue : GistListener {
     private val gistQueueService by lazy {
         // Interceptor to set up request headers like site ID, data center, and user token.
         val httpClient: OkHttpClient =
-            OkHttpClient.Builder().cache(cache)
+            OkHttpClient.Builder()
+                .cache(cache)
+                // .cookieJar(InAppCookieJar())
                 .addInterceptor { chain ->
                     val originalRequest = chain.request()
 
@@ -70,6 +88,17 @@ class Queue : GistListener {
                         .build()
 
                     val response = chain.proceed(networkRequest)
+
+                    var hasCookie = "NO"
+                    var theCookie = ""
+                    if (response.headers.get("Set-Cookie") != null) {
+                        hasCookie = "YES"
+                        theCookie = response.headers.get("Set-Cookie")!!
+                    }
+
+                    Log.i("SESSIONAF", "Has set cookie? " + hasCookie)
+                    Log.i("SESSIONAF", "The cookie: " + theCookie)
+                    Log.i("SESSIONAF", "Service status Code: " + response.code.toString())
 
                     when (response.code) {
                         200 -> {

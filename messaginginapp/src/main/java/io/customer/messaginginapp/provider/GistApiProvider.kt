@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.provider
 
 import android.app.Application
+import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -27,13 +28,14 @@ internal class GistApiProvider : GistApi {
     override fun initProvider(application: Application, siteId: String, dataCenter: String) {
         GistSdk.init(
             application = application,
-            siteId = siteId,
-            dataCenter = dataCenter
+            siteId = "38180e5d34fcae872aa7",
+            dataCenter = dataCenter,
+            environment = GistEnvironment.DEV
         )
     }
 
     override fun setUserToken(userToken: String) {
-        GistSdk.setUserToken(userToken)
+        GistSdk.setUserToken("ABC007")
     }
 
     override fun setCurrentRoute(route: String) {

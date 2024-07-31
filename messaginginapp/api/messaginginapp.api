@@ -63,6 +63,12 @@ public final class io/customer/messaginginapp/gist/data/NetworkUtilities {
 public final class io/customer/messaginginapp/gist/data/NetworkUtilities$Companion {
 }
 
+public final class io/customer/messaginginapp/gist/data/listeners/InAppCookieJar : okhttp3/CookieJar {
+	public fun <init> ()V
+	public fun loadForRequest (Lokhttp3/HttpUrl;)Ljava/util/List;
+	public fun saveFromResponse (Lokhttp3/HttpUrl;Ljava/util/List;)V
+}
+
 public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/customer/messaginginapp/gist/presentation/GistListener {
 	public fun <init> ()V
 	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V

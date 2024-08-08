@@ -21,9 +21,11 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V
+	public static final fun instance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
+	public final fun instance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public final class io/customer/messaginginapp/databinding/ActivityGistBinding : androidx/viewbinding/ViewBinding {

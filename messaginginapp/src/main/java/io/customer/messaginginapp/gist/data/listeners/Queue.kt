@@ -2,14 +2,16 @@ package io.customer.messaginginapp.gist.data.listeners
 
 import android.content.Context
 import android.util.Base64
-import android.util.Log
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.repository.GistQueueService
-import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.sdk.core.di.SDKComponent
 import java.io.File
 import java.util.regex.PatternSyntaxException
 import kotlinx.coroutines.launch
@@ -24,6 +26,7 @@ class Queue : GistListener {
 
     internal var localMessageStore: MutableList<Message> = mutableListOf()
     internal var shownMessageQueueIds = mutableSetOf<String>()
+    private val inAppMessagingManager: InAppMessagingManager = SDKComponent.inAppMessagingManager
 
     init {
         GistSdk.addListener(this)
@@ -121,19 +124,20 @@ class Queue : GistListener {
     internal fun fetchUserMessages() {
         GistSdk.coroutineScope.launch {
             try {
-                Log.i(GIST_TAG, "Fetching user messages")
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Fetching user messages"))
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
+
+                latestMessagesResponse.body()?.let { messages ->
+                    inAppMessagingManager.dispatch(InAppMessagingAction.UpdateMessages(previous = localMessageStore, new = messages))
+                }
 
                 // To prevent us from showing expired / revoked messages, clear user messages from local queue.
                 clearUserMessagesFromLocalStore()
                 if (latestMessagesResponse.code() == 204) {
                     // No content, don't do anything
-                    Log.i(GIST_TAG, "No messages found for user")
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("No messages found for user"))
                 } else if (latestMessagesResponse.isSuccessful) {
-                    Log.i(
-                        GIST_TAG,
-                        "Found ${latestMessagesResponse.body()?.count()} messages for user"
-                    )
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Found ${latestMessagesResponse.body()?.count()} messages for user"))
                     latestMessagesResponse.body()?.let { messages ->
                         handleMessages(messages) { message ->
                             addMessageToLocalStore(message)
@@ -144,10 +148,7 @@ class Queue : GistListener {
                 // Check if the polling interval changed and update timer.
                 updatePollingInterval(latestMessagesResponse.headers())
             } catch (e: Exception) {
-                Log.e(
-                    GIST_TAG,
-                    "Error fetching messages: ${e.message}"
-                )
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error fetching messages: ${e.message}"))
             }
         }
     }
@@ -160,7 +161,8 @@ class Queue : GistListener {
                     GistSdk.pollInterval = newPollingIntervalMilliseconds
                     // Queue check fetches messages again and could result in infinite loop.
                     GistSdk.observeMessagesForUser(true)
-                    Log.i(GIST_TAG, "Polling interval changed to: $pollingIntervalSeconds seconds")
+                    inAppMessagingManager.dispatch(InAppMessagingAction.PollingInterval(newPollingIntervalMilliseconds))
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Polling interval changed to: $pollingIntervalSeconds seconds"))
                 }
             }
         }
@@ -183,37 +185,32 @@ class Queue : GistListener {
     }
 
     private fun processMessage(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Processing message: ${message.messageId}"))
+
         if (message.queueId != null && shownMessageQueueIds.contains(message.queueId)) {
-            Log.i(GIST_TAG, "Duplicate message ${message.queueId} skipped")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Duplicate message $message skipped"))
             return
         }
 
         val gistProperties = GistMessageProperties.getGistProperties(message)
+        inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessage(message, gistProperties))
         gistProperties.routeRule?.let { routeRule ->
             try {
                 if (!routeRule.toRegex().matches(GistSdk.currentRoute)) {
-                    Log.i(
-                        GIST_TAG,
-                        "Message route: $routeRule does not match current route: ${GistSdk.currentRoute}"
-                    )
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message $message skipped due to route rule : ${GistSdk.currentRoute}"))
                     return
                 }
             } catch (e: PatternSyntaxException) {
-                Log.i(GIST_TAG, "Invalid route rule regex: $routeRule")
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Invalid route rule regex: $routeRule"))
                 return
             }
         }
         gistProperties.elementId?.let { elementId ->
-            Log.i(
-                GIST_TAG,
-                "Embedding message from queue with queue id: ${message.queueId}"
-            )
+            inAppMessagingManager.dispatch(InAppMessagingAction.EmbedMessage(message, elementId))
             GistSdk.handleEmbedMessage(message, elementId)
         } ?: run {
-            Log.i(
-                GIST_TAG,
-                "Showing message from queue with queue id: ${message.queueId}"
-            )
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Showing message from queue with queue: $message"))
+            inAppMessagingManager.dispatch(InAppMessagingAction.ShowModal(message))
             GistSdk.showMessage(message)
         }
     }
@@ -221,20 +218,16 @@ class Queue : GistListener {
     internal fun logView(message: Message) {
         GistSdk.coroutineScope.launch {
             try {
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Logging view for message: $message"))
                 if (message.queueId != null) {
-                    Log.i(
-                        GIST_TAG,
-                        "Logging view for user message: ${message.messageId}, with queue id: ${message.queueId}"
-                    )
                     shownMessageQueueIds.add(message.queueId)
                     removeMessageFromLocalStore(message)
                     gistQueueService.logUserMessageView(message.queueId)
                 } else {
-                    Log.i(GIST_TAG, "Logging view for message: ${message.messageId}")
                     gistQueueService.logMessageView(message.messageId)
                 }
             } catch (e: Exception) {
-                Log.e(GIST_TAG, "Failed to log message view: ${e.message}", e)
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Failed to log message view: ${e.message}"))
             }
         }
     }
@@ -243,6 +236,7 @@ class Queue : GistListener {
         val localMessage =
             localMessageStore.find { localMessage -> localMessage.queueId == message.queueId }
         if (localMessage == null) {
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Adding message to local store: $message"))
             localMessageStore.add(message)
         }
     }
@@ -254,7 +248,7 @@ class Queue : GistListener {
     override fun onMessageShown(message: Message) {
         val gistProperties = GistMessageProperties.getGistProperties(message)
         if (gistProperties.persistent) {
-            Log.i(GIST_TAG, "Persistent message shown: ${message.messageId}, skipping logging view")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Persistent message shown: $message, skipping logging view"))
         } else {
             logView(message)
         }

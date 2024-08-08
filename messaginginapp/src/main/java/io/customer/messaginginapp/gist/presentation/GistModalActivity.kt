@@ -4,7 +4,6 @@ import android.animation.AnimatorInflater
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -14,10 +13,13 @@ import androidx.core.animation.doOnEnd
 import com.google.gson.Gson
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
 
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
@@ -28,6 +30,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
     private var currentMessage: Message? = null
     private var messagePosition: MessagePosition = MessagePosition.CENTER
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     // Flag to indicate if the message has been cancelled and should not perform any further actions
     private var isCancelled: Boolean = false
@@ -56,6 +59,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
         val messageStr = this.intent.getStringExtra(GIST_MESSAGE_INTENT)
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
         Gson().fromJson(messageStr, Message::class.java)?.let { messageObj ->
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onCreate: $messageObj"))
             currentMessage = messageObj
             isCancelled = false
             currentMessage?.let { message ->
@@ -85,17 +89,20 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
     }
 
     override fun onResume() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onResume"))
         super.onResume()
         GistSdk.addListener(this)
     }
 
     override fun onPause() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onPause"))
         GistSdk.removeListener(this)
         super.onPause()
         overridePendingTransition(0, 0)
     }
 
     override fun finish() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity finish"))
         runOnUiThread {
             val animation = if (messagePosition == MessagePosition.TOP) {
                 AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_top)
@@ -111,6 +118,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
     }
 
     override fun onDestroy() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onDestroy"))
         GistSdk.removeListener(this)
         // If the message has been cancelled, do not perform any further actions
         // to avoid sending any callbacks to the client app
@@ -133,6 +141,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
     } ?: false
 
     override fun onMessageShown(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Shown: $message"))
         runOnUiThread {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
             binding.modalGistViewLayout.visibility = View.VISIBLE
@@ -144,12 +153,14 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
             animation.setTarget(binding.modalGistViewLayout)
             animation.start()
             animation.doOnEnd {
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Animation Completed: $message"))
                 elapsedTimer.end()
             }
         }
     }
 
     override fun onMessageDismissed(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Dismissed: $message"))
         currentMessage?.let { currentMessage ->
             if (currentMessage.instanceId == message.instanceId) {
                 finish()
@@ -158,7 +169,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
     }
 
     override fun onMessageCancelled(message: Message) {
-        Log.i(GIST_TAG, "Message Cancelled")
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Cancelled: $message"))
         currentMessage?.let { currentMessage ->
             if (currentMessage.instanceId == message.instanceId) {
                 // Set the flag to indicate that the message has been cancelled
@@ -174,7 +185,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
     }
 
     override fun onGistViewSizeChanged(width: Int, height: Int) {
-        Log.i(GIST_TAG, "Message Size Changed")
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Size changed: $width x $height"))
         val params = binding.gistView.layoutParams
         params.height = height
         runOnUiThread {

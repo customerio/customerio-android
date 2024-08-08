@@ -13,6 +13,7 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
+import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 
@@ -46,7 +47,12 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
         )
     }
 
-fun SDKComponent.pushMessaging(): ModuleMessagingPushFCM {
+internal fun SDKComponent.pushMessaging(): ModuleMessagingPushFCM {
     return modules[ModuleMessagingPushFCM.MODULE_NAME] as? ModuleMessagingPushFCM
         ?: throw IllegalStateException("ModuleMessagingPushFCM not initialized")
+}
+
+@Suppress("UnusedReceiverParameter")
+fun CustomerIOInstance.pushMessaging(): ModuleMessagingPushFCM {
+    return SDKComponent.pushMessaging()
 }

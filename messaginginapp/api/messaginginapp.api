@@ -37,7 +37,7 @@ public final class io/customer/messaginginapp/databinding/ActivityGistBinding : 
 }
 
 public final class io/customer/messaginginapp/di/DIGraphMessagingInAppKt {
-	public static final fun inAppMessaging (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messaginginapp/ModuleMessagingInApp;
+	public static final fun inAppMessaging (Lio/customer/sdk/CustomerIOInstance;)Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public final class io/customer/messaginginapp/domain/InAppMessageReducerKt {

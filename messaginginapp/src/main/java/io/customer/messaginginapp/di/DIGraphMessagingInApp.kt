@@ -6,6 +6,7 @@ import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistApiProvider
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
 import io.customer.messaginginapp.provider.InAppMessagesProvider
+import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.SDKComponent
 
 internal val SDKComponent.gistApiProvider: GistApi
@@ -14,9 +15,9 @@ internal val SDKComponent.gistApiProvider: GistApi
 internal val SDKComponent.gistProvider: InAppMessagesProvider
     get() = newInstance<InAppMessagesProvider> { GistInAppMessagesProvider(gistApiProvider) }
 
-fun SDKComponent.inAppMessaging(): ModuleMessagingInApp {
-    return modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
-        ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
+@Suppress("UnusedReceiverParameter")
+fun CustomerIOInstance.inAppMessaging(): ModuleMessagingInApp {
+    return ModuleMessagingInApp.instance()
 }
 
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager

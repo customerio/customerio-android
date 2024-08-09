@@ -9,7 +9,6 @@ import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.provider.InAppMessagesProvider
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.type.InAppEventListener
@@ -144,7 +143,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         module.initialize()
 
         // call dismissMessage on the CustomerIO instance
-        SDKComponent.inAppMessaging().dismissMessage()
+        ModuleMessagingInApp.instance().dismissMessage()
 
         // verify that the module's dismissMessage method was called
         assertCalledOnce { inAppMessagesProviderMock.dismissMessage() }

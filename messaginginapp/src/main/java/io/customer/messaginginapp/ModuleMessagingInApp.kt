@@ -90,5 +90,11 @@ class ModuleMessagingInApp(
 
     companion object {
         const val MODULE_NAME: String = "MessagingInApp"
+
+        @JvmStatic
+        fun instance(): ModuleMessagingInApp {
+            return SDKComponent.modules[MODULE_NAME] as? ModuleMessagingInApp
+                ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
+        }
     }
 }

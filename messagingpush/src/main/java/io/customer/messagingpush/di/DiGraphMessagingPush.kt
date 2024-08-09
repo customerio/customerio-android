@@ -45,8 +45,3 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             deepLinkUtil = deepLinkUtil
         )
     }
-
-fun SDKComponent.pushMessaging(): ModuleMessagingPushFCM {
-    return modules[ModuleMessagingPushFCM.MODULE_NAME] as? ModuleMessagingPushFCM
-        ?: throw IllegalStateException("ModuleMessagingPushFCM not initialized")
-}

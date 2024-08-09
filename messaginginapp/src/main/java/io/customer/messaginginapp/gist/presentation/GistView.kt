@@ -8,14 +8,16 @@ import android.net.UrlQuerySanitizer
 import android.util.AttributeSet
 import android.util.Base64
 import android.util.DisplayMetrics
-import android.util.Log
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
 import com.google.gson.Gson
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
+import io.customer.sdk.core.di.SDKComponent
 import java.net.URI
 import java.nio.charset.StandardCharsets
 
@@ -29,6 +31,7 @@ class GistView @JvmOverloads constructor(
     private var currentRoute: String? = null
     private var firstLoad: Boolean = true
     var listener: GistViewListener? = null
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     // Indicates if the message is visible to user or not
     internal val isEngineVisible: Boolean
@@ -43,6 +46,7 @@ class GistView @JvmOverloads constructor(
     }
 
     fun setup(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetupGistView(message))
         currentMessage = message
         currentMessage?.let { message ->
             val engineWebConfiguration = EngineWebConfiguration(
@@ -58,6 +62,7 @@ class GistView @JvmOverloads constructor(
     }
 
     fun stopLoading() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.EngineStopLoading)
         engineWebView?.stopLoading()
     }
 
@@ -73,13 +78,14 @@ class GistView @JvmOverloads constructor(
                         when (gistAction.host) {
                             "close" -> {
                                 shouldLogAction = false
-                                Log.i(GIST_TAG, "Dismissing from action: $action")
+                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Dismissing from action: $action"))
                                 GistSdk.dismissPersistentMessage(message)
                             }
                             "loadPage" -> {
                                 val url = urlQuery.getValue("url")
                                 val intent = Intent(Intent.ACTION_VIEW)
                                 intent.data = Uri.parse(url)
+                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Opening URL: $url"))
                                 startActivity(context, intent, null)
                             }
                             "showMessage" -> {
@@ -90,20 +96,21 @@ class GistView @JvmOverloads constructor(
                                 val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
                                 val map: Map<String, Any> = HashMap()
                                 val properties = Gson().fromJson(parameterString, map.javaClass)
+                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Showing message: $messageId"))
                                 GistSdk.getInstance().showMessage(
                                     Message(messageId = messageId, properties = properties)
                                 )
                             }
                             else -> {
                                 shouldLogAction = false
-                                Log.i(GIST_TAG, "Gist action unhandled")
+                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Gist action unhandled"))
                             }
                         }
                     }
                     system -> {
                         try {
                             shouldLogAction = false
-                            Log.i(GIST_TAG, "Dismissing from system action: $action")
+                            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Dismissing from system action: $action"))
                             GistSdk.handleGistClosed(message)
                             val intent = Intent(Intent.ACTION_VIEW)
                             intent.data = Uri.parse(action)
@@ -111,24 +118,26 @@ class GistView @JvmOverloads constructor(
                                 Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                             startActivity(context, intent, null)
                         } catch (e: ActivityNotFoundException) {
-                            Log.i(GIST_TAG, "System action not handled")
+                            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("System action not handled"))
                         }
                     }
                 }
                 if (shouldLogAction) {
-                    Log.i(GIST_TAG, "Action selected: $action")
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Action selected: $action"))
                 }
             }
         }
     }
 
     override fun routeError(route: String) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error loading route: $route"))
         currentMessage?.let { message ->
             GistSdk.handleGistError(message)
         }
     }
 
     override fun routeLoaded(route: String) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Route loaded: $route"))
         currentRoute = route
         if (firstLoad) {
             firstLoad = false
@@ -142,12 +151,14 @@ class GistView @JvmOverloads constructor(
     }
 
     override fun error() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error loading engine"))
         currentMessage?.let { message ->
             GistSdk.handleGistError(message)
         }
     }
 
     override fun bootstrapped() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Engine bootstrapped"))
         // Cleaning after engine web is bootstrapped and all assets downloaded.
         currentMessage?.let { message ->
             if (message.messageId == "") {
@@ -157,8 +168,11 @@ class GistView @JvmOverloads constructor(
             }
         }
     }
-    override fun routeChanged(newRoute: String) {}
+    override fun routeChanged(newRoute: String) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Route changed: $newRoute"))
+    }
     override fun sizeChanged(width: Double, height: Double) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Size changed: $width x $height"))
         listener?.onGistViewSizeChanged(getSizeBasedOnDPI(width.toInt()), getSizeBasedOnDPI(height.toInt()))
     }
 

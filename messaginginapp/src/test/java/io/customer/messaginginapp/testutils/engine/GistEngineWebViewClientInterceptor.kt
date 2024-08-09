@@ -4,7 +4,6 @@ import android.net.Uri
 import android.webkit.WebView
 import com.google.gson.Gson
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebEvent
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebMessage
@@ -111,7 +110,7 @@ class GistEngineWebViewClientInterceptor(
             val script = "window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify($message));"
             // Evaluate the script in the WebView and notify the driver when the message has been posted successfully
             driver.webView.evaluateJavascript(script) { response ->
-                println("$GIST_TAG postMessage->evaluateJavascript - state: $messageState, response: $response, messageId: ${driver.message.messageId}")
+                println("CIO postMessage->evaluateJavascript - state: $messageState, response: $response, messageId: ${driver.message.messageId}")
                 driver.onStateComplete(messageState)
             }
         }

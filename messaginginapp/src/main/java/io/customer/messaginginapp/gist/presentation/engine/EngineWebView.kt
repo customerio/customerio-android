@@ -6,14 +6,15 @@ import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
 import android.util.Base64
-import android.util.Log
 import android.webkit.*
 import android.widget.FrameLayout
 import com.google.gson.Gson
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
-import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.sdk.core.di.SDKComponent
 import java.io.UnsupportedEncodingException
 import java.util.*
 
@@ -28,6 +29,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val engineWebViewInterface = EngineWebViewInterface(this)
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     // Get WebViewClientInterceptor from GistSdk directly
     private val engineWebViewClientInterceptor: EngineWebViewClientInterceptor?
@@ -38,8 +40,9 @@ internal class EngineWebView @JvmOverloads constructor(
         try {
             webView = WebView(context)
             this.addView(webView)
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("EngineWebView created"))
         } catch (e: Exception) {
-            Log.e(GIST_TAG, "Error while creating EngineWebView: ${e.message}")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error while creating EngineWebView: ${e.message}"))
         }
     }
 
@@ -62,7 +65,7 @@ internal class EngineWebView @JvmOverloads constructor(
             elapsedTimer.start("Engine render for message: ${configuration.messageId}")
             val messageUrl =
                 "${GistSdk.gistEnvironment.getGistRendererUrl()}/index.html?options=$options"
-            Log.i(GIST_TAG, "Rendering message with URL: $messageUrl")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Rendering message with URL: $messageUrl"))
             webView?.let {
                 it.loadUrl(messageUrl)
                 it.settings.javaScriptEnabled = true
@@ -127,7 +130,7 @@ internal class EngineWebView @JvmOverloads constructor(
         try {
             data = text.toByteArray(charset("UTF-8"))
         } catch (ex: UnsupportedEncodingException) {
-            Log.e(GIST_TAG, "Unsupported encoding exception")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Unsupported encoding exception"))
             return null
         }
         return Base64.encodeToString(data, Base64.URL_SAFE)
@@ -137,7 +140,7 @@ internal class EngineWebView @JvmOverloads constructor(
         timerTask = object : TimerTask() {
             override fun run() {
                 if (timer != null) {
-                    Log.i(GIST_TAG, "Message global timeout, cancelling display.")
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message global timeout, cancelling display."))
                     listener?.error()
                     stopTimer()
                 }

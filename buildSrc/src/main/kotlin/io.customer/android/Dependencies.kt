@@ -51,6 +51,7 @@ object Dependencies {
     const val mockKAndroid = "io.mockk:mockk-android:${Versions.MOCKK}"
     const val moshiCodeGen = "com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"
+    const val reduxKotlin = "org.reduxkotlin:redux-kotlin-threadsafe-jvm:${Versions.REDUX_KOTLIN}"
     const val retrofit = "com.squareup.retrofit2:retrofit:${Versions.RETROFIT}"
     const val retrofitMoshiConverter = "com.squareup.retrofit2:converter-moshi:${Versions.RETROFIT}"
     const val okhttp = "com.squareup.okhttp3:okhttp:${Versions.OKHTTP}"

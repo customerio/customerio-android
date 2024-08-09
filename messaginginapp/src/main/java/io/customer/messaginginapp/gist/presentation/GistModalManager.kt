@@ -1,13 +1,17 @@
 package io.customer.messaginginapp.gist.presentation
 
 import android.content.Intent
-import android.util.Log
 import com.google.gson.Gson
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.sdk.core.di.SDKComponent
 
 internal class GistModalManager : GistListener {
     internal var currentMessage: Message? = null
+    private val inAppMessagingManager: InAppMessagingManager = SDKComponent.inAppMessagingManager
 
     // Flag to indicate if the modal is currently visible
     // This is used to prevent showing multiple modals at the same time while
@@ -18,20 +22,18 @@ internal class GistModalManager : GistListener {
         GistSdk.addListener(this)
     }
 
-    @Synchronized internal fun showModalMessage(message: Message, position: MessagePosition? = null): Boolean {
+    @Synchronized
+    internal fun showModalMessage(message: Message, position: MessagePosition? = null): Boolean {
         currentMessage?.let { currentMessage ->
-            Log.i(
-                GIST_TAG,
-                "Message ${message.messageId} not shown, ${currentMessage.messageId} is already showing."
-            )
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message $message not shown, $currentMessage is already showing."))
             return false
         }
         if (isMessageModalVisible) {
-            Log.i(GIST_TAG, "Message ${message.messageId} not shown, modal is being dismissed.")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message $message not shown, modal is being dismissed."))
             return false
         }
 
-        Log.i(GIST_TAG, "Showing message: ${message.messageId}")
+        inAppMessagingManager.dispatch(InAppMessagingAction.ShowModal(message))
         isMessageModalVisible = true
         currentMessage = message
 
@@ -45,26 +47,33 @@ internal class GistModalManager : GistListener {
 
     internal fun dismissActiveMessage() {
         currentMessage?.let { message ->
+            inAppMessagingManager.dispatch(InAppMessagingAction.DismissModal(message))
             GistSdk.dismissPersistentMessage(message)
         } ?: run {
-            Log.i(GIST_TAG, "No modal messages to dismiss.")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("No modal messages to dismiss."))
         }
     }
 
     override fun onMessageDismissed(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message $message dismissed."))
         if (message.instanceId == currentMessage?.instanceId) {
+            inAppMessagingManager.dispatch(InAppMessagingAction.DismissModal(message))
             currentMessage = null
         }
     }
 
     override fun onMessageCancelled(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message $message cancelled."))
         if (message.instanceId == currentMessage?.instanceId) {
+            inAppMessagingManager.dispatch(InAppMessagingAction.CancelModal(message))
             currentMessage = null
         }
     }
 
     override fun onError(message: Message) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error occurred for message $message."))
         if (message.instanceId == currentMessage?.instanceId) {
+            inAppMessagingManager.dispatch(InAppMessagingAction.OnShowError(message))
             currentMessage = null
         }
     }

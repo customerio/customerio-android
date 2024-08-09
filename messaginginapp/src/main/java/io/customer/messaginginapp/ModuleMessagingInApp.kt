@@ -1,6 +1,9 @@
 package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
@@ -16,13 +19,15 @@ class ModuleMessagingInApp(
     private val diGraph: SDKComponent = SDKComponent
     private val eventBus = diGraph.eventBus
     private val gistProvider by lazy { diGraph.gistProvider }
-    private val logger = diGraph.logger
+
+    private val inAppMessagingManager: InAppMessagingManager = SDKComponent.inAppMessagingManager
 
     fun dismissMessage() {
         gistProvider.dismissMessage()
     }
 
     override fun initialize() {
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize)
         initializeGist()
         setupHooks()
         configureSdkModule(moduleConfig)
@@ -37,7 +42,7 @@ class ModuleMessagingInApp(
 
     private fun setupGistCallbacks() {
         gistProvider.subscribeToEvents(onMessageShown = { deliveryID ->
-            logger.debug("in-app message shown $deliveryID")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("in-app message shown in callback $deliveryID"))
             eventBus.publish(
                 Event.TrackInAppMetricEvent(
                     deliveryID = deliveryID,
@@ -45,7 +50,7 @@ class ModuleMessagingInApp(
                 )
             )
         }, onAction = { deliveryID: String, _: String, action: String, name: String ->
-            logger.debug("in-app message clicked $deliveryID")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("in-app message clicked in callback $deliveryID"))
             eventBus.publish(
                 Event.TrackInAppMetricEvent(
                     deliveryID = deliveryID,
@@ -54,20 +59,23 @@ class ModuleMessagingInApp(
                 )
             )
         }, onError = { errorMessage ->
-            logger.error("in-app message error occurred $errorMessage")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("in-app message error occurred $errorMessage"))
         })
     }
 
     private fun setupHooks() {
         eventBus.subscribe<Event.ScreenViewedEvent> {
+            inAppMessagingManager.dispatch(InAppMessagingAction.SetCurrentRoute(it.name))
             gistProvider.setCurrentRoute(it.name)
         }
 
         eventBus.subscribe<Event.ProfileIdentifiedEvent> {
+            inAppMessagingManager.dispatch(InAppMessagingAction.SetUser(it.identifier))
             gistProvider.setUserToken(it.identifier)
         }
 
         eventBus.subscribe<Event.ResetEvent> {
+            inAppMessagingManager.dispatch(InAppMessagingAction.ClearUser)
             gistProvider.clearUserToken()
         }
     }

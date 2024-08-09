@@ -1,17 +1,18 @@
 package io.customer.sdk.core.di
 
 import androidx.annotation.CallSuper
+import java.util.concurrent.ConcurrentHashMap
 
 abstract class DiGraph {
     /**
      * Map of dependencies that can be overridden with mocks in test functions.
      */
-    val overrides: MutableMap<String, Any> = mutableMapOf()
+    val overrides = ConcurrentHashMap<String, Any>()
 
     /**
      * Map of singleton instances of dependencies in the graph.
      */
-    val singletons: MutableMap<String, Any> = mutableMapOf()
+    val singletons = ConcurrentHashMap<String, Any>()
 
     /**
      * Internal function to get the key for a dependency in the graph based on its class.

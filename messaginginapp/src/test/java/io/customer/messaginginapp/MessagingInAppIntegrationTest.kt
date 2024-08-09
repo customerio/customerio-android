@@ -14,7 +14,6 @@ import io.customer.messaginginapp.di.gistApiProvider
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.messaginginapp.gist.presentation.GistModalManager
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.provider.GistApi
@@ -137,7 +136,7 @@ class MessagingInAppIntegrationTest : IntegrationTest() {
         // Mocking InAppEventListener
         every { inAppEventListenerMock.errorWithMessage(any()) } answers { call ->
             val message: InAppMessage = firstArg()
-            println("$GIST_TAG: Error with message: $message")
+            println("CIO: Error with message: $message")
         }
 
         // Mocking Gist environment
@@ -480,6 +479,6 @@ class MessagingInAppIntegrationTest : IntegrationTest() {
                 }
             }
         }
-        println("$GIST_TAG: Message dismissed in ${timeElapsed}ms")
+        println("CIO: Message dismissed in ${timeElapsed}ms")
     }
 }

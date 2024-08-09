@@ -135,8 +135,8 @@ public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer
 
 public abstract class io/customer/sdk/core/di/DiGraph {
 	public fun <init> ()V
-	public final fun getOverrides ()Ljava/util/Map;
-	public final fun getSingletons ()Ljava/util/Map;
+	public final fun getOverrides ()Ljava/util/concurrent/ConcurrentHashMap;
+	public final fun getSingletons ()Ljava/util/concurrent/ConcurrentHashMap;
 	public final fun overrideDependency (Ljava/lang/Class;Ljava/lang/Object;)V
 	public fun reset ()V
 }

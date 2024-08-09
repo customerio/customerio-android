@@ -112,6 +112,7 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
             animation.setTarget(binding.modalGistViewLayout)
             animation.start()
             animation.doOnEnd {
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity finish animation completed"))
                 super.finish()
             }
         }

@@ -22,9 +22,6 @@ import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
-// replace with: CustomerIOLogger
-const val GIST_TAG: String = "[CIO]"
-
 object GistSdk {
     private const val SHARED_PREFERENCES_NAME = "gist-sdk"
     private const val SHARED_PREFERENCES_USER_TOKEN_KEY = "userToken"

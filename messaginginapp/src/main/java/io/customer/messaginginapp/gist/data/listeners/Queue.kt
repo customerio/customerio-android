@@ -127,7 +127,9 @@ class Queue : GistListener {
                 inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Fetching user messages"))
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
 
-                latestMessagesResponse.body()?.let { messages ->
+                val responseBody = latestMessagesResponse.body()
+
+                responseBody?.let { messages ->
                     inAppMessagingManager.dispatch(InAppMessagingAction.UpdateMessages(previous = localMessageStore, new = messages))
                 }
 
@@ -137,8 +139,8 @@ class Queue : GistListener {
                     // No content, don't do anything
                     inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("No messages found for user"))
                 } else if (latestMessagesResponse.isSuccessful) {
-                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Found ${latestMessagesResponse.body()?.count()} messages for user"))
-                    latestMessagesResponse.body()?.let { messages ->
+                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Found ${responseBody?.count()} messages for user"))
+                    responseBody?.let { messages ->
                         handleMessages(messages) { message ->
                             addMessageToLocalStore(message)
                         }

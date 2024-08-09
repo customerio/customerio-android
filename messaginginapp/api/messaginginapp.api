@@ -423,10 +423,6 @@ public final class io/customer/messaginginapp/gist/presentation/GistSdk {
 	public static synthetic fun showMessage$default (Lio/customer/messaginginapp/gist/presentation/GistSdk;Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ILjava/lang/Object;)Ljava/lang/String;
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistSdkKt {
-	public static final field GIST_TAG Ljava/lang/String;
-}
-
 public final class io/customer/messaginginapp/gist/presentation/GistView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
 	public fun <init> (Landroid/content/Context;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V

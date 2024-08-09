@@ -1,3 +1,9 @@
+## [4.1.0](https://github.com/customerio/customerio-android/compare/4.0.1...4.1.0) (2024-08-09)
+
+### Features
+
+* public api for dismiss message ([#420](https://github.com/customerio/customerio-android/issues/420)) ([8bfc37d](https://github.com/customerio/customerio-android/commit/8bfc37dea3cbf96c5508f8aeb7f8ebe112db12ce))
+
 ## [4.0.1](https://github.com/customerio/customerio-android/compare/4.0.0...4.0.1) (2024-07-25)
 
 ### Bug Fixes

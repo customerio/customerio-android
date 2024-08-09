@@ -20,6 +20,5 @@ sealed class InAppMessagingAction {
     data class DismissPersistentMessage(val message: Message) : InAppMessagingAction()
     data class ProcessMessage(val message: Message, val properties: GistProperties) : InAppMessagingAction()
     object ClearUser : InAppMessagingAction()
-    object LogState : InAppMessagingAction()
     data class LogEvent(val event: String) : InAppMessagingAction()
 }

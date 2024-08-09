@@ -20,4 +20,4 @@ fun SDKComponent.inAppMessaging(): ModuleMessagingInApp {
 }
 
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
-    get() = singleton<InAppMessagingManager> { InAppMessagingManager(logger) }
+    get() = singleton<InAppMessagingManager> { InAppMessagingManager }

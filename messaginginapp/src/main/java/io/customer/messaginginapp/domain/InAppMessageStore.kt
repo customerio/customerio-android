@@ -1,28 +1,28 @@
 package io.customer.messaginginapp.domain
 
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import org.reduxkotlin.Dispatcher
 import org.reduxkotlin.Middleware
 import org.reduxkotlin.Store
 import org.reduxkotlin.applyMiddleware
-import org.reduxkotlin.createStore
+import org.reduxkotlin.createThreadSafeStore
 
-fun createInAppMessagingStore(logger: Logger): Store<InAppMessagingState> {
-    return createStore(
+object InAppMessagingStore {
+    val store: Store<InAppMessagingState> = createThreadSafeStore(
         reducer = inAppMessagingReducer,
         preloadedState = InAppMessagingState(),
-        enhancer = applyMiddleware(loggerMiddleware(logger))
+        applyMiddleware(loggerMiddleware(SDKComponent.logger))
     )
 }
 
 fun loggerMiddleware(logger: Logger): Middleware<InAppMessagingState> = { store ->
     { next: Dispatcher ->
         { action: Any ->
-//            if (action is InAppMessagingAction.LogEvent) {
-//                logger.info("WOW Event: ${action.event}")
-//            }
-            logger.info("WOW Event: $action")
-            logger.debug("WOW State: ${store.state}")
+            if (action is InAppMessagingAction.LogEvent) {
+                logger.info(action.event)
+            }
+            logger.debug("state: ${store.state}")
             next(action)
         }
     }

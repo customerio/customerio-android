@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.testutils.mocks
 
 import android.util.Log
-import io.customer.messaginginapp.gist.presentation.GIST_TAG
 import io.customer.sdk.core.di.SDKComponent
 import io.mockk.Call
 import io.mockk.MockKAnswerScope
@@ -30,10 +29,11 @@ fun mockAndroidLog() {
         0
     }
 
+    val gistTag: String = "[CIO]"
     // Mock log methods as in-app messaging module currently uses Log class directly instead of Logger
-    every { Log.d(GIST_TAG, any()) } answers forwardLog
-    every { Log.e(GIST_TAG, any()) } answers forwardLog
-    every { Log.i(GIST_TAG, any()) } answers forwardLog
-    every { Log.v(GIST_TAG, any()) } answers forwardLog
-    every { Log.w(GIST_TAG, any<String>()) } answers forwardLog
+    every { Log.d(gistTag, any()) } answers forwardLog
+    every { Log.e(gistTag, any()) } answers forwardLog
+    every { Log.i(gistTag, any()) } answers forwardLog
+    every { Log.v(gistTag, any()) } answers forwardLog
+    every { Log.w(gistTag, any<String>()) } answers forwardLog
 }

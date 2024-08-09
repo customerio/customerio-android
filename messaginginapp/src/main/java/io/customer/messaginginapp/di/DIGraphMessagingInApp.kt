@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.di
 
 import io.customer.messaginginapp.ModuleMessagingInApp
+import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistApiProvider
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
@@ -17,3 +18,6 @@ fun SDKComponent.inAppMessaging(): ModuleMessagingInApp {
     return modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
         ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
 }
+
+internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
+    get() = singleton<InAppMessagingManager> { InAppMessagingManager }

@@ -1,10 +1,11 @@
 package io.customer.messaginginapp.gist.presentation.engine
 
-import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.gson.Gson
-import io.customer.messaginginapp.gist.presentation.GIST_TAG
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.sdk.core.di.SDKComponent
 
 internal data class EngineWebMessage(
     val gist: EngineWebEvent
@@ -18,6 +19,7 @@ internal data class EngineWebEvent(
 
 class EngineWebViewInterface(listener: EngineWebViewListener) {
     private var listener: EngineWebViewListener = listener
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     // Indicates whether the interface is attached to a web view and should continue to process messages
     private var isAttachedToWebView: Boolean = false
@@ -44,8 +46,10 @@ class EngineWebViewInterface(listener: EngineWebViewListener) {
             return
         }
 
-        Log.i(GIST_TAG, message)
         var event = Gson().fromJson(message, EngineWebMessage::class.java)
+
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Received event from WebView: $event"))
+
         event.gist.parameters?.let { eventParameters ->
             when (event.gist.method) {
                 "bootstrapped" -> listener.bootstrapped()

@@ -3,8 +3,9 @@ package io.customer.messaginginapp.gist.presentation
 import android.app.Activity
 import android.app.Application
 import android.content.Context.MODE_PRIVATE
-import android.util.Log
 import androidx.lifecycle.Lifecycle
+import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
@@ -20,9 +21,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-
-// replace with: CustomerIOLogger
-const val GIST_TAG: String = "[CIO]"
 
 object GistSdk {
     private const val SHARED_PREFERENCES_NAME = "gist-sdk"
@@ -51,6 +49,8 @@ object GistSdk {
 
     // Global CoroutineScope for Gist Engine, all Gist classes should use same scope
     internal var coroutineScope: CoroutineScope = GlobalScope
+
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     // Global WebViewClientInterceptor for Gist Engine, used to intercept WebViewClient events while testing
     internal var engineWebViewClientInterceptor: EngineWebViewClientInterceptor? = null
@@ -101,7 +101,7 @@ object GistSdk {
                     observeMessagesForUser()
                 }
             } catch (e: Exception) {
-                Log.e(GIST_TAG, e.message, e)
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Failed to observe messages for user: ${e.message}"))
             }
         }
     }
@@ -141,14 +141,15 @@ object GistSdk {
     }
 
     fun setCurrentRoute(route: String) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetCurrentRoute(route))
         if (currentRoute == route) {
-            Log.i(GIST_TAG, "Current gist route is already set to: $currentRoute, ignoring new route")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Current gist route is already set to: $currentRoute, ignoring new route"))
             return
         }
 
         cancelActiveMessage(newRoute = route)
         currentRoute = route
-        Log.i(GIST_TAG, "Current gist route set to: $currentRoute")
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Current gist route set to: $currentRoute"))
         gistQueue.fetchUserMessagesFromLocalStore()
     }
 
@@ -168,8 +169,8 @@ object GistSdk {
         if (currentMessage == null || isRouteMatch) {
             return
         }
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Current message route rule does not match new route, cancelling message"))
 
-        Log.i(GIST_TAG, "Cancelling message being loaded: ${currentMessage.messageId}")
         handleGistCancelled(currentMessage)
     }
 
@@ -186,10 +187,11 @@ object GistSdk {
     }
 
     fun setUserToken(userToken: String) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetUser(userToken))
         ensureInitialized()
 
         if (!getUserToken().equals(userToken)) {
-            Log.i(GIST_TAG, "Setting user token to: $userToken")
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Setting user token to: $userToken"))
             // Save user token in preferences to be fetched on the next launch
             sharedPreferences.edit().putString(SHARED_PREFERENCES_USER_TOKEN_KEY, userToken).apply()
 
@@ -197,7 +199,7 @@ object GistSdk {
             try {
                 observeMessagesForUser()
             } catch (e: Exception) {
-                Log.e(GIST_TAG, "Failed to observe messages for user: ${e.message}", e)
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Failed to observe messages for user: ${e.message}"))
             }
         }
     }
@@ -212,7 +214,7 @@ object GistSdk {
             try {
                 messageShown = gistModalManager.showModalMessage(message, position)
             } catch (e: Exception) {
-                Log.e(GIST_TAG, "Failed to show message: ${e.message}", e)
+                inAppMessagingManager.dispatch(InAppMessagingAction.OnShowError(message))
             }
         }
 
@@ -241,7 +243,7 @@ object GistSdk {
         for (listener in listeners) {
             val listenerPackageName = listener.javaClass.`package`?.name
             if (!listenerPackageName.toString().startsWith("build.gist.")) {
-                Log.d(GIST_TAG, "Removing listener $listenerPackageName")
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Removing listener $listenerPackageName"))
                 listeners.remove(listener)
             }
         }
@@ -252,8 +254,7 @@ object GistSdk {
     internal fun observeMessagesForUser(skipQueueCheck: Boolean = false) {
         // Clean up any previous observers
         observeUserMessagesJob?.cancel()
-
-        Log.i(GIST_TAG, "Messages timer started")
+        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Starting messages timer"))
         if (!skipQueueCheck) {
             gistQueue.fetchUserMessages()
         }
@@ -266,9 +267,9 @@ object GistSdk {
                 }
             } catch (e: CancellationException) {
                 // Co-routine was cancelled, cancel internal timer
-                Log.i(GIST_TAG, "Messages timer cancelled")
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Messages timer cancelled"))
             } catch (e: Exception) {
-                Log.e(GIST_TAG, "Failed to get user messages: ${e.message}", e)
+                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Failed to observe messages for user: ${e.message}"))
             }
         }
     }
@@ -276,7 +277,8 @@ object GistSdk {
     internal fun dismissPersistentMessage(message: Message) {
         val gistProperties = GistMessageProperties.getGistProperties(message)
         if (gistProperties.persistent) {
-            Log.i(GIST_TAG, "Persistent message dismissed, logging view")
+            inAppMessagingManager.dispatch(InAppMessagingAction.DismissPersistentMessage(message))
+            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Persistent message dismissed, logging view"))
             gistQueue.logView(message)
         }
         handleGistClosed(message)

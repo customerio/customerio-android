@@ -2,7 +2,7 @@ package io.customer.messaginginapp.domain
 
 import org.reduxkotlin.Store
 
-object InAppMessagingManager {
+internal object InAppMessagingManager {
     private val store: Store<InAppMessagingState> = InAppMessagingStore.store
 
     fun dispatch(action: InAppMessagingAction) {

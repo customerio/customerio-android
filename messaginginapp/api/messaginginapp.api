@@ -216,13 +216,6 @@ public final class io/customer/messaginginapp/domain/InAppMessagingAction$Update
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/customer/messaginginapp/domain/InAppMessagingManager {
-	public static final field INSTANCE Lio/customer/messaginginapp/domain/InAppMessagingManager;
-	public final fun dispatch (Lio/customer/messaginginapp/domain/InAppMessagingAction;)V
-	public final fun getCurrentState ()Lio/customer/messaginginapp/domain/InAppMessagingState;
-	public final fun subscribe (Lkotlin/jvm/functions/Function1;)Lkotlin/jvm/functions/Function0;
-}
-
 public final class io/customer/messaginginapp/domain/InAppMessagingState {
 	public fun <init> ()V
 	public fun <init> (ZJLjava/lang/String;Ljava/lang/String;Ljava/util/List;ZZLio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/gist/data/model/Message;)V
@@ -250,11 +243,6 @@ public final class io/customer/messaginginapp/domain/InAppMessagingState {
 	public final fun isLoading ()Z
 	public final fun isModalVisible ()Z
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/domain/InAppMessagingStore {
-	public static final field INSTANCE Lio/customer/messaginginapp/domain/InAppMessagingStore;
-	public final fun getStore ()Lorg/reduxkotlin/Store;
 }
 
 public abstract class io/customer/messaginginapp/gist/GistEnvironment : java/lang/Enum, io/customer/messaginginapp/gist/GistEnvironmentEndpoints {

@@ -6,9 +6,9 @@ import org.reduxkotlin.Dispatcher
 import org.reduxkotlin.Middleware
 import org.reduxkotlin.Store
 import org.reduxkotlin.applyMiddleware
-import org.reduxkotlin.createThreadSafeStore
+import org.reduxkotlin.threadsafe.createThreadSafeStore
 
-object InAppMessagingStore {
+internal object InAppMessagingStore {
     val store: Store<InAppMessagingState> = createThreadSafeStore(
         reducer = inAppMessagingReducer,
         preloadedState = InAppMessagingState(),

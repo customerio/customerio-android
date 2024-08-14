@@ -24,6 +24,7 @@ To compile and run these sample apps, you'll need to set up `cdpApiKey` and `sit
 1. Open `customerio-android` directory in Android Studio.
 2. Select the desired app configuration (`samples.java_layout` or `samples.kotlin_compose`) from run configuration dropdown in Android Studio.
 3. Click the `Run` button to build and run the app on an emulator or connected device.
+<img width="480" alt="Screenshot 2024-08-14 at 3 35 43 PM" src="https://github.com/user-attachments/assets/3d7230c9-0492-49ac-9252-1dcb5a4bfa8c">
 
 ### SDK Dependency
 

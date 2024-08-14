@@ -21,7 +21,7 @@ To get started, you need to install and initialize the relevant [SDK packages](#
 
 ### Sample Apps
 
-For examples of how to integrate and use the SDK, check out our sample apps in [`samples`](samples) directory. These examples include:
+To see how the SDK can be integrated and used in Android projects, check out our sample apps in [`samples`](samples) folder. These examples include:
 
 - [`java_layout`](samples/java_layout)
 - [`kotlin_compose`](samples/kotlin_compose)

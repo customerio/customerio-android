@@ -27,7 +27,7 @@ class ModuleMessagingInApp(
     }
 
     override fun initialize() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize)
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize("siteId", "dataCenter"))
         initializeGist()
         setupHooks()
         configureSdkModule(moduleConfig)
@@ -76,7 +76,7 @@ class ModuleMessagingInApp(
 
         eventBus.subscribe<Event.ResetEvent> {
             inAppMessagingManager.dispatch(InAppMessagingAction.ClearUser)
-            gistProvider.clearUserToken()
+//            gistProvider.clearUserToken()
         }
     }
 

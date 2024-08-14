@@ -1,11 +1,17 @@
 package io.customer.messaginginapp.domain
 
+import android.content.Context
 import io.customer.messaginginapp.gist.data.model.GistProperties
 import io.customer.messaginginapp.gist.data.model.Message
 
 sealed class InAppMessagingAction {
-    object Initialize : InAppMessagingAction()
+    data class Initialize(val siteId: String, val dataCenter: String) : InAppMessagingAction()
+    data class LifecycleAction(val state: LifecycleState) : InAppMessagingAction()
+    data class Reset(val context: Context) : InAppMessagingAction()
     data class SetCurrentRoute(val route: String) : InAppMessagingAction()
+    data class CancelCurrentMessage(val message: Message) : InAppMessagingAction()
+
+    // old ones
     data class PollingInterval(val interval: Long) : InAppMessagingAction()
     data class SetUser(val user: String) : InAppMessagingAction()
     data class SetupGistView(val message: Message) : InAppMessagingAction()
@@ -21,4 +27,8 @@ sealed class InAppMessagingAction {
     data class ProcessMessage(val message: Message, val properties: GistProperties) : InAppMessagingAction()
     object ClearUser : InAppMessagingAction()
     data class LogEvent(val event: String) : InAppMessagingAction()
+}
+
+enum class LifecycleState {
+    Foreground, Background
 }

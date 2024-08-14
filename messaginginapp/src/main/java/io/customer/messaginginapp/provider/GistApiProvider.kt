@@ -13,7 +13,7 @@ internal interface GistApi {
     fun initProvider(application: Application, siteId: String, dataCenter: String)
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
-    fun clearUserToken()
+    fun reset()
     fun addListener(listener: GistListener)
     fun dismissMessage()
     fun subscribeToEvents(
@@ -40,8 +40,8 @@ internal class GistApiProvider : GistApi {
         GistSdk.setCurrentRoute(route)
     }
 
-    override fun clearUserToken() {
-        GistSdk.clearUserToken()
+    override fun reset() {
+        GistSdk.reset()
     }
 
     override fun addListener(listener: GistListener) {

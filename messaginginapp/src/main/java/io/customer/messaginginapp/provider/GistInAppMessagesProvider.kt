@@ -10,7 +10,6 @@ internal interface InAppMessagesProvider {
     fun initProvider(application: Application, siteId: String, region: String)
     fun setUserToken(userToken: String)
     fun setCurrentRoute(route: String)
-    fun clearUserToken()
     fun setListener(listener: InAppEventListener)
     fun dismissMessage()
     fun subscribeToEvents(
@@ -18,6 +17,7 @@ internal interface InAppMessagesProvider {
         onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
         onError: (errorMessage: String) -> Unit
     )
+    fun reset()
 }
 
 /**
@@ -45,8 +45,8 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
         provider.setCurrentRoute(route)
     }
 
-    override fun clearUserToken() {
-        provider.clearUserToken()
+    override fun reset() {
+        provider.reset()
     }
 
     override fun setListener(listener: InAppEventListener) {

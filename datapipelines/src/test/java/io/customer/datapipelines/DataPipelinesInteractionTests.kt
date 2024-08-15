@@ -700,7 +700,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenGroupId = String.random
         val givenCompanyName = "name" to "RandomCompany"
         val givenIsActive = "isActive" to true
-        val givenObjectTypeId = Long.random(min = 0, max = 1000)
+        val givenObjectTypeId = String.random
         val givenRelationshipAttributes = buildMap {
             put("manager", "jane@ceo.com")
             put("department", "Engineering")

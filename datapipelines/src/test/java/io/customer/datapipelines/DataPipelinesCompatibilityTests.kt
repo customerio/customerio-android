@@ -528,7 +528,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         val givenGroupId = String.random
         val givenCompanyName = "name" to "RandomCompany"
         val givenIsActive = "isActive" to true
-        val givenObjectTypeId = Long.random(min = 0, max = 1000)
+        val givenObjectTypeId = String.random
 
         val givenTraitsBuilder: TraitsBuilder = TraitsBuilder()
             .addTrait(givenCompanyName)

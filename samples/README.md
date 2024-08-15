@@ -2,8 +2,8 @@
 
 This section contains sample apps demonstrating how to integrate and use Customer.io SDK in Android projects. The sample apps provided are:
 
-- **[java_layout](java_layout)**: Java-based app using XML layouts
-- **[kotlin_compose](kotlin_compose)**: Kotlin-based app using Jetpack Compose
+- **[java_layout](java_layout)**: Java based app using XML layouts
+- **[kotlin_compose](kotlin_compose)**: Kotlin based app using Jetpack Compose
 
 ## Getting Started
 

@@ -17,16 +17,9 @@ This is the official Customer.io SDK for Android.
 
 The SDK supports both Kotlin and Java.
 
-To get started, you need to install and initialize the relevant [SDK packages](#available-sdks) in your project. We've separated our SDK into packages to minimize our impact on your app's size. You should only install the packages that you need for your project. 
+To get started, you need to install and initialize the relevant [SDK packages](#available-sdks) in your project. We've separated our SDK into packages to minimize our impact on your app's size. You should only install the packages that you need for your project.
 
-### Sample Apps
-
-To see how the SDK can be integrated and used in Android projects, check out our sample apps in [`samples`](samples) folder. These examples include:
-
-- [`java_layout`](samples/java_layout)
-- [`kotlin_compose`](samples/kotlin_compose)
-
-For detailed information on both samples, please refer to [`samples/README.md`](samples/README.md).
+> Tip: For example integrations and usage, check out our [sample apps](samples).
 
 ## Install the SDK
 

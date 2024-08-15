@@ -33,7 +33,7 @@ class TraitsBuilder {
      * This is a required trait for objects in Customer.io Journeys. If the value
      * is not included, Customer.io Journeys will assume it's 1 (the first kind of object created).
      */
-    fun addObjectTypeId(objectTypeId: Long): TraitsBuilder {
+    fun addObjectTypeId(objectTypeId: String): TraitsBuilder {
         traits["objectTypeId"] = objectTypeId
         return this
     }

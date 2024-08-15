@@ -16,7 +16,7 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 
 public final class io/customer/datapipelines/data/model/TraitsBuilder {
 	public fun <init> ()V
-	public final fun addObjectTypeId (J)Lio/customer/datapipelines/data/model/TraitsBuilder;
+	public final fun addObjectTypeId (Ljava/lang/String;)Lio/customer/datapipelines/data/model/TraitsBuilder;
 	public final fun addRelationshipAttributes (Ljava/util/Map;)Lio/customer/datapipelines/data/model/TraitsBuilder;
 	public final fun addTrait (Ljava/lang/String;Ljava/lang/Object;)Lio/customer/datapipelines/data/model/TraitsBuilder;
 	public final fun addTrait (Lkotlin/Pair;)Lio/customer/datapipelines/data/model/TraitsBuilder;

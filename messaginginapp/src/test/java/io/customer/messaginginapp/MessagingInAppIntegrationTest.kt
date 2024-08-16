@@ -14,7 +14,6 @@ import io.customer.messaginginapp.di.gistApiProvider
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.presentation.GistModalManager
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.testutils.core.IntegrationTest

@@ -3,6 +3,7 @@ package io.customer.messaginginapp.provider
 import android.app.Application
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
+import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 
@@ -28,25 +29,26 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
     GistListener {
 
     private var listener: InAppEventListener? = null
+    private var gistSdk: GistSdk? = null
 
     init {
-        provider.addListener(this)
+//        provider.addListener(this)
     }
 
     override fun initProvider(application: Application, siteId: String, region: String) {
-        provider.initProvider(application, siteId, dataCenter = region)
+        gistSdk = provider.initProvider(application, siteId, dataCenter = region)
     }
 
     override fun setUserToken(userToken: String) {
-        provider.setUserToken(userToken)
+        gistSdk?.setUserId(userToken)
     }
 
     override fun setCurrentRoute(route: String) {
-        provider.setCurrentRoute(route)
+        gistSdk?.setCurrentRoute(route)
     }
 
     override fun reset() {
-        provider.reset()
+        gistSdk?.reset()
     }
 
     override fun setListener(listener: InAppEventListener) {
@@ -54,7 +56,7 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
     }
 
     override fun dismissMessage() {
-        provider.dismissMessage()
+        gistSdk?.dismissMessage()
     }
 
     override fun subscribeToEvents(
@@ -62,19 +64,19 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
         onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
         onError: (message: String) -> Unit
     ) {
-        provider.subscribeToEvents(
-            onMessageShown = { deliveryID ->
-                onMessageShown(deliveryID)
-            },
-            onAction = { deliveryID: String?, currentRoute: String, action: String, name: String ->
-                if (deliveryID != null && action != "gist://close") {
-                    onAction(deliveryID, currentRoute, action, name)
-                }
-            },
-            onError = { errorMessage ->
-                onError(errorMessage)
-            }
-        )
+//        provider.subscribeToEvents(
+//            onMessageShown = { deliveryID ->
+//                onMessageShown(deliveryID)
+//            },
+//            onAction = { deliveryID: String?, currentRoute: String, action: String, name: String ->
+//                if (deliveryID != null && action != "gist://close") {
+//                    onAction(deliveryID, currentRoute, action, name)
+//                }
+//            },
+//            onError = { errorMessage ->
+//                onError(errorMessage)
+//            }
+//        )
     }
 
     override fun embedMessage(message: Message, elementId: String) {}

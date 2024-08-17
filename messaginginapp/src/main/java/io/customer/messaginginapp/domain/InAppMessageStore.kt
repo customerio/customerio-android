@@ -147,25 +147,34 @@ fun onRouteChange() = middleware<InAppMessagingState> { store, next, action ->
 
 fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
     if (action is InAppMessagingAction.ProcessMessages) {
-        val messagesWithProperties = action.messages
+        val notShownMessages = action.messages
             .sortedWith(compareBy(nullsLast()) { it.priority })
             .filter { message ->
                 message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId)
             }
+
+        val notShownMessagesWithProperties = notShownMessages
             .map { message ->
                 val properties = GistMessageProperties.getGistProperties(message)
                 Pair(message, properties)
             }
 
-        val messageToBeShownWithProperties = messagesWithProperties.firstOrNull { message ->
+        val messageToBeShownWithProperties = notShownMessagesWithProperties.firstOrNull { message ->
             val routeRule = GistMessageProperties.getGistProperties(message.first).routeRule
             val currentRoute = store.state.currentRoute
             routeRule == null || currentRoute == null || routeRule.toRegex().matches(currentRoute)
         }
 
-        if (messageToBeShownWithProperties != null) {
+        val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Loaded
+        val isCurrentMessageBeingProcessed = store.state.currentMessageState is MessageState.Processing
+
+        next(InAppMessagingAction.ProcessMessages(notShownMessages))
+
+        if (messageToBeShownWithProperties != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
             val message = messageToBeShownWithProperties.first
             val properties = messageToBeShownWithProperties.second
+
+            next(InAppMessagingAction.LoadMessage(message))
 
             if (properties.elementId != null) {
                 store.dispatch(InAppMessagingAction.EmbedMessage(message, properties.elementId))
@@ -175,7 +184,7 @@ fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
         } else {
             // Handle the case where no message matches the criteria.
             // This might involve logging, dispatching another action, or simply doing nothing.
-            next(InAppMessagingAction.Error("No message matched the criteria."))
+            SDKComponent.logger.debug("No message matched the criteria.")
         }
     } else {
         // Continue passing the original action down the middleware chain

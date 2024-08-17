@@ -5,7 +5,6 @@ import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingAction
-import io.customer.messaginginapp.domain.LifecycleState
 import io.customer.messaginginapp.domain.MessageState
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
@@ -36,12 +35,12 @@ class GistSdk(
     }
 
     private fun onActivityResumed() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LifecycleAction(state = LifecycleState.Foreground))
+        logger.debug("Activity resumed, starting polling")
         fetchInAppMessages(state.pollInterval)
     }
 
     private fun onActivityPaused() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LifecycleAction(state = LifecycleState.Background))
+        logger.debug("Activity paused, stopping polling")
         resetTimer()
     }
 

@@ -97,7 +97,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private fun subscribeToAttributes() {
         attributesListenerJob.add(
             inAppMessagingManager.subscribeToAttribute(
-                { it.currentMessageState }
+                selector = { it.currentMessageState }
             ) { state ->
                 if (state is MessageState.Loaded) {
                     onMessageShown(state.message)
@@ -108,10 +108,6 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
                 }
             }
         )
-    }
-
-    override fun onResume() {
-        super.onResume()
     }
 
     override fun onPause() {

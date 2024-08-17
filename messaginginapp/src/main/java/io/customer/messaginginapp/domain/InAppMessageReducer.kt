@@ -5,19 +5,17 @@ import org.reduxkotlin.Reducer
 val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
     when (action) {
         is InAppMessagingAction.Initialize -> state.copy(siteId = action.siteId, dataCenter = action.dataCenter, context = action.context, environment = action.environment)
-        is InAppMessagingAction.LifecycleAction -> state.copy(isAppInForeground = action.state == LifecycleState.Foreground)
         is InAppMessagingAction.SetCurrentRoute -> state.copy(currentRoute = action.route)
         is InAppMessagingAction.SetUser -> state.copy(userId = action.user)
         is InAppMessagingAction.ClearMessagesInQueue -> state.copy(messagesInQueue = setOf())
-        is InAppMessagingAction.UpdateMessagesToQueue -> {
-            val messagesToStore = action.messages.filter {
-                state.messagesInQueue.find { localMessage -> localMessage.queueId == it.queueId } == null
-            }
-            state.copy(messagesInQueue = messagesToStore.toSet(), currentMessageState = MessageState.Default)
+        is InAppMessagingAction.LoadMessage -> {
+            state.copy(currentMessageState = MessageState.Processing(action.message))
         }
 
+        is InAppMessagingAction.ProcessMessages -> state.copy(messagesInQueue = action.messages.toSet())
+        is InAppMessagingAction.SetPollingInterval -> state.copy(pollInterval = action.interval)
         is InAppMessagingAction.DismissMessage -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
-        is InAppMessagingAction.ShowModalMessage -> state.copy(currentMessageState = MessageState.Default)
+        is InAppMessagingAction.ShowModalMessage -> state.copy(currentMessageState = MessageState.Processing(action.message))
         is InAppMessagingAction.Reset -> InAppMessagingState()
         is InAppMessagingAction.MakeMessageVisible -> {
             action.message.queueId?.let { queueId ->

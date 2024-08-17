@@ -82,7 +82,7 @@ class GistView @JvmOverloads constructor(
                             "close" -> {
                                 shouldLogAction = false
                                 logger.debug("Dismissing from action: $action")
-                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message))
+                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, viaCloseAction = true))
                             }
 
                             "loadPage" -> {
@@ -94,7 +94,7 @@ class GistView @JvmOverloads constructor(
                             }
 
                             "showMessage" -> {
-                                inAppMessagingManager.dispatch(InAppMessagingAction.CancelMessage(message))
+                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
                                 val messageId = urlQuery.getValue("messageId")
                                 val propertiesBase64 = urlQuery.getValue("properties")
                                 val parameterBinary = Base64.decode(propertiesBase64, Base64.DEFAULT)
@@ -116,7 +116,7 @@ class GistView @JvmOverloads constructor(
                         try {
                             shouldLogAction = false
                             logger.debug("Dismissing from system action: $action")
-                            inAppMessagingManager.dispatch(InAppMessagingAction.CancelMessage(message))
+                            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
                             val intent = Intent(Intent.ACTION_VIEW)
                             intent.data = Uri.parse(action)
                             intent.flags =
@@ -150,7 +150,7 @@ class GistView @JvmOverloads constructor(
                 engineWebView.alpha = 1.0f
             }
             currentMessage?.let { message ->
-                inAppMessagingManager.dispatch(InAppMessagingAction.ModalMessageShown(message))
+                inAppMessagingManager.dispatch(InAppMessagingAction.MakeMessageVisible(message))
             }
         }
     }

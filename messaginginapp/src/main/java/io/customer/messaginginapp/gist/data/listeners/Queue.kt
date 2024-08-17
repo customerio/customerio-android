@@ -113,7 +113,7 @@ class Queue : GistQueue {
                 val responseBody = latestMessagesResponse.body()
 
                 // To prevent us from showing expired / revoked messages, clear user messages from local queue.
-//                inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessagesInQueue)
+                inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessagesInQueue)
 
                 if (latestMessagesResponse.code() == 204) {
                     // No content, don't do anything

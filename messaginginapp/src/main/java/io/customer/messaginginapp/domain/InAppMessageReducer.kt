@@ -7,43 +7,27 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
         is InAppMessagingAction.Initialize -> state.copy(siteId = action.siteId, dataCenter = action.dataCenter, context = action.context, environment = action.environment)
         is InAppMessagingAction.LifecycleAction -> state.copy(isAppInForeground = action.state == LifecycleState.Foreground)
         is InAppMessagingAction.SetCurrentRoute -> state.copy(currentRoute = action.route)
-        is InAppMessagingAction.CancelMessage -> state.copy(currentMessage = null)
-        is InAppMessagingAction.ShowModalMessage -> state.copy(currentMessage = action.message)
         is InAppMessagingAction.SetUser -> state.copy(userId = action.user)
         is InAppMessagingAction.ClearMessagesInQueue -> state.copy(messagesInQueue = setOf())
         is InAppMessagingAction.UpdateMessagesToQueue -> {
             val messagesToStore = action.messages.filter {
                 state.messagesInQueue.find { localMessage -> localMessage.queueId == it.queueId } == null
             }
-            state.copy(messagesInQueue = messagesToStore.toSet())
+            state.copy(messagesInQueue = messagesToStore.toSet(), currentMessageState = MessageState.Default)
         }
 
-        is InAppMessagingAction.ModalMessageShown -> {
-            action.message.queueId?.let {
+        is InAppMessagingAction.DismissMessage -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
+        is InAppMessagingAction.ShowModalMessage -> state.copy(currentMessageState = MessageState.Default)
+        is InAppMessagingAction.Reset -> InAppMessagingState()
+        is InAppMessagingAction.MakeMessageVisible -> {
+            action.message.queueId?.let { queueId ->
                 state.copy(
-                    shownMessageQueueIds = state.shownMessageQueueIds + action.message.queueId,
-                    messagesInQueue = state.messagesInQueue.filter { message -> message.queueId != action.message.queueId }.toSet()
+                    currentMessageState = MessageState.Loaded(action.message),
+                    shownMessageQueueIds = state.shownMessageQueueIds + queueId,
+                    messagesInQueue = state.messagesInQueue.filterNot { it.queueId == queueId }.toSet()
                 )
             } ?: state
         }
-
-        is InAppMessagingAction.DismissMessage -> {
-            if (state.currentMessage?.queueId == action.message.queueId) {
-                state.copy(currentMessage = null)
-            } else {
-                state
-            }
-        }
-
-        is InAppMessagingAction.DismissViaAction -> {
-            if (state.currentMessage?.queueId == action.message.queueId) {
-                state.copy(currentMessage = null)
-            } else {
-                state
-            }
-        }
-
-        is InAppMessagingAction.Reset -> InAppMessagingState()
 
         else -> state
     }

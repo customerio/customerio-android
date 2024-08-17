@@ -78,8 +78,8 @@ class CustomerIO private constructor(
             val message = log.message
             when (log.kind) {
                 LogKind.ERROR -> logger.error(message)
-                LogKind.WARNING -> logger.info(message)
-                LogKind.DEBUG -> logger.debug(message)
+                LogKind.WARNING -> {}
+                LogKind.DEBUG -> {}
             }
         }
     }

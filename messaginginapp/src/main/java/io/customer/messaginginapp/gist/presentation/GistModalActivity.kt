@@ -16,7 +16,7 @@ import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.domain.InAppMessagingState
-import io.customer.messaginginapp.domain.subscribeToAttributes
+import io.customer.messaginginapp.domain.MessageState
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
@@ -41,8 +41,10 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     internal val isEngineVisible: Boolean
         get() = binding.gistView.isEngineVisible
 
-    private var currentMessage: Message? = null
     private var messagePosition: MessagePosition = MessagePosition.CENTER
+
+    private val currentMessageState: MessageState.Loaded?
+        get() = state.currentMessageState as? MessageState.Loaded
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -64,8 +66,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
         Gson().fromJson(messageStr, Message::class.java)?.let { messageObj ->
             logger.debug("GisModelActivity onCreate: $messageObj")
-            currentMessage = messageObj
-            currentMessage?.let { message ->
+            messageObj.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
                 binding.gistView.listener = this
                 binding.gistView.setup(message)
@@ -96,22 +97,13 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private fun subscribeToAttributes() {
         attributesListenerJob.add(
             inAppMessagingManager.subscribeToAttribute(
-                { it.shownMessageQueueIds }
-            ) { shownMessageQueueIds ->
-                this.currentMessage?.let { message ->
-                    if (shownMessageQueueIds.contains(message.queueId)) {
-                        onMessageShown(message)
-                    }
+                { it.currentMessageState }
+            ) { state ->
+                if (state is MessageState.Loaded) {
+                    onMessageShown(state.message)
                 }
-            }
-        )
 
-        attributesListenerJob.add(
-            inAppMessagingManager.subscribeToAttributes(
-                { it.currentMessage },
-                { it.shownMessageQueueIds }
-            ) { storeMessage, shownMessageQueueIds ->
-                if (storeMessage == null && shownMessageQueueIds.contains(this.currentMessage?.queueId)) {
+                if (state is MessageState.Dismissed) {
                     cleanUp()
                 }
             }
@@ -150,15 +142,18 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         // if the message has been cancelled, do not perform any further actions
         // to avoid sending any callbacks to the client app
         // If the message is not persistent, dismiss it and inform the callback
-        if (!isPersistentMessage()) {
-            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(currentMessage ?: state.currentMessage ?: return))
-        } else {
-            inAppMessagingManager.dispatch(InAppMessagingAction.CancelMessage(currentMessage ?: state.currentMessage ?: return))
+
+        currentMessageState?.let { state ->
+            if (!isPersistentMessage()) {
+                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message))
+            } else {
+                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message, shouldLog = false))
+            }
         }
         super.onDestroy()
     }
 
-    private fun isPersistentMessage(): Boolean = currentMessage?.let {
+    private fun isPersistentMessage(): Boolean = currentMessageState?.message?.let {
         GistMessageProperties.getGistProperties(
             it
         ).persistent

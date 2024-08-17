@@ -6,6 +6,7 @@ import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.domain.LifecycleState
+import io.customer.messaginginapp.domain.MessageState
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.sdk.core.di.SDKComponent
@@ -36,7 +37,7 @@ class GistSdk(
 
     private fun onActivityResumed() {
         inAppMessagingManager.dispatch(InAppMessagingAction.LifecycleAction(state = LifecycleState.Foreground))
-//        fetchInAppMessages(state.pollInterval)
+        fetchInAppMessages(state.pollInterval)
     }
 
     private fun onActivityPaused() {
@@ -61,7 +62,7 @@ class GistSdk(
         logger.debug("Starting polling with duration: $duration")
         timer?.cancel()
         // create a timer to run the task after the initial run
-        timer = timer(name = "GistPolling", daemon = true, period = 30000) {
+        timer = timer(name = "GistPolling", daemon = true, period = 20000) {
             gistQueue.fetchUserMessages()
         }
     }
@@ -100,7 +101,8 @@ class GistSdk(
     }
 
     fun dismissMessage() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.CancelMessage(state.currentMessage ?: return))
+        val currentMessageState = state.currentMessageState as? MessageState.Loaded
+        inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentMessageState?.message ?: return))
     }
 }
 

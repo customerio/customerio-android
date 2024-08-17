@@ -25,10 +25,8 @@ internal object InAppMessagingStore {
             // needs to be first middleware to ensure that the user is set before processing any other actions
             onUserChange(),
             onPollIntervalChange(),
-            onResetChanges(),
             onRouteChange(),
             onShowModalMessageChanges(),
-            onMessageShown(),
             onDismissMessage(),
             processMessages(),
             errorLogger()
@@ -40,7 +38,6 @@ fun loggerMiddleware(logger: Logger) = middleware<InAppMessagingState> { store, 
     logger.debug("Store: action: ${action::class.simpleName}: $action")
     logger.debug("Store: state before reducer: ${store.state}")
     next(action)
-    logger.debug("Store: state after reducer: ${store.state}")
 }
 
 fun errorLogger() = middleware<InAppMessagingState> { store, next, action ->
@@ -50,27 +47,27 @@ fun errorLogger() = middleware<InAppMessagingState> { store, next, action ->
     next(action)
 }
 
-fun onMessageShown() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.ModalMessageShown) {
-        next(InAppMessagingAction.ClearMessagesInQueue)
-        next(action)
-    } else {
-        next(action)
-    }
-}
-
 fun onDismissMessage() = middleware<InAppMessagingState> { store, next, action ->
     when (action) {
         is InAppMessagingAction.DismissMessage -> {
-            val gistProperties = GistMessageProperties.getGistProperties(action.message)
-            if (!gistProperties.persistent) {
-                SDKComponent.gistQueue.logView(action.message)
+            if (!action.shouldLog) {
+                next(action)
+            } else {
+                val gistProperties = GistMessageProperties.getGistProperties(action.message)
+                if (gistProperties.persistent && action.viaCloseAction) {
+                    SDKComponent.gistQueue.logView(action.message)
+                } else if (!gistProperties.persistent && action.viaCloseAction) {
+                    SDKComponent.gistQueue.logView(action.message)
+                }
             }
             next(action)
         }
 
-        is InAppMessagingAction.DismissViaAction -> {
-            SDKComponent.gistQueue.logView(action.message)
+        is InAppMessagingAction.MakeMessageVisible -> {
+            val gistProperties = GistMessageProperties.getGistProperties(action.message)
+            if (!gistProperties.persistent) {
+                SDKComponent.gistQueue.logView(action.message)
+            }
             next(action)
         }
 
@@ -82,7 +79,7 @@ fun onDismissMessage() = middleware<InAppMessagingState> { store, next, action -
 
 fun onShowModalMessageChanges() = middleware<InAppMessagingState> { store, next, action ->
     if (action is InAppMessagingAction.ShowModalMessage) {
-        if (store.state.currentMessage == null) {
+        if (store.state.currentMessageState !is MessageState.Loaded) {
             val context = store.state.context ?: return@middleware next(InAppMessagingAction.Error("Context is null"))
             SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
             val intent = GistModalActivity.newIntent(context)
@@ -92,7 +89,7 @@ fun onShowModalMessageChanges() = middleware<InAppMessagingState> { store, next,
             context.startActivity(intent)
             next(action)
         } else {
-            next(InAppMessagingAction.Error("A message is already being shown."))
+            next(InAppMessagingAction.Error("A message is already being shown or cancelled"))
         }
     } else {
         next(action)
@@ -121,22 +118,15 @@ fun onUserChange() = middleware<InAppMessagingState> { store, next, action ->
     }
 }
 
-fun onResetChanges() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.Reset) {
-        // cancel the current message
-        store.state.currentMessage?.let {
-            store.dispatch(InAppMessagingAction.CancelMessage(it))
-        }
-    }
-    // continue with the action
-    next(action)
-}
-
 fun onRouteChange() = middleware<InAppMessagingState> { store, next, action ->
 
     if (action is InAppMessagingAction.SetCurrentRoute && store.state.currentRoute != action.route) {
+        // update the current route
+        next(action)
+
         // cancel the current message if the route rule does not match
-        val currentMessage = store.state.currentMessage
+        val currentMessageState = store.state.currentMessageState as? MessageState.Loaded
+        val currentMessage = currentMessageState?.message
         val doesCurrentMessageRouteMatch = runCatching {
             val routeRule = currentMessage?.let { message ->
                 GistMessageProperties.getGistProperties(message).routeRule
@@ -145,11 +135,9 @@ fun onRouteChange() = middleware<InAppMessagingState> { store, next, action ->
         }.getOrNull() ?: true
 
         // If there is no active message or the message route matches the current route, continue
-        if (currentMessage != null && doesCurrentMessageRouteMatch) {
-            store.dispatch(InAppMessagingAction.CancelMessage(currentMessage))
+        if (currentMessage != null && !doesCurrentMessageRouteMatch) {
+            store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
         }
-        // update the current route
-        next(action)
         // process the messages in the queue to check if there is a message to be shown
         store.dispatch(InAppMessagingAction.ProcessMessages(store.state.messagesInQueue.toList()))
     } else {

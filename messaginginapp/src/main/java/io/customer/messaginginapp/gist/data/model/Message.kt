@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.model
-import java.util.*
+
+import java.util.UUID
 
 enum class MessagePosition(val position: String) {
     TOP("top"),

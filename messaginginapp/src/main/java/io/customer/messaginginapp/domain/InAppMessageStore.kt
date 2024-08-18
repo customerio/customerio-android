@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.domain
 
+import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
@@ -81,6 +82,7 @@ fun onShowModalMessageChanges() = middleware<InAppMessagingState> { store, next,
             val context = store.state.context ?: return@middleware next(InAppMessagingAction.Error("Context is null"))
             SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
             val intent = GistModalActivity.newIntent(context)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             intent.putExtra(GIST_MESSAGE_INTENT, Gson().toJson(action.message))
             intent.putExtra(GIST_MODAL_POSITION_INTENT, action.position?.toString())
             context.startActivity(intent)

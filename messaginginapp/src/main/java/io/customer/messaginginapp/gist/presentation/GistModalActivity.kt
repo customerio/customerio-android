@@ -64,9 +64,13 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         setContentView(binding.root)
         val messageStr = this.intent.getStringExtra(GIST_MESSAGE_INTENT)
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
-        Gson().fromJson(messageStr, Message::class.java)?.let { messageObj ->
-            logger.debug("GisModelActivity onCreate: $messageObj")
-            messageObj.let { message ->
+        val parsedMessage = kotlin.runCatching { Gson().fromJson(messageStr, Message::class.java) }.getOrNull()
+        if (parsedMessage == null) {
+            logger.error("GisModelActivity onCreate: Message is null")
+            finish()
+        } else {
+            logger.debug("GisModelActivity onCreate: $parsedMessage")
+            parsedMessage.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
                 binding.gistView.listener = this
                 binding.gistView.setup(message)
@@ -81,14 +85,12 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
                     MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
                 }
             }
-        } ?: run {
-            finish()
         }
 
         subscribeToAttributes()
 
         // Update back button to handle in-app message behavior, disable back press for persistent messages, true otherwise
-        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage()) {
+        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage(parsedMessage)) {
             override fun handleOnBackPressed() {}
         }
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
@@ -97,7 +99,16 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private fun subscribeToAttributes() {
         attributesListenerJob.add(
             inAppMessagingManager.subscribeToAttribute(
-                selector = { it.currentMessageState }
+                selector = { it.currentMessageState },
+                areEquivalent = { old, new ->
+                    when {
+                        old is MessageState.Default && new is MessageState.Default -> true
+                        old is MessageState.Loaded && new is MessageState.Loaded -> old.message == new.message
+                        old is MessageState.Dismissed && new is MessageState.Dismissed -> old.message == new.message
+                        old is MessageState.Processing && new is MessageState.Processing -> old.message == new.message
+                        else -> false
+                    }
+                }
             ) { state ->
                 if (state is MessageState.Loaded) {
                     onMessageShown(state.message)
@@ -149,11 +160,14 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         super.onDestroy()
     }
 
-    private fun isPersistentMessage(): Boolean = currentMessageState?.message?.let {
-        GistMessageProperties.getGistProperties(
-            it
-        ).persistent
-    } ?: false
+    private fun isPersistentMessage(message: Message? = null): Boolean {
+        val currentMessage = message ?: currentMessageState?.message
+        return currentMessage?.let {
+            GistMessageProperties.getGistProperties(
+                it
+            ).persistent
+        } ?: false
+    }
 
     private fun onMessageShown(message: Message) {
         logger.debug("GisModelActivity Message Shown: $message")

@@ -50,7 +50,6 @@ public final class io/customer/messaginginapp/domain/InAppMessageStoreKt {
 	public static final fun errorLogger ()Lkotlin/jvm/functions/Function1;
 	public static final fun loggerMiddleware (Lio/customer/sdk/core/util/Logger;)Lkotlin/jvm/functions/Function1;
 	public static final fun onDismissMessage ()Lkotlin/jvm/functions/Function1;
-	public static final fun onPollIntervalChange ()Lkotlin/jvm/functions/Function1;
 	public static final fun onRouteChange ()Lkotlin/jvm/functions/Function1;
 	public static final fun onShowModalMessageChanges ()Lkotlin/jvm/functions/Function1;
 	public static final fun onUserChange ()Lkotlin/jvm/functions/Function1;

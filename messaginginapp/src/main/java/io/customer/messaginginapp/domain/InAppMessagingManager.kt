@@ -38,18 +38,7 @@ internal object InAppMessagingManager {
         return scope.launch {
             storeStatFlow
                 .map(selector)
-                .distinctUntilChanged { old, new ->
-                    if (old is MessageState) {
-                        when {
-                            old is MessageState.Default && new is MessageState.Default -> true
-                            old is MessageState.Loaded && new is MessageState.Loaded -> old.message == new.message
-                            old is MessageState.Dismissed && new is MessageState.Dismissed -> old.message == new.message
-                            else -> false
-                        }
-                    } else {
-                        areEquivalent(old, new)
-                    }
-                }
+                .distinctUntilChanged(areEquivalent)
                 .collect {
                     listener(it)
                 }

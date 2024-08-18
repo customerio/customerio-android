@@ -80,6 +80,10 @@ class GistSdk(
                     }
                 }
         }
+
+        inAppMessagingManager.subscribeToAttribute({ it.pollInterval }) { interval ->
+            fetchInAppMessages(interval)
+        }
     }
 
     fun setCurrentRoute(route: String) {

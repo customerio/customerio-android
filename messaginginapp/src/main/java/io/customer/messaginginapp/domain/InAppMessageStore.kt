@@ -24,7 +24,6 @@ internal object InAppMessagingStore {
             loggerMiddleware(logger),
             // needs to be first middleware to ensure that the user is set before processing any other actions
             onUserChange(),
-            onPollIntervalChange(),
             onRouteChange(),
             onShowModalMessageChanges(),
             onDismissMessage(),
@@ -96,16 +95,6 @@ fun onShowModalMessageChanges() = middleware<InAppMessagingState> { store, next,
     }
 }
 
-fun onPollIntervalChange() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.SetPollingInterval) {
-        next(action)
-        // process the messages in the queue to check if there is a message to be shown
-        next(InAppMessagingAction.ProcessMessages(store.state.messagesInQueue.toList()))
-    } else {
-        next(action)
-    }
-}
-
 fun onUserChange() = middleware<InAppMessagingState> { store, next, action ->
     if (action is InAppMessagingAction.Initialize) {
         next(action)
@@ -162,7 +151,14 @@ fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
         val messageToBeShownWithProperties = notShownMessagesWithProperties.firstOrNull { message ->
             val routeRule = GistMessageProperties.getGistProperties(message.first).routeRule
             val currentRoute = store.state.currentRoute
-            routeRule == null || currentRoute == null || routeRule.toRegex().matches(currentRoute)
+            when {
+                // If the route rule is null, the message should be shown
+                routeRule == null -> true
+                // otherwise, if current route is null, the message should not be shown because we can't match the route
+                currentRoute == null -> false
+                // otherwise, match the route rule with the current route
+                else -> routeRule.toRegex().matches(currentRoute)
+            }
         }
 
         val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Loaded

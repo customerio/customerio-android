@@ -20,15 +20,13 @@ internal object InAppMessagingManager {
         }
     }
 
-    fun dispatch(action: InAppMessagingAction) {
-        store.dispatch(action)
-    }
-
-    fun getCurrentState() = store.state
+    fun dispatch(action: InAppMessagingAction) = store.dispatch(action)
 
     fun subscribe(listener: (InAppMessagingState) -> Unit): () -> Unit {
         return store.subscribe { listener(store.state) }
     }
+
+    fun getCurrentState() = store.state
 
     fun <T> subscribeToAttribute(
         selector: (InAppMessagingState) -> T,

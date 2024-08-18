@@ -1,6 +1,5 @@
 package io.customer.messaginginapp.domain
 
-import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
@@ -39,14 +38,14 @@ fun loggerMiddleware(logger: Logger) = middleware<InAppMessagingState> { store, 
     next(action)
 }
 
-fun errorLogger() = middleware<InAppMessagingState> { store, next, action ->
+fun errorLogger() = middleware<InAppMessagingState> { _, next, action ->
     if (action is InAppMessagingAction.Error) {
         SDKComponent.logger.error("Error: ${action.message}")
     }
     next(action)
 }
 
-fun onDismissMessage() = middleware<InAppMessagingState> { store, next, action ->
+fun onDismissMessage() = middleware<InAppMessagingState> { _, next, action ->
     when (action) {
         is InAppMessagingAction.DismissMessage -> {
             if (!action.shouldLog) {
@@ -82,7 +81,6 @@ fun onShowModalMessageChanges() = middleware<InAppMessagingState> { store, next,
             val context = store.state.context ?: return@middleware next(InAppMessagingAction.Error("Context is null"))
             SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
             val intent = GistModalActivity.newIntent(context)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             intent.putExtra(GIST_MESSAGE_INTENT, Gson().toJson(action.message))
             intent.putExtra(GIST_MODAL_POSITION_INTENT, action.position?.toString())
             context.startActivity(intent)
@@ -114,8 +112,11 @@ fun onRouteChange() = middleware<InAppMessagingState> { store, next, action ->
         next(action)
 
         // cancel the current message if the route rule does not match
-        val currentMessageState = store.state.currentMessageState as? MessageState.Loaded
-        val currentMessage = currentMessageState?.message
+        val currentMessage = when (val currentMessageState = store.state.currentMessageState) {
+            is MessageState.Loaded -> currentMessageState.message
+            is MessageState.Processing -> currentMessageState.message
+            else -> null
+        }
         val doesCurrentMessageRouteMatch = runCatching {
             val routeRule = currentMessage?.let { message ->
                 GistMessageProperties.getGistProperties(message).routeRule

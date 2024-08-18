@@ -16,7 +16,7 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
         is InAppMessagingAction.SetPollingInterval -> state.copy(pollInterval = action.interval)
         is InAppMessagingAction.DismissMessage -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
         is InAppMessagingAction.ShowModalMessage -> state.copy(currentMessageState = MessageState.Processing(action.message))
-        is InAppMessagingAction.Reset -> InAppMessagingState()
+        is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, context = state.context, environment = state.environment, pollInterval = state.pollInterval)
         is InAppMessagingAction.MakeMessageVisible -> {
             action.message.queueId?.let { queueId ->
                 state.copy(

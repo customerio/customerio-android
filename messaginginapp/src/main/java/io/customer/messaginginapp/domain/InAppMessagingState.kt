@@ -25,7 +25,7 @@ data class InAppMessagingState(
             "pollInterval=$pollInterval,\n" +
             "userId=$userId,\n" +
             "currentRoute=$currentRoute,\n" +
-            "currentMessage=$currentMessageState,\n" +
+            "currentMessageState=$currentMessageState,\n" +
             "messagesInQueue=${messagesInQueue.map(Message::queueId)},\n" +
             "shownMessageQueueIds=$shownMessageQueueIds)"
     }

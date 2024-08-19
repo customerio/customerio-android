@@ -4,7 +4,7 @@ name: Deploy SDK
 # bot account runs write operations on the github repo to push a tag.
 on:
   push:
-    branches: [beta, main] # all branches where deployments currently occur. Make sure this list matches list of branches in  `.releaserc` file.
+    branches: [beta, main, v3] # all branches where deployments currently occur. Make sure this list matches list of branches in  `.releaserc` file.
 
 permissions:
   contents: write # access to push the git tag
@@ -150,7 +150,10 @@ jobs:
     if: needs.deploy-git-tag.outputs.new_release_published == 'true' # only run if a git tag was made.
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout git tag that got created in previous step
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.deploy-git-tag.outputs.new_release_version }}
       - uses: ./.github/actions/setup-android
       - name: Push to Sonatype servers
         run: MODULE_VERSION=${{ needs.deploy-git-tag.outputs.new_release_version }} ./scripts/deploy-code.sh

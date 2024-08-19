@@ -1,3 +1,9 @@
+## [3.11.2](https://github.com/customerio/customerio-android/compare/3.11.1...3.11.2) (2024-08-19)
+
+### Bug Fixes
+
+* android user agent version ([38b2815](https://github.com/customerio/customerio-android/commit/38b2815d1c1f36d7d34507e4c56dc271c8bb47bc))
+
 ## [3.11.1](https://github.com/customerio/customerio-android/compare/3.11.0...3.11.1) (2024-07-15)
 
 ### Bug Fixes

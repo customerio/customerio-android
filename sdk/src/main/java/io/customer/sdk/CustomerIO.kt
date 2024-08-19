@@ -366,7 +366,7 @@ class CustomerIO internal constructor(
 
             appContext.registerActivityLifecycleCallbacks(diGraph.activityLifecycleCallbacks)
             modules.forEach {
-                logger.debug("initializing SDK module ${it.value.moduleName}...")
+                logger.debug("initializing SDK module ${it.value.moduleName} with version ${Version.version}...")
                 it.value.initialize()
             }
 

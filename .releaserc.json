@@ -6,10 +6,7 @@
       "name": "beta",
       "prerelease": true
     },
-    {
-      "name": "alpha",
-      "prerelease": true
-    }
+    { "name": "v3", "range": "3.x" }
   ],
   "dryRun": true,
   "plugins": [

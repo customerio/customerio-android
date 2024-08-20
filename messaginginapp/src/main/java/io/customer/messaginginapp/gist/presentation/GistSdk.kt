@@ -5,6 +5,7 @@ import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.messaginginapp.domain.InAppMessagingState
 import io.customer.messaginginapp.domain.MessageState
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
@@ -19,15 +20,18 @@ class GistSdk(
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD
-) {
+) : GistListener {
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
-    private val state = inAppMessagingManager.getCurrentState()
+    private val state: InAppMessagingState
+        get() = inAppMessagingManager.getCurrentState()
     private val globalPreferenceStore: GlobalPreferenceStore
         get() = SDKComponent.android().globalPreferenceStore
     private val logger = SDKComponent.logger
 
     private var timer: Timer? = null
     private val gistQueue = SDKComponent.gistQueue
+
+    private var listeners: List<GistListener> = emptyList()
 
     private fun resetTimer() {
         timer?.cancel()
@@ -46,7 +50,7 @@ class GistSdk(
 
     init {
         inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, context = application, environment = environment))
-        subscribeToLifecycleEvents()
+        subscribeToEvents()
     }
 
     internal fun reset() {
@@ -66,7 +70,13 @@ class GistSdk(
         }
     }
 
-    private fun subscribeToLifecycleEvents() {
+    fun addListener(listener: GistListener) {
+        listeners += listener
+    }
+
+    private fun subscribeToEvents() {
+        inAppMessagingManager.setListener(this)
+
         SDKComponent.activityLifecycleCallbacks.subscribe { events ->
             events
                 .filter { state ->
@@ -87,7 +97,7 @@ class GistSdk(
     }
 
     fun setCurrentRoute(route: String) {
-        logger.debug("Current gist route is already set to: ${state.currentRoute}, new route is: $route")
+        logger.debug("Current gist route is: ${state.currentRoute}, new route is: $route")
 
         inAppMessagingManager.dispatch(InAppMessagingAction.NavigateToRoute(route))
     }
@@ -98,14 +108,37 @@ class GistSdk(
             return
         }
         globalPreferenceStore.saveUserId(userId)
-        fetchInAppMessages(state.pollInterval)
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
-        // Fetch messages for the new user
+        fetchInAppMessages(state.pollInterval)
     }
 
     fun dismissMessage() {
         val currentMessageState = state.currentMessageState as? MessageState.Loaded
         inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentMessageState?.message ?: return))
+    }
+
+    override fun embedMessage(message: Message, elementId: String) {
+        listeners.forEach { it.embedMessage(message, elementId) }
+    }
+
+    override fun onMessageShown(message: Message) {
+        listeners.forEach { it.onMessageShown(message) }
+    }
+
+    override fun onMessageDismissed(message: Message) {
+        listeners.forEach { it.onMessageDismissed(message) }
+    }
+
+    override fun onMessageCancelled(message: Message) {
+        listeners.forEach { it.onMessageCancelled(message) }
+    }
+
+    override fun onError(message: Message) {
+        listeners.forEach { it.onError(message) }
+    }
+
+    override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
+        listeners.forEach { it.onAction(message, currentRoute, action, name) }
     }
 }
 

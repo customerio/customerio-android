@@ -7,6 +7,7 @@ import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
 import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
+import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.sdk.core.di.SDKComponent
 import org.reduxkotlin.Store
@@ -85,36 +86,37 @@ internal fun userChangeMiddleware() = middleware<InAppMessagingState> { store, n
 }
 
 internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
-    // update the current route
-    next(action)
+
     if (action is InAppMessagingAction.NavigateToRoute && store.state.currentRoute != action.route) {
-        handleRouteChange(store, action)
+        // update the current route
+        next(action)
+
+        // cancel the current message if the route rule does not match
+        val currentMessage = when (val currentMessageState = store.state.currentMessageState) {
+            is MessageState.Loaded -> currentMessageState.message
+            is MessageState.Processing -> currentMessageState.message
+            else -> null
+        }
+        val doesCurrentMessageRouteMatch = runCatching {
+            val routeRule = currentMessage?.let { message ->
+                GistMessageProperties.getGistProperties(message).routeRule
+            }
+            routeRule == null || routeRule.toRegex().matches(action.route)
+        }.getOrNull() ?: true
+
+        // If there is no active message or the message route matches the current route, continue
+        if (currentMessage != null && !doesCurrentMessageRouteMatch) {
+            store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
+        }
+        // process the messages in the queue to check if there is a message to be shown
+        store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
+    } else {
+        next(action)
     }
 }
-
-private fun handleRouteChange(store: Store<InAppMessagingState>, action: InAppMessagingAction.NavigateToRoute) {
-    val currentMessage = getCurrentMessage(store.state)
-    val doesCurrentMessageRouteMatch = checkRouteMatch(currentMessage, action.route)
-
-    if (currentMessage != null && !doesCurrentMessageRouteMatch) {
-        store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
-    }
-    store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
-}
-
-private fun getCurrentMessage(state: InAppMessagingState): Message? = when (val currentMessageState = state.currentMessageState) {
-    is MessageState.Loaded -> currentMessageState.message
-    is MessageState.Processing -> currentMessageState.message
-    else -> null
-}
-
-private fun checkRouteMatch(message: Message?, route: String): Boolean = runCatching {
-    val routeRule = message?.let { GistMessageProperties.getGistProperties(it).routeRule }
-    routeRule == null || routeRule.toRegex().matches(route)
-}.getOrNull() ?: true
 
 internal fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.ProcessMessageQueue) {
+    if (action is InAppMessagingAction.ProcessMessageQueue && action.messages.isNotEmpty()) {
         val notShownMessages = action.messages
             .filter { message ->
                 message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId)
@@ -166,4 +168,33 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
         // Continue passing the original action down the middleware chain
         next(action)
     }
+}
+
+internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<InAppMessagingState> { store, next, action ->
+    when (action) {
+        is InAppMessagingAction.EmbedMessage -> {
+            gistListener?.embedMessage(action.message, action.elementId)
+        }
+
+        is InAppMessagingAction.DisplayMessage -> {
+            gistListener?.onMessageShown(action.message)
+        }
+
+        is InAppMessagingAction.DismissMessage -> {
+            gistListener?.onMessageDismissed(action.message)
+        }
+
+        is InAppMessagingAction.EngineAction.MessageLoadingFailed -> {
+            gistListener?.onError(action.message)
+        }
+
+        is InAppMessagingAction.EngineAction.Error -> {
+            gistListener?.onError(action.message)
+        }
+
+        is InAppMessagingAction.EngineAction.Tap -> {
+            gistListener?.onAction(action.message, action.route, action.action, action.name)
+        }
+    }
+    next(action)
 }

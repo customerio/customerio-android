@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.domain
 
+import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -8,16 +9,41 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.reduxkotlin.Store
+import org.reduxkotlin.applyMiddleware
+import org.reduxkotlin.threadsafe.createThreadSafeStore
 
 internal object InAppMessagingManager {
-    private val store: Store<InAppMessagingState> = InAppMessagingStore.store
+    private val store: Store<InAppMessagingState> = createStore()
     internal val storeStatFlow = MutableStateFlow(store.state)
     internal val scope: CoroutineScope = SDKComponent.scopeProvider.lifecycleListenerScope
+    private var gistListener: GistListener? = null
 
     init {
         store.subscribe {
             storeStatFlow.value = store.state
         }
+    }
+
+    fun setListener(listener: GistListener) {
+        this.gistListener = listener
+    }
+
+    private fun createStore(): Store<InAppMessagingState> {
+        return createThreadSafeStore(
+            reducer = inAppMessagingReducer,
+            preloadedState = InAppMessagingState(),
+            applyMiddleware(
+                loggerMiddleware(),
+                // needs to be first middleware to ensure that the user is set before processing any other actions
+                userChangeMiddleware(),
+                routeChangeMiddleware(),
+                modalMessageMiddleware(),
+                dismissMessageMiddleware(),
+                processMessages(),
+                errorLoggerMiddleware(),
+                gistListenerMiddleware(gistListener)
+            )
+        )
     }
 
     fun dispatch(action: InAppMessagingAction) = store.dispatch(action)

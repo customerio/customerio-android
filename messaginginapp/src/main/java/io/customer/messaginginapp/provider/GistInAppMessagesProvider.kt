@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.provider
 
 import android.app.Application
+import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
@@ -18,25 +19,21 @@ internal interface InAppMessagesProvider {
         onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
         onError: (errorMessage: String) -> Unit
     )
+
     fun reset()
 }
 
 /**
  * Wrapper around Gist SDK
  */
-internal class GistInAppMessagesProvider(private val provider: GistApi) :
-    InAppMessagesProvider,
-    GistListener {
+internal class GistInAppMessagesProvider : InAppMessagesProvider, GistListener {
 
     private var listener: InAppEventListener? = null
     private var gistSdk: GistSdk? = null
 
-    init {
-//        provider.addListener(this)
-    }
-
     override fun initProvider(application: Application, siteId: String, region: String) {
-        gistSdk = provider.initProvider(application, siteId, dataCenter = region)
+        gistSdk = GistSdk(application, siteId, dataCenter = region)
+        gistSdk?.addListener(this)
     }
 
     override fun setUserToken(userToken: String) {
@@ -64,19 +61,31 @@ internal class GistInAppMessagesProvider(private val provider: GistApi) :
         onAction: (deliveryId: String, currentRoute: String, action: String, name: String) -> Unit,
         onError: (message: String) -> Unit
     ) {
-//        provider.subscribeToEvents(
-//            onMessageShown = { deliveryID ->
-//                onMessageShown(deliveryID)
-//            },
-//            onAction = { deliveryID: String?, currentRoute: String, action: String, name: String ->
-//                if (deliveryID != null && action != "gist://close") {
-//                    onAction(deliveryID, currentRoute, action, name)
-//                }
-//            },
-//            onError = { errorMessage ->
-//                onError(errorMessage)
-//            }
-//        )
+        gistSdk?.addListener(object : GistListener {
+            override fun embedMessage(message: Message, elementId: String) {}
+
+            override fun onMessageShown(message: Message) {
+                GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
+                    onMessageShown(deliveryID)
+                }
+            }
+
+            override fun onMessageDismissed(message: Message) {}
+
+            override fun onMessageCancelled(message: Message) {}
+
+            override fun onError(message: Message) {
+                onError(message)
+            }
+
+            override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
+                GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
+                    if (action != "gist://close") {
+                        onAction(deliveryID, currentRoute, action, name)
+                    }
+                }
+            }
+        })
     }
 
     override fun embedMessage(message: Message, elementId: String) {}

@@ -73,7 +73,7 @@ class GistView @JvmOverloads constructor(
         var shouldLogAction = true
         currentMessage?.let { message ->
             currentRoute?.let { route ->
-//                GistSdk.handleGistAction(message = message, currentRoute = route, action = action, name = name)
+                inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.Tap(message = message, route = route, name = name, action = action))
                 when {
                     action.startsWith("gist://") -> {
                         val gistAction = URI(action)
@@ -137,7 +137,7 @@ class GistView @JvmOverloads constructor(
     override fun routeError(route: String) {
         logger.debug("GistView Route error: $route")
         currentMessage?.let { message ->
-//            GistSdk.handleGistError(message)
+            inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
         }
     }
 
@@ -158,7 +158,7 @@ class GistView @JvmOverloads constructor(
     override fun error() {
         logger.debug("GistView Error loading engine")
         currentMessage?.let { message ->
-//            GistSdk.handleGistError(message)
+            inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
         }
     }
 

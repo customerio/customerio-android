@@ -124,7 +124,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
 
         manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
         manager.dispatch(InAppMessagingAction.DisplayMessage(message))
-        manager.dispatch(InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = true))
+        manager.dispatch(InAppMessagingAction.DismissMessage(message, shouldLog = false, viaCloseAction = true))
 
         val state = manager.getCurrentState()
         state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java

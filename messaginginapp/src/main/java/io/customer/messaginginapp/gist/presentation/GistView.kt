@@ -102,7 +102,7 @@ class GistView @JvmOverloads constructor(
                                 val map: Map<String, Any> = HashMap()
                                 val properties = Gson().fromJson(parameterString, map.javaClass)
                                 logger.debug("Showing message: $messageId")
-                                inAppMessagingManager.dispatch(InAppMessagingAction.ShowModalMessage(Message(messageId = messageId, properties = properties)))
+                                inAppMessagingManager.dispatch(InAppMessagingAction.DisplayModalMessage(Message(messageId = messageId, properties = properties)))
                             }
 
                             else -> {
@@ -150,7 +150,7 @@ class GistView @JvmOverloads constructor(
                 engineWebView.alpha = 1.0f
             }
             currentMessage?.let { message ->
-                inAppMessagingManager.dispatch(InAppMessagingAction.MakeMessageVisible(message))
+                inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
             }
         }
     }

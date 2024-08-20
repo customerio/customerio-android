@@ -116,17 +116,17 @@ class Queue : GistQueue {
                     // No content, don't do anything
                     logger.debug("No messages found for user")
                     // To prevent us from showing expired / revoked messages, clear user messages from local queue.
-                    inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessagesInQueue)
+                    inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
                 } else if (latestMessagesResponse.isSuccessful) {
                     logger.debug("Found ${responseBody?.count()} messages for user")
                     responseBody?.let { messages ->
                         // If the messages in the local queue the same as the number of messages fetched, don't update the queue.
-                        inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessages(messages))
+                        inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(messages))
                     }
                 } else {
                     logger.debug("Failed to fetch messages: ${latestMessagesResponse.code()}")
                     // To prevent us from showing expired / revoked messages, clear user messages from local queue.
-                    inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessagesInQueue)
+                    inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
                 }
 
                 // Check if the polling interval changed and update timer.

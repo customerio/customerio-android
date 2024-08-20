@@ -23,7 +23,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
     // Helper function to set up the initial state for tests
     private fun initializeAndSetUser() {
         manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, context = applicationMock, environment = GistEnvironment.PROD))
-        manager.dispatch(InAppMessagingAction.SetUser(String.random))
+        manager.dispatch(InAppMessagingAction.SetUserIdentifier(String.random))
     }
 
     override fun teardown() {
@@ -40,7 +40,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
         )
 
         initializeAndSetUser()
-        manager.dispatch(InAppMessagingAction.ProcessMessages(messages))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(messages))
 
         val state = manager.getCurrentState()
         state.messagesInQueue.size shouldBeEqualTo 3
@@ -56,7 +56,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
         )
 
         initializeAndSetUser()
-        manager.dispatch(InAppMessagingAction.ProcessMessages(messages))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(messages))
 
         val state = manager.getCurrentState()
         state.messagesInQueue.size shouldBeEqualTo 2
@@ -69,14 +69,14 @@ class InAppMessagingStoreTest : RobolectricTest() {
         initializeAndSetUser()
         val message = Message(queueId = "1", properties = mapOf("gist" to mapOf("routeRuleAndroid" to "home")))
 
-        manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(message)))
-        manager.dispatch(InAppMessagingAction.SetCurrentRoute("home"))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
 
         var state = manager.getCurrentState()
         state.currentRoute shouldBe "home"
         (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
 
-        manager.dispatch(InAppMessagingAction.SetCurrentRoute("profile"))
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("profile"))
 
         state = manager.getCurrentState()
         state.currentRoute shouldBe "profile"
@@ -94,8 +94,8 @@ class InAppMessagingStoreTest : RobolectricTest() {
         val generalMessage = Message(queueId = "3")
 
         // process messages and set initial route
-        manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(homeMessage, profileMessage, generalMessage)))
-        manager.dispatch(InAppMessagingAction.SetCurrentRoute("home"))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(homeMessage, profileMessage, generalMessage)))
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
 
         // verify general message is displayed first (as it has no route rule)
         var state = manager.getCurrentState()
@@ -103,16 +103,16 @@ class InAppMessagingStoreTest : RobolectricTest() {
         messageBeingDisplayed?.queueId shouldBe "3"
 
         // make the message visible and then dismiss it
-        manager.dispatch(InAppMessagingAction.MakeMessageVisible(messageBeingDisplayed!!))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(messageBeingDisplayed!!))
         manager.dispatch(InAppMessagingAction.DismissMessage(messageBeingDisplayed))
 
         // change route to "profile" and verify no message is displayed
-        manager.dispatch(InAppMessagingAction.SetCurrentRoute("profile"))
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("profile"))
         state = manager.getCurrentState()
         state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
 
         // change route back to "home" and verify home message is now processed
-        manager.dispatch(InAppMessagingAction.SetCurrentRoute("home"))
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
         state = manager.getCurrentState()
         (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
     }
@@ -122,8 +122,8 @@ class InAppMessagingStoreTest : RobolectricTest() {
         initializeAndSetUser()
         val message = Message(queueId = "1")
 
-        manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(message)))
-        manager.dispatch(InAppMessagingAction.MakeMessageVisible(message))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(message))
         manager.dispatch(InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = true))
 
         val state = manager.getCurrentState()

@@ -89,7 +89,7 @@ class GistSdk(
     fun setCurrentRoute(route: String) {
         logger.debug("Current gist route is already set to: ${state.currentRoute}, new route is: $route")
 
-        inAppMessagingManager.dispatch(InAppMessagingAction.SetCurrentRoute(route))
+        inAppMessagingManager.dispatch(InAppMessagingAction.NavigateToRoute(route))
     }
 
     fun setUserId(userId: String) {
@@ -99,7 +99,7 @@ class GistSdk(
         }
         globalPreferenceStore.saveUserId(userId)
         fetchInAppMessages(state.pollInterval)
-        inAppMessagingManager.dispatch(InAppMessagingAction.SetUser(userId))
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
         // Fetch messages for the new user
     }
 

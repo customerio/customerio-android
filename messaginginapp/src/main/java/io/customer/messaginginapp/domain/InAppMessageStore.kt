@@ -4,6 +4,7 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
+import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
 import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
@@ -140,10 +141,11 @@ fun onRouteChange() = middleware<InAppMessagingState> { store, next, action ->
 fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
     if (action is InAppMessagingAction.ProcessMessages) {
         val notShownMessages = action.messages
-            .sortedWith(compareBy(nullsLast()) { it.priority })
             .filter { message ->
                 message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId)
             }
+            .distinctBy(Message::queueId)
+            .sortedWith(compareBy(nullsLast()) { it.priority })
 
         val notShownMessagesWithProperties = notShownMessages
             .map { message ->

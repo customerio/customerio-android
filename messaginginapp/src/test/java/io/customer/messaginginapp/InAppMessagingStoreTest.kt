@@ -10,6 +10,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInstanceOf
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -19,13 +20,19 @@ class InAppMessagingStoreTest : RobolectricTest() {
 
     private val manager = InAppMessagingManager
 
+    // Helper function to set up the initial state for tests
     private fun initializeAndSetUser() {
         manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, context = applicationMock, environment = GistEnvironment.PROD))
         manager.dispatch(InAppMessagingAction.SetUser(String.random))
     }
 
+    override fun teardown() {
+        manager.dispatch(InAppMessagingAction.Reset)
+        super.teardown()
+    }
+
     @Test
-    fun `test ProcessMessages with random messages`() = runTest {
+    fun givenMessagesWithDifferentPriorities_whenProcessingMessages_thenHighestPriorityMessageIsProcessedFirst() = runTest {
         val messages = listOf(
             Message(queueId = "1", priority = 2),
             Message(queueId = "2", priority = 1),
@@ -41,7 +48,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun `test ProcessMessages with duplicate messages`() = runTest {
+    fun givenDuplicateMessages_whenProcessingMessages_thenDuplicatesAreRemoved() = runTest {
         val messages = listOf(
             Message(queueId = "1"),
             Message(queueId = "1"),
@@ -58,10 +65,10 @@ class InAppMessagingStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun `test route change`() = runTest {
+    fun givenMessageWithSpecificRouteRule_whenRouteChanges_thenMessageStateUpdatesAccordingly() = runTest {
         initializeAndSetUser()
+        val message = Message(queueId = "1", properties = mapOf("gist" to mapOf("routeRuleAndroid" to "home")))
 
-        val message = Message(queueId = "1", properties = mapOf("routeRuleAndroid" to "home"))
         manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(message)))
         manager.dispatch(InAppMessagingAction.SetCurrentRoute("home"))
 
@@ -70,55 +77,67 @@ class InAppMessagingStoreTest : RobolectricTest() {
         (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
 
         manager.dispatch(InAppMessagingAction.SetCurrentRoute("profile"))
+
         state = manager.getCurrentState()
         state.currentRoute shouldBe "profile"
-        state.currentMessageState shouldBe MessageState.Default
+
+        val currentState = state.currentMessageState
+        currentState shouldBeInstanceOf MessageState.Dismissed::class.java
+        (currentState as MessageState.Dismissed).message.queueId shouldBe "1"
     }
 
     @Test
-    fun `test message visibility based on route`() = runTest {
+    fun givenMultipleMessagesWithDifferentRouteRules_whenRouteChanges_thenCorrectMessageIsDisplayed() = runTest {
         initializeAndSetUser()
-
-        val homeMessage = Message(queueId = "1", properties = mapOf("routeRuleAndroid" to "home"))
-        val profileMessage = Message(queueId = "1", properties = mapOf("routeRuleAndroid" to "profile"))
+        val homeMessage = Message(queueId = "1", properties = mapOf("gist" to mapOf("routeRuleAndroid" to "home")))
+        val profileMessage = Message(queueId = "1", properties = mapOf("gist" to mapOf("routeRuleAndroid" to "profile")))
         val generalMessage = Message(queueId = "3")
 
+        // process messages and set initial route
         manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(homeMessage, profileMessage, generalMessage)))
         manager.dispatch(InAppMessagingAction.SetCurrentRoute("home"))
 
+        // verify general message is displayed first (as it has no route rule)
         var state = manager.getCurrentState()
-        (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
+        val messageBeingDisplayed = (state.currentMessageState as? MessageState.Processing)?.message
+        messageBeingDisplayed?.queueId shouldBe "3"
 
+        // make the message visible and then dismiss it
+        manager.dispatch(InAppMessagingAction.MakeMessageVisible(messageBeingDisplayed!!))
+        manager.dispatch(InAppMessagingAction.DismissMessage(messageBeingDisplayed))
+
+        // change route to "profile" and verify no message is displayed
         manager.dispatch(InAppMessagingAction.SetCurrentRoute("profile"))
         state = manager.getCurrentState()
-        (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "2"
+        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
 
-        manager.dispatch(InAppMessagingAction.SetCurrentRoute("settings"))
+        // change route back to "home" and verify home message is now processed
+        manager.dispatch(InAppMessagingAction.SetCurrentRoute("home"))
         state = manager.getCurrentState()
-        (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "3"
+        (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
     }
 
     @Test
-    fun `test message dismissal`() = runTest {
-//        initializeAndSetUser()
-//
-//        val message = Message(queueId = "1")
-//        manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(message)))
-//        manager.dispatch(InAppMessagingAction.MakeMessageVisible(message))
-//        manager.dispatch(InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = true))
-//
-//        val state = manager.getCurrentState()
-//        state.currentMessageState shouldBe MessageState.Dismissed::class
-//        state.shownMessageQueueIds.contains("1") shouldBe true
+    fun givenVisibleMessage_whenDismissed_thenMessageStateUpdatesAndQueueIdIsRecorded() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessages(listOf(message)))
+        manager.dispatch(InAppMessagingAction.MakeMessageVisible(message))
+        manager.dispatch(InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = true))
+
+        val state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.shownMessageQueueIds.contains("1") shouldBe true
     }
 
     @Test
-    fun `test polling interval change`() = runTest {
+    fun givenInitialPollingInterval_whenIntervalIsChanged_thenNewIntervalIsReflectedInState() = runTest {
         initializeAndSetUser()
 
         manager.dispatch(InAppMessagingAction.SetPollingInterval(300_000L))
 
         val state = manager.getCurrentState()
-        state.pollInterval shouldBe 300_000L
+        state.pollInterval shouldBeEqualTo 300_000L
     }
 }

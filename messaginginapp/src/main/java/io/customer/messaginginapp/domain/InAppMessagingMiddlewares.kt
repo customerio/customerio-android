@@ -53,14 +53,14 @@ internal fun dismissMessageMiddleware() = middleware<InAppMessagingState> { _, n
 }
 
 internal fun modalMessageMiddleware() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.DisplayModalMessage) {
+    if (action is InAppMessagingAction.ProcessMessage) {
         handleModalMessageDisplay(store, action, next)
     } else {
         next(action)
     }
 }
 
-private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.DisplayModalMessage, next: (Any) -> Any) {
+private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.ProcessMessage, next: (Any) -> Any) {
     if (store.state.currentMessageState !is MessageState.Loaded) {
         val context = store.state.context ?: return
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
@@ -152,12 +152,10 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             val message = messageToBeShownWithProperties.first
             val properties = messageToBeShownWithProperties.second
 
-            next(InAppMessagingAction.QueueMessage(message))
-
             if (properties.elementId != null) {
                 store.dispatch(InAppMessagingAction.EmbedMessage(message, properties.elementId))
             } else {
-                store.dispatch(InAppMessagingAction.DisplayModalMessage(message))
+                store.dispatch(InAppMessagingAction.ProcessMessage(message))
             }
         } else {
             // Handle the case where no message matches the criteria.

@@ -102,7 +102,7 @@ class GistView @JvmOverloads constructor(
                                 val map: Map<String, Any> = HashMap()
                                 val properties = Gson().fromJson(parameterString, map.javaClass)
                                 logger.debug("Showing message: $messageId")
-                                inAppMessagingManager.dispatch(InAppMessagingAction.DisplayModalMessage(Message(messageId = messageId, properties = properties)))
+                                inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessage(Message(messageId = messageId, properties = properties)))
                             }
 
                             else -> {

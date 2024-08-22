@@ -8,14 +8,11 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
         is InAppMessagingAction.NavigateToRoute -> state.copy(currentRoute = action.route)
         is InAppMessagingAction.SetUserIdentifier -> state.copy(userId = action.user)
         is InAppMessagingAction.ClearMessageQueue -> state.copy(messagesInQueue = setOf())
-        is InAppMessagingAction.QueueMessage -> {
-            state.copy(currentMessageState = MessageState.Processing(action.message))
-        }
 
         is InAppMessagingAction.ProcessMessageQueue -> state.copy(messagesInQueue = action.messages.toSet())
         is InAppMessagingAction.SetPollingInterval -> state.copy(pollInterval = action.interval)
         is InAppMessagingAction.DismissMessage -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
-        is InAppMessagingAction.DisplayModalMessage -> state.copy(currentMessageState = MessageState.Processing(action.message))
+        is InAppMessagingAction.ProcessMessage -> state.copy(currentMessageState = MessageState.Processing(action.message))
         is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, context = state.context, environment = state.environment, pollInterval = state.pollInterval)
         is InAppMessagingAction.DisplayMessage -> {
             action.message.queueId?.let { queueId ->

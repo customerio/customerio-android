@@ -154,17 +154,6 @@ public final class io/customer/messaginginapp/domain/InAppMessagingAction$Initia
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/customer/messaginginapp/domain/InAppMessagingAction$NavigateToRoute : io/customer/messaginginapp/domain/InAppMessagingAction {
-	public fun <init> (Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/customer/messaginginapp/domain/InAppMessagingAction$NavigateToRoute;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/domain/InAppMessagingAction$NavigateToRoute;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/domain/InAppMessagingAction$NavigateToRoute;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getRoute ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public final class io/customer/messaginginapp/domain/InAppMessagingAction$ProcessMessage : io/customer/messaginginapp/domain/InAppMessagingAction {
 	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/gist/data/model/MessagePosition;)V
 	public synthetic fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -203,6 +192,17 @@ public final class io/customer/messaginginapp/domain/InAppMessagingAction$Report
 
 public final class io/customer/messaginginapp/domain/InAppMessagingAction$Reset : io/customer/messaginginapp/domain/InAppMessagingAction {
 	public static final field INSTANCE Lio/customer/messaginginapp/domain/InAppMessagingAction$Reset;
+}
+
+public final class io/customer/messaginginapp/domain/InAppMessagingAction$SetPageRoute : io/customer/messaginginapp/domain/InAppMessagingAction {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/messaginginapp/domain/InAppMessagingAction$SetPageRoute;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/domain/InAppMessagingAction$SetPageRoute;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/domain/InAppMessagingAction$SetPageRoute;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRoute ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/customer/messaginginapp/domain/InAppMessagingAction$SetPollingInterval : io/customer/messaginginapp/domain/InAppMessagingAction {

@@ -5,6 +5,7 @@ import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingState
 import io.customer.messaginginapp.domain.MessageState
 import io.customer.messaginginapp.gist.GistEnvironment
@@ -15,13 +16,21 @@ import java.util.Timer
 import kotlin.concurrent.timer
 import kotlinx.coroutines.flow.filter
 
+interface GistProvider {
+    fun setCurrentRoute(route: String)
+    fun setUserId(userId: String)
+    fun dismissMessage()
+    fun reset()
+}
+
 class GistSdk(
     private val application: Application,
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD
-) : GistListener {
-    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+) : GistProvider {
+    private val inAppMessagingManager: InAppMessagingManager
+        get() = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
     private val globalPreferenceStore: GlobalPreferenceStore
@@ -30,8 +39,6 @@ class GistSdk(
 
     private var timer: Timer? = null
     private val gistQueue = SDKComponent.gistQueue
-
-    private var listeners: List<GistListener> = emptyList()
 
     private fun resetTimer() {
         timer?.cancel()
@@ -53,7 +60,7 @@ class GistSdk(
         subscribeToEvents()
     }
 
-    internal fun reset() {
+    override fun reset() {
         inAppMessagingManager.dispatch(InAppMessagingAction.Reset)
         // Remove user token from preferences
         globalPreferenceStore.removeUserId()
@@ -70,13 +77,7 @@ class GistSdk(
         }
     }
 
-    fun addListener(listener: GistListener) {
-        listeners += listener
-    }
-
-    private fun subscribeToEvents() {
-        inAppMessagingManager.setListener(this)
-
+    internal fun subscribeToEvents() {
         SDKComponent.activityLifecycleCallbacks.subscribe { events ->
             events
                 .filter { state ->
@@ -96,13 +97,13 @@ class GistSdk(
         }
     }
 
-    fun setCurrentRoute(route: String) {
+    override fun setCurrentRoute(route: String) {
         logger.debug("Current gist route is: ${state.currentRoute}, new route is: $route")
 
-        inAppMessagingManager.dispatch(InAppMessagingAction.NavigateToRoute(route))
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetPageRoute(route))
     }
 
-    fun setUserId(userId: String) {
+    override fun setUserId(userId: String) {
         if (state.userId == userId) {
             logger.debug("Current user id is already set to: ${state.userId}, ignoring new user id")
             return
@@ -112,33 +113,9 @@ class GistSdk(
         fetchInAppMessages(state.pollInterval)
     }
 
-    fun dismissMessage() {
+    override fun dismissMessage() {
         val currentMessageState = state.currentMessageState as? MessageState.Loaded
         inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentMessageState?.message ?: return))
-    }
-
-    override fun embedMessage(message: Message, elementId: String) {
-        listeners.forEach { it.embedMessage(message, elementId) }
-    }
-
-    override fun onMessageShown(message: Message) {
-        listeners.forEach { it.onMessageShown(message) }
-    }
-
-    override fun onMessageDismissed(message: Message) {
-        listeners.forEach { it.onMessageDismissed(message) }
-    }
-
-    override fun onMessageCancelled(message: Message) {
-        listeners.forEach { it.onMessageCancelled(message) }
-    }
-
-    override fun onError(message: Message) {
-        listeners.forEach { it.onError(message) }
-    }
-
-    override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
-        listeners.forEach { it.onAction(message, currentRoute, action, name) }
     }
 }
 

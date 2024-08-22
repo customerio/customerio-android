@@ -8,7 +8,7 @@ import io.customer.messaginginapp.gist.data.model.MessagePosition
 sealed class InAppMessagingAction {
     data class Initialize(val siteId: String, val dataCenter: String, val context: Context, val environment: GistEnvironment) : InAppMessagingAction()
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
-    data class NavigateToRoute(val route: String) : InAppMessagingAction()
+    data class SetPageRoute(val route: String) : InAppMessagingAction()
     data class ProcessMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()
     data class EmbedMessage(val message: Message, val elementId: String) : InAppMessagingAction()
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()

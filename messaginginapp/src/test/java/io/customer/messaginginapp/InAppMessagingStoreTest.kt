@@ -108,13 +108,13 @@ class InAppMessagingStoreTest : RobolectricTest() {
         val message = Message(queueId = "1", properties = mapOf("gist" to mapOf("routeRuleAndroid" to "home")))
 
         manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
 
         var state = manager.getCurrentState()
         state.currentRoute shouldBe "home"
         (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
 
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("profile"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("profile"))
 
         state = manager.getCurrentState()
         state.currentRoute shouldBe "profile"
@@ -133,7 +133,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
 
         // process messages and set initial route
         manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(homeMessage, profileMessage, generalMessage)))
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
 
         // verify general message is displayed first (as it has no route rule)
         var state = manager.getCurrentState()
@@ -145,12 +145,12 @@ class InAppMessagingStoreTest : RobolectricTest() {
         manager.dispatch(InAppMessagingAction.DismissMessage(messageBeingDisplayed))
 
         // change route to "profile" and verify no message is displayed
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("profile"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("profile"))
         state = manager.getCurrentState()
         state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
 
         // change route back to "home" and verify home message is now processed
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
         state = manager.getCurrentState()
         (state.currentMessageState as? MessageState.Processing)?.message?.queueId shouldBe "1"
     }
@@ -261,7 +261,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
         )
 
         // Set initial route and start processing the message
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
         manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
 
         // Verify that the message is being processed
@@ -270,7 +270,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
         (state.currentMessageState as MessageState.Processing).message.queueId shouldBeEqualTo "1"
 
         // Change route before the message is fully displayed
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("profile"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("profile"))
 
         // Verify that the message is no longer being processed and not displayed
         state = manager.getCurrentState()
@@ -278,7 +278,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
         state.currentRoute shouldBeEqualTo "profile"
 
         // Change route back to "home"
-        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
 
         // Verify that the message is being processed again
         state = manager.getCurrentState()

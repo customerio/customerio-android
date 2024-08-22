@@ -5,7 +5,7 @@ import org.reduxkotlin.Reducer
 val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
     when (action) {
         is InAppMessagingAction.Initialize -> state.copy(siteId = action.siteId, dataCenter = action.dataCenter, context = action.context, environment = action.environment)
-        is InAppMessagingAction.NavigateToRoute -> state.copy(currentRoute = action.route)
+        is InAppMessagingAction.SetPageRoute -> state.copy(currentRoute = action.route)
         is InAppMessagingAction.SetUserIdentifier -> state.copy(userId = action.user)
         is InAppMessagingAction.ClearMessageQueue -> state.copy(messagesInQueue = setOf())
 

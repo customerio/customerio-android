@@ -87,7 +87,7 @@ internal fun userChangeMiddleware() = middleware<InAppMessagingState> { store, n
 
 internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
 
-    if (action is InAppMessagingAction.NavigateToRoute && store.state.currentRoute != action.route) {
+    if (action is InAppMessagingAction.SetPageRoute && store.state.currentRoute != action.route) {
         // update the current route
         next(action)
 

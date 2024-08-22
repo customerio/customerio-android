@@ -1,16 +1,31 @@
 package io.customer.messaginginapp
 
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.domain.MessageState
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.type.InAppEventListener
+import io.customer.messaginginapp.type.InAppMessage
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.model.Region
+import io.mockk.Called
+import io.mockk.confirmVerified
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
+import org.amshove.kluent.shouldContain
+import org.amshove.kluent.shouldContainAll
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -18,7 +33,30 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class InAppMessagingStoreTest : RobolectricTest() {
 
-    private val manager = InAppMessagingManager
+    private var inAppEventListener = mockk<InAppEventListener>(relaxed = true)
+
+    private val module = ModuleMessagingInApp(
+        config = MessagingInAppModuleConfig.Builder(
+            siteId = TestConstants.Keys.SITE_ID,
+            region = Region.US
+        ).setEventListener(inAppEventListener).build()
+    ).attachToSDKComponent()
+
+    private lateinit var manager: InAppMessagingManager
+
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<ModuleMessagingInApp>(module)
+                    }
+                }
+            }
+        )
+
+        manager = SDKComponent.inAppMessagingManager
+    }
 
     // Helper function to set up the initial state for tests
     private fun initializeAndSetUser() {
@@ -139,5 +177,194 @@ class InAppMessagingStoreTest : RobolectricTest() {
 
         val state = manager.getCurrentState()
         state.pollInterval shouldBeEqualTo 300_000L
+    }
+
+    @Test
+    fun givenNoUser_whenProcessingMessage_thenNoActionIsTaken() = runTest {
+        // Initialize without setting user
+        manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, context = applicationMock, environment = GistEnvironment.PROD))
+
+        val message = Message(queueId = "1")
+        manager.dispatch(InAppMessagingAction.ProcessMessage(message))
+
+        val state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Default::class.java
+
+        verify { inAppEventListener wasNot Called }
+    }
+
+    @Test
+    fun givenMessage_whenDisplayed_thenOnMessageShownCallbackIsCalled() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+
+        manager.dispatch(InAppMessagingAction.DisplayMessage(message))
+
+        verify { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(message)) }
+        confirmVerified(inAppEventListener)
+    }
+
+    @Test
+    fun givenActiveMessage_whenProcessingMessageQueue_thenNoNewMessageIsProcessed() = runTest {
+        initializeAndSetUser()
+
+        // Create and display an initial active message
+        val activeMessage = Message(queueId = "active")
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(activeMessage)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(activeMessage))
+
+        // Verify that the active message is displayed
+        var state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Loaded::class.java
+        (state.currentMessageState as MessageState.Loaded).message.queueId shouldBeEqualTo "active"
+
+        // Try to process a new message queue
+        val newMessage1 = Message(queueId = "new1")
+        val newMessage2 = Message(queueId = "new2")
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(newMessage1, newMessage2)))
+
+        // Verify that the state hasn't changed and no new message was processed
+        state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Loaded::class.java
+        (state.currentMessageState as MessageState.Loaded).message.queueId shouldBeEqualTo "active"
+
+        // Verify that the new messages are added to the queue but not processed
+        state.messagesInQueue.map { it.queueId } shouldContainAll listOf("new1", "new2")
+    }
+
+    @Test
+    fun givenNoActiveMessage_whenProcessingMessageQueue_thenNewMessageIsProcessed() = runTest {
+        initializeAndSetUser()
+
+        // Process a new message queue when there's no active message
+        val newMessage1 = Message(queueId = "new1")
+        val newMessage2 = Message(queueId = "new2")
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(newMessage1, newMessage2)))
+
+        // Verify that the first message is being processed
+        val state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Processing::class.java
+        (state.currentMessageState as MessageState.Processing).message.queueId shouldBeEqualTo "new1"
+
+        // Verify that the second message is in the queue
+        state.messagesInQueue.map { it.queueId } shouldContain "new2"
+    }
+
+    @Test
+    fun givenMessageBeingProcessed_whenRouteChanges_thenMessageIsHandledCorrectly() = runTest {
+        initializeAndSetUser()
+
+        // Create a message with a specific route rule
+        val message = Message(
+            queueId = "1",
+            properties = mapOf("gist" to mapOf("routeRuleAndroid" to "home"))
+        )
+
+        // Set initial route and start processing the message
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+
+        // Verify that the message is being processed
+        var state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Processing::class.java
+        (state.currentMessageState as MessageState.Processing).message.queueId shouldBeEqualTo "1"
+
+        // Change route before the message is fully displayed
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("profile"))
+
+        // Verify that the message is no longer being processed and not displayed
+        state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.currentRoute shouldBeEqualTo "profile"
+
+        // Change route back to "home"
+        manager.dispatch(InAppMessagingAction.NavigateToRoute("home"))
+
+        // Verify that the message is being processed again
+        state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Processing::class.java
+        (state.currentMessageState as MessageState.Processing).message.queueId shouldBeEqualTo "1"
+
+        // Simulate message display
+        manager.dispatch(InAppMessagingAction.DisplayMessage(message))
+
+        // Verify that the message is now displayed
+        state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Loaded::class.java
+        (state.currentMessageState as MessageState.Loaded).message.queueId shouldBeEqualTo "1"
+    }
+
+    @Test
+    fun givenMessage_whenDismissedAndReprocessed_thenMessageIsNotDisplayedAgain() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(message))
+        manager.dispatch(InAppMessagingAction.DismissMessage(message))
+
+        // Attempt to process the same message again
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+
+        val state = manager.getCurrentState()
+        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.shownMessageQueueIds.contains("1") shouldBe true
+
+        verify(exactly = 1) { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(message)) }
+        verify(exactly = 1) { inAppEventListener.messageDismissed(InAppMessage.getFromGistMessage(message)) }
+    }
+
+    @Test
+    fun givenMessage_whenDismissed_thenOnMessageDismissedCallbackIsCalled() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+
+        manager.dispatch(InAppMessagingAction.DismissMessage(message))
+
+        verify { inAppEventListener.messageDismissed(InAppMessage.getFromGistMessage(message)) }
+    }
+
+    @Test
+    fun givenMessage_whenLoadingFails_thenOnErrorCallbackIsCalled() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+
+        verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
+    }
+
+    @Test
+    fun givenMessage_whenEmbedded_thenEmbedMessageCallbackIsCalled() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+        val elementId = "testElementId"
+
+        manager.dispatch(InAppMessagingAction.EmbedMessage(message, elementId))
+
+        verify { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(message)) }
+    }
+
+    @Test
+    fun givenMessage_whenErrorOccurs_thenOnErrorCallbackIsCalled() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+
+        manager.dispatch(InAppMessagingAction.EngineAction.Error(message))
+
+        verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
+    }
+
+    @Test
+    fun givenMessage_whenTapActionOccurs_thenOnActionCallbackIsCalled() = runTest {
+        initializeAndSetUser()
+        val message = Message(queueId = "1")
+        val route = "testRoute"
+        val action = "testAction"
+        val name = "testName"
+
+        manager.dispatch(InAppMessagingAction.EngineAction.Tap(message, route, name, action))
+
+        verify { inAppEventListener.messageActionTaken(InAppMessage.getFromGistMessage(message), action, name) }
     }
 }

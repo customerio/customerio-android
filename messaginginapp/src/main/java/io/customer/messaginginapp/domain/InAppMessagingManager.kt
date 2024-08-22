@@ -12,20 +12,15 @@ import org.reduxkotlin.Store
 import org.reduxkotlin.applyMiddleware
 import org.reduxkotlin.threadsafe.createThreadSafeStore
 
-internal object InAppMessagingManager {
+data class InAppMessagingManager(val listener: GistListener? = null) {
     private val store: Store<InAppMessagingState> = createStore()
     internal val storeStatFlow = MutableStateFlow(store.state)
     internal val scope: CoroutineScope = SDKComponent.scopeProvider.lifecycleListenerScope
-    private var gistListener: GistListener? = null
 
     init {
         store.subscribe {
             storeStatFlow.value = store.state
         }
-    }
-
-    fun setListener(listener: GistListener) {
-        this.gistListener = listener
     }
 
     private fun createStore(): Store<InAppMessagingState> {
@@ -41,7 +36,7 @@ internal object InAppMessagingManager {
                 dismissMessageMiddleware(),
                 processMessages(),
                 errorLoggerMiddleware(),
-                gistListenerMiddleware(gistListener)
+                gistListenerMiddleware(listener)
             )
         )
     }

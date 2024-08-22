@@ -9,7 +9,7 @@ import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.provider.InAppMessagesProvider
+import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.sdk.communication.Event
@@ -24,11 +24,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     private lateinit var module: ModuleMessagingInApp
     private lateinit var eventBus: EventBus
     private lateinit var inAppEventListenerMock: InAppEventListener
-    private lateinit var inAppMessagesProviderMock: InAppMessagesProvider
+    private lateinit var inAppMessagesProviderMock: GistProvider
     private val testScopeProviderStub = ScopeProviderStub()
-
-    private val moduleConfig: MessagingInAppModuleConfig
-        get() = module.moduleConfig
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -36,7 +33,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
                 diGraph {
                     sdk {
                         overrideDependency<ScopeProvider>(testScopeProviderStub)
-                        overrideDependency(mockk<InAppMessagesProvider>(relaxed = true))
+                        overrideDependency(mockk<GistProvider>(relaxed = true))
                     }
                 }
             }
@@ -62,43 +59,14 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
-    fun initialize_givenComponentInitialize_expectGistToInitializeWithCorrectValuesAndHooks() {
-        module.initialize()
-
-        // verify gist is initialized
-        assertCalledOnce {
-            inAppMessagesProviderMock.initProvider(
-                any(),
-                moduleConfig.siteId,
-                moduleConfig.region.code
-            )
-        }
-
-        // verify events
-        assertCalledOnce { inAppMessagesProviderMock.subscribeToEvents(any(), any(), any()) }
-
-        // verify given event listener gets registered
-        assertCalledOnce { inAppMessagesProviderMock.setListener(inAppEventListenerMock) }
-    }
-
-    @Test
     fun initialize_givenProfileIdentified_expectGistToSetUserToken() {
         val givenIdentifier = String.random
         module.initialize()
 
-        // verify gist is initialized
-        assertCalledOnce {
-            inAppMessagesProviderMock.initProvider(
-                any(),
-                moduleConfig.siteId,
-                moduleConfig.region.code
-            )
-        }
-
         // publish profile identified event
         eventBus.publish(Event.ProfileIdentifiedEvent(identifier = givenIdentifier))
         // verify gist sets userToken
-        assertCalledOnce { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
+        assertCalledOnce { inAppMessagesProviderMock.setUserId(givenIdentifier) }
     }
 
     @Test
@@ -108,34 +76,16 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         module.initialize()
 
-        // verify gist is initialized
-        assertCalledOnce {
-            inAppMessagesProviderMock.initProvider(
-                any(),
-                moduleConfig.siteId,
-                moduleConfig.region.code
-            )
-        }
-
         // verify gist sets userToken
-        assertCalledOnce { inAppMessagesProviderMock.setUserToken(givenIdentifier) }
+        assertCalledOnce { inAppMessagesProviderMock.setUserId(givenIdentifier) }
     }
 
     @Test
     fun initialize_givenNoProfileIdentified_expectGistNoUserSet() {
         module.initialize()
 
-        // verify gist is initialized
-        assertCalledOnce {
-            inAppMessagesProviderMock.initProvider(
-                any(),
-                moduleConfig.siteId,
-                moduleConfig.region.code
-            )
-        }
-
         // verify gist doesn't userToken
-        assertCalledNever { inAppMessagesProviderMock.setUserToken(any()) }
+        assertCalledNever { inAppMessagesProviderMock.setUserId(any()) }
     }
 
     @Test

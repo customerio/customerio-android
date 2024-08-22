@@ -1,6 +1,11 @@
 package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.gist.data.model.GistMessageProperties
+import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.presentation.GistListener
+import io.customer.messaginginapp.gist.presentation.GistProvider
+import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
@@ -9,13 +14,15 @@ import io.customer.sdk.events.Metric
 
 class ModuleMessagingInApp(
     config: MessagingInAppModuleConfig
-) : CustomerIOModule<MessagingInAppModuleConfig> {
+) : CustomerIOModule<MessagingInAppModuleConfig>, GistListener {
     override val moduleName: String = MODULE_NAME
     override val moduleConfig: MessagingInAppModuleConfig = config
 
     private val diGraph: SDKComponent = SDKComponent
     private val eventBus = diGraph.eventBus
-    private val gistProvider by lazy { diGraph.gistProvider }
+    private val gistProvider: GistProvider
+        get() = diGraph.gistProvider
+
     private val logger = SDKComponent.logger
 
     fun dismissMessage() {
@@ -23,39 +30,7 @@ class ModuleMessagingInApp(
     }
 
     override fun initialize() {
-        initializeGist()
         setupHooks()
-        configureSdkModule(moduleConfig)
-        setupGistCallbacks()
-    }
-
-    private fun configureSdkModule(moduleConfig: MessagingInAppModuleConfig) {
-        moduleConfig.eventListener?.let { eventListener ->
-            gistProvider.setListener(eventListener)
-        }
-    }
-
-    private fun setupGistCallbacks() {
-        gistProvider.subscribeToEvents(onMessageShown = { deliveryID ->
-            logger.debug("In-app message shown in callback $deliveryID")
-            eventBus.publish(
-                Event.TrackInAppMetricEvent(
-                    deliveryID = deliveryID,
-                    event = Metric.Opened
-                )
-            )
-        }, onAction = { deliveryID: String, _: String, action: String, name: String ->
-            logger.debug("In-app message clicked in callback $deliveryID")
-            eventBus.publish(
-                Event.TrackInAppMetricEvent(
-                    deliveryID = deliveryID,
-                    event = Metric.Clicked,
-                    params = mapOf("action_name" to name, "action_value" to action)
-                )
-            )
-        }, onError = { errorMessage ->
-            logger.error("In-app message error occurred $errorMessage")
-        })
     }
 
     private fun setupHooks() {
@@ -64,21 +39,13 @@ class ModuleMessagingInApp(
         }
 
         eventBus.subscribe<Event.ProfileIdentifiedEvent> {
-            gistProvider.setUserToken(it.identifier)
+            gistProvider.setUserId(it.identifier)
         }
 
         eventBus.subscribe<Event.ResetEvent> {
             logger.debug("Resetting user token")
             gistProvider.reset()
         }
-    }
-
-    private fun initializeGist() {
-        gistProvider.initProvider(
-            application = diGraph.android().application,
-            siteId = moduleConfig.siteId,
-            region = moduleConfig.region.code
-        )
     }
 
     companion object {
@@ -88,6 +55,54 @@ class ModuleMessagingInApp(
         fun instance(): ModuleMessagingInApp {
             return SDKComponent.modules[MODULE_NAME] as? ModuleMessagingInApp
                 ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
+        }
+    }
+
+    override fun embedMessage(message: Message, elementId: String) {
+        moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
+    }
+
+    override fun onMessageShown(message: Message) {
+        moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
+
+        GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
+            logger.debug("In-app message shown with deliveryId $deliveryID")
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryID,
+                    event = Metric.Opened
+                )
+            )
+        }
+    }
+
+    override fun onMessageDismissed(message: Message) {
+        moduleConfig.eventListener?.messageDismissed(InAppMessage.getFromGistMessage(message))
+    }
+
+    override fun onMessageCancelled(message: Message) {}
+
+    override fun onError(message: Message) {
+        logger.error("Error occurred on message: $message")
+        moduleConfig.eventListener?.errorWithMessage(InAppMessage.getFromGistMessage(message))
+    }
+
+    override fun onAction(message: Message, currentRoute: String, action: String, name: String) {
+        moduleConfig.eventListener?.messageActionTaken(
+            InAppMessage.getFromGistMessage(message),
+            actionValue = action,
+            actionName = name
+        )
+
+        GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
+            logger.debug("In-app message clicked with deliveryId: $deliveryID")
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryID,
+                    event = Metric.Clicked,
+                    params = mapOf("action_name" to name, "action_value" to action)
+                )
+            )
         }
     }
 }

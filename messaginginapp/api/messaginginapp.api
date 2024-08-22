@@ -12,16 +12,22 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder
 	public final fun setEventListener (Lio/customer/messaginginapp/type/InAppEventListener;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 }
 
-public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/sdk/core/module/CustomerIOModule {
+public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/messaginginapp/gist/presentation/GistListener, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/messaginginapp/ModuleMessagingInApp$Companion;
 	public static final field MODULE_NAME Ljava/lang/String;
 	public fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
 	public final fun dismissMessage ()V
+	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
+	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
@@ -36,10 +42,6 @@ public final class io/customer/messaginginapp/databinding/ActivityGistBinding : 
 	public fun getRoot ()Landroid/widget/RelativeLayout;
 	public static fun inflate (Landroid/view/LayoutInflater;)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
 	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
-}
-
-public final class io/customer/messaginginapp/di/DIGraphMessagingInAppKt {
-	public static final fun inAppMessaging (Lio/customer/sdk/CustomerIOInstance;)Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
 public final class io/customer/messaginginapp/domain/InAppMessageReducerKt {
@@ -222,6 +224,24 @@ public final class io/customer/messaginginapp/domain/InAppMessagingAction$SetUse
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getUser ()Ljava/lang/String;
 	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messaginginapp/domain/InAppMessagingManager {
+	public fun <init> ()V
+	public fun <init> (Lio/customer/messaginginapp/gist/presentation/GistListener;)V
+	public synthetic fun <init> (Lio/customer/messaginginapp/gist/presentation/GistListener;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lio/customer/messaginginapp/gist/presentation/GistListener;
+	public final fun copy (Lio/customer/messaginginapp/gist/presentation/GistListener;)Lio/customer/messaginginapp/domain/InAppMessagingManager;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/domain/InAppMessagingManager;Lio/customer/messaginginapp/gist/presentation/GistListener;ILjava/lang/Object;)Lio/customer/messaginginapp/domain/InAppMessagingManager;
+	public final fun dispatch (Lio/customer/messaginginapp/domain/InAppMessagingAction;)Ljava/lang/Object;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCurrentState ()Lio/customer/messaginginapp/domain/InAppMessagingState;
+	public final fun getListener ()Lio/customer/messaginginapp/gist/presentation/GistListener;
+	public fun hashCode ()I
+	public final fun subscribe (Lkotlin/jvm/functions/Function1;)Lkotlin/jvm/functions/Function0;
+	public final fun subscribeToAttribute (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/Job;
+	public static synthetic fun subscribeToAttribute$default (Lio/customer/messaginginapp/domain/InAppMessagingManager;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/coroutines/Job;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -462,21 +482,20 @@ public final class io/customer/messaginginapp/gist/presentation/GistModalActivit
 	public static final field GIST_MODAL_POSITION_INTENT Ljava/lang/String;
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/customer/messaginginapp/gist/presentation/GistListener {
+public abstract interface class io/customer/messaginginapp/gist/presentation/GistProvider {
+	public abstract fun dismissMessage ()V
+	public abstract fun reset ()V
+	public abstract fun setCurrentRoute (Ljava/lang/String;)V
+	public abstract fun setUserId (Ljava/lang/String;)V
+}
+
+public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/customer/messaginginapp/gist/presentation/GistProvider {
 	public fun <init> (Landroid/app/Application;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;)V
 	public synthetic fun <init> (Landroid/app/Application;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun addListener (Lio/customer/messaginginapp/gist/presentation/GistListener;)V
-	public final fun clearListeners ()V
-	public final fun dismissMessage ()V
-	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
-	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
-	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun removeListener (Lio/customer/messaginginapp/gist/presentation/GistListener;)V
-	public final fun setCurrentRoute (Ljava/lang/String;)V
-	public final fun setUserId (Ljava/lang/String;)V
+	public fun dismissMessage ()V
+	public fun reset ()V
+	public fun setCurrentRoute (Ljava/lang/String;)V
+	public fun setUserId (Ljava/lang/String;)V
 }
 
 public final class io/customer/messaginginapp/gist/presentation/GistView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
@@ -535,14 +554,16 @@ public abstract interface class io/customer/messaginginapp/type/InAppEventListen
 
 public final class io/customer/messaginginapp/type/InAppMessage {
 	public static final field Companion Lio/customer/messaginginapp/type/InAppMessage$Companion;
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/messaginginapp/type/InAppMessage;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/type/InAppMessage;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messaginginapp/type/InAppMessage;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/type/InAppMessage;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDeliveryId ()Ljava/lang/String;
 	public final fun getMessageId ()Ljava/lang/String;
+	public final fun getQueueId ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

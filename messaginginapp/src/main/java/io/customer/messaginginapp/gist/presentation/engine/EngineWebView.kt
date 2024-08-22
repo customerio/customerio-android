@@ -14,7 +14,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import com.google.gson.Gson
-import io.customer.messaginginapp.di.engineWebViewClientInterceptor
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.domain.InAppMessagingState
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -37,10 +36,6 @@ internal class EngineWebView @JvmOverloads constructor(
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val logger = SDKComponent.logger
-
-    // Get WebViewClientInterceptor from GistSdk directly
-    private val engineWebViewClientInterceptor: EngineWebViewClientInterceptor?
-        get() = SDKComponent.engineWebViewClientInterceptor
 
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
@@ -89,7 +84,6 @@ internal class EngineWebView @JvmOverloads constructor(
                 it.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
                         view.loadUrl("javascript:window.parent.postMessage = function(message) {window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message))}")
-                        engineWebViewClientInterceptor?.onPageFinished(view, url)
                     }
 
                     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {

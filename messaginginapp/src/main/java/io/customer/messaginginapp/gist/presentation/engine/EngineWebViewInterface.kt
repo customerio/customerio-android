@@ -4,7 +4,6 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 
 internal data class EngineWebMessage(
@@ -20,6 +19,7 @@ internal data class EngineWebEvent(
 class EngineWebViewInterface(listener: EngineWebViewListener) {
     private var listener: EngineWebViewListener = listener
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    private val logger = SDKComponent.logger
 
     // Indicates whether the interface is attached to a web view and should continue to process messages
     private var isAttachedToWebView: Boolean = false
@@ -46,9 +46,9 @@ class EngineWebViewInterface(listener: EngineWebViewListener) {
             return
         }
 
-        var event = Gson().fromJson(message, EngineWebMessage::class.java)
+        val event = Gson().fromJson(message, EngineWebMessage::class.java)
 
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Received event from WebView: $event"))
+        logger.debug("Received event from WebView: $event")
 
         event.gist.parameters?.let { eventParameters ->
             when (event.gist.method) {
@@ -56,12 +56,15 @@ class EngineWebViewInterface(listener: EngineWebViewListener) {
                 "routeLoaded" -> {
                     (eventParameters["route"] as String).let { route -> listener.routeLoaded(route) }
                 }
+
                 "routeChanged" -> {
                     (eventParameters["route"] as String).let { route -> listener.routeChanged(route) }
                 }
+
                 "routeError" -> {
                     (eventParameters["route"] as String).let { route -> listener.routeError(route) }
                 }
+
                 "sizeChanged" -> {
                     (eventParameters["width"] as Double).let { width ->
                         (eventParameters["height"] as Double).let { height ->
@@ -69,6 +72,7 @@ class EngineWebViewInterface(listener: EngineWebViewListener) {
                         }
                     }
                 }
+
                 "tap" -> {
                     (eventParameters["action"] as String).let { action ->
                         (eventParameters["name"] as String).let { name ->
@@ -78,6 +82,7 @@ class EngineWebViewInterface(listener: EngineWebViewListener) {
                         }
                     }
                 }
+
                 "error" -> listener.error()
             }
         }

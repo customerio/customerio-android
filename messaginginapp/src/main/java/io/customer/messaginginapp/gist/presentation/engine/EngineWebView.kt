@@ -6,17 +6,21 @@ import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
 import android.util.Base64
-import android.webkit.*
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
-import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
-import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 import java.io.UnsupportedEncodingException
-import java.util.*
+import java.util.Timer
+import java.util.TimerTask
 
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
@@ -30,19 +34,19 @@ internal class EngineWebView @JvmOverloads constructor(
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    private val logger = SDKComponent.logger
 
-    // Get WebViewClientInterceptor from GistSdk directly
-    private val engineWebViewClientInterceptor: EngineWebViewClientInterceptor?
-        get() = GistSdk.engineWebViewClientInterceptor
+    private val state: InAppMessagingState
+        get() = inAppMessagingManager.getCurrentState()
 
     init {
         // exception handling is required for webview in-case webview is not supported in the device
         try {
             webView = WebView(context)
             this.addView(webView)
-            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("EngineWebView created"))
+            logger.debug("EngineWebView created")
         } catch (e: Exception) {
-            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error while creating EngineWebView: ${e.message}"))
+            logger.error("Error while creating EngineWebView: ${e.message}")
         }
     }
 
@@ -64,8 +68,8 @@ internal class EngineWebView @JvmOverloads constructor(
         encodeToBase64(jsonString)?.let { options ->
             elapsedTimer.start("Engine render for message: ${configuration.messageId}")
             val messageUrl =
-                "${GistSdk.gistEnvironment.getGistRendererUrl()}/index.html?options=$options"
-            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Rendering message with URL: $messageUrl"))
+                "${state.environment.getGistRendererUrl()}/index.html?options=$options"
+            logger.debug("Rendering message with URL: $messageUrl")
             webView?.let {
                 it.loadUrl(messageUrl)
                 it.settings.javaScriptEnabled = true
@@ -79,7 +83,6 @@ internal class EngineWebView @JvmOverloads constructor(
                 it.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
                         view.loadUrl("javascript:window.parent.postMessage = function(message) {window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message))}")
-                        engineWebViewClientInterceptor?.onPageFinished(view, url)
                     }
 
                     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
@@ -130,7 +133,7 @@ internal class EngineWebView @JvmOverloads constructor(
         try {
             data = text.toByteArray(charset("UTF-8"))
         } catch (ex: UnsupportedEncodingException) {
-            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Unsupported encoding exception"))
+            logger.debug("Unsupported encoding exception")
             return null
         }
         return Base64.encodeToString(data, Base64.URL_SAFE)
@@ -140,7 +143,7 @@ internal class EngineWebView @JvmOverloads constructor(
         timerTask = object : TimerTask() {
             override fun run() {
                 if (timer != null) {
-                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Message global timeout, cancelling display."))
+                    logger.debug("Message global timeout, cancelling display.")
                     listener?.error()
                     stopTimer()
                 }

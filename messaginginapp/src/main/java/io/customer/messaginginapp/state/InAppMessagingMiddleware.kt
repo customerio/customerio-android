@@ -2,7 +2,6 @@ package io.customer.messaginginapp.state
 
 import android.content.Intent
 import com.google.gson.Gson
-// import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT

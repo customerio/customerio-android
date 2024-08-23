@@ -27,17 +27,7 @@ data class InAppMessagingManager(val listener: GistListener? = null) {
         return createThreadSafeStore(
             reducer = inAppMessagingReducer,
             preloadedState = InAppMessagingState(),
-            applyMiddleware(
-                loggerMiddleware(),
-                // needs to be first middleware to ensure that the user is set before processing any other actions
-                userChangeMiddleware(),
-                routeChangeMiddleware(),
-                modalMessageMiddleware(),
-                dismissMessageMiddleware(),
-                processMessages(),
-                errorLoggerMiddleware(),
-                gistListenerMiddleware(listener)
-            )
+            applyMiddleware()
         )
     }
 

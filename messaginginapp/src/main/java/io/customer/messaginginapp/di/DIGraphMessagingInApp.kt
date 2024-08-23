@@ -1,11 +1,11 @@
 package io.customer.messaginginapp.di
 
 import io.customer.messaginginapp.ModuleMessagingInApp
-import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.provider.GistApi
 import io.customer.messaginginapp.provider.GistApiProvider
 import io.customer.messaginginapp.provider.GistInAppMessagesProvider
 import io.customer.messaginginapp.provider.InAppMessagesProvider
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.SDKComponent
 

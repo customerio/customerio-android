@@ -4,7 +4,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 
 internal data class EngineWebMessage(

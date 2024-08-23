@@ -10,10 +10,10 @@ import android.webkit.*
 import android.widget.FrameLayout
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 import java.io.UnsupportedEncodingException
 import java.util.*

@@ -12,11 +12,11 @@ import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 import java.net.URI
 import java.nio.charset.StandardCharsets

@@ -2,8 +2,8 @@ package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
-import io.customer.messaginginapp.domain.InAppMessagingManager
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent

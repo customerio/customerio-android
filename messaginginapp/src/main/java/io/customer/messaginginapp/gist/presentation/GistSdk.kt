@@ -12,9 +12,9 @@ import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.MessageState
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
-import kotlinx.coroutines.flow.filter
 import java.util.Timer
 import kotlin.concurrent.timer
+import kotlinx.coroutines.flow.filter
 
 interface GistProvider {
     fun setCurrentRoute(route: String)

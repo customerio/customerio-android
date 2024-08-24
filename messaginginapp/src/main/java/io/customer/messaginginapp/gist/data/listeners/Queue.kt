@@ -43,66 +43,87 @@ class Queue : GistQueue {
     private val cacheDirectory by lazy { File(application.cacheDir, "http_cache") }
     private val cache by lazy { Cache(cacheDirectory, cacheSize.toLong()) }
 
+    private val gistQueueService by lazy {
+        createGistQueueService()
+    }
+
+    private fun createGistQueueService(): GistQueueService {
+        val httpClient = OkHttpClient.Builder()
+            .cache(cache)
+            .addInterceptor { chain ->
+                val originalRequest = chain.request()
+                val networkRequest = originalRequest.newBuilder()
+                    .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId)
+                    .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter)
+                    .apply {
+                        state.userId?.let { userToken ->
+                            addHeader(
+                                NetworkUtilities.USER_TOKEN_HEADER,
+                                Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
+                            )
+                        }
+                    }
+                    .header("Cache-Control", "no-cache")
+                    .build()
+
+                handleResponse(chain.proceed(networkRequest), originalRequest)
+            }
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl(GistEnvironment.PROD.getGistQueueApiUrl())
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(httpClient)
+            .build()
+            .create(GistQueueService::class.java)
+    }
+
+    private fun handleResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+        return when (response.code) {
+            200 -> handleSuccessfulResponse(response, originalRequest)
+            304 -> handleNotModifiedResponse(response, originalRequest)
+            else -> response
+        }
+    }
+
+    private fun handleSuccessfulResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+        response.body?.let { responseBody ->
+            val responseBodyString = responseBody.string()
+            saveToPrefs(application, originalRequest.url.toString(), responseBodyString)
+            return response.newBuilder()
+                .body(responseBodyString.toResponseBody(responseBody.contentType()))
+                .build()
+        }
+        return response
+    }
+
+    private fun handleNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+        val cachedResponse = getFromPrefs(application, originalRequest.url.toString())
+        return cachedResponse?.let {
+            response.newBuilder()
+                .body(it.toResponseBody(null))
+                .code(200)
+                .build()
+        } ?: response
+    }
+
     private fun saveToPrefs(context: Context, key: String, value: String) {
-        val prefs = context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
-        prefs.edit().putString(key, value).apply()
+        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
+            .edit()
+            .putString(key, value)
+            .apply()
     }
 
     private fun getFromPrefs(context: Context, key: String): String? {
-        val prefs = context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
-        return prefs.getString(key, null)
+        return context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
+            .getString(key, null)
     }
 
     override fun clearPrefs(context: Context) {
-        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE).edit().clear().apply()
-    }
-
-    private val gistQueueService by lazy {
-        // Interceptor to set up request headers like site ID, data center, and user token.
-        val httpClient: OkHttpClient = OkHttpClient.Builder().cache(cache).addInterceptor { chain ->
-            val originalRequest = chain.request()
-
-            val networkRequest = originalRequest.newBuilder().addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId).addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter).apply {
-                state.userId?.let { userToken ->
-                    addHeader(
-                        NetworkUtilities.USER_TOKEN_HEADER,
-                        // The NO_WRAP flag will omit all line terminators (i.e., the output will be on one long line).
-                        Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
-                    )
-                }
-            }.header("Cache-Control", "no-cache").build()
-
-            val response = chain.proceed(networkRequest)
-
-            when (response.code) {
-                200 -> {
-                    response.body?.let { responseBody ->
-                        val responseBodyString = responseBody.string()
-                        saveToPrefs(
-                            application,
-                            originalRequest.url.toString(),
-                            responseBodyString
-                        )
-                        return@addInterceptor response.newBuilder().body(
-                            responseBodyString.toResponseBody(responseBody.contentType())
-                        ).build()
-                    }
-                }
-
-                304 -> {
-                    val cachedResponse = getFromPrefs(application, originalRequest.url.toString())
-                    cachedResponse?.let {
-                        return@addInterceptor response.newBuilder().body(it.toResponseBody(null)).code(200).build()
-                    } ?: return@addInterceptor response
-                }
-
-                else -> return@addInterceptor response
-            }
-
-            response
-        }.build()
-
-        Retrofit.Builder().baseUrl(GistEnvironment.PROD.getGistQueueApiUrl()).addConverterFactory(GsonConverterFactory.create()).client(httpClient).build().create(GistQueueService::class.java)
+        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
     }
 
     override fun fetchUserMessages() {
@@ -111,31 +132,34 @@ class Queue : GistQueue {
                 logger.debug("Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
 
-                val responseBody = latestMessagesResponse.body()
-
-                if (latestMessagesResponse.code() == 204) {
-                    // No content, don't do anything
-                    logger.debug("No messages found for user")
-                    // To prevent us from showing expired / revoked messages, clear user messages from local queue.
-                    inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
-                } else if (latestMessagesResponse.isSuccessful) {
-                    logger.debug("Found ${responseBody?.count()} messages for user")
-                    responseBody?.let { messages ->
-                        // If the messages in the local queue the same as the number of messages fetched, don't update the queue.
-                        inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(messages))
-                    }
-                } else {
-                    logger.debug("Failed to fetch messages: ${latestMessagesResponse.code()}")
-                    // To prevent us from showing expired / revoked messages, clear user messages from local queue.
-                    inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
+                when {
+                    latestMessagesResponse.code() == 204 -> handleNoContent()
+                    latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(latestMessagesResponse.body())
+                    else -> handleFailedFetch(latestMessagesResponse.code())
                 }
 
-                // Check if the polling interval changed and update timer.
                 updatePollingInterval(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 logger.debug("Error fetching messages: ${e.message}")
             }
         }
+    }
+
+    private fun handleNoContent() {
+        logger.debug("No messages found for user")
+        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
+    }
+
+    private fun handleSuccessfulFetch(responseBody: List<Message>?) {
+        logger.debug("Found ${responseBody?.count()} messages for user")
+        responseBody?.let { messages ->
+            inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(messages))
+        }
+    }
+
+    private fun handleFailedFetch(responseCode: Int) {
+        logger.debug("Failed to fetch messages: $responseCode")
+        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
     }
 
     private fun updatePollingInterval(headers: Headers) {

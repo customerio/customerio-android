@@ -18,10 +18,9 @@ class ModuleMessagingInApp(
     override val moduleName: String = MODULE_NAME
     override val moduleConfig: MessagingInAppModuleConfig = config
 
-    private val diGraph: SDKComponent = SDKComponent
-    private val eventBus = diGraph.eventBus
+    private val eventBus = SDKComponent.eventBus
     private val gistProvider: GistProvider
-        get() = diGraph.gistProvider
+        get() = SDKComponent.gistProvider
 
     private val logger = SDKComponent.logger
 

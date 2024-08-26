@@ -85,13 +85,6 @@ jobs:
           disable-animations: true
           script: echo "Generated AVD snapshot for caching."
 
-      - name: Verify AVD cache contents
-        run: |
-          echo "AVD cache contents:"
-            ls -l ~/.android/avd
-            echo "ADB cache contents:"
-            ls -l ~/.android/adb
-
       - name: run tests
         uses: reactivecircus/android-emulator-runner@v2
         with:

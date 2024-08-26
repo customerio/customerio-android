@@ -20,6 +20,7 @@ import io.mockk.Called
 import io.mockk.confirmVerified
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -30,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class InAppMessagingStoreTest : RobolectricTest() {
 
@@ -60,7 +62,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
 
     // Helper function to set up the initial state for tests
     private fun initializeAndSetUser() {
-        manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, context = applicationMock, environment = GistEnvironment.PROD))
+        manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, environment = GistEnvironment.PROD))
         manager.dispatch(InAppMessagingAction.SetUserIdentifier(String.random))
     }
 
@@ -182,7 +184,7 @@ class InAppMessagingStoreTest : RobolectricTest() {
     @Test
     fun givenNoUser_whenProcessingMessage_thenNoActionIsTaken() = runTest {
         // Initialize without setting user
-        manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, context = applicationMock, environment = GistEnvironment.PROD))
+        manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, environment = GistEnvironment.PROD))
 
         val message = Message(queueId = "1")
         manager.dispatch(InAppMessagingAction.ProcessMessage(message))

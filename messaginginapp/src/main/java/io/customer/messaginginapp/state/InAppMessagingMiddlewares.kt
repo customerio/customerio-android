@@ -74,7 +74,7 @@ internal fun displayModalMessageMiddleware() = middleware<InAppMessagingState> {
 
 private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.ProcessMessage, next: (Any) -> Any) {
     if (store.state.currentMessageState !is MessageState.Loaded) {
-        val context = store.state.context ?: return
+        val context = SDKComponent.android().applicationContext
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK

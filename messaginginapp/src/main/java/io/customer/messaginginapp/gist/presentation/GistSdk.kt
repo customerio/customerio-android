@@ -56,7 +56,7 @@ class GistSdk(
     }
 
     init {
-        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, context = application, environment = environment))
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment))
         subscribeToEvents()
     }
 

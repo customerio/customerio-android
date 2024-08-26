@@ -5,13 +5,13 @@ import android.app.Application
 import android.content.Context.MODE_PRIVATE
 import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewClientInterceptor
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CancellationException

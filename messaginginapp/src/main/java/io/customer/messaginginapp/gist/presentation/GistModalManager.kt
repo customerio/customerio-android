@@ -3,10 +3,10 @@ package io.customer.messaginginapp.gist.presentation
 import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
-import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.di.SDKComponent
 
 internal class GistModalManager : GistListener {

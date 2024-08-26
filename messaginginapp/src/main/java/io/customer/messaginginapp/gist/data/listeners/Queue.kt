@@ -3,14 +3,14 @@ package io.customer.messaginginapp.gist.data.listeners
 import android.content.Context
 import android.util.Base64
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
-import io.customer.messaginginapp.domain.InAppMessagingManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.repository.GistQueueService
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.di.SDKComponent
 import java.io.File
 import java.util.regex.PatternSyntaxException

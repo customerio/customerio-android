@@ -14,11 +14,11 @@ import com.google.gson.Gson
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
 

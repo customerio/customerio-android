@@ -19,8 +19,8 @@ import org.reduxkotlin.threadsafe.createThreadSafeStore
  */
 data class InAppMessagingManager(val listener: GistListener? = null) {
     private val store: Store<InAppMessagingState> = createStore()
-    internal val storeStateFlow = MutableStateFlow(store.state)
-    internal val scope: CoroutineScope = SDKComponent.scopeProvider.lifecycleListenerScope
+    private val storeStateFlow = MutableStateFlow(store.state)
+    private val scope: CoroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope
 
     init {
         store.subscribe {

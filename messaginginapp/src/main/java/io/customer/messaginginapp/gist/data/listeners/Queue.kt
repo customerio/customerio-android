@@ -8,7 +8,6 @@ import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.repository.GistQueueService
 import io.customer.messaginginapp.state.InAppMessagingAction
-import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -30,8 +29,7 @@ interface GistQueue {
 
 class Queue : GistQueue {
 
-    private val inAppMessagingManager: InAppMessagingManager
-        get() = SDKComponent.inAppMessagingManager
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
     private val logger: Logger = SDKComponent.logger

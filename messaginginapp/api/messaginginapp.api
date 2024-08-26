@@ -44,6 +44,10 @@ public final class io/customer/messaginginapp/databinding/ActivityGistBinding : 
 	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
 }
 
+public final class io/customer/messaginginapp/di/DIGraphMessagingInAppKt {
+	public static final fun inAppMessaging (Lio/customer/sdk/CustomerIOInstance;)Lio/customer/messaginginapp/ModuleMessagingInApp;
+}
+
 public abstract class io/customer/messaginginapp/gist/GistEnvironment : java/lang/Enum, io/customer/messaginginapp/gist/GistEnvironmentEndpoints {
 	public static final field DEV Lio/customer/messaginginapp/gist/GistEnvironment;
 	public static final field LOCAL Lio/customer/messaginginapp/gist/GistEnvironment;

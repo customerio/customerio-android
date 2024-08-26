@@ -3,7 +3,6 @@ package io.customer.messaginginapp.gist.data.listeners
 import android.content.Context
 import android.util.Base64
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.repository.GistQueueService
@@ -62,15 +61,16 @@ class Queue : GistQueue {
         val httpClient: OkHttpClient = OkHttpClient.Builder().cache(cache).addInterceptor { chain ->
             val originalRequest = chain.request()
 
-            val networkRequest = originalRequest.newBuilder().addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId).addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter).apply {
-                state.userId?.let { userToken ->
-                    addHeader(
-                        NetworkUtilities.USER_TOKEN_HEADER,
-                        // The NO_WRAP flag will omit all line terminators (i.e., the output will be on one long line).
-                        Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
-                    )
-                }
-            }.header("Cache-Control", "no-cache").build()
+            val networkRequest = originalRequest.newBuilder()
+                .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId).addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter).apply {
+                    state.userId?.let { userToken ->
+                        addHeader(
+                            NetworkUtilities.USER_TOKEN_HEADER,
+                            // The NO_WRAP flag will omit all line terminators (i.e., the output will be on one long line).
+                            Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
+                        )
+                    }
+                }.header("Cache-Control", "no-cache").build()
 
             val response = chain.proceed(networkRequest)
 
@@ -102,7 +102,11 @@ class Queue : GistQueue {
             response
         }.build()
 
-        Retrofit.Builder().baseUrl(GistEnvironment.PROD.getGistQueueApiUrl()).addConverterFactory(GsonConverterFactory.create()).client(httpClient).build().create(GistQueueService::class.java)
+        Retrofit.Builder().baseUrl(state.environment.getGistQueueApiUrl())
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(httpClient)
+            .build()
+            .create(GistQueueService::class.java)
     }
 
     override fun fetchUserMessages() {

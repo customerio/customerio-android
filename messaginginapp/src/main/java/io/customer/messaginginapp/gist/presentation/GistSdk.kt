@@ -72,7 +72,7 @@ class GistSdk(
         logger.debug("Starting polling with duration: $duration")
         timer?.cancel()
         // create a timer to run the task after the initial run
-        timer = timer(name = "GistPolling", daemon = true, period = 20000) {
+        timer = timer(name = "GistPolling", daemon = true, period = state.pollInterval) {
             gistQueue.fetchUserMessages()
         }
     }

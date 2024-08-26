@@ -2,7 +2,6 @@ package io.customer.messaginginapp
 
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
-import io.customer.commontest.core.RobolectricTest
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
@@ -12,6 +11,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.core.di.SDKComponent
@@ -33,7 +33,7 @@ import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-class InAppMessagingStoreTest : RobolectricTest() {
+class InAppMessagingStoreTest : IntegrationTest() {
 
     private var inAppEventListener = mockk<InAppEventListener>(relaxed = true)
 

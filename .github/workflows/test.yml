@@ -36,18 +36,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
+      fail-fast: false
       # Add more samples here as they are added to the project.
       matrix:
         sample: [kotlin_compose, java_layout]
+        api-level: [31]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-android
-      # Enable KVM (Kernel-based Virtual Machine) for better performance by allowing hardware virtualization
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
 
       # Cache Gradle dependencies to speed up the build process
       - name: Gradle cache
@@ -58,6 +54,13 @@ jobs:
             cache-overwrite-existing: true
             gradle-home-cache-cleanup: true
 
+      # Enable KVM (Kernel-based Virtual Machine) for better performance by allowing hardware virtualization
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       # Cache the Android Virtual Device (AVD) to avoid recreating it each time
       - name: AVD cache
         uses: actions/cache@v4
@@ -66,26 +69,33 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-31
+          key: avd-${{ matrix.api-level }}-${{ hashFiles('**/*.gradle*', '.github/workflows/*.yml') }}
           restore-keys: |
-            avd-
+            avd-${{ matrix.api-level }}-
 
       # Create AVD and generate snapshot for caching if not already cached
       - name: create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 31
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
           disable-animations: true
           script: echo "Generated AVD snapshot for caching."
 
+      - name: Verify AVD cache contents
+        run: |
+          echo "AVD cache contents:"
+            ls -l ~/.android/avd
+            echo "ADB cache contents:"
+            ls -l ~/.android/adb
+
       - name: run tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 31
+          api-level: ${{ matrix.api-level }}
           cores: 3
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none

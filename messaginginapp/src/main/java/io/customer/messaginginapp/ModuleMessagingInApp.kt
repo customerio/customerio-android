@@ -47,16 +47,6 @@ class ModuleMessagingInApp(
         }
     }
 
-    companion object {
-        const val MODULE_NAME: String = "MessagingInApp"
-
-        @JvmStatic
-        fun instance(): ModuleMessagingInApp {
-            return SDKComponent.modules[MODULE_NAME] as? ModuleMessagingInApp
-                ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
-        }
-    }
-
     override fun embedMessage(message: Message, elementId: String) {
         moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
     }
@@ -102,6 +92,16 @@ class ModuleMessagingInApp(
                     params = mapOf("action_name" to name, "action_value" to action)
                 )
             )
+        }
+    }
+
+    companion object {
+        const val MODULE_NAME: String = "MessagingInApp"
+
+        @JvmStatic
+        fun instance(): ModuleMessagingInApp {
+            return SDKComponent.modules[MODULE_NAME] as? ModuleMessagingInApp
+                ?: throw IllegalStateException("ModuleMessagingInApp not initialized")
         }
     }
 }

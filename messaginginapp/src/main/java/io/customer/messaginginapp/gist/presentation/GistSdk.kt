@@ -98,6 +98,8 @@ class GistSdk(
     override fun setCurrentRoute(route: String) {
         logger.debug("Current gist route is: ${state.currentRoute}, new route is: $route")
 
+        if (state.currentRoute == route) return
+
         inAppMessagingManager.dispatch(InAppMessagingAction.SetPageRoute(route))
     }
 

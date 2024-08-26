@@ -39,6 +39,12 @@ data class InAppMessagingManager(val listener: GistListener? = null) {
 
     fun getCurrentState() = store.state
 
+    /**
+     * Subscribes to a specific attribute of the state.
+     * @param selector A function that selects a specific attribute of the state.
+     * @param areEquivalent A function that determines if two values are equivalent.
+     * @param listener A function that is called when the attribute changes.
+     */
     fun <T> subscribeToAttribute(
         selector: (InAppMessagingState) -> T,
         areEquivalent: (old: T, new: T) -> Boolean = { old, new -> old == new },
@@ -53,33 +59,20 @@ data class InAppMessagingManager(val listener: GistListener? = null) {
                 }
         }
     }
-}
 
-internal fun <T1, T2> InAppMessagingManager.subscribeToAttributes(
-    selector1: (InAppMessagingState) -> T1,
-    selector2: (InAppMessagingState) -> T2,
-    areEquivalent: (old: Pair<T1, T2>, new: Pair<T1, T2>) -> Boolean = { old, new -> old == new },
-    listener: (T1, T2) -> Unit
-): Job {
-    return scope.launch {
-        storeStatFlow
-            .map { Pair(selector1(it), selector2(it)) }
-            .distinctUntilChanged(areEquivalent)
-            .collect { (v1, v2) -> listener(v1, v2) }
-    }
-}
-
-internal fun <T1, T2, T3> InAppMessagingManager.subscribeToAttributes(
-    selector1: (InAppMessagingState) -> T1,
-    selector2: (InAppMessagingState) -> T2,
-    selector3: (InAppMessagingState) -> T3,
-    areEquivalent: (old: Triple<T1, T2, T3>, new: Triple<T1, T2, T3>) -> Boolean = { old, new -> old == new },
-    listener: (T1, T2, T3) -> Unit
-): Job {
-    return scope.launch {
-        storeStatFlow
-            .map { Triple(selector1(it), selector2(it), selector3(it)) }
-            .distinctUntilChanged(areEquivalent)
-            .collect { (v1, v2, v3) -> listener(v1, v2, v3) }
+    /**
+     * Subscribes to the state.
+     * @param areEquivalent A function that determines if two states are equivalent.
+     * @param listener A function that is called when the state changes.
+     */
+    fun subscribeToState(
+        areEquivalent: (old: InAppMessagingState, new: InAppMessagingState) -> Boolean = { old, new -> old == new },
+        listener: (InAppMessagingState) -> Unit
+    ): Job {
+        return scope.launch {
+            storeStatFlow
+                .distinctUntilChanged(areEquivalent)
+                .collect { listener(it) }
+        }
     }
 }

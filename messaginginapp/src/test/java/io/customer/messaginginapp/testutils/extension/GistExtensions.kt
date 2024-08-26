@@ -11,7 +11,7 @@ import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.getMessage
 
-fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random).getMessage()
+fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random, String.random).getMessage()
 
 fun mapToInAppMessage(message: Message): InAppMessage = InAppMessage.getFromGistMessage(gistMessage = message)
 

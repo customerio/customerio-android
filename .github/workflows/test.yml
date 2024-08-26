@@ -51,11 +51,16 @@ jobs:
 
       # Cache Gradle dependencies to speed up the build process
       - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+        continue-on-error: true
+        timeout-minutes: 5
+        with:
+            cache-overwrite-existing: true
+            gradle-home-cache-cleanup: true
 
       # Cache the Android Virtual Device (AVD) to avoid recreating it each time
       - name: AVD cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: avd-cache
         with:
           path: |
@@ -83,7 +88,7 @@ jobs:
           api-level: 31
           cores: 3
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -grpc 8554 -verbose -timezone America/New_York
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           ram-size: 4096M
           target: google_apis

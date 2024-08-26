@@ -12,7 +12,7 @@ data class InAppMessagingState(
     val pollInterval: Long = 600_000L,
     val userId: String? = null,
     val currentRoute: String? = null,
-    val currentMessageState: MessageState = MessageState.Default,
+    val currentMessageState: MessageState = MessageState.Initial,
     val messagesInQueue: Set<Message> = setOf(),
     val shownMessageQueueIds: Set<String> = setOf()
 ) {
@@ -32,17 +32,17 @@ data class InAppMessagingState(
 }
 
 sealed class MessageState {
-    object Default : MessageState()
-    data class Processing(val message: Message) : MessageState()
-    data class Loaded(val message: Message) : MessageState()
+    object Initial : MessageState()
+    data class Loading(val message: Message) : MessageState()
+    data class Displayed(val message: Message) : MessageState()
     data class Embedded(val message: Message, val elementId: String) : MessageState()
     data class Dismissed(val message: Message) : MessageState()
 
     override fun toString(): String {
         return when (this) {
-            is Default -> "Default"
-            is Processing -> "Processing(message=${message.queueId})"
-            is Loaded -> "Loaded(message=${message.queueId})"
+            is Initial -> "Initial"
+            is Loading -> "Loading(message=${message.queueId})"
+            is Displayed -> "Displayed(message=${message.queueId})"
             is Embedded -> "Embedded(message=${message.queueId}, elementId=$elementId)"
             is Dismissed -> "Dismissed(message=${message.queueId})"
         }

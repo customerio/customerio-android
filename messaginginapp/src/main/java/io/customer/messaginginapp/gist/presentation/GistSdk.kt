@@ -114,7 +114,7 @@ class GistSdk(
     }
 
     override fun dismissMessage() {
-        val currentMessageState = state.currentMessageState as? MessageState.Loaded
+        val currentMessageState = state.currentMessageState as? MessageState.Displayed
         inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentMessageState?.message ?: return))
     }
 }

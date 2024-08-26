@@ -27,6 +27,10 @@ internal val SDKComponent.gistProvider: GistProvider
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
 
+/**
+ * Get the [ModuleMessagingInApp] instance from the [CustomerIOInstance]
+ * needed for the in-app messaging dismiss() method
+ */
 @Suppress("UnusedReceiverParameter")
 fun CustomerIOInstance.inAppMessaging(): ModuleMessagingInApp = SDKComponent.inAppMessaging
 

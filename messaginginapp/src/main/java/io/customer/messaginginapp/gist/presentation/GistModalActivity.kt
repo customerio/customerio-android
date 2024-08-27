@@ -66,10 +66,10 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
         val parsedMessage = kotlin.runCatching { Gson().fromJson(messageStr, Message::class.java) }.getOrNull()
         if (parsedMessage == null) {
-            logger.error("GisModelActivity onCreate: Message is null")
+            logger.error("GistModelActivity onCreate: Message is null")
             finish()
         } else {
-            logger.debug("GisModelActivity onCreate: $parsedMessage")
+            logger.debug("GistModelActivity onCreate: $parsedMessage")
             parsedMessage.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
                 binding.gistView.listener = this
@@ -127,7 +127,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     }
 
     override fun finish() {
-        logger.debug("GisModelActivity finish")
+        logger.debug("GistModelActivity finish")
         runOnUiThread {
             val animation = if (messagePosition == MessagePosition.TOP) {
                 AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_top)
@@ -137,14 +137,14 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
             animation.setTarget(binding.modalGistViewLayout)
             animation.start()
             animation.doOnEnd {
-                logger.debug("GisModelActivity finish animation completed")
+                logger.debug("GistModelActivity finish animation completed")
                 super.finish()
             }
         }
     }
 
     override fun onDestroy() {
-        logger.debug("GisModelActivity onDestroy")
+        logger.debug("GistModelActivity onDestroy")
         attributesListenerJob.forEach(Job::cancel)
         // if the message has been cancelled, do not perform any further actions
         // to avoid sending any callbacks to the client app
@@ -170,7 +170,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     }
 
     private fun onMessageShown(message: Message) {
-        logger.debug("GisModelActivity Message Shown: $message")
+        logger.debug("GistModelActivity Message Shown: $message")
         runOnUiThread {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
             binding.modalGistViewLayout.visibility = View.VISIBLE
@@ -182,7 +182,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
             animation.setTarget(binding.modalGistViewLayout)
             animation.start()
             animation.doOnEnd {
-                logger.debug("GisModelActivity Message Animation Completed: $message")
+                logger.debug("GistModelActivity Message Animation Completed: $message")
                 elapsedTimer.end()
             }
         }
@@ -198,7 +198,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     }
 
     override fun onGistViewSizeChanged(width: Int, height: Int) {
-        logger.debug("GisModelActivity Size changed: $width x $height")
+        logger.debug("GistModelActivity Size changed: $width x $height")
         val params = binding.gistView.layoutParams
         params.height = height
         runOnUiThread {

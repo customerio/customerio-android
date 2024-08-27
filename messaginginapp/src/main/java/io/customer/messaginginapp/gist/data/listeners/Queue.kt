@@ -63,7 +63,7 @@ class Queue : GistQueue {
                     .header("Cache-Control", "no-cache")
                     .build()
 
-                handleResponse(chain.proceed(networkRequest), originalRequest)
+                interceptResponse(chain.proceed(networkRequest), originalRequest)
             }
             .build()
 
@@ -75,15 +75,15 @@ class Queue : GistQueue {
             .create(GistQueueService::class.java)
     }
 
-    private fun handleResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+    private fun interceptResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         return when (response.code) {
-            200 -> handleSuccessfulResponse(response, originalRequest)
-            304 -> handleNotModifiedResponse(response, originalRequest)
+            200 -> interceptSuccessfulResponse(response, originalRequest)
+            304 -> interceptNotModifiedResponse(response, originalRequest)
             else -> response
         }
     }
 
-    private fun handleSuccessfulResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+    private fun interceptSuccessfulResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         response.body?.let { responseBody ->
             val responseBodyString = responseBody.string()
             saveToPrefs(application, originalRequest.url.toString(), responseBodyString)
@@ -94,7 +94,7 @@ class Queue : GistQueue {
         return response
     }
 
-    private fun handleNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+    private fun interceptNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         val cachedResponse = getFromPrefs(application, originalRequest.url.toString())
         return cachedResponse?.let {
             response.newBuilder()

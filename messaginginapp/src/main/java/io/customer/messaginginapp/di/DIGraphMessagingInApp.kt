@@ -7,6 +7,8 @@ import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.store.InAppPreferenceStore
+import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.SDKComponent
 
@@ -19,11 +21,14 @@ internal val SDKComponent.moduleConfig: MessagingInAppModuleConfig
 internal val SDKComponent.gistProvider: GistProvider
     get() = singleton<GistProvider> {
         GistSdk(
-            application = android().application,
             siteId = moduleConfig.siteId,
             dataCenter = moduleConfig.region.code
         )
     }
+
+internal val SDKComponent.inAppPreferenceStore: InAppPreferenceStore
+    get() = singleton<InAppPreferenceStore> { InAppPreferenceStoreImpl(android().applicationContext) }
+
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
 

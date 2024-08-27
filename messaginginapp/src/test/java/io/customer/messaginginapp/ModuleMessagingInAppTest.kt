@@ -14,6 +14,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.testutils.core.JUnitTest
+import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.communication.Event
@@ -27,7 +28,6 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.verify
-import java.util.UUID
 import org.junit.jupiter.api.Test
 
 internal class ModuleMessagingInAppTest : JUnitTest() {
@@ -110,7 +110,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
-    fun `when screen viewed event occurs, gist provider sets current route`() {
+    fun whenScreenViewedEventOccurs_expectGistProviderSetsCurrentRoute() {
         val givenRoute = "home_screen"
         module.initialize()
 
@@ -120,7 +120,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
-    fun `when reset event occurs, gist provider resets`() {
+    fun whenResetEventOccurs_expectGistProviderResets() {
         module.initialize()
 
         eventBus.publish(Event.ResetEvent)
@@ -128,29 +128,9 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         assertCalledOnce { inAppMessagesProviderMock.reset() }
     }
 
-    private fun createMessage(
-        messageId: String = UUID.randomUUID().toString(),
-        position: String? = "center",
-        campaignId: String = "test_campaign_id",
-        queueId: String? = "test_queue_id"
-    ): Message {
-        val gistProperties = mutableMapOf<String, Any?>(
-            "campaignId" to campaignId
-        )
-        if (position != null) {
-            gistProperties["position"] = position
-        }
-
-        return Message(
-            messageId = messageId,
-            queueId = queueId,
-            properties = mapOf("gist" to gistProperties)
-        )
-    }
-
     @Test
     fun initialize_givenMessageShownWithValidPosition_expectEventListenerNotifiedAndMetricEventPublished() {
-        val message = createMessage(position = "top")
+        val message = createInAppMessage(position = "top")
         val inAppMessage = InAppMessage(
             messageId = message.messageId,
             deliveryId = "test_campaign_id",
@@ -183,7 +163,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
     @Test
     fun initialize_givenMessageShownWithNullPosition_expectDefaultPositionUsed() {
-        val message = createMessage(position = null)
+        val message = createInAppMessage(position = null)
         val inAppMessage = InAppMessage(
             messageId = message.messageId,
             deliveryId = "test_campaign_id",

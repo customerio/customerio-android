@@ -19,12 +19,12 @@ import org.reduxkotlin.threadsafe.createThreadSafeStore
  */
 data class InAppMessagingManager(val listener: GistListener? = null) {
     private val store: Store<InAppMessagingState> = createStore()
-    internal val storeStatFlow = MutableStateFlow(store.state)
-    internal val scope: CoroutineScope = SDKComponent.scopeProvider.lifecycleListenerScope
+    private val storeStateFlow = MutableStateFlow(store.state)
+    private val scope: CoroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope
 
     init {
         store.subscribe {
-            storeStatFlow.value = store.state
+            storeStateFlow.value = store.state
         }
     }
 
@@ -82,7 +82,7 @@ data class InAppMessagingManager(val listener: GistListener? = null) {
         listener: (T) -> Unit
     ): Job {
         return scope.launch {
-            storeStatFlow
+            storeStateFlow
                 .map(selector)
                 .distinctUntilChanged(areEquivalent)
                 .collect {
@@ -101,7 +101,7 @@ data class InAppMessagingManager(val listener: GistListener? = null) {
         listener: (InAppMessagingState) -> Unit
     ): Job {
         return scope.launch {
-            storeStatFlow
+            storeStateFlow
                 .distinctUntilChanged(areEquivalent)
                 .collect { listener(it) }
         }

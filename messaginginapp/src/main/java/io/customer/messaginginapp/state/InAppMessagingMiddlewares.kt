@@ -89,7 +89,7 @@ internal fun displayModalMessageMiddleware() = middleware<InAppMessagingState> {
 
 private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
     if (store.state.currentMessageState !is MessageState.Displayed) {
-        val context = store.state.context ?: return
+        val context = SDKComponent.android().applicationContext
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -182,6 +182,8 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
         val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Displayed
         val isCurrentMessageBeingProcessed = store.state.currentMessageState is MessageState.Loading
 
+        // update the state with the messages in the queue that are not shown
+        // because in the next steps we will check if there is a message to be shown and display them
         next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
 
         if (messageToBeShownWithProperties != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {

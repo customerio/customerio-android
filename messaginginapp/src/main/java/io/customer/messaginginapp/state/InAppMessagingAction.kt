@@ -1,12 +1,11 @@
 package io.customer.messaginginapp.state
 
-import android.content.Context
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 
 sealed class InAppMessagingAction {
-    data class Initialize(val siteId: String, val dataCenter: String, val context: Context, val environment: GistEnvironment) : InAppMessagingAction()
+    data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment) : InAppMessagingAction()
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
     data class SetPageRoute(val route: String) : InAppMessagingAction()
     data class LoadMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()

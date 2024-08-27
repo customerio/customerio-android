@@ -32,7 +32,7 @@ class Queue : GistQueue {
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
     private val logger: Logger = SDKComponent.logger
-    private val scope: CoroutineScope = SDKComponent.scopeProvider.lifecycleListenerScope
+    private val scope: CoroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope
     private val application: Context
         get() = SDKComponent.android().applicationContext
 

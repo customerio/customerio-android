@@ -1,11 +1,9 @@
 package io.customer.messaginginapp.state
 
-import android.content.Context
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 
 data class InAppMessagingState(
-    val context: Context? = null,
     val siteId: String = "",
     val dataCenter: String = "",
     val environment: GistEnvironment = GistEnvironment.PROD,
@@ -18,7 +16,6 @@ data class InAppMessagingState(
 ) {
     override fun toString(): String {
         return "InAppMessagingState(" +
-            "context=$context,\n" +
             "siteId='$siteId',\n" +
             "dataCenter='$dataCenter',\n" +
             "environment=$environment,\n" +

@@ -475,6 +475,10 @@ public final class io/customer/messaginginapp/state/InAppMessagingState {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/customer/messaginginapp/state/InAppMessagingStateKt {
+	public static final fun diff (Lio/customer/messaginginapp/state/InAppMessagingState;Lio/customer/messaginginapp/state/InAppMessagingState;)Ljava/util/Map;
+}
+
 public abstract class io/customer/messaginginapp/state/MessageState {
 	public fun toString ()Ljava/lang/String;
 }

@@ -45,3 +45,37 @@ sealed class MessageState {
         }
     }
 }
+
+fun InAppMessagingState.diff(other: InAppMessagingState): Map<String, Pair<Any?, Any?>> {
+    val differences = mutableMapOf<String, Pair<Any?, Any?>>()
+
+    if (this.siteId != other.siteId) {
+        differences["siteId"] = Pair(this.siteId, other.siteId)
+    }
+    if (this.dataCenter != other.dataCenter) {
+        differences["dataCenter"] = Pair(this.dataCenter, other.dataCenter)
+    }
+    if (this.environment != other.environment) {
+        differences["environment"] = Pair(this.environment, other.environment)
+    }
+    if (this.pollInterval != other.pollInterval) {
+        differences["pollInterval"] = Pair(this.pollInterval, other.pollInterval)
+    }
+    if (this.userId != other.userId) {
+        differences["userId"] = Pair(this.userId, other.userId)
+    }
+    if (this.currentRoute != other.currentRoute) {
+        differences["currentRoute"] = Pair(this.currentRoute, other.currentRoute)
+    }
+    if (this.currentMessageState != other.currentMessageState) {
+        differences["currentMessageState"] = Pair(this.currentMessageState, other.currentMessageState)
+    }
+    if (this.messagesInQueue != other.messagesInQueue) {
+        differences["messagesInQueue"] = Pair(this.messagesInQueue, other.messagesInQueue)
+    }
+    if (this.shownMessageQueueIds != other.shownMessageQueueIds) {
+        differences["shownMessageQueueIds"] = Pair(this.shownMessageQueueIds, other.shownMessageQueueIds)
+    }
+
+    return differences
+}

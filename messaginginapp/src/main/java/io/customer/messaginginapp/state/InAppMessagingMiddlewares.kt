@@ -17,9 +17,24 @@ import org.reduxkotlin.middleware
  * Middleware to log actions and state changes.
  */
 internal fun loggerMiddleware() = middleware<InAppMessagingState> { store, next, action ->
-    SDKComponent.logger.debug("Store: action: ${action::class.simpleName}: $action")
-    SDKComponent.logger.debug("Store: state before reducer: ${store.state}")
+    SDKComponent.logger.debug("Store: action: $action")
+    val stateBefore = store.state
+    SDKComponent.logger.debug("Store: state before reducer: $stateBefore")
+
+    // continue passing the original action down the middleware chain
     next(action)
+
+    val stateAfter = store.state
+    val changes = stateBefore.diff(stateAfter)
+
+    if (changes.isNotEmpty()) {
+        SDKComponent.logger.debug("Store: state changes after action:")
+        changes.forEach { (property, values) ->
+            SDKComponent.logger.debug("  $property: ${values.first} -> ${values.second}")
+        }
+    } else {
+        SDKComponent.logger.debug("Store: no state changes after action")
+    }
 }
 
 /**

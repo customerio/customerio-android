@@ -21,7 +21,6 @@ class ModuleMessagingInApp(
     private val eventBus = SDKComponent.eventBus
     private val gistProvider: GistProvider
         get() = SDKComponent.gistProvider
-
     private val logger = SDKComponent.logger
 
     fun dismissMessage() {

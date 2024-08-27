@@ -182,6 +182,8 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
         val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Displayed
         val isCurrentMessageBeingProcessed = store.state.currentMessageState is MessageState.Loading
 
+        // update the state with the messages in the queue that are not shown
+        // because in the next steps we will check if there is a message to be shown and display them
         next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
 
         if (messageToBeShownWithProperties != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {

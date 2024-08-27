@@ -3,7 +3,6 @@ package io.customer.messaginginapp.gist.presentation.engine
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.gson.Gson
-import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.sdk.core.di.SDKComponent
 
 internal data class EngineWebMessage(
@@ -16,9 +15,7 @@ internal data class EngineWebEvent(
     val parameters: Map<String, Any>? = null
 )
 
-class EngineWebViewInterface(listener: EngineWebViewListener) {
-    private var listener: EngineWebViewListener = listener
-    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+class EngineWebViewInterface(private val listener: EngineWebViewListener) {
     private val logger = SDKComponent.logger
 
     // Indicates whether the interface is attached to a web view and should continue to process messages

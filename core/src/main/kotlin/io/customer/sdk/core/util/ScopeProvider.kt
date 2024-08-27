@@ -6,11 +6,14 @@ import kotlinx.coroutines.SupervisorJob
 interface ScopeProvider {
     val eventBusScope: CoroutineScope
     val lifecycleListenerScope: CoroutineScope
+    val inAppLifecycleScope: CoroutineScope
 }
 
 class SdkScopeProvider(private val dispatchers: DispatchersProvider) : ScopeProvider {
     override val eventBusScope: CoroutineScope
         get() = CoroutineScope(dispatchers.default + SupervisorJob())
     override val lifecycleListenerScope: CoroutineScope
+        get() = CoroutineScope(dispatchers.default + SupervisorJob())
+    override val inAppLifecycleScope: CoroutineScope
         get() = CoroutineScope(dispatchers.default + SupervisorJob())
 }

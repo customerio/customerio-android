@@ -10,4 +10,5 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 class ScopeProviderStub : ScopeProvider {
     override val eventBusScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
     override val lifecycleListenerScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
+    override val inAppLifecycleScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
 }

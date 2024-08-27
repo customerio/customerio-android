@@ -7,7 +7,6 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
-import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.MessageState
 import io.customer.sdk.core.di.SDKComponent
@@ -29,8 +28,7 @@ class GistSdk(
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD
 ) : GistProvider {
-    private val inAppMessagingManager: InAppMessagingManager
-        get() = SDKComponent.inAppMessagingManager
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
     private val globalPreferenceStore: GlobalPreferenceStore
@@ -56,7 +54,7 @@ class GistSdk(
     }
 
     init {
-        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, context = application, environment = environment))
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment))
         subscribeToEvents()
     }
 
@@ -100,6 +98,8 @@ class GistSdk(
     override fun setCurrentRoute(route: String) {
         logger.debug("Current gist route is: ${state.currentRoute}, new route is: $route")
 
+        if (state.currentRoute == route) return
+
         inAppMessagingManager.dispatch(InAppMessagingAction.SetPageRoute(route))
     }
 
@@ -114,7 +114,7 @@ class GistSdk(
     }
 
     override fun dismissMessage() {
-        val currentMessageState = state.currentMessageState as? MessageState.Loaded
+        val currentMessageState = state.currentMessageState as? MessageState.Displayed
         inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentMessageState?.message ?: return))
     }
 }

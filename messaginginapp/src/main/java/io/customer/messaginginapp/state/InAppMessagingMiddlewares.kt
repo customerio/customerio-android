@@ -18,23 +18,10 @@ import org.reduxkotlin.middleware
  */
 internal fun loggerMiddleware() = middleware<InAppMessagingState> { store, next, action ->
     SDKComponent.logger.debug("Store: action: $action")
-    val stateBefore = store.state
-    SDKComponent.logger.debug("Store: state before reducer: $stateBefore")
+    SDKComponent.logger.debug("Store: state before reducer: ${store.state}")
 
     // continue passing the original action down the middleware chain
     next(action)
-
-    val stateAfter = store.state
-    val changes = stateBefore.diff(stateAfter)
-
-    if (changes.isNotEmpty()) {
-        SDKComponent.logger.debug("Store: state changes after action:")
-        changes.forEach { (property, values) ->
-            SDKComponent.logger.debug("  $property: ${values.first} -> ${values.second}")
-        }
-    } else {
-        SDKComponent.logger.debug("Store: no state changes after action")
-    }
 }
 
 /**
@@ -79,7 +66,7 @@ private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, ne
 /**
  * Middleware to handle modal message display actions.
  */
-internal fun displayModalMessageMiddleware() = middleware<InAppMessagingState> { store, next, action ->
+internal fun displayModalMessageMiddleware() = middleware { store, next, action ->
     if (action is InAppMessagingAction.LoadMessage) {
         handleModalMessageDisplay(store, action, next)
     } else {
@@ -211,7 +198,7 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
  *
  * @param gistListener The Gist listener.
  */
-internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<InAppMessagingState> { store, next, action ->
+internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<InAppMessagingState> { _, next, action ->
     when (action) {
         is InAppMessagingAction.EmbedMessage -> {
             gistListener?.embedMessage(action.message, action.elementId)

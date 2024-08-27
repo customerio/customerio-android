@@ -1,9 +1,10 @@
 package io.customer.messaginginapp.state
 
+import io.customer.sdk.core.di.SDKComponent
 import org.reduxkotlin.Reducer
 
 val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
-    when (action) {
+    val newState = when (action) {
         is InAppMessagingAction.Initialize -> state.copy(siteId = action.siteId, dataCenter = action.dataCenter, environment = action.environment)
         is InAppMessagingAction.SetPageRoute -> state.copy(currentRoute = action.route)
         is InAppMessagingAction.SetUserIdentifier -> state.copy(userId = action.user)
@@ -26,4 +27,15 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
 
         else -> state
     }
+    val changes = state.diff(newState)
+
+    if (changes.isNotEmpty()) {
+        SDKComponent.logger.debug("Store: state changes after action:")
+        changes.forEach { (property, values) ->
+            SDKComponent.logger.debug("  $property: ${values.first} -> ${values.second}")
+        }
+    } else {
+        SDKComponent.logger.debug("Store: no state changes after action")
+    }
+    newState
 }

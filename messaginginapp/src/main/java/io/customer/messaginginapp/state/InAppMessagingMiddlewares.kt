@@ -65,15 +65,15 @@ private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, ne
  * Middleware to handle modal message display actions.
  */
 internal fun displayModalMessageMiddleware() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.ProcessMessage) {
+    if (action is InAppMessagingAction.LoadMessage) {
         handleModalMessageDisplay(store, action, next)
     } else {
         next(action)
     }
 }
 
-private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.ProcessMessage, next: (Any) -> Any) {
-    if (store.state.currentMessageState !is MessageState.Loaded) {
+private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
+    if (store.state.currentMessageState !is MessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
@@ -105,14 +105,14 @@ internal fun userChangeMiddleware() = middleware<InAppMessagingState> { store, n
  */
 internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
 
-    if (action is InAppMessagingAction.SetPageRoute && store.state.currentRoute != action.route) {
+    if (action is InAppMessagingAction.SetPageRoute) {
         // update the current route
         next(action)
 
         // cancel the current message if the route rule does not match
         val currentMessage = when (val currentMessageState = store.state.currentMessageState) {
-            is MessageState.Loaded -> currentMessageState.message
-            is MessageState.Processing -> currentMessageState.message
+            is MessageState.Displayed -> currentMessageState.message
+            is MessageState.Loading -> currentMessageState.message
             else -> null
         }
         val doesCurrentMessageRouteMatch = runCatching {
@@ -164,8 +164,8 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             }
         }
 
-        val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Loaded
-        val isCurrentMessageBeingProcessed = store.state.currentMessageState is MessageState.Processing
+        val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Displayed
+        val isCurrentMessageBeingProcessed = store.state.currentMessageState is MessageState.Loading
 
         next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
 
@@ -176,7 +176,7 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             if (properties.elementId != null) {
                 store.dispatch(InAppMessagingAction.EmbedMessage(message, properties.elementId))
             } else {
-                store.dispatch(InAppMessagingAction.ProcessMessage(message))
+                store.dispatch(InAppMessagingAction.LoadMessage(message))
             }
         } else {
             // Handle the case where no message matches the criteria.

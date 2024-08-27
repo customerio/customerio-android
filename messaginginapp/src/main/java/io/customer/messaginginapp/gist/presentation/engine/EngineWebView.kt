@@ -17,7 +17,6 @@ import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
-import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
 import java.io.UnsupportedEncodingException
@@ -37,8 +36,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
 
-    private val inAppMessagingManager: InAppMessagingManager
-        get() = SDKComponent.inAppMessagingManager
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()

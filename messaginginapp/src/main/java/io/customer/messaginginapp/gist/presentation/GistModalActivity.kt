@@ -43,8 +43,8 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
 
     private var messagePosition: MessagePosition = MessagePosition.CENTER
 
-    private val currentMessageState: MessageState.Loaded?
-        get() = state.currentMessageState as? MessageState.Loaded
+    private val currentMessageState: MessageState.Displayed?
+        get() = state.currentMessageState as? MessageState.Displayed
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -102,15 +102,15 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
                 selector = { it.currentMessageState },
                 areEquivalent = { old, new ->
                     when {
-                        old is MessageState.Default && new is MessageState.Default -> true
-                        old is MessageState.Loaded && new is MessageState.Loaded -> old.message == new.message
+                        old is MessageState.Initial && new is MessageState.Initial -> true
+                        old is MessageState.Displayed && new is MessageState.Displayed -> old.message == new.message
                         old is MessageState.Dismissed && new is MessageState.Dismissed -> old.message == new.message
-                        old is MessageState.Processing && new is MessageState.Processing -> old.message == new.message
+                        old is MessageState.Loading && new is MessageState.Loading -> old.message == new.message
                         else -> false
                     }
                 }
             ) { state ->
-                if (state is MessageState.Loaded) {
+                if (state is MessageState.Displayed) {
                     onMessageShown(state.message)
                 }
 

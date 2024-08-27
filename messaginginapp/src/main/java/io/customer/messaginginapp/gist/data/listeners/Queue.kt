@@ -3,7 +3,6 @@ package io.customer.messaginginapp.gist.data.listeners
 import android.content.Context
 import android.util.Base64
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.repository.GistQueueService
@@ -69,7 +68,7 @@ class Queue : GistQueue {
             .build()
 
         return Retrofit.Builder()
-            .baseUrl(GistEnvironment.PROD.getGistQueueApiUrl())
+            .baseUrl(state.environment.getGistQueueApiUrl())
             .addConverterFactory(GsonConverterFactory.create())
             .client(httpClient)
             .build()

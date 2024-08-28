@@ -116,13 +116,30 @@ class GistSDKTest : JUnitTest() {
     }
 
     @Test
-    fun setUserId_givenSameUserIdTwice_expectSetUserIdentifierActionDispatchedOnlyOnce() = runTest {
+    fun setUserId_givenSameUserIdTwice_expectNoAdditionalActionsOnSecondCall() = runTest {
         val givenUserId = String.random
 
         gistSdk.setUserId(givenUserId)
+
+        // verify first call actions
+        verify(exactly = 1) { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
+        verify(exactly = 1) { mockGistQueue.fetchUserMessages() }
+
+        // clear invocations to start fresh for the second call
+        clearMocks(mockInAppMessagingManager, mockGistQueue)
+
+        // update the mock state to reflect the user ID has been set
+        every { mockInAppMessagingManager.getCurrentState() } returns testState.copy(userId = givenUserId)
+
+        // second call with the same user ID
         gistSdk.setUserId(givenUserId)
 
-        assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
-        assertCalledOnce { mockGistQueue.fetchUserMessages() }
+        // verify no additional actions on second call
+        verify(exactly = 0) {
+            mockInAppMessagingManager.dispatch(any<InAppMessagingAction.SetUserIdentifier>())
+        }
+        verify(exactly = 0) {
+            mockGistQueue.fetchUserMessages()
+        }
     }
 }

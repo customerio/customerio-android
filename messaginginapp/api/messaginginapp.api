@@ -72,14 +72,22 @@ public final class io/customer/messaginginapp/gist/data/NetworkUtilities$Compani
 }
 
 public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueue {
-	public abstract fun clearPrefs (Landroid/content/Context;)V
 	public abstract fun fetchUserMessages ()V
 	public abstract fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
+public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueueService {
+	public abstract fun fetchMessagesForUser (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun logMessageView (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun logUserMessageView (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/customer/messaginginapp/gist/data/listeners/GistQueueService$DefaultImpls {
+	public static synthetic fun fetchMessagesForUser$default (Lio/customer/messaginginapp/gist/data/listeners/GistQueueService;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
 public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/customer/messaginginapp/gist/data/listeners/GistQueue {
 	public fun <init> ()V
-	public fun clearPrefs (Landroid/content/Context;)V
 	public fun fetchUserMessages ()V
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -142,16 +150,6 @@ public final class io/customer/messaginginapp/gist/data/model/MessagePosition : 
 	public static fun values ()[Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 }
 
-public abstract interface class io/customer/messaginginapp/gist/data/repository/GistQueueService {
-	public abstract fun fetchMessagesForUser (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun logMessageView (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun logUserMessageView (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
-public final class io/customer/messaginginapp/gist/data/repository/GistQueueService$DefaultImpls {
-	public static synthetic fun fetchMessagesForUser$default (Lio/customer/messaginginapp/gist/data/repository/GistQueueService;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-}
-
 public abstract interface class io/customer/messaginginapp/gist/presentation/GistListener {
 	public abstract fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public abstract fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
@@ -186,8 +184,8 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 }
 
 public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/customer/messaginginapp/gist/presentation/GistProvider {
-	public fun <init> (Landroid/app/Application;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;)V
-	public synthetic fun <init> (Landroid/app/Application;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun dismissMessage ()V
 	public fun reset ()V
 	public fun setCurrentRoute (Ljava/lang/String;)V
@@ -527,6 +525,12 @@ public final class io/customer/messaginginapp/state/MessageState$Loading : io/cu
 	public final fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {
+	public abstract fun clearAll ()V
+	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

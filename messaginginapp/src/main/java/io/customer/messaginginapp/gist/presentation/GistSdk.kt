@@ -1,16 +1,16 @@
 package io.customer.messaginginapp.gist.presentation
 
-import android.app.Application
 import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.data.store.GlobalPreferenceStore
 import java.util.Timer
 import kotlin.concurrent.timer
 import kotlinx.coroutines.flow.filter
@@ -23,7 +23,6 @@ interface GistProvider {
 }
 
 class GistSdk(
-    private val application: Application,
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD
@@ -31,9 +30,9 @@ class GistSdk(
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
-    private val globalPreferenceStore: GlobalPreferenceStore
-        get() = SDKComponent.android().globalPreferenceStore
     private val logger = SDKComponent.logger
+    private val inAppPreferenceStore: InAppPreferenceStore
+        get() = SDKComponent.inAppPreferenceStore
 
     private var timer: Timer? = null
     private val gistQueue = SDKComponent.gistQueue
@@ -61,8 +60,7 @@ class GistSdk(
     override fun reset() {
         inAppMessagingManager.dispatch(InAppMessagingAction.Reset)
         // Remove user token from preferences
-        globalPreferenceStore.removeUserId()
-        gistQueue.clearPrefs(application)
+        inAppPreferenceStore.clearAll()
         resetTimer()
     }
 
@@ -108,7 +106,6 @@ class GistSdk(
             logger.debug("Current user id is already set to: ${state.userId}, ignoring new user id")
             return
         }
-        globalPreferenceStore.saveUserId(userId)
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
         fetchInAppMessages(state.pollInterval)
     }

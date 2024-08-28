@@ -3,11 +3,12 @@ package io.customer.messaginginapp.gist.data.listeners
 import android.content.Context
 import android.util.Base64
 import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.data.repository.GistQueueService
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.io.File
@@ -17,12 +18,26 @@ import okhttp3.Cache
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.POST
+import retrofit2.http.Path
+
+interface GistQueueService {
+    @POST("/api/v1/users")
+    suspend fun fetchMessagesForUser(@Body body: Any = Object()): Response<List<Message>>
+
+    @POST("/api/v1/logs/message/{messageId}")
+    suspend fun logMessageView(@Path("messageId") messageId: String)
+
+    @POST("/api/v1/logs/queue/{queueId}")
+    suspend fun logUserMessageView(@Path("queueId") queueId: String)
+}
 
 interface GistQueue {
     fun fetchUserMessages()
-    fun clearPrefs(context: Context)
     fun logView(message: Message)
 }
 
@@ -35,6 +50,8 @@ class Queue : GistQueue {
     private val scope: CoroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope
     private val application: Context
         get() = SDKComponent.android().applicationContext
+    private val inAppPreferenceStore: InAppPreferenceStore
+        get() = SDKComponent.inAppPreferenceStore
 
     private val cacheSize = 10 * 1024 * 1024 // 10 MB
     private val cacheDirectory by lazy { File(application.cacheDir, "http_cache") }
@@ -86,7 +103,7 @@ class Queue : GistQueue {
     private fun interceptSuccessfulResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         response.body?.let { responseBody ->
             val responseBodyString = responseBody.string()
-            saveToPrefs(application, originalRequest.url.toString(), responseBodyString)
+            inAppPreferenceStore.saveNetworkResponse(originalRequest.url.toString(), responseBodyString)
             return response.newBuilder()
                 .body(responseBodyString.toResponseBody(responseBody.contentType()))
                 .build()
@@ -95,32 +112,13 @@ class Queue : GistQueue {
     }
 
     private fun interceptNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
-        val cachedResponse = getFromPrefs(application, originalRequest.url.toString())
+        val cachedResponse = inAppPreferenceStore.getNetworkResponse(originalRequest.url.toString())
         return cachedResponse?.let {
             response.newBuilder()
                 .body(it.toResponseBody(null))
                 .code(200)
                 .build()
         } ?: response
-    }
-
-    private fun saveToPrefs(context: Context, key: String, value: String) {
-        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
-            .edit()
-            .putString(key, value)
-            .apply()
-    }
-
-    private fun getFromPrefs(context: Context, key: String): String? {
-        return context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
-            .getString(key, null)
-    }
-
-    override fun clearPrefs(context: Context) {
-        context.getSharedPreferences("network_cache", Context.MODE_PRIVATE)
-            .edit()
-            .clear()
-            .apply()
     }
 
     override fun fetchUserMessages() {

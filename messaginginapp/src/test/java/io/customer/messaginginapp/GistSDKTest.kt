@@ -56,10 +56,7 @@ class GistSDKTest : JUnitTest() {
             dataCenter = String.random,
             environment = GistEnvironment.PROD,
             pollInterval = 60000L,
-            userId = null,
-            currentRoute = null,
-            messagesInQueue = setOf(),
-            shownMessageQueueIds = setOf()
+            userId = null
         )
 
         every { mockInAppMessagingManager.getCurrentState() } returns testState
@@ -116,5 +113,16 @@ class GistSDKTest : JUnitTest() {
 
         assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.Reset) }
         assertCalledOnce { mockInAppPreferenceStore.clearAll() }
+    }
+
+    @Test
+    fun setUserId_givenSameUserIdTwice_expectSetUserIdentifierActionDispatchedOnlyOnce() = runTest {
+        val givenUserId = String.random
+
+        gistSdk.setUserId(givenUserId)
+        gistSdk.setUserId(givenUserId)
+
+        assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
+        assertCalledOnce { mockGistQueue.fetchUserMessages() }
     }
 }

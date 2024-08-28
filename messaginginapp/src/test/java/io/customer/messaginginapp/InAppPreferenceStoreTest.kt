@@ -75,4 +75,17 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         val retrievedResponse = inAppPreferenceStore.getNetworkResponse(givenUrl)
         givenResponse shouldBeEqualTo retrievedResponse
     }
+
+    @Test
+    fun saveNetworkResponse_givenExistingUrl_expectResponseOverwritten() {
+        val givenUrl = String.random
+        val givenResponse1 = String.random
+        val givenResponse2 = String.random
+
+        inAppPreferenceStore.saveNetworkResponse(givenUrl, givenResponse1)
+        inAppPreferenceStore.saveNetworkResponse(givenUrl, givenResponse2)
+
+        val retrievedResponse = inAppPreferenceStore.getNetworkResponse(givenUrl)
+        retrievedResponse shouldBeEqualTo givenResponse2
+    }
 }

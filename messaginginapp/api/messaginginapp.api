@@ -530,10 +530,7 @@ public final class io/customer/messaginginapp/state/MessageState$Loading : io/cu
 public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {
 	public abstract fun clearAll ()V
 	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
-	public abstract fun getUserId ()Ljava/lang/String;
-	public abstract fun removeUserId ()V
 	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
-	public abstract fun saveUserId (Ljava/lang/String;)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

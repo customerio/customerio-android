@@ -106,7 +106,6 @@ class GistSdk(
             logger.debug("Current user id is already set to: ${state.userId}, ignoring new user id")
             return
         }
-        inAppPreferenceStore.saveUserId(userId)
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
         fetchInAppMessages(state.pollInterval)
     }

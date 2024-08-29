@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.getRouteRule
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
 import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -47,8 +48,7 @@ internal fun gistLoggingMessageMiddleware() = middleware<InAppMessagingState> { 
 
 private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
     if (action.shouldLog) {
-        val gistProperties = GistMessageProperties.getGistProperties(action.message)
-        if (gistProperties.persistent && action.viaCloseAction || !gistProperties.persistent && action.viaCloseAction) {
+        if (action.viaCloseAction) {
             SDKComponent.gistQueue.logView(action.message)
         }
     }
@@ -95,8 +95,11 @@ private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action:
  */
 internal fun userChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
     when {
+        // the state parameters that are independent of the user need to be set
+        // so that when the user is set we can display the messages right away
         action is InAppMessagingAction.Initialize -> next(action)
         action is InAppMessagingAction.SetUserIdentifier -> next(action)
+        action is InAppMessagingAction.SetPageRoute -> next(action)
         store.state.userId != null -> next(action)
         else -> next(InAppMessagingAction.ReportError("User is not set."))
     }
@@ -107,7 +110,7 @@ internal fun userChangeMiddleware() = middleware<InAppMessagingState> { store, n
  */
 internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
 
-    if (action is InAppMessagingAction.SetPageRoute) {
+    if (action is InAppMessagingAction.SetPageRoute && store.state.userId != null) {
         // update the current route
         next(action)
 
@@ -117,17 +120,16 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
             is MessageState.Loading -> currentMessageState.message
             else -> null
         }
-        val doesCurrentMessageRouteMatch = runCatching {
-            val routeRule = currentMessage?.let { message ->
-                GistMessageProperties.getGistProperties(message).routeRule
-            }
-            routeRule == null || routeRule.toRegex().matches(action.route)
-        }.getOrNull() ?: true
 
-        // If there is no active message or the message route matches the current route, continue
-        if (currentMessage != null && !doesCurrentMessageRouteMatch) {
-            store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
+        // if there is no active message or the message route matches the current route, continue
+        if (currentMessage != null) {
+            val currentMessageRouteRule = currentMessage.getRouteRule()
+            val isCurrentMessageRouteAllowedOnNewRoute = currentMessageRouteRule == null || runCatching { currentMessageRouteRule.toRegex().matches(action.route) }.getOrNull() ?: true
+            if (!isCurrentMessageRouteAllowedOnNewRoute) {
+                store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
+            }
         }
+
         // process the messages in the queue to check if there is a message to be shown
         store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
     } else {

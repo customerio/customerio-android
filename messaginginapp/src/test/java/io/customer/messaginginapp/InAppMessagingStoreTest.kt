@@ -384,4 +384,31 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         verify { inAppEventListener.messageActionTaken(InAppMessage.getFromGistMessage(message), action, name) }
     }
+
+    @Test
+    fun givenNoUser_whenRouteChanges_thenRouteIsUpdatedInState() = runTest {
+        // Initialize without setting user
+        manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, environment = GistEnvironment.PROD))
+
+        // verify initial state
+        var state = manager.getCurrentState()
+        state.userId shouldBe null
+        state.currentRoute shouldBe null
+
+        // change route without setting user
+        val newRoute = "home"
+        manager.dispatch(InAppMessagingAction.SetPageRoute(newRoute))
+
+        // verify that the route is updated even without a user
+        state = manager.getCurrentState()
+        state.userId shouldBe null
+        state.currentRoute shouldBeEqualTo newRoute
+
+        // Verify that no messages are processed
+        state.currentMessageState shouldBeInstanceOf MessageState.Initial::class.java
+        state.messagesInQueue shouldBe emptySet()
+
+        // Verify that the event listener is not called
+        verify { inAppEventListener wasNot Called }
+    }
 }

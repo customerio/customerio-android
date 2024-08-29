@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.model
-import java.util.*
+
+import java.util.UUID
 
 enum class MessagePosition(val position: String) {
     TOP("top"),
@@ -22,6 +23,10 @@ data class Message(
     val queueId: String? = null,
     val properties: Map<String, Any?>? = null
 )
+
+fun Message.getRouteRule(): String? {
+    return GistMessageProperties.getGistProperties(this).routeRule
+}
 
 class GistMessageProperties {
     companion object {

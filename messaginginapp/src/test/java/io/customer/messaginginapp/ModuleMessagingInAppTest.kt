@@ -27,7 +27,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.spyk
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 internal class ModuleMessagingInAppTest : JUnitTest() {
@@ -43,6 +45,8 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
                 diGraph {
                     sdk {
                         overrideDependency<ScopeProvider>(testScopeProviderStub)
+                        val spykEventBus = spyk(eventBus)
+                        overrideDependency<EventBus>(spykEventBus)
                         overrideDependency(mockk<GistProvider>(relaxed = true))
                     }
                 }
@@ -50,7 +54,6 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         )
 
         inAppEventListenerMock = mockk(relaxed = true)
-
         eventBus = SDKComponent.eventBus
         inAppMessagesProviderMock = SDKComponent.gistProvider
 
@@ -183,5 +186,55 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         val capturedMessage = messageSlot.captured
         val gistProperties = GistMessageProperties.getGistProperties(capturedMessage)
         assert(gistProperties.position == MessagePosition.CENTER)
+    }
+
+    @Test
+    fun onAction_givenNonCloseAction_expectTrackInAppMetricEventPublished() {
+        val message = createInAppMessage(campaignId = "test_campaign_id")
+        val inAppMessage = InAppMessage(
+            messageId = message.messageId,
+            deliveryId = "test_campaign_id",
+            queueId = message.queueId
+        )
+
+        mockkObject(InAppMessage.Companion)
+        every { InAppMessage.getFromGistMessage(any()) } returns inAppMessage
+
+        module.initialize()
+        module.onAction(message, "current_route", "test_action", "Test Action")
+
+        verify(exactly = 1) {
+            inAppEventListenerMock.messageActionTaken(inAppMessage, "test_action", "Test Action")
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = "test_campaign_id",
+                    event = Metric.Clicked,
+                    params = mapOf("action_name" to "Test Action", "action_value" to "test_action")
+                )
+            )
+        }
+    }
+
+    @Test
+    fun onAction_givenCloseAction_expectNoTrackInAppMetricEventPublished() = runTest {
+        val message = createInAppMessage(campaignId = "test_campaign_id")
+        val inAppMessage = InAppMessage(
+            messageId = message.messageId,
+            deliveryId = "test_campaign_id",
+            queueId = message.queueId
+        )
+
+        mockkObject(InAppMessage.Companion)
+        every { InAppMessage.getFromGistMessage(any()) } returns inAppMessage
+
+        module.initialize()
+        module.onAction(message, "current_route", "gist://close", "Close")
+
+        verify(exactly = 1) {
+            inAppEventListenerMock.messageActionTaken(inAppMessage, "gist://close", "Close")
+        }
+        verify(exactly = 0) {
+            eventBus.publish(any<Event.TrackInAppMetricEvent>())
+        }
     }
 }

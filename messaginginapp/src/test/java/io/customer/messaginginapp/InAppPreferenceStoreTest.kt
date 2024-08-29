@@ -1,7 +1,5 @@
 package io.customer.messaginginapp
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
@@ -16,12 +14,10 @@ import org.robolectric.RobolectricTestRunner
 class InAppPreferenceStoreTest : IntegrationTest() {
 
     private lateinit var inAppPreferenceStore: InAppPreferenceStoreImpl
-    private lateinit var context: Context
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfig)
-        context = ApplicationProvider.getApplicationContext()
-        inAppPreferenceStore = InAppPreferenceStoreImpl(context)
+        inAppPreferenceStore = InAppPreferenceStoreImpl(applicationMock)
     }
 
     override fun teardown() {

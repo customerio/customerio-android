@@ -83,14 +83,16 @@ class ModuleMessagingInApp(
         )
 
         GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
-            logger.debug("In-app message clicked with deliveryId: $deliveryID")
-            eventBus.publish(
-                Event.TrackInAppMetricEvent(
-                    deliveryID = deliveryID,
-                    event = Metric.Clicked,
-                    params = mapOf("action_name" to name, "action_value" to action)
+            logger.debug("In-app message clicked with deliveryId: $deliveryID with action: $action and name: $name")
+            if (action != "gist://close") {
+                eventBus.publish(
+                    Event.TrackInAppMetricEvent(
+                        deliveryID = deliveryID,
+                        event = Metric.Clicked,
+                        params = mapOf("action_name" to name, "action_value" to action)
+                    )
                 )
-            )
+            }
         }
     }
 

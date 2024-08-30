@@ -29,6 +29,7 @@ import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -45,8 +46,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
                 diGraph {
                     sdk {
                         overrideDependency<ScopeProvider>(testScopeProviderStub)
-                        val spykEventBus = spyk(eventBus)
-                        overrideDependency<EventBus>(spykEventBus)
+                        overrideDependency<EventBus>(spyk(eventBus))
                         overrideDependency(mockk<GistProvider>(relaxed = true))
                     }
                 }
@@ -215,6 +215,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun onAction_givenCloseAction_expectNoTrackInAppMetricEventPublished() = runTest {
         val message = createInAppMessage(campaignId = "test_campaign_id")

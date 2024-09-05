@@ -13,6 +13,10 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -26,7 +30,7 @@ import java.util.TimerTask
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
-) : FrameLayout(context, attrs), EngineWebViewListener {
+) : FrameLayout(context, attrs), EngineWebViewListener, LifecycleObserver {
 
     var listener: EngineWebViewListener? = null
     private var timer: Timer? = null
@@ -52,13 +56,20 @@ internal class EngineWebView @JvmOverloads constructor(
         }
     }
 
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    fun onLifecycleResumed() {
+        logger.info("EngineWebView onLifecycleResumed")
+        webView?.let { engineWebViewInterface.attach(webView = it) }
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+    fun onLifecyclePaused() {
+        logger.info("EngineWebView onLifecyclePaused")
+        webView?.let { engineWebViewInterface.detach(webView = it) }
+    }
+
     fun stopLoading() {
-        webView?.let {
-            // stop loading the WebView
-            it.stopLoading()
-            // detach engine interface from the WebView
-            engineWebViewInterface.detach(webView = it)
-        }
+        webView?.stopLoading()
         // stop the timer and clean up
         bootstrapped()
     }
@@ -80,7 +91,11 @@ internal class EngineWebView @JvmOverloads constructor(
                 it.settings.domStorageEnabled = true
                 it.settings.textZoom = 100
                 it.setBackgroundColor(Color.TRANSPARENT)
-                engineWebViewInterface.attach(webView = it)
+
+                findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
+                    logger.error("Lifecycle owner not found, attaching interface to WebView manually")
+                    engineWebViewInterface.attach(webView = it)
+                }
 
                 it.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {

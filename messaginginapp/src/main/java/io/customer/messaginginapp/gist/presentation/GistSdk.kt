@@ -78,8 +78,12 @@ class GistSdk(
             events
                 .filter { state ->
                     state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
-                }.collect { state ->
-                    state.activity.get() ?: return@collect
+                }
+                .filter { state ->
+                    // ignore events from GistModalActivity to prevent polling/stopping polling when the in-app is displayed
+                    state.activity.get() != null && state.activity.get() !is GistModalActivity
+                }
+                .collect { state ->
                     when (state.event) {
                         Lifecycle.Event.ON_RESUME -> onActivityResumed()
                         Lifecycle.Event.ON_PAUSE -> onActivityPaused()

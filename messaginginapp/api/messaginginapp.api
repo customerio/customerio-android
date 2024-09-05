@@ -297,17 +297,6 @@ public final class io/customer/messaginginapp/state/InAppMessagingAction$EmbedMe
 public abstract class io/customer/messaginginapp/state/InAppMessagingAction$EngineAction {
 }
 
-public final class io/customer/messaginginapp/state/InAppMessagingAction$EngineAction$Error : io/customer/messaginginapp/state/InAppMessagingAction {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/state/InAppMessagingAction$EngineAction$Error;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InAppMessagingAction$EngineAction$Error;Lio/customer/messaginginapp/gist/data/model/Message;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InAppMessagingAction$EngineAction$Error;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public final class io/customer/messaginginapp/state/InAppMessagingAction$EngineAction$MessageLoadingFailed : io/customer/messaginginapp/state/InAppMessagingAction {
 	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;

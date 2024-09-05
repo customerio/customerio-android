@@ -367,7 +367,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         initializeAndSetUser()
         val message = Message(queueId = "1")
 
-        manager.dispatch(InAppMessagingAction.EngineAction.Error(message))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
 
         verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
     }

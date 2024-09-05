@@ -140,10 +140,6 @@ public final class io/customer/datapipelines/plugins/StringExtensionsKt {
 	public static final fun getScreenNameFromActivity (Ljava/lang/String;)Ljava/lang/String;
 }
 
-public abstract interface class io/customer/datapipelines/plugins/TrackableScreen {
-	public abstract fun getScreenName ()Ljava/lang/String;
-}
-
 public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V

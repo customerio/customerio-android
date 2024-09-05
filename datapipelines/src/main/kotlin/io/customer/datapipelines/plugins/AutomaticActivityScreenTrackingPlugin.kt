@@ -7,19 +7,7 @@ import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.platform.Plugin
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
-
-/**
- * Optional interface for activities that should be tracked using automated screen tracking.
- */
-interface TrackableScreen {
-    /**
-     * Retrieve the name that should be used for tracking the screen. This name
-     * should be unique for each screen.
-     *
-     * @return name for tracking the screen, or null if the screen shouldn't be tracked.
-     */
-    fun getScreenName(): String?
-}
+import io.customer.sdk.tracking.TrackableScreen
 
 /**
  * Plugin that automatically tracks screens via ActivityLifecycleCallbacks `onActivityStarted` event of an activity.

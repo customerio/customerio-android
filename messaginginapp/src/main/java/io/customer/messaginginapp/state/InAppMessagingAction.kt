@@ -19,7 +19,6 @@ sealed class InAppMessagingAction {
     sealed class EngineAction {
         data class Tap(val message: Message, val route: String, val name: String, val action: String) : InAppMessagingAction()
         data class MessageLoadingFailed(val message: Message) : InAppMessagingAction()
-        data class Error(val message: Message) : InAppMessagingAction()
     }
 
     object ClearMessageQueue : InAppMessagingAction()

@@ -60,14 +60,12 @@ internal class EngineWebView @JvmOverloads constructor(
     fun onLifecycleResumed() {
         logger.info("EngineWebView onLifecycleResumed")
         webView?.let { engineWebViewInterface.attach(webView = it) }
-        super.onAttachedToWindow()
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
     fun onLifecyclePaused() {
         logger.info("EngineWebView onLifecyclePaused")
         webView?.let { engineWebViewInterface.detach(webView = it) }
-        super.onDetachedFromWindow()
     }
 
     fun stopLoading() {

@@ -209,7 +209,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
                 Event.TrackInAppMetricEvent(
                     deliveryID = "test_campaign_id",
                     event = Metric.Clicked,
-                    params = mapOf("action_name" to "Test Action", "action_value" to "test_action")
+                    params = mapOf("actionName" to "Test Action", "actionValue" to "test_action")
                 )
             )
         }

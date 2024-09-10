@@ -1,7 +1,6 @@
 package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
@@ -53,7 +52,7 @@ class ModuleMessagingInApp(
     override fun onMessageShown(message: Message) {
         moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
 
-        GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
+        message.gistProperties().campaignId?.let { deliveryID ->
             logger.debug("In-app message shown with deliveryId $deliveryID")
             eventBus.publish(
                 Event.TrackInAppMetricEvent(
@@ -82,7 +81,7 @@ class ModuleMessagingInApp(
             actionName = name
         )
 
-        GistMessageProperties.getGistProperties(message).campaignId?.let { deliveryID ->
+        message.gistProperties().campaignId?.let { deliveryID ->
             logger.debug("In-app message clicked with deliveryId: $deliveryID with action: $action and name: $name")
             if (action != "gist://close") {
                 eventBus.publish(

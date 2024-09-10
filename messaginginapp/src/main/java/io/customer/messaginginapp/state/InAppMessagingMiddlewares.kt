@@ -3,7 +3,6 @@ package io.customer.messaginginapp.state
 import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
-import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.getRouteRule
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
@@ -56,7 +55,7 @@ private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, 
 }
 
 private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {
-    val gistProperties = GistMessageProperties.getGistProperties(action.message)
+    val gistProperties = action.message.gistProperties()
     if (!gistProperties.persistent) {
         SDKComponent.gistQueue.logView(action.message)
     }
@@ -145,19 +144,15 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
     if (action is InAppMessagingAction.ProcessMessageQueue && action.messages.isNotEmpty()) {
         val notShownMessages = action.messages
             .filter { message ->
-                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId)
+                // filter out the messages that are already shown
+                // and the messages that have an elementId because we are not handling embedded messages
+                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId) && message.gistProperties().elementId != null
             }
             .distinctBy(Message::queueId)
             .sortedWith(compareBy(nullsLast()) { it.priority })
 
-        val notShownMessagesWithProperties = notShownMessages
-            .map { message ->
-                val properties = GistMessageProperties.getGistProperties(message)
-                Pair(message, properties)
-            }
-
-        val messageToBeShownWithProperties = notShownMessagesWithProperties.firstOrNull { message ->
-            val routeRule = GistMessageProperties.getGistProperties(message.first).routeRule
+        val messageToBeShownWithProperties = notShownMessages.firstOrNull { message ->
+            val routeRule = message.gistProperties().routeRule
             val currentRoute = store.state.currentRoute
             when {
                 // If the route rule is null, the message should be shown
@@ -177,14 +172,8 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
         next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
 
         if (messageToBeShownWithProperties != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
-            val message = messageToBeShownWithProperties.first
-            val properties = messageToBeShownWithProperties.second
-
-            if (properties.elementId != null) {
-                store.dispatch(InAppMessagingAction.EmbedMessage(message, properties.elementId))
-            } else {
-                store.dispatch(InAppMessagingAction.LoadMessage(message))
-            }
+            // Load the message to be shown
+            store.dispatch(InAppMessagingAction.LoadMessage(messageToBeShownWithProperties))
         } else {
             // Handle the case where no message matches the criteria.
             // This might involve logging, dispatching another action, or simply doing nothing.

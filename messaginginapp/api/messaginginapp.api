@@ -92,15 +92,6 @@ public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/cus
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/data/model/GistMessageProperties {
-	public static final field Companion Lio/customer/messaginginapp/gist/data/model/GistMessageProperties$Companion;
-	public fun <init> ()V
-}
-
-public final class io/customer/messaginginapp/gist/data/model/GistMessageProperties$Companion {
-	public final fun getGistProperties (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
-}
-
 public final class io/customer/messaginginapp/gist/data/model/GistProperties {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;Z)V
 	public final fun component1 ()Ljava/lang/String;
@@ -137,6 +128,7 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public final fun getPriority ()Ljava/lang/Integer;
 	public final fun getProperties ()Ljava/util/Map;
 	public final fun getQueueId ()Ljava/lang/String;
+	public final fun gistProperties ()Lio/customer/messaginginapp/gist/data/model/GistProperties;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

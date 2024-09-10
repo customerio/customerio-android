@@ -14,7 +14,6 @@ import com.google.gson.Gson
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
@@ -75,7 +74,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
                 binding.gistView.listener = this
                 binding.gistView.setup(message)
                 val messagePosition = if (modalPositionStr == null) {
-                    GistMessageProperties.getGistProperties(message).position
+                    message.gistProperties.position
                 } else {
                     MessagePosition.valueOf(modalPositionStr.uppercase())
                 }
@@ -162,11 +161,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
 
     private fun isPersistentMessage(message: Message? = null): Boolean {
         val currentMessage = message ?: currentMessageState?.message
-        return currentMessage?.let {
-            GistMessageProperties.getGistProperties(
-                it
-            ).persistent
-        } ?: false
+        return currentMessage?.gistProperties?.persistent ?: false
     }
 
     private fun onMessageShown(message: Message) {

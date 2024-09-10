@@ -1,6 +1,5 @@
 package io.customer.messaginginapp.type
 
-import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 
 data class InAppMessage(
@@ -10,7 +9,7 @@ data class InAppMessage(
 ) {
     companion object {
         internal fun getFromGistMessage(gistMessage: Message): InAppMessage {
-            val gistProperties = GistMessageProperties.getGistProperties(gistMessage)
+            val gistProperties = gistMessage.gistProperties
             val campaignId = gistProperties.campaignId
 
             return InAppMessage(

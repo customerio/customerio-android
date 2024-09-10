@@ -92,15 +92,6 @@ public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/cus
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/data/model/GistMessageProperties {
-	public static final field Companion Lio/customer/messaginginapp/gist/data/model/GistMessageProperties$Companion;
-	public fun <init> ()V
-}
-
-public final class io/customer/messaginginapp/gist/data/model/GistMessageProperties$Companion {
-	public final fun getGistProperties (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
-}
-
 public final class io/customer/messaginginapp/gist/data/model/GistProperties {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;Z)V
 	public final fun component1 ()Ljava/lang/String;
@@ -132,6 +123,7 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;Ljava/util/Map;)Lio/customer/messaginginapp/gist/data/model/Message;
 	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/Message;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGistProperties ()Lio/customer/messaginginapp/gist/data/model/GistProperties;
 	public final fun getInstanceId ()Ljava/lang/String;
 	public final fun getMessageId ()Ljava/lang/String;
 	public final fun getPriority ()Ljava/lang/Integer;
@@ -139,10 +131,6 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public final fun getQueueId ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/gist/data/model/MessageKt {
-	public static final fun getRouteRule (Lio/customer/messaginginapp/gist/data/model/Message;)Ljava/lang/String;
 }
 
 public final class io/customer/messaginginapp/gist/data/model/MessagePosition : java/lang/Enum {

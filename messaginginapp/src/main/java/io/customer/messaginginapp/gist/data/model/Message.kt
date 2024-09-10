@@ -23,7 +23,8 @@ data class Message(
     val queueId: String? = null,
     val properties: Map<String, Any?>? = null
 ) {
-    val gistProperties: GistProperties = convertToGistProperties()
+    val gistProperties: GistProperties
+        get() = convertToGistProperties()
 
     private fun convertToGistProperties(): GistProperties {
         var routeRule: String? = null
@@ -32,34 +33,30 @@ data class Message(
         var position: MessagePosition = MessagePosition.CENTER
         var persistent = false
 
-        this.properties?.let { properties ->
-            properties["gist"]?.let { gistProperties ->
-                (gistProperties as Map<String, Any?>).let { gistProperties ->
-                    gistProperties["routeRuleAndroid"]?.let { rule ->
-                        (rule as String).let { stringRule ->
-                            routeRule = stringRule
-                        }
-                    }
-                    gistProperties["campaignId"]?.let { id ->
-                        (id as String).let { stringId ->
-                            campaignId = stringId
-                        }
-                    }
-                    gistProperties["elementId"]?.let { id ->
-                        (id as String).let { stringId ->
-                            elementId = stringId
-                        }
-                    }
-                    gistProperties["position"]?.let { messagePosition ->
-                        (messagePosition as String).let { stringPosition ->
-                            position = MessagePosition.valueOf(stringPosition.uppercase())
-                        }
-                    }
-                    gistProperties["persistent"]?.let { id ->
-                        (id as? Boolean)?.let { persistentValue ->
-                            persistent = persistentValue
-                        }
-                    }
+        (properties?.get("gist") as? Map<String, Any?>)?.let { gistProperties ->
+            gistProperties["routeRuleAndroid"]?.let { rule ->
+                (rule as String).let { stringRule ->
+                    routeRule = stringRule
+                }
+            }
+            gistProperties["campaignId"]?.let { id ->
+                (id as String).let { stringId ->
+                    campaignId = stringId
+                }
+            }
+            gistProperties["elementId"]?.let { id ->
+                (id as String).let { stringId ->
+                    elementId = stringId
+                }
+            }
+            gistProperties["position"]?.let { messagePosition ->
+                (messagePosition as String).let { stringPosition ->
+                    position = MessagePosition.valueOf(stringPosition.uppercase())
+                }
+            }
+            gistProperties["persistent"]?.let { id ->
+                (id as? Boolean)?.let { persistentValue ->
+                    persistent = persistentValue
                 }
             }
         }

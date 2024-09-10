@@ -15,7 +15,7 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
         is InAppMessagingAction.DismissMessage -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
         is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
         is InAppMessagingAction.LoadMessage -> state.copy(currentMessageState = MessageState.Loading(action.message))
-        is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, environment = state.environment, pollInterval = state.pollInterval)
+        is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, environment = state.environment)
         is InAppMessagingAction.DisplayMessage -> {
             action.message.queueId?.let { queueId ->
                 state.copy(

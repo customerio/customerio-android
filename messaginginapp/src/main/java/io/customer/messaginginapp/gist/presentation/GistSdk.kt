@@ -64,11 +64,11 @@ class GistSdk(
         resetTimer()
     }
 
-    private fun fetchInAppMessages(duration: Long) {
-        logger.debug("Starting polling with duration: $duration")
+    private fun fetchInAppMessages(duration: Long, initialDelay: Long = 0) {
+        logger.debug("Starting polling with duration: $duration and initial delay: $initialDelay")
         timer?.cancel()
         // create a timer to run the task after the initial run
-        timer = timer(name = "GistPolling", daemon = true, period = state.pollInterval) {
+        timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
             gistQueue.fetchUserMessages()
         }
     }
@@ -93,7 +93,7 @@ class GistSdk(
         }
 
         inAppMessagingManager.subscribeToAttribute({ it.pollInterval }) { interval ->
-            fetchInAppMessages(interval)
+            fetchInAppMessages(duration = interval, initialDelay = interval)
         }
     }
 

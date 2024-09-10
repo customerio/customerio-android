@@ -125,12 +125,17 @@ class Queue : GistQueue {
         scope.launch {
             try {
                 logger.debug("Fetching user messages")
+                if (state.userId == null) {
+                    logger.debug("User not set, skipping fetch")
+                    return@launch
+                }
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
 
+                val code = latestMessagesResponse.code()
                 when {
-                    latestMessagesResponse.code() == 204 -> handleNoContent()
+                    (code == 204 || code == 304) -> handleNoContent(code)
                     latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(latestMessagesResponse.body())
-                    else -> handleFailedFetch(latestMessagesResponse.code())
+                    else -> handleFailedFetch(code)
                 }
 
                 updatePollingInterval(latestMessagesResponse.headers())
@@ -140,8 +145,8 @@ class Queue : GistQueue {
         }
     }
 
-    private fun handleNoContent() {
-        logger.debug("No messages found for user")
+    private fun handleNoContent(responseCode: Int) {
+        logger.debug("No messages found for user with response code: $responseCode")
         inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
     }
 
@@ -153,7 +158,7 @@ class Queue : GistQueue {
     }
 
     private fun handleFailedFetch(responseCode: Int) {
-        logger.debug("Failed to fetch messages: $responseCode")
+        logger.error("Failed to fetch messages: $responseCode")
         inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
     }
 

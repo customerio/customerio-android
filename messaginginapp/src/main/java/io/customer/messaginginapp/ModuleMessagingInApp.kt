@@ -89,7 +89,7 @@ class ModuleMessagingInApp(
                     Event.TrackInAppMetricEvent(
                         deliveryID = deliveryID,
                         event = Metric.Clicked,
-                        params = mapOf("action_name" to name, "action_value" to action)
+                        params = mapOf("actionName" to name, "actionValue" to action)
                     )
                 )
             }

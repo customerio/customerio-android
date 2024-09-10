@@ -52,7 +52,7 @@ class ModuleMessagingInApp(
     override fun onMessageShown(message: Message) {
         moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
 
-        message.gistProperties().campaignId?.let { deliveryID ->
+        message.gistProperties.campaignId?.let { deliveryID ->
             logger.debug("In-app message shown with deliveryId $deliveryID")
             eventBus.publish(
                 Event.TrackInAppMetricEvent(
@@ -81,7 +81,7 @@ class ModuleMessagingInApp(
             actionName = name
         )
 
-        message.gistProperties().campaignId?.let { deliveryID ->
+        message.gistProperties.campaignId?.let { deliveryID ->
             logger.debug("In-app message clicked with deliveryId: $deliveryID with action: $action and name: $name")
             if (action != "gist://close") {
                 eventBus.publish(

@@ -55,7 +55,7 @@ private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, 
 }
 
 private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {
-    val gistProperties = action.message.gistProperties()
+    val gistProperties = action.message.gistProperties
     if (!gistProperties.persistent) {
         SDKComponent.gistQueue.logView(action.message)
     }
@@ -146,13 +146,13 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             .filter { message ->
                 // filter out the messages that are already shown
                 // and the messages that have an elementId because we are not handling embedded messages
-                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId) && message.gistProperties().elementId != null
+                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId) && message.gistProperties.elementId == null
             }
             .distinctBy(Message::queueId)
             .sortedWith(compareBy(nullsLast()) { it.priority })
 
         val messageToBeShownWithProperties = notShownMessages.firstOrNull { message ->
-            val routeRule = message.gistProperties().routeRule
+            val routeRule = message.gistProperties.routeRule
             val currentRoute = store.state.currentRoute
             when {
                 // If the route rule is null, the message should be shown

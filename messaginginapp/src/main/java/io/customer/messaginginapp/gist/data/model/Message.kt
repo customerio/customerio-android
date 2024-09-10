@@ -23,8 +23,9 @@ data class Message(
     val queueId: String? = null,
     val properties: Map<String, Any?>? = null
 ) {
+    val gistProperties: GistProperties = convertToGistProperties()
 
-    fun gistProperties(): GistProperties {
+    private fun convertToGistProperties(): GistProperties {
         var routeRule: String? = null
         var elementId: String? = null
         var campaignId: String? = null
@@ -66,10 +67,10 @@ data class Message(
     }
 
     override fun toString(): String {
-        return "Message(messageId=$messageId, instanceId=$instanceId, priority=$priority, queueId=$queueId, properties=${gistProperties()}"
+        return "Message(messageId=$messageId, instanceId=$instanceId, priority=$priority, queueId=$queueId, properties=$gistProperties"
     }
 }
 
 fun Message.getRouteRule(): String? {
-    return gistProperties().routeRule
+    return gistProperties.routeRule
 }

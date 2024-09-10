@@ -74,7 +74,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
                 binding.gistView.listener = this
                 binding.gistView.setup(message)
                 val messagePosition = if (modalPositionStr == null) {
-                    message.gistProperties().position
+                    message.gistProperties.position
                 } else {
                     MessagePosition.valueOf(modalPositionStr.uppercase())
                 }
@@ -161,7 +161,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
 
     private fun isPersistentMessage(message: Message? = null): Boolean {
         val currentMessage = message ?: currentMessageState?.message
-        return currentMessage?.gistProperties()?.persistent ?: false
+        return currentMessage?.gistProperties?.persistent ?: false
     }
 
     private fun onMessageShown(message: Message) {

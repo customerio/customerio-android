@@ -9,7 +9,7 @@ data class InAppMessage(
 ) {
     companion object {
         internal fun getFromGistMessage(gistMessage: Message): InAppMessage {
-            val gistProperties = gistMessage.gistProperties()
+            val gistProperties = gistMessage.gistProperties
             val campaignId = gistProperties.campaignId
 
             return InAppMessage(

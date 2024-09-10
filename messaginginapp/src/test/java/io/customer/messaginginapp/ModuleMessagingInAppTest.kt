@@ -9,7 +9,6 @@ import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.presentation.GistProvider
@@ -160,7 +159,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         val messageSlot = slot<Message>()
         verify { InAppMessage.getFromGistMessage(capture(messageSlot)) }
         val capturedMessage = messageSlot.captured
-        val gistProperties = GistMessageProperties.getGistProperties(capturedMessage)
+        val gistProperties = capturedMessage.gistProperties
         assert(gistProperties.position == MessagePosition.TOP)
     }
 
@@ -184,7 +183,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         val messageSlot = slot<Message>()
         verify { InAppMessage.getFromGistMessage(capture(messageSlot)) }
         val capturedMessage = messageSlot.captured
-        val gistProperties = GistMessageProperties.getGistProperties(capturedMessage)
+        val gistProperties = capturedMessage.gistProperties
         assert(gistProperties.position == MessagePosition.CENTER)
     }
 

@@ -133,10 +133,6 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/customer/messaginginapp/gist/data/model/MessageKt {
-	public static final fun getRouteRule (Lio/customer/messaginginapp/gist/data/model/Message;)Ljava/lang/String;
-}
-
 public final class io/customer/messaginginapp/gist/data/model/MessagePosition : java/lang/Enum {
 	public static final field BOTTOM Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public static final field CENTER Lio/customer/messaginginapp/gist/data/model/MessagePosition;

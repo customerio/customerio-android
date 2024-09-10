@@ -4,7 +4,6 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.data.model.getRouteRule
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
 import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -122,7 +121,7 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
 
         // if there is no active message or the message route matches the current route, continue
         if (currentMessage != null) {
-            val currentMessageRouteRule = currentMessage.getRouteRule()
+            val currentMessageRouteRule = currentMessage.gistProperties.routeRule
             val isCurrentMessageRouteAllowedOnNewRoute = currentMessageRouteRule == null || runCatching { currentMessageRouteRule.toRegex().matches(action.route) }.getOrNull() ?: true
             if (!isCurrentMessageRouteAllowedOnNewRoute) {
                 SDKComponent.logger.debug("Dismissing message: ${currentMessage.queueId} because route does not match current route: ${action.route}")

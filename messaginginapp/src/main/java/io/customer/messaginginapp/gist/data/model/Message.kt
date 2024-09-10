@@ -70,7 +70,3 @@ data class Message(
         return "Message(messageId=$messageId, instanceId=$instanceId, priority=$priority, queueId=$queueId, properties=$gistProperties"
     }
 }
-
-fun Message.getRouteRule(): String? {
-    return gistProperties.routeRule
-}

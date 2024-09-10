@@ -126,6 +126,7 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
             val currentMessageRouteRule = currentMessage.getRouteRule()
             val isCurrentMessageRouteAllowedOnNewRoute = currentMessageRouteRule == null || runCatching { currentMessageRouteRule.toRegex().matches(action.route) }.getOrNull() ?: true
             if (!isCurrentMessageRouteAllowedOnNewRoute) {
+                SDKComponent.logger.debug("Dismissing message: ${currentMessage.queueId} because route does not match current route: ${action.route}")
                 store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
             }
         }

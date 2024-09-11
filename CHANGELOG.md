@@ -1,3 +1,9 @@
+## [4.2.0](https://github.com/customerio/customerio-android/compare/4.1.0...4.2.0) (2024-09-11)
+
+### Features
+
+* in-app message revamp ([#431](https://github.com/customerio/customerio-android/issues/431)) ([682ac42](https://github.com/customerio/customerio-android/commit/682ac4221f2e118599fe75129c09f6595af5a9ff))
+
 ## [4.1.0](https://github.com/customerio/customerio-android/compare/4.0.1...4.1.0) (2024-08-09)
 
 ### Features

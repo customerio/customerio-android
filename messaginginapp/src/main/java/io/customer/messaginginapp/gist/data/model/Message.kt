@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.model
-import java.util.*
+
+import java.util.UUID
 
 enum class MessagePosition(val position: String) {
     TOP("top"),
@@ -21,49 +22,48 @@ data class Message(
     val priority: Int? = null,
     val queueId: String? = null,
     val properties: Map<String, Any?>? = null
-)
+) {
+    val gistProperties: GistProperties
+        get() = convertToGistProperties()
 
-class GistMessageProperties {
-    companion object {
-        fun getGistProperties(message: Message): GistProperties {
-            var routeRule: String? = null
-            var elementId: String? = null
-            var campaignId: String? = null
-            var position: MessagePosition = MessagePosition.CENTER
-            var persistent = false
+    private fun convertToGistProperties(): GistProperties {
+        var routeRule: String? = null
+        var elementId: String? = null
+        var campaignId: String? = null
+        var position: MessagePosition = MessagePosition.CENTER
+        var persistent = false
 
-            message.properties?.let { properties ->
-                properties["gist"]?.let { gistProperties ->
-                    (gistProperties as Map<String, Any?>).let { gistProperties ->
-                        gistProperties["routeRuleAndroid"]?.let { rule ->
-                            (rule as String).let { stringRule ->
-                                routeRule = stringRule
-                            }
-                        }
-                        gistProperties["campaignId"]?.let { id ->
-                            (id as String).let { stringId ->
-                                campaignId = stringId
-                            }
-                        }
-                        gistProperties["elementId"]?.let { id ->
-                            (id as String).let { stringId ->
-                                elementId = stringId
-                            }
-                        }
-                        gistProperties["position"]?.let { messagePosition ->
-                            (messagePosition as String).let { stringPosition ->
-                                position = MessagePosition.valueOf(stringPosition.uppercase())
-                            }
-                        }
-                        gistProperties["persistent"]?.let { id ->
-                            (id as? Boolean)?.let { persistentValue ->
-                                persistent = persistentValue
-                            }
-                        }
-                    }
+        (properties?.get("gist") as? Map<String, Any?>)?.let { gistProperties ->
+            gistProperties["routeRuleAndroid"]?.let { rule ->
+                (rule as String).let { stringRule ->
+                    routeRule = stringRule
                 }
             }
-            return GistProperties(routeRule = routeRule, elementId = elementId, campaignId = campaignId, position = position, persistent = persistent)
+            gistProperties["campaignId"]?.let { id ->
+                (id as String).let { stringId ->
+                    campaignId = stringId
+                }
+            }
+            gistProperties["elementId"]?.let { id ->
+                (id as String).let { stringId ->
+                    elementId = stringId
+                }
+            }
+            gistProperties["position"]?.let { messagePosition ->
+                (messagePosition as String).let { stringPosition ->
+                    position = MessagePosition.valueOf(stringPosition.uppercase())
+                }
+            }
+            gistProperties["persistent"]?.let { id ->
+                (id as? Boolean)?.let { persistentValue ->
+                    persistent = persistentValue
+                }
+            }
         }
+        return GistProperties(routeRule = routeRule, elementId = elementId, campaignId = campaignId, position = position, persistent = persistent)
+    }
+
+    override fun toString(): String {
+        return "Message(messageId=$messageId, instanceId=$instanceId, priority=$priority, queueId=$queueId, properties=$gistProperties"
     }
 }

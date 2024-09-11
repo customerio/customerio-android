@@ -21,6 +21,13 @@ abstract class PreferenceStore(val context: Context) {
     open fun clearAll() {
         prefs.edit().clear().apply()
     }
+
+    /**
+     * Clear a specific preference stored in associated preference file asynchronously.
+     */
+    open fun clear(key: String) {
+        prefs.edit().remove(key).apply()
+    }
 }
 
 /**

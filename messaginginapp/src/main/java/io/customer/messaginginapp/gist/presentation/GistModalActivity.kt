@@ -14,30 +14,36 @@ import com.google.gson.Gson
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
-import io.customer.messaginginapp.gist.data.model.GistMessageProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.state.MessageState
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
+import kotlinx.coroutines.Job
 
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
-class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, TrackableScreen {
+class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
-    private var currentMessage: Message? = null
-    private var messagePosition: MessagePosition = MessagePosition.CENTER
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    private val state: InAppMessagingState
+        get() = inAppMessagingManager.getCurrentState()
+    private val logger = SDKComponent.logger
+    private val attributesListenerJob: MutableList<Job> = mutableListOf()
 
-    // Flag to indicate if the message has been cancelled and should not perform any further actions
-    private var isCancelled: Boolean = false
-
-    // Indicates if the message is visible to user or not
+    // indicates if the message is visible to user or not
     internal val isEngineVisible: Boolean
         get() = binding.gistView.isEngineVisible
+
+    private var messagePosition: MessagePosition = MessagePosition.CENTER
+
+    private val currentMessageState: MessageState.Displayed?
+        get() = state.currentMessageState as? MessageState.Displayed
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -52,22 +58,23 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        GistSdk.addListener(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         binding = ActivityGistBinding.inflate(layoutInflater)
         setContentView(binding.root)
         val messageStr = this.intent.getStringExtra(GIST_MESSAGE_INTENT)
         val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
-        Gson().fromJson(messageStr, Message::class.java)?.let { messageObj ->
-            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onCreate: $messageObj"))
-            currentMessage = messageObj
-            isCancelled = false
-            currentMessage?.let { message ->
+        val parsedMessage = kotlin.runCatching { Gson().fromJson(messageStr, Message::class.java) }.getOrNull()
+        if (parsedMessage == null) {
+            logger.error("GistModelActivity onCreate: Message is null")
+            finish()
+        } else {
+            logger.debug("GistModelActivity onCreate: $parsedMessage")
+            parsedMessage.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
                 binding.gistView.listener = this
                 binding.gistView.setup(message)
-                messagePosition = if (modalPositionStr == null) {
-                    GistMessageProperties.getGistProperties(message).position
+                val messagePosition = if (modalPositionStr == null) {
+                    message.gistProperties.position
                 } else {
                     MessagePosition.valueOf(modalPositionStr.uppercase())
                 }
@@ -77,32 +84,49 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
                     MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
                 }
             }
-        } ?: run {
-            finish()
         }
 
+        subscribeToAttributes()
+
         // Update back button to handle in-app message behavior, disable back press for persistent messages, true otherwise
-        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage()) {
+        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage(parsedMessage)) {
             override fun handleOnBackPressed() {}
         }
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
     }
 
-    override fun onResume() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onResume"))
-        super.onResume()
-        GistSdk.addListener(this)
+    private fun subscribeToAttributes() {
+        attributesListenerJob.add(
+            inAppMessagingManager.subscribeToAttribute(
+                selector = { it.currentMessageState },
+                areEquivalent = { old, new ->
+                    when {
+                        old is MessageState.Initial && new is MessageState.Initial -> true
+                        old is MessageState.Displayed && new is MessageState.Displayed -> old.message == new.message
+                        old is MessageState.Dismissed && new is MessageState.Dismissed -> old.message == new.message
+                        old is MessageState.Loading && new is MessageState.Loading -> old.message == new.message
+                        else -> false
+                    }
+                }
+            ) { state ->
+                if (state is MessageState.Displayed) {
+                    onMessageShown(state.message)
+                }
+
+                if (state is MessageState.Dismissed) {
+                    cleanUp()
+                }
+            }
+        )
     }
 
     override fun onPause() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onPause"))
-        GistSdk.removeListener(this)
         super.onPause()
         overridePendingTransition(0, 0)
     }
 
     override fun finish() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity finish"))
+        logger.debug("GistModelActivity finish")
         runOnUiThread {
             val animation = if (messagePosition == MessagePosition.TOP) {
                 AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_top)
@@ -112,37 +136,36 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
             animation.setTarget(binding.modalGistViewLayout)
             animation.start()
             animation.doOnEnd {
-                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity finish animation completed"))
+                logger.debug("GistModelActivity finish animation completed")
                 super.finish()
             }
         }
     }
 
     override fun onDestroy() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity onDestroy"))
-        GistSdk.removeListener(this)
-        // If the message has been cancelled, do not perform any further actions
+        logger.debug("GistModelActivity onDestroy")
+        attributesListenerJob.forEach(Job::cancel)
+        // if the message has been cancelled, do not perform any further actions
         // to avoid sending any callbacks to the client app
-        if (!isCancelled) {
-            // If the message is not persistent, dismiss it and inform the callback
+        // If the message is not persistent, dismiss it and inform the callback
+
+        currentMessageState?.let { state ->
             if (!isPersistentMessage()) {
-                GistSdk.dismissMessage()
+                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message))
             } else {
-                GistSdk.clearCurrentMessage()
+                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message, shouldLog = false))
             }
         }
-        GistSdk.gistModalManager.isMessageModalVisible = false
         super.onDestroy()
     }
 
-    private fun isPersistentMessage(): Boolean = currentMessage?.let {
-        GistMessageProperties.getGistProperties(
-            it
-        ).persistent
-    } ?: false
+    private fun isPersistentMessage(message: Message? = null): Boolean {
+        val currentMessage = message ?: currentMessageState?.message
+        return currentMessage?.gistProperties?.persistent ?: false
+    }
 
-    override fun onMessageShown(message: Message) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Shown: $message"))
+    private fun onMessageShown(message: Message) {
+        logger.debug("GistModelActivity Message Shown: $message")
         runOnUiThread {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
             binding.modalGistViewLayout.visibility = View.VISIBLE
@@ -154,51 +177,27 @@ class GistModalActivity : AppCompatActivity(), GistListener, GistViewListener, T
             animation.setTarget(binding.modalGistViewLayout)
             animation.start()
             animation.doOnEnd {
-                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Animation Completed: $message"))
+                logger.debug("GistModelActivity Message Animation Completed: $message")
                 elapsedTimer.end()
             }
         }
     }
 
-    override fun onMessageDismissed(message: Message) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Dismissed: $message"))
-        currentMessage?.let { currentMessage ->
-            if (currentMessage.instanceId == message.instanceId) {
-                finish()
-            }
+    private fun cleanUp() {
+        // stop loading the message
+        runOnUiThread {
+            binding.gistView.stopLoading()
         }
-    }
-
-    override fun onMessageCancelled(message: Message) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("GisModelActivity Message Cancelled: $message"))
-        currentMessage?.let { currentMessage ->
-            if (currentMessage.instanceId == message.instanceId) {
-                // Set the flag to indicate that the message has been cancelled
-                isCancelled = true
-                // Stop loading the message
-                runOnUiThread {
-                    binding.gistView.stopLoading()
-                }
-                // And finish the activity without performing any further actions
-                super.finish()
-            }
-        }
+        // and finish the activity without performing any further actions
+        super.finish()
     }
 
     override fun onGistViewSizeChanged(width: Int, height: Int) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Size changed: $width x $height"))
+        logger.debug("GistModelActivity Size changed: $width x $height")
         val params = binding.gistView.layoutParams
         params.height = height
         runOnUiThread {
             binding.modalGistViewLayout.updateViewLayout(binding.gistView, params)
         }
     }
-
-    override fun onError(message: Message) {
-        finish()
-    }
-
-    override fun embedMessage(message: Message, elementId: String) {}
-
-    override fun onAction(message: Message, currentRoute: String, action: String, name: String) {}
 }

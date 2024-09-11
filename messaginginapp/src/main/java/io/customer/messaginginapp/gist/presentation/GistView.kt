@@ -12,11 +12,12 @@ import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
-import io.customer.messaginginapp.domain.InAppMessagingAction
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
 import java.net.URI
 import java.nio.charset.StandardCharsets
@@ -32,8 +33,11 @@ class GistView @JvmOverloads constructor(
     private var firstLoad: Boolean = true
     var listener: GistViewListener? = null
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    val logger = SDKComponent.logger
+    private val store: InAppMessagingState
+        get() = inAppMessagingManager.getCurrentState()
 
-    // Indicates if the message is visible to user or not
+    // indicates if the message is visible to user or not
     internal val isEngineVisible: Boolean
         get() = engineWebView?.alpha == 1.0f
 
@@ -46,15 +50,15 @@ class GistView @JvmOverloads constructor(
     }
 
     fun setup(message: Message) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.SetupGistView(message))
+        logger.debug("GistView setup: $message")
         currentMessage = message
         currentMessage?.let { message ->
             val engineWebConfiguration = EngineWebConfiguration(
-                siteId = GistSdk.getInstance().siteId,
-                dataCenter = GistSdk.getInstance().dataCenter,
+                siteId = store.siteId,
+                dataCenter = store.dataCenter,
                 messageId = message.messageId,
                 instanceId = message.instanceId,
-                endpoint = GistSdk.gistEnvironment.getEngineApiUrl(),
+                endpoint = store.environment.getEngineApiUrl(),
                 properties = message.properties
             )
             engineWebView?.setup(engineWebConfiguration)
@@ -62,7 +66,6 @@ class GistView @JvmOverloads constructor(
     }
 
     fun stopLoading() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.EngineStopLoading)
         engineWebView?.stopLoading()
     }
 
@@ -70,7 +73,7 @@ class GistView @JvmOverloads constructor(
         var shouldLogAction = true
         currentMessage?.let { message ->
             currentRoute?.let { route ->
-                GistSdk.handleGistAction(message = message, currentRoute = route, action = action, name = name)
+                inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.Tap(message = message, route = route, name = name, action = action))
                 when {
                     action.startsWith("gist://") -> {
                         val gistAction = URI(action)
@@ -78,66 +81,68 @@ class GistView @JvmOverloads constructor(
                         when (gistAction.host) {
                             "close" -> {
                                 shouldLogAction = false
-                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Dismissing from action: $action"))
-                                GistSdk.dismissPersistentMessage(message)
+                                logger.debug("Dismissing from action: $action")
+                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, viaCloseAction = true))
                             }
+
                             "loadPage" -> {
                                 val url = urlQuery.getValue("url")
                                 val intent = Intent(Intent.ACTION_VIEW)
                                 intent.data = Uri.parse(url)
-                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Opening URL: $url"))
+                                logger.debug("Opening URL: $url")
                                 startActivity(context, intent, null)
                             }
+
                             "showMessage" -> {
-                                GistSdk.handleGistClosed(message)
+                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
                                 val messageId = urlQuery.getValue("messageId")
                                 val propertiesBase64 = urlQuery.getValue("properties")
                                 val parameterBinary = Base64.decode(propertiesBase64, Base64.DEFAULT)
                                 val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
                                 val map: Map<String, Any> = HashMap()
                                 val properties = Gson().fromJson(parameterString, map.javaClass)
-                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Showing message: $messageId"))
-                                GistSdk.getInstance().showMessage(
-                                    Message(messageId = messageId, properties = properties)
-                                )
+                                logger.debug("Showing message: $messageId")
+                                inAppMessagingManager.dispatch(InAppMessagingAction.LoadMessage(Message(messageId = messageId, properties = properties)))
                             }
+
                             else -> {
                                 shouldLogAction = false
-                                inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Gist action unhandled"))
+                                logger.debug("Gist action unhandled: $action")
                             }
                         }
                     }
+
                     system -> {
                         try {
                             shouldLogAction = false
-                            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Dismissing from system action: $action"))
-                            GistSdk.handleGistClosed(message)
+                            logger.debug("Dismissing from system action: $action")
+                            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
                             val intent = Intent(Intent.ACTION_VIEW)
                             intent.data = Uri.parse(action)
                             intent.flags =
                                 Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                             startActivity(context, intent, null)
                         } catch (e: ActivityNotFoundException) {
-                            inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("System action not handled"))
+                            logger.debug("System action not handled: $action")
                         }
                     }
                 }
                 if (shouldLogAction) {
-                    inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Action selected: $action"))
+                    logger.debug("Action selected: $action")
                 }
             }
         }
     }
 
     override fun routeError(route: String) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error loading route: $route"))
+        logger.debug("GistView Route error: $route")
         currentMessage?.let { message ->
-            GistSdk.handleGistError(message)
+            inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
         }
     }
 
     override fun routeLoaded(route: String) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Route loaded: $route"))
+        logger.debug("GistView Route loaded: $route")
         currentRoute = route
         if (firstLoad) {
             firstLoad = false
@@ -145,20 +150,20 @@ class GistView @JvmOverloads constructor(
                 engineWebView.alpha = 1.0f
             }
             currentMessage?.let { message ->
-                GistSdk.handleGistLoaded(message)
+                inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
             }
         }
     }
 
     override fun error() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Error loading engine"))
+        logger.debug("GistView Error loading engine")
         currentMessage?.let { message ->
-            GistSdk.handleGistError(message)
+            inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
         }
     }
 
     override fun bootstrapped() {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Engine bootstrapped"))
+        logger.debug("GistView Engine bootstrapped")
         // Cleaning after engine web is bootstrapped and all assets downloaded.
         currentMessage?.let { message ->
             if (message.messageId == "") {
@@ -168,11 +173,13 @@ class GistView @JvmOverloads constructor(
             }
         }
     }
+
     override fun routeChanged(newRoute: String) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Route changed: $newRoute"))
+        logger.debug("GistView Route changed: $newRoute")
     }
+
     override fun sizeChanged(width: Double, height: Double) {
-        inAppMessagingManager.dispatch(InAppMessagingAction.LogEvent("Size changed: $width x $height"))
+        logger.debug("GistView Size changed: $width x $height")
         listener?.onGistViewSizeChanged(getSizeBasedOnDPI(width.toInt()), getSizeBasedOnDPI(height.toInt()))
     }
 

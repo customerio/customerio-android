@@ -1,17 +1,14 @@
 package io.customer.messaginginapp.testutils.extension
 
 import android.util.Base64
-import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
-import androidx.test.runner.lifecycle.Stage
 import com.google.gson.JsonParser
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.getMessage
+import java.util.UUID
 
-fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random).getMessage()
+fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random, String.random).getMessage()
 
 fun mapToInAppMessage(message: Message): InAppMessage = InAppMessage.getFromGistMessage(gistMessage = message)
 
@@ -31,9 +28,10 @@ fun decodeOptionsString(options: String): Message {
 }
 
 fun createInAppMessage(
-    messageId: String = String.random,
-    campaignId: String? = String.random,
-    queueId: String? = String.random,
+    messageId: String = UUID.randomUUID().toString(),
+    campaignId: String? = "test_campaign_id",
+    queueId: String? = "test_queue_id",
+    position: String? = "center",
     priority: Int? = null,
     pageRule: String? = null
 ): Message = Message(
@@ -46,24 +44,8 @@ fun createInAppMessage(
             buildMap {
                 campaignId?.let { value -> put("campaignId", value) }
                 pageRule?.let { value -> put("routeRuleAndroid", value) }
+                position?.let { value -> put("position", value) }
             }
         )
     }
 )
-
-fun getInAppMessageActivity(): GistModalActivity? {
-    var runningActivity: GistModalActivity? = null
-    val activityMonitor = ActivityLifecycleMonitorRegistry.getInstance()
-
-    InstrumentationRegistry.getInstrumentation().runOnMainSync {
-        val activities = activityMonitor.getActivitiesInStage(Stage.RESUMED)
-        for (activity in activities) {
-            if (activity is GistModalActivity) {
-                runningActivity = activity
-                break
-            }
-        }
-    }
-
-    return runningActivity
-}

@@ -10,7 +10,7 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class ClientTest : RobolectricTest() {
-    private val defaultClientString: String = Client("Android", Version.version).toString()
+    private val defaultClientString: String = "Android Client/${Version.version}"
 
     private fun createMetadata(
         userAgent: String?,

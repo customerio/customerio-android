@@ -2,6 +2,7 @@ package io.customer.sdk.core.di
 
 import android.app.Application
 import android.content.Context
+import io.customer.sdk.core.extensions.applicationMetaData
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.ApplicationStoreImpl
 import io.customer.sdk.data.store.BuildStore
@@ -34,7 +35,7 @@ class AndroidSDKComponentImpl(
         get() = newInstance<Application> { context.applicationContext as Application }
 
     override val client: Client
-        get() = singleton<Client> { Client.fromManifest(context = context) }
+        get() = singleton<Client> { Client.fromMetadata(context.applicationMetaData()) }
 
     init {
         SDKComponent.activityLifecycleCallbacks.register(application)

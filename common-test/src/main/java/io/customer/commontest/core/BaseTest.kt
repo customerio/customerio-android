@@ -45,6 +45,6 @@ abstract class BaseTest {
         val application = testConfig.argumentOrNull<ApplicationArgument>()?.value ?: return
         val client = testConfig.argumentOrNull<ClientArgument>()?.value ?: return
 
-        testConfig.configureAndroidSDKComponent(SDKComponent.registerAndroidSDKComponent(application, client))
+        testConfig.configureAndroidSDKComponent(SDKComponent.registerAndroidSDKComponent(application))
     }
 }

@@ -28,11 +28,13 @@ abstract class AndroidSDKComponent : DiGraph() {
  * Integrate this graph at SDK startup using from Android entry point.
  */
 class AndroidSDKComponentImpl(
-    private val context: Context,
-    override val client: Client
+    private val context: Context
 ) : AndroidSDKComponent() {
     override val application: Application
         get() = newInstance<Application> { context.applicationContext as Application }
+
+    override val client: Client
+        get() = singleton<Client> { Client.fromManifest(context = context) }
 
     init {
         SDKComponent.activityLifecycleCallbacks.register(application)

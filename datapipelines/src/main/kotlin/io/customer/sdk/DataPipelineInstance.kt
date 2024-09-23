@@ -1,6 +1,7 @@
 package io.customer.sdk
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
+import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
@@ -30,8 +31,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      */
-    inline fun <reified Traits> identify(userId: String, traits: Traits) {
-        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+    inline fun <reified Traits> identify(userId: String, traits: Traits, noinline enrichment: EnrichmentClosure? = null) {
+        identify(userId, traits, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -46,8 +47,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param traits JsonObject about the user.
      */
     @JvmOverloads
-    fun identify(userId: String, traits: JsonObject = emptyJsonObject) {
-        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+    fun identify(userId: String, traits: JsonObject = emptyJsonObject, enrichment: EnrichmentClosure? = null) {
+        identify(userId, traits, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -61,9 +62,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits Map of <String, Any> to be added
      */
-    fun identify(userId: String, traits: CustomAttributes) {
+    fun identify(userId: String, traits: CustomAttributes, enrichment: EnrichmentClosure? = null) {
         // Method needed for Java interop as inline doesn't work with Java
-        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+        identify(userId, traits, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -82,7 +83,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     abstract fun <Traits> identify(
         userId: String,
         traits: Traits,
-        serializationStrategy: SerializationStrategy<Traits>
+        serializationStrategy: SerializationStrategy<Traits>,
+        enrichment: EnrichmentClosure? = null
     )
 
     /**
@@ -97,8 +99,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
     @JvmOverloads
-    fun track(name: String, properties: JsonObject = emptyJsonObject) {
-        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+    fun track(name: String, properties: JsonObject = emptyJsonObject, enrichment: EnrichmentClosure? = null) {
+        track(name, properties, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -112,9 +114,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Map of <String, Any> to be added
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
-    fun track(name: String, properties: CustomAttributes) {
+    fun track(name: String, properties: CustomAttributes, enrichment: EnrichmentClosure? = null) {
         // Method needed for Java interop as inline doesn't work with Java
-        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+        track(name, properties, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -132,7 +134,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     abstract fun <T> track(
         name: String,
         properties: T,
-        serializationStrategy: SerializationStrategy<T>
+        serializationStrategy: SerializationStrategy<T>,
+        enrichment: EnrichmentClosure? = null
     )
 
     /**
@@ -148,9 +151,10 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     inline fun <reified T> track(
         name: String,
-        properties: T
+        properties: T,
+        noinline enrichment: EnrichmentClosure? = null
     ) {
-        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+        track(name, properties, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -161,8 +165,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
     @JvmOverloads
-    fun screen(title: String, properties: JsonObject = emptyJsonObject) {
-        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+    fun screen(title: String, properties: JsonObject = emptyJsonObject, enrichment: EnrichmentClosure? = null) {
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -172,9 +176,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen in Map <String, Any> format.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
-    fun screen(title: String, properties: CustomAttributes) {
+    fun screen(title: String, properties: CustomAttributes, enrichment: EnrichmentClosure? = null) {
         // Method needed for Java interop as inline doesn't work with Java
-        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -187,7 +191,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     abstract fun <T> screen(
         title: String,
         properties: T,
-        serializationStrategy: SerializationStrategy<T>
+        serializationStrategy: SerializationStrategy<T>,
+        enrichment: EnrichmentClosure? = null
     )
 
     /**
@@ -199,9 +204,10 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     inline fun <reified T> screen(
         title: String,
-        properties: T
+        properties: T,
+        noinline enrichment: EnrichmentClosure? = null
     ) {
-        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title, properties, JsonAnySerializer.serializersModule.serializer(), enrichment)
     }
 
     /**
@@ -219,7 +225,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      *
      * @param event [TrackMetric] event to be tracked.
      */
-    abstract fun trackMetric(event: TrackMetric)
+    abstract fun trackMetric(event: TrackMetric, enrichment: EnrichmentClosure? = null)
 
     /**
      * The device token that is currently registered with the push notification service.
@@ -248,10 +254,10 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * token and associate it with anonymous profile, and later merge it to
      * identified profile.
      */
-    abstract fun registerDeviceToken(deviceToken: String)
+    abstract fun registerDeviceToken(deviceToken: String, enrichment: EnrichmentClosure? = null)
 
     /**
      * Delete the currently registered device token
      */
-    abstract fun deleteDeviceToken()
+    abstract fun deleteDeviceToken(enrichment: EnrichmentClosure? = null)
 }

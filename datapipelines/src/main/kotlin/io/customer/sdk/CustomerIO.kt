@@ -4,6 +4,7 @@ import androidx.annotation.VisibleForTesting
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.ErrorHandler
+import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import io.customer.base.internal.InternalCustomerIOApi
@@ -182,7 +183,8 @@ class CustomerIO private constructor(
     override fun <Traits> identify(
         userId: String,
         traits: Traits,
-        serializationStrategy: SerializationStrategy<Traits>
+        serializationStrategy: SerializationStrategy<Traits>,
+        enrichment: EnrichmentClosure?
     ) {
         if (userId.isBlank()) {
             logger.debug("Profile cannot be identified: Identifier is blank. Please retry with a valid, non-empty identifier.")
@@ -206,7 +208,8 @@ class CustomerIO private constructor(
         analytics.identify(
             userId = userId,
             traits = traits,
-            serializationStrategy = serializationStrategy
+            serializationStrategy = serializationStrategy,
+            enrichment = enrichment
         )
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
@@ -224,25 +227,28 @@ class CustomerIO private constructor(
      * Common method to track an event with traits.
      * All other track methods should call this method to ensure consistency.
      */
-    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
         logger.debug("track an event with name $name and attributes $properties")
-        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy)
+        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
     }
 
     /**
      * Common method to track an screen with properties.
      * All other screen methods should call this method to ensure consistency.
      */
-    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
         logger.debug("track a screen with title $title, properties $properties")
-        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
+        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
     }
 
     override fun clearIdentify() {
         logger.info("resetting user profile with id ${this.userId}")
 
         logger.debug("deleting device token to remove device from user profile")
-        deleteDeviceToken()
+
+        deleteDeviceToken { event ->
+            event?.apply { userId = this@CustomerIO.userId.toString() }
+        }
 
         logger.debug("resetting user profile")
         analytics.reset()
@@ -263,7 +269,7 @@ class CustomerIO private constructor(
             trackDeviceAttributes(registeredDeviceToken, value)
         }
 
-    override fun registerDeviceToken(deviceToken: String) {
+    override fun registerDeviceToken(deviceToken: String, enrichment: EnrichmentClosure?) {
         if (deviceToken.isBlank()) {
             logger.debug("device token cannot be blank. ignoring request to register device token")
             return
@@ -272,10 +278,10 @@ class CustomerIO private constructor(
         logger.info("storing and registering device token $deviceToken for user profile: ${this.userId}")
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
-        trackDeviceAttributes(deviceToken)
+        trackDeviceAttributes(token = deviceToken, enrichment = enrichment)
     }
 
-    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
+    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap(), enrichment: EnrichmentClosure? = null) {
         if (token.isNullOrBlank()) {
             logger.debug("no device token found. ignoring request to track device.")
             return
@@ -298,10 +304,16 @@ class CustomerIO private constructor(
         contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
-        track(EventNames.DEVICE_UPDATE, attributes)
+        track(
+            name = EventNames.DEVICE_UPDATE,
+            properties = attributes,
+            enrichment = enrichment ?: { event ->
+                event?.apply { userId = this@CustomerIO.userId.toString() }
+            }
+        )
     }
 
-    override fun deleteDeviceToken() {
+    override fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
         logger.info("deleting device token")
 
         val deviceToken = contextPlugin.deviceToken
@@ -310,14 +322,14 @@ class CustomerIO private constructor(
             return
         }
 
-        track(EventNames.DEVICE_DELETE)
+        track(name = EventNames.DEVICE_DELETE, enrichment = enrichment)
     }
 
-    override fun trackMetric(event: TrackMetric) {
+    override fun trackMetric(event: TrackMetric, enrichment: EnrichmentClosure?) {
         logger.info("${event.type} metric received for ${event.metric} event")
         logger.debug("tracking ${event.type} metric event with properties $event")
 
-        track(EventNames.METRIC_DELIVERY, event.asMap())
+        track(name = EventNames.METRIC_DELIVERY, properties = event.asMap(), enrichment = enrichment)
     }
 
     companion object {

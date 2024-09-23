@@ -10,7 +10,7 @@ enum class GistEnvironment : GistEnvironmentEndpoints {
     DEV {
         override fun getGistQueueApiUrl() = "https://gist-queue-consumer-api.cloud.dev.gist.build"
         override fun getEngineApiUrl() = "https://engine.api.dev.gist.build"
-        override fun getGistRendererUrl() = "http://192.168.2.86:8080/web"
+        override fun getGistRendererUrl() = "https://renderer.gist.build/beta"
     },
 
     LOCAL {

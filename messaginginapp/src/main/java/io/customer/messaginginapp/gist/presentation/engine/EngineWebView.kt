@@ -83,6 +83,7 @@ internal class EngineWebView @JvmOverloads constructor(
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageUrl = "${state.environment.getGistRendererUrl()}/index.html"
         logger.debug("Rendering message with URL: $messageUrl")
+        logger.debug("Rendering config: $configuration")
             webView?.let {
                 it.clearCache(true) // TODO: remove after debugging
                 it.settings.cacheMode = WebSettings.LOAD_NO_CACHE

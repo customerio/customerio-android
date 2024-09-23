@@ -27,6 +27,7 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
+import org.json.JSONObject
 import java.util.Timer
 import java.util.TimerTask
 
@@ -83,7 +84,10 @@ internal class EngineWebView @JvmOverloads constructor(
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageUrl = "${state.environment.getGistRendererUrl()}/index.html"
         logger.debug("Rendering message with URL: $messageUrl")
-        logger.debug("Rendering config: $configuration")
+
+        val formattedJson = JSONObject(Gson().toJson(configuration)).toString(4)
+        logger.debug("Rendering Options: \n$formattedJson")
+
             webView?.let {
                 it.clearCache(true) // TODO: remove after debugging
                 it.settings.cacheMode = WebSettings.LOAD_NO_CACHE

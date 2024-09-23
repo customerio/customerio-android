@@ -6,10 +6,14 @@ import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
 import android.util.Base64
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -23,7 +27,6 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
-import java.io.UnsupportedEncodingException
 import java.util.Timer
 import java.util.TimerTask
 
@@ -77,13 +80,12 @@ internal class EngineWebView @JvmOverloads constructor(
     @SuppressLint("SetJavaScriptEnabled")
     fun setup(configuration: EngineWebConfiguration) {
         setupTimeout()
-        val jsonString = Gson().toJson(configuration)
-        encodeToBase64(jsonString)?.let { options ->
-            elapsedTimer.start("Engine render for message: ${configuration.messageId}")
-            val messageUrl =
-                "${state.environment.getGistRendererUrl()}/index.html?options=$options"
-            logger.debug("Rendering message with URL: $messageUrl")
+        elapsedTimer.start("Engine render for message: ${configuration.messageId}")
+        val messageUrl = "${state.environment.getGistRendererUrl()}/index.html"
+        logger.debug("Rendering message with URL: $messageUrl")
             webView?.let {
+                it.clearCache(true) // TODO: remove after debugging
+                it.settings.cacheMode = WebSettings.LOAD_NO_CACHE
                 it.loadUrl(messageUrl)
                 it.settings.javaScriptEnabled = true
                 it.settings.allowFileAccess = true
@@ -92,6 +94,14 @@ internal class EngineWebView @JvmOverloads constructor(
                 it.settings.textZoom = 100
                 it.setBackgroundColor(Color.TRANSPARENT)
 
+                // Set up WebChromeClient to capture JavaScript console messages
+                it.webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                        Log.d("JSConsole", "${consoleMessage.message()} -- From line ${consoleMessage.lineNumber()} of ${consoleMessage.sourceId()}")
+                        return true
+                    }
+                }
+
                 findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
                     logger.error("Lifecycle owner not found, attaching interface to WebView manually")
                     engineWebViewInterface.attach(webView = it)
@@ -99,7 +109,17 @@ internal class EngineWebView @JvmOverloads constructor(
 
                 it.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String?) {
-                        view.loadUrl("javascript:window.parent.postMessage = function(message) {window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message))}")
+                        // This is where we send the postMessage after the page has loaded
+                        // Send the message using postMessage from Kotlin to the WebView
+                        webView?.evaluateJavascript("""
+                                (function() {
+                                    var jsonData = JSON.stringify(${Gson().toJson(configuration)});
+                                    console.log('Sending postMessage' + jsonData);
+                                    window.postMessage({ options: jsonData }, '*');
+                                })();
+                            """.trimIndent(), null)
+
+                        Log.d("WebView", "JavaScript injected for postMessage")
                     }
 
                     override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
@@ -112,6 +132,7 @@ internal class EngineWebView @JvmOverloads constructor(
                         description: String,
                         failingUrl: String?
                     ) {
+                        logger.error("onReceivedError $description")
                         listener?.error()
                     }
 
@@ -120,6 +141,19 @@ internal class EngineWebView @JvmOverloads constructor(
                         request: WebResourceRequest?,
                         errorResponse: WebResourceResponse?
                     ) {
+                        val url = request?.url.toString()
+                        val statusCode = errorResponse?.statusCode
+
+                        // Ignore 404 for favicon.ico
+                        if (url.endsWith("favicon.ico") && statusCode == 404) {
+                            return // Ignore this specific error
+                        }
+
+                        // Log the details for other errors
+                        logger.error("onReceivedHttpError: URL: $url")
+                        logger.error("Headers: ${errorResponse?.responseHeaders ?: emptyMap()}")
+                        logger.error("Status Code: $statusCode, Reason: ${errorResponse?.reasonPhrase}")
+
                         listener?.error()
                     }
 
@@ -139,21 +173,9 @@ internal class EngineWebView @JvmOverloads constructor(
                         listener?.error()
                     }
                 }
-            }
         } ?: run {
             listener?.error()
         }
-    }
-
-    private fun encodeToBase64(text: String): String? {
-        val data: ByteArray?
-        try {
-            data = text.toByteArray(charset("UTF-8"))
-        } catch (ex: UnsupportedEncodingException) {
-            logger.debug("Unsupported encoding exception")
-            return null
-        }
-        return Base64.encodeToString(data, Base64.URL_SAFE)
     }
 
     private fun setupTimeout() {

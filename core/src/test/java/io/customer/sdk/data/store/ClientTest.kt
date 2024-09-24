@@ -16,7 +16,7 @@ class ClientTest : RobolectricTest() {
         userAgent: String?,
         sdkVersion: String?
     ) = Bundle().apply {
-        userAgent?.let { putString(Client.META_DATA_USER_AGENT, it) }
+        userAgent?.let { putString(Client.META_DATA_SDK_SOURCE, it) }
         sdkVersion?.let { putString(Client.META_DATA_SDK_VERSION, it) }
     }
 

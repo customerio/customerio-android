@@ -18,7 +18,7 @@ class Client(
 
     companion object {
         private const val SOURCE_ANDROID = "Android"
-        internal const val META_DATA_USER_AGENT = "io.customer.sdk.android.core.USER_AGENT"
+        internal const val META_DATA_SDK_SOURCE = "io.customer.sdk.android.core.SDK_SOURCE"
         internal const val META_DATA_SDK_VERSION = "io.customer.sdk.android.core.SDK_VERSION"
 
         /**
@@ -31,7 +31,7 @@ class Client(
          * If not found, the default client is returned.
          */
         fun fromMetadata(metadata: Bundle?): Client {
-            val userAgent = metadata?.getString(META_DATA_USER_AGENT)
+            val userAgent = metadata?.getString(META_DATA_SDK_SOURCE)
             val sdkVersion = metadata?.getString(META_DATA_SDK_VERSION)
 
             // If either value is null or blank, return the default client

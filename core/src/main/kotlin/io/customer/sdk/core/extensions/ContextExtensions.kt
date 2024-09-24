@@ -8,22 +8,39 @@ import android.os.Bundle
 import io.customer.sdk.core.di.SDKComponent
 
 /**
- * Gets meta-data from AndroidManifest.xml file.
+ * Retrieves application info from the package manager for given package name.
  *
- * @return The meta-data bundle from application info.
+ * @throws PackageManager.NameNotFoundException If the package name is not found.
+ * @return The application info for the given package name.
  */
-fun Context.applicationMetaData(): Bundle? = runCatching {
-    val appInfo: ApplicationInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        packageManager.getApplicationInfo(
+@Throws
+private fun PackageManager.packageApplicationInfo(packageName: String): ApplicationInfo {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getApplicationInfo(
             packageName,
             PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())
         )
     } else {
-        @Suppress("DEPRECATION")
-        packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+        getApplicationInfo(
+            packageName,
+            PackageManager.GET_META_DATA
+        )
     }
+}
 
-    return@runCatching appInfo.metaData
-}.onFailure { ex ->
-    SDKComponent.logger.error("Failed to get application meta-data: ${ex.message}")
-}.getOrNull()
+/**
+ * Retrieves application meta-data from AndroidManifest.xml file.
+ *
+ * @return The meta-data bundle from application info.
+ */
+fun Context.applicationMetaData(): Bundle? {
+    var applicationPackageName = ""
+    return runCatching {
+        applicationPackageName = packageName
+        return@runCatching packageManager.packageApplicationInfo(applicationPackageName)
+    }.onFailure { ex ->
+        SDKComponent.logger.error(
+            "Failed to get ApplicationInfo for package: $applicationPackageName with error: ${ex.message}"
+        )
+    }.getOrNull()?.metaData
+}

@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application>
+        <!--
+        This is how wrapper SDKs can provide their own values for the SDK_SOURCE and SDK_VERSION meta-data.
+        tools:replace="android:value" is used to replace the value of the meta-data.
+        tools:node="replace" is used to replace the entire meta-data tag.
+        Either of these attributes can be used to resolve any conflicts that may arise when merging
+        multiple AndroidManifest.xml files with the same meta-data tags.
+        -->
         <meta-data
-            android:name="io.customer.sdk.android.core.USER_AGENT"
-            android:value="TestUserAgent" />
+            android:name="io.customer.sdk.android.core.SDK_SOURCE"
+            android:value="TestUserAgent"
+            tools:replace="android:value" />
         <meta-data
             android:name="io.customer.sdk.android.core.SDK_VERSION"
-            android:value="1.3.5" />
+            android:value="1.3.5"
+            tools:node="replace" />
     </application>
-
 </manifest>

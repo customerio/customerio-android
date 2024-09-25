@@ -228,7 +228,12 @@ class CustomerIO private constructor(
      * Common method to track an event with traits.
      * All other track methods should call this method to ensure consistency.
      */
-    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
+    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) = track(name, properties, serializationStrategy, null)
+
+    /**
+     * Private method that support enrichment of generated track events.
+     */
+    private fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
         logger.debug("track an event with name $name and attributes $properties")
         analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
     }
@@ -314,7 +319,9 @@ class CustomerIO private constructor(
         )
     }
 
-    override fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
+    override fun deleteDeviceToken() = deleteDeviceToken(null)
+
+    private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
         logger.info("deleting device token")
 
         val deviceToken = contextPlugin.deviceToken
@@ -323,11 +330,7 @@ class CustomerIO private constructor(
             return
         }
 
-        trackDelete(enrichmentClosure = enrichment)
-    }
-
-    private fun trackDelete(enrichmentClosure: EnrichmentClosure?) {
-        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichmentClosure)
+        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
     }
 
     override fun trackMetric(event: TrackMetric) {

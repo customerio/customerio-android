@@ -1,7 +1,6 @@
 package io.customer.sdk
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
-import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
@@ -128,14 +127,12 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param name Name of the action
      * @param properties to describe the action. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      * @param serializationStrategy strategy to serialize [properties]
-     * @param enrichment closure to enrich the generated event
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
     abstract fun <T> track(
         name: String,
         properties: T,
-        serializationStrategy: SerializationStrategy<T>,
-        enrichment: EnrichmentClosure? = null
+        serializationStrategy: SerializationStrategy<T>
     )
 
     /**
@@ -256,5 +253,5 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     /**
      * Delete the currently registered device token
      */
-    abstract fun deleteDeviceToken(enrichment: EnrichmentClosure? = null)
+    abstract fun deleteDeviceToken()
 }

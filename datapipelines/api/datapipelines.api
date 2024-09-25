@@ -144,7 +144,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun clearIdentify ()V
-	public fun deleteDeviceToken (Lkotlin/jvm/functions/Function1;)V
+	public fun deleteDeviceToken ()V
 	public fun getAnonymousId ()Ljava/lang/String;
 	public fun getDeviceAttributes ()Ljava/util/Map;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
@@ -160,7 +160,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
-	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlin/jvm/functions/Function1;)V
+	public fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
 }
 
@@ -189,8 +189,7 @@ public final class io/customer/sdk/CustomerIOBuilder {
 public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/CustomerIOInstance {
 	public fun <init> ()V
 	public abstract fun clearIdentify ()V
-	public abstract fun deleteDeviceToken (Lkotlin/jvm/functions/Function1;)V
-	public static synthetic fun deleteDeviceToken$default (Lio/customer/sdk/DataPipelineInstance;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public abstract fun deleteDeviceToken ()V
 	public abstract fun getAnonymousId ()Ljava/lang/String;
 	public abstract fun getDeviceAttributes ()Ljava/util/Map;
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
@@ -210,10 +209,9 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public abstract fun setDeviceAttributes (Ljava/util/Map;)V
 	public abstract fun setProfileAttributes (Ljava/util/Map;)V
 	public final fun track (Ljava/lang/String;)V
-	public abstract fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlin/jvm/functions/Function1;)V
+	public abstract fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun track (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun track (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
-	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
 	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
 	public abstract fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
 }

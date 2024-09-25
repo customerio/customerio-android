@@ -4,8 +4,11 @@ import androidx.annotation.VisibleForTesting
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.ErrorHandler
+import com.segment.analytics.kotlin.core.emptyJsonObject
+import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
+import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
@@ -30,6 +33,7 @@ import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
 import io.customer.tracking.migration.MigrationProcessor
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.serializer
 
 /**
  * Welcome to the Customer.io Android SDK!
@@ -224,9 +228,14 @@ class CustomerIO private constructor(
      * Common method to track an event with traits.
      * All other track methods should call this method to ensure consistency.
      */
-    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) = track(name, properties, serializationStrategy, null)
+
+    /**
+     * Private method that support enrichment of generated track events.
+     */
+    private fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
         logger.debug("track an event with name $name and attributes $properties")
-        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy)
+        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
     }
 
     /**
@@ -242,7 +251,13 @@ class CustomerIO private constructor(
         logger.info("resetting user profile with id ${this.userId}")
 
         logger.debug("deleting device token to remove device from user profile")
-        deleteDeviceToken()
+
+        // since the tasks are asynchronous, we need to store the userId before deleting the device token
+        // otherwise, the userId could be null when the delete task is executed
+        val existingUserId = userId
+        deleteDeviceToken { event ->
+            event?.apply { userId = existingUserId.toString() }
+        }
 
         logger.debug("resetting user profile")
         analytics.reset()
@@ -272,7 +287,7 @@ class CustomerIO private constructor(
         logger.info("storing and registering device token $deviceToken for user profile: ${this.userId}")
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
-        trackDeviceAttributes(deviceToken)
+        trackDeviceAttributes(token = deviceToken)
     }
 
     private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
@@ -298,10 +313,15 @@ class CustomerIO private constructor(
         contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
-        track(EventNames.DEVICE_UPDATE, attributes)
+        track(
+            name = EventNames.DEVICE_UPDATE,
+            properties = attributes
+        )
     }
 
-    override fun deleteDeviceToken() {
+    override fun deleteDeviceToken() = deleteDeviceToken(null)
+
+    private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
         logger.info("deleting device token")
 
         val deviceToken = contextPlugin.deviceToken
@@ -310,14 +330,14 @@ class CustomerIO private constructor(
             return
         }
 
-        track(EventNames.DEVICE_DELETE)
+        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
     }
 
     override fun trackMetric(event: TrackMetric) {
         logger.info("${event.type} metric received for ${event.metric} event")
         logger.debug("tracking ${event.type} metric event with properties $event")
 
-        track(EventNames.METRIC_DELIVERY, event.asMap())
+        track(name = EventNames.METRIC_DELIVERY, properties = event.asMap())
     }
 
     companion object {

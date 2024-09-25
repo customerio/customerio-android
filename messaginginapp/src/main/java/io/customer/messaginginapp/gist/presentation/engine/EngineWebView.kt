@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
-import android.util.Base64
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -23,7 +22,6 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
-import java.io.UnsupportedEncodingException
 import java.util.Timer
 import java.util.TimerTask
 
@@ -77,83 +75,78 @@ internal class EngineWebView @JvmOverloads constructor(
     @SuppressLint("SetJavaScriptEnabled")
     fun setup(configuration: EngineWebConfiguration) {
         setupTimeout()
-        val jsonString = Gson().toJson(configuration)
-        encodeToBase64(jsonString)?.let { options ->
-            elapsedTimer.start("Engine render for message: ${configuration.messageId}")
-            val messageUrl =
-                "${state.environment.getGistRendererUrl()}/index.html?options=$options"
-            logger.debug("Rendering message with URL: $messageUrl")
-            webView?.let {
-                it.loadUrl(messageUrl)
-                it.settings.javaScriptEnabled = true
-                it.settings.allowFileAccess = true
-                it.settings.allowContentAccess = true
-                it.settings.domStorageEnabled = true
-                it.settings.textZoom = 100
-                it.setBackgroundColor(Color.TRANSPARENT)
+        elapsedTimer.start("Engine render for message: ${configuration.messageId}")
+        val messageData = mapOf("options" to configuration)
+        val jsonString = Gson().toJson(messageData)
+        val messageUrl =
+            "${state.environment.getGistRendererUrl()}/index.html"
+        logger.debug("Rendering message with URL: $messageUrl")
+        webView?.let {
+            it.settings.javaScriptEnabled = true
+            it.settings.allowFileAccess = true
+            it.settings.allowContentAccess = true
+            it.settings.domStorageEnabled = true
+            it.settings.textZoom = 100
+            it.setBackgroundColor(Color.TRANSPARENT)
 
-                findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
-                    logger.error("Lifecycle owner not found, attaching interface to WebView manually")
-                    engineWebViewInterface.attach(webView = it)
+            findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
+                logger.error("Lifecycle owner not found, attaching interface to WebView manually")
+                engineWebViewInterface.attach(webView = it)
+            }
+
+            it.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String?) {
+                    val script = """
+                    window.postMessage($jsonString, '*');
+                """.trim()
+                    view.evaluateJavascript(script) { result ->
+                        logger.debug("JavaScript execution result: $result")
+                    }
                 }
 
-                it.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        view.loadUrl("javascript:window.parent.postMessage = function(message) {window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message))}")
-                    }
+                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                    return !url.startsWith("https://code.gist.build")
+                }
 
-                    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                        return !url.startsWith("https://code.gist.build")
-                    }
+                override fun onReceivedError(
+                    view: WebView?,
+                    errorCod: Int,
+                    description: String,
+                    failingUrl: String?
+                ) {
+                    logger.error("Web resource error: $description")
+                    listener?.error()
+                }
 
-                    override fun onReceivedError(
-                        view: WebView?,
-                        errorCod: Int,
-                        description: String,
-                        failingUrl: String?
-                    ) {
-                        listener?.error()
-                    }
+                override fun onReceivedHttpError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    errorResponse: WebResourceResponse?
+                ) {
+                    logger.error("HTTP error: ${errorResponse?.reasonPhrase}")
+                    listener?.error()
+                }
 
-                    override fun onReceivedHttpError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        errorResponse: WebResourceResponse?
-                    ) {
-                        listener?.error()
-                    }
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?
+                ) {
+                    logger.error("Web resource error: $error")
+                    listener?.error()
+                }
 
-                    override fun onReceivedError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        error: WebResourceError?
-                    ) {
-                        listener?.error()
-                    }
-
-                    override fun onReceivedSslError(
-                        view: WebView?,
-                        handler: SslErrorHandler?,
-                        error: SslError?
-                    ) {
-                        listener?.error()
-                    }
+                override fun onReceivedSslError(
+                    view: WebView?,
+                    handler: SslErrorHandler?,
+                    error: SslError?
+                ) {
+                    listener?.error()
                 }
             }
-        } ?: run {
-            listener?.error()
-        }
-    }
 
-    private fun encodeToBase64(text: String): String? {
-        val data: ByteArray?
-        try {
-            data = text.toByteArray(charset("UTF-8"))
-        } catch (ex: UnsupportedEncodingException) {
-            logger.debug("Unsupported encoding exception")
-            return null
+            it.loadUrl(messageUrl)
         }
-        return Base64.encodeToString(data, Base64.URL_SAFE)
     }
 
     private fun setupTimeout() {

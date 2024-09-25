@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
@@ -24,6 +23,7 @@ import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.extensions.applicationMetaData
 import java.net.URL
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
@@ -114,16 +114,7 @@ internal class CustomerIOPushNotificationHandler(
 
         bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
 
-        val applicationInfo = try {
-            context.packageManager.getApplicationInfo(
-                context.packageName,
-                PackageManager.GET_META_DATA
-            )
-        } catch (ex: Exception) {
-            logger.error("Package not found ${ex.message}")
-            null
-        }
-        val appMetaData = applicationInfo?.metaData
+        val appMetaData = context.applicationMetaData()
 
         @DrawableRes
         val smallIcon: Int =

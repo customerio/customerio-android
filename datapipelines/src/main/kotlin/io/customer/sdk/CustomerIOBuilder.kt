@@ -10,7 +10,6 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.data.store.Client
 
 /**
  * Creates a new instance of builder for CustomerIO SDK.
@@ -35,8 +34,7 @@ class CustomerIOBuilder(
     // it can be used by the modules.
     // Also, it is needed to override test dependencies in the test environment
     private val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
-        context = applicationContext,
-        client = Client.Android(Version.version)
+        context = applicationContext
     )
 
     // List of modules to be initialized with the SDK

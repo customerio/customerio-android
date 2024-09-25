@@ -1,7 +1,6 @@
 package io.customer.commontest.core
 
 import io.customer.commontest.config.ApplicationArgument
-import io.customer.commontest.config.ClientArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.argumentOrNull
 import io.customer.commontest.config.configureAndroidSDKComponent
@@ -43,8 +42,7 @@ abstract class BaseTest {
      */
     private fun registerAndroidSDKComponent(testConfig: TestConfig) {
         val application = testConfig.argumentOrNull<ApplicationArgument>()?.value ?: return
-        val client = testConfig.argumentOrNull<ClientArgument>()?.value ?: return
 
-        testConfig.configureAndroidSDKComponent(SDKComponent.registerAndroidSDKComponent(application, client))
+        testConfig.configureAndroidSDKComponent(SDKComponent.registerAndroidSDKComponent(application))
     }
 }

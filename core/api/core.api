@@ -122,7 +122,7 @@ public abstract class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/
 }
 
 public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer/sdk/core/di/AndroidSDKComponent {
-	public fun <init> (Landroid/content/Context;Lio/customer/sdk/data/store/Client;)V
+	public fun <init> (Landroid/content/Context;)V
 	public fun getApplication ()Landroid/app/Application;
 	public fun getApplicationContext ()Landroid/content/Context;
 	public fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
@@ -155,7 +155,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {
-	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
 }
 
 public abstract interface class io/customer/sdk/core/environment/BuildEnvironment {
@@ -165,6 +165,10 @@ public abstract interface class io/customer/sdk/core/environment/BuildEnvironmen
 public final class io/customer/sdk/core/environment/DefaultBuildEnvironment : io/customer/sdk/core/environment/BuildEnvironment {
 	public fun <init> ()V
 	public fun getDebugModeEnabled ()Z
+}
+
+public final class io/customer/sdk/core/extensions/ContextExtensionsKt {
+	public static final fun applicationMetaData (Landroid/content/Context;)Landroid/os/Bundle;
 }
 
 public abstract interface class io/customer/sdk/core/module/CustomerIOModule {

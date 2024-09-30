@@ -212,8 +212,10 @@ public final class io/customer/sdk/core/util/LogcatLogger : io/customer/sdk/core
 	public fun <init> (Lio/customer/sdk/core/environment/BuildEnvironment;)V
 	public fun debug (Ljava/lang/String;)V
 	public fun error (Ljava/lang/String;)V
+	public fun getLogDispatcher ()Lkotlin/jvm/functions/Function2;
 	public fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public fun info (Ljava/lang/String;)V
+	public fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
 	public fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 
@@ -223,8 +225,10 @@ public final class io/customer/sdk/core/util/LogcatLogger$Companion {
 public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun debug (Ljava/lang/String;)V
 	public abstract fun error (Ljava/lang/String;)V
+	public abstract fun getLogDispatcher ()Lkotlin/jvm/functions/Function2;
 	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
+	public abstract fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
 	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 

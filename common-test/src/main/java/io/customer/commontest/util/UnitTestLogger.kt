@@ -10,6 +10,9 @@ import io.customer.sdk.core.util.Logger
  */
 class UnitTestLogger : Logger {
     override var logLevel: CioLogLevel = CioLogLevel.DEBUG
+    override var logDispatcher: ((CioLogLevel, String) -> Unit) = { level, message ->
+        println("[$level]: $message")
+    }
 
     override fun info(message: String) {
         log(CioLogLevel.INFO, message)
@@ -27,7 +30,7 @@ class UnitTestLogger : Logger {
         val shouldLog = logLevel >= levelForMessage
 
         if (shouldLog) {
-            println("[$levelForMessage]: $message")
+            logDispatcher.invoke(levelForMessage, message)
         }
     }
 }

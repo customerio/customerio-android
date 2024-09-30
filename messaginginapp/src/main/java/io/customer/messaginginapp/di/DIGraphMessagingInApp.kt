@@ -15,14 +15,14 @@ import io.customer.sdk.core.di.SDKComponent
 internal val SDKComponent.gistQueue: GistQueue
     get() = singleton<GistQueue> { Queue() }
 
-internal val SDKComponent.moduleConfig: MessagingInAppModuleConfig
+val SDKComponent.inAppModuleConfig: MessagingInAppModuleConfig
     get() = inAppMessaging.moduleConfig
 
 internal val SDKComponent.gistProvider: GistProvider
     get() = singleton<GistProvider> {
         GistSdk(
-            siteId = moduleConfig.siteId,
-            dataCenter = moduleConfig.region.code
+            siteId = inAppModuleConfig.siteId,
+            dataCenter = inAppModuleConfig.region.code
         )
     }
 

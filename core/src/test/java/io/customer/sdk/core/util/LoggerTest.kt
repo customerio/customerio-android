@@ -1,16 +1,18 @@
 package io.customer.sdk.core.util
 
 import io.customer.commontest.core.JUnit5Test
+import io.customer.commontest.extensions.assertCalledNever
+import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.sdk.core.environment.BuildEnvironment
+import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
 
 class LoggerTest : JUnit5Test() {
-
-    // Test log levels
-
     @Test
     fun shouldLog_givenNone() {
         val configLogLevelSet = CioLogLevel.NONE
@@ -112,5 +114,82 @@ class LoggerTest : JUnit5Test() {
         logger.logLevel = givenLogLevel
 
         logger.logLevel shouldBeEqualTo givenLogLevel
+    }
+
+    @Test
+    fun logIfMatchesCriteria_givenLogLevelNone_shouldNotInvokeAnyLogs() {
+        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+        val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
+        logger.logLevel = CioLogLevel.NONE
+        logger.setLogDispatcher(logEventListenerMock)
+
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage)
+        val givenInfoMessage = "Test info message"
+        logger.info(givenInfoMessage)
+        val givenDebugMessage = "Test debug message"
+        logger.debug(givenDebugMessage)
+
+        assertNoInteractions(logEventListenerMock)
+    }
+
+    @Test
+    fun logIfMatchesCriteria_givenLogLevelError_shouldInvokeErrorLogOnly() {
+        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+        val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
+        logger.logLevel = CioLogLevel.ERROR
+        logger.setLogDispatcher(logEventListenerMock)
+
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage)
+        val givenInfoMessage = "Test info message"
+        logger.info(givenInfoMessage)
+        val givenDebugMessage = "Test debug message"
+        logger.debug(givenDebugMessage)
+
+        assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
+        assertCalledNever { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
+        assertCalledNever { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        confirmVerified(logEventListenerMock)
+    }
+
+    @Test
+    fun logIfMatchesCriteria_givenLogLevelInfo_shouldInvokeInfoAndErrorLogs() {
+        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+        val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
+        logger.logLevel = CioLogLevel.INFO
+        logger.setLogDispatcher(logEventListenerMock)
+
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage)
+        val givenInfoMessage = "Test info message"
+        logger.info(givenInfoMessage)
+        val givenDebugMessage = "Test debug message"
+        logger.debug(givenDebugMessage)
+
+        assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
+        assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
+        assertCalledNever { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        confirmVerified(logEventListenerMock)
+    }
+
+    @Test
+    fun logIfMatchesCriteria_givenLogLevelDebug_shouldInvokeAllLogs() {
+        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+        val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
+        logger.logLevel = CioLogLevel.DEBUG
+        logger.setLogDispatcher(logEventListenerMock)
+
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage)
+        val givenInfoMessage = "Test info message"
+        logger.info(givenInfoMessage)
+        val givenDebugMessage = "Test debug message"
+        logger.debug(givenDebugMessage)
+
+        assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
+        assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
+        assertCalledOnce { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        confirmVerified(logEventListenerMock)
     }
 }

@@ -190,6 +190,7 @@ public final class io/customer/sdk/core/util/CioLogLevel : java/lang/Enum {
 	public static final field ERROR Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field INFO Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field NONE Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun getPriority ()I
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/core/util/CioLogLevel;
 	public static fun values ()[Lio/customer/sdk/core/util/CioLogLevel;
 }
@@ -214,6 +215,7 @@ public final class io/customer/sdk/core/util/LogcatLogger : io/customer/sdk/core
 	public fun error (Ljava/lang/String;)V
 	public fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public fun info (Ljava/lang/String;)V
+	public fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
 	public fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 
@@ -225,6 +227,7 @@ public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun error (Ljava/lang/String;)V
 	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
+	public abstract fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
 	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 

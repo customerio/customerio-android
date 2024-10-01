@@ -124,11 +124,11 @@ class LoggerTest : JUnit5Test() {
         logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
-        logger.info(givenErrorMessage)
+        logger.error(givenErrorMessage)
         val givenInfoMessage = "Test info message"
         logger.info(givenInfoMessage)
         val givenDebugMessage = "Test debug message"
-        logger.info(givenDebugMessage)
+        logger.debug(givenDebugMessage)
 
         assertNoInteractions(logEventListenerMock)
     }

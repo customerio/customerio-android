@@ -10,7 +10,7 @@ interface Logger {
     var logLevel: CioLogLevel
 
     /**
-     * Set the log dispatcher to handle log events based on the log level
+     * Sets the dispatcher to handle log events based on the log level
      * Default implementation is to print logs to Logcat
      * In wrapper SDKs, this will be overridden to emit logs to more user-friendly channels
      * like console, etc.
@@ -64,7 +64,7 @@ class LogcatLogger(
             preferredLogLevel = value
         }
 
-    // Hold a weak reference to the log dispatcher to avoid memory leaks
+    // Hold a weak reference to log dispatcher to avoid memory leaks
     private var logDispatcher: WeakReference<(CioLogLevel, String) -> Unit>? = null
 
     override fun setLogDispatcher(dispatcher: (CioLogLevel, String) -> Unit) {

@@ -2,17 +2,22 @@ package io.customer.sdk.core.util
 
 import android.util.Log
 import io.customer.sdk.core.environment.BuildEnvironment
+import java.lang.ref.WeakReference
 
 interface Logger {
     // Log level to determine which logs to print
     // This is the log level set by the user in configurations or the default log level
     var logLevel: CioLogLevel
 
-    // Log dispatcher to handle log events based on the log level
-    // Default implementation is to print logs to Logcat
-    // In wrapper SDKs, this will be overridden to emit logs to more user-friendly channels
-    // like console, etc.
-    var logDispatcher: ((CioLogLevel, String) -> Unit)
+    /**
+     * Set the log dispatcher to handle log events based on the log level
+     * Default implementation is to print logs to Logcat
+     * In wrapper SDKs, this will be overridden to emit logs to more user-friendly channels
+     * like console, etc.
+     *
+     * @param dispatcher Dispatcher to handle log events based on the log level
+     */
+    fun setLogDispatcher(dispatcher: (CioLogLevel, String) -> Unit)
 
     fun info(message: String)
     fun debug(message: String)
@@ -59,13 +64,11 @@ class LogcatLogger(
             preferredLogLevel = value
         }
 
-    override var logDispatcher: ((CioLogLevel, String) -> Unit) = { level, message ->
-        when (level) {
-            CioLogLevel.NONE -> {}
-            CioLogLevel.ERROR -> Log.e(TAG, message)
-            CioLogLevel.INFO -> Log.i(TAG, message)
-            CioLogLevel.DEBUG -> Log.d(TAG, message)
-        }
+    // Hold a weak reference to the log dispatcher to avoid memory leaks
+    private var logDispatcher: WeakReference<(CioLogLevel, String) -> Unit>? = null
+
+    override fun setLogDispatcher(dispatcher: (CioLogLevel, String) -> Unit) {
+        logDispatcher = WeakReference(dispatcher)
     }
 
     override fun info(message: String) {
@@ -84,8 +87,14 @@ class LogcatLogger(
         val shouldLog = logLevel.shouldLog(levelForMessage)
 
         if (shouldLog) {
-            // Dispatch log event to log dispatcher only if the log level is met
-            logDispatcher.invoke(levelForMessage, message)
+            // Dispatch log event to log dispatcher only if the log level is met and the dispatcher is set
+            // Otherwise, log to Logcat
+            logDispatcher?.get()?.invoke(levelForMessage, message) ?: when (levelForMessage) {
+                CioLogLevel.NONE -> {}
+                CioLogLevel.ERROR -> Log.e(TAG, message)
+                CioLogLevel.INFO -> Log.i(TAG, message)
+                CioLogLevel.DEBUG -> Log.d(TAG, message)
+            }
         }
     }
 

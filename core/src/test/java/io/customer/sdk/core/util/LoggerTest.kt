@@ -120,7 +120,7 @@ class LoggerTest : JUnit5Test() {
         val logger = spyk(LogcatLogger(mockk(relaxed = true)))
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.logLevel = CioLogLevel.NONE
-        logger.logDispatcher = logEventListenerMock
+        logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
         logger.info(givenErrorMessage)
@@ -137,7 +137,7 @@ class LoggerTest : JUnit5Test() {
         val logger = spyk(LogcatLogger(mockk(relaxed = true)))
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.logLevel = CioLogLevel.ERROR
-        logger.logDispatcher = logEventListenerMock
+        logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)
@@ -156,7 +156,7 @@ class LoggerTest : JUnit5Test() {
         val logger = spyk(LogcatLogger(mockk(relaxed = true)))
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.logLevel = CioLogLevel.INFO
-        logger.logDispatcher = logEventListenerMock
+        logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)
@@ -175,7 +175,7 @@ class LoggerTest : JUnit5Test() {
         val logger = spyk(LogcatLogger(mockk(relaxed = true)))
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.logLevel = CioLogLevel.DEBUG
-        logger.logDispatcher = logEventListenerMock
+        logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)

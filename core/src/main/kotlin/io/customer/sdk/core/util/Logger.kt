@@ -26,11 +26,18 @@ interface Logger {
     fun error(message: String)
 }
 
-enum class CioLogLevel {
-    NONE,
-    ERROR,
-    INFO,
-    DEBUG;
+/**
+ * Log levels for Customer.io SDK logs
+ *
+ * @property priority Priority of the log level. The higher the value, the more verbose
+ * the log level.
+ * @see shouldLog to determine if a log should be printed based on specified log level
+ */
+enum class CioLogLevel(val priority: Int) {
+    NONE(priority = 0),
+    ERROR(priority = 1),
+    INFO(priority = 2),
+    DEBUG(priority = 3);
 
     companion object {
         val DEFAULT = ERROR
@@ -42,8 +49,14 @@ enum class CioLogLevel {
     }
 }
 
+/**
+ * Determines if a log should be printed based on the specified log level
+ *
+ * @param levelForMessage Log level of the message
+ * @return true if the log should be printed, false otherwise
+ */
 internal fun CioLogLevel.shouldLog(levelForMessage: CioLogLevel): Boolean {
-    return this >= levelForMessage
+    return this.priority >= levelForMessage.priority
 }
 
 class LogcatLogger(

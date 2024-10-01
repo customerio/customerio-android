@@ -5,6 +5,7 @@ import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.sdk.core.environment.BuildEnvironment
+import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -149,6 +150,7 @@ class LoggerTest : JUnit5Test() {
         assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
         assertCalledNever { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
         assertCalledNever { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        confirmVerified(logEventListenerMock)
     }
 
     @Test
@@ -168,6 +170,7 @@ class LoggerTest : JUnit5Test() {
         assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
         assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
         assertCalledNever { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        confirmVerified(logEventListenerMock)
     }
 
     @Test
@@ -187,5 +190,6 @@ class LoggerTest : JUnit5Test() {
         assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
         assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
         assertCalledOnce { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        confirmVerified(logEventListenerMock)
     }
 }

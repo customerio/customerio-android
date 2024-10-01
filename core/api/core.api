@@ -190,6 +190,7 @@ public final class io/customer/sdk/core/util/CioLogLevel : java/lang/Enum {
 	public static final field ERROR Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field INFO Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field NONE Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun getPriority ()I
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/core/util/CioLogLevel;
 	public static fun values ()[Lio/customer/sdk/core/util/CioLogLevel;
 }

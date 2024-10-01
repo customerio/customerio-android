@@ -2,7 +2,6 @@ package io.customer.sdk.core.util
 
 import android.util.Log
 import io.customer.sdk.core.environment.BuildEnvironment
-import java.lang.ref.WeakReference
 
 interface Logger {
     // Log level to determine which logs to print
@@ -14,10 +13,13 @@ interface Logger {
      * Default implementation is to print logs to Logcat
      * In wrapper SDKs, this will be overridden to emit logs to more user-friendly channels
      * like console, etc.
+     * If the dispatcher holds any reference to application context, the caller should ensure
+     * to clear references when the context is destroyed.
      *
-     * @param dispatcher Dispatcher to handle log events based on the log level
+     * @param dispatcher Dispatcher to handle log events based on the log level, pass null
+     * to reset to default
      */
-    fun setLogDispatcher(dispatcher: (CioLogLevel, String) -> Unit)
+    fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?)
 
     fun info(message: String)
     fun debug(message: String)
@@ -64,11 +66,10 @@ class LogcatLogger(
             preferredLogLevel = value
         }
 
-    // Hold a weak reference to log dispatcher to avoid memory leaks
-    private var logDispatcher: WeakReference<(CioLogLevel, String) -> Unit>? = null
+    private var logDispatcher: ((CioLogLevel, String) -> Unit)? = null
 
-    override fun setLogDispatcher(dispatcher: (CioLogLevel, String) -> Unit) {
-        logDispatcher = WeakReference(dispatcher)
+    override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) {
+        logDispatcher = dispatcher
     }
 
     override fun info(message: String) {
@@ -89,7 +90,7 @@ class LogcatLogger(
         if (shouldLog) {
             // Dispatch log event to log dispatcher only if the log level is met and the dispatcher is set
             // Otherwise, log to Logcat
-            logDispatcher?.get()?.invoke(levelForMessage, message) ?: when (levelForMessage) {
+            logDispatcher?.invoke(levelForMessage, message) ?: when (levelForMessage) {
                 CioLogLevel.NONE -> {}
                 CioLogLevel.ERROR -> Log.e(TAG, message)
                 CioLogLevel.INFO -> Log.i(TAG, message)

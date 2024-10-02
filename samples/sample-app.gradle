@@ -18,12 +18,10 @@ android {
         // e.g. Java Layout sample app has prefix javaLayout_ for API keys
         // javaLayout_cdpApiKey=KEY has higher priority than cdpApiKey=KEY
         // cdpApiKey=KEY can be used as a fallback for all sample apps
-        String apiKey = getConfigWithPrefix("apiKey")
         String cdpApiKey = getConfigWithPrefix("cdpApiKey")
         String siteId = getConfigWithPrefix("siteId")
 
         // Set build config fields for API keys
-        buildConfigField "String", "API_KEY", "\"${apiKey}\""
         buildConfigField "String", "CDP_API_KEY", "\"${cdpApiKey}\""
         buildConfigField "String", "SITE_ID", "\"${siteId}\""
     }

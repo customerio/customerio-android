@@ -61,12 +61,10 @@ jobs:
         - sample-app: "java_layout"
           cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
           cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
-          cio-apikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_API_KEY"
         - sample-app: "kotlin_compose"
           cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
           cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
-          cio-apikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_API_KEY"
-          
+
     runs-on: ubuntu-latest
     name: Building app...${{ matrix.sample-app }}
     steps:
@@ -90,7 +88,6 @@ jobs:
         touch "samples/local.properties"
         echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
         echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
-        echo "apiKey=${{ secrets[matrix.cio-apikey-secret-key] }}" >> "samples/local.properties"  
 
     - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase. 
       run: cat $GITHUB_EVENT_PATH

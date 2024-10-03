@@ -1,4 +1,5 @@
 <resources>
+    
     <string name="app_name">Native</string>
     <string name="app_title">Android Java Layout Ami App</string>
     <string name="display_name">First Name</string>

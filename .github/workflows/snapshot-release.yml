@@ -147,10 +147,10 @@ jobs:
             ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-
 
       - name: Verify gradle scripts are valid gradle scripts
-        uses: gradle/actions/wrapper-validation@v3
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Set up Gradle Version ${{ matrix.gradle-version }}
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: ${{ matrix.gradle-version }}
 

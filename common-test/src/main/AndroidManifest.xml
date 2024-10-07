@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <application>
+        <!--
+        Meta-data tags added here to test challenges that may arise when merging multiple
+        AndroidManifest.xml files with same meta-data tags.
+        See AndroidManifest.xml in androidTest directory of core module for more details.
+        -->
+        <meta-data
+            android:name="io.customer.sdk.android.core.SDK_SOURCE"
+            android:value="CommonTestAndroidSDK" />
+        <meta-data
+            android:name="io.customer.sdk.android.core.SDK_VERSION"
+            android:value="0.1.0" />
+    </application>
 </manifest>

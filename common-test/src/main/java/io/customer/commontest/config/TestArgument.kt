@@ -1,7 +1,6 @@
 package io.customer.commontest.config
 
 import android.app.Application
-import io.customer.sdk.data.store.Client
 
 /**
  * Base interface for all test arguments.
@@ -16,11 +15,4 @@ interface TestArgument
  */
 data class ApplicationArgument(
     val value: Application
-) : TestArgument
-
-/**
- * Argument for passing client instance to test configuration.
- */
-data class ClientArgument(
-    val value: Client = Client.Android(sdkVersion = "3.0.0")
 ) : TestArgument

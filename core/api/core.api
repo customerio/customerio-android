@@ -122,7 +122,7 @@ public abstract class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/
 }
 
 public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer/sdk/core/di/AndroidSDKComponent {
-	public fun <init> (Landroid/content/Context;Lio/customer/sdk/data/store/Client;)V
+	public fun <init> (Landroid/content/Context;)V
 	public fun getApplication ()Landroid/app/Application;
 	public fun getApplicationContext ()Landroid/content/Context;
 	public fun getApplicationStore ()Lio/customer/sdk/data/store/ApplicationStore;
@@ -137,7 +137,6 @@ public abstract class io/customer/sdk/core/di/DiGraph {
 	public fun <init> ()V
 	public final fun getOverrides ()Ljava/util/concurrent/ConcurrentHashMap;
 	public final fun getSingletons ()Ljava/util/concurrent/ConcurrentHashMap;
-	public final fun overrideDependency (Ljava/lang/Class;Ljava/lang/Object;)V
 	public fun reset ()V
 }
 
@@ -155,7 +154,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {
-	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;Lio/customer/sdk/data/store/Client;)Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public static final fun setupAndroidComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
 }
 
 public abstract interface class io/customer/sdk/core/environment/BuildEnvironment {
@@ -165,6 +164,10 @@ public abstract interface class io/customer/sdk/core/environment/BuildEnvironmen
 public final class io/customer/sdk/core/environment/DefaultBuildEnvironment : io/customer/sdk/core/environment/BuildEnvironment {
 	public fun <init> ()V
 	public fun getDebugModeEnabled ()Z
+}
+
+public final class io/customer/sdk/core/extensions/ContextExtensionsKt {
+	public static final fun applicationMetaData (Landroid/content/Context;)Landroid/os/Bundle;
 }
 
 public abstract interface class io/customer/sdk/core/module/CustomerIOModule {
@@ -186,6 +189,7 @@ public final class io/customer/sdk/core/util/CioLogLevel : java/lang/Enum {
 	public static final field ERROR Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field INFO Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field NONE Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun getPriority ()I
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/core/util/CioLogLevel;
 	public static fun values ()[Lio/customer/sdk/core/util/CioLogLevel;
 }
@@ -210,6 +214,7 @@ public final class io/customer/sdk/core/util/LogcatLogger : io/customer/sdk/core
 	public fun error (Ljava/lang/String;)V
 	public fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public fun info (Ljava/lang/String;)V
+	public fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
 	public fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 
@@ -221,6 +226,7 @@ public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun error (Ljava/lang/String;)V
 	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;)V
+	public abstract fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
 	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 

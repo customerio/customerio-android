@@ -1,83 +1,45 @@
 package io.customer.sdk.data.store
 
+import android.os.Bundle
+import io.customer.sdk.Version
+
 /**
- * Sealed class to hold information about the SDK wrapper and package that the
- * client app is using.
+ * Represents the client information to append with user-agent.
  *
  * @property source name of the client to append with user-agent.
  * @property sdkVersion version of the SDK used.
  */
-sealed class Client(
+@Suppress("MemberVisibilityCanBePrivate")
+class Client(
     val source: String,
     val sdkVersion: String
 ) {
     override fun toString(): String = "$source Client/$sdkVersion"
 
-    /**
-     * Simpler class for Android clients.
-     */
-    class Android(sdkVersion: String) : Client(source = SOURCE_ANDROID, sdkVersion = sdkVersion)
-
-    /**
-     * Simpler class for ReactNative clients.
-     */
-    class ReactNative(sdkVersion: String) : Client(
-        source = SOURCE_REACT_NATIVE,
-        sdkVersion = sdkVersion
-    )
-
-    /**
-     * Simpler class for Expo clients.
-     */
-    class Expo(sdkVersion: String) : Client(source = SOURCE_EXPO, sdkVersion = sdkVersion)
-
-    /**
-     * Simpler class for Flutter clients.
-     */
-    class Flutter(sdkVersion: String) : Client(source = SOURCE_FLUTTER, sdkVersion = sdkVersion)
-
-    /**
-     * Other class to allow adding custom sources for clients that are not
-     * supported above.
-     * <p/>
-     * Use this only if the client platform is not available in the above list.
-     */
-    class Other internal constructor(
-        source: String,
-        sdkVersion: String
-    ) : Client(source = source, sdkVersion = sdkVersion)
-
     companion object {
-        internal const val SOURCE_ANDROID = "Android"
-        internal const val SOURCE_REACT_NATIVE = "ReactNative"
-        internal const val SOURCE_EXPO = "Expo"
-        internal const val SOURCE_FLUTTER = "Flutter"
+        private const val SOURCE_ANDROID = "Android"
+        internal const val META_DATA_SDK_SOURCE = "io.customer.sdk.android.core.SDK_SOURCE"
+        internal const val META_DATA_SDK_VERSION = "io.customer.sdk.android.core.SDK_VERSION"
 
         /**
-         * Helper method to create client from raw values
+         * Creates a new [Client] instance from the manifest meta-data.
+         * If the user-agent or SDK version is not found, the default client is returned.
+         * Default client is created with [SOURCE_ANDROID] and SDK version mentioned in [Version] class.
          *
-         * @param source raw string of client source (case insensitive)
-         * @param sdkVersion version of the SDK used
-         * @return [Client] created from provided values
+         * @param metadata Android application meta-data to retrieve the user-agent and SDK version from.
+         * @return The client instance created from the manifest meta-data.
+         * If not found, the default client is returned.
          */
-        fun fromRawValue(source: String, sdkVersion: String): Client = when {
-            source.equals(
-                other = SOURCE_ANDROID,
-                ignoreCase = true
-            ) -> Android(sdkVersion = sdkVersion)
-            source.equals(
-                other = SOURCE_REACT_NATIVE,
-                ignoreCase = true
-            ) -> ReactNative(sdkVersion = sdkVersion)
-            source.equals(
-                other = SOURCE_EXPO,
-                ignoreCase = true
-            ) -> Expo(sdkVersion = sdkVersion)
-            source.equals(
-                other = SOURCE_FLUTTER,
-                ignoreCase = true
-            ) -> Flutter(sdkVersion = sdkVersion)
-            else -> Other(source = source, sdkVersion = sdkVersion)
+        fun fromMetadata(metadata: Bundle?): Client {
+            val userAgent = metadata?.getString(META_DATA_SDK_SOURCE)
+            val sdkVersion = metadata?.getString(META_DATA_SDK_VERSION)
+
+            // If either value is null or blank, return the default client
+            return if (userAgent.isNullOrBlank() || sdkVersion.isNullOrBlank()) {
+                Client(source = SOURCE_ANDROID, sdkVersion = Version.version)
+            } else {
+                Client(source = userAgent, sdkVersion = sdkVersion)
+            }
         }
     }
 }

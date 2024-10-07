@@ -115,6 +115,10 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 	public synthetic fun newArray (I)[Ljava/lang/Object;
 }
 
+public final class io/customer/messagingpush/di/DiGraphMessagingPushKt {
+	public static final fun getPushModuleConfig (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/MessagingPushModuleConfig;
+}
+
 public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {
 	public static final field RECENT_MESSAGES_MAX_SIZE I
 	public final fun getRecentMessagesQueue ()Ljava/util/concurrent/LinkedBlockingDeque;

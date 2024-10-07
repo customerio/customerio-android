@@ -25,13 +25,13 @@ The use of extensions was chosen over creating a separate graph class for each m
 internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
     get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = applicationContext) }
 
-internal val SDKComponent.moduleConfig: MessagingPushModuleConfig
+val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
     get() = newInstance {
         modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
     }
 
 internal val SDKComponent.deepLinkUtil: DeepLinkUtil
-    get() = newInstance<DeepLinkUtil> { DeepLinkUtilImpl(logger, moduleConfig) }
+    get() = newInstance<DeepLinkUtil> { DeepLinkUtilImpl(logger, pushModuleConfig) }
 
 @InternalCustomerIOApi
 val SDKComponent.pushTrackingUtil: PushTrackingUtil
@@ -41,7 +41,7 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
     get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
             logger = logger,
-            moduleConfig = moduleConfig,
+            moduleConfig = pushModuleConfig,
             deepLinkUtil = deepLinkUtil
         )
     }

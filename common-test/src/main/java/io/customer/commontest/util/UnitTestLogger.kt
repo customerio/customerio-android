@@ -11,6 +11,9 @@ import io.customer.sdk.core.util.Logger
 class UnitTestLogger : Logger {
     override var logLevel: CioLogLevel = CioLogLevel.DEBUG
 
+    override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) {
+    }
+
     override fun info(message: String) {
         log(CioLogLevel.INFO, message)
     }

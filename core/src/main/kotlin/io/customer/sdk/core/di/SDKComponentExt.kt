@@ -1,7 +1,6 @@
 package io.customer.sdk.core.di
 
 import android.content.Context
-import io.customer.sdk.data.store.Client
 
 /**
  * The file contains extension functions for the SDKComponent object and its dependencies.
@@ -10,10 +9,11 @@ import io.customer.sdk.data.store.Client
 /**
  * Create and register an instance of AndroidSDKComponent with the provided context,
  * only if it is not already initialized.
+ * This function should be called from all entry points of the SDK to ensure that
+ * AndroidSDKComponent is initialized before accessing any of its dependencies.
  */
-fun SDKComponent.registerAndroidSDKComponent(
-    context: Context,
-    client: Client
+fun SDKComponent.setupAndroidComponent(
+    context: Context
 ) = registerDependency<AndroidSDKComponent> {
-    AndroidSDKComponentImpl(context, client)
+    AndroidSDKComponentImpl(context)
 }

@@ -6,7 +6,7 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.ensureAndroidComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -48,7 +48,7 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         private fun handleNewToken(context: Context, token: String) {
-            SDKComponent.ensureAndroidComponent(context = context)
+            SDKComponent.setupAndroidComponent(context = context)
             eventBus.publish(
                 Event.RegisterDeviceTokenEvent(token)
             )
@@ -59,7 +59,7 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
-            SDKComponent.ensureAndroidComponent(context = context)
+            SDKComponent.setupAndroidComponent(context = context)
             val handler = CustomerIOPushNotificationHandler(
                 pushMessageProcessor = SDKComponent.pushMessageProcessor,
                 remoteMessage = remoteMessage

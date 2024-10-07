@@ -12,7 +12,7 @@ import android.content.Context
  * This function should be called from all entry points of the SDK to ensure that
  * AndroidSDKComponent is initialized before accessing any of its dependencies.
  */
-fun SDKComponent.ensureAndroidComponent(
+fun SDKComponent.setupAndroidComponent(
     context: Context
 ) = registerDependency<AndroidSDKComponent> {
     AndroidSDKComponentImpl(context)

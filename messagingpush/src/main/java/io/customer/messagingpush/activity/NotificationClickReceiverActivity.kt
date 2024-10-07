@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.ensureAndroidComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.tracking.TrackableScreen
 
 /**
@@ -25,7 +25,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        SDKComponent.ensureAndroidComponent(context = this)
+        SDKComponent.setupAndroidComponent(context = this)
         handleIntent(data = intent)
     }
 

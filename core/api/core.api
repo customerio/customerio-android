@@ -137,7 +137,6 @@ public abstract class io/customer/sdk/core/di/DiGraph {
 	public fun <init> ()V
 	public final fun getOverrides ()Ljava/util/concurrent/ConcurrentHashMap;
 	public final fun getSingletons ()Ljava/util/concurrent/ConcurrentHashMap;
-	public final fun overrideDependency (Ljava/lang/Class;Ljava/lang/Object;)V
 	public fun reset ()V
 }
 
@@ -155,7 +154,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {
-	public static final fun registerAndroidSDKComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
+	public static final fun setupAndroidComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
 }
 
 public abstract interface class io/customer/sdk/core/environment/BuildEnvironment {

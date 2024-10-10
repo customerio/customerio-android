@@ -123,6 +123,10 @@
             android:name=".ui.common.SimpleFragmentActivity"
             android:exported="false"
             android:label="@string/label_simple_fragment_activity" />
+        <activity
+            android:name=".ui.settings.InternalSettingsActivity"
+            android:exported="false"
+            android:label="@string/label_internal_settings_activity" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

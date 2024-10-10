@@ -62,4 +62,9 @@
     <string name="error_text_input_field_empty">This field cannot be empty</string>
     <string name="error_number_input_field_small">The value must be greater than or equal to %1$s</string>
     <string name="token_copied">Token Copied!</string>
+
+    <!--Internal settings screen-->
+    <string name="label_internal_settings_activity">InternalSettingsActivity</string>
+    <string name="error_url_input_field">This field must be a valid URL</string>
+
 </resources>

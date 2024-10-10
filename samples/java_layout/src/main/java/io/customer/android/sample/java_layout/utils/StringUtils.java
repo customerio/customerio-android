@@ -43,7 +43,7 @@ public class StringUtils {
         return value == null ? null : value.toString();
     }
 
-    public static Boolean parseBoolean(@Nullable String value, Boolean defaultValue) {
+    public static Boolean parseBoolean(@Nullable String value, boolean defaultValue) {
         if (TextUtils.isEmpty(value)) {
             return defaultValue;
         }

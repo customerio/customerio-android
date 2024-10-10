@@ -12,6 +12,7 @@ import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.datapipelines.extensions.RegionExtKt;
+import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 
 /**
@@ -27,7 +28,11 @@ public class CustomerIOSDKConfig {
         static final String FLUSH_AT = "cio_sdk_flush_at";
         static final String TRACK_SCREENS = "cio_sdk_track_screens";
         static final String TRACK_DEVICE_ATTRIBUTES = "cio_sdk_track_device_attributes";
-        static final String DEBUG_MODE = "cio_sdk_debug_mode";
+        static final String LOG_LEVEL = "cio_sdk_log_level";
+        static final String REGION = "cio_sdk_region";
+        static final String TRACK_APPLICATION_LIFECYCLE = "cio_sdk_track_application_lifecycle";
+        static final String TEST_MODE_ENABLED = "cio_sdk_test_mode";
+        static final String IN_APP_MESSAGING_ENABLED = "cio_sdk_in_app_messaging_enabled";
     }
 
     public static CustomerIOSDKConfig getDefaultConfigurations() {
@@ -37,6 +42,10 @@ public class CustomerIOSDKConfig {
                 RegionExtKt.cdnHost(Region.US.INSTANCE),
                 30,
                 20,
+                true,
+                true,
+                CioLogLevel.DEBUG,
+                Region.US.INSTANCE,
                 true,
                 true,
                 true);
@@ -57,7 +66,11 @@ public class CustomerIOSDKConfig {
         Integer flushAt = StringUtils.parseInteger(bundle.get(Keys.FLUSH_AT), defaultConfig.flushAt);
         boolean screenTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_SCREENS), defaultConfig.screenTrackingEnabled);
         boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
-        boolean debugModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.DEBUG_MODE), defaultConfig.debugModeEnabled);
+        CioLogLevel logLevel = CioLogLevel.Companion.getLogLevel(bundle.get(Keys.LOG_LEVEL), CioLogLevel.DEBUG);
+        Region region = Region.Companion.getRegion(bundle.get(Keys.REGION), Region.US.INSTANCE);
+        boolean applicationLifecycleTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_APPLICATION_LIFECYCLE), defaultConfig.applicationLifecycleTrackingEnabled);
+        boolean testModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.TEST_MODE_ENABLED), defaultConfig.testModeEnabled);
+        boolean inAppMessagingEnabled = StringUtils.parseBoolean(bundle.get(Keys.IN_APP_MESSAGING_ENABLED), defaultConfig.inAppMessagingEnabled);
 
         CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
@@ -67,7 +80,11 @@ public class CustomerIOSDKConfig {
                 flushAt,
                 screenTrackingEnabled,
                 deviceAttributesTrackingEnabled,
-                debugModeEnabled);
+                logLevel,
+                region,
+                applicationLifecycleTrackingEnabled,
+                testModeEnabled,
+                inAppMessagingEnabled);
         return Optional.of(config);
     }
 
@@ -82,7 +99,11 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.FLUSH_AT, StringUtils.fromInteger(config.flushAt));
         bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(config.screenTrackingEnabled));
         bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
-        bundle.put(Keys.DEBUG_MODE, StringUtils.fromBoolean(config.debugModeEnabled));
+        bundle.put(Keys.LOG_LEVEL, config.logLevel.name());
+        bundle.put(Keys.REGION, config.getRegion().getCode());
+        bundle.put(Keys.TRACK_APPLICATION_LIFECYCLE, StringUtils.fromBoolean(config.applicationLifecycleTrackingEnabled));
+        bundle.put(Keys.TEST_MODE_ENABLED, StringUtils.fromBoolean(config.testModeEnabled));
+        bundle.put(Keys.IN_APP_MESSAGING_ENABLED, StringUtils.fromBoolean(config.inAppMessagingEnabled));
         return bundle;
     }
 
@@ -98,12 +119,15 @@ public class CustomerIOSDKConfig {
     private final Integer flushInterval;
     @Nullable
     private final Integer flushAt;
-    @Nullable
-    private final Boolean screenTrackingEnabled;
-    @Nullable
-    private final Boolean deviceAttributesTrackingEnabled;
-    @Nullable
-    private final Boolean debugModeEnabled;
+    private final boolean screenTrackingEnabled;
+    private final boolean deviceAttributesTrackingEnabled;
+    @NonNull
+    private final CioLogLevel logLevel;
+    @NonNull
+    private final Region region;
+    private final boolean applicationLifecycleTrackingEnabled;
+    private final boolean testModeEnabled;
+    private final boolean inAppMessagingEnabled;
 
     public CustomerIOSDKConfig(@NonNull String cdpApiKey,
                                @NonNull String siteId,
@@ -111,9 +135,13 @@ public class CustomerIOSDKConfig {
                                @Nullable String cdnHost,
                                @Nullable Integer flushInterval,
                                @Nullable Integer flushAt,
-                               @Nullable Boolean screenTrackingEnabled,
-                               @Nullable Boolean deviceAttributesTrackingEnabled,
-                               @Nullable Boolean debugModeEnabled) {
+                               boolean screenTrackingEnabled,
+                               boolean deviceAttributesTrackingEnabled,
+                               @NonNull CioLogLevel logLevel,
+                               @NonNull Region region,
+                               boolean applicationLifecycleTrackingEnabled,
+                               boolean testModeEnabled,
+                               boolean inAppMessagingEnabled) {
         this.cdpApiKey = cdpApiKey;
         this.siteId = siteId;
         this.apiHost = apiHost;
@@ -122,7 +150,11 @@ public class CustomerIOSDKConfig {
         this.flushAt = flushAt;
         this.screenTrackingEnabled = screenTrackingEnabled;
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
-        this.debugModeEnabled = debugModeEnabled;
+        this.logLevel = logLevel;
+        this.region = region;
+        this.applicationLifecycleTrackingEnabled = applicationLifecycleTrackingEnabled;
+        this.testModeEnabled = testModeEnabled;
+        this.inAppMessagingEnabled = inAppMessagingEnabled;
     }
 
     @NonNull
@@ -155,38 +187,33 @@ public class CustomerIOSDKConfig {
         return flushAt;
     }
 
-
-    @Nullable
-    public Boolean isScreenTrackingEnabled() {
+    public boolean isScreenTrackingEnabled() {
         return screenTrackingEnabled;
     }
 
-    @Nullable
-    public Boolean isDeviceAttributesTrackingEnabled() {
+    public boolean isDeviceAttributesTrackingEnabled() {
         return deviceAttributesTrackingEnabled;
     }
 
-    @Nullable
-    public Boolean isDebugModeEnabled() {
-        return debugModeEnabled;
+    @NonNull
+    public CioLogLevel getLogLevel() {
+        return logLevel;
     }
 
-    /**
-     * Features by default are nullable to help differentiate between default/null values and
-     * values set by user.
-     * Unwrapping nullable values here for ease of use by keeping single source of truth for whole
-     * sample app.
-     */
-
-    public boolean screenTrackingEnabled() {
-        return Boolean.FALSE != screenTrackingEnabled;
+    public boolean isTestModeEnabled() {
+        return testModeEnabled;
     }
 
-    public boolean deviceAttributesTrackingEnabled() {
-        return Boolean.FALSE != deviceAttributesTrackingEnabled;
+    public boolean isInAppMessagingEnabled() {
+        return inAppMessagingEnabled;
     }
 
-    public boolean debugModeEnabled() {
-        return Boolean.FALSE != debugModeEnabled;
+    public boolean isApplicationLifecycleTrackingEnabled() {
+        return applicationLifecycleTrackingEnabled;
+    }
+
+    @NonNull
+    public Region getRegion() {
+        return region;
     }
 }

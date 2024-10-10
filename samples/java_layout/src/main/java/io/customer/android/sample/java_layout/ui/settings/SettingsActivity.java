@@ -1,8 +1,5 @@
 package io.customer.android.sample.java_layout.ui.settings;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
@@ -19,9 +16,9 @@ import io.customer.android.sample.java_layout.databinding.ActivitySettingsBindin
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
-import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
-import io.customer.sdk.CustomerIO;
+import io.customer.sdk.core.util.CioLogLevel;
+import io.customer.sdk.data.model.Region;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -77,11 +74,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         if (deepLinkUri != null) {
             String cdpApiKey = deepLinkUri.getQueryParameter("cdp_api_key");
             if (cdpApiKey != null) {
-                ViewUtils.setTextWithSelectionIfFocused(binding.cdpApiKeyTextInput, cdpApiKey);
+                ViewUtils.setTextWithSelectionIfFocused(binding.settingsCdpApiKeyLabel, cdpApiKey);
             }
             String siteId = deepLinkUri.getQueryParameter("site_id");
             if (siteId != null) {
-                ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, siteId);
+                ViewUtils.setTextWithSelectionIfFocused(binding.settingsSiteIdKeyLabel, siteId);
             }
         }
         isLinkParamsPopulated = true;
@@ -89,18 +86,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     private void prepareViewsForAutomatedTests() {
         ViewUtils.prepareForAutomatedTests(binding.topAppBar);
-        ViewUtils.prepareForAutomatedTests(binding.deviceTokenTextInput, R.string.acd_device_token_input);
-        ViewUtils.prepareForAutomatedTests(binding.apiHostTextInput, R.string.acd_api_host_input);
-        ViewUtils.prepareForAutomatedTests(binding.cdnHostTextInput, R.string.acd_cdn_host_input);
-        ViewUtils.prepareForAutomatedTests(binding.cdpApiKeyTextInput, R.string.acd_cdp_api_key_input);
-        ViewUtils.prepareForAutomatedTests(binding.siteIdTextInput, R.string.acd_site_id_input);
-        ViewUtils.prepareForAutomatedTests(binding.flushIntervalTextInput, R.string.acd_flush_interval_input);
-        ViewUtils.prepareForAutomatedTests(binding.flushAtTextInput, R.string.acd_flush_at_input);
-        ViewUtils.prepareForAutomatedTests(binding.trackScreensSwitch, R.string.acd_track_screens_switch);
-        ViewUtils.prepareForAutomatedTests(binding.trackDeviceAttributesSwitch, R.string.acd_track_device_attributes_switch);
-        ViewUtils.prepareForAutomatedTests(binding.debugModeSwitch, R.string.acd_debug_mode_switch);
-        ViewUtils.prepareForAutomatedTests(binding.saveButton, R.string.acd_save_settings_button);
-        ViewUtils.prepareForAutomatedTests(binding.restoreDefaultsButton, R.string.acd_restore_default_settings_button);
+        ViewUtils.prepareForAutomatedTests(binding.settingsCdpApiKeyLabel, R.string.acd_cdp_api_key_input);
+        ViewUtils.prepareForAutomatedTests(binding.settingsSiteIdKeyLabel, R.string.acd_site_id_input);
+        ViewUtils.prepareForAutomatedTests(binding.settingsSaveButton, R.string.acd_save_settings_button);
+        ViewUtils.prepareForAutomatedTests(binding.settingsRestoreDefaultsButton, R.string.acd_restore_default_settings_button);
     }
 
     private void setupViews() {
@@ -111,50 +100,18 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             }
             onBackPressed();
         });
-        binding.deviceTokenInputLayout.setEndIconOnClickListener(view -> {
-            String deviceToken = ViewUtils.getTextTrimmed(binding.deviceTokenTextInput);
-            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText(getString(R.string.device_token), deviceToken);
-            clipboard.setPrimaryClip(clip);
-            Toast.makeText(this, R.string.token_copied, Toast.LENGTH_SHORT).show();
-        });
-        binding.saveButton.setOnClickListener(view -> saveSettings());
-        binding.restoreDefaultsButton.setOnClickListener(view -> {
-            updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations());
-            saveSettings();
-        });
+        binding.settingsSaveButton.setOnClickListener(view -> saveSettings());
+        binding.settingsRestoreDefaultsButton.setOnClickListener(view -> updateIOWithConfig(CustomerIOSDKConfig.getDefaultConfigurations()));
+        ViewUtils.clearErrorWhenTextedEntered(binding.settingsCdpApiKeyLabel, binding.settingsCdpApiKeyLayout);
+        ViewUtils.clearErrorWhenTextedEntered(binding.settingsSiteIdKeyLabel, binding.settingsSiteIdKeyLayout);
     }
 
     private void setupObservers() {
-
-        binding.deviceTokenTextInput.setText(CustomerIO.instance().getRegisteredDeviceToken());
-
         settingsViewModel.getSDKConfigObservable().observe(this, config -> {
             binding.progressIndicator.hide();
             updateIOWithConfig(config);
             parseLinkParams();
         });
-    }
-
-    private boolean isHostURLInvalid(String url) {
-        // Empty text is not considered valid
-        if (TextUtils.isEmpty(url)) {
-            return true;
-        }
-
-        try {
-            Uri uri = Uri.parse(url);
-            // Since SDK does not support custom schemes, we manually append http:// to the URL
-            // So the URL is considered invalid if it ends with a slash, contains a scheme, query or fragment
-            return url.endsWith("/")
-                    || !TextUtils.isEmpty(uri.getScheme())
-                    || !TextUtils.isEmpty(uri.getQuery())
-                    || !TextUtils.isEmpty(uri.getFragment());
-        } catch (Exception ex) {
-            //noinspection CallToPrintStackTrace
-            ex.printStackTrace();
-            return true;
-        }
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -165,70 +122,35 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void updateIOWithConfig(@NonNull CustomerIOSDKConfig config) {
-        ViewUtils.setTextWithSelectionIfFocused(binding.apiHostTextInput, config.getApiHost());
-        ViewUtils.setTextWithSelectionIfFocused(binding.cdnHostTextInput, config.getCdnHost());
-        ViewUtils.setTextWithSelectionIfFocused(binding.cdpApiKeyTextInput, config.getCdpApiKey());
-        ViewUtils.setTextWithSelectionIfFocused(binding.siteIdTextInput, config.getSiteId());
-        ViewUtils.setTextWithSelectionIfFocused(binding.flushIntervalTextInput, StringUtils.fromInteger(config.getFlushInterval()));
-        ViewUtils.setTextWithSelectionIfFocused(binding.flushAtTextInput, StringUtils.fromInteger(config.getFlushAt()));
-        binding.trackScreensSwitch.setChecked(config.screenTrackingEnabled());
-        binding.trackDeviceAttributesSwitch.setChecked(config.deviceAttributesTrackingEnabled());
-        binding.debugModeSwitch.setChecked(config.debugModeEnabled());
+        ViewUtils.setTextWithSelectionIfFocused(binding.settingsCdpApiKeyLabel, config.getCdpApiKey());
+        ViewUtils.setTextWithSelectionIfFocused(binding.settingsSiteIdKeyLabel, config.getSiteId());
+        binding.settingsRegionValuesGroup.check(getCheckedRegionButtonId(config.getRegion()));
+        binding.settingsTrackDeviceAttrsValuesGroup.check(getCheckedAutoTrackDeviceAttributesButtonId(config.isDeviceAttributesTrackingEnabled()));
+        binding.settingsTrackScreenViewsValuesGroup.check(getCheckedTrackScreenViewsButtonId(config.isScreenTrackingEnabled()));
+        binding.settingsTrackAppLifecycleValuesGroup.check(getCheckedTrackAppLifecycleButtonId(config.isApplicationLifecycleTrackingEnabled()));
+        binding.settingsLogLevelValuesGroup.check(getCheckedLogLevelButtonId(config.getLogLevel()));
+        binding.settingsTestModeValuesGroup.check(getCheckedTestModeButtonId(config.isTestModeEnabled()));
+        binding.settingsInAppMessagingValuesGroup.check(getCheckedInAppMessagingButtonId(config.isInAppMessagingEnabled()));
     }
 
     private void saveSettings() {
+        CustomerIOSDKConfig currentSettings = settingsViewModel.getSDKConfigObservable().getValue();
+        if (currentSettings == null) {
+            Toast.makeText(this, "Error! Cannot save settings!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         boolean isFormValid;
 
-        String apiHost = ViewUtils.getTextTrimmed(binding.apiHostTextInput);
-        isFormValid = updateErrorState(binding.apiHostInputLayout, isHostURLInvalid(apiHost), R.string.error_host_url);
+        String cdpApiKey = ViewUtils.getTextTrimmed(binding.settingsCdpApiKeyLabel);
+        isFormValid = updateErrorState(binding.settingsCdpApiKeyLayout, TextUtils.isEmpty(cdpApiKey), R.string.error_text_input_field_blank);
 
-        String cdnHost = ViewUtils.getTextTrimmed(binding.cdnHostTextInput);
-        isFormValid = updateErrorState(binding.cdnHostInputLayout, isHostURLInvalid(cdnHost), R.string.error_host_url) && isFormValid;
-
-        String cdpApiKey = ViewUtils.getTextTrimmed(binding.cdpApiKeyTextInput);
-        isFormValid = updateErrorState(binding.cdpApiKeyInputLayout, TextUtils.isEmpty(cdpApiKey), R.string.error_text_input_field_blank) && isFormValid;
-
-        String siteId = ViewUtils.getTextTrimmed(binding.siteIdTextInput);
-        isFormValid = updateErrorState(binding.siteIdInputLayout, TextUtils.isEmpty(siteId), R.string.error_text_input_field_blank) && isFormValid;
-
-        String flushIntervalText = ViewUtils.getTextTrimmed(binding.flushIntervalTextInput);
-        Integer flushInterval = StringUtils.parseInteger(flushIntervalText, null);
-        boolean isFlushIntervalTextEmpty = TextUtils.isEmpty(flushIntervalText);
-        if (isFlushIntervalTextEmpty) {
-            isFormValid = updateErrorState(binding.flushIntervalInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
-        } else {
-            int minDelay = 1;
-            isFormValid = updateErrorState(binding.flushIntervalInputLayout,
-                    !isNumberValid(flushInterval, minDelay),
-                    getString(R.string.error_number_input_field_small, String.valueOf(minDelay))) && isFormValid;
-        }
-
-        String flushAtText = ViewUtils.getTextTrimmed(binding.flushAtTextInput);
-        Integer flushAt = StringUtils.parseInteger(flushAtText, null);
-        boolean isFlushAtTextEmpty = TextUtils.isEmpty(flushAtText);
-        if (isFlushAtTextEmpty) {
-            isFormValid = updateErrorState(binding.flushAtInputLayout, true, R.string.error_text_input_field_blank) && isFormValid;
-        } else {
-            int minTasks = 1;
-            isFormValid = updateErrorState(binding.flushAtInputLayout,
-                    !isNumberValid(flushAt, minTasks),
-                    getString(R.string.error_number_input_field_small, String.valueOf(minTasks))) && isFormValid;
-        }
+        String siteId = ViewUtils.getTextTrimmed(binding.settingsSiteIdKeyLabel);
+        isFormValid = updateErrorState(binding.settingsSiteIdKeyLayout, TextUtils.isEmpty(siteId), R.string.error_text_input_field_blank) && isFormValid;
 
         if (isFormValid) {
             binding.progressIndicator.show();
-            boolean featTrackScreens = binding.trackScreensSwitch.isChecked();
-            boolean featTrackDeviceAttributes = binding.trackDeviceAttributesSwitch.isChecked();
-            boolean featDebugMode = binding.debugModeSwitch.isChecked();
-            CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
-                    siteId,
-                    apiHost,
-                    cdnHost,
-                    flushInterval,
-                    flushAt,
-                    featTrackScreens,
-                    featTrackDeviceAttributes,
-                    featDebugMode);
+            CustomerIOSDKConfig config = createNewSettings(cdpApiKey, siteId, currentSettings);
             Disposable disposable = settingsViewModel
                     .updateConfigurations(config)
                     .subscribeOn(Schedulers.io())
@@ -242,18 +164,104 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         }
     }
 
-    private boolean updateErrorState(TextInputLayout textInputLayout,
-                                     boolean isErrorEnabled,
-                                     @StringRes int errorResId) {
-        String error = isErrorEnabled ? getString(errorResId) : null;
-        ViewUtils.setError(textInputLayout, error);
-        return !isErrorEnabled;
+    @NonNull
+    private CustomerIOSDKConfig createNewSettings(String cdpApiKey, String siteId, CustomerIOSDKConfig currentSettings) {
+        boolean featTrackScreens = binding.settingsTrackScreenViewsValuesGroup.getCheckedButtonId() == R.id.settings_track_screen_views_yes_button;
+        boolean featTrackDeviceAttributes = binding.settingsTrackDeviceAttrsValuesGroup.getCheckedButtonId() == R.id.settings_track_device_attrs_yes_button;
+        boolean featTrackApplicationLifecycle = binding.settingsTrackAppLifecycleValuesGroup.getCheckedButtonId() == R.id.settings_track_app_lifecycle_yes_button;
+        boolean featTestModeEnabled = binding.settingsTestModeValuesGroup.getCheckedButtonId() == R.id.settings_test_mode_yes_button;
+        boolean featInAppMessagingEnabled = binding.settingsInAppMessagingValuesGroup.getCheckedButtonId() == R.id.settings_in_app_messaging_yes_button;
+        CioLogLevel logLevel = getSelectedLogLevel();
+        Region region = getSelectedRegion();
+
+        return new CustomerIOSDKConfig(cdpApiKey,
+                siteId,
+                currentSettings.getApiHost(),
+                currentSettings.getCdnHost(),
+                currentSettings.getFlushInterval(),
+                currentSettings.getFlushAt(),
+                featTrackScreens,
+                featTrackDeviceAttributes,
+                logLevel,
+                region,
+                featTrackApplicationLifecycle,
+                featTestModeEnabled,
+                featInAppMessagingEnabled);
+    }
+
+    @NonNull
+    private CioLogLevel getSelectedLogLevel() {
+        int checkedButton = binding.settingsLogLevelValuesGroup.getCheckedButtonId();
+        if (checkedButton == R.id.settings_log_level_none_button) {
+            return CioLogLevel.NONE;
+        } else if (checkedButton == R.id.settings_log_level_error_button) {
+            return CioLogLevel.ERROR;
+        } else if (checkedButton == R.id.settings_log_level_info_button) {
+            return CioLogLevel.INFO;
+        } else if (checkedButton == R.id.settings_log_level_debug_button) {
+            return CioLogLevel.DEBUG;
+        }
+        throw new IllegalStateException();
+    }
+
+    @NonNull
+    private Region getSelectedRegion() {
+        int checkedButton = binding.settingsRegionValuesGroup.getCheckedButtonId();
+        if (checkedButton == R.id.settings_region_us_button) {
+            return Region.US.INSTANCE;
+        } else if (checkedButton == R.id.settings_region_eu_button) {
+            return Region.EU.INSTANCE;
+        }
+        throw new IllegalStateException();
+    }
+
+    private int getCheckedInAppMessagingButtonId(boolean enabled) {
+        return enabled ? R.id.settings_in_app_messaging_yes_button : R.id.settings_in_app_messaging_no_button;
+    }
+
+    private int getCheckedTestModeButtonId(boolean enabled) {
+        return enabled ? R.id.settings_test_mode_yes_button : R.id.settings_test_mode_no_button;
+    }
+
+    private int getCheckedLogLevelButtonId(@NonNull CioLogLevel logLevel) {
+        switch (logLevel) {
+            case NONE:
+                return R.id.settings_log_level_none_button;
+            case ERROR:
+                return R.id.settings_log_level_error_button;
+            case INFO:
+                return R.id.settings_log_level_info_button;
+            case DEBUG:
+                return R.id.settings_log_level_debug_button;
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    private int getCheckedTrackAppLifecycleButtonId(boolean enabled) {
+        return enabled ? R.id.settings_track_app_lifecycle_yes_button
+                : R.id.settings_track_app_lifecycle_no_button;
+    }
+
+    private int getCheckedTrackScreenViewsButtonId(boolean enabled) {
+        return enabled ? R.id.settings_track_screen_views_yes_button
+                : R.id.settings_track_screen_views_no_button;
+    }
+
+    private int getCheckedAutoTrackDeviceAttributesButtonId(boolean enabled) {
+        return enabled ? R.id.settings_track_device_attrs_yes_button
+                : R.id.settings_track_device_attrs_no_button;
+    }
+
+    private int getCheckedRegionButtonId(@NonNull Region region) {
+        return region instanceof Region.US ? R.id.settings_region_us_button
+                : R.id.settings_region_eu_button;
     }
 
     private boolean updateErrorState(TextInputLayout textInputLayout,
                                      boolean isErrorEnabled,
-                                     String errorMessage) {
-        String error = isErrorEnabled ? errorMessage : null;
+                                     @StringRes int errorResId) {
+        String error = isErrorEnabled ? getString(errorResId) : null;
         ViewUtils.setError(textInputLayout, error);
         return !isErrorEnabled;
     }

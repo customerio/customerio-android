@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -32,260 +33,387 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:padding="@dimen/margin_default"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <androidx.core.widget.NestedScrollView
-            android:id="@+id/content"
+            android:id="@+id/settings_content_layout"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_marginBottom="@dimen/margin_default"
-            android:fadeScrollbars="false"
-            android:scrollbars="vertical"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior"
-            app:layout_constraintBottom_toTopOf="@id/save_button"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintBottom_toTopOf="@id/settings_save_button"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="@dimen/margin_default">
+                android:layout_height="wrap_content">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/device_token_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/settings_title_label"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    app:endIconDrawable="@drawable/ic_content_copy_24"
-                    app:endIconMode="custom"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/device_token_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:enabled="false"
-                        android:hint="@string/device_token"
-                        android:inputType="text"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
+                    android:text="@string/settings_config"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/api_host_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/device_token_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/api_host_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/api_host"
-                        android:inputType="textUri"
-                        android:maxLength="200"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/cdn_host_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/api_host_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/cdn_host_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/cdn_host"
-                        android:inputType="textUri"
-                        android:maxLength="200"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/cdp_api_key_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
+                    android:id="@+id/settings_cdp_api_key_layout"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/margin_default"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/cdn_host_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
+                    android:hint="@string/cdp_api_key"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/settings_title_label">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/cdp_api_key_text_input"
+                        android:id="@+id/settings_cdp_api_key_label"
+                        style="@style/SettingsTextInputLayoutStyle"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/cdp_api_key"
-                        android:inputType="text"
-                        android:maxLength="200"
-                        android:maxLines="1" />
+                        android:layout_height="wrap_content" />
+
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/site_id_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/cdp_api_key_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/site_id_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/site_id"
-                        android:inputType="text"
-                        android:maxLength="200"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/flush_interval_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
+                    android:id="@+id/settings_site_id_key_layout"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/margin_default"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/site_id_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
+                    android:hint="@string/site_id"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@id/settings_cdp_api_key_layout">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/flush_interval_text_input"
+                        android:id="@+id/settings_site_id_key_label"
+                        style="@style/SettingsTextInputLayoutStyle"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/flush_interval_label"
-                        android:inputType="number"
-                        android:maxLength="10"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_height="wrap_content" />
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/flush_at_input_layout"
-                    style="?attr/textInputStyle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/flush_interval_input_layout"
-                    app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/flush_at_text_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/flush_at_label"
-                        android:inputType="number"
-                        android:maxLength="10"
-                        android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <TextView
-                    android:id="@+id/features_section_title"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/settings_region_label"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/margin_default"
-                    android:text="@string/features"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/flush_at_input_layout" />
+                    android:text="@string/region"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_site_id_key_layout" />
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/track_screens_switch"
-                    android:layout_width="0dp"
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_region_values_group"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    android:checked="false"
-                    android:text="@string/track_screens"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/features_section_title"
-                    tools:checked="true" />
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_region_label"
+                    app:singleSelection="true">
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/track_device_attributes_switch"
-                    android:layout_width="0dp"
+                    <Button
+                        android:id="@+id/settings_region_us_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/region_us" />
+
+                    <Button
+                        android:id="@+id/settings_region_eu_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/region_eu" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:id="@+id/settings_track_device_attrs_label"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    android:checked="false"
+                    android:layout_marginTop="@dimen/margin_default"
                     android:text="@string/track_device_attributes"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/track_screens_switch"
-                    tools:checked="true" />
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_region_values_group" />
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/debug_mode_switch"
-                    android:layout_width="0dp"
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_track_device_attrs_values_group"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/margin_small"
-                    android:checked="false"
-                    android:text="@string/debug_mode"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/track_device_attributes_switch"
-                    tools:checked="true" />
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_device_attrs_label"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_track_device_attrs_yes_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_yes" />
+
+                    <Button
+                        android:id="@+id/settings_track_device_attrs_no_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_no" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:id="@+id/settings_track_screen_views_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/track_screens"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_device_attrs_values_group" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_track_screen_views_values_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_screen_views_label"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_track_screen_views_yes_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_yes" />
+
+                    <Button
+                        android:id="@+id/settings_track_screen_views_no_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_no" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:id="@+id/settings_track_app_lifecycle_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/track_application_lifecycle"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_screen_views_values_group" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_track_app_lifecycle_values_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_app_lifecycle_label"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_track_app_lifecycle_yes_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_yes" />
+
+                    <Button
+                        android:id="@+id/settings_track_app_lifecycle_no_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_no" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:id="@+id/settings_features_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_large"
+                    android:text="@string/features"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_app_lifecycle_values_group" />
+
+                <TextView
+                    android:id="@+id/settings_in_app_messaging_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/enable_in_app_messages"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_features_label" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_in_app_messaging_values_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_in_app_messaging_label"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_in_app_messaging_yes_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_yes" />
+
+                    <Button
+                        android:id="@+id/settings_in_app_messaging_no_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_no" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:id="@+id/settings_development_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_large"
+                    android:text="@string/development"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_in_app_messaging_values_group" />
+
+                <TextView
+                    android:id="@+id/settings_log_level_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/log_level"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_development_label" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_log_level_values_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_log_level_label"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_log_level_none_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/log_level_none" />
+
+                    <Button
+                        android:id="@+id/settings_log_level_error_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/log_level_error" />
+
+                    <Button
+                        android:id="@+id/settings_log_level_info_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/log_level_info" />
+
+                    <Button
+                        android:id="@+id/settings_log_level_debug_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/log_level_debug" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
+                    android:id="@+id/settings_test_mode_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/enable_test_mode"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_log_level_values_group" />
+
+                <TextView
+                    android:id="@+id/settings_test_mode_desc_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/enable_test_mode_desc"
+                    android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_test_mode_label" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_test_mode_values_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_test_mode_desc_label"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_test_mode_yes_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_yes" />
+
+                    <Button
+                        android:id="@+id/settings_test_mode_no_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_no" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
             </androidx.constraintlayout.widget.ConstraintLayout>
         </androidx.core.widget.NestedScrollView>
 
         <Button
-            android:id="@+id/save_button"
-            style="?attr/materialButtonStyle"
+            android:id="@+id/settings_save_button"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="@dimen/margin_default"
-            android:layout_marginBottom="@dimen/margin_small"
             android:text="@string/save"
-            app:layout_constraintBottom_toTopOf="@id/restore_defaults_button"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/settings_restore_defaults_button"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
         <Button
-            android:id="@+id/restore_defaults_button"
-            style="?attr/borderlessButtonStyle"
+            android:id="@+id/settings_restore_defaults_button"
+            style="?attr/materialButtonOutlinedStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="@dimen/margin_default"
-            android:layout_marginBottom="@dimen/margin_small"
+            android:layout_marginVertical="@dimen/margin_small"
             android:text="@string/restore_defaults"
-            app:layout_constraintBottom_toTopOf="@id/post_save_msg_description"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/settings_post_save_msg_description"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
         <TextView
-            android:id="@+id/post_save_msg_description"
+            android:id="@+id/settings_post_save_msg_description"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="@dimen/margin_default"
-            android:layout_marginBottom="@dimen/margin_default"
             android:gravity="center"
             android:text="@string/settings_post_save_msg_description"
             android:textAppearance="@style/TextAppearance.Material3.BodySmall"

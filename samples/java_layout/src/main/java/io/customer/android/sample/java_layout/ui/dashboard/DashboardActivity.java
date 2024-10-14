@@ -30,6 +30,7 @@ import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.common.SimpleFragmentActivity;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.login.LoginActivity;
+import io.customer.android.sample.java_layout.ui.settings.InternalSettingsActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
@@ -108,6 +109,10 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private void setupViews() {
         binding.settingsButton.setOnClickListener(view -> {
             startActivity(new Intent(DashboardActivity.this, SettingsActivity.class));
+        });
+        binding.settingsButton.setOnLongClickListener(view -> {
+            startActivity(new Intent(DashboardActivity.this, InternalSettingsActivity.class));
+            return true;
         });
         binding.sendRandomEventButton.setOnClickListener(view -> {
             sendRandomEvent();

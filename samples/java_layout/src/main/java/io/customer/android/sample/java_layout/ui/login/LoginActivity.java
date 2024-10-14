@@ -9,6 +9,7 @@ import io.customer.android.sample.java_layout.data.model.User;
 import io.customer.android.sample.java_layout.databinding.ActivityLoginBinding;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
+import io.customer.android.sample.java_layout.ui.settings.InternalSettingsActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
@@ -56,6 +57,10 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     private void setupViews() {
         binding.settingsButton.setOnClickListener(view -> {
             startActivity(new Intent(LoginActivity.this, SettingsActivity.class));
+        });
+        binding.settingsButton.setOnLongClickListener(view -> {
+            startActivity(new Intent(LoginActivity.this, InternalSettingsActivity.class));
+            return true;
         });
         binding.loginButton.setOnClickListener(view -> {
             boolean isFormValid = true;

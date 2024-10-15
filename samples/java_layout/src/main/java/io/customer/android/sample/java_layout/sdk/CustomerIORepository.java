@@ -69,15 +69,7 @@ public class CustomerIORepository {
         }
 
         if (sdkConfig.isTestModeEnabled()) {
-            builder.flushInterval(1);
             builder.flushAt(1);
-        } else {
-            if (sdkConfig.getFlushAt() != null) {
-                builder.flushAt(sdkConfig.getFlushAt());
-            }
-            if (sdkConfig.getFlushInterval() != null) {
-                builder.flushInterval(sdkConfig.getFlushInterval());
-            }
         }
 
         builder.autoTrackActivityScreens(sdkConfig.isScreenTrackingEnabled());

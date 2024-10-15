@@ -178,8 +178,6 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                 siteId,
                 currentSettings.getApiHost(),
                 currentSettings.getCdnHost(),
-                currentSettings.getFlushInterval(),
-                currentSettings.getFlushAt(),
                 featTrackScreens,
                 featTrackDeviceAttributes,
                 logLevel,

@@ -24,8 +24,6 @@ public class CustomerIOSDKConfig {
         static final String SITE_ID = "cio_sdk_site_id";
         static final String API_HOST = "cio_sdk_api_host";
         static final String CDN_HOST = "cio_sdk_cdn_host";
-        static final String FLUSH_INTERVAL = "cio_sdk_flush_interval";
-        static final String FLUSH_AT = "cio_sdk_flush_at";
         static final String TRACK_SCREENS = "cio_sdk_track_screens";
         static final String TRACK_DEVICE_ATTRIBUTES = "cio_sdk_track_device_attributes";
         static final String LOG_LEVEL = "cio_sdk_log_level";
@@ -40,8 +38,6 @@ public class CustomerIOSDKConfig {
                 BuildConfig.SITE_ID,
                 RegionExtKt.apiHost(Region.US.INSTANCE),
                 RegionExtKt.cdnHost(Region.US.INSTANCE),
-                30,
-                20,
                 true,
                 true,
                 CioLogLevel.DEBUG,
@@ -62,8 +58,6 @@ public class CustomerIOSDKConfig {
         CustomerIOSDKConfig defaultConfig = getDefaultConfigurations();
         String apiHost = bundle.get(Keys.API_HOST);
         String cdnHost = bundle.get(Keys.CDN_HOST);
-        Integer flushInterval = StringUtils.parseInteger(bundle.get(Keys.FLUSH_INTERVAL), defaultConfig.flushInterval);
-        Integer flushAt = StringUtils.parseInteger(bundle.get(Keys.FLUSH_AT), defaultConfig.flushAt);
         boolean screenTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_SCREENS), defaultConfig.screenTrackingEnabled);
         boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
         CioLogLevel logLevel = CioLogLevel.Companion.getLogLevel(bundle.get(Keys.LOG_LEVEL), CioLogLevel.DEBUG);
@@ -76,8 +70,6 @@ public class CustomerIOSDKConfig {
                 siteId,
                 apiHost,
                 cdnHost,
-                flushInterval,
-                flushAt,
                 screenTrackingEnabled,
                 deviceAttributesTrackingEnabled,
                 logLevel,
@@ -95,8 +87,6 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.SITE_ID, config.siteId);
         bundle.put(Keys.API_HOST, config.apiHost);
         bundle.put(Keys.CDN_HOST, config.cdnHost);
-        bundle.put(Keys.FLUSH_INTERVAL, StringUtils.fromInteger(config.flushInterval));
-        bundle.put(Keys.FLUSH_AT, StringUtils.fromInteger(config.flushAt));
         bundle.put(Keys.TRACK_SCREENS, StringUtils.fromBoolean(config.screenTrackingEnabled));
         bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
         bundle.put(Keys.LOG_LEVEL, config.logLevel.name());
@@ -115,10 +105,6 @@ public class CustomerIOSDKConfig {
     private final String apiHost;
     @Nullable
     private final String cdnHost;
-    @Nullable
-    private final Integer flushInterval;
-    @Nullable
-    private final Integer flushAt;
     private final boolean screenTrackingEnabled;
     private final boolean deviceAttributesTrackingEnabled;
     @NonNull
@@ -133,8 +119,6 @@ public class CustomerIOSDKConfig {
                                @NonNull String siteId,
                                @Nullable String apiHost,
                                @Nullable String cdnHost,
-                               @Nullable Integer flushInterval,
-                               @Nullable Integer flushAt,
                                boolean screenTrackingEnabled,
                                boolean deviceAttributesTrackingEnabled,
                                @NonNull CioLogLevel logLevel,
@@ -146,8 +130,6 @@ public class CustomerIOSDKConfig {
         this.siteId = siteId;
         this.apiHost = apiHost;
         this.cdnHost = cdnHost;
-        this.flushInterval = flushInterval;
-        this.flushAt = flushAt;
         this.screenTrackingEnabled = screenTrackingEnabled;
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
         this.logLevel = logLevel;
@@ -175,16 +157,6 @@ public class CustomerIOSDKConfig {
     @Nullable
     public String getCdnHost() {
         return cdnHost;
-    }
-
-    @Nullable
-    public Integer getFlushInterval() {
-        return flushInterval;
-    }
-
-    @Nullable
-    public Integer getFlushAt() {
-        return flushAt;
     }
 
     public boolean isScreenTrackingEnabled() {

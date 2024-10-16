@@ -31,7 +31,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      */
     inline fun <reified Traits> identify(userId: String, traits: Traits) {
-        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+        identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -47,7 +47,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @JvmOverloads
     fun identify(userId: String, traits: JsonObject = emptyJsonObject) {
-        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+        identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -63,7 +63,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun identify(userId: String, traits: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        identify(userId, traits, JsonAnySerializer.serializersModule.serializer())
+        identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -98,7 +98,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @JvmOverloads
     fun track(name: String, properties: JsonObject = emptyJsonObject) {
-        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+        track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -114,7 +114,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun track(name: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+        track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -150,7 +150,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         name: String,
         properties: T
     ) {
-        track(name, properties, JsonAnySerializer.serializersModule.serializer())
+        track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -162,7 +162,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @JvmOverloads
     fun screen(title: String, properties: JsonObject = emptyJsonObject) {
-        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -174,7 +174,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun screen(title: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -201,7 +201,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         title: String,
         properties: T
     ) {
-        screen(title, properties, JsonAnySerializer.serializersModule.serializer())
+        screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**

@@ -2,6 +2,7 @@ package io.customer.sdk.core.di
 
 import android.app.Application
 import android.content.Context
+import io.customer.sdk.core.extensions.applicationMetaData
 import io.customer.sdk.data.store.ApplicationStore
 import io.customer.sdk.data.store.ApplicationStoreImpl
 import io.customer.sdk.data.store.BuildStore
@@ -28,11 +29,13 @@ abstract class AndroidSDKComponent : DiGraph() {
  * Integrate this graph at SDK startup using from Android entry point.
  */
 class AndroidSDKComponentImpl(
-    private val context: Context,
-    override val client: Client
+    private val context: Context
 ) : AndroidSDKComponent() {
     override val application: Application
         get() = newInstance<Application> { context.applicationContext as Application }
+
+    override val client: Client
+        get() = singleton<Client> { Client.fromMetadata(context.applicationMetaData()) }
 
     init {
         SDKComponent.activityLifecycleCallbacks.register(application)

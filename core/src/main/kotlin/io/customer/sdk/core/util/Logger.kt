@@ -4,34 +4,59 @@ import android.util.Log
 import io.customer.sdk.core.environment.BuildEnvironment
 
 interface Logger {
+    // Log level to determine which logs to print
+    // This is the log level set by the user in configurations or the default log level
     var logLevel: CioLogLevel
+
+    /**
+     * Sets the dispatcher to handle log events based on the log level
+     * Default implementation is to print logs to Logcat
+     * In wrapper SDKs, this will be overridden to emit logs to more user-friendly channels
+     * like console, etc.
+     * If the dispatcher holds any reference to application context, the caller should ensure
+     * to clear references when the context is destroyed.
+     *
+     * @param dispatcher Dispatcher to handle log events based on the log level, pass null
+     * to reset to default
+     */
+    fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?)
+
     fun info(message: String)
     fun debug(message: String)
     fun error(message: String)
 }
 
-enum class CioLogLevel {
-    NONE,
-    ERROR,
-    INFO,
-    DEBUG;
+/**
+ * Log levels for Customer.io SDK logs
+ *
+ * @property priority Priority of the log level. The higher the value, the more verbose
+ * the log level.
+ * @see shouldLog to determine if a log should be printed based on specified log level
+ */
+enum class CioLogLevel(val priority: Int) {
+    NONE(priority = 0),
+    ERROR(priority = 1),
+    INFO(priority = 2),
+    DEBUG(priority = 3);
 
     companion object {
         val DEFAULT = ERROR
-        fun getLogLevel(level: String?, fallback: CioLogLevel = NONE): CioLogLevel {
+
+        fun getLogLevel(level: String?, fallback: CioLogLevel = DEFAULT): CioLogLevel {
             return values().find { value -> value.name.equals(level, ignoreCase = true) }
                 ?: fallback
         }
     }
 }
 
+/**
+ * Determines if a log should be printed based on the specified log level
+ *
+ * @param levelForMessage Log level of the message
+ * @return true if the log should be printed, false otherwise
+ */
 internal fun CioLogLevel.shouldLog(levelForMessage: CioLogLevel): Boolean {
-    return when (this) {
-        CioLogLevel.NONE -> false
-        CioLogLevel.ERROR -> levelForMessage == CioLogLevel.ERROR
-        CioLogLevel.INFO -> levelForMessage == CioLogLevel.ERROR || levelForMessage == CioLogLevel.INFO
-        CioLogLevel.DEBUG -> true
-    }
+    return this.priority >= levelForMessage.priority
 }
 
 class LogcatLogger(
@@ -54,28 +79,37 @@ class LogcatLogger(
             preferredLogLevel = value
         }
 
+    private var logDispatcher: ((CioLogLevel, String) -> Unit)? = null
+
+    override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) {
+        logDispatcher = dispatcher
+    }
+
     override fun info(message: String) {
-        runIfMeetsLogLevelCriteria(CioLogLevel.INFO) {
-            Log.i(TAG, message)
-        }
+        logIfMatchesCriteria(CioLogLevel.INFO, message)
     }
 
     override fun debug(message: String) {
-        runIfMeetsLogLevelCriteria(CioLogLevel.DEBUG) {
-            Log.d(TAG, message)
-        }
+        logIfMatchesCriteria(CioLogLevel.DEBUG, message)
     }
 
     override fun error(message: String) {
-        runIfMeetsLogLevelCriteria(CioLogLevel.ERROR) {
-            Log.e(TAG, message)
-        }
+        logIfMatchesCriteria(CioLogLevel.ERROR, message)
     }
 
-    private fun runIfMeetsLogLevelCriteria(levelForMessage: CioLogLevel, block: () -> Unit) {
+    private fun logIfMatchesCriteria(levelForMessage: CioLogLevel, message: String) {
         val shouldLog = logLevel.shouldLog(levelForMessage)
 
-        if (shouldLog) block()
+        if (shouldLog) {
+            // Dispatch log event to log dispatcher only if the log level is met and the dispatcher is set
+            // Otherwise, log to Logcat
+            logDispatcher?.invoke(levelForMessage, message) ?: when (levelForMessage) {
+                CioLogLevel.NONE -> {}
+                CioLogLevel.ERROR -> Log.e(TAG, message)
+                CioLogLevel.INFO -> Log.i(TAG, message)
+                CioLogLevel.DEBUG -> Log.d(TAG, message)
+            }
+        }
     }
 
     companion object {

@@ -598,6 +598,20 @@ class DataPipelinesInteractionTests : JUnitTest() {
     }
 
     @Test
+    fun device_givenDeleteDeviceWithIdentifiedUser_expectUserIdWithTrackRequest() {
+        val givenIdentifier = String.random
+
+        every { globalPreferenceStore.getDeviceToken() } returns String.random
+
+        sdkInstance.identify(givenIdentifier)
+
+        sdkInstance.clearIdentify()
+
+        val event = outputReaderPlugin.trackEvents.last()
+        event.userId shouldBeEqualTo givenIdentifier
+    }
+
+    @Test
     fun device_givenDeleteDeviceWhenNoExistingPushToken_expectNoEventDispatched() {
         sdkInstance.deleteDeviceToken()
 

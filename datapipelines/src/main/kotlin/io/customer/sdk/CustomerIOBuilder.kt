@@ -4,13 +4,12 @@ import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.registerAndroidSDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
-import io.customer.sdk.data.store.Client
 
 /**
  * Creates a new instance of builder for CustomerIO SDK.
@@ -34,9 +33,8 @@ class CustomerIOBuilder(
     // Initialize AndroidSDKComponent as soon as the builder is created so that
     // it can be used by the modules.
     // Also, it is needed to override test dependencies in the test environment
-    private val androidSDKComponent = SDKComponent.registerAndroidSDKComponent(
-        context = applicationContext,
-        client = Client.Android(Version.version)
+    private val androidSDKComponent = SDKComponent.setupAndroidComponent(
+        context = applicationContext
     )
 
     // List of modules to be initialized with the SDK

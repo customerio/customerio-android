@@ -133,11 +133,13 @@ public class InternalSettingsActivity extends BaseActivity<ActivityInternalSetti
                 currentSettings.getSiteId(),
                 apiHost,
                 cdnHost,
-                currentSettings.getFlushInterval(),
-                currentSettings.getFlushAt(),
                 currentSettings.isScreenTrackingEnabled(),
                 currentSettings.isDeviceAttributesTrackingEnabled(),
-                currentSettings.isDebugModeEnabled()
+                currentSettings.getLogLevel(),
+                currentSettings.getRegion(),
+                currentSettings.isApplicationLifecycleTrackingEnabled(),
+                currentSettings.isTestModeEnabled(),
+                currentSettings.isInAppMessagingEnabled()
         );
     }
 

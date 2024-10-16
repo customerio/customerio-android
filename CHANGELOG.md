@@ -1,3 +1,9 @@
+## [4.3.0](https://github.com/customerio/customerio-android/compare/4.2.0...4.3.0) (2024-10-16)
+
+### Features
+
+* support for wrapper SDKs ([#442](https://github.com/customerio/customerio-android/issues/442)) ([5c70469](https://github.com/customerio/customerio-android/commit/5c70469e35479ceebba048949a6b65786d8cf355))
+
 ## [4.2.0](https://github.com/customerio/customerio-android/compare/4.1.0...4.2.0) (2024-09-11)
 
 ### Features

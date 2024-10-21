@@ -1,14 +1,13 @@
 package io.customer.commontest.core
 
 import io.customer.commontest.config.ApplicationArgument
-import io.customer.commontest.config.ClientArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.argumentOrNull
 import io.customer.commontest.config.configureAndroidSDKComponent
 import io.customer.commontest.config.configureSDKComponent
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.registerAndroidSDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.mockk.clearAllMocks
 
 /**
@@ -43,8 +42,7 @@ abstract class BaseTest {
      */
     private fun registerAndroidSDKComponent(testConfig: TestConfig) {
         val application = testConfig.argumentOrNull<ApplicationArgument>()?.value ?: return
-        val client = testConfig.argumentOrNull<ClientArgument>()?.value ?: return
 
-        testConfig.configureAndroidSDKComponent(SDKComponent.registerAndroidSDKComponent(application, client))
+        testConfig.configureAndroidSDKComponent(SDKComponent.setupAndroidComponent(application))
     }
 }

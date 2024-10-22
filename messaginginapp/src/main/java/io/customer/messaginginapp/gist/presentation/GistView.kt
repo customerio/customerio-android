@@ -50,7 +50,6 @@ class GistView @JvmOverloads constructor(
     }
 
     fun setup(message: Message) {
-        logger.debug("GistView setup: $message")
         currentMessage = message
         currentMessage?.let { message ->
             val engineWebConfiguration = EngineWebConfiguration(
@@ -63,6 +62,7 @@ class GistView @JvmOverloads constructor(
             )
             engineWebView?.setup(engineWebConfiguration)
         }
+        logger.debug("GistView setup: $store")
     }
 
     fun stopLoading() {

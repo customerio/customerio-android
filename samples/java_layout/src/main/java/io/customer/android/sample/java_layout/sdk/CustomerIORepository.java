@@ -16,8 +16,6 @@ import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOBuilder;
-import io.customer.sdk.core.util.CioLogLevel;
-import io.customer.sdk.data.model.Region;
 
 /**
  * Repository class to hold all Customer.io related operations at single place
@@ -31,24 +29,22 @@ public class CustomerIORepository {
         // Initialize Customer.io SDK builder
         CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
 
-        // Enable detailed logging for debug builds.
-        if (sdkConfig.debugModeEnabled()) {
-            builder.logLevel(CioLogLevel.DEBUG);
-        }
+        // Modify SDK settings for testing purposes only.
+        // If you don't need to override any of these settings, you can skip this line.
+        configureSdk(builder, sdkConfig);
 
         // Enable optional features of the SDK by adding desired modules.
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
-        // Enables in-app messages
-        builder.addCustomerIOModule(new ModuleMessagingInApp(
-                new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), Region.US.INSTANCE)
-                        .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
-                        .build()
-        ));
 
-        // Modify SDK settings for testing purposes only.
-        // If you don't need to override any of these settings, you can skip this line.
-        configureSdk(builder, sdkConfig);
+        // Enables in-app messages
+        if (sdkConfig.isInAppMessagingEnabled()) {
+            builder.addCustomerIOModule(new ModuleMessagingInApp(
+                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
+                            .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                            .build()
+            ));
+        }
 
         // Finally, build to finish initializing the SDK.
         builder.build();
@@ -72,21 +68,15 @@ public class CustomerIORepository {
             builder.cdnHost(cdnHost);
         }
 
-        if (sdkConfig.getFlushAt() != null) {
-            builder.flushAt(sdkConfig.getFlushAt());
-        }
-        if (sdkConfig.getFlushInterval() != null) {
-            builder.flushInterval(sdkConfig.getFlushInterval());
+        if (sdkConfig.isTestModeEnabled()) {
+            builder.flushAt(1);
         }
 
-        final Boolean screenTrackingEnabled = sdkConfig.isScreenTrackingEnabled();
-        if (screenTrackingEnabled != null) {
-            builder.autoTrackActivityScreens(screenTrackingEnabled);
-        }
-        final Boolean deviceAttributesTrackingEnabled = sdkConfig.isDeviceAttributesTrackingEnabled();
-        if (deviceAttributesTrackingEnabled != null) {
-            builder.autoTrackDeviceAttributes(deviceAttributesTrackingEnabled);
-        }
+        builder.autoTrackActivityScreens(sdkConfig.isScreenTrackingEnabled());
+        builder.autoTrackDeviceAttributes(sdkConfig.isDeviceAttributesTrackingEnabled());
+        builder.trackApplicationLifecycleEvents(sdkConfig.isApplicationLifecycleTrackingEnabled());
+        builder.region(sdkConfig.getRegion());
+        builder.logLevel(sdkConfig.getLogLevel());
     }
 
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {

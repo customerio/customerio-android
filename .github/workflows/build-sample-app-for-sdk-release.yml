@@ -42,7 +42,7 @@ jobs:
         with:
           lane: 'android build_sample_app_for_sdk_release'
           subdirectory: "samples/java_layout"
-          options: '{ "sdk_version": "4.3.0" }'
+          options: '{ "sdk_version": "4.3.0", "build_time": "2024-10-24T14:46:10+03:00" }'
         env:
           ANDROID_SIGNING_ALIAS: ${{ secrets.ANDROID_SIGNING_ALIAS }}
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}

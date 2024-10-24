@@ -1,0 +1,32 @@
+name: Build sample app for SDK release
+on: workflow_dispatch
+jobs:
+  build-sample-app:
+    runs-on: ubuntu-latest
+    name: Build sample app
+    steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-android
+
+      # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries.
+      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
+      - name: Install sd CLI to use later in the workflow
+        # uses: kenji-miyake/setup-sd@v1
+        uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it.
+
+      - name: Install tools from Gemfile (ruby language) used for building our apps with
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true # cache tools to make builds faster in future
+      - name: Setup local.properties file for sample app
+        run: |
+          touch "samples/local.properties"
+          echo "cdpApiKey=${{ secrets.CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY }}" >> "samples/local.properties"
+          echo "siteId=${{ secrets.CUSTOMERIO_JAVA_WORKSPACE_SITE_ID }}" >> "samples/local.properties"
+          echo "sdkVersion=??" >> "samples/local.properties"

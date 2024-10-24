@@ -47,13 +47,13 @@ jobs:
 
       - name: Deploy development build via Fastlane
         uses: maierj/fastlane-action@v3.1.0
+        with:
+          lane: 'android build_sample_app_for_sdk_release'
+          subdirectory: "samples/java_layout"
+          options: '{ "sdk_version": "${{ env.SDK_VERSION }}" }'
         env:
           ANDROID_SIGNING_ALIAS: ${{ secrets.ANDROID_SIGNING_ALIAS }}
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
           ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
           FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64: ${{ secrets.FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64 }}
           SDK_VERSION: ${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}
-        with:
-          lane: 'android build_sample_app_for_sdk_release'
-          subdirectory: "samples/java_layout"
-          options: '{ "sdk_version": "${{ env.SDK_VERSION }}" }'

@@ -67,7 +67,7 @@ platform :android do
      # Apps use `build.gradle` or `build.kts`. This wildcard lookup is used to get the absolute path to one of these files present
      path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd)
 
-     new_app_version = options[:sdk_version]
+     new_app_version = values[:sdk_version]
      new_build_number = get_new_build_version()
      build_notes = get_build_notes()
      test_groups = ['public']

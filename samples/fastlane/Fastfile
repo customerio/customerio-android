@@ -71,6 +71,7 @@ platform :android do
      new_build_number = get_new_build_version()
      build_notes = get_build_notes()
      test_groups = ['public']
+     app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name)
 
      UI.important(find_firebase_app_id(app_identifier: app_package_name))
 

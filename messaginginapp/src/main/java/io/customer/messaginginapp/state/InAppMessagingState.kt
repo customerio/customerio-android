@@ -6,7 +6,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 data class InAppMessagingState(
     val siteId: String = "",
     val dataCenter: String = "",
-    val environment: GistEnvironment = GistEnvironment.DEV,
+    val environment: GistEnvironment = GistEnvironment.PROD,
     val pollInterval: Long = 600_000L,
     val userId: String? = null,
     val currentRoute: String? = null,

@@ -25,7 +25,7 @@ interface GistProvider {
 class GistSdk(
     siteId: String,
     dataCenter: String,
-    environment: GistEnvironment = GistEnvironment.DEV
+    environment: GistEnvironment = GistEnvironment.PROD
 ) : GistProvider {
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState

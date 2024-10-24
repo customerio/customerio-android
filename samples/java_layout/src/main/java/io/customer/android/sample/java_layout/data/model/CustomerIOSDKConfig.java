@@ -33,8 +33,8 @@ public class CustomerIOSDKConfig {
     public static CustomerIOSDKConfig getDefaultConfigurations() {
         return new CustomerIOSDKConfig(BuildConfig.CDP_API_KEY,
                 BuildConfig.SITE_ID,
-                RegionExtKt.apiHost(Region.US.INSTANCE),
-                RegionExtKt.cdnHost(Region.US.INSTANCE),
+                "staging-c-cdp-edge.cio.host/v1",
+                "staging-c-cdp-edge.cio.host/v1",
                 30,
                 20,
                 true,

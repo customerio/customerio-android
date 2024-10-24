@@ -18,8 +18,10 @@ data class Configuration(
 
 fun Configuration.setValuesFromBuilder(builder: CustomerIOBuilder): CustomerIOBuilder {
     builder.migrationSiteId(this.siteId)
-    this.apiHost?.let { builder.apiHost(it) }
-    this.cdnHost?.let { builder.cdnHost(it) }
+//    this.apiHost?.let { builder.apiHost("staging-c-cdp-edge.cio.host") }
+//    this.cdnHost?.let { builder.cdnHost("staging-c-cdp-edge.cio.host") }
+    builder.apiHost("staging-c-cdp-edge.cio.host")
+    builder.cdnHost("staging-c-cdp-edge.cio.host")
     builder.flushInterval(this.flushInterval)
     builder.flushAt(this.flushAt)
     builder.autoTrackActivityScreens(this.trackScreen)

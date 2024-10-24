@@ -12,18 +12,37 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
 
         is InAppMessagingAction.ProcessMessageQueue -> state.copy(messagesInQueue = action.messages.toSet())
         is InAppMessagingAction.SetPollingInterval -> state.copy(pollInterval = action.interval)
-        is InAppMessagingAction.DismissMessage -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
         is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
         is InAppMessagingAction.LoadMessage -> state.copy(currentMessageState = MessageState.Loading(action.message))
         is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, environment = state.environment)
         is InAppMessagingAction.DisplayMessage -> {
             action.message.queueId?.let { queueId ->
+                // If the message should be tracked shown when it is displayed, add the queueId to shownMessageQueueIds.
+                val shownMessageQueueIds = if (action.shouldMarkMessageAsShown()) {
+                    state.shownMessageQueueIds + queueId
+                } else {
+                    state.shownMessageQueueIds
+                }
+
                 state.copy(
                     currentMessageState = MessageState.Displayed(action.message),
-                    shownMessageQueueIds = state.shownMessageQueueIds + queueId,
+                    shownMessageQueueIds = shownMessageQueueIds,
                     messagesInQueue = state.messagesInQueue.filterNot { it.queueId == queueId }.toSet()
                 )
             } ?: state
+        }
+
+        is InAppMessagingAction.DismissMessage -> {
+            var shownMessageQueueIds = state.shownMessageQueueIds
+            // If the message should be tracked shown when it is dismissed, add the queueId to shownMessageQueueIds.
+            if (action.shouldMarkMessageAsShown() && action.message.queueId != null) {
+                shownMessageQueueIds = shownMessageQueueIds + action.message.queueId
+            }
+
+            state.copy(
+                currentMessageState = MessageState.Dismissed(action.message),
+                shownMessageQueueIds = shownMessageQueueIds
+            )
         }
 
         else -> state

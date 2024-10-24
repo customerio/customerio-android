@@ -114,7 +114,6 @@ internal class EngineWebView @JvmOverloads constructor(
                     description: String,
                     failingUrl: String?
                 ) {
-                    logger.error("Web resource error: $description")
                     listener?.error()
                 }
 
@@ -123,7 +122,6 @@ internal class EngineWebView @JvmOverloads constructor(
                     request: WebResourceRequest?,
                     errorResponse: WebResourceResponse?
                 ) {
-                    logger.error("HTTP error: ${errorResponse?.reasonPhrase}")
                     listener?.error()
                 }
 
@@ -132,7 +130,6 @@ internal class EngineWebView @JvmOverloads constructor(
                     request: WebResourceRequest?,
                     error: WebResourceError?
                 ) {
-                    logger.error("Web resource error: $error")
                     listener?.error()
                 }
 

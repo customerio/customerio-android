@@ -1,5 +1,8 @@
 name: Build sample app for SDK release
-on: workflow_dispatch
+on:
+  push:
+    branches: [MBL-553-build-sample-app-for-sdk-release]
+  workflow_dispatch:
 jobs:
   build-sample-app:
     runs-on: ubuntu-latest

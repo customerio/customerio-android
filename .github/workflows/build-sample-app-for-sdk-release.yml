@@ -10,6 +10,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # fetches all history for all tags and branches
 
       - name: Get latest SDK version
         id: latest-sdk-version-step

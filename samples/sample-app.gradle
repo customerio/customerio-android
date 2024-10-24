@@ -66,11 +66,13 @@ dependencies {
     def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
         // Add local dependency for SDK modules, helpful for debugging
+        println("Momo: Building app with local SDKs code")
         implementation(project(":datapipelines"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
     } else {
         // Stable releases dependency, use published versions directly
+        println("Momo: Building app with SDK version: $cioSDKVersion")
         implementation "io.customer.android:datapipelines:$cioSDKVersion"
         implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"

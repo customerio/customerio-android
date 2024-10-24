@@ -69,8 +69,6 @@ platform :android do
      test_groups = 'public'
      app_package_name = 'io.customer.android.sample.java_layout'
 
-     # Modify the source code with the new app version and build number before we compile the Android app. This is a good idea to do to make installing builds on a test device easier.
-     # The Android OS might give errors when trying to install a build of an app if the app is already installed on the device. Having unique build number or app version can avoid those errors.
      android_set_version_name(
        version_name: new_app_version,
        gradle_file: path_to_app_gradle_file
@@ -83,7 +81,7 @@ platform :android do
      build_android_app(
        task: ":samples:java_layout:assemble",
        build_type: 'Release',
-       gradle_path: '../../gradlew' # path to root directory of the SDK. Where gradlew is located
+       gradle_path: '../../gradlew'
      )
 
      # function 'setup_google_bucket_access' is a re-usable function inside of apple-code-signing Fastfile that we imported.

@@ -68,11 +68,9 @@ platform :android do
      path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd)
 
      build_time = Time.parse(values[:build_time])
-     sh("echo Momo: Build time=#{build_time}")
 
      new_app_version = values[:sdk_version]
      new_build_number = build_time.to_i.to_s
-     sh("echo Momo: Build number=#{new_build_number}")
      build_notes = get_build_notes()
      test_groups = 'public'
      app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name)

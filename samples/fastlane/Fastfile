@@ -70,7 +70,7 @@ platform :android do
      new_app_version = values[:sdk_version]
      new_build_number = get_new_build_version()
      build_notes = get_build_notes()
-     test_groups = ['public']
+     test_groups = 'public'
      app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name)
 
      UI.important(find_firebase_app_id(app_identifier: app_package_name))
@@ -85,9 +85,6 @@ platform :android do
        version_code: new_build_number,
        gradle_file: path_to_app_gradle_file
      )
-
-     UI.important("Updating the SDK's source code version to non-production version. This allows the sample apps to show the SDK version at runtime for app user to better understand the version of the SDK they are running.")
-     sh("../../../scripts/update-version.sh \"#{new_app_version}.#{new_build_number}\"")
 
      build_android_app(
        task: ":samples:#{name_of_sample_app_module}:assemble",

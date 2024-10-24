@@ -45,18 +45,23 @@ internal fun gistLoggingMessageMiddleware() = middleware<InAppMessagingState> { 
 }
 
 private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
-    if (action.shouldLog) {
-        if (action.viaCloseAction) {
-            SDKComponent.gistQueue.logView(action.message)
-        }
+    // Log message close only if message should be tracked as shown on dismiss action
+    if (action.shouldMarkMessageAsShown()) {
+        SDKComponent.logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
+        SDKComponent.gistQueue.logView(action.message)
+    } else {
+        SDKComponent.logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
     }
     next(action)
 }
 
 private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {
-    val gistProperties = action.message.gistProperties
-    if (!gistProperties.persistent) {
+    // Log message view only if message should be tracked as shown on display action
+    if (action.shouldMarkMessageAsShown()) {
+        SDKComponent.logger.debug("Message shown, logging view for message: ${action.message}")
         SDKComponent.gistQueue.logView(action.message)
+    } else {
+        SDKComponent.logger.debug("Persistent message shown, not logging view for message: ${action.message}")
     }
     next(action)
 }

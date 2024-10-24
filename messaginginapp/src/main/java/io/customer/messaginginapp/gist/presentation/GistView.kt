@@ -116,12 +116,16 @@ class GistView @JvmOverloads constructor(
                         try {
                             shouldLogAction = false
                             logger.debug("Dismissing from system action: $action")
-                            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
                             val intent = Intent(Intent.ACTION_VIEW)
                             intent.data = Uri.parse(action)
                             intent.flags =
                                 Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                             startActivity(context, intent, null)
+
+                            // launch system action first otherwise there is a possibility
+                            // that due to lifecycle change and message still being in queue to be displayed
+                            // the message will be displayed again, putting GistActivity before the system action in stack
+                            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
                         } catch (e: ActivityNotFoundException) {
                             logger.debug("System action not handled: $action")
                         }

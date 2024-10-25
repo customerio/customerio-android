@@ -96,6 +96,7 @@ internal class EngineWebView @JvmOverloads constructor(
 
             it.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String?) {
+                    // post message to webview with the configuration data so that the message can be rendered
                     val script = """
                     window.postMessage($jsonString, '*');
                 """.trim()

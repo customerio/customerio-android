@@ -57,5 +57,46 @@ platform :android do
       groups: test_groups,
       release_notes: build_notes
     )
-  end 
+  end
+
+  lane :build_sample_app_for_sdk_release do |values|
+     # Apps use `build.gradle` or `build.kts`. This wildcard lookup is used to get the absolute path to one of these files present
+     path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd)
+
+     new_app_version = values[:sdk_version]
+     new_build_number = get_new_build_version()
+     build_notes = get_build_notes()
+     test_groups = 'public'
+     app_package_name = 'io.customer.android.sample.java_layout'
+
+     android_set_version_name(
+       version_name: new_app_version,
+       gradle_file: path_to_app_gradle_file
+     )
+     android_set_version_code(
+       version_code: new_build_number,
+       gradle_file: path_to_app_gradle_file
+     )
+
+     build_android_app(
+       task: ":samples:java_layout:assemble",
+       build_type: 'Release',
+       gradle_path: '../../gradlew'
+     )
+
+     # function 'setup_google_bucket_access' is a re-usable function inside of apple-code-signing Fastfile that we imported.
+     # This allows you to create a temporary file from a GitHub secret for added convenience.
+     # When uploading the build to Firebase App Distribution, the CI server needs to authenticate with Firebase. This is done with a
+     # Google Cloud Service Account json creds file. The base64 encoded value of this service account file is stored as this secret.
+     service_credentials_file_path = setup_google_bucket_access(
+       environment_variable_key: "FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64"
+     )
+
+     firebase_app_distribution(
+       app: find_firebase_app_id(app_identifier: app_package_name),
+       service_credentials_file: service_credentials_file_path,
+       groups: test_groups,
+       release_notes: build_notes
+     )
+  end
 end 

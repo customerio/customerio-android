@@ -103,8 +103,7 @@ jobs:
 
       # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
       - name: Install sd CLI to use later in the workflow
-        # uses: kenji-miyake/setup-sd@v1
-        uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it.
+        uses: kenji-miyake/setup-sd@v2
 
       - name: Install tools from Gemfile (ruby language) used for building our apps with
         uses: ruby/setup-ruby@v1

@@ -101,10 +101,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
-      - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@v2
-
       - name: Install tools from Gemfile (ruby language) used for building our apps with
         uses: ruby/setup-ruby@v1
         with:

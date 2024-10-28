@@ -19,10 +19,6 @@ jobs:
       new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
     steps:
-      - uses: actions/checkout@v4
-      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
-      - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@v2
 
       # Setup Android SDK as it's needed to generate the SDK size report.
       - name: Setup Android SDK

@@ -15,12 +15,12 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
+import java.text.DateFormat;
+import java.util.Date;
 import java.util.Locale;
 
 import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.R;
-import io.customer.sdk.core.di.AndroidSDKComponent;
-import io.customer.sdk.core.di.SDKComponent;
 
 public class ViewUtils {
     public static void prepareForAutomatedTests(@NonNull View view, @StringRes int contentDescResId) {
@@ -55,14 +55,38 @@ public class ViewUtils {
     }
 
     public static void setBuildInfo(@NonNull TextView textView) {
-        AndroidSDKComponent androidSDKComponent = SDKComponent.INSTANCE.android();
-        String sdkVersion = androidSDKComponent.getClient().getSdkVersion();
-        String buildInfo = String.format(Locale.ENGLISH,
-                "Customer.io Android SDK %s Java Layout %s (%s)",
-                sdkVersion,
-                BuildConfig.VERSION_NAME,
-                BuildConfig.VERSION_CODE);
+        String buildInfo = String.format(
+                Locale.ENGLISH,
+                "SDK version: %s\n" +
+                        "Build date: %s\n" +
+                        "Branch: %s\n" +
+                        "Default workspace: Native iOS & Android\n" +
+                        "App version: %s",
+                getSdkVersion(),
+                getBuildTime(),
+                getBranchName(),
+                BuildConfig.VERSION_CODE
+        );
         textView.setText(buildInfo);
+    }
+
+    private static String getBuildTime() {
+        return DateFormat.getDateTimeInstance().format(new Date(BuildConfig.BUILD_TIMESTAMP));
+    }
+
+    private static String getSdkVersion() {
+        if (isEmptyOrUnset(BuildConfig.SDK_VERSION)) return "as source code";
+        return BuildConfig.SDK_VERSION;
+    }
+
+    private static String getBranchName() {
+        if (isEmptyOrUnset(BuildConfig.BRANCH)) return "local development";
+        return BuildConfig.BRANCH + "." + BuildConfig.COMMIT;
+    }
+
+    private static boolean isEmptyOrUnset(String text) {
+        // When local properties are not set, they have a string value of "null"
+        return TextUtils.isEmpty(text) || "null".equalsIgnoreCase(text);
     }
 
     @NonNull

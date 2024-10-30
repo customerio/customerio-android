@@ -58,10 +58,15 @@ jobs:
           bundler-cache: true # cache tools to make builds faster in future
 
       - name: Setup local.properties file for sample app
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+          COMMIT_HASH: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           touch "samples/local.properties"
           echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
           echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
+          echo "branch=$BRANCH_NAME" >> "samples/local.properties"
+          echo "commit=${COMMIT_HASH:0:7}" >> "samples/local.properties"
           if [ "${{ inputs.use_latest_sdk_version == true }}" ]; then
             echo "sdkVersion=${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}" >> "samples/local.properties"
           fi

@@ -10,13 +10,21 @@ on:
         default: false
     secrets:
       CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY:
+        required: true
       CUSTOMERIO_JAVA_WORKSPACE_SITE_ID:
+        required: true
       CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY:
+        required: true
       CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID:
+        required: true
       ANDROID_SIGNING_ALIAS:
+        required: true
       ANDROID_SIGNING_KEY_PASSWORD:
+        required: true
       ANDROID_SIGNING_STORE_PASSWORD:
+        required: true
       FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64:
+        required: true
 
 jobs:
   build_sample_apps:

@@ -1,0 +1,104 @@
+name: Reusable build sample apps workflow
+
+on:
+  workflow_call:
+    inputs:
+      use_latest_sdk_version:
+        description: "Whether this workflow should build sample apps with latest SDK version or source code"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  build_sample_apps:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # if one sample app fails to build, let the other sample apps continue to build and not cancel them.
+      matrix: # Use a matrix allowing us to build multiple apps in parallel. Just add an entry to the matrix and it will build!
+        sample-app:
+          # List all sample apps you want to have compiled.
+          # List item is name of directory inside of "samples" directory for the corresponding app to compile.
+          - "java_layout"
+          - "kotlin_compose"
+        include: # Add additional variables to each sample app build: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
+          - sample-app: "java_layout"
+            cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
+            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
+          - sample-app: "kotlin_compose"
+            cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
+            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
+
+    name: Building app...${{ matrix.sample-app }}
+    permissions:
+      pull-requests: write # comment on pull request with build information
+    steps:
+      - name: Check out code with conditional fetch-depth
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Workaround for bug https://github.com/actions/checkout/issues/1471
+
+      - name: Get latest SDK version
+        if: ${{ inputs.use_latest_sdk_version == true }}
+        id: latest-sdk-version-step
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0)
+          echo "LATEST_TAG=$latest_tag" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup-android
+
+      # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries.
+      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
+      - name: Install sd CLI to use later in the workflow
+        uses: kenji-miyake/setup-sd@v2
+
+      - name: Install tools from Gemfile (ruby language) used for building our apps with
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true # cache tools to make builds faster in future
+
+      - name: Setup local.properties file for sample app
+        run: |
+          touch "samples/local.properties"
+          echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
+          echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
+          if [ "${{ inputs.use_latest_sdk_version == true }}" ]; then
+            echo "sdkVersion=${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}" >> "samples/local.properties"
+          fi
+
+      - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase.
+        run: cat $GITHUB_EVENT_PATH
+
+      - name: Deploy build via Fastlane
+        if: ${{ ! (inputs.use_latest_sdk_version == true && matrix.sample-app == 'kotlin_compose') }}
+        uses: maierj/fastlane-action@v3.1.0
+        with:
+          lane: ${{ inputs.use_latest_sdk_version == true && 'android build_sample_app_for_sdk_release' || 'android build' }}
+          subdirectory: "samples/${{ matrix.sample-app }}"
+          options: ${{ inputs.use_latest_sdk_version == true && format('{{"sdk_version":"{0}"}}', steps.latest-sdk-version-step.outputs.LATEST_TAG) || '' }}
+        env:
+          ANDROID_SIGNING_ALIAS: ${{ secrets.ANDROID_SIGNING_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64: ${{ secrets.FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64 }}
+
+      - name: Update sample builds PR comment with build information
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          # the variables APP_BUILD_NUMBER, APP_VERSION_STRING are created when fastlane runs "build".
+          body: |
+            * ${{ matrix.sample-app }}: `${{ env.APP_VERSION_STRING }} (${{ env.APP_BUILD_NUMBER }})`
+          edit-mode: append # append new line to the existing PR comment to build a list of all sample app builds.
+
+      - name: Update sample builds PR comment with build failure message
+        if: ${{ failure() }}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            * ${{ matrix.sample-app }}: Build failed. See [CI job logs](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}) to determine the issue and try re-building.
+          edit-mode: append # append new line to the existing PR comment to build a list of all sample app builds.

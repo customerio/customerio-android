@@ -5,26 +5,22 @@ import_from_git(
   path: "Apps/fastlane/Fastfile"
 )
 
-platform :android do 
-  lane :build do |values|
-    # Get the name of the Gradle module for the sample app. We need this later when building it. 
-    # The name of the gradle module is the name of the directory where the sample app source code is hosted in `samples/`. 
-    path_to_root_directory_sample_app = File.expand_path('../', Dir.pwd) # We are currently in `samples/N/fastlane/` and we need the directory name `samples/N``
-    name_of_sample_app_module = File.basename(path_to_root_directory_sample_app) # just get the name of the directory I am in now. `samples/N`
+private_lane :build_sample_app do |options|
+    name_of_sample_app_module = options[:sample_app_name]
 
-    # Apps use `build.gradle` or `build.kts`. This wildcard lookup is used to get the absolute path to one of these files present 
-    path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd) 
+    # Apps use `build.gradle` or `build.kts`. This wildcard lookup is used to get the absolute path to one of these files present
+    path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd)
 
-    new_app_version = get_new_app_version()
+    new_app_version = options[:app_version]
     new_build_number = get_new_build_version()
     build_notes = get_build_notes()
-    test_groups = get_build_test_groups()  
-    app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name) # get package_name from Appfile
+    test_groups = options[:firebase_test_groups]
+    app_package_name = options[:app_package_name]
 
     UI.important(find_firebase_app_id(app_identifier: app_package_name))
 
-    # Modify the source code with the new app version and build number before we compile the iOS app. This is a good idea to do to make installing builds on a test device easier. 
-    # The iOS OS might give errors when trying to install a build of an app if the app is already installed on the device. Having unique build number or app version can avoid those errors. 
+    # Modify the source code with the new app version and build number before we compile the Android app. This is a good idea to do to make installing builds on a test device easier.
+    # The Android OS might give errors when trying to install a build of an app if the app is already installed on the device. Having unique build number or app version can avoid those errors.
     android_set_version_name(
       version_name: new_app_version,
       gradle_file: path_to_app_gradle_file
@@ -34,19 +30,21 @@ platform :android do
       gradle_file: path_to_app_gradle_file
     )
 
-    UI.important("Updating the SDK's source code version to non-production version. This allows the sample apps to show the SDK version at runtime for app user to better understand the version of the SDK they are running.")
-    sh("../../../scripts/update-version.sh \"#{new_app_version}.#{new_build_number}\"")
+    if !options.key?(:sdk_version)
+        UI.important("Updating the SDK's source code version to non-production version. This allows the sample apps to show the SDK version at runtime for app user to better understand the version of the SDK they are running.")
+        sh("../../../scripts/update-version.sh \"#{new_app_version}.#{new_build_number}\"")
+    end
 
     build_android_app(
       task: ":samples:#{name_of_sample_app_module}:assemble",
       build_type: 'Release',
-      gradle_path: '../../gradlew' # path to root directory of the SDK. Where gradlew is located 
+      gradle_path: '../../gradlew' # path to root directory of the SDK. Where gradlew is located
     )
 
-    # function 'setup_google_bucket_access' is a re-usable function inside of apple-code-signing Fastfile that we imported. 
-    # This allows you to create a temporary file from a GitHub secret for added convenience. 
-    # When uploading the build to Firebase App Distribution, the CI server needs to authenticate with Firebase. This is done with a 
-    # Google Cloud Service Account json creds file. The base64 encoded value of this service account file is stored as this secret.  
+    # function 'setup_google_bucket_access' is a re-usable function inside of apple-code-signing Fastfile that we imported.
+    # This allows you to create a temporary file from a GitHub secret for added convenience.
+    # When uploading the build to Firebase App Distribution, the CI server needs to authenticate with Firebase. This is done with a
+    # Google Cloud Service Account json creds file. The base64 encoded value of this service account file is stored as this secret.
     service_credentials_file_path = setup_google_bucket_access(
       environment_variable_key: "FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64"
     )
@@ -57,5 +55,39 @@ platform :android do
       groups: test_groups,
       release_notes: build_notes
     )
-  end 
-end 
+end
+
+platform :android do 
+  lane :build do |values|
+    # Get the name of the Gradle module for the sample app. We need this later when building it. 
+    # The name of the gradle module is the name of the directory where the sample app source code is hosted in `samples/`. 
+    path_to_root_directory_sample_app = File.expand_path('../', Dir.pwd) # We are currently in `samples/N/fastlane/` and we need the directory name `samples/N``
+    name_of_sample_app_module = File.basename(path_to_root_directory_sample_app) # just get the name of the directory I am in now. `samples/N`
+
+    new_app_version = get_new_app_version()
+    test_groups = get_build_test_groups()
+    app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name) # get package_name from Appfile
+
+    build_sample_app(
+        sample_app_name: name_of_sample_app_module,
+        app_version: new_app_version,
+        firebase_test_groups: test_groups,
+        app_package_name: app_package_name
+    )
+  end
+
+  lane :build_sample_app_for_sdk_release do |values|
+     # Apps use `build.gradle` or `build.kts`. This wildcard lookup is used to get the absolute path to one of these files present
+     path_to_app_gradle_file = File.expand_path(Dir.glob("../build.*").first, Dir.pwd)
+
+     new_app_version = values[:sdk_version]
+
+    build_sample_app(
+        sample_app_name: 'java_layout',
+        app_version: new_app_version,
+        firebase_test_groups: 'public, stable-builds',
+        app_package_name: 'io.customer.android.sample.java_layout',
+        sdk_version: values[:sdk_version]
+    )
+  end
+end

@@ -1,11 +1,11 @@
-name: Build sample apps 
+name: Build sample apps
 
-on: 
+on:
   pull_request: # build sample apps for every commit pushed to an open pull request (including drafts)
-  push: 
-    branches: [main, feature/*] 
+  push:
+    branches: [ main, feature/* ]
   release: # build sample apps for every git tag created. These are known as "stable" builds that are suitable for people outside the mobile team. 
-    types: [published]
+    types: [ published ]
 
 concurrency: # cancel previous workflow run if one exists. 
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,106 +20,35 @@ jobs:
     outputs:
       comment-id: ${{ steps.create-comment.outputs.comment-id }}
     steps:
-    - name: Find Comment
-      uses: peter-evans/find-comment@v3
-      id: existing-comment
-      with:
-        issue-number: ${{ github.event.pull_request.number }}
-        comment-author: 'github-actions[bot]'
-        body-includes: <!-- sample app builds --> 
-    
-    - name: Create or update comment
-      uses: peter-evans/create-or-update-comment@v4
-      id: create-comment
-      with:
-        comment-id: ${{ steps.existing-comment.outputs.comment-id }}
-        issue-number: ${{ github.event.pull_request.number }}
-        body: |
-          <!-- sample app builds --> 
-          # Sample app builds 📱
-          
-          Below you will find the list of the latest versions of the sample apps. It's recommended to always download the latest builds of the sample apps to accurately test the pull request. 
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3
+        id: existing-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: <!-- sample app builds -->
 
-          ---
-          ${{ steps.build.outputs.build-log }}
-        edit-mode: replace # replace the existing comment with new content since we are creating new builds 
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        id: create-comment
+        with:
+          comment-id: ${{ steps.existing-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <!-- sample app builds --> 
+            # Sample app builds 📱
+            
+            Below you will find the list of the latest versions of the sample apps. It's recommended to always download the latest builds of the sample apps to accurately test the pull request. 
+            
+            ---
+            ${{ steps.build.outputs.build-log }}
+          edit-mode: replace # replace the existing comment with new content since we are creating new builds
 
   build-sample-apps:
-    if: ${{ always() }} # do not skip running this step if update-pr-comment does not run 
-    needs: [update-pr-comment] # wait for PR comment to be created saying new builds are being made. 
-    permissions:
-      pull-requests: write # comment on pull request with build information 
-    strategy:
-      fail-fast: false # if one sample app fails to build, let the other sample apps continue to build and not cancel them. 
-      matrix: # Use a matrix allowing us to build multiple apps in parallel. Just add an entry to the matrix and it will build! 
-        sample-app: 
-        # List all sample apps you want to have compiled. 
-        # List item is name of directory inside of "samples" directory for the corresponding app to compile. 
-        - "java_layout"
-        - "kotlin_compose"
-        include: # Add additional variables to each sample app build: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
-        - sample-app: "java_layout"
-          cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
-          cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
-        - sample-app: "kotlin_compose"
-          cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
-          cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
+    if: ${{ always() }} # do not skip running this step if update-pr-comment does not run
+    needs: [ update-pr-comment ] # wait for PR comment to be created saying new builds are being made.
+    uses: ./.github/workflows/reusable_build_sample_apps.yml
+    with:
+      use_latest_sdk_version: false
+    secrets: inherit
 
-    runs-on: ubuntu-latest
-    name: Building app...${{ matrix.sample-app }}
-    steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/actions/setup-android
-
-    # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries. 
-    # If using sd on macos, "brew install" works great. for Linux, this is the recommended way. 
-    - name: Install sd CLI to use later in the workflow 
-      # uses: kenji-miyake/setup-sd@v1
-      uses: levibostian/setup-sd@add-file-extension # Using fork until upstream Action has bug fixed in it. 
-    
-    - name: Install tools from Gemfile (ruby language) used for building our apps with 
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.0'
-        bundler-cache: true # cache tools to make builds faster in future 
-
-    - name: Setup local.properties file for sample app
-      run: |
-        touch "samples/local.properties"
-        echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
-        echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
-
-    - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase. 
-      run: cat $GITHUB_EVENT_PATH
-
-    - name: Deploy development build via Fastlane
-      uses: maierj/fastlane-action@v3.1.0
-      with:
-        lane: 'android build'
-        subdirectory: "samples/${{ matrix.sample-app }}"
-      env:
-        ANDROID_SIGNING_ALIAS: ${{ secrets.ANDROID_SIGNING_ALIAS }}
-        ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
-        ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
-        FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64: ${{ secrets.FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64 }}
-    
-    - name: Update sample builds PR comment with build information 
-      if: ${{ github.event_name == 'pull_request' }}
-      uses: peter-evans/create-or-update-comment@v4
-      with:
-        comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
-        issue-number: ${{ github.event.pull_request.number }}
-        # the variables APP_BUILD_NUMBER, APP_VERSION_STRING are created when fastlane runs "build". 
-        body: |
-          * ${{ matrix.sample-app }}: `${{ env.APP_VERSION_STRING }} (${{ env.APP_BUILD_NUMBER }})`
-        edit-mode: append # append new line to the existing PR comment to build a list of all sample app builds. 
-
-    - name: Update sample builds PR comment with build failure message 
-      if: ${{ failure() }}
-      uses: peter-evans/create-or-update-comment@v4
-      with:
-        comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
-        issue-number: ${{ github.event.pull_request.number }}
-        body: |
-          * ${{ matrix.sample-app }}: Build failed. See [CI job logs](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}) to determine the issue and try re-building. 
-        edit-mode: append # append new line to the existing PR comment to build a list of all sample app builds. 

@@ -26,7 +26,7 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface GistQueueService {
-    @POST("/api/v1/users")
+    @POST("/api/v2/users")
     suspend fun fetchMessagesForUser(@Body body: Any = Object()): Response<List<Message>>
 
     @POST("/api/v1/logs/message/{messageId}")
@@ -69,6 +69,8 @@ class Queue : GistQueue {
                 val networkRequest = originalRequest.newBuilder()
                     .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId)
                     .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter)
+                    .addHeader(NetworkUtilities.CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase())
+                    .addHeader(NetworkUtilities.CIO_CLIENT_VERSION, SDKComponent.android().client.sdkVersion)
                     .apply {
                         state.userId?.let { userToken ->
                             addHeader(

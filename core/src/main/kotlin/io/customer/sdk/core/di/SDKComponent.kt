@@ -40,6 +40,7 @@ object SDKComponent : DiGraph() {
     }
 
     // Core dependencies
+    // testtt
     val buildEnvironment: BuildEnvironment
         get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
     val logger: Logger

@@ -27,8 +27,8 @@ jobs:
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
         env:
-          OSSRH_USERNAME: ${{ secrets.GRADLE_PUBLISH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.GRADLE_PUBLISH_PASSWORD }}
+          OSSRH_USERNAME: ${{ secrets.OSS_KEY }}
+          OSSRH_PASSWORD: ${{ secrets.OSS_PWD }}
           SIGNING_KEY_ID: ${{ secrets.GRADLE_SIGNING_KEYID }}
           SIGNING_PASSWORD: ${{ secrets.GRADLE_SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.GRADLE_SIGNING_PRIVATE_KEY }}

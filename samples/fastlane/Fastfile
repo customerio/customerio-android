@@ -64,7 +64,7 @@ platform :android do
     path_to_root_directory_sample_app = File.expand_path('../', Dir.pwd) # We are currently in `samples/N/fastlane/` and we need the directory name `samples/N``
     name_of_sample_app_module = File.basename(path_to_root_directory_sample_app) # just get the name of the directory I am in now. `samples/N`
 
-    new_app_version = get_new_app_version()
+    new_app_version = get_new_app_version().gsub("/", ".")
     test_groups = get_build_test_groups()
     app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name) # get package_name from Appfile
 

@@ -43,7 +43,7 @@ public class CustomerIOSDKConfig {
                 CioLogLevel.DEBUG,
                 Region.US.INSTANCE,
                 true,
-                true,
+                false,
                 true);
     }
 

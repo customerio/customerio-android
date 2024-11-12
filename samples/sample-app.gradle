@@ -20,10 +20,17 @@ android {
         // cdpApiKey=KEY can be used as a fallback for all sample apps
         String cdpApiKey = getConfigWithPrefix("cdpApiKey")
         String siteId = getConfigWithPrefix("siteId")
+        String sdkVersion = localProperties["sdkVersion"]
+        String branch = localProperties["branch"]
+        String commit = localProperties["commit"]
 
         // Set build config fields for API keys
         buildConfigField "String", "CDP_API_KEY", "\"${cdpApiKey}\""
         buildConfigField "String", "SITE_ID", "\"${siteId}\""
+        buildConfigField "String", "SDK_VERSION", "\"${sdkVersion}\""
+        buildConfigField "String", "BRANCH", "\"${branch}\""
+        buildConfigField "String", "COMMIT", "\"${commit}\""
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L"
     }
     // Avoid redefining signing configs in sample apps to avoid breaking release
     // builds (specially on CI servers)

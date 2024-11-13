@@ -1,3 +1,9 @@
+## [4.4.0](https://github.com/customerio/customerio-android/compare/4.3.0...4.4.0) (2024-11-13)
+
+### Features
+
+* support for large in-app messages ([#456](https://github.com/customerio/customerio-android/issues/456)) ([b8331bf](https://github.com/customerio/customerio-android/commit/b8331bf7cea27628ebbb4d3070a897e1073c789f))
+
 ## [4.3.0](https://github.com/customerio/customerio-android/compare/4.2.0...4.3.0) (2024-10-16)
 
 ### Features

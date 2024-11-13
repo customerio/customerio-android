@@ -24,3 +24,19 @@ sealed class InAppMessagingAction {
     object ClearMessageQueue : InAppMessagingAction()
     object Reset : InAppMessagingAction()
 }
+
+fun InAppMessagingAction.shouldMarkMessageAsShown(): Boolean {
+    return when (this) {
+        is InAppMessagingAction.DisplayMessage -> {
+            // Mark the message as shown if it's not persistent
+            !message.gistProperties.persistent
+        }
+
+        is InAppMessagingAction.DismissMessage -> {
+            // Mark the message as shown if it's persistent and should be logged and dismissed via close action only
+            message.gistProperties.persistent && shouldLog && viaCloseAction
+        }
+
+        else -> false
+    }
+}

@@ -34,7 +34,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                     state.event == Lifecycle.Event.ON_CREATE
                 }.collect { state ->
                     when (state.event) {
-                        Lifecycle.Event.ON_CREATE -> {
+                        Lifecycle.Event.ON_CREATE -> runCatching {
                             val intentArguments = state.activity.get()?.intent?.extras ?: return@collect
 
                             if (moduleConfig.autoTrackPushEvents) {

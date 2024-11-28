@@ -99,6 +99,7 @@ internal class EngineWebView @JvmOverloads constructor(
                     // post message to webview with the configuration data so that the message can be rendered
                     val script = """
                     window.postMessage($jsonString, '*');
+                    window.parent.postMessage = function(message) {window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message))}
                 """.trim()
                     view.evaluateJavascript(script) { result ->
                         logger.debug("JavaScript execution result: $result")

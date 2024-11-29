@@ -1,3 +1,9 @@
+## [4.4.1](https://github.com/customerio/customerio-android/compare/4.4.0...4.4.1) (2024-11-29)
+
+### Bug Fixes
+
+* Fixes issue with legacy renderer bridge ([#469](https://github.com/customerio/customerio-android/issues/469)) ([ecd89dd](https://github.com/customerio/customerio-android/commit/ecd89ddbeb0abe9f6bac8704ee6be66410c0837c))
+
 ## [4.4.0](https://github.com/customerio/customerio-android/compare/4.3.0...4.4.0) (2024-11-13)
 
 ### Features

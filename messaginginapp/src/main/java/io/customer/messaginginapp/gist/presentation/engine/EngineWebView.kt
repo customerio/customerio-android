@@ -96,22 +96,18 @@ internal class EngineWebView @JvmOverloads constructor(
 
             it.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String?) {
-                    // post message to webview with the configuration data so that the message can be rendered
                     val script = """
-                    window.postMessage($jsonString, '*');
-                    val script = """
-    // Post the JSON message to the current frame's listeners
-    // Ensures internal JavaScript communication via window.addEventListener('message') remains functional
-    window.postMessage($jsonString, '*');
-    
-    // Override window.parent.postMessage to route messages to the native Android interface
-    // This is necessary only for legacy message because WebView can only attach one native interface 
-    // and we have already added it as ${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.
-    window.parent.postMessage = function(message) {
-        window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage($jsonString);
-    }
-""".trim()
-                """.trim()
+                        // Post the JSON message to the current frame's listeners
+                        // Ensures internal JavaScript communication via window.addEventListener('message') remains functional
+                        window.postMessage($jsonString, '*');
+                        
+                        // Override window.parent.postMessage to route messages to the native Android interface
+                        // This is necessary only for legacy message because WebView can only attach one native interface 
+                        // and we have already added it as ${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.
+                        window.parent.postMessage = function(message) {
+                            window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message));
+                        }
+                    """.trim()
                     view.evaluateJavascript(script) { result ->
                         logger.debug("JavaScript execution result: $result")
                     }

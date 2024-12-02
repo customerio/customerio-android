@@ -40,7 +40,7 @@ public class CustomerIORepository {
         // Enables in-app messages
         if (sdkConfig.isInAppMessagingEnabled()) {
             builder.addCustomerIOModule(new ModuleMessagingInApp(
-                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
+                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion(), "Hello World")
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                             .build()
             ));

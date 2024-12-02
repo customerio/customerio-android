@@ -14,6 +14,7 @@ import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOBuilder;
 
@@ -35,12 +36,16 @@ public class CustomerIORepository {
 
         // Enable optional features of the SDK by adding desired modules.
         // Enables push notification
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+        builder.addCustomerIOModule(new ModuleMessagingPushFCM(
+            new MessagingPushModuleConfig.Builder()
+                .setChannelName("Test Channel Name")
+                .build()
+        ));
 
         // Enables in-app messages
         if (sdkConfig.isInAppMessagingEnabled()) {
             builder.addCustomerIOModule(new ModuleMessagingInApp(
-                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion(), "Hello World")
+                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                             .build()
             ));

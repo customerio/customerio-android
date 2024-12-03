@@ -161,8 +161,7 @@ internal class CustomerIOPushNotificationHandler(
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
 
-        // val channelName = moduleConfig.channelName ?: "$applicationName Notifications"
-        val channelName = moduleConfig.channelName ?: "Test name sdk"
+        val channelName = moduleConfig.channelName ?: "$applicationName Notifications"
 
         // Since android Oreo notification channel is needed.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

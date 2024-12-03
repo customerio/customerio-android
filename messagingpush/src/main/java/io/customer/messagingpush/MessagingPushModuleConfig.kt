@@ -12,16 +12,19 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
  * notifications
  * @property pushClickBehavior defines the behavior when a push notification
  * is clicked
+ * @property channelName the name of the notification channel
  */
 class MessagingPushModuleConfig private constructor(
     val autoTrackPushEvents: Boolean,
     val notificationCallback: CustomerIOPushNotificationCallback?,
-    val pushClickBehavior: PushClickBehavior
+    val pushClickBehavior: PushClickBehavior,
+    val channelName: String?
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var pushClickBehavior: PushClickBehavior = ACTIVITY_PREVENT_RESTART
+        private var channelName: String? = null
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -56,11 +59,22 @@ class MessagingPushModuleConfig private constructor(
             return this
         }
 
+        /**
+         * Sets the name of the notification channel.
+         *
+         * @param channelName the name of the notification channel
+         */
+        fun setChannelName(channelName: String): Builder {
+            this.channelName = channelName
+            return this
+        }
+
         override fun build(): MessagingPushModuleConfig {
             return MessagingPushModuleConfig(
                 autoTrackPushEvents = autoTrackPushEvents,
                 notificationCallback = notificationCallback,
-                pushClickBehavior = pushClickBehavior
+                pushClickBehavior = pushClickBehavior,
+                channelName = channelName
             )
         }
     }

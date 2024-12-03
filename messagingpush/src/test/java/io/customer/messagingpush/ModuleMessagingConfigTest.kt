@@ -71,4 +71,16 @@ class ModuleMessagingConfigTest : JUnitTest() {
         moduleConfig.notificationCallback shouldNotBe null
         moduleConfig.pushClickBehavior shouldBeEqualTo PushClickBehavior.RESET_TASK_STACK
     }
+
+    @Test
+    fun initialize_givenChannelName_expectCorrectChannelName() {
+        val channelName = "Test Channel"
+        val moduleConfig = ModuleMessagingPushFCM(
+            moduleConfig = MessagingPushModuleConfig.Builder().apply {
+                setChannelName(channelName)
+            }.build()
+        ).attachToSDKComponent().moduleConfig
+
+        moduleConfig.channelName shouldBeEqualTo channelName
+    }
 }

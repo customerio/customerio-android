@@ -38,7 +38,7 @@ public class CustomerIORepository {
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM(
             new MessagingPushModuleConfig.Builder()
-                .setChannelName("Test Channel Name")
+                .setChannelName("Set via method on builder")
                 .build()
         ));
 

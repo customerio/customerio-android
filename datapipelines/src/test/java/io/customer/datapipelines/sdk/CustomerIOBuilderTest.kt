@@ -5,9 +5,11 @@ import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.commontest.module.CustomerIOGenericModule
+import io.customer.datapipelines.config.ScreenView
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
+import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
@@ -105,6 +107,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
         dataPipelinesModuleConfig.apiHost shouldBe "cdp.customer.io/v1"
         dataPipelinesModuleConfig.cdnHost shouldBe "cdp.customer.io/v1"
         dataPipelinesModuleConfig.autoAddCustomerIODestination shouldBe true
+        dataPipelinesModuleConfig.screenViewUse shouldBe ScreenView.Analytics
     }
 
     @Test
@@ -112,6 +115,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
         val givenCdpApiKey = String.random
         val givenMigrationSiteId = String.random
         val givenRegion = Region.EU
+        val givenScreenViewUse = ScreenView.InApp
 
         createCustomerIOBuilder(givenCdpApiKey)
             .logLevel(CioLogLevel.DEBUG)
@@ -123,6 +127,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .flushAt(100)
             .flushInterval(2)
             .flushPolicies(emptyList())
+            .screenViewUse(givenScreenViewUse)
             .build()
 
         // verify the customerIOBuilder config with DataPipelinesModuleConfig
@@ -137,6 +142,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
         dataPipelinesModuleConfig.flushInterval shouldBe 2
         dataPipelinesModuleConfig.apiHost shouldBe "cdp-eu.customer.io/v1"
         dataPipelinesModuleConfig.cdnHost shouldBe "cdp-eu.customer.io/v1"
+        dataPipelinesModuleConfig.screenViewUse shouldBe givenScreenViewUse
 
         // verify the shared logger has updated log level
         SDKComponent.logger.logLevel shouldBe CioLogLevel.DEBUG
@@ -163,6 +169,13 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .build()
 
         CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldBe null
+    }
+
+    @Test
+    fun build_givenModuleInitialized_expectScreenFilterPluginPluginAdded() {
+        createCustomerIOBuilder().build()
+
+        CustomerIO.instance().analytics.find(ScreenFilterPlugin::class) shouldNotBe null
     }
 
     @Test

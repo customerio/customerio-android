@@ -137,6 +137,7 @@ public class InternalSettingsActivity extends BaseActivity<ActivityInternalSetti
                 currentSettings.isDeviceAttributesTrackingEnabled(),
                 currentSettings.getLogLevel(),
                 currentSettings.getRegion(),
+                currentSettings.getScreenViewUse(),
                 currentSettings.isApplicationLifecycleTrackingEnabled(),
                 currentSettings.isTestModeEnabled(),
                 currentSettings.isInAppMessagingEnabled()

@@ -194,7 +194,7 @@ class CustomerIO private constructor(
         }
 
         // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = this.userId
+        val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 

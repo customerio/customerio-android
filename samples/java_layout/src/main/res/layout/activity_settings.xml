@@ -235,6 +235,47 @@
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
                 <TextView
+                    android:id="@+id/screen_view_use_settings_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/screen_view_use_settings_label"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_track_app_lifecycle_values_group" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/screen_view_use_settings_values_group"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_small"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/screen_view_use_settings_label"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_screen_view_use_analytics_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/screen_view_use_settings_analytics" />
+
+                    <Button
+                        android:id="@+id/settings_screen_view_use_in_app_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/screen_view_use_settings_in_app" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
                     android:id="@+id/settings_features_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -242,7 +283,7 @@
                     android:text="@string/features"
                     android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
                     app:layout_constraintLeft_toLeftOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/settings_track_app_lifecycle_values_group" />
+                    app:layout_constraintTop_toBottomOf="@+id/screen_view_use_settings_values_group" />
 
                 <TextView
                     android:id="@+id/settings_in_app_messaging_label"

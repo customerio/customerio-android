@@ -5,7 +5,7 @@ package io.customer.datapipelines.config
  */
 enum class ScreenView {
     /**
-     * Screen view events are sent to our back end servers for analytics purposes.
+     * Screen view events are sent to destinations for analytics purposes.
      */
     Analytics,
 

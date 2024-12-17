@@ -6,11 +6,13 @@ package io.customer.datapipelines.config
 sealed class ScreenView(val name: String) {
     /**
      * Screen view events are sent to destinations for analytics purposes.
+     * They are also used to display in-app messages based on page rules.
      */
     object All : ScreenView(name = "all")
 
     /**
-     * Screen view events are kept on device only. They are used to display in-app messages based on page rules. Events are not sent to our back end servers.
+     * Screen view events are kept on device only. They are used to display in-app messages based on
+     * page rules. Events are not sent to our back end servers.
      */
 
     object InApp : ScreenView(name = "inapp")

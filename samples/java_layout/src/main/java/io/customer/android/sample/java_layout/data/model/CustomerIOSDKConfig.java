@@ -11,6 +11,7 @@ import java.util.Map;
 import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.android.sample.java_layout.utils.StringUtils;
+import io.customer.datapipelines.config.ScreenView;
 import io.customer.datapipelines.extensions.RegionExtKt;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
@@ -28,6 +29,7 @@ public class CustomerIOSDKConfig {
         static final String TRACK_DEVICE_ATTRIBUTES = "cio_sdk_track_device_attributes";
         static final String LOG_LEVEL = "cio_sdk_log_level";
         static final String REGION = "cio_sdk_region";
+        static final String SCREEN_VIEW_USE = "cio_sdk_screen_view_use";
         static final String TRACK_APPLICATION_LIFECYCLE = "cio_sdk_track_application_lifecycle";
         static final String TEST_MODE_ENABLED = "cio_sdk_test_mode";
         static final String IN_APP_MESSAGING_ENABLED = "cio_sdk_in_app_messaging_enabled";
@@ -42,6 +44,7 @@ public class CustomerIOSDKConfig {
                 true,
                 CioLogLevel.DEBUG,
                 Region.US.INSTANCE,
+                ScreenView.All.INSTANCE,
                 true,
                 false,
                 true);
@@ -62,6 +65,7 @@ public class CustomerIOSDKConfig {
         boolean deviceAttributesTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_DEVICE_ATTRIBUTES), defaultConfig.deviceAttributesTrackingEnabled);
         CioLogLevel logLevel = CioLogLevel.Companion.getLogLevel(bundle.get(Keys.LOG_LEVEL), CioLogLevel.DEBUG);
         Region region = Region.Companion.getRegion(bundle.get(Keys.REGION), Region.US.INSTANCE);
+        ScreenView screenViewUse = ScreenView.Companion.getScreenView(bundle.get(Keys.SCREEN_VIEW_USE));
         boolean applicationLifecycleTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_APPLICATION_LIFECYCLE), defaultConfig.applicationLifecycleTrackingEnabled);
         boolean testModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.TEST_MODE_ENABLED), defaultConfig.testModeEnabled);
         boolean inAppMessagingEnabled = StringUtils.parseBoolean(bundle.get(Keys.IN_APP_MESSAGING_ENABLED), defaultConfig.inAppMessagingEnabled);
@@ -74,6 +78,7 @@ public class CustomerIOSDKConfig {
                 deviceAttributesTrackingEnabled,
                 logLevel,
                 region,
+                screenViewUse,
                 applicationLifecycleTrackingEnabled,
                 testModeEnabled,
                 inAppMessagingEnabled);
@@ -91,6 +96,7 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
         bundle.put(Keys.LOG_LEVEL, config.logLevel.name());
         bundle.put(Keys.REGION, config.getRegion().getCode());
+        bundle.put(Keys.SCREEN_VIEW_USE, config.getScreenViewUse().getName());
         bundle.put(Keys.TRACK_APPLICATION_LIFECYCLE, StringUtils.fromBoolean(config.applicationLifecycleTrackingEnabled));
         bundle.put(Keys.TEST_MODE_ENABLED, StringUtils.fromBoolean(config.testModeEnabled));
         bundle.put(Keys.IN_APP_MESSAGING_ENABLED, StringUtils.fromBoolean(config.inAppMessagingEnabled));
@@ -111,6 +117,7 @@ public class CustomerIOSDKConfig {
     private final CioLogLevel logLevel;
     @NonNull
     private final Region region;
+    private final ScreenView screenViewUse;
     private final boolean applicationLifecycleTrackingEnabled;
     private final boolean testModeEnabled;
     private final boolean inAppMessagingEnabled;
@@ -123,6 +130,7 @@ public class CustomerIOSDKConfig {
                                boolean deviceAttributesTrackingEnabled,
                                @NonNull CioLogLevel logLevel,
                                @NonNull Region region,
+                               @NonNull ScreenView screenViewUse,
                                boolean applicationLifecycleTrackingEnabled,
                                boolean testModeEnabled,
                                boolean inAppMessagingEnabled) {
@@ -134,6 +142,7 @@ public class CustomerIOSDKConfig {
         this.deviceAttributesTrackingEnabled = deviceAttributesTrackingEnabled;
         this.logLevel = logLevel;
         this.region = region;
+        this.screenViewUse = screenViewUse;
         this.applicationLifecycleTrackingEnabled = applicationLifecycleTrackingEnabled;
         this.testModeEnabled = testModeEnabled;
         this.inAppMessagingEnabled = inAppMessagingEnabled;
@@ -187,5 +196,10 @@ public class CustomerIOSDKConfig {
     @NonNull
     public Region getRegion() {
         return region;
+    }
+
+    @NonNull
+    public ScreenView getScreenViewUse() {
+        return screenViewUse;
     }
 }

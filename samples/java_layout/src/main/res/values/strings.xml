@@ -82,5 +82,6 @@
     <!--Internal settings screen-->
     <string name="label_internal_settings_activity">InternalSettingsActivity</string>
     <string name="error_url_input_field">This field must be a valid URL</string>
+    <string name="screen_view_use_settings_label">ScreenView use</string>
 
 </resources>

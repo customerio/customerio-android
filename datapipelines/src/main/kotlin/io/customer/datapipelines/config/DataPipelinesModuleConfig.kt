@@ -27,7 +27,9 @@ class DataPipelinesModuleConfig(
     // Track screen views for Activities
     val autoTrackActivityScreens: Boolean,
     // Configuration options required for migration from earlier versions
-    val migrationSiteId: String? = null
+    val migrationSiteId: String? = null,
+    // Determines how SDK should handle screen view events
+    val screenViewUse: ScreenView
 ) : CustomerIOModuleConfig {
     val apiHost: String = apiHostOverride ?: region.apiHost()
     val cdnHost: String = cdnHostOverride ?: region.cdnHost()

@@ -21,6 +21,7 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
+import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -120,6 +121,9 @@ class CustomerIO private constructor(
         }
         // Add plugin to publish events to EventBus for other modules to consume
         analytics.add(DataPipelinePublishedEvents())
+
+        // Add plugin to filter events based on SDK configuration
+        analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()

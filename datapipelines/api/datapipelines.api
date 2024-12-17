@@ -1,6 +1,6 @@
 public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
-	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getApiHost ()Ljava/lang/String;
 	public final fun getAutoAddCustomerIODestination ()Z
 	public final fun getAutoTrackActivityScreens ()Z
@@ -11,7 +11,28 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 	public final fun getFlushInterval ()I
 	public final fun getFlushPolicies ()Ljava/util/List;
 	public final fun getMigrationSiteId ()Ljava/lang/String;
+	public final fun getScreenViewUse ()Lio/customer/datapipelines/config/ScreenView;
 	public final fun getTrackApplicationLifecycleEvents ()Z
+}
+
+public abstract class io/customer/datapipelines/config/ScreenView {
+	public static final field Companion Lio/customer/datapipelines/config/ScreenView$Companion;
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getName ()Ljava/lang/String;
+}
+
+public final class io/customer/datapipelines/config/ScreenView$All : io/customer/datapipelines/config/ScreenView {
+	public static final field INSTANCE Lio/customer/datapipelines/config/ScreenView$All;
+}
+
+public final class io/customer/datapipelines/config/ScreenView$Companion {
+	public final fun getScreenView (Ljava/lang/String;)Lio/customer/datapipelines/config/ScreenView;
+	public final fun getScreenView (Ljava/lang/String;Lio/customer/datapipelines/config/ScreenView;)Lio/customer/datapipelines/config/ScreenView;
+	public static synthetic fun getScreenView$default (Lio/customer/datapipelines/config/ScreenView$Companion;Ljava/lang/String;Lio/customer/datapipelines/config/ScreenView;ILjava/lang/Object;)Lio/customer/datapipelines/config/ScreenView;
+}
+
+public final class io/customer/datapipelines/config/ScreenView$InApp : io/customer/datapipelines/config/ScreenView {
+	public static final field INSTANCE Lio/customer/datapipelines/config/ScreenView$InApp;
 }
 
 public final class io/customer/datapipelines/extensions/JsonExtensionsKt {
@@ -183,6 +204,7 @@ public final class io/customer/sdk/CustomerIOBuilder {
 	public final fun logLevel (Lio/customer/sdk/core/util/CioLogLevel;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun migrationSiteId (Ljava/lang/String;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun region (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIOBuilder;
+	public final fun screenViewUse (Lio/customer/datapipelines/config/ScreenView;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun trackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOBuilder;
 }
 

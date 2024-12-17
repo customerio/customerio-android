@@ -3,6 +3,7 @@ package io.customer.sdk
 import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.config.ScreenView
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
@@ -68,6 +69,9 @@ class CustomerIOBuilder(
 
     // Configuration options required for migration from earlier versions
     private var migrationSiteId: String? = null
+
+    // Determines how SDK should handle screen view events
+    private var screenViewUse: ScreenView = ScreenView.All
 
     /**
      * Specifies the log level for the SDK.
@@ -167,6 +171,16 @@ class CustomerIOBuilder(
         return this
     }
 
+    /**
+     * Set the screen view configuration for the SDK.
+     *
+     * @see ScreenView for more details.
+     */
+    fun screenViewUse(screenView: ScreenView): CustomerIOBuilder {
+        this.screenViewUse = screenView
+        return this
+    }
+
     fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): CustomerIOBuilder {
         registeredModules.add(module)
         return this
@@ -191,7 +205,8 @@ class CustomerIOBuilder(
             trackApplicationLifecycleEvents = trackApplicationLifecycleEvents,
             autoTrackDeviceAttributes = autoTrackDeviceAttributes,
             autoTrackActivityScreens = autoTrackActivityScreens,
-            migrationSiteId = migrationSiteId
+            migrationSiteId = migrationSiteId,
+            screenViewUse = screenViewUse
         )
 
         // Initialize CustomerIO instance before initializing the modules

@@ -17,6 +17,7 @@ import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.datapipelines.config.ScreenView;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -53,6 +54,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     @Override
     protected void setupContent() {
+        prepareViews();
         prepareViewsForAutomatedTests();
         setupViews();
         setupObservers();
@@ -82,6 +84,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             }
         }
         isLinkParamsPopulated = true;
+    }
+
+    private void prepareViews() {
+        binding.settingsScreenViewUseAllButton.setText(ScreenView.All.INSTANCE.getName());
+        binding.settingsScreenViewUseInAppButton.setText(ScreenView.InApp.INSTANCE.getName());
     }
 
     private void prepareViewsForAutomatedTests() {
@@ -128,6 +135,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         binding.settingsTrackDeviceAttrsValuesGroup.check(getCheckedAutoTrackDeviceAttributesButtonId(config.isDeviceAttributesTrackingEnabled()));
         binding.settingsTrackScreenViewsValuesGroup.check(getCheckedTrackScreenViewsButtonId(config.isScreenTrackingEnabled()));
         binding.settingsTrackAppLifecycleValuesGroup.check(getCheckedTrackAppLifecycleButtonId(config.isApplicationLifecycleTrackingEnabled()));
+        binding.screenViewUseSettingsValuesGroup.check(getCheckedScreenViewUseButtonId(config.getScreenViewUse()));
         binding.settingsLogLevelValuesGroup.check(getCheckedLogLevelButtonId(config.getLogLevel()));
         binding.settingsTestModeValuesGroup.check(getCheckedTestModeButtonId(config.isTestModeEnabled()));
         binding.settingsInAppMessagingValuesGroup.check(getCheckedInAppMessagingButtonId(config.isInAppMessagingEnabled()));
@@ -173,6 +181,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         boolean featInAppMessagingEnabled = binding.settingsInAppMessagingValuesGroup.getCheckedButtonId() == R.id.settings_in_app_messaging_yes_button;
         CioLogLevel logLevel = getSelectedLogLevel();
         Region region = getSelectedRegion();
+        ScreenView screenViewUse = getSelectedScreenViewUse();
 
         return new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
@@ -182,6 +191,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                 featTrackDeviceAttributes,
                 logLevel,
                 region,
+                screenViewUse,
                 featTrackApplicationLifecycle,
                 featTestModeEnabled,
                 featInAppMessagingEnabled);
@@ -209,6 +219,18 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             return Region.US.INSTANCE;
         } else if (checkedButton == R.id.settings_region_eu_button) {
             return Region.EU.INSTANCE;
+        }
+        throw new IllegalStateException();
+    }
+
+
+    @NonNull
+    private ScreenView getSelectedScreenViewUse() {
+        int checkedButton = binding.screenViewUseSettingsValuesGroup.getCheckedButtonId();
+        if (checkedButton == R.id.settings_screen_view_use_all_button) {
+            return ScreenView.All.INSTANCE;
+        } else if (checkedButton == R.id.settings_screen_view_use_in_app_button) {
+            return ScreenView.InApp.INSTANCE;
         }
         throw new IllegalStateException();
     }
@@ -254,6 +276,13 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     private int getCheckedRegionButtonId(@NonNull Region region) {
         return region instanceof Region.US ? R.id.settings_region_us_button
                 : R.id.settings_region_eu_button;
+    }
+
+    private int getCheckedScreenViewUseButtonId(@NonNull ScreenView screenViewUse) {
+        if (screenViewUse instanceof ScreenView.InApp) {
+            return R.id.settings_screen_view_use_in_app_button;
+        }
+        return R.id.settings_screen_view_use_all_button;
     }
 
     private boolean updateErrorState(TextInputLayout textInputLayout,

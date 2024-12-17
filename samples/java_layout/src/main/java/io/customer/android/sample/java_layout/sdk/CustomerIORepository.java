@@ -77,6 +77,7 @@ public class CustomerIORepository {
         builder.trackApplicationLifecycleEvents(sdkConfig.isApplicationLifecycleTrackingEnabled());
         builder.region(sdkConfig.getRegion());
         builder.logLevel(sdkConfig.getLogLevel());
+        builder.screenViewUse(sdkConfig.getScreenViewUse());
     }
 
     public void identify(@NonNull String email, @NonNull Map<String, String> attributes) {

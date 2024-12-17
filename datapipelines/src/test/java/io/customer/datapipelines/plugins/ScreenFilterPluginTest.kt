@@ -36,7 +36,7 @@ class ScreenFilterPluginTest : JUnitTest() {
 
     @Test
     fun process_givenScreenViewUseAnalytics_expectScreenEventWithoutPropertiesProcessed() {
-        setupWithConfig(screenViewUse = ScreenView.Analytics)
+        setupWithConfig(screenViewUse = ScreenView.All)
 
         val givenScreenTitle = String.random
         sdkInstance.screen(givenScreenTitle)
@@ -48,7 +48,7 @@ class ScreenFilterPluginTest : JUnitTest() {
 
     @Test
     fun process_givenScreenViewUseAnalytics_expectScreenEventWithPropertiesProcessed() {
-        setupWithConfig(screenViewUse = ScreenView.Analytics)
+        setupWithConfig(screenViewUse = ScreenView.All)
 
         val givenScreenTitle = String.random
         val givenProperties: CustomAttributes = mapOf("source" to "push", "discount" to 10)

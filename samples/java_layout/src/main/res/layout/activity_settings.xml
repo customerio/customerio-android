@@ -259,12 +259,12 @@
                     app:singleSelection="true">
 
                     <Button
-                        android:id="@+id/settings_screen_view_use_analytics_button"
+                        android:id="@+id/settings_screen_view_use_all_button"
                         style="?attr/materialButtonOutlinedStyle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/screen_view_use_settings_analytics" />
+                        tools:text="All" />
 
                     <Button
                         android:id="@+id/settings_screen_view_use_in_app_button"
@@ -272,7 +272,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/screen_view_use_settings_in_app" />
+                        tools:text="InApp" />
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
                 <TextView

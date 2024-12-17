@@ -54,6 +54,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
 
     @Override
     protected void setupContent() {
+        prepareViews();
         prepareViewsForAutomatedTests();
         setupViews();
         setupObservers();
@@ -83,6 +84,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             }
         }
         isLinkParamsPopulated = true;
+    }
+
+    private void prepareViews() {
+        binding.settingsScreenViewUseAllButton.setText(ScreenView.All.INSTANCE.getName());
+        binding.settingsScreenViewUseInAppButton.setText(ScreenView.InApp.INSTANCE.getName());
     }
 
     private void prepareViewsForAutomatedTests() {
@@ -221,10 +227,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     @NonNull
     private ScreenView getSelectedScreenViewUse() {
         int checkedButton = binding.screenViewUseSettingsValuesGroup.getCheckedButtonId();
-        if (checkedButton == R.id.settings_screen_view_use_analytics_button) {
-            return ScreenView.Analytics;
+        if (checkedButton == R.id.settings_screen_view_use_all_button) {
+            return ScreenView.All.INSTANCE;
         } else if (checkedButton == R.id.settings_screen_view_use_in_app_button) {
-            return ScreenView.InApp;
+            return ScreenView.InApp.INSTANCE;
         }
         throw new IllegalStateException();
     }
@@ -273,13 +279,10 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private int getCheckedScreenViewUseButtonId(@NonNull ScreenView screenViewUse) {
-        switch (screenViewUse) {
-            case InApp:
-                return R.id.settings_screen_view_use_in_app_button;
-            case Analytics:
-            default:
-                return R.id.settings_screen_view_use_analytics_button;
+        if (screenViewUse instanceof ScreenView.InApp) {
+            return R.id.settings_screen_view_use_in_app_button;
         }
+        return R.id.settings_screen_view_use_all_button;
     }
 
     private boolean updateErrorState(TextInputLayout textInputLayout,

@@ -19,7 +19,7 @@ internal class ScreenFilterPlugin(private val screenViewUse: ScreenView) : Event
         // Filter out screen events based on the configuration provided by customer app
         // Using when expression so it enforce right check for all possible values of ScreenView in future
         return when (screenViewUse) {
-            ScreenView.Analytics -> payload
+            ScreenView.All -> payload
             // Do not send screen events to server if ScreenView is not Analytics
             ScreenView.InApp -> null
         }

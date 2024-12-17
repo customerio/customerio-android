@@ -44,7 +44,7 @@ public class CustomerIOSDKConfig {
                 true,
                 CioLogLevel.DEBUG,
                 Region.US.INSTANCE,
-                ScreenView.Analytics,
+                ScreenView.All.INSTANCE,
                 true,
                 false,
                 true);
@@ -96,7 +96,7 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.TRACK_DEVICE_ATTRIBUTES, StringUtils.fromBoolean(config.deviceAttributesTrackingEnabled));
         bundle.put(Keys.LOG_LEVEL, config.logLevel.name());
         bundle.put(Keys.REGION, config.getRegion().getCode());
-        bundle.put(Keys.SCREEN_VIEW_USE, config.getScreenViewUse().name());
+        bundle.put(Keys.SCREEN_VIEW_USE, config.getScreenViewUse().getName());
         bundle.put(Keys.TRACK_APPLICATION_LIFECYCLE, StringUtils.fromBoolean(config.applicationLifecycleTrackingEnabled));
         bundle.put(Keys.TEST_MODE_ENABLED, StringUtils.fromBoolean(config.testModeEnabled));
         bundle.put(Keys.IN_APP_MESSAGING_ENABLED, StringUtils.fromBoolean(config.inAppMessagingEnabled));

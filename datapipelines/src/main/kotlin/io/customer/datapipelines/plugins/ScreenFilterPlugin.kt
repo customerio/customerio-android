@@ -11,7 +11,7 @@ import io.customer.datapipelines.config.ScreenView
  * Plugin to filter screen events based on the configuration provided by customer app.
  * This plugin is used to filter out screen events that should not be processed further.
  */
-class ScreenFilterPlugin(private val screenViewUse: ScreenView) : EventPlugin {
+internal class ScreenFilterPlugin(private val screenViewUse: ScreenView) : EventPlugin {
     override lateinit var analytics: Analytics
     override val type: Plugin.Type = Plugin.Type.Enrichment
 

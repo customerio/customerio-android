@@ -151,24 +151,6 @@ public final class io/customer/datapipelines/plugins/PluginExtensionsKt {
 	public static final fun findInContextAtPath (Lcom/segment/analytics/kotlin/core/BaseEvent;Ljava/lang/String;)Ljava/util/List;
 }
 
-public final class io/customer/datapipelines/plugins/ScreenFilterPlugin : com/segment/analytics/kotlin/core/platform/EventPlugin {
-	public field analytics Lcom/segment/analytics/kotlin/core/Analytics;
-	public fun <init> (Lio/customer/datapipelines/config/ScreenView;)V
-	public fun alias (Lcom/segment/analytics/kotlin/core/AliasEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
-	public fun execute (Lcom/segment/analytics/kotlin/core/BaseEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
-	public fun flush ()V
-	public fun getAnalytics ()Lcom/segment/analytics/kotlin/core/Analytics;
-	public fun getType ()Lcom/segment/analytics/kotlin/core/platform/Plugin$Type;
-	public fun group (Lcom/segment/analytics/kotlin/core/GroupEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
-	public fun identify (Lcom/segment/analytics/kotlin/core/IdentifyEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
-	public fun reset ()V
-	public fun screen (Lcom/segment/analytics/kotlin/core/ScreenEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
-	public fun setAnalytics (Lcom/segment/analytics/kotlin/core/Analytics;)V
-	public fun setup (Lcom/segment/analytics/kotlin/core/Analytics;)V
-	public fun track (Lcom/segment/analytics/kotlin/core/TrackEvent;)Lcom/segment/analytics/kotlin/core/BaseEvent;
-	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
-}
-
 public final class io/customer/datapipelines/plugins/StringExtensionsKt {
 	public static final fun getScreenNameFromActivity (Ljava/lang/String;)Ljava/lang/String;
 }

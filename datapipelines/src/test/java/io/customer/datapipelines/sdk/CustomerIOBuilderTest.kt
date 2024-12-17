@@ -107,7 +107,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
         dataPipelinesModuleConfig.apiHost shouldBe "cdp.customer.io/v1"
         dataPipelinesModuleConfig.cdnHost shouldBe "cdp.customer.io/v1"
         dataPipelinesModuleConfig.autoAddCustomerIODestination shouldBe true
-        dataPipelinesModuleConfig.screenViewUse shouldBe ScreenView.Analytics
+        dataPipelinesModuleConfig.screenViewUse shouldBe ScreenView.All
     }
 
     @Test

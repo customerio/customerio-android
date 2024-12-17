@@ -71,7 +71,7 @@ class CustomerIOBuilder(
     private var migrationSiteId: String? = null
 
     // Determines how SDK should handle screen view events
-    private var screenViewUse: ScreenView = ScreenView.Analytics
+    private var screenViewUse: ScreenView = ScreenView.All
 
     /**
      * Specifies the log level for the SDK.

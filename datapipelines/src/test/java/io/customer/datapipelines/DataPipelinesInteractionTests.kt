@@ -73,6 +73,29 @@ class DataPipelinesInteractionTests : JUnitTest() {
     }
 
     @Test
+    fun identify_givenProfileAttributesAndNoIdentifier_expectSetNewProfileWithoutAttributes() {
+        val givenIdentifier = String.random
+
+        analytics.userId().shouldBeNull()
+        every { globalPreferenceStore.getDeviceToken() } returns String.random
+
+        sdkInstance.profileAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
+        analytics.userId() shouldBe ""
+        sdkInstance.identify(givenIdentifier)
+
+        analytics.userId().shouldBeEqualTo(givenIdentifier)
+        analytics.traits().shouldBeEqualTo(emptyJsonObject)
+
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 2
+        val identifyEvent = outputReaderPlugin.identifyEvents.lastOrNull()
+        identifyEvent.shouldNotBeNull()
+        identifyEvent.userId.shouldBeEqualTo(givenIdentifier)
+        identifyEvent.traits.shouldBeEqualTo(emptyJsonObject)
+
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
+    }
+
+    @Test
     fun identify_givenIdentifierWithMap_expectSetNewProfileWithAttributes() {
         val givenIdentifier = String.random
         val givenTraits: CustomAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)

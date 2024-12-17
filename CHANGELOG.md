@@ -1,3 +1,9 @@
+## [4.5.0](https://github.com/customerio/customerio-android/compare/4.4.1...4.5.0) (2024-12-17)
+
+### Features
+
+* add option to disable screen view usage ([#474](https://github.com/customerio/customerio-android/issues/474)) ([b5ea8e9](https://github.com/customerio/customerio-android/commit/b5ea8e91927c4e6a9aed8530227190d4eeaca7cc))
+
 ## [4.4.1](https://github.com/customerio/customerio-android/compare/4.4.0...4.4.1) (2024-11-29)
 
 ### Bug Fixes

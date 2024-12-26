@@ -76,8 +76,9 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
         val tracks = mutableListOf<TrackEvent>()
         verify { mockPlugin.track(capture(tracks)) }
         // 1. Application Installed
-        // 2. Application Opened
-        assertEquals(2, tracks.size)
+        // 2. Application Foregrounded
+        // 3. Application Opened
+        assertEquals(3, tracks.size)
         with(tracks.last()) {
             assertEquals("Application Opened", event)
             assertEquals(

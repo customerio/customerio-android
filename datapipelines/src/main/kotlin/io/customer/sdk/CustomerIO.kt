@@ -18,6 +18,7 @@ import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
+import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
@@ -115,6 +116,11 @@ class CustomerIO private constructor(
         if (moduleConfig.autoTrackActivityScreens) {
             analytics.add(AutomaticActivityScreenTrackingPlugin())
         }
+
+        if (moduleConfig.trackApplicationLifecycleEvents) {
+            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
+        }
+
         // Add auto track device attributes plugin only if enabled in config
         if (moduleConfig.autoTrackDeviceAttributes) {
             analytics.add(AutoTrackDeviceAttributesPlugin())

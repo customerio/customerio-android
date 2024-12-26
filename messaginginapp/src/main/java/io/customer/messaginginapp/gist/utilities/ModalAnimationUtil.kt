@@ -7,7 +7,7 @@ import android.view.View
 import androidx.annotation.ColorInt
 import io.customer.sdk.core.di.SDKComponent
 
-object ModalAnimationUtil {
+internal object ModalAnimationUtil {
 
     const val FALLBACK_COLOR_STRING = "#33000000"
 

@@ -1,33 +1,46 @@
 package io.customer.datapipelines.plugins
 
-import android.app.Activity
-import com.segment.analytics.kotlin.android.plugins.AndroidLifecycle
+import androidx.annotation.VisibleForTesting
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.platform.Plugin
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
+import io.customer.datapipelines.util.UiThreadRunner
 
 /**
  * Plugin that automatically tracks application lifecycle.
  *
  * At the moment, this plugin only tracks 'Application Foregrounded' event because it's the only one missing from Segment SDK
  */
-internal class AutomaticApplicationLifecycleTrackingPlugin : Plugin, AndroidLifecycle {
+internal class AutomaticApplicationLifecycleTrackingPlugin : Plugin {
+
+    constructor() : this(ProcessLifecycleOwner.get(), UiThreadRunner())
+
+    @VisibleForTesting
+    constructor(processLifecycleOwner: LifecycleOwner, uiThreadRunner: UiThreadRunner) {
+        this.processLifecycleOwner = processLifecycleOwner
+        this.uiThreadRunner = uiThreadRunner
+    }
 
     override val type: Plugin.Type = Plugin.Type.Utility
     override lateinit var analytics: Analytics
 
-    private val startedActivitiesCounter = AtomicInteger(0)
-    private val isChangingConfigurations = AtomicBoolean(false)
+    private val processLifecycleOwner: LifecycleOwner
+    private val uiThreadRunner: UiThreadRunner
 
-    override fun onActivityStarted(activity: Activity?) {
-        if (startedActivitiesCounter.incrementAndGet() == 1 && !isChangingConfigurations.get()) {
-            analytics.track("Application Foregrounded")
+    override fun setup(analytics: Analytics) {
+        super.setup(analytics)
+        uiThreadRunner.run {
+            registerProcessLifecycleObserver()
         }
     }
 
-    override fun onActivityStopped(activity: Activity?) {
-        isChangingConfigurations.set(activity?.isChangingConfigurations == true)
-        startedActivitiesCounter.decrementAndGet() // Return is ignored
+    private fun registerProcessLifecycleObserver() {
+        processLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                analytics.track("Application Foregrounded")
+            }
+        })
     }
 }

@@ -9,6 +9,7 @@ object Dependencies {
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
+    const val androidxProcessLifecycle = "androidx.lifecycle:lifecycle-process:${Versions.ANDROIDX_LIFECYCLE_PROCESS}"
     const val androidxAnnotations =
         "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
     const val apkScale = "com.twilio:apkscale:${Versions.APK_SCALE}"

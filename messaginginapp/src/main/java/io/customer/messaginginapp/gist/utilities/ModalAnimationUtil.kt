@@ -50,12 +50,11 @@ internal object ModalAnimationUtil {
         }
         target.alpha = 0f
 
-        val fallbackColor = Color.parseColor(FALLBACK_COLOR_STRING)
         val backgroundColorAnimator = ObjectAnimator.ofArgb(
             target,
             "backgroundColor",
             Color.TRANSPARENT,
-            parseColorSafely(overlayEndColor, fallbackColor)
+            parseColorSafely(overlayEndColor)
         ).apply {
             duration = COLOR_ANIMATION_DURATION
             startDelay = 0
@@ -70,9 +69,13 @@ internal object ModalAnimationUtil {
     }
 
     private fun createExitAnimation(target: View, translationYEnd: Float): AnimatorSet {
-        val fallbackColor = Color.parseColor(FALLBACK_COLOR_STRING)
         val backgroundColor = extractBackgroundColor(target)
-        val backgroundColorAnimator = ObjectAnimator.ofArgb(target, "backgroundColor", parseColorSafely(backgroundColor, fallbackColor), Color.TRANSPARENT).apply {
+        val backgroundColorAnimator = ObjectAnimator.ofArgb(
+            target,
+            "backgroundColor",
+            parseColorSafely(backgroundColor),
+            Color.TRANSPARENT
+        ).apply {
             duration = COLOR_ANIMATION_DURATION
             startDelay = 0
         }
@@ -80,10 +83,10 @@ internal object ModalAnimationUtil {
             play(backgroundColorAnimator)
         }
 
-        val translationYAnimator = ObjectAnimator.ofFloat(target, "translationY", 0f, translationYEnd).apply {
+        val translationYAnimator = ObjectAnimator.ofFloat(target, View.TRANSLATION_Y, 0f, translationYEnd).apply {
             duration = TRANSLATION_ANIMATION_DURATION
         }
-        val alphaAnimator = ObjectAnimator.ofFloat(target, "alpha", 1f, 0f).apply {
+        val alphaAnimator = ObjectAnimator.ofFloat(target, View.ALPHA, 1f, 0f).apply {
             duration = ALPHA_ANIMATION_DURATION
         }
         val translationAndAlphaSet = AnimatorSet().apply {
@@ -96,12 +99,12 @@ internal object ModalAnimationUtil {
     }
 
     @ColorInt
-    private fun parseColorSafely(color: String, @ColorInt fallbackColor: Int): Int {
+    private fun parseColorSafely(color: String): Int {
         return try {
             Color.parseColor(color)
         } catch (ignored: IllegalArgumentException) {
             logger.error(ignored.message ?: "Error parsing in-app overlay color")
-            fallbackColor
+            Color.parseColor(FALLBACK_COLOR_STRING)
         }
     }
 

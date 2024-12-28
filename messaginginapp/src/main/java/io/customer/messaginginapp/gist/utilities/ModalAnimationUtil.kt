@@ -30,18 +30,24 @@ internal object ModalAnimationUtil {
         overlayEndColor: String,
         translationYStart: Float
     ): AnimatorSet {
-        val translationYAnimator = ObjectAnimator.ofFloat(target, "translationY", translationYStart, 0f).apply {
+        val translationYAnimator = ObjectAnimator.ofFloat(target, View.TRANSLATION_Y, translationYStart, 0f).apply {
             duration = TRANSLATION_ANIMATION_DURATION
         }
-        val alphaAnimator = ObjectAnimator.ofFloat(target, "alpha", 0f, 1f).apply {
+        val alphaAnimator = ObjectAnimator.ofFloat(target, View.ALPHA, 0f, 1f).apply {
             duration = ALPHA_ANIMATION_DURATION
         }
         val translationAndAlphaSet = AnimatorSet().apply {
             playTogether(translationYAnimator, alphaAnimator)
         }
+        target.alpha = 0f
 
         val fallbackColor = Color.parseColor(FALLBACK_COLOR_STRING)
-        val backgroundColorAnimator = ObjectAnimator.ofArgb(target, "backgroundColor", Color.TRANSPARENT, parseColorSafely(overlayEndColor, fallbackColor)).apply {
+        val backgroundColorAnimator = ObjectAnimator.ofArgb(
+            target,
+            "backgroundColor",
+            Color.TRANSPARENT,
+            parseColorSafely(overlayEndColor, fallbackColor)
+        ).apply {
             duration = COLOR_ANIMATION_DURATION
             startDelay = 0
         }

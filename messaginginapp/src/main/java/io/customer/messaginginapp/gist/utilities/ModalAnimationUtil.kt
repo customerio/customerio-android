@@ -3,6 +3,7 @@ package io.customer.messaginginapp.gist.utilities
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.view.View
 import androidx.annotation.ColorInt
 import io.customer.sdk.core.di.SDKComponent
@@ -25,6 +26,14 @@ internal object ModalAnimationUtil {
         return createEnterAnimation(target, overlayEndColor, 100f)
     }
 
+    fun createAnimationSetOutToTop(target: View): AnimatorSet {
+        return createExitAnimation(target, -100f)
+    }
+
+    fun createAnimationSetOutToBottom(target: View): AnimatorSet {
+        return createExitAnimation(target, 100f)
+    }
+
     private fun createEnterAnimation(
         target: View,
         overlayEndColor: String,
@@ -41,12 +50,11 @@ internal object ModalAnimationUtil {
         }
         target.alpha = 0f
 
-        val fallbackColor = Color.parseColor(FALLBACK_COLOR_STRING)
         val backgroundColorAnimator = ObjectAnimator.ofArgb(
             target,
             "backgroundColor",
             Color.TRANSPARENT,
-            parseColorSafely(overlayEndColor, fallbackColor)
+            parseColorSafely(overlayEndColor)
         ).apply {
             duration = COLOR_ANIMATION_DURATION
             startDelay = 0
@@ -60,13 +68,52 @@ internal object ModalAnimationUtil {
         }
     }
 
+    private fun createExitAnimation(target: View, translationYEnd: Float): AnimatorSet {
+        val backgroundColor = extractBackgroundColor(target)
+        val backgroundColorAnimator = ObjectAnimator.ofArgb(
+            target,
+            "backgroundColor",
+            parseColorSafely(backgroundColor),
+            Color.TRANSPARENT
+        ).apply {
+            duration = COLOR_ANIMATION_DURATION
+            startDelay = 0
+        }
+        val colorSet = AnimatorSet().apply {
+            play(backgroundColorAnimator)
+        }
+
+        val translationYAnimator = ObjectAnimator.ofFloat(target, View.TRANSLATION_Y, 0f, translationYEnd).apply {
+            duration = TRANSLATION_ANIMATION_DURATION
+        }
+        val alphaAnimator = ObjectAnimator.ofFloat(target, View.ALPHA, 1f, 0f).apply {
+            duration = ALPHA_ANIMATION_DURATION
+        }
+        val translationAndAlphaSet = AnimatorSet().apply {
+            playTogether(translationYAnimator, alphaAnimator)
+        }
+
+        return AnimatorSet().apply {
+            playSequentially(colorSet, translationAndAlphaSet)
+        }
+    }
+
     @ColorInt
-    private fun parseColorSafely(color: String, @ColorInt fallbackColor: Int): Int {
+    private fun parseColorSafely(color: String): Int {
         return try {
             Color.parseColor(color)
         } catch (ignored: IllegalArgumentException) {
             logger.error(ignored.message ?: "Error parsing in-app overlay color")
-            fallbackColor
+            Color.parseColor(FALLBACK_COLOR_STRING)
         }
+    }
+
+    private fun extractBackgroundColor(target: View): String {
+        val backgroundDrawable = target.background
+        if (backgroundDrawable is ColorDrawable) {
+            return String.format("#%08X", backgroundDrawable.color)
+        }
+
+        return FALLBACK_COLOR_STRING
     }
 }

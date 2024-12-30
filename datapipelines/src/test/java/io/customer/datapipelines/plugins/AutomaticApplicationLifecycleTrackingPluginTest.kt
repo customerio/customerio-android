@@ -40,7 +40,7 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun `WHEN application lifecycle moves to CREATED THEN Application Foregrounded is NOT tracked`() {
+    fun onCreate_expectApplicationForegroundedEventToNotBeTracked() {
         ensureLifecycleObserverAdded()
         lifecycleObserverCaptor.captured.onCreate(mockk())
 
@@ -48,7 +48,7 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun `WHEN application lifecycle moves to STARTED THEN Application Foregrounded is tracked`() {
+    fun onStart_expectApplicationForegroundedEventToBeTracked() {
         ensureLifecycleObserverAdded()
         lifecycleObserverCaptor.captured.onStart(mockk())
 
@@ -56,7 +56,7 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun `WHEN application lifecycle moves to RESUMED THEN Application Foregrounded is NOT tracked`() {
+    fun onResume_expectApplicationForegroundedEventToNotBeTracked() {
         ensureLifecycleObserverAdded()
         lifecycleObserverCaptor.captured.onResume(mockk())
 
@@ -64,7 +64,7 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun `WHEN application lifecycle moves to PAUSED THEN Application Foregrounded is NOT tracked`() {
+    fun onPause_expectApplicationForegroundedEventToNotBeTracked() {
         ensureLifecycleObserverAdded()
         lifecycleObserverCaptor.captured.onPause(mockk())
 
@@ -72,7 +72,7 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun `WHEN application lifecycle moves to STOPPED THEN Application Foregrounded is NOT tracked`() {
+    fun onStop_expectApplicationForegroundedEventToNotBeTracked() {
         ensureLifecycleObserverAdded()
         lifecycleObserverCaptor.captured.onStop(mockk())
 
@@ -80,7 +80,7 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun `WHEN application lifecycle moves to DESTROYED THEN Application Foregrounded is NOT tracked`() {
+    fun onDestroy_expectApplicationForegroundedEventToNotBeTracked() {
         ensureLifecycleObserverAdded()
         lifecycleObserverCaptor.captured.onDestroy(mockk())
 

@@ -397,10 +397,13 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
-            put("device", buildJsonObject {
-                put("token", givenTask.token)
-                put("type", "android")
-            })
+            put(
+                "device",
+                buildJsonObject {
+                    put("token", givenTask.token)
+                    put("type", "android")
+                }
+            )
         }
     }
 
@@ -428,10 +431,13 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
             putAll(givenAttributes.toJsonObject())
-            put("device", buildJsonObject {
-                put("token", givenTask.token)
-                put("type", "android")
-            })
+            put(
+                "device",
+                buildJsonObject {
+                    put("token", givenTask.token)
+                    put("type", "android")
+                }
+            )
         }
     }
 
@@ -451,10 +457,13 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceDeleteEvent.properties shouldBeEqualTo buildJsonObject {
-            put("device", buildJsonObject {
-                put("token", givenTask.token)
-                put("type", "android")
-            })
+            put(
+                "device",
+                buildJsonObject {
+                    put("token", givenTask.token)
+                    put("type", "android")
+                }
+            )
         }
     }
 

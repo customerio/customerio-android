@@ -109,20 +109,25 @@ internal class TrackingMigrationProcessor(
                 val deleteDeviceEvent = TrackEvent(
                     event = EventNames.DEVICE_DELETE,
                     properties = buildJsonObject {
-                        put(DEVICE_PAYLOAD_JSON_KEY, buildJsonObject {
-                            put(DEVICE_TOKEN_PAYLOAD_JSON_KEY, oldDeviceToken)
-                            put(DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE)
-                        })
+                        put(
+                            DEVICE_PAYLOAD_JSON_KEY,
+                            buildJsonObject {
+                                put(DEVICE_TOKEN_PAYLOAD_JSON_KEY, oldDeviceToken)
+                                put(DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE)
+                            }
+                        )
                     }
                 )
                 analytics.process(deleteDeviceEvent) { event ->
                     event?.putInContextUnderKey(
                         DEVICE_PAYLOAD_JSON_KEY,
-                        DEVICE_TOKEN_PAYLOAD_JSON_KEY, oldDeviceToken
+                        DEVICE_TOKEN_PAYLOAD_JSON_KEY,
+                        oldDeviceToken
                     )
                     event?.putInContextUnderKey(
                         DEVICE_PAYLOAD_JSON_KEY,
-                        DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE
+                        DEVICE_TYPE_PAYLOAD_JSON_KEY,
+                        DEVICE_TYPE_PAYLOAD_JSON_VALUE
                     )
                 }
             }
@@ -185,20 +190,25 @@ internal class TrackingMigrationProcessor(
                     event = EventNames.DEVICE_UPDATE,
                     properties = buildJsonObject {
                         putAll(task.attributes.toJsonObject())
-                        put(DEVICE_PAYLOAD_JSON_KEY, buildJsonObject {
-                            put(DEVICE_TOKEN_PAYLOAD_JSON_KEY, task.token)
-                            put(DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE)
-                        })
+                        put(
+                            DEVICE_PAYLOAD_JSON_KEY,
+                            buildJsonObject {
+                                put(DEVICE_TOKEN_PAYLOAD_JSON_KEY, task.token)
+                                put(DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE)
+                            }
+                        )
                     }
                 ),
                 enrichmentClosure = { event ->
                     event?.putInContextUnderKey(
                         DEVICE_PAYLOAD_JSON_KEY,
-                        DEVICE_TOKEN_PAYLOAD_JSON_KEY, task.token
+                        DEVICE_TOKEN_PAYLOAD_JSON_KEY,
+                        task.token
                     )
                     event?.putInContextUnderKey(
                         DEVICE_PAYLOAD_JSON_KEY,
-                        DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE
+                        DEVICE_TYPE_PAYLOAD_JSON_KEY,
+                        DEVICE_TYPE_PAYLOAD_JSON_VALUE
                     )
                 }
             )
@@ -207,20 +217,25 @@ internal class TrackingMigrationProcessor(
                 trackEvent = TrackEvent(
                     event = EventNames.DEVICE_DELETE,
                     properties = buildJsonObject {
-                        put(DEVICE_PAYLOAD_JSON_KEY, buildJsonObject {
-                            put(DEVICE_TOKEN_PAYLOAD_JSON_KEY, task.token)
-                            put(DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE)
-                        })
+                        put(
+                            DEVICE_PAYLOAD_JSON_KEY,
+                            buildJsonObject {
+                                put(DEVICE_TOKEN_PAYLOAD_JSON_KEY, task.token)
+                                put(DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE)
+                            }
+                        )
                     }
                 ),
                 enrichmentClosure = { event ->
                     event?.putInContextUnderKey(
                         DEVICE_PAYLOAD_JSON_KEY,
-                        DEVICE_TOKEN_PAYLOAD_JSON_KEY, task.token
+                        DEVICE_TOKEN_PAYLOAD_JSON_KEY,
+                        task.token
                     )
                     event?.putInContextUnderKey(
                         DEVICE_PAYLOAD_JSON_KEY,
-                        DEVICE_TYPE_PAYLOAD_JSON_KEY, DEVICE_TYPE_PAYLOAD_JSON_VALUE
+                        DEVICE_TYPE_PAYLOAD_JSON_KEY,
+                        DEVICE_TYPE_PAYLOAD_JSON_VALUE
                     )
                 }
             )

@@ -173,7 +173,13 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         val deviceDeleteEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
-        deviceDeleteEvent.properties shouldMatchTo mapOf("token" to oldDeviceToken)
+        val expectedPropertiesMap = mapOf(
+            "device" to mapOf(
+                "token" to oldDeviceToken,
+                "type" to "android"
+            )
+        )
+        deviceDeleteEvent.properties shouldMatchTo expectedPropertiesMap
     }
 
     @Test
@@ -391,7 +397,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
-            put("token", givenTask.token)
+            put("device", buildJsonObject {
+                put("token", givenTask.token)
+                put("type", "android")
+            })
         }
     }
 
@@ -419,7 +428,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
             putAll(givenAttributes.toJsonObject())
-            put("token", givenTask.token)
+            put("device", buildJsonObject {
+                put("token", givenTask.token)
+                put("type", "android")
+            })
         }
     }
 
@@ -439,7 +451,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceDeleteEvent.properties shouldBeEqualTo buildJsonObject {
-            put("token", givenTask.token)
+            put("device", buildJsonObject {
+                put("token", givenTask.token)
+                put("type", "android")
+            })
         }
     }
 

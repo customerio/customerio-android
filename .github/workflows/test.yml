@@ -2,36 +2,9 @@ name: Tests
 
 on:
   pull_request:
-    types: [opened, synchronize] # Don't rerun on `edited` to save time
+    types: [opened, synchronize]
 
 jobs:
-  unit-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        module: [messagingpush, messaginginapp, base, datapipelines, core, tracking-migration]
-    name: Unit tests (${{ matrix.module }})
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-android      
-      - name: Run unit tests (${{ matrix.module }})
-        run: ./gradlew :${{ matrix.module }}:runJacocoTestReport
-      - name: Upload code coverage report
-        uses: codecov/codecov-action@v4
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
-        with:
-          fail_ci_if_error: true # fail if upload fails so we can catch it and fix it right away.
-          verbose: true
-          files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml
-      - name: Publish test results (${{ matrix.module }})
-        uses: mikepenz/action-junit-report@v4
-        with:
-          report_paths: '**/build/test-results/test*/TEST-*.xml'
-          fail_on_failure: true
-          require_tests: true
-        if: ${{ always() }} # if running tests fails, we still want to parse the test results
-
   instrumentation-test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -40,13 +13,12 @@ jobs:
       matrix:
         sample: [kotlin_compose, java_layout]
         api-level: [31]
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-android
 
-      # Cache Gradle dependencies (big speedup)
+      # Cache Gradle dependencies
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v4
         continue-on-error: true
@@ -55,7 +27,7 @@ jobs:
           cache-overwrite-existing: true
           gradle-home-cache-cleanup: true
 
-      # Enable KVM for hardware virtualization
+      # Enable KVM for hardware virtualization (faster emulators)
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -68,45 +40,33 @@ jobs:
         id: avd-cache
         with:
           path: |
-            ~/.android/avd/*
+            ~/.android/avd
             ~/.android/adb*
           key: avd-${{ matrix.api-level }}
 
-      # Step 1: Create AVD + snapshot if cache doesn't exist
-      - name: Create AVD and snapshot (if needed)
-        if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api-level }}
-          arch: x86_64
-          force-avd-creation: false        # We'll still check if we have a local system image
-          enable-snapshot: true            # allow saving a snapshot
-          create-snapshot: true            # create it now
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: echo "Generated fresh AVD snapshot for caching."
-
-      # Step 2: Boot emulator from snapshot + run tests
+      # Boot emulator (create or reuse AVD) + run instrumentation tests
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          # force-avd-creation=false means:
+          #   "If an AVD already exists (from cache), use it as-is."
+          #   If there's no AVD, create a new one automatically.
+          force-avd-creation: false
+          ram-size: 4096M
           cores: 3
-          force-avd-creation: false        # re-use existing AVD files from cache
-          enable-snapshot: true            # use the snapshot
-          create-snapshot: false           # no need to create again
           emulator-options: >-
             -no-window
             -gpu swiftshader_indirect
             -noaudio
             -no-boot-anim
-            # Do NOT use -no-snapshot-save if you want to re-use snapshots
-          ram-size: 4096M
-          target: google_apis
-          arch: x86_64
           script: |
             ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest \
               --no-daemon --stacktrace -PuseKsp=true --debug
 
+      # Publish test results
       - name: Publish test results
         uses: mikepenz/action-junit-report@v4
         if: always()

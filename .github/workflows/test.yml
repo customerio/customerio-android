@@ -2,7 +2,7 @@ name: Tests
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize] # Don't rerun on `edited` to save time
 
 jobs:
   unit-test:
@@ -30,7 +30,7 @@ jobs:
           report_paths: '**/build/test-results/test*/TEST-*.xml'
           fail_on_failure: true
           require_tests: true
-        if: ${{ always() }}
+        if: ${{ always() }} # if running tests fails, we still want to parse the test results
 
   instrumentation-test:
     runs-on: ubuntu-latest

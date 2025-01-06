@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.presentation
 
+import android.animation.AnimatorInflater
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -10,6 +11,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
 import com.google.gson.Gson
+import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
@@ -127,13 +129,14 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     override fun finish() {
         logger.debug("GistModelActivity finish")
         runOnUiThread {
-            val animationSet = if (messagePosition == MessagePosition.TOP) {
-                ModalAnimationUtil.createAnimationSetOutToTop(binding.modalGistViewLayout)
+            val animation = if (messagePosition == MessagePosition.TOP) {
+                AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_top)
             } else {
-                ModalAnimationUtil.createAnimationSetOutToBottom(binding.modalGistViewLayout)
+                AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_bottom)
             }
-            animationSet.start()
-            animationSet.doOnEnd {
+            animation.setTarget(binding.modalGistViewLayout)
+            animation.start()
+            animation.doOnEnd {
                 logger.debug("GistModelActivity finish animation completed")
                 super.finish()
             }
@@ -187,7 +190,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
             binding.gistView.stopLoading()
         }
         // and finish the activity without performing any further actions
-        finish()
+        super.finish()
     }
 
     override fun onGistViewSizeChanged(width: Int, height: Int) {

@@ -33,6 +33,14 @@ internal class TrackingMigrationProcessor(
     private val analytics: Analytics,
     private val migrationSiteId: String
 ) : MigrationProcessor, Subscriber {
+
+    companion object {
+        private const val PAYLOAD_JSON_KEY_DEVICE = "device"
+        private const val PAYLOAD_JSON_KEY_TOKEN = "token"
+        private const val PAYLOAD_JSON_KEY_TYPE = "type"
+        private const val PAYLOAD_JSON_VALUE_ANDROID = "android"
+    }
+
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
     private var subscriptionID: SubscriptionID? = null
@@ -101,12 +109,26 @@ internal class TrackingMigrationProcessor(
                 val deleteDeviceEvent = TrackEvent(
                     event = EventNames.DEVICE_DELETE,
                     properties = buildJsonObject {
-                        put("token", oldDeviceToken)
+                        put(
+                            PAYLOAD_JSON_KEY_DEVICE,
+                            buildJsonObject {
+                                put(PAYLOAD_JSON_KEY_TOKEN, oldDeviceToken)
+                                put(PAYLOAD_JSON_KEY_TYPE, PAYLOAD_JSON_VALUE_ANDROID)
+                            }
+                        )
                     }
                 )
                 analytics.process(deleteDeviceEvent) { event ->
-                    event?.putInContextUnderKey("device", "token", oldDeviceToken)
-                    event?.putInContextUnderKey("device", "type", "android")
+                    event?.putInContextUnderKey(
+                        PAYLOAD_JSON_KEY_DEVICE,
+                        PAYLOAD_JSON_KEY_TOKEN,
+                        oldDeviceToken
+                    )
+                    event?.putInContextUnderKey(
+                        PAYLOAD_JSON_KEY_DEVICE,
+                        PAYLOAD_JSON_KEY_TYPE,
+                        PAYLOAD_JSON_VALUE_ANDROID
+                    )
                 }
             }
         }
@@ -168,12 +190,26 @@ internal class TrackingMigrationProcessor(
                     event = EventNames.DEVICE_UPDATE,
                     properties = buildJsonObject {
                         putAll(task.attributes.toJsonObject())
-                        put("token", task.token)
+                        put(
+                            PAYLOAD_JSON_KEY_DEVICE,
+                            buildJsonObject {
+                                put(PAYLOAD_JSON_KEY_TOKEN, task.token)
+                                put(PAYLOAD_JSON_KEY_TYPE, PAYLOAD_JSON_VALUE_ANDROID)
+                            }
+                        )
                     }
                 ),
                 enrichmentClosure = { event ->
-                    event?.putInContextUnderKey("device", "token", task.token)
-                    event?.putInContextUnderKey("device", "type", "android")
+                    event?.putInContextUnderKey(
+                        PAYLOAD_JSON_KEY_DEVICE,
+                        PAYLOAD_JSON_KEY_TOKEN,
+                        task.token
+                    )
+                    event?.putInContextUnderKey(
+                        PAYLOAD_JSON_KEY_DEVICE,
+                        PAYLOAD_JSON_KEY_TYPE,
+                        PAYLOAD_JSON_VALUE_ANDROID
+                    )
                 }
             )
 
@@ -181,12 +217,26 @@ internal class TrackingMigrationProcessor(
                 trackEvent = TrackEvent(
                     event = EventNames.DEVICE_DELETE,
                     properties = buildJsonObject {
-                        put("token", task.token)
+                        put(
+                            PAYLOAD_JSON_KEY_DEVICE,
+                            buildJsonObject {
+                                put(PAYLOAD_JSON_KEY_TOKEN, task.token)
+                                put(PAYLOAD_JSON_KEY_TYPE, PAYLOAD_JSON_VALUE_ANDROID)
+                            }
+                        )
                     }
                 ),
                 enrichmentClosure = { event ->
-                    event?.putInContextUnderKey("device", "token", task.token)
-                    event?.putInContextUnderKey("device", "type", "android")
+                    event?.putInContextUnderKey(
+                        PAYLOAD_JSON_KEY_DEVICE,
+                        PAYLOAD_JSON_KEY_TOKEN,
+                        task.token
+                    )
+                    event?.putInContextUnderKey(
+                        PAYLOAD_JSON_KEY_DEVICE,
+                        PAYLOAD_JSON_KEY_TYPE,
+                        PAYLOAD_JSON_VALUE_ANDROID
+                    )
                 }
             )
         }

@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.presentation
 
+import android.animation.AnimatorInflater
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -10,12 +11,12 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
 import com.google.gson.Gson
+import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
-import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.MessageState
@@ -127,13 +128,14 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     override fun finish() {
         logger.debug("GistModelActivity finish")
         runOnUiThread {
-            val animationSet = if (messagePosition == MessagePosition.TOP) {
-                ModalAnimationUtil.createAnimationSetOutToTop(binding.modalGistViewLayout)
+            val animation = if (messagePosition == MessagePosition.TOP) {
+                AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_top)
             } else {
-                ModalAnimationUtil.createAnimationSetOutToBottom(binding.modalGistViewLayout)
+                AnimatorInflater.loadAnimator(this, R.animator.animate_out_to_bottom)
             }
-            animationSet.start()
-            animationSet.doOnEnd {
+            animation.setTarget(binding.modalGistViewLayout)
+            animation.start()
+            animation.doOnEnd {
                 logger.debug("GistModelActivity finish animation completed")
                 super.finish()
             }
@@ -167,14 +169,14 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         runOnUiThread {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
             binding.modalGistViewLayout.visibility = View.VISIBLE
-            val overlayColor = message.gistProperties.overlayColor ?: ModalAnimationUtil.FALLBACK_COLOR_STRING
-            val animatorSet = if (messagePosition == MessagePosition.TOP) {
-                ModalAnimationUtil.createAnimationSetInFromTop(binding.modalGistViewLayout, overlayColor)
+            val animation = if (messagePosition == MessagePosition.TOP) {
+                AnimatorInflater.loadAnimator(this, R.animator.animate_in_from_top)
             } else {
-                ModalAnimationUtil.createAnimationSetInFromBottom(binding.modalGistViewLayout, overlayColor)
+                AnimatorInflater.loadAnimator(this, R.animator.animate_in_from_bottom)
             }
-            animatorSet.start()
-            animatorSet.doOnEnd {
+            animation.setTarget(binding.modalGistViewLayout)
+            animation.start()
+            animation.doOnEnd {
                 logger.debug("GistModelActivity Message Animation Completed: $message")
                 elapsedTimer.end()
             }
@@ -187,7 +189,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
             binding.gistView.stopLoading()
         }
         // and finish the activity without performing any further actions
-        finish()
+        super.finish()
     }
 
     override fun onGistViewSizeChanged(width: Int, height: Int) {

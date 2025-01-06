@@ -13,8 +13,7 @@ data class GistProperties(
     val elementId: String?,
     val campaignId: String?,
     val position: MessagePosition,
-    val persistent: Boolean,
-    val overlayColor: String?
+    val persistent: Boolean
 )
 
 data class Message(
@@ -33,7 +32,6 @@ data class Message(
         var campaignId: String? = null
         var position: MessagePosition = MessagePosition.CENTER
         var persistent = false
-        var overlayColor: String? = null
 
         (properties?.get("gist") as? Map<String, Any?>)?.let { gistProperties ->
             gistProperties["routeRuleAndroid"]?.let { rule ->
@@ -61,20 +59,8 @@ data class Message(
                     persistent = persistentValue
                 }
             }
-            gistProperties["overlayColor"]?.let { id ->
-                (id as? String)?.let { color ->
-                    overlayColor = color
-                }
-            }
         }
-        return GistProperties(
-            routeRule = routeRule,
-            elementId = elementId,
-            campaignId = campaignId,
-            position = position,
-            persistent = persistent,
-            overlayColor = overlayColor
-        )
+        return GistProperties(routeRule = routeRule, elementId = elementId, campaignId = campaignId, position = position, persistent = persistent)
     }
 
     override fun toString(): String {

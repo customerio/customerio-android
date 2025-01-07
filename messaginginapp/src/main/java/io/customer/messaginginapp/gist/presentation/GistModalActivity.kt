@@ -15,6 +15,7 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.messaginginapp.gist.utilities.MessageOverlayColorParser
 import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -167,7 +168,9 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         runOnUiThread {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
             binding.modalGistViewLayout.visibility = View.VISIBLE
-            val overlayColor = message.gistProperties.overlayColor ?: ModalAnimationUtil.FALLBACK_COLOR_STRING
+
+            val overlayColor = MessageOverlayColorParser.parseColor(message.gistProperties.overlayColor)
+                ?: ModalAnimationUtil.FALLBACK_COLOR_STRING
             val animatorSet = if (messagePosition == MessagePosition.TOP) {
                 ModalAnimationUtil.createAnimationSetInFromTop(binding.modalGistViewLayout, overlayColor)
             } else {

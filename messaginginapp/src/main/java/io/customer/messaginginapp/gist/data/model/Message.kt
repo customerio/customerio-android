@@ -14,6 +14,7 @@ data class GistProperties(
     val campaignId: String?,
     val position: MessagePosition,
     val persistent: Boolean,
+    // This color is formated as #RRGGBBAA
     val overlayColor: String?
 )
 

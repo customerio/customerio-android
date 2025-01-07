@@ -1,3 +1,9 @@
+## [4.5.1](https://github.com/customerio/customerio-android/compare/4.5.0...4.5.1) (2025-01-07)
+
+### Bug Fixes
+
+* update java sample display name ([#484](https://github.com/customerio/customerio-android/issues/484)) ([cc77bbb](https://github.com/customerio/customerio-android/commit/cc77bbbe8833263e18a4b846ab425dbfbd95a52b))
+
 ## [4.5.0](https://github.com/customerio/customerio-android/compare/4.4.1...4.5.0) (2024-12-17)
 
 ### Features

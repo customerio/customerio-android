@@ -1,3 +1,9 @@
+## [4.5.2](https://github.com/customerio/customerio-android/compare/4.5.1...4.5.2) (2025-01-08)
+
+### Bug Fixes
+
+* Fix in-app messages overlay background color being ignored from message payload ([#485](https://github.com/customerio/customerio-android/issues/485)) ([dba96e0](https://github.com/customerio/customerio-android/commit/dba96e071cc06f7bb2cf486c9145e2dfaaab376c))
+
 ## [4.5.1](https://github.com/customerio/customerio-android/compare/4.5.0...4.5.1) (2025-01-07)
 
 ### Bug Fixes

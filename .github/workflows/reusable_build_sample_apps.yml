@@ -37,6 +37,32 @@ jobs:
         with:
           fetch-depth: 0 # Workaround for bug https://github.com/actions/checkout/issues/1471
 
+      - name: Set Default Firebase Distribution Groups
+        shell: bash
+        env:
+          # Distribution group constants
+          ALL_BUILDS_GROUP: all-builds
+          FEATURE_BUILDS_GROUP: feature-branch
+          NEXT_BUILDS_GROUP: next
+          PUBLIC_BUILDS_GROUP: public
+          # Input variables
+          IS_PRIMARY_APP: ${{ matrix.sample-app == 'java_layout' }}
+          CURRENT_BRANCH: ${{ github.ref }}
+          USE_LATEST_SDK_VERSION: ${{ inputs.use_latest_sdk_version }}
+        run: |
+          # Initialize with the default distribution group
+          distribution_groups=("$ALL_BUILDS_GROUP")
+          
+          # Append distribution groups based on branch and context if the app is primary
+          if [[ "$IS_PRIMARY_APP" == "true" ]]; then
+            [[ "$CURRENT_BRANCH" == "refs/heads/feature/"* ]] && distribution_groups+=("$FEATURE_BUILDS_GROUP")
+            [[ "$CURRENT_BRANCH" == "refs/heads/main" ]] && distribution_groups+=("NEXT_BUILDS_GROUP")
+            [[ "$USE_LATEST_SDK_VERSION" == "true" ]] && distribution_groups+=("PUBLIC_BUILDS_GROUP")
+          fi
+          
+          # Export the groups as an environment variable
+          echo "firebase_distribution_groups=$(IFS=','; echo "${distribution_groups[*]}")" >> $GITHUB_ENV
+
       - name: Get latest SDK version
         if: ${{ inputs.use_latest_sdk_version == true }}
         id: latest-sdk-version-step
@@ -74,13 +100,32 @@ jobs:
       - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase.
         run: cat $GITHUB_EVENT_PATH
 
+      - name: Prepare Fastlane Build Arguments
+        run: |
+          if [ "${{ inputs.use_latest_sdk_version }}" = "true" ]; then
+            sdk_version="\"sdk_version\":\"${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}\""
+          else
+            sdk_version=""
+          fi
+          
+          distribution_groups="\"distribution_groups\":\"${{ env.firebase_distribution_groups }}\""
+          
+          # Construct the fastlane-build-args JSON
+          if [ -n "$sdk_version" ]; then
+            fastlane_build_args="{${sdk_version},${distribution_groups}}"
+          else
+            fastlane_build_args="{${distribution_groups}}"
+          fi
+          
+          echo "fastlane_build_args=$fastlane_build_args" >> $GITHUB_ENV
+
       - name: Deploy build via Fastlane
         if: ${{ ! (inputs.use_latest_sdk_version == true && matrix.sample-app == 'kotlin_compose') }}
         uses: maierj/fastlane-action@v3.1.0
         with:
           lane: ${{ inputs.use_latest_sdk_version == true && 'android build_sample_app_for_sdk_release' || 'android build' }}
           subdirectory: "samples/${{ matrix.sample-app }}"
-          options: ${{ inputs.use_latest_sdk_version == true && format('{{"sdk_version":"{0}"}}', steps.latest-sdk-version-step.outputs.LATEST_TAG) || '' }}
+          options: ${{ env.fastlane_build_args }}
         env:
           ANDROID_SIGNING_ALIAS: ${{ secrets.ANDROID_SIGNING_ALIAS }}
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}

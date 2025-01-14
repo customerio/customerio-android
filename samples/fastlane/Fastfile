@@ -1,7 +1,7 @@
 # There are some re-usable functions in other Fastfile files in the org we can re-use. 
 import_from_git(
   url: "https://github.com/customerio/customerio-ios.git", 
-  branch: "main", 
+  branch: "main",
   path: "Apps/fastlane/Fastfile"
 )
 
@@ -65,7 +65,7 @@ platform :android do
     name_of_sample_app_module = File.basename(path_to_root_directory_sample_app) # just get the name of the directory I am in now. `samples/N`
 
     new_app_version = get_new_app_version().gsub("/", ".")
-    test_groups = get_build_test_groups()
+    test_groups = get_build_test_groups(distribution_groups: values[:distribution_groups])
     app_package_name = CredentialsManager::AppfileConfig.try_fetch_value(:package_name) # get package_name from Appfile
 
     build_sample_app(

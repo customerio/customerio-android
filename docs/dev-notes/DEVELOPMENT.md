@@ -38,24 +38,6 @@ See [LINT](LINT.md) to learn more about linting in this project.
 
 See file [GIT-WORKFLOW](GIT-WORKFLOW.md) to learn about the workflow that this project uses. 
 
-# Work on Remote Habits locally 
-
-We use the [Remote Habits](https://github.com/customerio/RemoteHabits-Android) Android app to test the SDK in a real-world environment. 
-
-When you install dependencies via grade in an Android app, gradle will look at various servers to download all of your dependencies. It would be a pain if every time that you made an edit to the SDK on your local machine, you would need to push the SDK code to a remote server so that gradle in Remote Habits could download it. 
-
-To make this easier, your local machine can act as a server that gradle looks for dependencies with. Open this SDK project in Android Studio. When you open it, you should see an Android Studio run configuration called `install local`. Run this configuration:
-
-![showing what run icon looks like in android studio. you can also use menu item Run and then click Run](img/android_studio_run_run_configuration.jpg)
-
-> Note: `install local` in Android Studio simply runs the command: `IS_DEVELOPMENT="true" ./gradlew publishToMavenLocal`. You can run that command from your command line if you wish to instead. 
-
-After this task runs successfully, if you look in the `~/.m2/repository/io/customer/android/` directory on your local machine, you will see some directories and files. The `~/.m2/` directory is a server that gradle can use on your computer to download dependencies from!
-
-> Note: Every time that you make an edit to the SDK code, you need to run `install local` and then rebuild the Remote Habits app. 
-
-That is all you need to do on the SDK side. Next, view the [Remote Habits docs](https://github.com/customerio/RemoteHabits-Android/blob/main/docs/dev-notes/DEVELOPMENT.md#work-on-sdk-locally) for next steps on getting Remote Habits to install the SDK from your local machine's `~/.m2/` directory.  
-
 ### Deployment 
 
 See file [GIT-WORKFLOW](GIT-WORKFLOW.md) to learn about how code is deployed in this project. 

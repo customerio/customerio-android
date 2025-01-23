@@ -17,7 +17,7 @@ jobs:
       - name: Run unit tests (${{ matrix.module }})
         run: ./gradlew :${{ matrix.module }}:runJacocoTestReport
       - name: Upload code coverage report
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
         with:
@@ -25,7 +25,7 @@ jobs:
           verbose: true
           files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml
       - name: Publish test results (${{ matrix.module }})
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@v5
         with:
           report_paths: '**/build/test-results/test*/TEST-*.xml'
           fail_on_failure: true
@@ -97,7 +97,7 @@ jobs:
           script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true
 
       - name: Publish test results
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@v5
         if: always()
         with:
           report_paths: 'samples/${{ matrix.sample }}/build/outputs/androidTest-results/connected/TEST-*.xml'

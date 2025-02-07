@@ -27,9 +27,10 @@ public class BuildInfoMetadata {
     private final String sdkIntegration;
 
     public BuildInfoMetadata() {
-        this.sdkVersion = String.format(Locale.ENGLISH, "%s-%s",
-                BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.SDK_VERSION, () -> Version.version),
-                BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.COMMITS_AHEAD_COUNT, () -> "as-source"));
+        this.sdkVersion = BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.SDK_VERSION, () -> String.format(
+                Locale.ENGLISH, "%s-%s",
+                Version.version,
+                BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.COMMITS_AHEAD_COUNT, () -> "as-source")));
         this.appVersion = String.valueOf(BuildConfig.VERSION_CODE);
         this.buildDate = BuildInfoMetadataUtils.formatBuildDateWithRelativeTime(BuildConfig.BUILD_TIMESTAMP);
         this.gitMetadata = String.format(Locale.ENGLISH, "%s-%s",

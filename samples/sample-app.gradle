@@ -13,6 +13,25 @@ android {
         Closure<String> getConfigWithPrefix = { String key ->
             localProperties."${configKeyPrefix}${key}" ?: localProperties."${key}"
         }
+        // Helper methods to retrieve language and UI framework from prefix
+        Closure<String> getLanguageFromPrefix = { String prefix ->
+            String normalizedPrefix = prefix.toLowerCase()
+            if (normalizedPrefix.startsWith("java")) {
+                return "Java"
+            } else if (normalizedPrefix.startsWith("kotlin")) {
+                return "Kotlin"
+            }
+            return null
+        }
+        Closure<String> getUIFrameworkFromPrefix = { String prefix ->
+            String normalizedPrefix = prefix.toLowerCase()
+            if (normalizedPrefix.contains("layout")) {
+                return "Android XML"
+            } else if (normalizedPrefix.contains("compose")) {
+                return "Jetpack Compose"
+            }
+            return null
+        }
 
         // Retrieve API keys using the helper method to allow key prefixing
         // e.g. Java Layout sample app has prefix javaLayout_ for API keys
@@ -20,16 +39,24 @@ android {
         // cdpApiKey=KEY can be used as a fallback for all sample apps
         String cdpApiKey = getConfigWithPrefix("cdpApiKey")
         String siteId = getConfigWithPrefix("siteId")
+        String workspace = getConfigWithPrefix("workspace")
+        String language = getConfigWithPrefix("language") ?: getLanguageFromPrefix(configKeyPrefix)
+        String uiFramework = getConfigWithPrefix("uiFramework") ?: getUIFrameworkFromPrefix(configKeyPrefix)
+        String sdkIntegration = "Maven"
         String sdkVersion = localProperties["sdkVersion"]
-        String branch = localProperties["branch"]
-        String commit = localProperties["commit"]
+        String branchName = localProperties["branchName"]
+        String commitHash = localProperties["commitHash"]
 
         // Set build config fields for API keys
         buildConfigField "String", "CDP_API_KEY", "\"${cdpApiKey}\""
         buildConfigField "String", "SITE_ID", "\"${siteId}\""
+        buildConfigField "String", "DEFAULT_WORKSPACE", "\"${workspace}\""
+        buildConfigField "String", "LANGUAGE", "\"${language}\""
+        buildConfigField "String", "UI_FRAMEWORK", "\"${uiFramework}\""
+        buildConfigField "String", "SDK_INTEGRATION", "\"${sdkIntegration}\""
         buildConfigField "String", "SDK_VERSION", "\"${sdkVersion}\""
-        buildConfigField "String", "BRANCH", "\"${branch}\""
-        buildConfigField "String", "COMMIT", "\"${commit}\""
+        buildConfigField "String", "BRANCH_NAME", "\"${branchName}\""
+        buildConfigField "String", "COMMIT_HASH", "\"${commitHash}\""
         buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L"
     }
     // Avoid redefining signing configs in sample apps to avoid breaking release

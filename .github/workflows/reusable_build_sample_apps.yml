@@ -96,6 +96,7 @@ jobs:
           echo "workspace=${{ matrix.cio-workspace-name }}" >> "samples/local.properties"
           echo "branchName=$BRANCH_NAME" >> "samples/local.properties"
           echo "commitHash=${COMMIT_HASH:0:7}" >> "samples/local.properties"
+          echo "commitsAheadCount=$(git rev-list $(git describe --tags --abbrev=0)..${{ env.BRANCH_NAME }} --count)" >> samples/local.properties
           if [ "${{ inputs.use_latest_sdk_version == true }}" ]; then
             echo "sdkVersion=${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}" >> "samples/local.properties"
           fi

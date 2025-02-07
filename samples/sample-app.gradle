@@ -46,6 +46,7 @@ android {
         String sdkVersion = localProperties["sdkVersion"]
         String branchName = localProperties["branchName"]
         String commitHash = localProperties["commitHash"]
+        String commitsAheadCount = localProperties["commitsAheadCount"]
 
         // Set build config fields for API keys
         buildConfigField "String", "CDP_API_KEY", "\"${cdpApiKey}\""
@@ -57,6 +58,7 @@ android {
         buildConfigField "String", "SDK_VERSION", "\"${sdkVersion}\""
         buildConfigField "String", "BRANCH_NAME", "\"${branchName}\""
         buildConfigField "String", "COMMIT_HASH", "\"${commitHash}\""
+        buildConfigField "String", "COMMITS_AHEAD_COUNT", "\"${commitsAheadCount}\""
         buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L"
     }
     // Avoid redefining signing configs in sample apps to avoid breaking release

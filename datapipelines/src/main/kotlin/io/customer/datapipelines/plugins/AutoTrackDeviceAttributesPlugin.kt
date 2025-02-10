@@ -5,7 +5,7 @@ import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.utilities.putAll
-import io.customer.datapipelines.util.EventNames
+import io.customer.sdk.util.EventNames
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 

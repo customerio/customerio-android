@@ -2,6 +2,8 @@ package io.customer.sdk.data.store
 
 import android.content.Context
 import androidx.core.content.edit
+import io.customer.sdk.data.model.Settings
+import kotlinx.serialization.json.Json
 
 /**
  * Store for global preferences that are not tied to a specific api key, user
@@ -9,7 +11,9 @@ import androidx.core.content.edit
  */
 interface GlobalPreferenceStore {
     fun saveDeviceToken(token: String)
+    fun saveSettings(value: String)
     fun getDeviceToken(): String?
+    fun getSettings(): Settings?
     fun removeDeviceToken()
     fun clear(key: String)
     fun clearAll()
@@ -27,13 +31,27 @@ internal class GlobalPreferenceStoreImpl(
         putString(KEY_DEVICE_TOKEN, token)
     }
 
+    override fun saveSettings(value: String) = prefs.edit {
+        putString(KEY_CONFIG_SETTINGS, value)
+    }
+
     override fun getDeviceToken(): String? = prefs.read {
         getString(KEY_DEVICE_TOKEN, null)
+    }
+
+    override fun getSettings(): Settings? = prefs.read {
+        runCatching {
+            Json.decodeFromString(
+                Settings.serializer(),
+                getString(KEY_CONFIG_SETTINGS, null) ?: return null
+            )
+        }.getOrNull()
     }
 
     override fun removeDeviceToken() = clear(KEY_DEVICE_TOKEN)
 
     companion object {
         private const val KEY_DEVICE_TOKEN = "device_token"
+        private const val KEY_CONFIG_SETTINGS = "config_settings"
     }
 }

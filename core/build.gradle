@@ -5,6 +5,7 @@ plugins {
     id 'com.android.library'
     id 'kotlin-android'
     id 'com.twilio.apkscale'
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 ext {
@@ -38,4 +39,7 @@ dependencies {
     api project(":base")
     api Dependencies.androidxCoreKtx
     implementation Dependencies.coroutinesAndroid
+    // Use this as API so customers can provide objects serializations without
+    // needing to add it as a dependency to their app
+    api(Dependencies.kotlinxSerializationJson)
 }

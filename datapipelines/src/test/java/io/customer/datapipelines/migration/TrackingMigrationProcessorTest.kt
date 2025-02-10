@@ -18,12 +18,12 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.datapipelines.util.EventNames
 import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.serializedName
+import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
 import io.mockk.every

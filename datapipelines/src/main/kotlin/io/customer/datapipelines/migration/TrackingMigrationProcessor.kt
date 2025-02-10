@@ -10,11 +10,11 @@ import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.datapipelines.extensions.toJsonObject
-import io.customer.datapipelines.util.EventNames
 import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationAssistant
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask

@@ -10,13 +10,13 @@ import java.net.URL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-data class HttpRequestParams(
+internal data class HttpRequestParams(
     val path: String,
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null
 )
 
-interface HttpClient {
+internal interface HttpClient {
     /**
      * Performs a POST request to [params.url] with [params.headers] and [params.body].
      *
@@ -28,7 +28,7 @@ interface HttpClient {
     fun request(params: HttpRequestParams, onComplete: (Result<String>) -> Unit)
 }
 
-class HttpClientImpl : HttpClient {
+internal class HttpClientImpl : HttpClient {
 
     private val connectTimeoutMs = 15_000
     private val readTimeoutMs = 20_000

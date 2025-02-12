@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
  */
 interface GlobalPreferenceStore {
     fun saveDeviceToken(token: String)
-    fun saveSettings(value: String)
+    fun saveSettings(value: Settings)
     fun getDeviceToken(): String?
     fun getSettings(): Settings?
     fun removeDeviceToken()
@@ -31,8 +31,8 @@ internal class GlobalPreferenceStoreImpl(
         putString(KEY_DEVICE_TOKEN, token)
     }
 
-    override fun saveSettings(value: String) = prefs.edit {
-        putString(KEY_CONFIG_SETTINGS, value)
+    override fun saveSettings(value: Settings) = prefs.edit {
+        putString(KEY_CONFIG_SETTINGS, Json.encodeToString(Settings.serializer(), value))
     }
 
     override fun getDeviceToken(): String? = prefs.read {

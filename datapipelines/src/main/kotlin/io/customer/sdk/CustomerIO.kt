@@ -36,7 +36,6 @@ import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
 import kotlinx.serialization.SerializationStrategy
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
 /**
@@ -179,9 +178,7 @@ class CustomerIO private constructor(
         // save settings to storage
         analytics.configuration.let { config ->
             val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
-            globalPreferenceStore.saveSettings(
-                Json.encodeToString(Settings.serializer(), settings)
-            )
+            globalPreferenceStore.saveSettings(settings)
         }
     }
 

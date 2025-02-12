@@ -1,3 +1,5 @@
+package io.customer.messagingpush.network
+
 import android.util.Base64
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.DispatchersProvider

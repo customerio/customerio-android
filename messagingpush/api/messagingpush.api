@@ -54,19 +54,6 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 public final class io/customer/messagingpush/ModuleMessagingPushFCM$Companion {
 }
 
-public abstract interface class io/customer/messagingpush/PushDeliveryTracker {
-	public abstract fun trackMetric (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
-}
-
-public final class io/customer/messagingpush/PushDeliveryTracker$DefaultImpls {
-	public static synthetic fun trackMetric$default (Lio/customer/messagingpush/PushDeliveryTracker;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
-}
-
-public final class io/customer/messagingpush/PushDeliveryTrackerImpl : io/customer/messagingpush/PushDeliveryTracker {
-	public fun <init> ()V
-	public fun trackMetric (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
-}
-
 public final class io/customer/messagingpush/activity/NotificationClickReceiverActivity : android/app/Activity, io/customer/sdk/tracking/TrackableScreen {
 	public static final field Companion Lio/customer/messagingpush/activity/NotificationClickReceiverActivity$Companion;
 	public static final field NOTIFICATION_PAYLOAD_EXTRA Ljava/lang/String;

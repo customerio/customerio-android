@@ -1,17 +1,17 @@
 package io.customer.messagingpush
 
-import HttpClient
-import HttpRequestParams
 import io.customer.messagingpush.di.httpClient
+import io.customer.messagingpush.network.HttpClient
+import io.customer.messagingpush.network.HttpRequestParams
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.util.EventNames
 import org.json.JSONObject
 
-interface PushDeliveryTracker {
+internal interface PushDeliveryTracker {
     fun trackMetric(token: String, event: String, deliveryId: String, onComplete: ((Result<Unit>) -> Unit?)? = null)
 }
 
-class PushDeliveryTrackerImpl : PushDeliveryTracker {
+internal class PushDeliveryTrackerImpl : PushDeliveryTracker {
 
     private val httpClient: HttpClient
         get() = SDKComponent.httpClient

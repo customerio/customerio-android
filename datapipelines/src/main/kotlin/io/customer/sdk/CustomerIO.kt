@@ -292,9 +292,6 @@ class CustomerIO private constructor(
     override val userId: String?
         get() = analytics.userId()
 
-    val writeKey: String
-        get() = analytics.configuration.writeKey
-
     override var deviceAttributes: CustomAttributes
         get() = emptyMap()
         set(value) {

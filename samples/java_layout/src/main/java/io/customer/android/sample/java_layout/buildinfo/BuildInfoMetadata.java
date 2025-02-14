@@ -34,7 +34,7 @@ public class BuildInfoMetadata {
         this.appVersion = String.valueOf(BuildConfig.VERSION_CODE);
         this.buildDate = BuildInfoMetadataUtils.formatBuildDateWithRelativeTime(BuildConfig.BUILD_TIMESTAMP);
         this.gitMetadata = String.format(Locale.ENGLISH, "%s-%s",
-                BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.BRANCH_NAME, () -> "working branch"),
+                BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.BRANCH_NAME, () -> "development build"),
                 BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.COMMIT_HASH, () -> "untracked"));
         this.defaultWorkspace = BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.DEFAULT_WORKSPACE);
         this.language = BuildInfoMetadataUtils.resolveValidOrElse(BuildConfig.LANGUAGE);

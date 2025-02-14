@@ -12,9 +12,9 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonValue
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
+import io.customer.sdk.util.EventNames
 import io.mockk.every
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull

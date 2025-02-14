@@ -39,7 +39,4 @@ dependencies {
 
     implementation(Dependencies.segment)
     implementation Dependencies.androidxProcessLifecycle
-    // Use this as API so customers can provide objects serializations without
-    // needing to add it as a dependency to their app
-    api(Dependencies.kotlinxSerializationJson)
 }

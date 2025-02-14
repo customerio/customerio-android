@@ -5,6 +5,10 @@ package io.customer.messagingpush.di
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
+import io.customer.messagingpush.PushDeliveryTracker
+import io.customer.messagingpush.PushDeliveryTrackerImpl
+import io.customer.messagingpush.network.HttpClient
+import io.customer.messagingpush.network.HttpClientImpl
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.provider.DeviceTokenProvider
@@ -45,3 +49,9 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             deepLinkUtil = deepLinkUtil
         )
     }
+
+internal val SDKComponent.httpClient: HttpClient
+    get() = singleton<HttpClient> { HttpClientImpl() }
+
+internal val SDKComponent.pushDeliveryTracker: PushDeliveryTracker
+    get() = singleton<PushDeliveryTracker> { PushDeliveryTrackerImpl() }

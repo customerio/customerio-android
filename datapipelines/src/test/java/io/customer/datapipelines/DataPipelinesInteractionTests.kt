@@ -13,11 +13,12 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.Settings
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
+import io.customer.sdk.util.EventNames
 import io.mockk.every
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -591,6 +592,11 @@ class DataPipelinesInteractionTests : JUnitTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun device_givenSDKInitialized_expectSettingsToBeStored() {
+        assertCalledOnce { globalPreferenceStore.saveSettings(Settings(writeKey = analytics.configuration.writeKey, apiHost = analytics.configuration.apiHost)) }
     }
 
     @Test

@@ -14,13 +14,13 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.extensions.toJsonObject
-import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
+import io.customer.sdk.util.EventNames
 import io.mockk.every
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray

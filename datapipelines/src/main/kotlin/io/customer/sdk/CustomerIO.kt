@@ -23,7 +23,6 @@ import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
-import io.customer.datapipelines.util.EventNames
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -32,7 +31,9 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
+import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.serializer
@@ -173,6 +174,12 @@ class CustomerIO private constructor(
         logger.debug("CustomerIO SDK initialized with DataPipelines module.")
         // Migrate unsent events from previous version
         migrateTrackingEvents()
+
+        // save settings to storage
+        analytics.configuration.let { config ->
+            val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
+            globalPreferenceStore.saveSettings(settings)
+        }
     }
 
     override var profileAttributes: CustomAttributes

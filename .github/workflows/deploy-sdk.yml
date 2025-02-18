@@ -28,16 +28,16 @@ jobs:
       - name: Setup Android SDK
         uses: ./.github/actions/setup-android
 
-      # Generate SDK size report to update in main branch before deploying new release.
-      # The report is pushed by semantic-release action below by including files listed in the
-      # `assets` array in the `.releaserc` file.
-      - name: Generate SDK Size Report
-        run: |
-          ./gradlew publishToMavenLocal
-          ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
-        env:
-          # Use local version to make sure the report is generated for the current changes
-          IS_DEVELOPMENT: 'true'
+#       # Generate SDK size report to update in main branch before deploying new release.
+#       # The report is pushed by semantic-release action below by including files listed in the
+#       # `assets` array in the `.releaserc` file.
+#       - name: Generate SDK Size Report
+#         run: |
+#           ./gradlew publishToMavenLocal
+#           ./gradlew generateSdkSizeReport -PwriteReportTo=reports/sdk-binary-size.json
+#         env:
+#           # Use local version to make sure the report is generated for the current changes
+#           IS_DEVELOPMENT: 'true'
 
       # Semantic-release tool is used to:
       # 1. Determine the next semantic version for the software during deployment.

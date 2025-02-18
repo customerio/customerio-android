@@ -1,3 +1,9 @@
+## [4.5.3](https://github.com/customerio/customerio-android/compare/4.5.2...4.5.3) (2025-02-18)
+
+### Bug Fixes
+
+* improve push delivery tracking for Android 14 and above ([#493](https://github.com/customerio/customerio-android/issues/493)) ([ea5c7a7](https://github.com/customerio/customerio-android/commit/ea5c7a780e3c4cfd5160faf69cf0e5bd2a99fd23))
+
 ## [4.5.2](https://github.com/customerio/customerio-android/compare/4.5.1...4.5.2) (2025-01-08)
 
 ### Bug Fixes

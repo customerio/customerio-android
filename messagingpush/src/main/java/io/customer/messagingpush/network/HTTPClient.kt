@@ -32,8 +32,8 @@ internal interface HttpClient {
 
 internal class HttpClientImpl : HttpClient {
 
-    private val connectTimeoutMs = 15_000
-    private val readTimeoutMs = 20_000
+    private val connectTimeoutMs = 10_000
+    private val readTimeoutMs = 10_000
     private val globalPreferenceStore: GlobalPreferenceStore
         get() = SDKComponent.android().globalPreferenceStore
     private val client: Client

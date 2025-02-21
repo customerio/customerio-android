@@ -159,7 +159,7 @@ jobs:
           echo "SDK_VERSION=$sdk_version" >> $GITHUB_ENV
 
       - name: Send Slack Notification for Sample App Builds
-        if: env.IS_PRIMARY_APP == 'true'
+        if: always() && env.IS_PRIMARY_APP == 'true'
         uses: customerio/mobile-ci-tools/github-actions/slack-notify-sample-app/v1
         with:
           build_status: ${{ job.status }}
@@ -171,7 +171,6 @@ jobs:
           icon_url: "https://media.pocketgamer.com/artwork/na-qulrguj/android.jpg"
           instructions_guide_link: ${{ secrets.SAMPLE_APPS_INSTRUCTIONS_GUIDE_LINK }}
           platform: "android"
-          repository_name: "Android"
           sdk_name: "Android Native SDK"
           sdk_version: ${{ env.SDK_VERSION }}
           slack_webhook_url: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}

@@ -158,7 +158,7 @@ jobs:
           echo "APP_SDK_BUILD_VERSION=$sdk_version" >> $GITHUB_ENV
 
       - name: Send Slack Notification for Sample App Builds
-        if: always() && env.IS_PRIMARY_APP == 'true'
+        if: ${{ always() && env.IS_PRIMARY_APP == 'true' }}
         uses: customerio/mobile-ci-tools/github-actions/slack-notify-sample-app/v1
         with:
           build_status: ${{ job.status }}

@@ -106,7 +106,7 @@ jobs:
           echo "workspace=${{ matrix.cio-workspace-name }}" >> "$LOCAL_PROPS_FILE"
           echo "branchName=${{ env.BRANCH_NAME }}" >> "$LOCAL_PROPS_FILE"
           echo "commitHash=${{ env.COMMIT_HASH }}" >> "$LOCAL_PROPS_FILE"
-          LAST_TAG="${{ env.LATEST_TAG :- "untagged" }}"
+          LAST_TAG="${LATEST_TAG:-untagged}"
           COMMITS_AHEAD=$(git rev-list $LAST_TAG..HEAD --count 2>/dev/null || echo "untracked")
           echo "commitsAheadCount=$COMMITS_AHEAD" >> "$LOCAL_PROPS_FILE"
           if [ "${{ inputs.use_latest_sdk_version == true }}" ]; then
@@ -153,7 +153,7 @@ jobs:
         id: determine-sdk-version
         run: |
           sdk_version="${{ env.SDK_VERSION }}"
-          sdk_version="${sdk_version:-${{ env.LATEST_TAG }}}"
+          sdk_version="${sdk_version:-$LATEST_TAG}"
           echo "SDK Version used in app build: $sdk_version"
           echo "APP_SDK_BUILD_VERSION=$sdk_version" >> $GITHUB_ENV
 

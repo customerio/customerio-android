@@ -42,6 +42,7 @@ jobs:
           fetch-depth: 0 # Workaround for bug https://github.com/actions/checkout/issues/1471
 
       - name: Set IS_PRIMARY_APP
+        shell: bash
         run: |
           if [[ "${{ matrix.sample-app }}" == "java_layout" ]]; then
             echo "IS_PRIMARY_APP=true" >> $GITHUB_ENV
@@ -74,13 +75,6 @@ jobs:
           # Export the groups as an environment variable
           echo "firebase_distribution_groups=$(IFS=','; echo "${distribution_groups[*]}")" >> $GITHUB_ENV
 
-      - name: Get latest SDK version
-        if: ${{ inputs.use_latest_sdk_version == true }}
-        id: latest-sdk-version-step
-        run: |
-          latest_tag=$(git describe --tags --abbrev=0)
-          echo "LATEST_TAG=$latest_tag" >> "$GITHUB_OUTPUT"
-
       - uses: ./.github/actions/setup-android
 
       # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries.
@@ -94,11 +88,14 @@ jobs:
           ruby-version: '3.0'
           bundler-cache: true # cache tools to make builds faster in future
 
-      - name: Set Git Context Variables
+      - name: Capture Git Context
+        shell: bash
+        id: git-context
         run: |
           echo "BRANCH_NAME=${{ github.head_ref || github.ref_name }}" >> $GITHUB_ENV
           COMMIT_HASH="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           echo "COMMIT_HASH=${COMMIT_HASH:0:7}" >> $GITHUB_ENV
+          echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
 
       - name: Setup local.properties file for sample app
         run: |
@@ -109,11 +106,11 @@ jobs:
           echo "workspace=${{ matrix.cio-workspace-name }}" >> "$LOCAL_PROPS_FILE"
           echo "branchName=${{ env.BRANCH_NAME }}" >> "$LOCAL_PROPS_FILE"
           echo "commitHash=${{ env.COMMIT_HASH }}" >> "$LOCAL_PROPS_FILE"
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "untagged")
+          LAST_TAG="${{ env.LATEST_TAG :- "untagged" }}"
           COMMITS_AHEAD=$(git rev-list $LAST_TAG..HEAD --count 2>/dev/null || echo "untracked")
           echo "commitsAheadCount=$COMMITS_AHEAD" >> "$LOCAL_PROPS_FILE"
           if [ "${{ inputs.use_latest_sdk_version == true }}" ]; then
-            echo "sdkVersion=${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}" >> "$LOCAL_PROPS_FILE"
+            echo "sdkVersion=${{ env.LATEST_TAG }}" >> "$LOCAL_PROPS_FILE"
           fi
 
       - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase.
@@ -122,7 +119,7 @@ jobs:
       - name: Prepare Fastlane Build Arguments
         run: |
           if [ "${{ inputs.use_latest_sdk_version }}" = "true" ]; then
-            sdk_version="\"sdk_version\":\"${{ steps.latest-sdk-version-step.outputs.LATEST_TAG }}\""
+            sdk_version="\"sdk_version\":\"${{ env.LATEST_TAG }}\""
           else
             sdk_version=""
           fi
@@ -152,11 +149,13 @@ jobs:
           FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64: ${{ secrets.FIREBASE_APP_DISTRIBUTION_SERVICE_ACCOUNT_CREDS_B64 }}
 
       - name: Determine SDK Version
+        shell: bash
         id: determine-sdk-version
         run: |
-          sdk_version="${{ env.SDK_VERSION || steps.latest-sdk-version-step.outputs.LATEST_TAG }}"
-          echo "Final SDK Version: $sdk_version"
-          echo "SDK_VERSION=$sdk_version" >> $GITHUB_ENV
+          sdk_version="${{ env.SDK_VERSION }}"
+          sdk_version="${sdk_version:-${{ env.LATEST_TAG }}}"
+          echo "SDK Version used in app build: $sdk_version"
+          echo "APP_SDK_BUILD_VERSION=$sdk_version" >> $GITHUB_ENV
 
       - name: Send Slack Notification for Sample App Builds
         if: always() && env.IS_PRIMARY_APP == 'true'
@@ -172,7 +171,7 @@ jobs:
           instructions_guide_link: ${{ secrets.SAMPLE_APPS_INSTRUCTIONS_GUIDE_LINK }}
           platform: "android"
           sdk_name: "Android Native SDK"
-          sdk_version: ${{ env.SDK_VERSION }}
+          sdk_version: ${{ env.APP_SDK_BUILD_VERSION }}
           slack_webhook_url: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
 
       - name: Update sample builds PR comment with build information

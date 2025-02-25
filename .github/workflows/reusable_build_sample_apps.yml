@@ -159,7 +159,7 @@ jobs:
 
       - name: Send Slack Notification for Sample App Builds
         if: ${{ always() && env.IS_PRIMARY_APP == 'true' }}
-        uses: customerio/mobile-ci-tools/github-actions/slack-notify-sample-app/v1
+        uses: customerio/mobile-ci-tools/github-actions/slack-notify-sample-app/v1@main
         with:
           build_status: ${{ job.status }}
           app_icon_emoji: ":android:"

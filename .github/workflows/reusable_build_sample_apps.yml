@@ -109,7 +109,7 @@ jobs:
           LAST_TAG="${LATEST_TAG:-untagged}"
           COMMITS_AHEAD=$(git rev-list $LAST_TAG..HEAD --count 2>/dev/null || echo "untracked")
           echo "commitsAheadCount=$COMMITS_AHEAD" >> "$LOCAL_PROPS_FILE"
-          if [ "${{ inputs.use_latest_sdk_version == true }}" ]; then
+          if [[ "${{ inputs.use_latest_sdk_version }}" == "true" ]]; then
             echo "sdkVersion=${{ env.LATEST_TAG }}" >> "$LOCAL_PROPS_FILE"
           fi
 

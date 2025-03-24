@@ -1,7 +1,8 @@
 name: Tests
 
 on:
-  
+  push:
+
 jobs:
   unit-test:
     runs-on: ubuntu-latest

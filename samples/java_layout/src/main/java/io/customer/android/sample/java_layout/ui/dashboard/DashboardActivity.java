@@ -1,6 +1,9 @@
 package io.customer.android.sample.java_layout.ui.dashboard;
 
 import android.Manifest;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -10,6 +13,7 @@ import android.provider.Settings;
 import android.util.Pair;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -117,7 +121,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             return true;
         });
         binding.deviceIdTextView.setOnClickListener(view -> {
-            copyToClipboard(binding.deviceIdTextView.getText().toString());
+            copyToClipboard(binding.deviceIdTextView.getText().toString().trim());
         });
         binding.sendRandomEventButton.setOnClickListener(view -> {
             sendRandomEvent();
@@ -241,11 +245,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void copyToClipboard(String text) {
-        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        android.content.ClipData clip = android.content.ClipData.newPlainText("Device id", text);
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText(getString(R.string.device_token), text);
         clipboard.setPrimaryClip(clip);
-        Snackbar.make(binding.deviceIdTextView,
-                R.string.token_copied,
-                Snackbar.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.token_copied, Toast.LENGTH_SHORT).show();
     }
 }

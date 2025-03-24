@@ -1,8 +1,5 @@
 package io.customer.android.sample.java_layout.ui.settings;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
@@ -17,7 +14,6 @@ import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
-import io.customer.sdk.CustomerIO;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -51,7 +47,6 @@ public class InternalSettingsActivity extends BaseActivity<ActivityInternalSetti
     }
 
     private void setUpObservers() {
-        binding.settingsDeviceTokenLabel.setText(CustomerIO.instance().getRegisteredDeviceToken());
         settingsViewModel.getSDKConfigObservable().observe(this, config -> {
             binding.progressIndicator.hide();
             updateUiWithConfig(config);
@@ -70,13 +65,6 @@ public class InternalSettingsActivity extends BaseActivity<ActivityInternalSetti
                 startActivity(new Intent(InternalSettingsActivity.this, DashboardActivity.class));
             }
             onBackPressed();
-        });
-        binding.settingsDeviceTokenLayout.setEndIconOnClickListener(view -> {
-            String deviceToken = ViewUtils.getTextTrimmed(binding.settingsDeviceTokenLabel);
-            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText(getString(R.string.device_token), deviceToken);
-            clipboard.setPrimaryClip(clip);
-            Toast.makeText(this, R.string.token_copied, Toast.LENGTH_SHORT).show();
         });
         binding.settingsSaveButton.setOnClickListener(v -> saveSettings());
         binding.settingsRestoreDefaultsButton.setOnClickListener(v -> updateUiWithConfig(CustomerIOSDKConfig.getDefaultConfigurations()));

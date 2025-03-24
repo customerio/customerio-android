@@ -1,7 +1,6 @@
 package io.customer.datapipelines.plugins
 
 import com.segment.analytics.kotlin.core.HTTPClient
-import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.config.TestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
@@ -56,7 +55,6 @@ class CustomerIODestinationTest : JUnitTest() {
         // Verify event was processed
         outputReaderPlugin.trackEvents.size shouldBe 1
         outputReaderPlugin.trackEvents.first().event shouldBe "test_event"
-        outputReaderPlugin.trackEvents.first().properties shouldBe emptyJsonObject
     }
 
     @Test

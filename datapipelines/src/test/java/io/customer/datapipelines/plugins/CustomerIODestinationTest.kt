@@ -26,26 +26,22 @@ class CustomerIODestinationTest : JUnitTest() {
         // Mock HTTP client to throw exception when fetching settings
         mockkConstructor(HTTPClient::class)
         every { anyConstructed<HTTPClient>().settings(any()) } throws IOException("Network error")
-        //        every { anyConstructed<HTTPClient>().settings("cdp.customer.io/v1") } throws IOException("Network error")
-        //        every { anyConstructed<HTTPClient>().settings("cdp-eu.customer.io/v1") } throws IOException("Network error")
 
-        // Initialize test
         super.setup(
             testConfiguration {
                 sdkConfig {
-                    // Explicitly enable CustomerIODestination plugin
                     autoAddCustomerIODestination(true)
                 }
             }
         )
 
-        // Add output reader plugin to capture events
         outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
     }
 
+    // process_givenScreenViewUseAnalytics_expectScreenEventWithoutPropertiesProcessed
     @Test
-    fun `CustomerIODestination plugin should be enabled by default even when fetching settings fails`() {
+    fun givenFetchingSettingFails_expectCustomerIODestinationPluginStillBeEnabled() {
         // Verify plugin is present in analytics instance
         sdkInstance.analytics.find(CustomerIODestination::class) shouldNotBe null
 
@@ -58,7 +54,7 @@ class CustomerIODestinationTest : JUnitTest() {
     }
 
     @Test
-    fun `Default settings in analytics configuration should include CustomerIO destination`() {
+    fun givenDefaultSetting_expectConfigurationIntegrationIncludeCustomerIODestination() {
         // Verify settings contain CustomerIO destination even with network failure
         val configuration = analytics.configuration
         configuration.defaultSettings shouldNotBe null

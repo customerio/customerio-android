@@ -30,7 +30,7 @@ object Versions {
     internal const val MOCKITO = "4.8.1"
     internal const val MOCKK = "1.12.2"
     internal const val MOSHI = "1.14.0"
-    internal const val SEGMENT = "1.16.3"
+    internal const val SEGMENT = "1.19.1"
     internal const val TIMBER = "5.0.0"
     internal const val REDUX_KOTLIN = "0.6.0"
     internal const val ROBOLECTRIC = "4.9"

@@ -3,6 +3,7 @@ package io.customer.datapipelines
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.emptyJsonArray
 import com.segment.analytics.kotlin.core.emptyJsonObject
+import com.segment.analytics.kotlin.core.utilities.StorageImpl
 import com.segment.analytics.kotlin.core.utilities.getString
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
@@ -22,9 +23,12 @@ import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.mockk.every
+import java.io.File
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -43,7 +47,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
     private lateinit var globalPreferenceStore: GlobalPreferenceStore
     private lateinit var deviceStore: DeviceStore
-    private lateinit var storage: Storage
+    private lateinit var storage: StorageImpl
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -59,7 +63,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         globalPreferenceStore = androidSDKComponent.globalPreferenceStore
         deviceStore = androidSDKComponent.deviceStore
 
-        storage = analytics.storage
+        storage = analytics.storage as StorageImpl
     }
 
     private suspend fun getQueuedEvents(): JsonArray {
@@ -71,19 +75,14 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         // The file we are looking for is named after the CDP API key
         // /tmp/analytics-kotlin/{CDP_API_KEY}/events/{CDP_API_KEY}-{N}.tmp before the rollover
         // /tmp/analytics-kotlin/{CDP_API_KEY}/events/{CDP_API_KEY}-{N} after the rollover
-        val eventsFiles = storage.storageDirectory.walk().filter { file ->
-            file.name.contains(cdpApiKey) && file.isFile && file.extension.isBlank()
+
+        val storagePath = storage.read(Storage.Constants.Events)?.let {
+            it.split(',')[0]
         }
-        val result = mutableListOf<JsonElement>()
-        // Read the contents of each file and extract the JSON array of batched events
-        eventsFiles.forEach { file ->
-            val contents = file.readText()
-            val storedEvents = contents.decodeJson()
-            val jsonArray = storedEvents["batch"]?.jsonArray ?: emptyJsonArray
-            result.addAll(jsonArray)
-        }
+        val storageContents = File(storagePath!!).readText()
+        val jsonFormat = Json.decodeFromString(JsonObject.serializer(), storageContents)
         // Return the flat list of batched events
-        return JsonArray(result)
+        return jsonFormat["batch"]?.jsonArray ?: emptyJsonArray
     }
 
     //endregion

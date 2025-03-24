@@ -49,21 +49,64 @@
                 app:layout_constraintTop_toTopOf="parent" />
 
             <TextView
+                android:id="@+id/email_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Email:"
+                android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                android:textStyle="bold"
+                app:layout_constraintBaseline_toBaselineOf="@id/user_email_text_view"
+                app:layout_constraintEnd_toStartOf="@id/user_email_text_view"
+                app:layout_constraintHorizontal_chainStyle="packed"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <TextView
                 android:id="@+id/user_email_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:gravity="center"
                 android:maxLines="2"
+                android:layout_marginStart="8dp"
+                android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                app:layout_constrainedWidth="true"
+                app:layout_constraintBottom_toTopOf="@id/device_id_label"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/email_label"
+                app:layout_constraintTop_toBottomOf="@id/settings_button"
+                app:layout_constraintVertical_chainStyle="packed"
+                tools:text="android@customer.io" />
+
+            <TextView
+                android:id="@+id/device_id_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Device id:"
+                android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                android:textStyle="bold"
+                app:layout_constraintEnd_toStartOf="@id/device_id_text_view"
+                app:layout_constraintHorizontal_chainStyle="packed"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/user_email_text_view" />
+
+            <TextView
+                android:id="@+id/device_id_text_view"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="2"
+                android:layout_marginStart="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 app:layout_constrainedWidth="true"
                 app:layout_constraintBottom_toTopOf="@id/title_message_text_view"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/settings_button"
-                app:layout_constraintVertical_bias="1"
-                app:layout_constraintVertical_chainStyle="packed"
-                tools:text="android@customer.io" />
+                app:layout_constraintStart_toEndOf="@id/device_id_label"
+                app:layout_constraintTop_toBottomOf="@id/user_email_text_view"
+                tools:text="device-123456" />
 
             <TextView
                 android:id="@+id/title_message_text_view"
@@ -76,7 +119,7 @@
                 app:layout_constraintBottom_toTopOf="@id/send_random_event_button"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/user_email_text_view" />
+                app:layout_constraintTop_toBottomOf="@id/device_id_text_view" />
 
             <Button
                 android:id="@+id/send_random_event_button"

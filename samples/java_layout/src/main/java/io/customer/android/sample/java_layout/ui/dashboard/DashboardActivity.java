@@ -35,6 +35,7 @@ import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.sdk.CustomerIO;
 
 public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
@@ -98,6 +99,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private void prepareViewsForAutomatedTests() {
         ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
         ViewUtils.prepareForAutomatedTests(binding.userEmailTextView, R.string.acd_email_id_text);
+        ViewUtils.prepareForAutomatedTests(binding.deviceIdTextView, R.string.acd_device_id_text);
         ViewUtils.prepareForAutomatedTests(binding.sendRandomEventButton, R.string.acd_random_event_button);
         ViewUtils.prepareForAutomatedTests(binding.sendCustomEventButton, R.string.acd_custom_event_button);
         ViewUtils.prepareForAutomatedTests(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);
@@ -113,6 +115,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.settingsButton.setOnLongClickListener(view -> {
             startActivity(new Intent(DashboardActivity.this, InternalSettingsActivity.class));
             return true;
+        });
+        binding.deviceIdTextView.setOnClickListener(view -> {
+            copyToClipboard(binding.deviceIdTextView.getText().toString());
         });
         binding.sendRandomEventButton.setOnClickListener(view -> {
             sendRandomEvent();
@@ -140,6 +145,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         });
         authViewModel.getUserDataObservable().observe(this, user -> {
             binding.userEmailTextView.setText(user.getEmail());
+            binding.deviceIdTextView.setText(CustomerIO.instance().getRegisteredDeviceToken());
         });
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
@@ -232,5 +238,14 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         builder.setMessage(messageResId);
         builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
         builder.show();
+    }
+
+    private void copyToClipboard(String text) {
+        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        android.content.ClipData clip = android.content.ClipData.newPlainText("Device id", text);
+        clipboard.setPrimaryClip(clip);
+        Snackbar.make(binding.deviceIdTextView,
+                R.string.token_copied,
+                Snackbar.LENGTH_SHORT).show();
     }
 }

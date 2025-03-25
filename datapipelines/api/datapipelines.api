@@ -99,10 +99,6 @@ public final class io/customer/datapipelines/plugins/CustomerIODestination : com
 	public fun version ()Ljava/lang/String;
 }
 
-public final class io/customer/datapipelines/plugins/CustomerIODestinationKt {
-	public static final field CUSTOMER_IO_DATA_PIPELINES Ljava/lang/String;
-}
-
 public final class io/customer/datapipelines/plugins/CustomerIOSettings {
 	public static final field Companion Lio/customer/datapipelines/plugins/CustomerIOSettings$Companion;
 	public synthetic fun <init> (ILjava/lang/String;Ljava/lang/String;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V

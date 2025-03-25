@@ -70,7 +70,6 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         // Rollover to ensure that analytics completes writing to the current file
         // and update file contents with valid JSON
         storage.rollover()
-        val cdpApiKey = sdkInstance.moduleConfig.cdpApiKey
         // Find all files that contain the CDP API key in the name
         // The file we are looking for is named after the CDP API key
         // /tmp/analytics-kotlin/{CDP_API_KEY}/events/{CDP_API_KEY}-{N}.tmp before the rollover
@@ -78,8 +77,8 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val storagePath = storage.read(Storage.Constants.Events)?.let {
             it.split(',')[0]
-        }
-        val storageContents = File(storagePath!!).readText()
+        }.shouldNotBeNull()
+        val storageContents = File(storagePath).readText()
         val jsonFormat = Json.decodeFromString(JsonObject.serializer(), storageContents)
         // Return the flat list of batched events
         return jsonFormat["batch"]?.jsonArray ?: emptyJsonArray

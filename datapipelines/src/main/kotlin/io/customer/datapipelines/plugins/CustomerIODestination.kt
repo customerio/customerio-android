@@ -33,7 +33,7 @@ data class CustomerIOSettings(
     var apiHost: String? = null
 )
 
-const val CUSTOMER_IO_DATA_PIPELINES = "Customer.io Data Pipelines"
+internal const val CUSTOMER_IO_DATA_PIPELINES = "Customer.io Data Pipelines"
 
 /**
  * CustomerIODestination plugin that is used to send events to Customer IO CDP api, in the choice of region.

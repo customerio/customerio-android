@@ -120,9 +120,19 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             startActivity(new Intent(DashboardActivity.this, InternalSettingsActivity.class));
             return true;
         });
-        binding.deviceIdTextView.setOnClickListener(view -> {
-            copyToClipboard(binding.deviceIdTextView.getText().toString().trim());
-        });
+        String deviceToken = CustomerIO.instance().getRegisteredDeviceToken();
+        if (deviceToken != null && !deviceToken.isEmpty()) {
+            binding.deviceIdTextView.setClickable(true);
+            binding.deviceIdTextView.setFocusable(true);
+            binding.deviceIdTextView.setText(deviceToken);
+            binding.deviceIdTextView.setOnClickListener(view -> {
+                copyToClipboard(binding.deviceIdTextView.getText().toString().trim());
+            });
+        } else {
+            binding.deviceIdTextView.setClickable(false);
+            binding.deviceIdTextView.setFocusable(false);
+            binding.deviceIdTextView.setText(R.string.device_token_not_registered);
+        }
         binding.sendRandomEventButton.setOnClickListener(view -> {
             sendRandomEvent();
         });
@@ -149,7 +159,6 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         });
         authViewModel.getUserDataObservable().observe(this, user -> {
             binding.userEmailTextView.setText(user.getEmail());
-            binding.deviceIdTextView.setText(CustomerIO.instance().getRegisteredDeviceToken());
         });
         authViewModel.getUserLoggedInStateObservable().observe(this, isLoggedIn -> {
             if (isLoggedIn) {
@@ -245,6 +254,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void copyToClipboard(String text) {
+        if (text.isEmpty()) {
+            return;
+        }
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clip = ClipData.newPlainText(getString(R.string.device_token), text);
         clipboard.setPrimaryClip(clip);

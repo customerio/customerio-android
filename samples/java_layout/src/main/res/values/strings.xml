@@ -17,6 +17,7 @@
     <string name="view_logs">View Logs</string>
     <string name="log_out">Log Out</string>
     <string name="device_token">Device Token</string>
+    <string name="device_token_not_registered">Not Registered</string>
     <string name="api_host">API Host</string>
     <string name="cdn_host">CDN Host</string>
     <string name="error_host_url">Please enter url without scheme e.g. cdp-cio/v1</string>

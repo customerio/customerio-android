@@ -97,8 +97,6 @@
                 android:gravity="center"
                 android:maxLines="2"
                 android:layout_marginStart="8dp"
-                android:clickable="true"
-                android:focusable="true"
                 android:background="?attr/selectableItemBackground"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 app:layout_constrainedWidth="true"

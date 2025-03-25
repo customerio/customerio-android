@@ -33,6 +33,8 @@ data class CustomerIOSettings(
     var apiHost: String? = null
 )
 
+internal const val CUSTOMER_IO_DATA_PIPELINES = "Customer.io Data Pipelines"
+
 /**
  * CustomerIODestination plugin that is used to send events to Customer IO CDP api, in the choice of region.
  * How it works
@@ -44,7 +46,7 @@ class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
 
     private var pipeline: EventPipeline? = null
     private var flushPolicies: List<FlushPolicy> = emptyList()
-    override val key: String = "Customer.io Data Pipelines"
+    override val key: String = CUSTOMER_IO_DATA_PIPELINES
 
     override fun track(payload: TrackEvent): BaseEvent {
         enqueue(payload)
@@ -79,13 +81,11 @@ class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
         super.setup(analytics)
 
         // convert flushAt and flushIntervals into FlushPolicies
-        flushPolicies = if (analytics.configuration.flushPolicies.isEmpty()) {
+        flushPolicies = analytics.configuration.flushPolicies.ifEmpty {
             listOf(
                 CountBasedFlushPolicy(analytics.configuration.flushAt),
                 FrequencyFlushPolicy(analytics.configuration.flushInterval * 1000L)
             )
-        } else {
-            analytics.configuration.flushPolicies
         }
 
         // Add DestinationMetadata enrichment plugin

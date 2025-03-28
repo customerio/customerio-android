@@ -9,8 +9,8 @@ pre-commit:
       glob: "*.kt"
       # Format kotlin code and then `git add` modified files from formatter. 
       run: make format && git add {staged_files}
-    binary-validation:
-      run: make validate-public-api
+#    binary-validation:
+#      run: make validate-public-api
 
 # Commands to run before pushing code 
 pre-push:

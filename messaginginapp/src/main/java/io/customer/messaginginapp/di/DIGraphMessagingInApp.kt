@@ -29,7 +29,7 @@ internal val SDKComponent.gistProvider: GistProvider
 internal val SDKComponent.inAppPreferenceStore: InAppPreferenceStore
     get() = singleton<InAppPreferenceStore> { InAppPreferenceStoreImpl(android().applicationContext) }
 
-internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
+val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
 
 /**

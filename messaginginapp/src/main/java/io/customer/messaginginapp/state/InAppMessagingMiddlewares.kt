@@ -150,7 +150,7 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             .filter { message ->
                 // filter out the messages that are already shown
                 // and the messages that have an elementId because we are not handling embedded messages
-                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId) && message.gistProperties.elementId == null
+                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId)
             }
             .distinctBy(Message::queueId)
             .sortedWith(compareBy(nullsLast()) { it.priority })
@@ -177,7 +177,12 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 
         if (messageToBeShownWithProperties != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
             // Load the message to be shown
-            store.dispatch(InAppMessagingAction.LoadMessage(messageToBeShownWithProperties))
+            val elementId = messageToBeShownWithProperties.gistProperties.elementId
+            if (elementId == null) {
+                store.dispatch(InAppMessagingAction.LoadMessage(messageToBeShownWithProperties))
+            } else {
+                store.dispatch(InAppMessagingAction.EmbedMessage(messageToBeShownWithProperties, elementId))
+            }
         } else {
             // Handle the case where no message matches the criteria.
             // This might involve logging, dispatching another action, or simply doing nothing.

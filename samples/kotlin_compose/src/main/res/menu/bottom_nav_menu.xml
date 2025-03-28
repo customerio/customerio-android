@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/navigation_inline_single"
+        android:icon="@drawable/ic_single_black_24dp"
+        android:title="@string/title_inline_single" />
+
+    <item
+        android:id="@+id/navigation_inline_multiple"
+        android:icon="@drawable/ic_multiple_black_24dp"
+        android:title="@string/title_inline_multiple" />
+
+    <item
+        android:id="@+id/navigation_inline_compose"
+        android:icon="@drawable/ic_compose_black_24dp"
+        android:title="@string/title_inline_compose" />
+
+    <item
+        android:id="@+id/navigation_inline_recycler"
+        android:icon="@drawable/ic_recycler_black_24dp"
+        android:title="@string/title_inline_recycler" />
+</menu>

@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
+import android.util.Log
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -108,6 +109,9 @@ internal class EngineWebView @JvmOverloads constructor(
                             window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message));
                         }
                     """.trim()
+                    view.evaluateJavascript("window.innerWidth") { innerWidth ->
+                        Log.d("EngineWebView", "[DEBUG] JS innerWidth: $innerWidth")
+                    }
                     view.evaluateJavascript(script) { result ->
                         logger.debug("JavaScript execution result: $result")
                     }

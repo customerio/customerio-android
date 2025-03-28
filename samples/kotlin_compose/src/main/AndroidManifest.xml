@@ -52,6 +52,15 @@
             </intent-filter>
 
         </activity>
+        <activity
+            android:name=".ui.inline.InlineMessagesNavigationActivity"
+            android:exported="false"
+            android:label="Inline Examples (Navigation)" />
+        <activity
+            android:name=".ui.inline.InlineMessagesTabbedActivity"
+            android:exported="false"
+            android:label="Inline Examples (Tabs)"
+            android:theme="@style/Theme.CustomerioSDK.NoActionBar" />
     </application>
 
 </manifest>

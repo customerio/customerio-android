@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="0dp"
+    tools:context=".ui.inline.SingleInlineMessageActivity">
+
+    <io.customer.messaginginapp.inline.InlineMessageBaseView
+        android:id="@+id/inapp_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_margin="0dp"
+        tools:background="@android:color/holo_green_light"
+        tools:layout_height="@dimen/inline_message_preview_height" />
+
+    <Button
+        android:id="@+id/fetch_messages_button"
+        style="?attr/materialButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/margin_default"
+        android:minWidth="@dimen/material_button_max_width"
+        android:text="Fetch Inline Messages"
+        tools:ignore="HardcodedText" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/margin_default"
+        android:layout_weight="1"
+        android:background="@android:color/holo_blue_light" />
+</LinearLayout>

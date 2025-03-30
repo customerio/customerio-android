@@ -1,8 +1,12 @@
 package io.customer.datapipelines
 
 import io.customer.commontest.config.TestConfig
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
+import io.customer.sdk.core.di.SDKComponent
 import io.mockk.mockk
 import io.mockk.verify
 import java.util.concurrent.CountDownLatch
@@ -16,30 +20,22 @@ import org.junit.jupiter.api.Test
  */
 class ConcurrentScreenViewTest : JUnitTest() {
 
-    // Interface to record screen events
-    interface ScreenRecorder {
-        fun recordScreen(name: String)
-    }
-
-    private lateinit var screenRecorder: ScreenRecorder
+    private lateinit var eventBus: EventBus
 
     override fun setup(testConfig: TestConfig) {
-        // Create and set up a spy on the screen recorder
-        val recorder = mockk<ScreenRecorder>(relaxed = true)
-
         super.setup(
             testConfiguration {
-                sdkConfig {
-                    // No special configuration needed
+                diGraph {
+                    sdk { overrideDependency<EventBus>(mockk(relaxed = true)) }
                 }
             }
         )
 
-        screenRecorder = recorder
+        eventBus = SDKComponent.eventBus
     }
 
     @Test
-    fun `verify screen method is thread safe`() {
+    fun verifyScreenMethodIsThreadSafe() {
         // Number of concurrent threads
         val threadCount = 5
         // Number of screen view events per thread
@@ -70,8 +66,6 @@ class ConcurrentScreenViewTest : JUnitTest() {
                     val screenName = "Screen_${eventIndex}_Thread_$threadId"
                     // Call the synchronized screen method
                     sdkInstance.screen(screenName)
-                    // Record the call
-                    screenRecorder.recordScreen(screenName)
                     // Count down for completion
                     completionLatch.countDown()
                     // Add small sleep between calls
@@ -86,18 +80,20 @@ class ConcurrentScreenViewTest : JUnitTest() {
         startLatch.countDown()
 
         // Wait for all events to be processed (with timeout)
-        val completed = completionLatch.await(10, TimeUnit.SECONDS)
+        completionLatch.await(10, TimeUnit.SECONDS)
 
         // Shutdown the executor
         executor.shutdown()
         executor.awaitTermination(1, TimeUnit.SECONDS)
 
         // Verify that screen method was called the expected number of times
-        verify(exactly = totalEvents) { screenRecorder.recordScreen(any()) }
+        verify(exactly = totalEvents) {
+            eventBus.publish(any<Event.ScreenViewedEvent>())
+        }
     }
 
     @Test
-    fun `verify screen synchronized method prevents race conditions`() {
+    fun verifyScreenSynchronizedMethodPreventsRaceConditions() {
         // This test verifies that the synchronized method works correctly
         // by checking that the mock is called the exact number of times expected
 
@@ -112,8 +108,6 @@ class ConcurrentScreenViewTest : JUnitTest() {
                 latch.await()
                 // Call the synchronized method
                 sdkInstance.screen(name)
-                // Record the call
-                screenRecorder.recordScreen(name)
             }
         }
 
@@ -129,7 +123,7 @@ class ConcurrentScreenViewTest : JUnitTest() {
 
         // Verify that each screen was recorded exactly once
         screenNames.forEach { name ->
-            verify(exactly = 1) { screenRecorder.recordScreen(name) }
+            assertCalledOnce { eventBus.publish(Event.ScreenViewedEvent(name)) }
         }
     }
 }

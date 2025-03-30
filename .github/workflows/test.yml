@@ -1,8 +1,6 @@
 name: Tests
 
-on:
-  pull_request:
-    types: [opened, synchronize] # Don't rerun on `edited` to save time
+on push:
 
 jobs:
   unit-test:

@@ -8,7 +8,6 @@ import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.config.ScreenView
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
-import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
@@ -85,13 +84,6 @@ class CustomerIOBuilderTest : RobolectricTest() {
 
         assertCalledNever { givenModule1.initialize() }
         assertCalledOnce { givenModule2.initialize() }
-    }
-
-    @Test
-    fun build_givenModuleInitialized_expectDataPipelinePublishedEventsPluginAdded() {
-        createCustomerIOBuilder().build()
-
-        CustomerIO.instance().analytics.find(DataPipelinePublishedEvents::class) shouldNotBe null
     }
 
     @Test

@@ -79,7 +79,20 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      * @param serializationStrategy strategy to serialize [traits]
      */
-    abstract fun <Traits> identify(
+    final fun <Traits> identify(
+        userId: String,
+        traits: Traits,
+        serializationStrategy: SerializationStrategy<Traits>
+    ) {
+        synchronized(this) {
+            identifyImpl(userId, traits, serializationStrategy)
+        }
+    }
+
+    /**
+     * Implementation of identify to be overridden by subclasses.
+     */
+    protected abstract fun <Traits> identifyImpl(
         userId: String,
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
@@ -129,7 +142,20 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param serializationStrategy strategy to serialize [properties]
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
-    abstract fun <T> track(
+    fun <T> track(
+        name: String,
+        properties: T,
+        serializationStrategy: SerializationStrategy<T>
+    ) {
+        synchronized(this) {
+            trackImpl(name, properties, serializationStrategy)
+        }
+    }
+
+    /**
+     * Implementation of track to be overridden by subclasses.
+     */
+    protected abstract fun <T> trackImpl(
         name: String,
         properties: T,
         serializationStrategy: SerializationStrategy<T>
@@ -184,7 +210,20 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
-    abstract fun <T> screen(
+    fun <T> screen(
+        title: String,
+        properties: T,
+        serializationStrategy: SerializationStrategy<T>
+    ) {
+        synchronized(this) {
+            screenImpl(title, properties, serializationStrategy)
+        }
+    }
+
+    /**
+     * Implementation of screen to be overridden by subclasses.
+     */
+    protected abstract fun <T> screenImpl(
         title: String,
         properties: T,
         serializationStrategy: SerializationStrategy<T>
@@ -211,7 +250,16 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * call `identify()` again to identify the new customer profile over the existing.
      * If no profile has been identified yet, this function will reset anonymous profile.
      */
-    abstract fun clearIdentify()
+    fun clearIdentify() {
+        synchronized(this) {
+            clearIdentifyImpl()
+        }
+    }
+
+    /**
+     * Implementation of clearIdentify to be overridden by subclasses.
+     */
+    protected abstract fun clearIdentifyImpl()
 
     /**
      * The track method helps manually record metric events for push notifications and
@@ -219,7 +267,16 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      *
      * @param event [TrackMetric] event to be tracked.
      */
-    abstract fun trackMetric(event: TrackMetric)
+    fun trackMetric(event: TrackMetric) {
+        synchronized(this) {
+            trackMetricImpl(event)
+        }
+    }
+
+    /**
+     * Implementation of trackMetric to be overridden by subclasses.
+     */
+    protected abstract fun trackMetricImpl(event: TrackMetric)
 
     /**
      * The device token that is currently registered with the push notification service.
@@ -248,10 +305,28 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * token and associate it with anonymous profile, and later merge it to
      * identified profile.
      */
-    abstract fun registerDeviceToken(deviceToken: String)
+    fun registerDeviceToken(deviceToken: String) {
+        synchronized(this) {
+            registerDeviceTokenImpl(deviceToken)
+        }
+    }
+
+    /**
+     * Implementation of registerDeviceToken to be overridden by subclasses.
+     */
+    protected abstract fun registerDeviceTokenImpl(deviceToken: String)
 
     /**
      * Delete the currently registered device token
      */
-    abstract fun deleteDeviceToken()
+    fun deleteDeviceToken() {
+        synchronized(this) {
+            deleteDeviceTokenImpl()
+        }
+    }
+
+    /**
+     * Implementation of deleteDeviceToken to be overridden by subclasses.
+     */
+    protected abstract fun deleteDeviceTokenImpl()
 }

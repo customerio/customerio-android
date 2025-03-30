@@ -1,6 +1,5 @@
 package io.customer.sdk
 
-import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
@@ -260,7 +259,6 @@ class CustomerIO private constructor(
      * All other screen methods should call this method to ensure consistency.
      */
     override fun <T> screenImpl(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
-        Log.d("Momo", "screenImpl call $title on thread: " + Thread.currentThread().name)
         logger.debug("track a screen with title $title, properties $properties")
         eventBus.publish(Event.ScreenViewedEvent(name = title))
         analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)

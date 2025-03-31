@@ -79,7 +79,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      * @param serializationStrategy strategy to serialize [traits]
      */
-    final fun <Traits> identify(
+    fun <Traits> identify(
         userId: String,
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>

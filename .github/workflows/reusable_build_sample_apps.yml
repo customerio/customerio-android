@@ -80,10 +80,10 @@ jobs:
       # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries.
       # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
       - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@v2
+        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
 
       - name: Install tools from Gemfile (ruby language) used for building our apps with
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@354a1ad156761f5ee2b7b13fa8e09943a5e8d252 # v1.229.0
         with:
           ruby-version: '3.0'
           bundler-cache: true # cache tools to make builds faster in future
@@ -137,7 +137,7 @@ jobs:
 
       - name: Deploy build via Fastlane
         if: ${{ ! (inputs.use_latest_sdk_version == true && matrix.sample-app == 'kotlin_compose') }}
-        uses: maierj/fastlane-action@v3.1.0
+        uses: maierj/fastlane-action@5a3b971aaa26776459bb26894d6c1a1a84a311a7 # v3.1.0
         with:
           lane: ${{ inputs.use_latest_sdk_version == true && 'android build_sample_app_for_sdk_release' || 'android build' }}
           subdirectory: "samples/${{ matrix.sample-app }}"
@@ -176,7 +176,7 @@ jobs:
 
       - name: Update sample builds PR comment with build information
         if: ${{ github.event_name == 'pull_request' }}
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -187,7 +187,7 @@ jobs:
 
       - name: Update sample builds PR comment with build failure message
         if: ${{ failure() }}
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}

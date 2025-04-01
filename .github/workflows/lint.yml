@@ -17,7 +17,7 @@ jobs:
       run: ./gradlew :${{ matrix.module }}:lintDebug
 
     - name: Parse lint results (${{ matrix.module }})
-      uses: yutailang0119/action-android-lint@v4.0.0
+      uses: yutailang0119/action-android-lint@bd0b5a7d2cc453d16080b90e2a975d4af4aa9588 # v4.0.0
       with:
         report-path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 

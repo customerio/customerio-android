@@ -21,7 +21,6 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
-import io.customer.datapipelines.plugins.DataPipelinePublishedEvents
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -126,8 +125,6 @@ class CustomerIO private constructor(
         if (moduleConfig.autoTrackDeviceAttributes) {
             analytics.add(AutoTrackDeviceAttributesPlugin())
         }
-        // Add plugin to publish events to EventBus for other modules to consume
-        analytics.add(DataPipelinePublishedEvents())
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
@@ -200,7 +197,7 @@ class CustomerIO private constructor(
      * and running any necessary hooks.
      * All other identify methods should call this method to ensure consistency.
      */
-    override fun <Traits> identify(
+    override fun <Traits> identifyImpl(
         userId: String,
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
@@ -224,6 +221,8 @@ class CustomerIO private constructor(
         }
 
         logger.info("identify profile with identifier $userId and traits $traits")
+        // publish event to EventBus for other modules to consume
+        eventBus.publish(Event.ProfileIdentifiedEvent(identifier = userId))
         analytics.identify(
             userId = userId,
             traits = traits,
@@ -245,7 +244,7 @@ class CustomerIO private constructor(
      * Common method to track an event with traits.
      * All other track methods should call this method to ensure consistency.
      */
-    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) = track(name, properties, serializationStrategy, null)
+    override fun <T> trackImpl(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) = track(name, properties, serializationStrategy, null)
 
     /**
      * Private method that support enrichment of generated track events.
@@ -259,12 +258,13 @@ class CustomerIO private constructor(
      * Common method to track an screen with properties.
      * All other screen methods should call this method to ensure consistency.
      */
-    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+    override fun <T> screenImpl(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
         logger.debug("track a screen with title $title, properties $properties")
+        eventBus.publish(Event.ScreenViewedEvent(name = title))
         analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
     }
 
-    override fun clearIdentify() {
+    override fun clearIdentifyImpl() {
         logger.info("resetting user profile with id ${this.userId}")
 
         logger.debug("deleting device token to remove device from user profile")
@@ -277,6 +277,8 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
+        // publish event to EventBus for other modules to consume
+        eventBus.publish(Event.ResetEvent)
         analytics.reset()
     }
 
@@ -295,7 +297,7 @@ class CustomerIO private constructor(
             trackDeviceAttributes(registeredDeviceToken, value)
         }
 
-    override fun registerDeviceToken(deviceToken: String) {
+    override fun registerDeviceTokenImpl(deviceToken: String) {
         if (deviceToken.isBlank()) {
             logger.debug("device token cannot be blank. ignoring request to register device token")
             return
@@ -336,7 +338,7 @@ class CustomerIO private constructor(
         )
     }
 
-    override fun deleteDeviceToken() = deleteDeviceToken(null)
+    override fun deleteDeviceTokenImpl() = deleteDeviceToken(null)
 
     private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
         logger.info("deleting device token")
@@ -350,7 +352,7 @@ class CustomerIO private constructor(
         track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
     }
 
-    override fun trackMetric(event: TrackMetric) {
+    override fun trackMetricImpl(event: TrackMetric) {
         logger.info("${event.type} metric received for ${event.metric} event")
         logger.debug("tracking ${event.type} metric event with properties $event")
 

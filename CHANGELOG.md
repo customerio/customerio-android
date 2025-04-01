@@ -1,3 +1,9 @@
+## [4.5.5](https://github.com/customerio/customerio-android/compare/4.5.4...4.5.5) (2025-04-01)
+
+### Bug Fixes
+
+* screen view order ([#500](https://github.com/customerio/customerio-android/issues/500)) ([6877daf](https://github.com/customerio/customerio-android/commit/6877daf98235ce9c96a2ce4932f188efb2c33a71))
+
 ## [4.5.4](https://github.com/customerio/customerio-android/compare/4.5.3...4.5.4) (2025-04-01)
 
 ### Bug Fixes

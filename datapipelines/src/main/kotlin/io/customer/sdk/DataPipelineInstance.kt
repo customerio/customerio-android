@@ -13,6 +13,9 @@ import kotlinx.serialization.serializer
  * Data Pipelines implementation.
  */
 abstract class DataPipelineInstance : CustomerIOInstance {
+
+    private inline fun <T> synchronized(block: () -> T): T = synchronized(this) { block() }
+
     /**
      * Custom profile attributes to be added to current profile.
      */
@@ -84,7 +87,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
     ) {
-        synchronized(this) {
+        synchronized {
             identifyImpl(userId, traits, serializationStrategy)
         }
     }
@@ -147,7 +150,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         properties: T,
         serializationStrategy: SerializationStrategy<T>
     ) {
-        synchronized(this) {
+        synchronized {
             trackImpl(name, properties, serializationStrategy)
         }
     }
@@ -215,7 +218,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         properties: T,
         serializationStrategy: SerializationStrategy<T>
     ) {
-        synchronized(this) {
+        synchronized {
             screenImpl(title, properties, serializationStrategy)
         }
     }
@@ -251,7 +254,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * If no profile has been identified yet, this function will reset anonymous profile.
      */
     fun clearIdentify() {
-        synchronized(this) {
+        synchronized {
             clearIdentifyImpl()
         }
     }
@@ -268,7 +271,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param event [TrackMetric] event to be tracked.
      */
     fun trackMetric(event: TrackMetric) {
-        synchronized(this) {
+        synchronized {
             trackMetricImpl(event)
         }
     }
@@ -306,7 +309,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * identified profile.
      */
     fun registerDeviceToken(deviceToken: String) {
-        synchronized(this) {
+        synchronized {
             registerDeviceTokenImpl(deviceToken)
         }
     }
@@ -320,7 +323,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * Delete the currently registered device token
      */
     fun deleteDeviceToken() {
-        synchronized(this) {
+        synchronized {
             deleteDeviceTokenImpl()
         }
     }

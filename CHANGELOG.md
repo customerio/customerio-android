@@ -1,3 +1,9 @@
+## [4.5.4](https://github.com/customerio/customerio-android/compare/4.5.3...4.5.4) (2025-04-01)
+
+### Bug Fixes
+
+* offline events storage sync ([#498](https://github.com/customerio/customerio-android/issues/498)) ([6f3d16f](https://github.com/customerio/customerio-android/commit/6f3d16fe01a675cfa522099230baf03650cf9c42))
+
 ## [4.5.3](https://github.com/customerio/customerio-android/compare/4.5.2...4.5.3) (2025-02-18)
 
 ### Bug Fixes

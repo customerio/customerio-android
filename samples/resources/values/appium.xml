@@ -22,6 +22,7 @@
     <string name="acd_save_settings_button">Save Settings Button</string>
     <string name="acd_restore_default_settings_button">Restore Default Settings Button</string>
     <string name="acd_email_id_text">Email ID Text</string>
+    <string name="acd_device_id_text">Device ID Text</string>
     <string name="acd_random_event_button">Random Event Button</string>
     <string name="acd_custom_event_button">Custom Event Button</string>
     <string name="acd_device_attribute_button">Device Attribute Button</string>

@@ -1,6 +1,9 @@
 package io.customer.android.sample.java_layout.ui.dashboard;
 
 import android.Manifest;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -10,6 +13,7 @@ import android.provider.Settings;
 import android.util.Pair;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -35,6 +39,7 @@ import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.sdk.CustomerIO;
 
 public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
@@ -98,6 +103,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     private void prepareViewsForAutomatedTests() {
         ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
         ViewUtils.prepareForAutomatedTests(binding.userEmailTextView, R.string.acd_email_id_text);
+        ViewUtils.prepareForAutomatedTests(binding.deviceIdTextView, R.string.acd_device_id_text);
         ViewUtils.prepareForAutomatedTests(binding.sendRandomEventButton, R.string.acd_random_event_button);
         ViewUtils.prepareForAutomatedTests(binding.sendCustomEventButton, R.string.acd_custom_event_button);
         ViewUtils.prepareForAutomatedTests(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);
@@ -114,6 +120,19 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             startActivity(new Intent(DashboardActivity.this, InternalSettingsActivity.class));
             return true;
         });
+        String deviceToken = CustomerIO.instance().getRegisteredDeviceToken();
+        if (deviceToken != null && !deviceToken.isEmpty()) {
+            binding.deviceIdTextView.setClickable(true);
+            binding.deviceIdTextView.setFocusable(true);
+            binding.deviceIdTextView.setText(deviceToken);
+            binding.deviceIdTextView.setOnClickListener(view -> {
+                copyToClipboard(binding.deviceIdTextView.getText().toString().trim());
+            });
+        } else {
+            binding.deviceIdTextView.setClickable(false);
+            binding.deviceIdTextView.setFocusable(false);
+            binding.deviceIdTextView.setText(R.string.device_token_not_registered);
+        }
         binding.sendRandomEventButton.setOnClickListener(view -> {
             sendRandomEvent();
         });
@@ -232,5 +251,15 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         builder.setMessage(messageResId);
         builder.setNeutralButton(R.string.open_settings, (dialogInterface, i) -> openNotificationPermissionSettings());
         builder.show();
+    }
+
+    private void copyToClipboard(String text) {
+        if (text.isEmpty()) {
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText(getString(R.string.device_token), text);
+        clipboard.setPrimaryClip(clip);
+        Toast.makeText(this, R.string.token_copied, Toast.LENGTH_SHORT).show();
     }
 }

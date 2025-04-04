@@ -2,6 +2,7 @@ package io.customer.sdk
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
+import io.customer.datapipelines.extensions.sanitizeNullsForJson
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
 import kotlinx.serialization.SerializationStrategy
@@ -66,7 +67,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun identify(userId: String, traits: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        identify(userId = userId, traits = traits.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -130,7 +131,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun track(name: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        track(name = name, properties = properties.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -203,7 +204,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun screen(title: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        screen(title = title, properties = properties.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**

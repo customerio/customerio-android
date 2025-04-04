@@ -43,3 +43,16 @@ private fun Any?.toSerializableJson(): JsonElement {
         else -> this.toJsonElement()
     }
 }
+
+/**
+ * Recursively replaces all `null` values in nested structure with [JsonNull],
+ * preserving structure and type. Useful for safely converting to `JsonElement`
+ * using `Any.toJsonElement()` extension.
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun <T> T?.sanitizeNullsForJson(): T = when (this) {
+    null -> JsonNull as T
+    is Map<*, *> -> this.mapValues { (_, v) -> v.sanitizeNullsForJson() } as T
+    is List<*> -> this.map { it.sanitizeNullsForJson() } as T
+    else -> this
+}

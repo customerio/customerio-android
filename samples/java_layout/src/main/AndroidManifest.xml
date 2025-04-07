@@ -120,9 +120,9 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".ui.common.SimpleFragmentActivity"
+            android:name=".ui.tracking.TrackingFragmentActivity"
             android:exported="false"
-            android:label="@string/label_simple_fragment_activity" />
+            android:label="@string/label_tracking_fragment_activity" />
         <activity
             android:name=".ui.settings.InternalSettingsActivity"
             android:exported="false"

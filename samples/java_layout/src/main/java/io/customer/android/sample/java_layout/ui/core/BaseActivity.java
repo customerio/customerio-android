@@ -26,8 +26,13 @@ public abstract class BaseActivity<VB extends ViewBinding> extends AppCompatActi
         binding = inflateViewBinding();
         setContentView(binding.getRoot());
         viewModelProvider = new ViewModelProvider(this, applicationGraph.getViewModelFactory());
+        readExtras();
         injectDependencies();
         setupContent();
+    }
+
+    @EmptySuper
+    protected void readExtras() {
     }
 
     @EmptySuper

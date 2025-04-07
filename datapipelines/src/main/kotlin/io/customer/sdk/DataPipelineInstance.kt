@@ -67,7 +67,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun identify(userId: String, traits: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        identify(userId = userId, traits = traits.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -89,7 +89,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<Traits>
     ) {
         synchronized {
-            identifyImpl(userId, traits, serializationStrategy)
+            identifyImpl(userId, traits.sanitizeNullsForJson(), serializationStrategy)
         }
     }
 
@@ -131,7 +131,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun track(name: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        track(name = name, properties = properties.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -152,7 +152,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<T>
     ) {
         synchronized {
-            trackImpl(name, properties, serializationStrategy)
+            trackImpl(name, properties.sanitizeNullsForJson(), serializationStrategy)
         }
     }
 
@@ -204,7 +204,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun screen(title: String, properties: CustomAttributes) {
         // Method needed for Java interop as inline doesn't work with Java
-        screen(title = title, properties = properties.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -220,7 +220,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<T>
     ) {
         synchronized {
-            screenImpl(title, properties, serializationStrategy)
+            screenImpl(title, properties.sanitizeNullsForJson(), serializationStrategy)
         }
     }
 

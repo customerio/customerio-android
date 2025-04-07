@@ -65,9 +65,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits Map of <String, Any> to be added
      */
-    fun identify(userId: String, traits: CustomAttributes) {
+    fun identify(userId: String, traits: Map<String, Any?>) {
         // Method needed for Java interop as inline doesn't work with Java
-        identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        identify(userId = userId, traits = traits.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -89,7 +89,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<Traits>
     ) {
         synchronized {
-            identifyImpl(userId, traits.sanitizeNullsForJson(), serializationStrategy)
+            identifyImpl(userId, traits, serializationStrategy)
         }
     }
 
@@ -129,9 +129,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Map of <String, Any> to be added
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
-    fun track(name: String, properties: CustomAttributes) {
+    fun track(name: String, properties: Map<String, Any?>) {
         // Method needed for Java interop as inline doesn't work with Java
-        track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        track(name = name, properties = properties.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -152,7 +152,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<T>
     ) {
         synchronized {
-            trackImpl(name, properties.sanitizeNullsForJson(), serializationStrategy)
+            trackImpl(name, properties, serializationStrategy)
         }
     }
 
@@ -202,9 +202,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen in Map <String, Any> format.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
-    fun screen(title: String, properties: CustomAttributes) {
+    fun screen(title: String, properties: Map<String, Any?>) {
         // Method needed for Java interop as inline doesn't work with Java
-        screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
+        screen(title = title, properties = properties.sanitizeNullsForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
     /**
@@ -220,7 +220,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<T>
     ) {
         synchronized {
-            screenImpl(title, properties.sanitizeNullsForJson(), serializationStrategy)
+            screenImpl(title, properties, serializationStrategy)
         }
     }
 

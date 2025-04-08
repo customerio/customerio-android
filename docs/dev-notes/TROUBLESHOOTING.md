@@ -22,38 +22,37 @@ Navigate to:
 
 For step-by-step instructions, [refer to this answer](https://stackoverflow.com/a/79049864/1771663).
 
-**2. List installed JDKs**
+**2. Configure CLI to use JDK 17**
 
-To identify installed JDK versions:
-```bash
-/usr/libexec/java_home -V
-```
+To avoid Gradle failures in CLI, ensure that **JDK 17** is used consistently during local development. This can be done by updating `JAVA_HOME` environment variable, either temporarily (for current session only) or permanently (via shell profile).
 
-**3. Configure CLI to use JDK 17**
+**Option 1: Use a specific JDK path or dynamic lookup**
 
-Update shell profile (`~/.zshrc`, `~/.bash_profile`, etc.) to ensure the CLI uses JDK 17 for all Gradle tasks.
+Choose either of the following, depending on preference:
 
-- **Option 1:** Set the path explicitly
-(Use this if a specific JDK 17 path is known or was listed in Step 2. The example path below may differ.)
+- Set a known JDK 17 path (use `/usr/libexec/java_home -V` to list installed versions):
+
 ```bash
 export JAVA_HOME="/Library/Java/JavaVirtualMachines/jbr-17.0.14.jdk/Contents/Home"
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
-- **Option 2:** Use latest installed JDK 17 dynamically
+- Or use dynamic lookup to always pick latest installed JDK 17:
+
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
-**4. Apply the environment change**
+These commands can be:
+- **Temporary:** Run directly in the terminal for one session
+- **Permanent:** Add to shell profile like `~/.zshrc` or `~/.bash_profile` _- Restart the terminal or run `source ~/.zshrc` (or appropriate file) to apply the changes_
 
-Run following command or restart the terminal:
-```bash
-source ~/.zshrc   # or source ~/.bash_profile
-```
+**Option 2: Use a Java version manager**
 
-**5. Verify the JDK version used by Gradle**
+Tools like [jenv](https://github.com/jenv/jenv) can simplify managing multiple JDK versions across projects. This document doesn't cover setup details, but can be worth considering for long-term convenience.
+
+**3. Verify the JDK version used by Gradle**
 
 Confirm that the CLI uses JDK 17 by running:
 ```bash

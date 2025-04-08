@@ -10,7 +10,7 @@ Recent versions of Android Studio (e.g. **Meerkat**) use **JDK 21** by default f
 
 If the CLI uses JDK 21 (e.g. via system default), commit hooks may fail due to incompatibility with required JDK 17 as the [hook runs a Gradle task](../lefthook.yml#L6) to verify API changes in code files.
 
-### Resolution Steps
+### Steps to Resolve
 
 **1. Set Gradle JDK to 17 in Android Studio**
 

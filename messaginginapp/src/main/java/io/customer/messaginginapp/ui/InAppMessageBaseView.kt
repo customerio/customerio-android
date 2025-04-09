@@ -3,13 +3,12 @@ package io.customer.messaginginapp.ui
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.net.UrlQuerySanitizer
 import android.util.AttributeSet
 import android.util.Base64
-import android.util.DisplayMetrics
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
+import androidx.core.net.toUri
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
@@ -33,168 +32,215 @@ internal abstract class InAppMessageBaseView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr), EngineWebViewListener {
+    protected var engineWebView: EngineWebView? = null
+    protected var currentMessage: Message? = null
+    protected var currentRoute: String? = null
 
-    private var engineWebView: EngineWebView? = EngineWebView(context)
-    private var currentMessage: Message? = null
-    private var currentRoute: String? = null
-    private var firstLoad: Boolean = true
-    var listener: InAppMessageViewEventsListener? = null
-    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
-    val logger = SDKComponent.logger
-    private val store: InAppMessagingState
+    protected val logger = SDKComponent.logger
+    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    protected val store: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
+
+    internal var eventsListener: InAppMessageViewEventsListener? = null
 
     // indicates if the message is visible to user or not
     internal val isEngineVisible: Boolean
         get() = engineWebView?.alpha == 1.0f
 
-    init {
-        engineWebView?.let { engineWebView ->
-            engineWebView.alpha = 0.0f
-            engineWebView.listener = this
+    protected fun logViewEvent(message: String) {
+        logger.debug("[InApp][View] $message")
+    }
+
+    protected fun attachEngineWebView() {
+        if (engineWebView != null) {
+            logViewEvent("EngineWebView already attached, skipping")
+            return
         }
-        this.addView(engineWebView)
+
+        logViewEvent("Attaching EngineWebView")
+        engineWebView = EngineWebView(context).also { view ->
+            view.alpha = 0.0f
+            view.listener = this
+            this.addView(view)
+        }
+    }
+
+    protected fun detachEngineWebView() {
+        val view = engineWebView ?: return
+        engineWebView = null
+
+        logViewEvent("Detaching EngineWebView")
+        view.listener = null
+        removeView(view)
+    }
+
+    protected fun clearResourcesIfMessageIdEmpty() {
+        val message = currentMessage ?: return
+        if (message.messageId.isNotBlank()) return
+
+        logViewEvent("Clearing resources for empty messageId")
+        detachEngineWebView()
+        currentMessage = null
+        eventsListener = null
     }
 
     fun setup(message: Message) {
-        logger.debug("GistView setup: $message")
+        logViewEvent("Setting up EngineWebView with message: $message")
+        val engineWebConfiguration = EngineWebConfiguration(
+            siteId = store.siteId,
+            dataCenter = store.dataCenter,
+            messageId = message.messageId,
+            instanceId = message.instanceId,
+            endpoint = store.environment.getEngineApiUrl(),
+            properties = message.properties
+        )
+
         currentMessage = message
-        currentMessage?.let { message ->
-            val engineWebConfiguration = EngineWebConfiguration(
-                siteId = store.siteId,
-                dataCenter = store.dataCenter,
-                messageId = message.messageId,
-                instanceId = message.instanceId,
-                endpoint = store.environment.getEngineApiUrl(),
-                properties = message.properties
-            )
-            engineWebView?.setup(engineWebConfiguration)
-        }
+        engineWebView?.setup(engineWebConfiguration)
     }
 
     fun stopLoading() {
+        logViewEvent("Stopping EngineWebView loading")
         engineWebView?.stopLoading()
     }
 
     override fun tap(name: String, action: String, system: Boolean) {
+        val message = currentMessage ?: return
+        val route = currentRoute ?: return
+
         var shouldLogAction = true
-        currentMessage?.let { message ->
-            currentRoute?.let { route ->
-                inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.Tap(message = message, route = route, name = name, action = action))
-                when {
-                    action.startsWith("gist://") -> {
-                        val gistAction = URI(action)
-                        val urlQuery = UrlQuerySanitizer(action)
-                        when (gistAction.host) {
-                            "close" -> {
-                                shouldLogAction = false
-                                logger.debug("Dismissing from action: $action")
-                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, viaCloseAction = true))
-                            }
+        inAppMessagingManager.dispatch(
+            InAppMessagingAction.EngineAction.Tap(
+                message = message,
+                route = route,
+                name = name,
+                action = action
+            )
+        )
 
-                            "loadPage" -> {
-                                val url = urlQuery.getValue("url")
-                                val intent = Intent(Intent.ACTION_VIEW)
-                                intent.data = Uri.parse(url)
-                                logger.debug("Opening URL: $url")
-                                startActivity(context, intent, null)
-                            }
-
-                            "showMessage" -> {
-                                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
-                                val messageId = urlQuery.getValue("messageId")
-                                val propertiesBase64 = urlQuery.getValue("properties")
-                                val parameterBinary = Base64.decode(propertiesBase64, Base64.DEFAULT)
-                                val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
-                                val map: Map<String, Any> = HashMap()
-                                val properties = Gson().fromJson(parameterString, map.javaClass)
-                                logger.debug("Showing message: $messageId")
-                                inAppMessagingManager.dispatch(InAppMessagingAction.LoadMessage(Message(messageId = messageId, properties = properties)))
-                            }
-
-                            else -> {
-                                shouldLogAction = false
-                                logger.debug("Gist action unhandled: $action")
-                            }
-                        }
+        when {
+            action.startsWith("gist://") -> {
+                val gistAction = URI(action)
+                val urlQuery = UrlQuerySanitizer(action)
+                when (gistAction.host) {
+                    "close" -> {
+                        shouldLogAction = false
+                        logViewEvent("Dismissing from action: $action")
+                        inAppMessagingManager.dispatch(
+                            InAppMessagingAction.DismissMessage(
+                                message = message,
+                                viaCloseAction = true
+                            )
+                        )
                     }
 
-                    system -> {
-                        try {
-                            shouldLogAction = false
-                            logger.debug("Dismissing from system action: $action")
-                            val intent = Intent(Intent.ACTION_VIEW)
-                            intent.data = Uri.parse(action)
-                            intent.flags =
-                                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                            startActivity(context, intent, null)
-
-                            // launch system action first otherwise there is a possibility
-                            // that due to lifecycle change and message still being in queue to be displayed
-                            // the message will be displayed again, putting GistActivity before the system action in stack
-                            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false))
-                        } catch (e: ActivityNotFoundException) {
-                            logger.debug("System action not handled: $action")
-                        }
+                    "loadPage" -> {
+                        val url = urlQuery.getValue("url")
+                        val intent = Intent(Intent.ACTION_VIEW)
+                        intent.data = url.toUri()
+                        logViewEvent("Opening URL: $url")
+                        startActivity(context, intent, null)
                     }
-                }
-                if (shouldLogAction) {
-                    logger.debug("Action selected: $action")
+
+                    "showMessage" -> {
+                        inAppMessagingManager.dispatch(
+                            InAppMessagingAction.DismissMessage(
+                                message = message,
+                                shouldLog = false
+                            )
+                        )
+                        val messageId = urlQuery.getValue("messageId")
+                        val propertiesBase64 = urlQuery.getValue("properties")
+                        val parameterBinary = Base64.decode(propertiesBase64, Base64.DEFAULT)
+                        val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
+                        val map: Map<String, Any> = HashMap()
+                        val properties = Gson().fromJson(parameterString, map.javaClass)
+                        logViewEvent("Showing message: $messageId")
+                        inAppMessagingManager.dispatch(
+                            InAppMessagingAction.LoadMessage(
+                                Message(
+                                    messageId = messageId,
+                                    properties = properties
+                                )
+                            )
+                        )
+                    }
+
+                    else -> {
+                        shouldLogAction = false
+                        logViewEvent("Action unhandled: $action")
+                    }
                 }
             }
+
+            system -> {
+                try {
+                    shouldLogAction = false
+                    logViewEvent("Dismissing from system action: $action")
+                    val intent = Intent(Intent.ACTION_VIEW)
+                    intent.data = action.toUri()
+                    intent.flags =
+                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    startActivity(context, intent, null)
+
+                    // launch system action first otherwise there is a possibility
+                    // that due to lifecycle change and message still being in queue to be displayed
+                    // the message will be displayed again, putting GistActivity before the system action in stack
+                    inAppMessagingManager.dispatch(
+                        InAppMessagingAction.DismissMessage(
+                            message = message,
+                            shouldLog = false
+                        )
+                    )
+                } catch (e: ActivityNotFoundException) {
+                    logViewEvent("System action not handled: $action")
+                }
+            }
+        }
+
+        if (shouldLogAction) {
+            logViewEvent("Action selected: $action")
         }
     }
 
     override fun routeError(route: String) {
-        logger.debug("GistView Route error: $route")
+        logViewEvent("Route error: $route")
         currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+            )
         }
     }
 
     override fun routeLoaded(route: String) {
-        logger.debug("GistView Route loaded: $route")
+        logViewEvent("Route loaded: $route")
         currentRoute = route
-        if (firstLoad) {
-            firstLoad = false
-            engineWebView?.let { engineWebView ->
-                engineWebView.alpha = 1.0f
-            }
-            currentMessage?.let { message ->
-                inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
-            }
-        }
     }
 
     override fun error() {
-        logger.debug("GistView Error loading engine")
+        logViewEvent("Error loading engine for message: ${currentMessage?.messageId} on route: $currentRoute")
         currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+            )
         }
     }
 
     override fun bootstrapped() {
-        logger.debug("GistView Engine bootstrapped")
+        logViewEvent("Engine bootstrapped")
         // Cleaning after engine web is bootstrapped and all assets downloaded.
-        currentMessage?.let { message ->
-            if (message.messageId == "") {
-                engineWebView = null
-                currentMessage = null
-                listener = null
-            }
-        }
+        clearResourcesIfMessageIdEmpty()
     }
 
     override fun routeChanged(newRoute: String) {
-        logger.debug("GistView Route changed: $newRoute")
+        logViewEvent("Route changed: $newRoute")
     }
 
     override fun sizeChanged(width: Double, height: Double) {
-        logger.debug("GistView Size changed: $width x $height")
-        listener?.onViewSizeChanged(getSizeBasedOnDPI(width.toInt()), getSizeBasedOnDPI(height.toInt()))
-    }
-
-    private fun getSizeBasedOnDPI(size: Int): Int {
-        return size * context.resources.displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT
+        logViewEvent("Size changed: $width x $height")
+        eventsListener?.onViewSizeChanged(
+            getSizeBasedOnDPI(width.toInt()),
+            getSizeBasedOnDPI(height.toInt())
+        )
     }
 }

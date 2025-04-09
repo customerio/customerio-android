@@ -72,7 +72,7 @@ class GistModalActivity : AppCompatActivity(), InAppMessageViewEventsListener, T
             logger.debug("GistModelActivity onCreate: $parsedMessage")
             parsedMessage.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
-                binding.gistView.listener = this
+                binding.gistView.eventsListener = this
                 binding.gistView.setup(message)
                 val messagePosition = if (modalPositionStr == null) {
                     message.gistProperties.position

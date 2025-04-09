@@ -1,83 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/content"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingHorizontal="@dimen/margin_default"
-    android:paddingTop="@dimen/margin_default"
-    android:paddingBottom="?attr/actionBarSize"
-    tools:context=".ui.tracking.AttributesTrackingFragment"
-    tools:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fadeScrollbars="false"
+    android:fillViewport="true"
+    android:scrollbars="vertical"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    tools:context=".ui.tracking.AttributesTrackingFragment">
 
-    <TextView
-        android:id="@+id/screen_title_text_view"
-        android:layout_width="0dp"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-        app:layout_constraintBottom_toTopOf="@id/attribute_name_input_layout"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed"
-        tools:text="@string/screen_title_device_attributes" />
+        android:paddingHorizontal="@dimen/margin_default"
+        android:paddingTop="@dimen/margin_default"
+        android:paddingBottom="?attr/actionBarSize">
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/attribute_name_input_layout"
-        style="?attr/textInputStyle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/margin_large"
-        app:layout_constraintBottom_toTopOf="@id/attribute_value_input_layout"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/screen_title_text_view"
-        app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/attribute_name_text_input"
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/screen_title_text_view"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/attribute_name"
-            android:inputType="text"
-            android:maxLength="500"
-            android:maxLines="1" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+            app:layout_constraintBottom_toTopOf="@id/attribute_name_input_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="packed"
+            tools:text="@string/screen_title_device_attributes" />
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/attribute_value_input_layout"
-        style="?attr/textInputStyle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/margin_small"
-        android:layout_marginBottom="@dimen/margin_large"
-        app:layout_constraintBottom_toTopOf="@id/send_event_button"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/attribute_name_input_layout"
-        app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/attribute_value_text_input"
-            android:layout_width="match_parent"
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/attribute_name_input_layout"
+            style="?attr/textInputStyle"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/attribute_value"
-            android:inputType="text"
-            android:maxLength="500"
-            android:maxLines="1" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:layout_marginTop="@dimen/margin_large"
+            app:layout_constraintBottom_toTopOf="@id/attribute_value_input_layout"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/screen_title_text_view"
+            app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
-    <Button
-        android:id="@+id/send_event_button"
-        style="?attr/materialButtonStyle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/margin_large"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/attribute_value_input_layout"
-        app:layout_constraintWidth_max="@dimen/material_button_max_width"
-        tools:text="@string/send_device_attribute" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/attribute_name_text_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/attribute_name"
+                android:inputType="text"
+                android:maxLength="500"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/attribute_value_input_layout"
+            style="?attr/textInputStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_small"
+            android:layout_marginBottom="@dimen/margin_large"
+            app:layout_constraintBottom_toTopOf="@id/send_event_button"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/attribute_name_input_layout"
+            app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/attribute_value_text_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/attribute_value"
+                android:inputType="text"
+                android:maxLength="500"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <Button
+            android:id="@+id/send_event_button"
+            style="?attr/materialButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_large"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/attribute_value_input_layout"
+            app:layout_constraintWidth_max="@dimen/material_button_max_width"
+            tools:text="@string/send_device_attribute" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>

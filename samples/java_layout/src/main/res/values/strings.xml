@@ -67,7 +67,7 @@
     <string name="label_dashboard_activity">DashboardActivity</string>
     <string name="label_login_activity">LoginActivity</string>
     <string name="label_settings_activity">SettingsActivity</string>
-    <string name="label_simple_fragment_activity">SimpleFragmentActivity</string>
+    <string name="label_tracking_fragment_activity">SimpleFragmentActivity</string>
     <string name="notification_permission_alert_title">Push Permission</string>
     <string name="notification_permission_success">Push notifications are enabled on this device</string>
     <string name="notification_permission_denied">Push notifications are disabled on this device</string>

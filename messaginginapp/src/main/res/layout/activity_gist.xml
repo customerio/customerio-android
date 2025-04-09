@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:visibility="gone"
     android:alpha="0">
-    <io.customer.messaginginapp.gist.presentation.GistView
+    <io.customer.messaginginapp.ui.ModalInAppMessageView
         android:id="@+id/gistView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

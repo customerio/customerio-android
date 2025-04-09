@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.gist.presentation
+package io.customer.messaginginapp.ui
 
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -22,16 +22,23 @@ import io.customer.sdk.core.di.SDKComponent
 import java.net.URI
 import java.nio.charset.StandardCharsets
 
-class GistView @JvmOverloads constructor(
+/**
+ * Base view class for displaying in-app messages. This class is responsible for managing common
+ * in-app message functionality, such as setting up the EngineWebView, handling tap events, etc.
+ * This class will be extended by specific in-app message views (e.g., ModalInAppMessageView)
+ * to handle specific message types.
+ */
+internal abstract class InAppMessageBaseView @JvmOverloads constructor(
     context: Context,
-    attrs: AttributeSet? = null
-) : FrameLayout(context, attrs), EngineWebViewListener {
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : FrameLayout(context, attrs, defStyleAttr), EngineWebViewListener {
 
     private var engineWebView: EngineWebView? = EngineWebView(context)
     private var currentMessage: Message? = null
     private var currentRoute: String? = null
     private var firstLoad: Boolean = true
-    var listener: GistViewListener? = null
+    var listener: InAppMessageViewEventsListener? = null
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     val logger = SDKComponent.logger
     private val store: InAppMessagingState
@@ -184,14 +191,10 @@ class GistView @JvmOverloads constructor(
 
     override fun sizeChanged(width: Double, height: Double) {
         logger.debug("GistView Size changed: $width x $height")
-        listener?.onGistViewSizeChanged(getSizeBasedOnDPI(width.toInt()), getSizeBasedOnDPI(height.toInt()))
+        listener?.onViewSizeChanged(getSizeBasedOnDPI(width.toInt()), getSizeBasedOnDPI(height.toInt()))
     }
 
     private fun getSizeBasedOnDPI(size: Int): Int {
         return size * context.resources.displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT
     }
-}
-
-interface GistViewListener {
-    fun onGistViewSizeChanged(width: Int, height: Int) {}
 }

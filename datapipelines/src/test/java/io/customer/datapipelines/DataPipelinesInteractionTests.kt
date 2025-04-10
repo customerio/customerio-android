@@ -658,4 +658,204 @@ class DataPipelinesInteractionTests : JUnitTest() {
     }
 
     //endregion
+
+    //region Nested Null Handling Tests
+
+    @Test
+    fun track_givenNestedNullInCustomAttributes_expectSuccessfulEventProcessing() {
+        val givenEvent = String.random
+        val givenProperties = mapOf(
+            "level1" to mapOf(
+                "key1" to "value1",
+                "key2" to null,
+                "nested" to mapOf(
+                    "deepKey" to "deepValue",
+                    "nullValue" to null
+                )
+            ),
+            "nullObject" to null,
+            "regularValue" to "test"
+        )
+
+        sdkInstance.track(givenEvent, givenProperties)
+
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
+        val trackEvent = outputReaderPlugin.trackEvents.lastOrNull()
+        trackEvent.shouldNotBeNull()
+
+        trackEvent.event shouldBeEqualTo givenEvent
+
+        // Verify event was processed successfully and properties match
+        // The outputReaderPlugin should have the properties with JsonNull replacing nulls
+        val level1Map = trackEvent.properties["level1"]
+        level1Map.shouldNotBeNull()
+
+        // Ensure we can access the properties without errors, which would happen if nulls weren't properly handled
+        val nestedMap = (level1Map as Map<*, *>)["nested"]
+        nestedMap.shouldNotBeNull()
+    }
+
+    @Test
+    fun track_givenNullInDeepNestedStructure_expectSuccessfulEventProcessing() {
+        val givenEvent = String.random
+        val userData: CustomAttributes = mapOf(
+            "name" to "John Doe",
+            "contact" to mapOf(
+                "email" to "john@example.com",
+                "phone" to null, // Null phone
+                "address" to mapOf(
+                    "street" to "123 Main St",
+                    "city" to null, // Null city
+                    "zipCode" to "12345"
+                )
+            ),
+            "preferences" to mapOf(
+                "notifications" to mapOf(
+                    "email" to true,
+                    "push" to null, // Null push preference
+                    "frequency" to mapOf(
+                        "daily" to true,
+                        "weekly" to null // Nested null
+                    )
+                ),
+                "theme" to null // Null theme
+            )
+        )
+
+        sdkInstance.track(givenEvent, userData)
+
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
+        val trackEvent = outputReaderPlugin.trackEvents.lastOrNull()
+        trackEvent.shouldNotBeNull()
+
+        trackEvent.event shouldBeEqualTo givenEvent
+
+        // Verify the nested structure with nulls was processed correctly
+        val contact = trackEvent.properties["contact"] as? Map<*, *>
+        contact.shouldNotBeNull()
+
+        val address = contact["address"] as? Map<*, *>
+        address.shouldNotBeNull()
+
+        val preferences = trackEvent.properties["preferences"] as? Map<*, *>
+        preferences.shouldNotBeNull()
+
+        val notifications = preferences["notifications"] as? Map<*, *>
+        notifications.shouldNotBeNull()
+
+        val frequency = notifications["frequency"] as? Map<*, *>
+        frequency.shouldNotBeNull()
+    }
+
+    @Test
+    fun track_givenArrayWithNestedNulls_expectSuccessfulEventProcessing() {
+        val givenEvent = String.random
+        val givenProperties: CustomAttributes = mapOf(
+            "items" to listOf(
+                mapOf("id" to 1, "value" to "first", "optional" to null),
+                mapOf("id" to 2, "value" to null, "details" to mapOf("key" to null)),
+                null
+            )
+        )
+
+        sdkInstance.track(givenEvent, givenProperties)
+
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
+        val trackEvent = outputReaderPlugin.trackEvents.lastOrNull()
+        trackEvent.shouldNotBeNull()
+
+        trackEvent.event shouldBeEqualTo givenEvent
+
+        // Verify the event was processed successfully
+        val items = trackEvent.properties["items"]
+        items.shouldNotBeNull()
+        (items as List<*>).size shouldBeEqualTo 3
+    }
+
+    @Test
+    fun identify_givenNestedNullInAttributes_expectSuccessfulProfileCreation() {
+        val givenIdentifier = String.random
+        val givenTraits: CustomAttributes = mapOf(
+            "profile" to mapOf(
+                "firstName" to "Jane",
+                "lastName" to "Doe",
+                "settings" to mapOf(
+                    "language" to "en",
+                    "timezone" to null,
+                    "preferences" to mapOf(
+                        "notifications" to true,
+                        "marketing" to null
+                    )
+                ),
+                "company" to null
+            )
+        )
+
+        sdkInstance.identify(givenIdentifier, givenTraits)
+
+        analytics.userId() shouldBeEqualTo givenIdentifier
+
+        outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
+        val identifyEvent = outputReaderPlugin.identifyEvents.lastOrNull()
+        identifyEvent.shouldNotBeNull()
+
+        identifyEvent.userId shouldBeEqualTo givenIdentifier
+
+        // If this passes, it means the SDK correctly handled the nested nulls
+        val profile = identifyEvent.traits["profile"] as? Map<*, *>
+        profile.shouldNotBeNull()
+
+        val settings = profile["settings"] as? Map<*, *>
+        settings.shouldNotBeNull()
+
+        val preferences = settings["preferences"] as? Map<*, *>
+        preferences.shouldNotBeNull()
+    }
+
+    @Test
+    fun screen_givenNestedNullInProperties_expectSuccessfulScreenView() {
+        val givenTitle = String.random
+        val givenProperties: CustomAttributes = mapOf(
+            "view" to mapOf(
+                "id" to "home_screen",
+                "elements" to listOf(
+                    mapOf("type" to "button", "visible" to true),
+                    mapOf("type" to "input", "value" to null),
+                    null
+                ),
+                "metadata" to mapOf(
+                    "version" to "1.0",
+                    "debug" to null,
+                    "nested" to mapOf(
+                        "key" to "value",
+                        "optional" to null
+                    )
+                )
+            )
+        )
+
+        sdkInstance.screen(givenTitle, givenProperties)
+
+        outputReaderPlugin.screenEvents.size shouldBeEqualTo 1
+        val screenEvent = outputReaderPlugin.screenEvents.lastOrNull()
+        screenEvent.shouldNotBeNull()
+
+        screenEvent.name shouldBeEqualTo givenTitle
+
+        // Verify the event properties were correctly processed with null handling
+        val view = screenEvent.properties["view"] as? Map<*, *>
+        view.shouldNotBeNull()
+
+        val elements = view["elements"] as? List<*>
+        elements.shouldNotBeNull()
+        elements.size shouldBeEqualTo 3
+
+        val metadata = view["metadata"] as? Map<*, *>
+        metadata.shouldNotBeNull()
+
+        val nested = metadata["nested"] as? Map<*, *>
+        nested.shouldNotBeNull()
+    }
+
+    //endregion
 }

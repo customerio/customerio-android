@@ -101,7 +101,7 @@ jobs:
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
       - name: Send Velocity Deployment
-        uses: codeclimate/velocity-deploy-action@1b4a22f0db113bf8d85c14fd726cf0ec6d17cd13 # v1.0.0
+        uses: codeclimate/velocity-deploy-action@v1.0.0 # v1.0.0
         if: steps.semantic-release.outputs.new_release_published == 'true' # only run if a git tag was made.
         with:
           token: ${{ secrets.VELOCITY_DEPLOYMENT_TOKEN }}

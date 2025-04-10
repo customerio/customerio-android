@@ -187,7 +187,7 @@ class CustomerIO private constructor(
             if (identifier != null) {
                 identify(userId = identifier, traits = value)
             } else {
-                logger.debug("No user profile found, updating traits for anonymous user ${analytics.anonymousId()}")
+                logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
                 analytics.identify(traits = value.sanitizeNullsForJson())
             }
         }

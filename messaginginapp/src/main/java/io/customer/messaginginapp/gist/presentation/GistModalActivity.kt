@@ -43,7 +43,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private var messagePosition: MessagePosition = MessagePosition.CENTER
 
     private val currentMessageState: MessageState.Displayed?
-        get() = state.currentMessageState as? MessageState.Displayed
+        get() = state.modalMessageState as? MessageState.Displayed
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -98,7 +98,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private fun subscribeToAttributes() {
         attributesListenerJob.add(
             inAppMessagingManager.subscribeToAttribute(
-                selector = { it.currentMessageState },
+                selector = { it.modalMessageState },
                 areEquivalent = { old, new ->
                     when {
                         old is MessageState.Initial && new is MessageState.Initial -> true

@@ -86,7 +86,7 @@ class GistSDKTest : JUnitTest() {
     @Test
     fun dismissMessage_whenMessageAvailable_expectDismissMessageActionDispatched() = runTest {
         val testMessage = Message(queueId = String.random)
-        testState = testState.copy(currentMessageState = MessageState.Displayed(testMessage))
+        testState = testState.copy(modalMessageState = MessageState.Displayed(testMessage))
         every { mockInAppMessagingManager.getCurrentState() } returns testState
 
         gistSdk.dismissMessage()
@@ -96,7 +96,7 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenNoMessageAvailable_expectNoDismissMessageActionDispatched() = runTest {
-        testState = testState.copy(currentMessageState = MessageState.Initial)
+        testState = testState.copy(modalMessageState = MessageState.Initial)
         every { mockInAppMessagingManager.getCurrentState() } returns testState
 
         // clear any previous calls to dispatch to avoid false positives like `initialize`

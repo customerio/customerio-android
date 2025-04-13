@@ -5,25 +5,44 @@ import org.reduxkotlin.Reducer
 
 val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
     val newState = when (action) {
-        is InAppMessagingAction.Initialize -> state.copy(siteId = action.siteId, dataCenter = action.dataCenter, environment = action.environment)
-        is InAppMessagingAction.SetPageRoute -> state.copy(currentRoute = action.route)
-        is InAppMessagingAction.SetUserIdentifier -> state.copy(userId = action.user)
-        is InAppMessagingAction.ClearMessageQueue -> state.copy(messagesInQueue = setOf())
+        // Simple state copy operations
+        is InAppMessagingAction.Initialize ->
+            state.copy(siteId = action.siteId, dataCenter = action.dataCenter, environment = action.environment)
 
-        is InAppMessagingAction.ProcessMessageQueue -> state.copy(messagesInQueue = action.messages.toSet())
-        is InAppMessagingAction.SetPollingInterval -> state.copy(pollInterval = action.interval)
-        is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.copy(modalMessageState = MessageState.Dismissed(action.message))
-        is InAppMessagingAction.LoadMessage -> state.copy(modalMessageState = MessageState.Loading(action.message))
-        is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, environment = state.environment)
+        is InAppMessagingAction.SetPageRoute ->
+            state.copy(currentRoute = action.route)
+
+        is InAppMessagingAction.SetUserIdentifier ->
+            state.copy(userId = action.user)
+
+        is InAppMessagingAction.ClearMessageQueue ->
+            state.copy(messagesInQueue = emptySet())
+
+        is InAppMessagingAction.ProcessMessageQueue ->
+            state.copy(messagesInQueue = action.messages.toSet())
+
+        is InAppMessagingAction.SetPollingInterval ->
+            state.copy(pollInterval = action.interval)
+
+        is InAppMessagingAction.EngineAction.MessageLoadingFailed ->
+            state.copy(modalMessageState = MessageState.Dismissed(action.message))
+
+        is InAppMessagingAction.LoadMessage ->
+            state.copy(modalMessageState = MessageState.Loading(action.message))
+
+        // Using the reset method for cleaner implementation
+        is InAppMessagingAction.Reset -> state.reset()
+
         is InAppMessagingAction.EmbedMessages -> {
-            var newEmbeddedMessagesState = state.embeddedMessagesState
-            action.messages.forEach { message ->
+            // Handling embedding messages in a single loop for better performance
+            val newEmbeddedMessagesState = action.messages.fold(state.embeddedMessagesState) { acc, message ->
                 message.elementId?.let { elementId ->
-                    newEmbeddedMessagesState = newEmbeddedMessagesState.addMessage(message, elementId)
-                }
+                    acc.addMessage(message, elementId)
+                } ?: acc
             }
             state.copy(embeddedMessagesState = newEmbeddedMessagesState)
         }
+
         is InAppMessagingAction.DisplayMessage -> {
             action.message.queueId?.let { queueId ->
                 // If the message should be tracked shown when it is displayed, add the queueId to shownMessageQueueIds.
@@ -63,15 +82,22 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
                 shownMessageQueueIds = shownMessageQueueIds + action.message.queueId
             }
 
-            if (action.message.isEmbedded && action.message.queueId != null) {
-                // Update embedded message state
-                state.updateEmbeddedMessage(
-                    queueId = action.message.queueId,
-                    newState = InlineMessageState.Dismissed(action.message),
-                    shownMessageQueueIds = shownMessageQueueIds
-                )
+            if (action.message.isEmbedded) {
+                // For embedded messages
+                if (action.message.queueId != null) {
+                    // Update embedded message state if it has a queueId
+                    state.updateEmbeddedMessage(
+                        queueId = action.message.queueId,
+                        newState = InlineMessageState.Dismissed(action.message),
+                        shownMessageQueueIds = shownMessageQueueIds
+                    )
+                } else {
+                    // For embedded messages without queueId
+                    // Just return the state unchanged
+                    state
+                }
             } else {
-                // Update modal message state
+                // Handle modal message
                 state.copy(
                     modalMessageState = MessageState.Dismissed(action.message),
                     shownMessageQueueIds = shownMessageQueueIds
@@ -79,10 +105,21 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
             }
         }
 
-        else -> state
-    }
-    val changes = state.diff(newState)
+        is InAppMessagingAction.EngineAction.Tap ->
+            state // No state changes for tap action
 
+        is InAppMessagingAction.ReportError ->
+            state // No state changes for error reporting
+
+        else -> {
+            // Log unexpected action for debugging
+            SDKComponent.logger.debug("Unhandled action received: $action")
+            state
+        }
+    }
+
+    // Log state changes
+    val changes = state.diff(newState)
     if (changes.isNotEmpty()) {
         SDKComponent.logger.debug("Store: state changes after action:")
         changes.forEach { (property, values) ->
@@ -91,5 +128,6 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
     } else {
         SDKComponent.logger.debug("Store: no state changes after action")
     }
+
     newState
 }

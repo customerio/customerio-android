@@ -12,9 +12,18 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
 
         is InAppMessagingAction.ProcessMessageQueue -> state.copy(messagesInQueue = action.messages.toSet())
         is InAppMessagingAction.SetPollingInterval -> state.copy(pollInterval = action.interval)
-        is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.copy(currentMessageState = MessageState.Dismissed(action.message))
-        is InAppMessagingAction.LoadMessage -> state.copy(currentMessageState = MessageState.Loading(action.message))
+        is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.copy(modalMessageState = MessageState.Dismissed(action.message))
+        is InAppMessagingAction.LoadMessage -> state.copy(modalMessageState = MessageState.Loading(action.message))
         is InAppMessagingAction.Reset -> InAppMessagingState(siteId = state.siteId, dataCenter = state.dataCenter, environment = state.environment)
+        is InAppMessagingAction.EmbedMessages -> {
+            var newEmbeddedMessagesState = state.embeddedMessagesState
+            action.messages.forEach { message ->
+                message.elementId?.let { elementId ->
+                    newEmbeddedMessagesState = newEmbeddedMessagesState.addMessage(message, elementId)
+                }
+            }
+            state.copy(embeddedMessagesState = newEmbeddedMessagesState)
+        }
         is InAppMessagingAction.DisplayMessage -> {
             action.message.queueId?.let { queueId ->
                 // If the message should be tracked shown when it is displayed, add the queueId to shownMessageQueueIds.
@@ -24,11 +33,26 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
                     state.shownMessageQueueIds
                 }
 
-                state.copy(
-                    currentMessageState = MessageState.Displayed(action.message),
-                    shownMessageQueueIds = shownMessageQueueIds,
-                    messagesInQueue = state.messagesInQueue.filterNot { it.queueId == queueId }.toSet()
-                )
+                // Remove the message from the queue
+                val filteredQueue = state.messagesInQueue.filterNot { it.queueId == queueId }.toSet()
+
+                if (action.message.isEmbedded) {
+                    // Update embedded message state
+                    val elementId = action.message.elementId ?: ""
+                    state.updateEmbeddedMessage(
+                        queueId = queueId,
+                        newState = InlineMessageState.Embedded(action.message, elementId),
+                        shownMessageQueueIds = shownMessageQueueIds,
+                        messagesInQueue = filteredQueue
+                    )
+                } else {
+                    // Update modal message state
+                    state.copy(
+                        modalMessageState = MessageState.Displayed(action.message),
+                        shownMessageQueueIds = shownMessageQueueIds,
+                        messagesInQueue = filteredQueue
+                    )
+                }
             } ?: state
         }
 
@@ -39,10 +63,20 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
                 shownMessageQueueIds = shownMessageQueueIds + action.message.queueId
             }
 
-            state.copy(
-                currentMessageState = MessageState.Dismissed(action.message),
-                shownMessageQueueIds = shownMessageQueueIds
-            )
+            if (action.message.isEmbedded && action.message.queueId != null) {
+                // Update embedded message state
+                state.updateEmbeddedMessage(
+                    queueId = action.message.queueId,
+                    newState = InlineMessageState.Dismissed(action.message),
+                    shownMessageQueueIds = shownMessageQueueIds
+                )
+            } else {
+                // Update modal message state
+                state.copy(
+                    modalMessageState = MessageState.Dismissed(action.message),
+                    shownMessageQueueIds = shownMessageQueueIds
+                )
+            }
         }
 
         else -> state

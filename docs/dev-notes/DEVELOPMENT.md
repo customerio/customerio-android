@@ -59,3 +59,6 @@ Create GitHub Actions secrets:
 
 This project is setup with GPG signing to sign the Maven artifacts before they are uploaded to Sonatype's servers to sync to Maven Central. GPG keys have been generated already but if you need to generate them again, [see this guide](https://gist.github.com/levibostian/ed2edcaa1ce1722d70683ce83fc429e2#sign) to do so. 
 
+# Troubleshooting
+
+For known local setup issues and fixes, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

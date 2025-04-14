@@ -1,3 +1,9 @@
+## [4.5.6](https://github.com/customerio/customerio-android/compare/4.5.5...4.5.6) (2025-04-11)
+
+### Bug Fixes
+
+* support null handling in nested structures ([#508](https://github.com/customerio/customerio-android/issues/508)) ([bf6cb1b](https://github.com/customerio/customerio-android/commit/bf6cb1bdf62b43e4dbaade46efaca449ea296f4e))
+
 ## [4.5.5](https://github.com/customerio/customerio-android/compare/4.5.4...4.5.5) (2025-04-01)
 
 ### Bug Fixes

@@ -5,7 +5,6 @@ import org.reduxkotlin.Reducer
 
 val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
     val newState = when (action) {
-        // Simple state copy operations
         is InAppMessagingAction.Initialize ->
             state.copy(siteId = action.siteId, dataCenter = action.dataCenter, environment = action.environment)
 
@@ -35,10 +34,10 @@ val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
 
         is InAppMessagingAction.EmbedMessages -> {
             // Handling embedding messages in a single loop for better performance
-            val newEmbeddedMessagesState = action.messages.fold(state.embeddedMessagesState) { acc, message ->
+            val newEmbeddedMessagesState = action.messages.fold(state.embeddedMessagesState) { state, message ->
                 message.elementId?.let { elementId ->
-                    acc.addMessage(message, elementId)
-                } ?: acc
+                    state.addMessage(message, elementId)
+                } ?: state
             }
             state.copy(embeddedMessagesState = newEmbeddedMessagesState)
         }

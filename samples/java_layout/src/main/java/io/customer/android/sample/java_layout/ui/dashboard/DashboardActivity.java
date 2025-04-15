@@ -31,11 +31,12 @@ import java.util.Map;
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityDashboardBinding;
 import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
-import io.customer.android.sample.java_layout.ui.common.SimpleFragmentActivity;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
+import io.customer.android.sample.java_layout.ui.inline.InlineExamplesActivity;
 import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.settings.InternalSettingsActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
+import io.customer.android.sample.java_layout.ui.tracking.TrackingFragmentActivity;
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
@@ -137,16 +138,19 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             sendRandomEvent();
         });
         binding.sendCustomEventButton.setOnClickListener(view -> {
-            startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_CUSTOM_TRACKING_EVENT);
+            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_CUSTOM_TRACKING_EVENT);
         });
         binding.setDeviceAttributesButton.setOnClickListener(view -> {
-            startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_DEVICE_ATTRIBUTES);
+            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_DEVICE_ATTRIBUTES);
         });
         binding.setProfileAttributesButton.setOnClickListener(view -> {
-            startSimpleFragmentActivity(SimpleFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
+            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
         });
         binding.showPushPromptButton.setOnClickListener(view -> {
             requestNotificationPermission();
+        });
+        binding.inlineExamplesXmlLayoutButton.setOnClickListener(view -> {
+            startInlineExamplesActivity(InlineExamplesActivity.FRAGMENT_ANDROID_XML);
         });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
@@ -189,9 +193,16 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
                 Snackbar.LENGTH_SHORT).show();
     }
 
-    private void startSimpleFragmentActivity(String fragmentName) {
-        Intent intent = new Intent(DashboardActivity.this, SimpleFragmentActivity.class);
-        Bundle extras = SimpleFragmentActivity.getExtras(fragmentName);
+    private void startTrackingFragmentActivity(String fragmentName) {
+        Intent intent = new Intent(DashboardActivity.this, TrackingFragmentActivity.class);
+        Bundle extras = TrackingFragmentActivity.getExtras(fragmentName);
+        intent.putExtras(extras);
+        startActivity(intent);
+    }
+
+    private void startInlineExamplesActivity(String fragmentName) {
+        Intent intent = new Intent(DashboardActivity.this, InlineExamplesActivity.class);
+        Bundle extras = InlineExamplesActivity.getExtras(fragmentName);
         intent.putExtras(extras);
         startActivity(intent);
     }

@@ -193,12 +193,25 @@
                 android:layout_marginTop="@dimen/margin_default"
                 android:text="@string/view_logs"
                 android:visibility="gone"
-                app:layout_constraintBottom_toTopOf="@id/logout_button"
+                app:layout_constraintBottom_toTopOf="@id/inline_examples_xml_layout_button"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/show_push_prompt_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width"
                 tools:visibility="visible" />
+
+            <Button
+                android:id="@+id/inline_examples_xml_layout_button"
+                style="?attr/materialButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/margin_default"
+                android:text="@string/inline_examples_xml_layout"
+                app:layout_constraintBottom_toTopOf="@id/logout_button"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/view_logs_button"
+                app:layout_constraintWidth_max="@dimen/material_button_max_width"/>
 
             <Button
                 android:id="@+id/logout_button"
@@ -210,7 +223,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/view_logs_button"
+                app:layout_constraintTop_toBottomOf="@id/inline_examples_xml_layout_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <TextView

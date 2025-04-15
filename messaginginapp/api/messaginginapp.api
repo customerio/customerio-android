@@ -35,7 +35,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
 }
 
 public final class io/customer/messaginginapp/databinding/ActivityGistBinding : androidx/viewbinding/ViewBinding {
-	public final field gistView Lio/customer/messaginginapp/gist/presentation/GistView;
+	public final field gistView Lio/customer/messaginginapp/ui/ModalInAppMessageView;
 	public final field modalGistViewLayout Landroid/widget/RelativeLayout;
 	public static fun bind (Landroid/view/View;)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
 	public synthetic fun getRoot ()Landroid/view/View;
@@ -156,12 +156,12 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/gist/presentation/GistViewListener, io/customer/sdk/tracking/TrackableScreen {
+public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/InAppMessageViewEventsListener, io/customer/sdk/tracking/TrackableScreen {
 	public static final field Companion Lio/customer/messaginginapp/gist/presentation/GistModalActivity$Companion;
 	public fun <init> ()V
 	public fun finish ()V
 	public fun getScreenName ()Ljava/lang/String;
-	public fun onGistViewSizeChanged (II)V
+	public fun onViewSizeChanged (II)V
 }
 
 public final class io/customer/messaginginapp/gist/presentation/GistModalActivity$Companion {
@@ -187,32 +187,6 @@ public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/cus
 	public fun reset ()V
 	public fun setCurrentRoute (Ljava/lang/String;)V
 	public fun setUserId (Ljava/lang/String;)V
-}
-
-public final class io/customer/messaginginapp/gist/presentation/GistView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
-	public fun <init> (Landroid/content/Context;)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
-	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun bootstrapped ()V
-	public fun error ()V
-	public final fun getListener ()Lio/customer/messaginginapp/gist/presentation/GistViewListener;
-	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
-	public fun routeChanged (Ljava/lang/String;)V
-	public fun routeError (Ljava/lang/String;)V
-	public fun routeLoaded (Ljava/lang/String;)V
-	public final fun setListener (Lio/customer/messaginginapp/gist/presentation/GistViewListener;)V
-	public final fun setup (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public fun sizeChanged (DD)V
-	public final fun stopLoading ()V
-	public fun tap (Ljava/lang/String;Ljava/lang/String;Z)V
-}
-
-public abstract interface class io/customer/messaginginapp/gist/presentation/GistViewListener {
-	public abstract fun onGistViewSizeChanged (II)V
-}
-
-public final class io/customer/messaginginapp/gist/presentation/GistViewListener$DefaultImpls {
-	public static fun onGistViewSizeChanged (Lio/customer/messaginginapp/gist/presentation/GistViewListener;II)V
 }
 
 public final class io/customer/messaginginapp/gist/presentation/engine/EngineWebViewInterface {

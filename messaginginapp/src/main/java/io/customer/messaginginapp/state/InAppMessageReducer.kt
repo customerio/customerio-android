@@ -40,10 +40,10 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
 
         is InAppMessagingAction.EmbedMessages -> {
             // Handling embedding messages in a single loop for better performance
-            val newEmbeddedMessagesState = action.messages.fold(state.queuedInlineMessagesState) { state, message ->
+            val newEmbeddedMessagesState = action.messages.fold(state.queuedInlineMessagesState) { accState, message ->
                 message.embeddedElementId?.let { elementId ->
-                    state.addMessage(message, elementId)
-                } ?: state
+                    accState.addMessage(message, elementId)
+                } ?: accState
             }
             state.copy(queuedInlineMessagesState = newEmbeddedMessagesState)
         }

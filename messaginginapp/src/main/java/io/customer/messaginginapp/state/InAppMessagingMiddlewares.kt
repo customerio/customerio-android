@@ -78,7 +78,7 @@ internal fun displayModalMessageMiddleware() = middleware { store, next, action 
 }
 
 private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
-    if (store.state.modalMessageState !is MessageState.Displayed) {
+    if (store.state.modalMessageState !is ModalMessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
@@ -119,8 +119,8 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
 
         // cancel the current message if the route rule does not match
         val currentMessage = when (val currentMessageState = store.state.modalMessageState) {
-            is MessageState.Displayed -> currentMessageState.message
-            is MessageState.Loading -> currentMessageState.message
+            is ModalMessageState.Displayed -> currentMessageState.message
+            is ModalMessageState.Loading -> currentMessageState.message
             else -> null
         }
 
@@ -168,8 +168,8 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             }
         }
 
-        val isCurrentMessageDisplaying = store.state.modalMessageState is MessageState.Displayed
-        val isCurrentMessageBeingProcessed = store.state.modalMessageState is MessageState.Loading
+        val isCurrentMessageDisplaying = store.state.modalMessageState is ModalMessageState.Displayed
+        val isCurrentMessageBeingProcessed = store.state.modalMessageState is ModalMessageState.Loading
 
         // update the state with the messages in the queue that are not shown
         // because in the next steps we will check if there is a message to be shown and display them
@@ -198,7 +198,7 @@ internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<In
     when (action) {
         is InAppMessagingAction.EmbedMessages -> {
             action.messages.forEach {
-                it.elementId?.let { elementId ->
+                it.embeddedElementId?.let { elementId ->
                     gistListener?.embedMessage(it, elementId)
                 }
             }

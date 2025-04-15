@@ -28,11 +28,11 @@ data class Message(
     val gistProperties: GistProperties
         get() = convertToGistProperties()
 
-    val elementId: String?
+    val embeddedElementId: String?
         get() = gistProperties.elementId
 
     val isEmbedded: Boolean
-        get() = elementId != null
+        get() = embeddedElementId != null
 
     private fun convertToGistProperties(): GistProperties {
         var routeRule: String? = null

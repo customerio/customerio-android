@@ -126,7 +126,7 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;Ljava/util/Map;)Lio/customer/messaginginapp/gist/data/model/Message;
 	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/Message;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getElementId ()Ljava/lang/String;
+	public final fun getEmbeddedElementId ()Ljava/lang/String;
 	public final fun getGistProperties ()Lio/customer/messaginginapp/gist/data/model/GistProperties;
 	public final fun getInstanceId ()Ljava/lang/String;
 	public final fun getMessageId ()Ljava/lang/String;
@@ -234,25 +234,6 @@ public final class io/customer/messaginginapp/gist/utilities/ElapsedTimer {
 	public fun <init> ()V
 	public final fun end ()V
 	public final fun start (Ljava/lang/String;)V
-}
-
-public final class io/customer/messaginginapp/state/EmbeddedMessagesState {
-	public fun <init> ()V
-	public fun <init> (Ljava/util/Map;)V
-	public synthetic fun <init> (Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun addMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)Lio/customer/messaginginapp/state/EmbeddedMessagesState;
-	public final fun allMessages ()Ljava/util/List;
-	public final fun copy (Ljava/util/Map;)Lio/customer/messaginginapp/state/EmbeddedMessagesState;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/EmbeddedMessagesState;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/messaginginapp/state/EmbeddedMessagesState;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getMessage (Ljava/lang/String;)Lio/customer/messaginginapp/state/InlineMessageState;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-	public final fun updateMessageState (Ljava/lang/String;Lio/customer/messaginginapp/state/InlineMessageState;)Lio/customer/messaginginapp/state/EmbeddedMessagesState;
-}
-
-public final class io/customer/messaginginapp/state/InAppMessageReducerKt {
-	public static final fun getInAppMessagingReducer ()Lkotlin/jvm/functions/Function2;
 }
 
 public abstract class io/customer/messaginginapp/state/InAppMessagingAction {
@@ -421,144 +402,6 @@ public final class io/customer/messaginginapp/state/InAppMessagingAction$SetUser
 
 public final class io/customer/messaginginapp/state/InAppMessagingActionKt {
 	public static final fun shouldMarkMessageAsShown (Lio/customer/messaginginapp/state/InAppMessagingAction;)Z
-}
-
-public final class io/customer/messaginginapp/state/InAppMessagingManager {
-	public fun <init> ()V
-	public fun <init> (Lio/customer/messaginginapp/gist/presentation/GistListener;)V
-	public synthetic fun <init> (Lio/customer/messaginginapp/gist/presentation/GistListener;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/presentation/GistListener;
-	public final fun copy (Lio/customer/messaginginapp/gist/presentation/GistListener;)Lio/customer/messaginginapp/state/InAppMessagingManager;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InAppMessagingManager;Lio/customer/messaginginapp/gist/presentation/GistListener;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InAppMessagingManager;
-	public final fun dispatch (Lio/customer/messaginginapp/state/InAppMessagingAction;)Ljava/lang/Object;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getCurrentState ()Lio/customer/messaginginapp/state/InAppMessagingState;
-	public final fun getListener ()Lio/customer/messaginginapp/gist/presentation/GistListener;
-	public fun hashCode ()I
-	public final fun subscribe (Lkotlin/jvm/functions/Function1;)Lkotlin/jvm/functions/Function0;
-	public final fun subscribeToAttribute (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/Job;
-	public static synthetic fun subscribeToAttribute$default (Lio/customer/messaginginapp/state/InAppMessagingManager;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/coroutines/Job;
-	public final fun subscribeToState (Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/Job;
-	public static synthetic fun subscribeToState$default (Lio/customer/messaginginapp/state/InAppMessagingManager;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/coroutines/Job;
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/InAppMessagingState {
-	public fun <init> ()V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;JLjava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/state/MessageState;Lio/customer/messaginginapp/state/EmbeddedMessagesState;Ljava/util/Set;Ljava/util/Set;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;JLjava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/state/MessageState;Lio/customer/messaginginapp/state/EmbeddedMessagesState;Ljava/util/Set;Ljava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component10 ()Ljava/util/Set;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Lio/customer/messaginginapp/gist/GistEnvironment;
-	public final fun component4 ()J
-	public final fun component5 ()Ljava/lang/String;
-	public final fun component6 ()Ljava/lang/String;
-	public final fun component7 ()Lio/customer/messaginginapp/state/MessageState;
-	public final fun component8 ()Lio/customer/messaginginapp/state/EmbeddedMessagesState;
-	public final fun component9 ()Ljava/util/Set;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;JLjava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/state/MessageState;Lio/customer/messaginginapp/state/EmbeddedMessagesState;Ljava/util/Set;Ljava/util/Set;)Lio/customer/messaginginapp/state/InAppMessagingState;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InAppMessagingState;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;JLjava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/state/MessageState;Lio/customer/messaginginapp/state/EmbeddedMessagesState;Ljava/util/Set;Ljava/util/Set;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InAppMessagingState;
-	public final fun diff (Lio/customer/messaginginapp/state/InAppMessagingState;)Ljava/util/Map;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getCurrentRoute ()Ljava/lang/String;
-	public final fun getDataCenter ()Ljava/lang/String;
-	public final fun getEmbeddedMessagesState ()Lio/customer/messaginginapp/state/EmbeddedMessagesState;
-	public final fun getEnvironment ()Lio/customer/messaginginapp/gist/GistEnvironment;
-	public final fun getMessagesInQueue ()Ljava/util/Set;
-	public final fun getModalMessageState ()Lio/customer/messaginginapp/state/MessageState;
-	public final fun getPollInterval ()J
-	public final fun getShownMessageQueueIds ()Ljava/util/Set;
-	public final fun getSiteId ()Ljava/lang/String;
-	public final fun getUserId ()Ljava/lang/String;
-	public fun hashCode ()I
-	public final fun reset ()Lio/customer/messaginginapp/state/InAppMessagingState;
-	public fun toString ()Ljava/lang/String;
-	public final fun updateEmbeddedMessage (Ljava/lang/String;Lio/customer/messaginginapp/state/InlineMessageState;Ljava/util/Set;Ljava/util/Set;)Lio/customer/messaginginapp/state/InAppMessagingState;
-	public static synthetic fun updateEmbeddedMessage$default (Lio/customer/messaginginapp/state/InAppMessagingState;Ljava/lang/String;Lio/customer/messaginginapp/state/InlineMessageState;Ljava/util/Set;Ljava/util/Set;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InAppMessagingState;
-}
-
-public abstract class io/customer/messaginginapp/state/InlineMessageState {
-	public abstract fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/InlineMessageState$Dismissed : io/customer/messaginginapp/state/InlineMessageState {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/state/InlineMessageState$Dismissed;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InlineMessageState$Dismissed;Lio/customer/messaginginapp/gist/data/model/Message;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InlineMessageState$Dismissed;
-	public fun equals (Ljava/lang/Object;)Z
-	public fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/InlineMessageState$Embedded : io/customer/messaginginapp/state/InlineMessageState {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)Lio/customer/messaginginapp/state/InlineMessageState$Embedded;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InlineMessageState$Embedded;Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InlineMessageState$Embedded;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getElementId ()Ljava/lang/String;
-	public fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/InlineMessageState$ReadyToEmbed : io/customer/messaginginapp/state/InlineMessageState {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)Lio/customer/messaginginapp/state/InlineMessageState$ReadyToEmbed;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InlineMessageState$ReadyToEmbed;Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InlineMessageState$ReadyToEmbed;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getElementId ()Ljava/lang/String;
-	public fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public abstract class io/customer/messaginginapp/state/MessageState {
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/MessageState$Dismissed : io/customer/messaginginapp/state/MessageState {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/state/MessageState$Dismissed;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/MessageState$Dismissed;Lio/customer/messaginginapp/gist/data/model/Message;ILjava/lang/Object;)Lio/customer/messaginginapp/state/MessageState$Dismissed;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/MessageState$Displayed : io/customer/messaginginapp/state/MessageState {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/state/MessageState$Displayed;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/MessageState$Displayed;Lio/customer/messaginginapp/gist/data/model/Message;ILjava/lang/Object;)Lio/customer/messaginginapp/state/MessageState$Displayed;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/messaginginapp/state/MessageState$Initial : io/customer/messaginginapp/state/MessageState {
-	public static final field INSTANCE Lio/customer/messaginginapp/state/MessageState$Initial;
-}
-
-public final class io/customer/messaginginapp/state/MessageState$Loading : io/customer/messaginginapp/state/MessageState {
-	public fun <init> (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public final fun copy (Lio/customer/messaginginapp/gist/data/model/Message;)Lio/customer/messaginginapp/state/MessageState$Loading;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/MessageState$Loading;Lio/customer/messaginginapp/gist/data/model/Message;ILjava/lang/Object;)Lio/customer/messaginginapp/state/MessageState$Loading;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {

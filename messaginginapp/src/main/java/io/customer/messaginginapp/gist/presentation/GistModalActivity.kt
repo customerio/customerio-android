@@ -19,7 +19,7 @@ import io.customer.messaginginapp.gist.utilities.MessageOverlayColorParser
 import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
-import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.ui.InAppMessageViewEventsListener
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
@@ -43,8 +43,8 @@ class GistModalActivity : AppCompatActivity(), InAppMessageViewEventsListener, T
 
     private var messagePosition: MessagePosition = MessagePosition.CENTER
 
-    private val currentMessageState: MessageState.Displayed?
-        get() = state.currentMessageState as? MessageState.Displayed
+    private val currentMessageState: ModalMessageState.Displayed?
+        get() = state.modalMessageState as? ModalMessageState.Displayed
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -99,22 +99,22 @@ class GistModalActivity : AppCompatActivity(), InAppMessageViewEventsListener, T
     private fun subscribeToAttributes() {
         attributesListenerJob.add(
             inAppMessagingManager.subscribeToAttribute(
-                selector = { it.currentMessageState },
+                selector = { it.modalMessageState },
                 areEquivalent = { old, new ->
                     when {
-                        old is MessageState.Initial && new is MessageState.Initial -> true
-                        old is MessageState.Displayed && new is MessageState.Displayed -> old.message == new.message
-                        old is MessageState.Dismissed && new is MessageState.Dismissed -> old.message == new.message
-                        old is MessageState.Loading && new is MessageState.Loading -> old.message == new.message
+                        old is ModalMessageState.Initial && new is ModalMessageState.Initial -> true
+                        old is ModalMessageState.Displayed && new is ModalMessageState.Displayed -> old.message == new.message
+                        old is ModalMessageState.Dismissed && new is ModalMessageState.Dismissed -> old.message == new.message
+                        old is ModalMessageState.Loading && new is ModalMessageState.Loading -> old.message == new.message
                         else -> false
                     }
                 }
             ) { state ->
-                if (state is MessageState.Displayed) {
+                if (state is ModalMessageState.Displayed) {
                     onMessageShown(state.message)
                 }
 
-                if (state is MessageState.Dismissed) {
+                if (state is ModalMessageState.Dismissed) {
                     cleanUp()
                 }
             }

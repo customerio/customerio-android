@@ -9,7 +9,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
-import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.extension.pageRuleContains
 import io.customer.messaginginapp.testutils.extension.pageRuleEquals
@@ -75,8 +75,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         val state = manager.getCurrentState()
         state.messagesInQueue.size shouldBeEqualTo 3
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
             .queueId shouldBeEqualTo "2"
     }
@@ -108,8 +108,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         var state = manager.getCurrentState()
         state.currentRoute shouldBe "home"
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
             .queueId shouldBeEqualTo "1"
 
@@ -118,9 +118,9 @@ class InAppMessagingStoreTest : IntegrationTest() {
         state = manager.getCurrentState()
         state.currentRoute shouldBe "profile"
 
-        val currentState = state.currentMessageState
+        val currentState = state.modalMessageState
         currentState
-            .shouldBeInstanceOf<MessageState.Dismissed>()
+            .shouldBeInstanceOf<ModalMessageState.Dismissed>()
             .message
             .queueId shouldBeEqualTo "1"
     }
@@ -139,8 +139,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
         // verify general message is displayed first (as it has no route rule)
         var state = manager.getCurrentState()
 
-        val messageBeingDisplayed = state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        val messageBeingDisplayed = state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
         messageBeingDisplayed.queueId shouldBe "3"
 
@@ -151,13 +151,13 @@ class InAppMessagingStoreTest : IntegrationTest() {
         // change route to "profile" and verify no message is displayed
         manager.dispatch(InAppMessagingAction.SetPageRoute("profile"))
         state = manager.getCurrentState()
-        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
 
         // change route back to "home" and verify home message is now processed
         manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
         state = manager.getCurrentState()
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
             .queueId shouldBeEqualTo "1"
     }
@@ -172,7 +172,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.DismissMessage(message, shouldLog = false, viaCloseAction = true))
 
         val state = manager.getCurrentState()
-        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
         state.shownMessageQueueIds.contains("1") shouldBe true
     }
 
@@ -195,7 +195,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.LoadMessage(message))
 
         val state = manager.getCurrentState()
-        state.currentMessageState shouldBeInstanceOf MessageState.Initial::class.java
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Initial::class.java
 
         verify { inAppEventListener wasNot Called }
     }
@@ -222,8 +222,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the active message is displayed
         var state = manager.getCurrentState()
-        state.currentMessageState shouldBeInstanceOf MessageState.Displayed::class.java
-        (state.currentMessageState as MessageState.Displayed).message.queueId shouldBeEqualTo "active"
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Displayed::class.java
+        (state.modalMessageState as ModalMessageState.Displayed).message.queueId shouldBeEqualTo "active"
 
         // Try to process a new message queue
         val newMessage1 = Message(queueId = "new1")
@@ -232,8 +232,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the state hasn't changed and no new message was processed
         state = manager.getCurrentState()
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Displayed>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Displayed>()
             .message
             .queueId shouldBeEqualTo "active"
 
@@ -252,8 +252,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the first message is being processed
         val state = manager.getCurrentState()
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
             .queueId shouldBeEqualTo "new1"
 
@@ -277,8 +277,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the message is being processed
         var state = manager.getCurrentState()
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
             .queueId shouldBeEqualTo "1"
 
@@ -287,7 +287,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the message is no longer being processed and not displayed
         state = manager.getCurrentState()
-        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
         state.currentRoute shouldBeEqualTo "profile"
 
         // Change route back to "home"
@@ -295,8 +295,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the message is being processed again
         state = manager.getCurrentState()
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Loading>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
             .message
             .queueId shouldBeEqualTo "1"
 
@@ -305,8 +305,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         // Verify that the message is now displayed
         state = manager.getCurrentState()
-        state.currentMessageState
-            .shouldBeInstanceOf<MessageState.Displayed>()
+        state.modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Displayed>()
             .message
             .queueId shouldBeEqualTo "1"
     }
@@ -324,7 +324,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
 
         val state = manager.getCurrentState()
-        state.currentMessageState shouldBeInstanceOf MessageState.Dismissed::class.java
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
         state.shownMessageQueueIds.contains("1") shouldBe true
 
         verify(exactly = 1) { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(message)) }
@@ -354,10 +354,9 @@ class InAppMessagingStoreTest : IntegrationTest() {
     @Test
     fun givenMessage_whenEmbedded_thenEmbedMessageCallbackIsCalled() = runTest {
         initializeAndSetUser()
-        val message = Message(queueId = "1")
-        val elementId = "testElementId"
+        val message = Message(queueId = "1", properties = mapOf("gist" to mapOf("elementId" to "testElementId")))
 
-        manager.dispatch(InAppMessagingAction.EmbedMessage(message, elementId))
+        manager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
 
         verify { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(message)) }
     }
@@ -405,7 +404,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         state.currentRoute shouldBeEqualTo newRoute
 
         // Verify that no messages are processed
-        state.currentMessageState shouldBeInstanceOf MessageState.Initial::class.java
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Initial::class.java
         state.messagesInQueue shouldBe emptySet()
 
         // Verify that the event listener is not called

@@ -14,7 +14,7 @@ import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
-import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.sdk.core.di.SDKComponent
@@ -86,7 +86,7 @@ class GistSDKTest : JUnitTest() {
     @Test
     fun dismissMessage_whenMessageAvailable_expectDismissMessageActionDispatched() = runTest {
         val testMessage = Message(queueId = String.random)
-        testState = testState.copy(currentMessageState = MessageState.Displayed(testMessage))
+        testState = testState.copy(modalMessageState = ModalMessageState.Displayed(testMessage))
         every { mockInAppMessagingManager.getCurrentState() } returns testState
 
         gistSdk.dismissMessage()
@@ -96,7 +96,7 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenNoMessageAvailable_expectNoDismissMessageActionDispatched() = runTest {
-        testState = testState.copy(currentMessageState = MessageState.Initial)
+        testState = testState.copy(modalMessageState = ModalMessageState.Initial)
         every { mockInAppMessagingManager.getCurrentState() } returns testState
 
         // clear any previous calls to dispatch to avoid false positives like `initialize`

@@ -9,7 +9,7 @@ sealed class InAppMessagingAction {
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
     data class SetPageRoute(val route: String) : InAppMessagingAction()
     data class LoadMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()
-    data class EmbedMessage(val message: Message, val elementId: String) : InAppMessagingAction()
+    data class EmbedMessages(val messages: List<Message>) : InAppMessagingAction()
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()
     data class ProcessMessageQueue(val messages: List<Message>) : InAppMessagingAction()
     data class DisplayMessage(val message: Message) : InAppMessagingAction()

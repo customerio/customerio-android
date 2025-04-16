@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.model
 
+import io.customer.sdk.core.di.SDKComponent
 import java.util.UUID
 
 enum class MessagePosition(val position: String) {
@@ -86,5 +87,29 @@ data class Message(
 
     override fun toString(): String {
         return "Message(messageId=$messageId, instanceId=$instanceId, priority=$priority, queueId=$queueId, properties=$gistProperties"
+    }
+}
+
+/**
+ * Extension function to check if a message matches the current route
+ */
+internal fun Message.matchesRoute(currentRoute: String?): Boolean {
+    val routeRule = this.gistProperties.routeRule
+    return when {
+        routeRule == null -> true
+        currentRoute == null -> false
+        else -> {
+            val result = runCatching {
+                routeRule.toRegex().matches(currentRoute)
+            }
+
+            if (result.isFailure) {
+                // Log the error just like in Swift
+                SDKComponent.logger.debug("Problem processing route rule message regex: $routeRule")
+                false
+            } else {
+                result.getOrDefault(false)
+            }
+        }
     }
 }

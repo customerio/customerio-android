@@ -4,6 +4,7 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
 import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -166,16 +167,7 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 
         // Handle embedded messages
         val inLineMessagesToBeShown = inlineMessages
-            .filter { message ->
-                val routeRule = message.gistProperties.routeRule
-                val currentRoute = store.state.currentRoute
-                // Check if the message matches the current route
-                when {
-                    routeRule == null -> true
-                    currentRoute == null -> false
-                    else -> runCatching { routeRule.toRegex().matches(currentRoute) }.getOrNull() ?: true
-                }
-            }
+            .filter { it.matchesRoute(store.state.currentRoute) }
             .filter { message ->
                 // Ensure no duplicate embedded messages for the same elementId in the active state
                 val elementId = message.gistProperties.elementId ?: return@filter true
@@ -188,22 +180,11 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
         }
 
         // Handle modal messages
-        val messageToBeShown = modalMessages.firstOrNull { message ->
-            val routeRule = message.gistProperties.routeRule
-            val currentRoute = store.state.currentRoute
-            when {
-                // If the route rule is null, the message should be shown
-                routeRule == null -> true
-                // otherwise, if current route is null, the message should not be shown because we can't match the route
-                currentRoute == null -> false
-                // otherwise, match the route rule with the current route
-                else -> routeRule.toRegex().matches(currentRoute)
-            }
-        }
+        val modalMessageToBeShown = modalMessages.firstOrNull { it.matchesRoute(store.state.currentRoute) }
 
-        if (messageToBeShown != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
+        if (modalMessageToBeShown != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
             // Load the message to be shown
-            store.dispatch(InAppMessagingAction.LoadMessage(messageToBeShown))
+            store.dispatch(InAppMessagingAction.LoadMessage(modalMessageToBeShown))
         } else {
             // Handle the case where no message matches the criteria.
             // This might involve logging, dispatching another action, or simply doing nothing.

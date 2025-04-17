@@ -9,6 +9,7 @@ import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
+import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
@@ -215,9 +216,11 @@ class CustomerIO private constructor(
 
         if (isChangingIdentifiedProfile) {
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
-            if (registeredDeviceToken != null) {
+            if (registeredDeviceToken != null && currentlyIdentifiedProfile != null) {
                 logger.debug("deleting device token before identifying new profile")
-                deleteDeviceToken()
+                deleteDeviceToken { event ->
+                    event?.apply { this.userId = currentlyIdentifiedProfile }
+                }
             }
         }
 
@@ -319,7 +322,9 @@ class CustomerIO private constructor(
         val existingDeviceToken = contextPlugin.deviceToken
         if (existingDeviceToken != null && existingDeviceToken != token) {
             logger.debug("token has been refreshed, deleting old token to avoid registering same device multiple times")
-            deleteDeviceToken()
+            deleteDeviceToken { event ->
+                event?.putInContextUnderKey("device", "token", existingDeviceToken)
+            }
         }
 
         val attributes = if (moduleConfig.autoTrackDeviceAttributes) {

@@ -1,3 +1,9 @@
+## [4.5.7](https://github.com/customerio/customerio-android/compare/4.5.6...4.5.7) (2025-04-18)
+
+### Bug Fixes
+
+* delete old device token on token refresh ([#517](https://github.com/customerio/customerio-android/issues/517)) ([ccb9de2](https://github.com/customerio/customerio-android/commit/ccb9de27e7ad38e2569a5a9d91d9fec2cd5293ce))
+
 ## [4.5.6](https://github.com/customerio/customerio-android/compare/4.5.5...4.5.6) (2025-04-11)
 
 ### Bug Fixes

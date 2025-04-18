@@ -216,10 +216,12 @@ class CustomerIO private constructor(
 
         if (isChangingIdentifiedProfile) {
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
-            if (registeredDeviceToken != null && currentlyIdentifiedProfile != null) {
+            if (registeredDeviceToken != null) {
                 logger.debug("deleting device token before identifying new profile")
                 deleteDeviceToken { event ->
-                    event?.apply { this.userId = currentlyIdentifiedProfile }
+                    event?.apply {
+                        currentlyIdentifiedProfile?.let { this.userId = it }
+                    }
                 }
             }
         }

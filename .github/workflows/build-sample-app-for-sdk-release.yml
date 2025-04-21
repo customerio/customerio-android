@@ -1,6 +1,8 @@
 name: Build sample app for SDK release
 on:
   workflow_dispatch:
+  workflow_call:
+
 jobs:
   build-sample-apps:
     uses: ./.github/workflows/reusable_build_sample_apps.yml

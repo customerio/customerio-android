@@ -156,7 +156,7 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/InAppMessageViewEventsListener, io/customer/sdk/tracking/TrackableScreen {
+public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/ModalInAppMessageViewListener, io/customer/sdk/tracking/TrackableScreen {
 	public static final field Companion Lio/customer/messaginginapp/gist/presentation/GistModalActivity$Companion;
 	public fun <init> ()V
 	public fun finish ()V
@@ -412,5 +412,29 @@ public final class io/customer/messaginginapp/type/InAppMessage$Companion {
 
 public final class io/customer/messaginginapp/type/InAppMessageKt {
 	public static final fun getMessage (Lio/customer/messaginginapp/type/InAppMessage;)Lio/customer/messaginginapp/gist/data/model/Message;
+}
+
+public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
+	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
+	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	protected final fun attachEngineWebView ()V
+	public fun bootstrapped ()V
+	protected final fun detachEngineWebView ()V
+	public fun error ()V
+	protected final fun getCurrentMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
+	protected final fun getCurrentRoute ()Ljava/lang/String;
+	protected final fun getLogger ()Lio/customer/sdk/core/util/Logger;
+	protected final fun logViewEvent (Ljava/lang/String;)V
+	public fun routeChanged (Ljava/lang/String;)V
+	public fun routeError (Ljava/lang/String;)V
+	public fun routeLoaded (Ljava/lang/String;)V
+	protected final fun setCurrentMessage (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	protected final fun setCurrentRoute (Ljava/lang/String;)V
+	public final fun setup (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public final fun stopLoading ()V
+	public fun tap (Ljava/lang/String;Ljava/lang/String;Z)V
 }
 

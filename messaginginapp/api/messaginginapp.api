@@ -438,3 +438,19 @@ public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : andro
 	public fun tap (Ljava/lang/String;Ljava/lang/String;Z)V
 }
 
+public abstract class io/customer/messaginginapp/ui/InlineInAppMessageBaseView : io/customer/messaginginapp/ui/InAppMessageBaseView {
+	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
+	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	protected final fun getContentHeightInDp ()Ljava/lang/Double;
+	protected final fun getContentWidthInDp ()Ljava/lang/Double;
+	protected final fun getElapsedTimer ()Lio/customer/messaginginapp/gist/utilities/ElapsedTimer;
+	public final fun getElementId ()Ljava/lang/String;
+	protected final fun setContentHeightInDp (Ljava/lang/Double;)V
+	protected final fun setContentWidthInDp (Ljava/lang/Double;)V
+	public final fun setElementId (Ljava/lang/String;)V
+	public fun sizeChanged (DD)V
+}
+

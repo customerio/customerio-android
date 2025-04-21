@@ -11,3 +11,12 @@ internal interface InAppMessageViewListener {
  * Listener interface to send events from modal in-app messages view to the host component.
  */
 internal interface ModalInAppMessageViewListener : InAppMessageViewListener
+
+/**
+ * Listener interface to send events from in-app messages view to the host component.
+ */
+internal interface InlineInAppMessageViewListener : InAppMessageViewListener {
+    fun onLoadingStarted() {}
+    fun onLoadingFinished() {}
+    fun onNoMessageToDisplay() {}
+}

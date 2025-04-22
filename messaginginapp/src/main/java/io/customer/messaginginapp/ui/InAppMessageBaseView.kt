@@ -7,6 +7,9 @@ import android.net.UrlQuerySanitizer
 import android.util.AttributeSet
 import android.util.Base64
 import android.widget.FrameLayout
+import androidx.annotation.AttrRes
+import androidx.annotation.StyleRes
+import androidx.annotation.UiThread
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import com.google.gson.Gson
@@ -27,21 +30,21 @@ import java.nio.charset.StandardCharsets
  * This class will be extended by specific in-app message views (e.g., ModalInAppMessageView)
  * to handle specific message types.
  */
-internal abstract class InAppMessageBaseView @JvmOverloads constructor(
+abstract class InAppMessageBaseView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : FrameLayout(context, attrs, defStyleAttr), EngineWebViewListener {
-    protected var engineWebView: EngineWebView? = null
+    @AttrRes defStyleAttr: Int = 0,
+    @StyleRes defStyleRes: Int = 0
+) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), EngineWebViewListener {
+    internal var engineWebView: EngineWebView? = null
+
     protected var currentMessage: Message? = null
     protected var currentRoute: String? = null
 
     protected val logger = SDKComponent.logger
-    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
-    protected val store: InAppMessagingState
+    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    internal val store: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
-
-    internal var eventsListener: InAppMessageViewEventsListener? = null
 
     // indicates if the message is visible to user or not
     internal val isEngineVisible: Boolean
@@ -51,6 +54,7 @@ internal abstract class InAppMessageBaseView @JvmOverloads constructor(
         logger.debug("[InApp][View] $message")
     }
 
+    @UiThread
     protected fun attachEngineWebView() {
         if (engineWebView != null) {
             logViewEvent("EngineWebView already attached, skipping")
@@ -65,6 +69,7 @@ internal abstract class InAppMessageBaseView @JvmOverloads constructor(
         }
     }
 
+    @UiThread
     protected fun detachEngineWebView() {
         val view = engineWebView ?: return
         engineWebView = null
@@ -72,16 +77,6 @@ internal abstract class InAppMessageBaseView @JvmOverloads constructor(
         logViewEvent("Detaching EngineWebView")
         view.listener = null
         removeView(view)
-    }
-
-    protected fun clearResourcesIfMessageIdEmpty() {
-        val message = currentMessage ?: return
-        if (message.messageId.isNotBlank()) return
-
-        logViewEvent("Clearing resources for empty messageId")
-        detachEngineWebView()
-        currentMessage = null
-        eventsListener = null
     }
 
     fun setup(message: Message) {
@@ -228,19 +223,9 @@ internal abstract class InAppMessageBaseView @JvmOverloads constructor(
 
     override fun bootstrapped() {
         logViewEvent("Engine bootstrapped")
-        // Cleaning after engine web is bootstrapped and all assets downloaded.
-        clearResourcesIfMessageIdEmpty()
     }
 
     override fun routeChanged(newRoute: String) {
         logViewEvent("Route changed: $newRoute")
-    }
-
-    override fun sizeChanged(width: Double, height: Double) {
-        logViewEvent("Size changed: $width x $height")
-        eventsListener?.onViewSizeChanged(
-            getSizeBasedOnDPI(width.toInt()),
-            getSizeBasedOnDPI(height.toInt())
-        )
     }
 }

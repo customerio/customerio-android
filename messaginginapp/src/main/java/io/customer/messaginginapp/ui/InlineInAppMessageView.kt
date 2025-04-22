@@ -36,12 +36,17 @@ class InlineInAppMessageView @JvmOverloads constructor(
 
     init {
         var progressColor = resolveThemeColor(android.R.attr.colorControlActivated, Color.GRAY)
-        context.obtainStyledAttributes(attrs, R.styleable.InlineInAppMessageView).use { ta ->
-            elementId = ta.getString(R.styleable.InlineInAppMessageView_elementId)
-            if (ta.hasValue(R.styleable.InlineInAppMessageView_progressTint)) {
-                progressColor =
-                    ta.getColor(R.styleable.InlineInAppMessageView_progressTint, progressColor)
+        val typedArray = context.obtainStyledAttributes(attrs, R.styleable.InlineInAppMessageView)
+        try {
+            elementId = typedArray.getString(R.styleable.InlineInAppMessageView_elementId)
+            if (typedArray.hasValue(R.styleable.InlineInAppMessageView_progressTint)) {
+                progressColor = typedArray.getColor(
+                    R.styleable.InlineInAppMessageView_progressTint,
+                    progressColor
+                )
             }
+        } finally {
+            typedArray.recycle()
         }
         setupProgressIndicator(progressColor)
         viewListener = this

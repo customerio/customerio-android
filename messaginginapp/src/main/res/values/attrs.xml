@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="InlineInAppMessageView">
+        <attr name="elementId" format="string" />
+        <attr name="progressTint" format="color" />
+    </declare-styleable>
+</resources>

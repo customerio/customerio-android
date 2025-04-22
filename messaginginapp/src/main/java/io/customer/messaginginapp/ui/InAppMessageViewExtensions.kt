@@ -5,7 +5,10 @@ import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
 import android.animation.ValueAnimator
 import android.util.DisplayMetrics
+import android.util.TypedValue
 import android.view.View
+import androidx.annotation.AttrRes
+import androidx.annotation.ColorInt
 import androidx.annotation.UiThread
 import androidx.core.view.updateLayoutParams
 
@@ -77,4 +80,22 @@ internal fun View.animateViewSize(
         })
         start()
     }
+}
+
+/**
+ * Resolves the theme color for the given attribute resource ID. If the attribute is not found,
+ * it returns the fallback color.
+ */
+internal fun InAppMessageBaseView.resolveThemeColor(
+    @AttrRes attrResId: Int,
+    @ColorInt fallbackColor: Int
+): Int = try {
+    val typedValue = TypedValue()
+    if (context.theme.resolveAttribute(attrResId, typedValue, true)) {
+        typedValue.data
+    } else {
+        fallbackColor
+    }
+} catch (_: Throwable) {
+    fallbackColor
 }

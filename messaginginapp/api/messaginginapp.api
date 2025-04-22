@@ -454,3 +454,15 @@ public abstract class io/customer/messaginginapp/ui/InlineInAppMessageBaseView :
 	public fun sizeChanged (DD)V
 }
 
+public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/customer/messaginginapp/ui/InlineInAppMessageBaseView, io/customer/messaginginapp/ui/InlineInAppMessageViewListener {
+	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
+	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun onLoadingFinished ()V
+	public fun onLoadingStarted ()V
+	public fun onNoMessageToDisplay ()V
+	public fun onViewSizeChanged (II)V
+}
+

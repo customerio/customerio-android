@@ -31,15 +31,9 @@ internal fun View.animateViewSize(
     onStart: (() -> Unit)? = null,
     onEnd: (() -> Unit)? = null
 ) {
-    if (widthInPx == null && heightInPx == null) {
-        onStart?.invoke()
-        onEnd?.invoke()
-        return
-    }
-
     val animators = mutableListOf<Animator>()
 
-    widthInPx?.let { targetWidth ->
+    widthInPx?.takeIf { it != width }?.let { targetWidth ->
         val animator = ValueAnimator.ofInt(width, targetWidth).apply {
             this.duration = duration
             addUpdateListener { update ->
@@ -49,7 +43,7 @@ internal fun View.animateViewSize(
         animators.add(animator)
     }
 
-    heightInPx?.let { targetHeight ->
+    heightInPx?.takeIf { it != height }?.let { targetHeight ->
         val animator = ValueAnimator.ofInt(height, targetHeight).apply {
             this.duration = duration
             addUpdateListener { update ->
@@ -59,9 +53,16 @@ internal fun View.animateViewSize(
         animators.add(animator)
     }
 
+    // If all size changes were filtered out, just call callbacks
+    if (animators.isEmpty()) {
+        onStart?.invoke()
+        onEnd?.invoke()
+        return
+    }
+
     AnimatorSet().apply {
-        playTogether(animators)
         this.duration = duration
+        playTogether(animators)
         addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationStart(animation: Animator) {
                 super.onAnimationStart(animation)

@@ -9,16 +9,12 @@
     tools:context=".ui.inline.AndroidXMLInlineExampleFragment"
     tools:ignore="HardcodedText">
 
-    <TextView
+    <io.customer.messaginginapp.ui.InlineInAppMessageView
         android:id="@+id/sticky_header_in_app_message"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:background="@android:color/holo_red_dark"
-        android:gravity="center"
-        android:text="#sticky-header"
-        android:textColor="@android:color/white"
-        android:textStyle="bold"
-        tools:ignore="Suspicious0dp"
+        android:layout_height="wrap_content"
+        app:elementId="sticky-header"
+        tools:background="@android:color/holo_red_dark"
         tools:layout_height="64dp" />
 
     <ScrollView
@@ -126,19 +122,16 @@
                 app:layout_constraintStart_toEndOf="@id/placeholder_3_column_card_2_1"
                 app:layout_constraintTop_toTopOf="@id/placeholder_3_column_card_1_1" />
 
-            <TextView
+            <io.customer.messaginginapp.ui.InlineInAppMessageView
                 android:id="@+id/inline_in_app_message"
                 android:layout_width="0dp"
                 android:layout_height="64dp"
                 android:layout_marginTop="@dimen/margin_default"
-                android:background="@android:color/holo_red_dark"
-                android:gravity="center"
-                android:text="#inline"
-                android:textColor="@android:color/white"
-                android:textStyle="bold"
+                app:elementId="inline"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/placeholder_3_column_card_1_1"
+                tools:background="@android:color/holo_red_dark"
                 tools:layout_height="64dp" />
 
             <View
@@ -251,19 +244,16 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/placeholder_profile_card_image_3" />
 
-            <TextView
+            <io.customer.messaginginapp.ui.InlineInAppMessageView
                 android:id="@+id/below_fold_in_app_message"
                 android:layout_width="0dp"
                 android:layout_height="64dp"
                 android:layout_marginTop="@dimen/margin_default"
-                android:background="@android:color/holo_red_dark"
-                android:gravity="center"
-                android:text="#below-fold"
-                android:textColor="@android:color/white"
-                android:textStyle="bold"
+                app:elementId="below-fold"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/placeholder_full_width_card_3"
+                tools:background="@android:color/holo_red_dark"
                 tools:layout_height="64dp" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>

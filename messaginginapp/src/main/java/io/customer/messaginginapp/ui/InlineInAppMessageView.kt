@@ -11,6 +11,20 @@ import androidx.annotation.StyleRes
 import androidx.core.graphics.drawable.DrawableCompat
 import io.customer.messaginginapp.R
 
+/**
+ * InlineInAppMessageView is a custom view that displays an inline in-app message for given
+ * elementId. The view shows a progress indicator while the message is loading and hides it once the
+ * message is displayed. If there is no message to display, the view will hide itself and display
+ * automatically when a new message is available.
+ *
+ * Example usage in XML:
+ *
+ * <io.customer.messaginginapp.ui.InlineInAppMessageView
+ *     android:id="@+id/inline_in_app_message"
+ *     android:layout_width="match_parent"
+ *     android:layout_height="wrap_content"
+ *     app:elementId="banner-message"/>
+ */
 class InlineInAppMessageView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,

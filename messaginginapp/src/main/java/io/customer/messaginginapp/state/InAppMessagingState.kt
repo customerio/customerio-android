@@ -62,29 +62,48 @@ internal fun InAppMessagingState.withUpdatedEmbeddedMessage(
 internal sealed class InlineMessageState {
     abstract val message: Message
 
-    data class ReadyToEmbed(override val message: Message, val elementId: String) : InlineMessageState()
-    data class Embedded(override val message: Message, val elementId: String) : InlineMessageState()
-    data class Dismissed(override val message: Message) : InlineMessageState()
+    data class ReadyToEmbed(override val message: Message, val elementId: String) : InlineMessageState() {
+        override fun toString(): String {
+            return "ReadyToEmbed(message=${message.queueId}, elementId=$elementId)"
+        }
+    }
 
-    override fun toString(): String = when (this) {
-        is ReadyToEmbed -> "ReadyToEmbed(message=${message.queueId}, elementId=$elementId)"
-        is Embedded -> "Embedded(message=${message.queueId}, elementId=$elementId)"
-        is Dismissed -> "Dismissed(message=${message.queueId})"
+    data class Embedded(override val message: Message, val elementId: String) : InlineMessageState() {
+        override fun toString(): String {
+            return "Embedded(message=${message.queueId}, elementId=$elementId)"
+        }
+    }
+
+    data class Dismissed(override val message: Message) : InlineMessageState() {
+        override fun toString(): String {
+            return "Dismissed(message=${message.queueId})"
+        }
     }
 }
 
 internal sealed class ModalMessageState {
-    object Initial : ModalMessageState()
-    data class Loading(val message: Message) : ModalMessageState()
-    data class Displayed(val message: Message) : ModalMessageState()
-    data class Dismissed(val message: Message) : ModalMessageState()
+    object Initial : ModalMessageState() {
+        override fun toString(): String {
+            return "Initial"
+        }
+    }
 
-    // More concise toString with 'when' expression
-    override fun toString(): String = when (this) {
-        is Initial -> "Initial"
-        is Loading -> "Loading(message=${message.queueId})"
-        is Displayed -> "Displayed(message=${message.queueId})"
-        is Dismissed -> "Dismissed(message=${message.queueId})"
+    data class Loading(val message: Message) : ModalMessageState() {
+        override fun toString(): String {
+            return "Loading(message=${message.queueId})"
+        }
+    }
+
+    data class Displayed(val message: Message) : ModalMessageState() {
+        override fun toString(): String {
+            return "Displayed(message=${message.queueId})"
+        }
+    }
+
+    data class Dismissed(val message: Message) : ModalMessageState() {
+        override fun toString(): String {
+            return "Dismissed(message=${message.queueId})"
+        }
     }
 }
 
@@ -118,5 +137,5 @@ internal data class QueuedInlineMessagesState(
     fun allMessages(): List<InlineMessageState> = messagesByElementId.values.toList()
 
     override fun toString(): String =
-        "EmbeddedMessagesState(messages=${messagesByElementId.size}, ids=${messagesByElementId.keys})"
+        "EmbeddedMessagesState(messages=${messagesByElementId.size}, ids=${messagesByElementId.keys}, states=${messagesByElementId.values.joinToString { it.toString() }})"
 }

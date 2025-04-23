@@ -66,6 +66,23 @@ internal class EngineWebView @JvmOverloads constructor(
         webView?.let { engineWebViewInterface.detach(webView = it) }
     }
 
+    fun releaseResources() {
+        val view = webView ?: return
+        if (view.parent != null) {
+            logger.debug("EngineWebView is still attached to parent, skipping cleanup")
+            return
+        }
+
+        logger.debug("Cleaning up EngineWebView")
+        webView = null
+        runCatching {
+            engineWebViewInterface.detach(view)
+            view.destroy()
+        }.onFailure { ex ->
+            logger.error("Error while destroying EngineWebView: ${ex.message}")
+        }
+    }
+
     fun stopLoading() {
         webView?.stopLoading()
         // stop the timer and clean up

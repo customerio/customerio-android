@@ -8,6 +8,7 @@ import androidx.annotation.UiThread
 import androidx.core.view.updateLayoutParams
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.InlineMessageState
 
@@ -42,6 +43,14 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
             }
         ) { state ->
             post { refreshViewState(state = state) }
+        }
+    }
+
+    override fun routeLoaded(route: String) {
+        super.routeLoaded(route)
+
+        currentMessage?.let { message ->
+            inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
         }
     }
 
@@ -154,7 +163,9 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
             engineWebView?.alpha = 0F
             contentWidthInDp = null
             contentHeightInDp = null
+            engineWebView?.stopLoading()
             detachEngineWebView()
+            engineWebView?.releaseResources()
             viewListener?.onNoMessageToDisplay()
             onComplete?.invoke()
         }

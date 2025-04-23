@@ -7,6 +7,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.platform.Plugin
 import io.customer.datapipelines.util.UiThreadRunner
+import io.customer.sdk.CustomerIO
 
 /**
  * Plugin that automatically tracks application lifecycle.
@@ -39,7 +40,7 @@ internal class AutomaticApplicationLifecycleTrackingPlugin : Plugin {
     private fun registerProcessLifecycleObserver() {
         processLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                analytics.track("Application Foregrounded")
+                CustomerIO.instance().track("Application Foregrounded")
             }
         })
     }

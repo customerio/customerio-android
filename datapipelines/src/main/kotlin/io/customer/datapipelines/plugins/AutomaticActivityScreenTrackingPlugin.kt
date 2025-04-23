@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecycle
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.platform.Plugin
+import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.tracking.TrackableScreen
@@ -39,7 +40,7 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
             }
             // If screen name is null or blank, we do not track the screen
             if (!screenName.isNullOrBlank()) {
-                analytics.screen(screenName)
+                CustomerIO.instance().screen(screenName)
             }
         } catch (e: PackageManager.NameNotFoundException) {
             logger.error(e.message ?: "Unable to activity screen NameNotFoundException, $activity")

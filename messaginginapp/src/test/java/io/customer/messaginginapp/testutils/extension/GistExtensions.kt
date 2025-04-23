@@ -1,7 +1,5 @@
 package io.customer.messaginginapp.testutils.extension
 
-import android.util.Base64
-import com.google.gson.JsonParser
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.type.InAppMessage
@@ -15,17 +13,6 @@ fun mapToInAppMessage(message: Message): InAppMessage = InAppMessage.getFromGist
 fun pageRuleContains(route: String): String = "^(.*$route.*)\$"
 
 fun pageRuleEquals(route: String): String = "^($route)\$"
-
-fun decodeOptionsString(options: String): Message {
-    val decodedOptions = String(Base64.decode(options, Base64.DEFAULT), Charsets.UTF_8)
-    val decodedMessage = JsonParser().parse(decodedOptions).asJsonObject
-    return Message(
-        messageId = decodedMessage["messageId"].asString,
-        instanceId = decodedMessage["instanceId"].asString,
-        priority = decodedMessage["priority"]?.asInt,
-        queueId = decodedMessage["queueId"]?.asString
-    )
-}
 
 fun createInAppMessage(
     messageId: String = UUID.randomUUID().toString(),

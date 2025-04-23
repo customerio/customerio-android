@@ -35,6 +35,8 @@ class UnitTestDelegate(
 
     private lateinit var testConfig: DataPipelinesTestConfig
     lateinit var sdkInstance: CustomerIO
+
+    // analytics instance that can be used to spy on
     lateinit var analytics: Analytics
 
     init {
@@ -67,7 +69,7 @@ class UnitTestDelegate(
             // Configure plugins for the test analytics instance to allow adding
             // desired plugins before CustomerIO initialization
             testConfig.analytics(testAnalyticsInstance)
-            return@registerAnalyticsFactory testAnalyticsInstance
+            return@registerAnalyticsFactory spyk(testAnalyticsInstance)
         }
     }
 

@@ -3,7 +3,6 @@ package io.customer.datapipelines.plugins
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.datapipelines.testutils.core.JUnitTest
@@ -21,7 +20,8 @@ class AutomaticApplicationLifecycleTrackingPluginTest : JUnitTest() {
 
     private val mockProcessLifecycleOwner = mockk<LifecycleOwner>()
     private val mockUiThreadRunner = mockk<UiThreadRunner>()
-    private val mockAnalytics = mockk<Analytics>()
+    private val mockAnalytics by lazy { analytics }
+
     private val lifecycleObserverCaptor = slot<DefaultLifecycleObserver>()
 
     private val subject = AutomaticApplicationLifecycleTrackingPlugin(mockProcessLifecycleOwner, mockUiThreadRunner)

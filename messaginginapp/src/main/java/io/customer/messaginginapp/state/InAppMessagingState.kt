@@ -63,47 +63,33 @@ internal sealed class InlineMessageState {
     abstract val message: Message
 
     data class ReadyToEmbed(override val message: Message, val elementId: String) : InlineMessageState() {
-        override fun toString(): String {
-            return "ReadyToEmbed(message=${message.queueId}, elementId=$elementId)"
-        }
+        override fun toString() = "ReadyToEmbed(message=${message.queueId}, elementId=$elementId)"
     }
 
     data class Embedded(override val message: Message, val elementId: String) : InlineMessageState() {
-        override fun toString(): String {
-            return "Embedded(message=${message.queueId}, elementId=$elementId)"
-        }
+        override fun toString() = "Embedded(message=${message.queueId}, elementId=$elementId)"
     }
 
     data class Dismissed(override val message: Message) : InlineMessageState() {
-        override fun toString(): String {
-            return "Dismissed(message=${message.queueId})"
-        }
+        override fun toString() = "Dismissed(message=${message.queueId})"
     }
 }
 
 internal sealed class ModalMessageState {
     object Initial : ModalMessageState() {
-        override fun toString(): String {
-            return "Initial"
-        }
+        override fun toString() = "Initial"
     }
 
     data class Loading(val message: Message) : ModalMessageState() {
-        override fun toString(): String {
-            return "Loading(message=${message.queueId})"
-        }
+        override fun toString() = "Loading(message=${message.queueId})"
     }
 
     data class Displayed(val message: Message) : ModalMessageState() {
-        override fun toString(): String {
-            return "Displayed(message=${message.queueId})"
-        }
+        override fun toString() = "Displayed(message=${message.queueId})"
     }
 
     data class Dismissed(val message: Message) : ModalMessageState() {
-        override fun toString(): String {
-            return "Dismissed(message=${message.queueId})"
-        }
+        override fun toString() = "Dismissed(message=${message.queueId})"
     }
 }
 
@@ -136,6 +122,6 @@ internal data class QueuedInlineMessagesState(
 
     fun allMessages(): List<InlineMessageState> = messagesByElementId.values.toList()
 
-    override fun toString(): String =
+    override fun toString() =
         "EmbeddedMessagesState(messages=${messagesByElementId.size}, ids=${messagesByElementId.keys}, states=${messagesByElementId.values.joinToString { it.toString() }})"
 }

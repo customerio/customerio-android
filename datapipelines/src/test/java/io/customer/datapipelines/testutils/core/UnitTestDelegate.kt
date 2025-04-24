@@ -68,8 +68,7 @@ class UnitTestDelegate(
             )
             // Configure plugins for the test analytics instance to allow adding
             // desired plugins before CustomerIO initialization
-            testConfig.analytics(testAnalyticsInstance)
-            return@registerAnalyticsFactory spyk(testAnalyticsInstance)
+            return@registerAnalyticsFactory testConfig.analytics(testAnalyticsInstance)
         }
     }
 

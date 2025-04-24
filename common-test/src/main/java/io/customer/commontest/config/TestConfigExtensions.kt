@@ -6,14 +6,16 @@ import io.customer.sdk.core.di.SDKComponent
 /**
  * Typealias for test configuration DSL for improved readability and ease of use.
  */
-typealias ConfigDSL<Config> = Config.() -> Unit
+typealias BaseDSL<Input, Output> = Input.() -> Output
+typealias ConfigDSL<Config> = BaseDSL<Config, Unit>
+typealias AnalyticsDSL<Config> = BaseDSL<Config, Config>
 
 /**
- * Combines two [ConfigDSL]s into a single [ConfigDSL] that will execute both of them in sequence.
+ * Combines two [BaseDSL]s into a single [BaseDSL] that will execute both of them in sequence.
  * This is useful for combining multiple configurations into a single configuration
  * and mimics the behavior of overriding method in a class.
  */
-operator fun <Config> ConfigDSL<Config>.plus(other: ConfigDSL<Config>): ConfigDSL<Config> = {
+operator fun <Input, Output> BaseDSL<Input, Output>.plus(other: BaseDSL<Input, Output>): BaseDSL<Input, Output> = {
     this@plus()
     other()
 }

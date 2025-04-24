@@ -1,6 +1,7 @@
 package io.customer.datapipelines.testutils.core
 
 import com.segment.analytics.kotlin.core.Analytics
+import io.customer.commontest.config.AnalyticsDSL
 import io.customer.commontest.config.ConfigDSL
 import io.customer.commontest.config.DIGraphConfiguration
 import io.customer.commontest.config.TestArgument
@@ -23,7 +24,7 @@ class DataPipelinesTestConfig private constructor(
     override val diGraph: DIGraphConfiguration,
     val cdpApiKey: String,
     val sdkConfig: ConfigDSL<CustomerIOBuilder>,
-    val analytics: ConfigDSL<Analytics>
+    val analytics: AnalyticsDSL<Analytics>
 ) : TestConfig {
     override fun plus(other: TestConfig): DataPipelinesTestConfig {
         val args = arguments + other.arguments
@@ -50,7 +51,7 @@ class DataPipelinesTestConfig private constructor(
     class Builder : TestConfigBuilder<DataPipelinesTestConfig>() {
         private var cdpApiKey: String = TestConstants.Keys.CDP_API_KEY
         private var sdkConfig: ConfigDSL<CustomerIOBuilder> = {}
-        private var analytics: ConfigDSL<Analytics> = {}
+        private var analytics: AnalyticsDSL<Analytics> = { this }
 
         fun cdpApiKey(cdpApiKey: String) {
             this.cdpApiKey = cdpApiKey
@@ -60,7 +61,7 @@ class DataPipelinesTestConfig private constructor(
             sdkConfig = block
         }
 
-        fun analytics(block: ConfigDSL<Analytics>) {
+        fun analytics(block: AnalyticsDSL<Analytics>) {
             analytics = block
         }
 

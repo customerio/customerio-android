@@ -115,14 +115,6 @@ class CustomerIO private constructor(
             analytics.add(CustomerIODestination())
         }
 
-        if (moduleConfig.autoTrackActivityScreens) {
-            analytics.add(AutomaticActivityScreenTrackingPlugin())
-        }
-
-        if (moduleConfig.trackApplicationLifecycleEvents) {
-            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
-        }
-
         // Add auto track device attributes plugin only if enabled in config
         if (moduleConfig.autoTrackDeviceAttributes) {
             analytics.add(AutoTrackDeviceAttributesPlugin())
@@ -178,6 +170,17 @@ class CustomerIO private constructor(
         analytics.configuration.let { config ->
             val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
             globalPreferenceStore.saveSettings(settings)
+        }
+
+        // add plugins to analytics instance
+        // this is done after the initialization to ensure the SDK has been initialized, since these plugins
+        // utilize SDK on setup rather than events
+        if (moduleConfig.autoTrackActivityScreens) {
+            analytics.add(AutomaticActivityScreenTrackingPlugin())
+        }
+
+        if (moduleConfig.trackApplicationLifecycleEvents) {
+            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
         }
     }
 

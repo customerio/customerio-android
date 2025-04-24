@@ -13,4 +13,8 @@ coverage:
         informational: true 
     project:
       default:
-        informational: true 
+        informational: true
+ignore:
+  # static calls to Android platform
+  - "core/src/main/kotlin/io/customer/sdk/core/util/NoOpLogger.kt"
+  - "core/src/main/kotlin/io/customer/sdk/core/util/LogcatLogger.kt"

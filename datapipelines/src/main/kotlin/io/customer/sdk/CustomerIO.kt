@@ -9,6 +9,7 @@ import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
+import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
@@ -114,14 +115,6 @@ class CustomerIO private constructor(
             analytics.add(CustomerIODestination())
         }
 
-        if (moduleConfig.autoTrackActivityScreens) {
-            analytics.add(AutomaticActivityScreenTrackingPlugin())
-        }
-
-        if (moduleConfig.trackApplicationLifecycleEvents) {
-            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
-        }
-
         // Add auto track device attributes plugin only if enabled in config
         if (moduleConfig.autoTrackDeviceAttributes) {
             analytics.add(AutoTrackDeviceAttributesPlugin())
@@ -178,6 +171,17 @@ class CustomerIO private constructor(
             val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
             globalPreferenceStore.saveSettings(settings)
         }
+
+        // add plugins to analytics instance
+        // this is done after the initialization to ensure the SDK has been initialized, since these plugins
+        // utilize SDK on setup rather than events
+        if (moduleConfig.autoTrackActivityScreens) {
+            analytics.add(AutomaticActivityScreenTrackingPlugin())
+        }
+
+        if (moduleConfig.trackApplicationLifecycleEvents) {
+            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
+        }
     }
 
     override var profileAttributes: CustomAttributes
@@ -217,7 +221,11 @@ class CustomerIO private constructor(
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
             if (registeredDeviceToken != null) {
                 logger.debug("deleting device token before identifying new profile")
-                deleteDeviceToken()
+                deleteDeviceToken { event ->
+                    event?.apply {
+                        currentlyIdentifiedProfile?.let { this.userId = it }
+                    }
+                }
             }
         }
 
@@ -319,7 +327,9 @@ class CustomerIO private constructor(
         val existingDeviceToken = contextPlugin.deviceToken
         if (existingDeviceToken != null && existingDeviceToken != token) {
             logger.debug("token has been refreshed, deleting old token to avoid registering same device multiple times")
-            deleteDeviceToken()
+            deleteDeviceToken { event ->
+                event?.putInContextUnderKey("device", "token", existingDeviceToken)
+            }
         }
 
         val attributes = if (moduleConfig.autoTrackDeviceAttributes) {

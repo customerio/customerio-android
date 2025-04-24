@@ -5,6 +5,7 @@ import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.config.configureAndroidSDKComponent
 import io.customer.commontest.util.DeviceStoreStub
 import io.customer.datapipelines.testutils.extensions.registerAnalyticsFactory
+import io.customer.datapipelines.testutils.stubs.TestCoroutineConfiguration
 import io.customer.datapipelines.testutils.utils.clearPersistentStorage
 import io.customer.datapipelines.testutils.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.testutils.utils.mockHTTPClient
@@ -25,11 +26,17 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
  * The class makes it easy to setup both JUnit and Robolectric tests by delegating setup to this class.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class UnitTestDelegate(private val applicationInstance: Any) {
+class UnitTestDelegate(
+    val applicationInstance: Any,
     val testDispatcher: TestDispatcher = UnconfinedTestDispatcher()
+) {
+    val testCoroutineConfiguration = TestCoroutineConfiguration(testDispatcher)
+    val testScope get() = testCoroutineConfiguration.testScope
 
     private lateinit var testConfig: DataPipelinesTestConfig
     lateinit var sdkInstance: CustomerIO
+
+    // analytics instance that can be used to spy on
     lateinit var analytics: Analytics
 
     init {
@@ -56,12 +63,12 @@ class UnitTestDelegate(private val applicationInstance: Any) {
             val testAnalyticsInstance = createTestAnalyticsInstance(
                 moduleConfig = moduleConfig,
                 application = applicationInstance,
-                testDispatcher = testDispatcher
+                testDispatcher = testDispatcher,
+                testCoroutineConfiguration = testCoroutineConfiguration
             )
             // Configure plugins for the test analytics instance to allow adding
             // desired plugins before CustomerIO initialization
-            testConfig.analytics(testAnalyticsInstance)
-            return@registerAnalyticsFactory testAnalyticsInstance
+            return@registerAnalyticsFactory testConfig.analytics(testAnalyticsInstance)
         }
     }
 

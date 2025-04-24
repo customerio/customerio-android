@@ -1,3 +1,9 @@
+## [4.5.8](https://github.com/customerio/customerio-android/compare/4.5.7...4.5.8) (2025-04-24)
+
+### Bug Fixes
+
+* use SDK instead of analytics for tracking in plugin ([#521](https://github.com/customerio/customerio-android/issues/521)) ([1c0b7a6](https://github.com/customerio/customerio-android/commit/1c0b7a6c7bc3b14820b9c6bab3168025206cbfbd))
+
 ## [4.5.7](https://github.com/customerio/customerio-android/compare/4.5.6...4.5.7) (2025-04-18)
 
 ### Bug Fixes

@@ -122,6 +122,11 @@ internal data class QueuedInlineMessagesState(
 
     fun allMessages(): List<InlineMessageState> = messagesByElementId.values.toList()
 
-    override fun toString() =
-        "EmbeddedMessagesState(messages=${messagesByElementId.size}, ids=${messagesByElementId.keys}, states=${messagesByElementId.values.joinToString { it.toString() }})"
+    override fun toString() = buildString {
+        append("EmbeddedMessagesState(")
+        append("messages=${messagesByElementId.size}, ")
+        append("ids=${messagesByElementId.keys}, ")
+        append("states=${messagesByElementId.values}")
+        append(")")
+    }
 }

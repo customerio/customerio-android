@@ -105,7 +105,7 @@ class CustomerIO private constructor(
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
-        Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
+        Analytics.debugLogsEnabled = moduleConfig.logLevel == CioLogLevel.DEBUG
         Analytics.setLogger(segmentLogger)
 
         // Add required plugins to analytics instance

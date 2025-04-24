@@ -2,12 +2,12 @@ package io.customer.sdk.core.di
 
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.communication.EventBusImpl
-import io.customer.sdk.core.environment.BuildEnvironment
-import io.customer.sdk.core.environment.DefaultBuildEnvironment
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.DispatchersProvider
-import io.customer.sdk.core.util.LogcatLogger
+import io.customer.sdk.core.util.LoggerImpl
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.core.util.NoOpLogger
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.core.util.SdkDispatchers
 import io.customer.sdk.core.util.SdkScopeProvider
@@ -40,10 +40,16 @@ object SDKComponent : DiGraph() {
     }
 
     // Core dependencies
-    val buildEnvironment: BuildEnvironment
-        get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
+    private var initializedLogger: Logger? = null
     val logger: Logger
-        get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
+        get() {
+            val loggerVar = initializedLogger
+            return loggerVar ?: NoOpLogger
+        }
+
+    fun initializeLogger(level: CioLogLevel) {
+        initializedLogger = singleton<Logger> { LoggerImpl(level) }
+    }
 
     // Communication dependencies
     val eventBus: EventBus

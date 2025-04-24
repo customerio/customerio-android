@@ -3,6 +3,7 @@ package io.customer.datapipelines.config
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.extensions.apiHost
 import io.customer.datapipelines.extensions.cdnHost
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.data.model.Region
 
@@ -29,7 +30,9 @@ class DataPipelinesModuleConfig(
     // Configuration options required for migration from earlier versions
     val migrationSiteId: String? = null,
     // Determines how SDK should handle screen view events
-    val screenViewUse: ScreenView
+    val screenViewUse: ScreenView,
+    // SDK logging level passed through from core SDK config
+    val logLevel: CioLogLevel
 ) : CustomerIOModuleConfig {
     val apiHost: String = apiHostOverride ?: region.apiHost()
     val cdnHost: String = cdnHostOverride ?: region.cdnHost()

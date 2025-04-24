@@ -9,7 +9,6 @@ import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
-import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
 
 /**
@@ -43,7 +42,6 @@ class CustomerIOBuilder(
 
     // Logging configuration
     private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
-    private val logger: Logger = SDKComponent.logger
 
     // Host Settings
     private var region: Region = Region.US
@@ -187,10 +185,11 @@ class CustomerIOBuilder(
     }
 
     fun build(): CustomerIO {
-        val modules = SDKComponent.modules
+        // SDK logger needs to be initialized before anything else so that
+        // all components can use it afterwards
+        SDKComponent.initializeLogger(logLevel)
 
-        // Update the log level for the SDK
-        SDKComponent.logger.logLevel = logLevel
+        val modules = SDKComponent.modules
 
         // Initialize DataPipelinesModule with the provided configuration
         val dataPipelinesConfig = DataPipelinesModuleConfig(
@@ -206,7 +205,8 @@ class CustomerIOBuilder(
             autoTrackDeviceAttributes = autoTrackDeviceAttributes,
             autoTrackActivityScreens = autoTrackActivityScreens,
             migrationSiteId = migrationSiteId,
-            screenViewUse = screenViewUse
+            screenViewUse = screenViewUse,
+            logLevel = logLevel
         )
 
         // Initialize CustomerIO instance before initializing the modules
@@ -220,7 +220,7 @@ class CustomerIOBuilder(
         modules.putAll(registeredModules.associateBy { module -> module.moduleName })
 
         modules.forEach { (_, module) ->
-            logger.debug("initializing SDK module ${module.moduleName}...")
+            SDKComponent.logger.debug("initializing SDK module ${module.moduleName}...")
             module.initialize()
         }
 

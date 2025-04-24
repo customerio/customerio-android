@@ -4,180 +4,166 @@ import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.assertNoInteractions
-import io.customer.sdk.core.environment.BuildEnvironment
 import io.mockk.confirmVerified
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
-import io.mockk.spyk
-import org.amshove.kluent.shouldBeEqualTo
+import io.mockk.runs
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class LoggerTest : JUnit5Test() {
-    @Test
-    fun shouldLog_givenNone() {
-        val configLogLevelSet = CioLogLevel.NONE
 
-        assertShouldLog(
-            configLogLevelSet,
-            error = false,
-            info = false,
-            debug = false
-        )
+    private val mockLogger = mockk<LogcatLogger>()
+
+    @BeforeEach
+    fun setUp() {
+        every { mockLogger.d(any(), any()) } just runs
+        every { mockLogger.i(any(), any()) } just runs
+        every { mockLogger.e(any(), any(), any()) } just runs
     }
 
     @Test
-    fun shouldLog_givenError() {
-        val configLogLevelSet = CioLogLevel.ERROR
-
-        assertShouldLog(
-            configLogLevelSet,
-            error = true,
-            info = false,
-            debug = false
-        )
-    }
-
-    @Test
-    fun shouldLog_givenInfo() {
-        val configLogLevelSet = CioLogLevel.INFO
-
-        assertShouldLog(
-            configLogLevelSet,
-            error = true,
-            info = true,
-            debug = false
-        )
-    }
-
-    @Test
-    fun shouldLog_givenDebug() {
-        val configLogLevelSet = CioLogLevel.DEBUG
-
-        assertShouldLog(
-            configLogLevelSet,
-            error = true,
-            info = true,
-            debug = true
-        )
-    }
-
-    private fun assertShouldLog(
-        levelSetBySdkConfig: CioLogLevel,
-        error: Boolean,
-        info: Boolean,
-        debug: Boolean
-    ) {
-        levelSetBySdkConfig.shouldLog(CioLogLevel.ERROR) shouldBeEqualTo error
-        levelSetBySdkConfig.shouldLog(CioLogLevel.INFO) shouldBeEqualTo info
-        levelSetBySdkConfig.shouldLog(CioLogLevel.DEBUG) shouldBeEqualTo debug
-    }
-
-    @Test
-    fun verifySDKNotInitialized_givenDebugEnvironment_expectLogLevelDebug() {
-        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
-        every { buildEnvironment.debugModeEnabled } returns true
-
-        val logger = LogcatLogger(buildEnvironment)
-
-        logger.logLevel shouldBeEqualTo CioLogLevel.DEBUG
-    }
-
-    @Test
-    fun verifySDKNotInitialized_givenReleaseEnvironment_expectLogLevelErrors() {
-        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
-        every { buildEnvironment.debugModeEnabled } returns false
-
-        val logger = LogcatLogger(buildEnvironment)
-
-        logger.logLevel shouldBeEqualTo CioLogLevel.ERROR
-    }
-
-    @Test
-    fun verifySDKInitialized_givenDebugEnvironment_expectLogLevelAsDefined() {
-        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
-        every { buildEnvironment.debugModeEnabled } returns true
-        val givenLogLevel = CioLogLevel.INFO
-
-        val logger = LogcatLogger(buildEnvironment)
-        logger.logLevel = givenLogLevel
-
-        logger.logLevel shouldBeEqualTo givenLogLevel
-    }
-
-    @Test
-    fun verifySDKInitialized_givenReleaseEnvironment_expectLogLevelAsDefined() {
-        val buildEnvironment: BuildEnvironment = mockk(relaxed = true)
-        every { buildEnvironment.debugModeEnabled } returns false
-        val givenLogLevel = CioLogLevel.NONE
-
-        val logger = LogcatLogger(buildEnvironment)
-        logger.logLevel = givenLogLevel
-
-        logger.logLevel shouldBeEqualTo givenLogLevel
-    }
-
-    @Test
-    fun logIfMatchesCriteria_givenLogLevelNone_shouldNotInvokeAnyLogs() {
-        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+    fun givenLogLevelNone_shouldNotInvokeAnyLogs() {
+        val logger = LoggerImpl(CioLogLevel.NONE, mockLogger)
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
-        logger.logLevel = CioLogLevel.NONE
         logger.setLogDispatcher(logEventListenerMock)
 
-        val givenErrorMessage = "Test error message"
-        logger.error(givenErrorMessage)
-        val givenInfoMessage = "Test info message"
-        logger.info(givenInfoMessage)
-        val givenDebugMessage = "Test debug message"
-        logger.debug(givenDebugMessage)
+        logger.error("Test error message")
+        logger.info("Test info message")
+        logger.debug("Test debug message")
 
         assertNoInteractions(logEventListenerMock)
+        assertNoInteractions(mockLogger)
     }
 
     @Test
-    fun logIfMatchesCriteria_givenLogLevelError_shouldInvokeErrorLogOnly() {
-        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+    fun givenLogLevelNoneWithTag_shouldNotInvokeAnyLogs() {
+        val logger = LoggerImpl(CioLogLevel.NONE, mockLogger)
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
-        logger.logLevel = CioLogLevel.ERROR
+        logger.setLogDispatcher(logEventListenerMock)
+
+        logger.error("Test error message", "AnyTag")
+        logger.info("Test info message", "AnyTag")
+        logger.debug("Test debug message", "AnyTag")
+
+        assertNoInteractions(logEventListenerMock)
+        assertNoInteractions(mockLogger)
+    }
+
+    @Test
+    fun givenLogLevelError_shouldInvokeErrorLogOnly() {
+        val logger = LoggerImpl(CioLogLevel.ERROR, mockLogger)
+
+        val throwable = IllegalStateException()
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage, throwable = throwable)
+        logger.info("Test info message")
+        logger.debug("Test debug message")
+
+        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, givenErrorMessage, throwable) }
+        assertCalledNever { mockLogger.i(any(), any()) }
+        assertCalledNever { mockLogger.d(any(), any()) }
+    }
+
+    @Test
+    fun givenLogLevelErrorWithDispatcher_shouldInvokeErrorLogOnly() {
+        val logger = LoggerImpl(CioLogLevel.ERROR, mockLogger)
+        val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)
-        val givenInfoMessage = "Test info message"
-        logger.info(givenInfoMessage)
-        val givenDebugMessage = "Test debug message"
-        logger.debug(givenDebugMessage)
+        logger.info("Test info message")
+        logger.debug("Test debug message")
 
         assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
-        assertCalledNever { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
-        assertCalledNever { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        assertCalledNever { logEventListenerMock(eq(CioLogLevel.INFO), any()) }
+        assertCalledNever { logEventListenerMock(eq(CioLogLevel.DEBUG), any()) }
         confirmVerified(logEventListenerMock)
     }
 
     @Test
-    fun logIfMatchesCriteria_givenLogLevelInfo_shouldInvokeInfoAndErrorLogs() {
-        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+    fun givenLogLevelErrorWithTag_shouldInvokeErrorLogOnly() {
+        val logger = LoggerImpl(CioLogLevel.ERROR, mockLogger)
+        val tag = "AnyTag"
+
+        logger.error("Test error message", tag)
+        logger.info("Test info message", tag)
+        logger.debug("Test debug message", tag)
+
+        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, "[AnyTag] Test error message", null) }
+        assertCalledNever { mockLogger.i(any(), any()) }
+        assertCalledNever { mockLogger.d(any(), any()) }
+    }
+
+    @Test
+    fun givenLogLevelInfo_shouldInvokeInfoAndErrorLogs() {
+        val logger = LoggerImpl(CioLogLevel.INFO, mockLogger)
+
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage)
+        val givenInfoMessage = "Test info message"
+        logger.info(givenInfoMessage)
+        logger.debug("Test debug message")
+
+        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, givenErrorMessage, null) }
+        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, givenInfoMessage) }
+        assertCalledNever { mockLogger.d(any(), any()) }
+    }
+
+    @Test
+    fun givenLogLevelInfoWithDispatcher_shouldInvokeInfoAndErrorLogs() {
+        val logger = LoggerImpl(CioLogLevel.INFO, mockLogger)
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
-        logger.logLevel = CioLogLevel.INFO
         logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)
         val givenInfoMessage = "Test info message"
         logger.info(givenInfoMessage)
-        val givenDebugMessage = "Test debug message"
-        logger.debug(givenDebugMessage)
+        logger.debug("Test debug message")
 
         assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, givenErrorMessage) }
         assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
-        assertCalledNever { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
+        assertCalledNever { logEventListenerMock(eq(CioLogLevel.DEBUG), any()) }
         confirmVerified(logEventListenerMock)
     }
 
     @Test
-    fun logIfMatchesCriteria_givenLogLevelDebug_shouldInvokeAllLogs() {
-        val logger = spyk(LogcatLogger(mockk(relaxed = true)))
+    fun givenLogLevelInfoWithTag_shouldInvokeInfoAndErrorLogs() {
+        val logger = LoggerImpl(CioLogLevel.INFO, mockLogger)
+        val tag = "AnotherTag"
+
+        logger.error("Test error message", tag)
+        logger.info("Test info message", tag)
+        logger.debug("Test debug message", tag)
+
+        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, "[AnotherTag] Test error message", null) }
+        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, "[AnotherTag] Test info message") }
+        assertCalledNever { mockLogger.d(any(), any()) }
+    }
+
+    @Test
+    fun givenLogLevelDebug_shouldInvokeAllLogs() {
+        val logger = LoggerImpl(CioLogLevel.DEBUG, mockLogger)
+
+        val givenErrorMessage = "Test error message"
+        logger.error(givenErrorMessage)
+        val givenInfoMessage = "Test info message"
+        logger.info(givenInfoMessage)
+        val givenDebugMessage = "Test debug message"
+        logger.debug(givenDebugMessage)
+
+        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, givenErrorMessage, null) }
+        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, givenInfoMessage) }
+        assertCalledOnce { mockLogger.d(LoggerImpl.TAG, givenDebugMessage) }
+    }
+
+    @Test
+    fun givenLogLevelDebugWithDispatcher_shouldInvokeAllLogs() {
+        val logger = LoggerImpl(CioLogLevel.DEBUG, mockLogger)
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
-        logger.logLevel = CioLogLevel.DEBUG
         logger.setLogDispatcher(logEventListenerMock)
 
         val givenErrorMessage = "Test error message"
@@ -191,5 +177,19 @@ class LoggerTest : JUnit5Test() {
         assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, givenInfoMessage) }
         assertCalledOnce { logEventListenerMock(CioLogLevel.DEBUG, givenDebugMessage) }
         confirmVerified(logEventListenerMock)
+    }
+
+    @Test
+    fun givenLogLevelDebugWithTag_shouldInvokeAllLogs() {
+        val logger = LoggerImpl(CioLogLevel.DEBUG, mockLogger)
+        val tag = "Tag?"
+
+        logger.error("Test error message", tag)
+        logger.info("Test info message", tag)
+        logger.debug("Test debug message", tag)
+
+        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, "[Tag?] Test error message", null) }
+        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, "[Tag?] Test info message") }
+        assertCalledOnce { mockLogger.d(LoggerImpl.TAG, "[Tag?] Test debug message") }
     }
 }

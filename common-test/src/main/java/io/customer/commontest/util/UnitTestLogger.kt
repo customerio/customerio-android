@@ -9,25 +9,24 @@ import io.customer.sdk.core.util.Logger
  * the log level set to help debug issues while running unit tests.
  */
 class UnitTestLogger : Logger {
-    override var logLevel: CioLogLevel = CioLogLevel.DEBUG
 
     override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) {
     }
 
-    override fun info(message: String) {
+    override fun info(message: String, tag: String?) {
         log(CioLogLevel.INFO, message)
     }
 
-    override fun debug(message: String) {
+    override fun debug(message: String, tag: String?) {
         log(CioLogLevel.DEBUG, message)
     }
 
-    override fun error(message: String) {
+    override fun error(message: String, tag: String?, throwable: Throwable?) {
         log(CioLogLevel.ERROR, message)
     }
 
     private fun log(levelForMessage: CioLogLevel, message: String) {
-        val shouldLog = logLevel >= levelForMessage
+        val shouldLog = CioLogLevel.DEBUG >= levelForMessage
 
         if (shouldLog) {
             println("[$levelForMessage]: $message")

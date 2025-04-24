@@ -40,7 +40,7 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
             }
             // If screen name is null or blank, we do not track the screen
             if (!screenName.isNullOrBlank()) {
-                CustomerIO.instance().screen(screenName)
+                runCatching { CustomerIO.instance().screen(screenName) }.onFailure { analytics.screen(screenName) }
             }
         } catch (e: PackageManager.NameNotFoundException) {
             logger.error(e.message ?: "Unable to activity screen NameNotFoundException, $activity")

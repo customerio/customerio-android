@@ -40,7 +40,7 @@ internal class AutomaticApplicationLifecycleTrackingPlugin : Plugin {
     private fun registerProcessLifecycleObserver() {
         processLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                CustomerIO.instance().track("Application Foregrounded")
+                runCatching { CustomerIO.instance().track("Application Foregrounded") }.onFailure { analytics.track("Application Foregrounded") }
             }
         })
     }

@@ -3,8 +3,8 @@ package io.customer.datapipelines.config
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.extensions.apiHost
 import io.customer.datapipelines.extensions.cdnHost
-import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 
 class DataPipelinesModuleConfig(

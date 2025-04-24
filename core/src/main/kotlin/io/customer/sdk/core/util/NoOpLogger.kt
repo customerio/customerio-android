@@ -16,16 +16,23 @@ internal object NoOpLogger : Logger {
     }
 
     override fun info(message: String, tag: String?) {
-        Log.i(LoggerImpl.TAG, "NoOpLogger: Attempting to use logger before it is initialized! -> $message")
+        Log.i(
+            LoggerImpl.TAG,
+            "NoOpLogger: Attempting to use logger before it is initialized! -> $message"
+        )
     }
 
     override fun debug(message: String, tag: String?) {
-        Log.d(LoggerImpl.TAG, "NoOpLogger: Attempting to use logger before it is initialized! -> $message")
+        Log.d(
+            LoggerImpl.TAG,
+            "NoOpLogger: Attempting to use logger before it is initialized! -> $message"
+        )
     }
 
     override fun error(message: String, tag: String?, throwable: Throwable?) {
         Log.e(
-            LoggerImpl.TAG, "NoOpLogger: Attempting to use logger before it is initialized! -> $message",
+            LoggerImpl.TAG,
+            "NoOpLogger: Attempting to use logger before it is initialized! -> $message",
             IllegalStateException("Logger not initialized!")
         )
     }

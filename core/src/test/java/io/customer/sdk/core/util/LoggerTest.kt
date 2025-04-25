@@ -18,9 +18,9 @@ class LoggerTest : JUnit5Test() {
 
     @BeforeEach
     fun setUp() {
-        every { mockLogger.d(any(), any()) } just runs
-        every { mockLogger.i(any(), any()) } just runs
-        every { mockLogger.e(any(), any(), any()) } just runs
+        every { mockLogger.debug(any(), any()) } just runs
+        every { mockLogger.info(any(), any()) } just runs
+        every { mockLogger.error(any(), any(), any()) } just runs
     }
 
     @Test
@@ -61,9 +61,9 @@ class LoggerTest : JUnit5Test() {
         logger.info("Test info message")
         logger.debug("Test debug message")
 
-        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, givenErrorMessage, throwable) }
-        assertCalledNever { mockLogger.i(any(), any()) }
-        assertCalledNever { mockLogger.d(any(), any()) }
+        assertCalledOnce { mockLogger.error(LoggerImpl.TAG, givenErrorMessage, throwable) }
+        assertCalledNever { mockLogger.info(any(), any()) }
+        assertCalledNever { mockLogger.debug(any(), any()) }
     }
 
     @Test
@@ -92,9 +92,9 @@ class LoggerTest : JUnit5Test() {
         logger.info("Test info message", tag)
         logger.debug("Test debug message", tag)
 
-        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, "[AnyTag] Test error message", null) }
-        assertCalledNever { mockLogger.i(any(), any()) }
-        assertCalledNever { mockLogger.d(any(), any()) }
+        assertCalledOnce { mockLogger.error(LoggerImpl.TAG, "[AnyTag] Test error message", null) }
+        assertCalledNever { mockLogger.info(any(), any()) }
+        assertCalledNever { mockLogger.debug(any(), any()) }
     }
 
     @Test
@@ -107,9 +107,9 @@ class LoggerTest : JUnit5Test() {
         logger.info(givenInfoMessage)
         logger.debug("Test debug message")
 
-        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, givenErrorMessage, null) }
-        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, givenInfoMessage) }
-        assertCalledNever { mockLogger.d(any(), any()) }
+        assertCalledOnce { mockLogger.error(LoggerImpl.TAG, givenErrorMessage, null) }
+        assertCalledOnce { mockLogger.info(LoggerImpl.TAG, givenInfoMessage) }
+        assertCalledNever { mockLogger.debug(any(), any()) }
     }
 
     @Test
@@ -139,9 +139,9 @@ class LoggerTest : JUnit5Test() {
         logger.info("Test info message", tag)
         logger.debug("Test debug message", tag)
 
-        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, "[AnotherTag] Test error message", null) }
-        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, "[AnotherTag] Test info message") }
-        assertCalledNever { mockLogger.d(any(), any()) }
+        assertCalledOnce { mockLogger.error(LoggerImpl.TAG, "[AnotherTag] Test error message", null) }
+        assertCalledOnce { mockLogger.info(LoggerImpl.TAG, "[AnotherTag] Test info message") }
+        assertCalledNever { mockLogger.debug(any(), any()) }
     }
 
     @Test
@@ -155,9 +155,9 @@ class LoggerTest : JUnit5Test() {
         val givenDebugMessage = "Test debug message"
         logger.debug(givenDebugMessage)
 
-        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, givenErrorMessage, null) }
-        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, givenInfoMessage) }
-        assertCalledOnce { mockLogger.d(LoggerImpl.TAG, givenDebugMessage) }
+        assertCalledOnce { mockLogger.error(LoggerImpl.TAG, givenErrorMessage, null) }
+        assertCalledOnce { mockLogger.info(LoggerImpl.TAG, givenInfoMessage) }
+        assertCalledOnce { mockLogger.debug(LoggerImpl.TAG, givenDebugMessage) }
     }
 
     @Test
@@ -188,8 +188,8 @@ class LoggerTest : JUnit5Test() {
         logger.info("Test info message", tag)
         logger.debug("Test debug message", tag)
 
-        assertCalledOnce { mockLogger.e(LoggerImpl.TAG, "[Tag?] Test error message", null) }
-        assertCalledOnce { mockLogger.i(LoggerImpl.TAG, "[Tag?] Test info message") }
-        assertCalledOnce { mockLogger.d(LoggerImpl.TAG, "[Tag?] Test debug message") }
+        assertCalledOnce { mockLogger.error(LoggerImpl.TAG, "[Tag?] Test error message", null) }
+        assertCalledOnce { mockLogger.info(LoggerImpl.TAG, "[Tag?] Test info message") }
+        assertCalledOnce { mockLogger.debug(LoggerImpl.TAG, "[Tag?] Test debug message") }
     }
 }

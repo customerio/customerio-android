@@ -13,9 +13,7 @@ enum class CioLogLevel(val priority: Int) {
     DEBUG(priority = 3);
 
     companion object {
-        val DEFAULT = ERROR
-
-        fun getLogLevel(level: String?, fallback: CioLogLevel = DEFAULT): CioLogLevel {
+        fun getLogLevel(level: String?, fallback: CioLogLevel = ERROR): CioLogLevel {
             return values().find { value -> value.name.equals(level, ignoreCase = true) }
                 ?: fallback
         }

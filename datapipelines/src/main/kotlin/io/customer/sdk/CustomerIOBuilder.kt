@@ -41,7 +41,7 @@ class CustomerIOBuilder(
     private val registeredModules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
 
     // Logging configuration
-    private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
+    private var logLevel: CioLogLevel = CioLogLevel.ERROR
 
     // Host Settings
     private var region: Region = Region.US

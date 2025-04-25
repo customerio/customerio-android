@@ -30,9 +30,9 @@ internal class LoggerImpl(
         // Otherwise, log to Logcat
         logDispatcher?.invoke(levelForMessage, message) ?: when (levelForMessage) {
             CioLogLevel.NONE -> {}
-            CioLogLevel.ERROR -> actualLogger.e(TAG, prependTagToMessage(tag, message), throwable)
-            CioLogLevel.INFO -> actualLogger.i(TAG, prependTagToMessage(tag, message))
-            CioLogLevel.DEBUG -> actualLogger.d(TAG, prependTagToMessage(tag, message))
+            CioLogLevel.ERROR -> actualLogger.error(TAG, prependTagToMessage(tag, message), throwable)
+            CioLogLevel.INFO -> actualLogger.info(TAG, prependTagToMessage(tag, message))
+            CioLogLevel.DEBUG -> actualLogger.debug(TAG, prependTagToMessage(tag, message))
         }
     }
 

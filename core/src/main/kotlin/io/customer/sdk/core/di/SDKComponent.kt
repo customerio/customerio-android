@@ -44,7 +44,7 @@ object SDKComponent : DiGraph() {
     val logger: Logger
         get() {
             val loggerVar = initializedLogger
-            return loggerVar ?: NoOpLogger
+            return loggerVar ?: newInstance<Logger> { NoOpLogger }
         }
 
     fun initializeLogger(level: CioLogLevel) {

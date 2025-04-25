@@ -20,6 +20,7 @@ abstract class BaseFragmentContainerActivity<VB : ViewBinding> : BaseActivity<VB
     protected open fun getFragmentTitle(): String? = null
 
     protected lateinit var fragmentName: String
+    protected var hasDisplayedContent = false
 
     override fun onBackPressed() {
         finish()
@@ -50,7 +51,13 @@ abstract class BaseFragmentContainerActivity<VB : ViewBinding> : BaseActivity<VB
     protected fun setupWithAuthViewModel(authViewModel: AuthViewModel) {
         authViewModel.userLoggedInStateObservable.observe(this) { isLoggedIn: Boolean ->
             if (isLoggedIn) {
-                replaceFragmentInView()
+                // LiveData can emit the same value again when Activity returns from background.
+                // To avoid replacing the fragment multiple times, we track whether the fragment has already
+                // been added using a boolean flag.
+                if (!hasDisplayedContent) {
+                    replaceFragmentInView()
+                    hasDisplayedContent = true
+                }
             } else {
                 if (isTaskRoot) {
                     startActivity(Intent(this, LoginActivity::class.java))

@@ -66,20 +66,41 @@ internal class EngineWebView @JvmOverloads constructor(
         webView?.let { engineWebViewInterface.detach(webView = it) }
     }
 
+    /**
+     * Releases resources associated with EngineWebView.
+     * This method should be called when EngineWebView instance is no longer needed
+     * and the view is already removed from the parent.
+     * It stops loading WebView, removes JavaScript interface, and clears reference to WebView.
+     */
     fun releaseResources() {
-        val view = webView ?: return
-        if (view.parent != null) {
-            logger.debug("EngineWebView is still attached to parent, skipping cleanup")
-            return
-        }
+        try {
+            val view = webView ?: return
+            logger.debug("Cleaning up EngineWebView")
+            if (this.parent != null) {
+                logger.debug("EngineWebView is still attached to parent, skipping cleanup")
+                return
+            }
 
-        logger.debug("Cleaning up EngineWebView")
-        webView = null
-        runCatching {
-            engineWebViewInterface.detach(view)
+            webView = null
+            if (view.parent != null) {
+                logger.debug("Removing WebView from parent before cleanup")
+                this.removeView(view)
+            }
+
+            logger.debug("Detaching JavaScript interface from EngineWebView")
+            engineWebViewInterface.detach(webView = view)
+
+            logger.debug("Stopping EngineWebView loading")
+            view.stopLoading()
+            // Calling destroy() on WebView to release resources.
+            // This call may log errors like following on some (or most) devices:
+            // [ERROR:aw_browser_terminator.cc(165)] Renderer process ($id) crash detected (code -1).
+            // This is likely a Chromium/WebView issue, but calling destroy() remains the correct way
+            // to properly clean up and prevent WebView from attempting further JS calls
+            // or keeping the webpage alive unnecessarily in the background.
             view.destroy()
-        }.onFailure { ex ->
-            logger.error("Error while destroying EngineWebView: ${ex.message}")
+        } catch (ex: Exception) {
+            logger.error("Error while releasing resources: ${ex.message}")
         }
     }
 

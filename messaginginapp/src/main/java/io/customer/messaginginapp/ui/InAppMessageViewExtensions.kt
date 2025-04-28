@@ -4,6 +4,9 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
 import android.animation.ValueAnimator
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.util.DisplayMetrics
 import android.util.TypedValue
 import android.view.View
@@ -11,6 +14,7 @@ import androidx.annotation.AttrRes
 import androidx.annotation.ColorInt
 import androidx.annotation.UiThread
 import androidx.core.view.updateLayoutParams
+import io.customer.sdk.core.di.SDKComponent
 
 /**
  * Converts the given size from dp to pixels based on the device's screen density.
@@ -98,4 +102,40 @@ internal fun InAppMessageBaseView.resolveThemeColor(
     }
 } catch (_: Throwable) {
     fallbackColor
+}
+
+/**
+ * Determines whether the view should be destroyed when detached from its parent.
+ * The view should be destroyed if the activity is finishing or not changing configurations.
+ */
+internal fun View.shouldDestroyOnDetach(): Boolean {
+    val activity = context?.findActivity()
+    return activity?.let {
+        it.isFinishing || !it.isChangingConfigurations
+    } ?: true
+}
+
+/**
+ * Safely finds the Activity from a Context by unwrapping ContextWrappers.
+ * Limits depth to prevent infinite loops in case of badly implemented ContextWrapper
+ * chains.
+ * Default max depth is only 5 because we don't expect more than 3 wrappers in a normal case.
+ */
+internal fun Context.findActivity(maxDepth: Int = 5): Activity? {
+    var currentContext = this
+    var depth = maxDepth
+
+    do {
+        when (currentContext) {
+            is Activity -> return currentContext
+            is ContextWrapper -> currentContext = currentContext.baseContext
+            else -> return null
+        }
+        depth--
+    } while (depth > 0)
+
+    SDKComponent.logger.debug(
+        "Max depth ($maxDepth) exceeded while searching for Activity from Context $this"
+    )
+    return null
 }

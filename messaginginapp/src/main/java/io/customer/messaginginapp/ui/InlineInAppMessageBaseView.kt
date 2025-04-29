@@ -26,6 +26,15 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
     protected var contentHeightInDp: Double? = null
 
     var elementId: String? = null
+        set(value) {
+            val oldValue = field
+            field = value
+            if (oldValue != value) {
+                logViewEvent("Element ID changed from $oldValue to $value")
+                // Fetch current state to ensure we have latest message for given element ID
+                onElementIdChanged()
+            }
+        }
 
     init {
         visibility = GONE
@@ -46,11 +55,30 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
         }
     }
 
+    protected open fun onElementIdChanged() {
+        // Since the elementId has been changed, we need to fetch
+        // current state to ensure correct message is displayed
+        val state = inAppMessagingManager.getCurrentState()
+        post { refreshViewState(state = state) }
+    }
+
     override fun routeLoaded(route: String) {
         super.routeLoaded(route)
 
         currentMessage?.let { message ->
             inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        val message = currentMessage ?: return
+
+        if (shouldDestroyOnDetach()) {
+            logViewEvent("View detached from window, dismissing inline message view for $elementId ")
+            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message))
+        } else {
+            logViewEvent("Skipping destroy for inline message view for $elementId — likely config change or temporary detach")
         }
     }
 
@@ -60,33 +88,34 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
         val inlineMessageState = state.queuedInlineMessagesState.getMessage(viewElementId) ?: return
 
         when (inlineMessageState) {
-            is InlineMessageState.ReadyToEmbed -> embedMessage(state = inlineMessageState)
+            is InlineMessageState.ReadyToEmbed -> embedMessage(message = inlineMessageState.message)
             is InlineMessageState.Dismissed -> dismissMessage(message = inlineMessageState.message) {}
             is InlineMessageState.Embedded -> {
-                // We are already displaying or rendering a message. Do not show another message until
-                // the current message is closed. The main reason for this is when a message is tracked
-                // as "opened", the Gist backend will not return this message on the next fetch call.
-                // We want to continue showing a message even if the fetch no longer returns the message
-                // and the message is currently visible.
+                // The message is already embedded, but we are not displaying it. This can happen
+                // when the message was already displayed in UI but the view was recreated.
+                // In this case, we need to show the message again.
+                if (currentMessage == null) {
+                    logViewEvent("View recreated, embedding inline message again: ${inlineMessageState.message.messageId}")
+                    embedMessage(message = inlineMessageState.message)
+                }
             }
         }
     }
 
     @UiThread
-    private fun embedMessage(state: InlineMessageState) {
-        val newMessage = state.message
-        logViewEvent("Loading inline message: ${newMessage.messageId}")
+    private fun embedMessage(message: Message) {
+        logViewEvent("Loading inline message: ${message.messageId}")
 
         val oldMessage = currentMessage
         // If no message is currently displayed, show the new one
         if (oldMessage == null) {
-            displayMessage(newMessage)
+            displayMessage(message)
             return
         }
 
         // Else, dismiss the old one before showing the new one
         dismissMessage(oldMessage) {
-            displayMessage(newMessage)
+            displayMessage(message)
         }
     }
 
@@ -149,6 +178,18 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
     }
 
     /**
+     * Cleans up EngineWebView and releases its resources.
+     * This method should be called when EngineWebView instance is no longer needed.
+     */
+    @UiThread
+    internal fun detachAndCleanupEngineWebView() {
+        val view = engineWebView ?: return
+
+        detachEngineWebView()
+        view.releaseResources()
+    }
+
+    /**
      * Collapses the view by animating its height to zero and hiding internal elements.
      * This is an asynchronous operation when [shouldAnimate] is true.
      * Use [onComplete] to perform any actions after the collapse completes.
@@ -163,13 +204,12 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
             engineWebView?.alpha = 0F
             contentWidthInDp = null
             contentHeightInDp = null
-            engineWebView?.stopLoading()
-            detachEngineWebView()
-            engineWebView?.releaseResources()
+            detachAndCleanupEngineWebView()
             viewListener?.onNoMessageToDisplay()
             onComplete?.invoke()
         }
 
+        logViewEvent("Hiding inline message view with animation: $shouldAnimate")
         stopLoading()
         if (shouldAnimate) {
             animateViewSize(

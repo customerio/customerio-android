@@ -447,6 +447,8 @@ public abstract class io/customer/messaginginapp/ui/InlineInAppMessageBaseView :
 	protected final fun getContentWidthInDp ()Ljava/lang/Double;
 	protected final fun getElapsedTimer ()Lio/customer/messaginginapp/gist/utilities/ElapsedTimer;
 	public final fun getElementId ()Ljava/lang/String;
+	protected fun onDetachedFromWindow ()V
+	protected fun onElementIdChanged ()V
 	public fun routeLoaded (Ljava/lang/String;)V
 	protected final fun setContentHeightInDp (Ljava/lang/Double;)V
 	protected final fun setContentWidthInDp (Ljava/lang/Double;)V

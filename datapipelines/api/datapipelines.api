@@ -1,6 +1,6 @@
 public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
-	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;)V
-	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Lio/customer/sdk/core/util/CioLogLevel;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Lio/customer/sdk/core/util/CioLogLevel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getApiHost ()Ljava/lang/String;
 	public final fun getAutoAddCustomerIODestination ()Z
 	public final fun getAutoTrackActivityScreens ()Z
@@ -10,6 +10,7 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 	public final fun getFlushAt ()I
 	public final fun getFlushInterval ()I
 	public final fun getFlushPolicies ()Ljava/util/List;
+	public final fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public final fun getMigrationSiteId ()Ljava/lang/String;
 	public final fun getScreenViewUse ()Lio/customer/datapipelines/config/ScreenView;
 	public final fun getTrackApplicationLifecycleEvents ()Z

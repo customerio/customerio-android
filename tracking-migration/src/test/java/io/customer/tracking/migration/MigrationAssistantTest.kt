@@ -5,9 +5,7 @@ import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
-import io.customer.commontest.util.UnitTestLogger
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.util.Logger
 import io.customer.tracking.migration.queue.Queue
 import io.customer.tracking.migration.repository.preference.SitePreferenceRepository
 import io.customer.tracking.migration.testutils.core.JUnitTest
@@ -40,7 +38,6 @@ class MigrationAssistantTest : JUnitTest() {
                         overrideDependency<SitePreferenceRepository>(mockk())
                         // Use relaxed unit mock instead of full relaxed mocks to minimize false positives
                         overrideDependency<Queue>(mockk(relaxUnitFun = true))
-                        overrideDependency<Logger>(UnitTestLogger())
                     }
                 }
                 migrationSiteId(migrationSiteId)

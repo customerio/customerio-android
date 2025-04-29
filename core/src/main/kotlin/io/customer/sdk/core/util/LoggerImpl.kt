@@ -1,6 +1,6 @@
 package io.customer.sdk.core.util
 
-internal class LoggerImpl(
+internal open class LoggerImpl(
     private val logLevel: CioLogLevel,
     private val actualLogger: LogcatLogger = LogcatLogger()
 ) : Logger {

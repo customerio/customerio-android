@@ -1,6 +1,10 @@
 package io.customer.sdk.core.util
 
 interface Logger {
+    // Log level to determine which logs to print
+    // This is the log level set by the user in configurations or the default log level
+    var logLevel: CioLogLevel
+
     /**
      * Sets the dispatcher to handle log events based on the log level
      * Default implementation is to print logs to Logcat

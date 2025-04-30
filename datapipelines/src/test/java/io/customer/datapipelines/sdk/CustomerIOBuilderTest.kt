@@ -11,6 +11,7 @@ import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.mockk.every
@@ -134,7 +135,9 @@ class CustomerIOBuilderTest : RobolectricTest() {
         dataPipelinesModuleConfig.apiHost shouldBe "cdp-eu.customer.io/v1"
         dataPipelinesModuleConfig.cdnHost shouldBe "cdp-eu.customer.io/v1"
         dataPipelinesModuleConfig.screenViewUse shouldBe givenScreenViewUse
-        dataPipelinesModuleConfig.logLevel shouldBe CioLogLevel.DEBUG
+
+        // verify the shared logger has updated log level
+        SDKComponent.logger.logLevel shouldBe CioLogLevel.DEBUG
 
         // verify plugin is added
         CustomerIO.instance().analytics.find(CustomerIODestination::class) shouldNotBe null

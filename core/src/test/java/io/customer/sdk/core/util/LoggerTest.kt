@@ -4,6 +4,7 @@ import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.assertNoInteractions
+import io.customer.sdk.core.environment.BuildEnvironment
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.just
@@ -15,6 +16,13 @@ import org.junit.jupiter.api.Test
 class LoggerTest : JUnit5Test() {
 
     private val mockLogger = mockk<LogcatLogger>()
+    private val logger = LoggerImpl(
+        object : BuildEnvironment {
+            override val debugModeEnabled: Boolean
+                get() = true
+        },
+        mockLogger
+    )
 
     @BeforeEach
     fun setUp() {
@@ -25,7 +33,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelNone_shouldNotInvokeAnyLogs() {
-        val logger = LoggerImpl(CioLogLevel.NONE, mockLogger)
+        logger.logLevel = CioLogLevel.NONE
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.setLogDispatcher(logEventListenerMock)
 
@@ -39,7 +47,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelNoneWithTag_shouldNotInvokeAnyLogs() {
-        val logger = LoggerImpl(CioLogLevel.NONE, mockLogger)
+        logger.logLevel = CioLogLevel.NONE
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.setLogDispatcher(logEventListenerMock)
 
@@ -53,7 +61,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelError_shouldInvokeErrorLogOnly() {
-        val logger = LoggerImpl(CioLogLevel.ERROR, mockLogger)
+        logger.logLevel = CioLogLevel.ERROR
 
         val throwable = IllegalStateException()
         val givenErrorMessage = "Test error message"
@@ -68,7 +76,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelErrorWithDispatcher_shouldInvokeErrorLogOnly() {
-        val logger = LoggerImpl(CioLogLevel.ERROR, mockLogger)
+        logger.logLevel = CioLogLevel.ERROR
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.setLogDispatcher(logEventListenerMock)
 
@@ -85,7 +93,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelErrorWithTag_shouldInvokeErrorLogOnly() {
-        val logger = LoggerImpl(CioLogLevel.ERROR, mockLogger)
+        logger.logLevel = CioLogLevel.ERROR
         val tag = "AnyTag"
 
         logger.error("Test error message", tag)
@@ -99,7 +107,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelInfo_shouldInvokeInfoAndErrorLogs() {
-        val logger = LoggerImpl(CioLogLevel.INFO, mockLogger)
+        logger.logLevel = CioLogLevel.INFO
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)
@@ -114,7 +122,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelInfoWithDispatcher_shouldInvokeInfoAndErrorLogs() {
-        val logger = LoggerImpl(CioLogLevel.INFO, mockLogger)
+        logger.logLevel = CioLogLevel.INFO
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.setLogDispatcher(logEventListenerMock)
 
@@ -132,7 +140,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelInfoWithTag_shouldInvokeInfoAndErrorLogs() {
-        val logger = LoggerImpl(CioLogLevel.INFO, mockLogger)
+        logger.logLevel = CioLogLevel.INFO
         val tag = "AnotherTag"
 
         logger.error("Test error message", tag)
@@ -146,7 +154,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelDebug_shouldInvokeAllLogs() {
-        val logger = LoggerImpl(CioLogLevel.DEBUG, mockLogger)
+        logger.logLevel = CioLogLevel.DEBUG
 
         val givenErrorMessage = "Test error message"
         logger.error(givenErrorMessage)
@@ -162,7 +170,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelDebugWithDispatcher_shouldInvokeAllLogs() {
-        val logger = LoggerImpl(CioLogLevel.DEBUG, mockLogger)
+        logger.logLevel = CioLogLevel.DEBUG
         val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
         logger.setLogDispatcher(logEventListenerMock)
 
@@ -181,7 +189,7 @@ class LoggerTest : JUnit5Test() {
 
     @Test
     fun givenLogLevelDebugWithTag_shouldInvokeAllLogs() {
-        val logger = LoggerImpl(CioLogLevel.DEBUG, mockLogger)
+        logger.logLevel = CioLogLevel.DEBUG
         val tag = "Tag?"
 
         logger.error("Test error message", tag)

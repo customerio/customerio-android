@@ -1,9 +1,28 @@
 package io.customer.sdk.core.util
 
+import io.customer.sdk.core.environment.BuildEnvironment
+
 internal open class LoggerImpl(
-    private val logLevel: CioLogLevel,
+    private val buildEnvironment: BuildEnvironment,
     private val actualLogger: LogcatLogger = LogcatLogger()
 ) : Logger {
+
+    // Log level defined by user in configurations
+    private var preferredLogLevel: CioLogLevel? = null
+
+    // Fallback log level to be used only if log level is not yet defined by the user
+    private val fallbackLogLevel
+        get() = when {
+            buildEnvironment.debugModeEnabled -> CioLogLevel.DEBUG
+            else -> CioLogLevel.DEFAULT
+        }
+
+    // Prefer user log level; fallback to default only till the user defined value is not received
+    override var logLevel: CioLogLevel
+        get() = preferredLogLevel ?: fallbackLogLevel
+        set(value) {
+            preferredLogLevel = value
+        }
 
     private var logDispatcher: ((CioLogLevel, String) -> Unit)? = null
 

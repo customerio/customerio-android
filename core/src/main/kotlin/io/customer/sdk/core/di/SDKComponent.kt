@@ -2,10 +2,10 @@ package io.customer.sdk.core.di
 
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.communication.EventBusImpl
+import io.customer.sdk.core.environment.BuildEnvironment
+import io.customer.sdk.core.environment.DefaultBuildEnvironment
 import io.customer.sdk.core.module.CustomerIOModule
-import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.DispatchersProvider
-import io.customer.sdk.core.util.FallbackLogger
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.LoggerImpl
 import io.customer.sdk.core.util.ScopeProvider
@@ -21,9 +21,6 @@ import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
  */
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 object SDKComponent : DiGraph() {
-
-    val DEFAULT_LOG_LEVEL = CioLogLevel.ERROR
-
     // Static map to store all the modules registered with the SDK
     val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
 
@@ -43,15 +40,10 @@ object SDKComponent : DiGraph() {
     }
 
     // Core dependencies
-    private var initializedLogger: Logger? = null
+    val buildEnvironment: BuildEnvironment
+        get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
     val logger: Logger
-        get() = getOrNull<Logger>() ?: FallbackLogger()
-
-    fun initializeLogger(level: CioLogLevel) {
-        registerDependency<Logger> {
-            LoggerImpl(level)
-        }
-    }
+        get() = singleton<Logger> { LoggerImpl(buildEnvironment = buildEnvironment) }
 
     // Communication dependencies
     val eventBus: EventBus

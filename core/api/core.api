@@ -144,18 +144,26 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 	public static final field INSTANCE Lio/customer/sdk/core/di/SDKComponent;
 	public final fun android ()Lio/customer/sdk/core/di/AndroidSDKComponent;
 	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks;
-	public final fun getDEFAULT_LOG_LEVEL ()Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
 	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public final fun getModules ()Ljava/util/Map;
 	public final fun getScopeProvider ()Lio/customer/sdk/core/util/ScopeProvider;
-	public final fun initializeLogger (Lio/customer/sdk/core/util/CioLogLevel;)V
 	public fun reset ()V
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {
 	public static final fun setupAndroidComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
+}
+
+public abstract interface class io/customer/sdk/core/environment/BuildEnvironment {
+	public abstract fun getDebugModeEnabled ()Z
+}
+
+public final class io/customer/sdk/core/environment/DefaultBuildEnvironment : io/customer/sdk/core/environment/BuildEnvironment {
+	public fun <init> ()V
+	public fun getDebugModeEnabled ()Z
 }
 
 public final class io/customer/sdk/core/extensions/ContextExtensionsKt {
@@ -187,6 +195,7 @@ public final class io/customer/sdk/core/util/CioLogLevel : java/lang/Enum {
 }
 
 public final class io/customer/sdk/core/util/CioLogLevel$Companion {
+	public final fun getDEFAULT ()Lio/customer/sdk/core/util/CioLogLevel;
 	public final fun getLogLevel (Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;)Lio/customer/sdk/core/util/CioLogLevel;
 	public static synthetic fun getLogLevel$default (Lio/customer/sdk/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/sdk/core/util/CioLogLevel;
 }
@@ -200,8 +209,10 @@ public abstract interface class io/customer/sdk/core/util/DispatchersProvider {
 public abstract interface class io/customer/sdk/core/util/Logger {
 	public abstract fun debug (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun error (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)V
+	public abstract fun getLogLevel ()Lio/customer/sdk/core/util/CioLogLevel;
 	public abstract fun info (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun setLogDispatcher (Lkotlin/jvm/functions/Function2;)V
+	public abstract fun setLogLevel (Lio/customer/sdk/core/util/CioLogLevel;)V
 }
 
 public final class io/customer/sdk/core/util/Logger$DefaultImpls {

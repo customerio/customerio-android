@@ -1,10 +1,10 @@
 import io.customer.android.Configurations
 import io.customer.android.Dependencies
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id 'com.android.library'
-    id 'kotlin-android'
-    id 'com.twilio.apkscale'
+    id 'java-library'
+    id 'kotlin'
 }
 
 ext {
@@ -13,29 +13,15 @@ ext {
 }
 
 apply from: "${rootDir}/scripts/publish-module.gradle"
-apply from: "${rootDir}/scripts/android-config.gradle"
-apply from: "${rootDir}/scripts/codecov-android.gradle"
-apply from: "${rootDir}/scripts/android-module-testing.gradle"
+apply from: "${rootDir}/scripts/codecov-java.gradle"
 
-android {
-    namespace 'io.customer.base'
-    defaultConfig {
-        consumerProguardFiles "consumer-rules.pro"
-    }
-    buildFeatures {
-        buildConfig = false
-    }
-    buildTypes {
-        release {
-            minifyEnabled false
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(KotlinCompile).all {
     kotlinOptions {
-        jvmTarget = '17'
         freeCompilerArgs += [
                 '-Xopt-in=kotlin.RequiresOptIn',
                 '-Xopt-in=io.customer.base.internal.InternalCustomerIOApi',

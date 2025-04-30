@@ -78,6 +78,11 @@ afterEvaluate {
             }
         }
     }
+
+    // Ensure metadata generation depends on sources jar
+    tasks.matching { it.name.startsWith("generateMetadataFileFor") }.configureEach {
+        dependsOn(tasks.named("androidSourcesJar"))
+    }
 }
 
 signing {

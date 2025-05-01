@@ -76,7 +76,7 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
 
         if (shouldDestroyOnDetach()) {
             logViewEvent("View detached from window, dismissing inline message view for $elementId ")
-            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message))
+            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false, viaCloseAction = false))
         } else {
             logViewEvent("Skipping destroy for inline message view for $elementId — likely config change or temporary detach")
         }

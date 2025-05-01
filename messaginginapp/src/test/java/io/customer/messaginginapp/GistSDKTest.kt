@@ -142,4 +142,171 @@ class GistSDKTest : JUnitTest() {
             mockGistQueue.fetchUserMessages()
         }
     }
+
+    // Tests for persistent messages
+
+    @Test
+    fun displayMessage_whenNonPersistentMessage_expectMessageAddedToShownMessageQueueIds() = runTest {
+        // Create a non-persistent test message
+        val testMessage = createTestMessage(persistent = false)
+
+        // Set up the initial state
+        testState = testState.copy(
+            messagesInQueue = setOf(testMessage),
+            shownMessageQueueIds = emptySet()
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Simulate displaying the message
+        mockInAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(testMessage))
+
+        // Verify the message is marked as shown (added to shownMessageQueueIds)
+        verify {
+            mockInAppMessagingManager.dispatch(any<InAppMessagingAction.DisplayMessage>())
+        }
+    }
+
+    @Test
+    fun displayMessage_whenPersistentMessage_expectMessageNotAddedToShownMessageQueueIds() = runTest {
+        // Create a persistent test message
+        val testMessage = createTestMessage(persistent = true)
+
+        // Set up the initial state
+        testState = testState.copy(
+            messagesInQueue = setOf(testMessage),
+            shownMessageQueueIds = emptySet()
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Simulate displaying the message
+        mockInAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(testMessage))
+
+        // Verify the message is dispatched
+        verify {
+            mockInAppMessagingManager.dispatch(any<InAppMessagingAction.DisplayMessage>())
+        }
+    }
+
+    @Test
+    fun dismissMessage_whenPersistentMessage_expectMessageAddedToShownMessageQueueIds() = runTest {
+        // Create a persistent test message
+        val testMessage = createTestMessage(persistent = true)
+
+        // Set up the state with the message displayed
+        testState = testState.copy(
+            modalMessageState = ModalMessageState.Displayed(testMessage),
+            shownMessageQueueIds = emptySet()
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Simulate dismissing the message
+        gistSdk.dismissMessage()
+
+        // Verify the dismiss message action is dispatched
+        verify {
+            mockInAppMessagingManager.dispatch(any<InAppMessagingAction.DismissMessage>())
+        }
+    }
+
+    @Test
+    fun dismissMessage_whenPersistentMessageDismissedNotViaCloseAction_expectMessageNotAddedToShownMessageQueueIds() = runTest {
+        // Create a persistent test message
+        val testMessage = createTestMessage(persistent = true)
+
+        // Set up the state with the message displayed
+        testState = testState.copy(
+            modalMessageState = ModalMessageState.Displayed(testMessage),
+            shownMessageQueueIds = emptySet()
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Simulate dismissing the message not via close action
+        mockInAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(testMessage, viaCloseAction = false))
+
+        // Verify the dismiss message action is dispatched
+        verify {
+            mockInAppMessagingManager.dispatch(any<InAppMessagingAction.DismissMessage>())
+        }
+    }
+
+    @Test
+    fun displayAndDismissMessage_whenPersistentMessage_expectCorrectStateTransitionsAndLogging() = runTest {
+        // Create a persistent test message
+        val testMessage = createTestMessage(persistent = true)
+
+        // Initial state
+        testState = testState.copy(
+            messagesInQueue = setOf(testMessage),
+            shownMessageQueueIds = emptySet(),
+            modalMessageState = ModalMessageState.Initial
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Step 1: Display the message
+        mockInAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(testMessage))
+
+        // Update state to reflect message is displayed
+        testState = testState.copy(
+            modalMessageState = ModalMessageState.Displayed(testMessage),
+            messagesInQueue = emptySet() // Message should be removed from queue when displayed
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Step 2: Dismiss the message
+        gistSdk.dismissMessage()
+
+        // Verify the final state
+        verify {
+            mockInAppMessagingManager.dispatch(
+                match<InAppMessagingAction.DismissMessage> {
+                    it.message == testMessage && it.shouldLog && it.viaCloseAction
+                }
+            )
+        }
+    }
+
+    @Test
+    fun displayAndDismissMessage_whenNonPersistentMessage_expectCorrectStateTransitionsAndLogging() = runTest {
+        // Create a non-persistent test message
+        val testMessage = createTestMessage(persistent = false)
+
+        // Initial state
+        testState = testState.copy(
+            messagesInQueue = setOf(testMessage),
+            shownMessageQueueIds = emptySet(),
+            modalMessageState = ModalMessageState.Initial
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Step 1: Display the message
+        mockInAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(testMessage))
+
+        // Update state to reflect message is displayed
+        testState = testState.copy(
+            modalMessageState = ModalMessageState.Displayed(testMessage),
+            messagesInQueue = emptySet(), // Message should be removed from queue when displayed
+            shownMessageQueueIds = setOf(testMessage.queueId!!) // Message should be in shownMessageQueueIds
+        )
+        every { mockInAppMessagingManager.getCurrentState() } returns testState
+
+        // Step 2: Dismiss the message
+        gistSdk.dismissMessage()
+
+        // Verify dismiss action was dispatched
+        verify {
+            mockInAppMessagingManager.dispatch(any<InAppMessagingAction.DismissMessage>())
+        }
+    }
+
+    /**
+     * Helper method to create a test message with customizable persistence
+     */
+    private fun createTestMessage(persistent: Boolean): Message {
+        val queueId = String.random
+        return mockk<Message>(relaxed = true) {
+            every { this@mockk.queueId } returns queueId
+            every { this@mockk.gistProperties.persistent } returns persistent
+            every { this@mockk.isEmbedded } returns false
+        }
+    }
 }

@@ -147,10 +147,8 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun displayMessage_whenNonPersistentMessage_expectMessageAddedToShownMessageQueueIds() = runTest {
-        // Create a non-persistent test message
         val testMessage = createTestMessage(persistent = false)
 
-        // Set up the initial state
         testState = testState.copy(
             messagesInQueue = setOf(testMessage),
             shownMessageQueueIds = emptySet()
@@ -168,10 +166,8 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun displayMessage_whenPersistentMessage_expectMessageNotAddedToShownMessageQueueIds() = runTest {
-        // Create a persistent test message
         val testMessage = createTestMessage(persistent = true)
 
-        // Set up the initial state
         testState = testState.copy(
             messagesInQueue = setOf(testMessage),
             shownMessageQueueIds = emptySet()
@@ -189,10 +185,8 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenPersistentMessage_expectMessageAddedToShownMessageQueueIds() = runTest {
-        // Create a persistent test message
         val testMessage = createTestMessage(persistent = true)
 
-        // Set up the state with the message displayed
         testState = testState.copy(
             modalMessageState = ModalMessageState.Displayed(testMessage),
             shownMessageQueueIds = emptySet()
@@ -210,10 +204,8 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenPersistentMessageDismissedNotViaCloseAction_expectMessageNotAddedToShownMessageQueueIds() = runTest {
-        // Create a persistent test message
         val testMessage = createTestMessage(persistent = true)
 
-        // Set up the state with the message displayed
         testState = testState.copy(
             modalMessageState = ModalMessageState.Displayed(testMessage),
             shownMessageQueueIds = emptySet()
@@ -231,10 +223,8 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun displayAndDismissMessage_whenPersistentMessage_expectCorrectStateTransitionsAndLogging() = runTest {
-        // Create a persistent test message
         val testMessage = createTestMessage(persistent = true)
 
-        // Initial state
         testState = testState.copy(
             messagesInQueue = setOf(testMessage),
             shownMessageQueueIds = emptySet(),
@@ -267,10 +257,8 @@ class GistSDKTest : JUnitTest() {
 
     @Test
     fun displayAndDismissMessage_whenNonPersistentMessage_expectCorrectStateTransitionsAndLogging() = runTest {
-        // Create a non-persistent test message
         val testMessage = createTestMessage(persistent = false)
 
-        // Initial state
         testState = testState.copy(
             messagesInQueue = setOf(testMessage),
             shownMessageQueueIds = emptySet(),

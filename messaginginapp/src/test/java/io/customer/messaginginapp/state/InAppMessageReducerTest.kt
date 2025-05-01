@@ -39,7 +39,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun displayMessage_whenNonPersistentMessage_expectMessageMarkedAsShown() {
-        // Given a non-persistent message
         val testMessage = createTestMessage(persistent = false)
 
         // Initial state with the message in queue
@@ -65,7 +64,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun displayMessage_whenPersistentMessage_expectMessageNotMarkedAsShown() {
-        // Given a persistent message
         val testMessage = createTestMessage(persistent = true)
 
         // Initial state with the message in queue
@@ -91,7 +89,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenNonPersistentMessage_expectNoChangeToShownMessageQueueIds() {
-        // Given a non-persistent message that is already displayed and marked as shown
         val testMessage = createTestMessage(persistent = false)
 
         // The message is already displayed and in shownMessageQueueIds
@@ -115,7 +112,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenPersistentMessage_expectMessageAddedToShownMessageQueueIds() {
-        // Given a persistent message that is displayed but not yet marked as shown
         val testMessage = createTestMessage(persistent = true)
 
         // The message is displayed but not in shownMessageQueueIds
@@ -139,7 +135,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun dismissMessage_whenPersistentMessageNotViaCloseAction_expectMessageNotAddedToShownMessageQueueIds() {
-        // Given a persistent message that is displayed but not yet marked as shown
         val testMessage = createTestMessage(persistent = true)
 
         // The message is displayed but not in shownMessageQueueIds
@@ -185,7 +180,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun shouldMarkMessageAsShown_whenDisplayingNonPersistentMessage_expectTrue() {
-        // Given a non-persistent message
         val testMessage = createTestMessage(persistent = false)
 
         // When we check if the message should be marked as shown when displayed
@@ -198,7 +192,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun shouldMarkMessageAsShown_whenDisplayingPersistentMessage_expectFalse() {
-        // Given a persistent message
         val testMessage = createTestMessage(persistent = true)
 
         // When we check if the message should be marked as shown when displayed
@@ -211,7 +204,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun shouldMarkMessageAsShown_whenDismissingPersistentMessageViaCloseAction_expectTrue() {
-        // Given a persistent message
         val testMessage = createTestMessage(persistent = true)
 
         // When we check if the message should be marked as shown when dismissed via close action
@@ -224,7 +216,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun shouldMarkMessageAsShown_whenDismissingPersistentMessageNotViaCloseAction_expectFalse() {
-        // Given a persistent message
         val testMessage = createTestMessage(persistent = true)
 
         // When we check if the message should be marked as shown when dismissed NOT via close action
@@ -237,7 +228,6 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun shouldMarkMessageAsShown_whenDismissingPersistentMessageWithLoggingDisabled_expectFalse() {
-        // Given a persistent message
         val testMessage = createTestMessage(persistent = true)
 
         // When we check if the message should be marked as shown when dismissed with logging disabled

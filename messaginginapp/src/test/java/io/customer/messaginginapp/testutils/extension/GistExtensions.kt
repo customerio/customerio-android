@@ -20,7 +20,8 @@ fun createInAppMessage(
     queueId: String? = "test_queue_id",
     position: String? = "center",
     priority: Int? = null,
-    pageRule: String? = null
+    pageRule: String? = null,
+    persistent: Boolean? = null
 ): Message = Message(
     messageId = messageId,
     queueId = queueId,
@@ -32,6 +33,7 @@ fun createInAppMessage(
                 campaignId?.let { value -> put("campaignId", value) }
                 pageRule?.let { value -> put("routeRuleAndroid", value) }
                 position?.let { value -> put("position", value) }
+                persistent?.let { value -> put("persistent", value) }
             }
         )
     }

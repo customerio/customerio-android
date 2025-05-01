@@ -112,7 +112,7 @@ internal fun View.shouldDestroyOnDetach(): Boolean {
     val activity = context?.findActivity()
     return activity?.let {
         it.isFinishing || !it.isChangingConfigurations
-    } ?: true
+    } != false
 }
 
 /**

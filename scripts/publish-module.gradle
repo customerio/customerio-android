@@ -33,12 +33,6 @@ afterEvaluate {
 
                 // to speed up local development build times, skip dokka
                 if (!IS_DEVELOPMENT) {
-                    if (project.plugins.hasPlugin("com.android.library")) {
-                        artifact(tasks.named("releaseSourcesJar").get())
-                    } else if (tasks.findByName("sourcesJar")) {
-                        artifact(tasks.named("sourcesJar").get())
-                    }
-
                     artifact(javadocJar)
                 }
 

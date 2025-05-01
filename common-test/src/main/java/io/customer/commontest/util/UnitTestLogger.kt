@@ -14,15 +14,15 @@ class UnitTestLogger : Logger {
     override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) {
     }
 
-    override fun info(message: String) {
+    override fun info(message: String, tag: String?) {
         log(CioLogLevel.INFO, message)
     }
 
-    override fun debug(message: String) {
+    override fun debug(message: String, tag: String?) {
         log(CioLogLevel.DEBUG, message)
     }
 
-    override fun error(message: String) {
+    override fun error(message: String, tag: String?, throwable: Throwable?) {
         log(CioLogLevel.ERROR, message)
     }
 

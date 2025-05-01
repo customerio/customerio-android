@@ -1,8 +1,5 @@
 package io.customer.sdk.core.util
 
-import android.util.Log
-import io.customer.sdk.core.environment.BuildEnvironment
-
 interface Logger {
     // Log level to determine which logs to print
     // This is the log level set by the user in configurations or the default log level
@@ -21,98 +18,7 @@ interface Logger {
      */
     fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?)
 
-    fun info(message: String)
-    fun debug(message: String)
-    fun error(message: String)
-}
-
-/**
- * Log levels for Customer.io SDK logs
- *
- * @property priority Priority of the log level. The higher the value, the more verbose
- * the log level.
- * @see shouldLog to determine if a log should be printed based on specified log level
- */
-enum class CioLogLevel(val priority: Int) {
-    NONE(priority = 0),
-    ERROR(priority = 1),
-    INFO(priority = 2),
-    DEBUG(priority = 3);
-
-    companion object {
-        val DEFAULT = ERROR
-
-        fun getLogLevel(level: String?, fallback: CioLogLevel = DEFAULT): CioLogLevel {
-            return values().find { value -> value.name.equals(level, ignoreCase = true) }
-                ?: fallback
-        }
-    }
-}
-
-/**
- * Determines if a log should be printed based on the specified log level
- *
- * @param levelForMessage Log level of the message
- * @return true if the log should be printed, false otherwise
- */
-internal fun CioLogLevel.shouldLog(levelForMessage: CioLogLevel): Boolean {
-    return this.priority >= levelForMessage.priority
-}
-
-class LogcatLogger(
-    private val buildEnvironment: BuildEnvironment
-) : Logger {
-    // Log level defined by user in configurations
-    private var preferredLogLevel: CioLogLevel? = null
-
-    // Fallback log level to be used only if log level is not yet defined by the user
-    private val fallbackLogLevel
-        get() = when {
-            buildEnvironment.debugModeEnabled -> CioLogLevel.DEBUG
-            else -> CioLogLevel.DEFAULT
-        }
-
-    // Prefer user log level; fallback to default only till the user defined value is not received
-    override var logLevel: CioLogLevel
-        get() = preferredLogLevel ?: fallbackLogLevel
-        set(value) {
-            preferredLogLevel = value
-        }
-
-    private var logDispatcher: ((CioLogLevel, String) -> Unit)? = null
-
-    override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) {
-        logDispatcher = dispatcher
-    }
-
-    override fun info(message: String) {
-        logIfMatchesCriteria(CioLogLevel.INFO, message)
-    }
-
-    override fun debug(message: String) {
-        logIfMatchesCriteria(CioLogLevel.DEBUG, message)
-    }
-
-    override fun error(message: String) {
-        logIfMatchesCriteria(CioLogLevel.ERROR, message)
-    }
-
-    private fun logIfMatchesCriteria(levelForMessage: CioLogLevel, message: String) {
-        val shouldLog = logLevel.shouldLog(levelForMessage)
-
-        if (shouldLog) {
-            // Dispatch log event to log dispatcher only if the log level is met and the dispatcher is set
-            // Otherwise, log to Logcat
-            logDispatcher?.invoke(levelForMessage, message) ?: when (levelForMessage) {
-                CioLogLevel.NONE -> {}
-                CioLogLevel.ERROR -> Log.e(TAG, message)
-                CioLogLevel.INFO -> Log.i(TAG, message)
-                CioLogLevel.DEBUG -> Log.d(TAG, message)
-            }
-        }
-    }
-
-    companion object {
-        const val TAG = "[CIO]"
-    }
+    fun info(message: String, tag: String? = null)
+    fun debug(message: String, tag: String? = null)
+    fun error(message: String, tag: String? = null, throwable: Throwable? = null)
 }

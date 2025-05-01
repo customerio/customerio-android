@@ -6,8 +6,8 @@ import io.customer.sdk.core.environment.BuildEnvironment
 import io.customer.sdk.core.environment.DefaultBuildEnvironment
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.DispatchersProvider
-import io.customer.sdk.core.util.LogcatLogger
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.core.util.LoggerImpl
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.core.util.SdkDispatchers
 import io.customer.sdk.core.util.SdkScopeProvider
@@ -43,7 +43,7 @@ object SDKComponent : DiGraph() {
     val buildEnvironment: BuildEnvironment
         get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
     val logger: Logger
-        get() = singleton<Logger> { LogcatLogger(buildEnvironment = buildEnvironment) }
+        get() = singleton<Logger> { LoggerImpl(buildEnvironment = buildEnvironment) }
 
     // Communication dependencies
     val eventBus: EventBus

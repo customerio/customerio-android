@@ -1,9 +1,7 @@
 package io.customer.messaginginapp.state
 
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
-import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.GistProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
@@ -20,18 +18,11 @@ class InAppMessageReducerTest : JUnitTest() {
     private lateinit var initialState: InAppMessagingState
 
     override fun setup(testConfig: TestConfig) {
-        super.setup(
-            testConfigurationDefault {
-                diGraph {
-                    sdk { }
-                }
-            }
-        )
+        super.setup(testConfig)
 
         initialState = InAppMessagingState(
             siteId = String.random,
             dataCenter = String.random,
-            environment = GistEnvironment.PROD,
             pollInterval = 60000L,
             userId = String.random
         )

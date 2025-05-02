@@ -95,6 +95,8 @@ jobs:
           echo "BRANCH_NAME=${{ github.head_ref || github.ref_name }}" >> $GITHUB_ENV
           COMMIT_HASH="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           echo "COMMIT_HASH=${COMMIT_HASH:0:7}" >> $GITHUB_ENV
+          # Get the latest tag, making sure we get all tags with --tags flag (in case tag was just created)
+          git fetch --tags
           echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
 
       - name: Setup local.properties file for sample app

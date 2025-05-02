@@ -1,20 +1,22 @@
 name: Setup Android
-description: Setup CI with Android development tools to compile and test Android source code. 
+description: Setup CI with Android development tools to compile and test Android source code.
 
 runs:
   using: "composite"
   steps:
-  - name: Install Java
-    uses: actions/setup-java@v4
-    with:
-      distribution: 'zulu'
-      java-version: '17'
-  
-  - name: Install Android SDK
-    uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
-  
-  - name: Verify gradle scripts are valid gradle scripts 
-    uses: gradle/actions/wrapper-validation@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3.5.0
-    
-  - name: Setup Gradle and cache dependencies between builds 
-    uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3.5.0
+    - name: Install Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Install Android SDK
+      uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+
+    - name: Verify Gradle scripts are valid
+      uses: gradle/actions/wrapper-validation@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
+
+    - name: Setup Gradle and cache dependencies
+      uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
+      with:
+        gradle-version: '8.14'

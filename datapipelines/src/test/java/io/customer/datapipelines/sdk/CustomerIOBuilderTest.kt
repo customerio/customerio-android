@@ -41,6 +41,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
     fun build_givenModule_expectInitializeModule() {
         val givenModule: CustomerIOGenericModule = mockGenericModule().apply {
             every { moduleName } returns String.random
+            every { moduleConfig } returns mockk()
         }
 
         createCustomerIOBuilder()
@@ -54,9 +55,11 @@ class CustomerIOBuilderTest : RobolectricTest() {
     fun build_givenMultipleModules_expectInitializeAllModules() {
         val givenModule1: CustomerIOGenericModule = mockGenericModule().apply {
             every { moduleName } returns String.random
+            every { moduleConfig } returns mockk()
         }
         val givenModule2: CustomerIOGenericModule = mockGenericModule().apply {
             every { moduleName } returns String.random
+            every { moduleConfig } returns mockk()
         }
 
         createCustomerIOBuilder()
@@ -72,9 +75,11 @@ class CustomerIOBuilderTest : RobolectricTest() {
     fun build_givenMultipleModulesOfSameType_expectOnlyInitializeOneModuleInstance() {
         val givenModule1: CustomerIOGenericModule = mockGenericModule().apply {
             every { moduleName } returns "shared-module-name"
+            every { moduleConfig } returns mockk()
         }
         val givenModule2: CustomerIOGenericModule = mockGenericModule().apply {
             every { moduleName } returns "shared-module-name"
+            every { moduleConfig } returns mockk()
         }
 
         createCustomerIOBuilder()

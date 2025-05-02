@@ -17,6 +17,10 @@ sealed class ScreenView(val name: String) {
 
     object InApp : ScreenView(name = "inapp")
 
+    override fun toString(): String {
+        return "ScreenView('$name')"
+    }
+
     companion object {
         /**
          * Returns the [ScreenView] enum constant for the given name.

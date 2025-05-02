@@ -4,12 +4,12 @@ import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.config.ScreenView
+import io.customer.datapipelines.di.sdkInitLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
-import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
 
 /**
@@ -43,7 +43,7 @@ class CustomerIOBuilder(
 
     // Logging configuration
     private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
-    private val logger: Logger = SDKComponent.logger
+    private val logger: SdkInitializationLogger = SDKComponent.sdkInitLogger
 
     // Host Settings
     private var region: Region = Region.US
@@ -192,6 +192,8 @@ class CustomerIOBuilder(
         // Update the log level for the SDK
         SDKComponent.logger.logLevel = logLevel
 
+        logger.coreSdkInitStart()
+
         // Initialize DataPipelinesModule with the provided configuration
         val dataPipelinesConfig = DataPipelinesModuleConfig(
             cdpApiKey = cdpApiKey,
@@ -220,10 +222,12 @@ class CustomerIOBuilder(
         modules.putAll(registeredModules.associateBy { module -> module.moduleName })
 
         modules.forEach { (_, module) ->
-            logger.debug("initializing SDK module ${module.moduleName}...")
+            logger.moduleInitStart(module)
             module.initialize()
+            logger.moduleInitSuccess(module)
         }
 
+        logger.coreSdkInitSuccess()
         return customerIO
     }
 }

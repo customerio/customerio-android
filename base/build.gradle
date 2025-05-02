@@ -1,5 +1,6 @@
 import io.customer.android.Configurations
 import io.customer.android.Dependencies
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id 'java-library'
@@ -19,7 +20,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+tasks.withType(KotlinCompile).all {
     kotlinOptions {
         freeCompilerArgs += [
                 '-Xopt-in=kotlin.RequiresOptIn',

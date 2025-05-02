@@ -115,12 +115,11 @@ public final class io/customer/datapipelines/plugins/CustomerIOSettings {
 	public final fun setApiHost (Ljava/lang/String;)V
 	public final fun setApiKey (Ljava/lang/String;)V
 	public fun toString ()Ljava/lang/String;
-	public static final fun write$Self (Lio/customer/datapipelines/plugins/CustomerIOSettings;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
+	public static final synthetic fun write$Self (Lio/customer/datapipelines/plugins/CustomerIOSettings;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
 }
 
 public final class io/customer/datapipelines/plugins/CustomerIOSettings$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
 	public static final field INSTANCE Lio/customer/datapipelines/plugins/CustomerIOSettings$$serializer;
-	public static final synthetic field descriptor Lkotlinx/serialization/descriptors/SerialDescriptor;
 	public fun childSerializers ()[Lkotlinx/serialization/KSerializer;
 	public fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lio/customer/datapipelines/plugins/CustomerIOSettings;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;

@@ -59,6 +59,21 @@ Create GitHub Actions secrets:
 
 This project is setup with GPG signing to sign the Maven artifacts before they are uploaded to Sonatype's servers to sync to Maven Central. GPG keys have been generated already but if you need to generate them again, [see this guide](https://gist.github.com/levibostian/ed2edcaa1ce1722d70683ce83fc429e2#sign) to do so. 
 
+### Publish SDK locally
+
+This section explains how to can publish the SDK locally to Maven Local. This could be useful in couple of scenarios:
+
+* If you want to verify that the SDK binary publishing works without errors locally without actually publishing any versions
+* Testing your changes in one of your wrapper SDKs (ReactNative, Expo or Flutter) with local changes
+
+To publish the SDK locally, you can run the following command:
+
+```bash
+IS_DEVELOPMENT=true ./gradlew publishToMavenLocal
+```
+
+This will publish a local version to Maven Local called 'local', that you can use for wrapper SDKs.
+
 # Troubleshooting
 
 For known local setup issues and fixes, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

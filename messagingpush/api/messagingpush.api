@@ -26,6 +26,7 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig : io/cust
 	public final fun getAutoTrackPushEvents ()Z
 	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
 	public final fun getPushClickBehavior ()Lio/customer/messagingpush/config/PushClickBehavior;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
@@ -132,7 +133,6 @@ public abstract interface class io/customer/messagingpush/provider/DeviceTokenPr
 public final class io/customer/messagingpush/provider/FCMTokenProviderImpl : io/customer/messagingpush/provider/DeviceTokenProvider {
 	public fun <init> (Landroid/content/Context;)V
 	public fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
-	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
 	public fun isValidForThisDevice (Landroid/content/Context;)Z
 }
 

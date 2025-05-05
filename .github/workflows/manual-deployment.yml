@@ -36,7 +36,7 @@ jobs:
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
 
       - name: Notify team of successful deployment
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0-rc.3
         if: ${{ success() }}
         with:
           payload: |
@@ -69,7 +69,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
       - name: Notify team of failure
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0-rc.3
         if: ${{ failure() }}
         with:
           payload: |

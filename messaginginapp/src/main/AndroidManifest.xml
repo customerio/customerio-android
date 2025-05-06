@@ -4,6 +4,8 @@
     <application>
         <activity
             android:name=".gist.presentation.GistModalActivity"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
             android:theme="@style/GistActivityTheme" />
     </application>
 

@@ -1,5 +1,6 @@
 package io.customer.datapipelines.sdk
 
+import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
@@ -11,20 +12,38 @@ import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.SdkInitializationLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verifyOrder
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class CustomerIOBuilderTest : RobolectricTest() {
+
+    private val mockLogger = mockk<SdkInitializationLogger>(relaxed = true)
+
+    @Before
+    fun setUp() {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<SdkInitializationLogger>(mockLogger)
+                    }
+                }
+            }
+        )
+    }
 
     override fun teardown() {
         // Clear the instance after each test to reset SDK to initial state
@@ -49,6 +68,25 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .build()
 
         assertCalledOnce { givenModule.initialize() }
+    }
+
+    @Test
+    fun build_givenModule_expectInitializationLogs() {
+        val givenModule: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+            every { moduleConfig } returns mockk()
+        }
+
+        createCustomerIOBuilder()
+            .addCustomerIOModule(givenModule)
+            .build()
+
+        verifyOrder {
+            mockLogger.coreSdkInitStart()
+            mockLogger.moduleInitStart(givenModule)
+            mockLogger.moduleInitSuccess(givenModule)
+            mockLogger.coreSdkInitSuccess()
+        }
     }
 
     @Test

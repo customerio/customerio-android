@@ -61,7 +61,7 @@ This project is setup with GPG signing to sign the Maven artifacts before they a
 
 ### Publish SDK locally
 
-This section explains how to can publish the SDK locally to Maven Local. This could be useful in couple of scenarios:
+This section explains how to publish the SDK locally to Maven Local. This could be useful in couple of scenarios:
 
 * If you want to verify that the SDK binary publishing works without errors locally without actually publishing any versions
 * Testing your changes in one of your wrapper SDKs (ReactNative, Expo or Flutter) with local changes

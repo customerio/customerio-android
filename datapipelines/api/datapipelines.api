@@ -13,12 +13,14 @@ public final class io/customer/datapipelines/config/DataPipelinesModuleConfig : 
 	public final fun getMigrationSiteId ()Ljava/lang/String;
 	public final fun getScreenViewUse ()Lio/customer/datapipelines/config/ScreenView;
 	public final fun getTrackApplicationLifecycleEvents ()Z
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract class io/customer/datapipelines/config/ScreenView {
 	public static final field Companion Lio/customer/datapipelines/config/ScreenView$Companion;
 	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getName ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/customer/datapipelines/config/ScreenView$All : io/customer/datapipelines/config/ScreenView {

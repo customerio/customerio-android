@@ -33,4 +33,8 @@ class DataPipelinesModuleConfig(
 ) : CustomerIOModuleConfig {
     val apiHost: String = apiHostOverride ?: region.apiHost()
     val cdnHost: String = cdnHostOverride ?: region.cdnHost()
+
+    override fun toString(): String {
+        return "DataPipelinesModuleConfig(cdpApiKey='[Redacted]', flushAt=$flushAt, flushInterval=$flushInterval, flushPolicies=$flushPolicies, autoAddCustomerIODestination=$autoAddCustomerIODestination, trackApplicationLifecycleEvents=$trackApplicationLifecycleEvents, autoTrackDeviceAttributes=$autoTrackDeviceAttributes, autoTrackActivityScreens=$autoTrackActivityScreens, migrationSiteId=[Redacted], screenViewUse=$screenViewUse, apiHost='$apiHost', cdnHost='$cdnHost')"
+    }
 }

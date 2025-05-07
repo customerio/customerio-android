@@ -43,4 +43,14 @@ class ScreenViewTest : JUnit5Test() {
 
         parsedValue shouldBeEqualTo ScreenView.All
     }
+
+    @Test
+    fun toString_givenAllType() {
+        ScreenView.All.toString() shouldBeEqualTo "ScreenView('all')"
+    }
+
+    @Test
+    fun toString_givenInAppType() {
+        ScreenView.InApp.toString() shouldBeEqualTo "ScreenView('inapp')"
+    }
 }

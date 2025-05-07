@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
+import io.customer.messagingpush.di.pushLogger
 import io.customer.sdk.core.di.SDKComponent
 
 /**
@@ -22,18 +23,22 @@ class FCMTokenProviderImpl(
     private val context: Context
 ) : DeviceTokenProvider {
 
-    val logger = SDKComponent.logger
+    private val logger = SDKComponent.logger
+    private val pushLogger = SDKComponent.pushLogger
 
     override fun isValidForThisDevice(context: Context): Boolean {
         return try {
-            (
-                GoogleApiAvailability.getInstance()
-                    .isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
-                ).also {
-                logger.info("Is Firebase available on on this device -> $it")
+            val result = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
+
+            if (result == ConnectionResult.SUCCESS) {
+                pushLogger.logGooglePlayServicesAvailable()
+                true
+            } else {
+                pushLogger.logGooglePlayServicesUnavailable(result)
+                false
             }
         } catch (exception: Throwable) {
-            logger.error(exception.message ?: "error checking google play services availability")
+            pushLogger.logGooglePlayServicesAvailabilityCheckFailed(exception)
             false
         }
     }

@@ -13,6 +13,7 @@ import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
+import io.customer.datapipelines.di.sdkInitLogger
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeNullsForJson
 import io.customer.datapipelines.extensions.type
@@ -405,15 +406,14 @@ class CustomerIO private constructor(
             androidSDKComponent: AndroidSDKComponent,
             moduleConfig: DataPipelinesModuleConfig
         ): CustomerIO {
-            val logger = SDKComponent.logger
+            val logger = SDKComponent.sdkInitLogger
 
             val existingInstance = instance
             if (existingInstance != null) {
-                logger.error("CustomerIO instance is already initialized, skipping the initialization.")
+                logger.coreSdkAlreadyInitialized()
                 return existingInstance
             }
 
-            logger.debug("creating new instance of CustomerIO SDK.")
             return CustomerIO(
                 androidSDKComponent = androidSDKComponent,
                 moduleConfig = moduleConfig,

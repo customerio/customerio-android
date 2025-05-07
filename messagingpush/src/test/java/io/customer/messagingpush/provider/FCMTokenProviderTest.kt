@@ -23,7 +23,10 @@ class FCMTokenProviderTest : JUnit5Test() {
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
 
     private val tokenProvider: DeviceTokenProvider = FCMTokenProviderImpl(
-        mockContext, { mockGoogleApiAvailability }, { mockFirebaseMessaging }, mockPushLogger
+        mockContext,
+        { mockGoogleApiAvailability },
+        { mockFirebaseMessaging },
+        mockPushLogger
     )
 
     @Test

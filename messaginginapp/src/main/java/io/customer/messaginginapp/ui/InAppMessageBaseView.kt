@@ -20,6 +20,8 @@ import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.sdk.core.di.SDKComponent
 import java.net.URI
 import java.nio.charset.StandardCharsets
@@ -40,6 +42,12 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
 
     protected var currentMessage: Message? = null
     protected var currentRoute: String? = null
+
+    /**
+     * Listener to handle action clicks from inline in-app messages.
+     * Set this property to receive callbacks when actions are triggered.
+     */
+    var actionListener: InlineMessageActionListener? = null
 
     protected val logger = SDKComponent.logger
     internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -104,14 +112,24 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
         val route = currentRoute ?: return
 
         var shouldLogAction = true
-        inAppMessagingManager.dispatch(
-            InAppMessagingAction.EngineAction.Tap(
-                message = message,
-                route = route,
-                name = name,
-                action = action
+
+        // Check if we have a listener to handle the action
+        val listener = actionListener
+        if (listener != null) {
+            val inAppMessage = InAppMessage.getFromGistMessage(message)
+            listener.onActionClick(inAppMessage, action, name)
+            logViewEvent("Listener handling action: $action, name: $name")
+        } else {
+            // No listener, use default behavior
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.EngineAction.Tap(
+                    message = message,
+                    route = route,
+                    name = name,
+                    action = action
+                )
             )
-        )
+        }
 
         when {
             action.startsWith("gist://") -> {

@@ -413,6 +413,10 @@ public final class io/customer/messaginginapp/type/InAppMessageKt {
 	public static final fun getMessage (Lio/customer/messaginginapp/type/InAppMessage;)Lio/customer/messaginginapp/gist/data/model/Message;
 }
 
+public abstract interface class io/customer/messaginginapp/type/InlineMessageActionListener {
+	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;)V
+}
+
 public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
 	public fun <init> (Landroid/content/Context;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
@@ -423,6 +427,7 @@ public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : andro
 	public fun bootstrapped ()V
 	protected final fun detachEngineWebView ()V
 	public fun error ()V
+	public final fun getActionListener ()Lio/customer/messaginginapp/type/InlineMessageActionListener;
 	protected final fun getCurrentMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
 	protected final fun getCurrentRoute ()Ljava/lang/String;
 	protected final fun getLogger ()Lio/customer/sdk/core/util/Logger;
@@ -430,6 +435,7 @@ public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : andro
 	public fun routeChanged (Ljava/lang/String;)V
 	public fun routeError (Ljava/lang/String;)V
 	public fun routeLoaded (Ljava/lang/String;)V
+	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 	protected final fun setCurrentMessage (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	protected final fun setCurrentRoute (Ljava/lang/String;)V
 	public final fun setup (Lio/customer/messaginginapp/gist/data/model/Message;)V
@@ -466,5 +472,6 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/cus
 	public fun onLoadingStarted ()V
 	public fun onNoMessageToDisplay ()V
 	public fun onViewSizeChanged (II)V
+	public final fun setInlineMessageActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 }
 

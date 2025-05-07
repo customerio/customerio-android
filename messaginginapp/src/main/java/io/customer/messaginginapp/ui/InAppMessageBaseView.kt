@@ -119,8 +119,11 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
             val inAppMessage = InAppMessage.getFromGistMessage(message)
             listener.onActionClick(inAppMessage, action, name)
             logViewEvent("Listener handling action: $action, name: $name")
+
+            // We don't need to dispatch Tap action because the listener is handling it,
+            // but we still need to process special gist:// actions to maintain expected behavior
         } else {
-            // No listener, use default behavior
+            // No listener, use default behavior - dispatch the tap event
             inAppMessagingManager.dispatch(
                 InAppMessagingAction.EngineAction.Tap(
                     message = message,

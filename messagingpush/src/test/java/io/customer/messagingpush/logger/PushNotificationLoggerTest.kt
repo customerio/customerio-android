@@ -59,4 +59,44 @@ class PushNotificationLoggerTest : JUnitTest() {
             )
         }
     }
+
+    @Test
+    fun test_obtainingTokenStarted_forwardsCorrectCallToLogger() {
+        pushLogger.obtainingTokenStarted()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Getting current device token from Firebase messaging on app launch"
+            )
+        }
+    }
+
+    @Test
+    fun test_obtainingTokenSuccess_forwardsCorrectCallToLogger() {
+        val token = "fcm-token"
+        pushLogger.obtainingTokenSuccess(token)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Got current device token: $token"
+            )
+        }
+    }
+
+    @Test
+    fun test_obtainingTokenFailed_forwardsCorrectCallToLogger() {
+        val errorMessage = "Error message!"
+        val throwable = IllegalStateException(errorMessage)
+        pushLogger.obtainingTokenFailed(throwable)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Failed to get device token with error: $errorMessage",
+                throwable = throwable
+            )
+        }
+    }
 }

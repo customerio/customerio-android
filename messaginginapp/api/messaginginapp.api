@@ -472,6 +472,5 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/cus
 	public fun onLoadingStarted ()V
 	public fun onNoMessageToDisplay ()V
 	public fun onViewSizeChanged (II)V
-	public final fun setInlineMessageActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 }
 

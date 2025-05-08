@@ -15,10 +15,10 @@ class AndroidXMLInlineExampleFragment : BaseFragment<FragmentAndroidXmlInlineExa
         binding.stickyHeaderInAppMessage.elementId = "sticky-header"
 
         // Set action listener for the inline in-app message
-        binding.inlineInAppMessage.setInlineMessageActionListener(InlineMessageActionListenerImpl(requireContext(), "Inline"))
+        binding.inlineInAppMessage.actionListener = InlineMessageActionListenerImpl(requireContext(), "Inline")
 
         // Set action listener for the below fold in-app message
-        binding.belowFoldInAppMessage.setInlineMessageActionListener(InlineMessageActionListenerImpl(requireContext(), "Below Fold"))
+        binding.belowFoldInAppMessage.actionListener = InlineMessageActionListenerImpl(requireContext(), "Below Fold")
     }
 
     companion object {

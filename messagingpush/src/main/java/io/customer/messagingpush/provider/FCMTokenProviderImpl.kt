@@ -4,14 +4,13 @@ import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
-import io.customer.messagingpush.di.pushLogger
-import io.customer.sdk.core.di.SDKComponent
+import io.customer.messagingpush.logger.PushNotificationLogger
+import javax.inject.Provider
 
 /**
  *  Responsible for token generation and validity
  */
 interface DeviceTokenProvider {
-    fun isValidForThisDevice(context: Context): Boolean
     fun getCurrentToken(onComplete: (String?) -> Unit)
 }
 
@@ -19,16 +18,16 @@ interface DeviceTokenProvider {
  * Wrapper around FCM SDK to make the code base more testable. There is no concept of checked-exceptions in Kotlin
  * so we need to handle the exception manually.
  */
-class FCMTokenProviderImpl(
-    private val context: Context
+internal class FCMTokenProviderImpl(
+    private val context: Context,
+    private val googleApiAvailabilityProvider: Provider<GoogleApiAvailability>,
+    private val firebaseMessagingProvider: Provider<FirebaseMessaging>,
+    private val pushLogger: PushNotificationLogger
 ) : DeviceTokenProvider {
 
-    private val logger = SDKComponent.logger
-    private val pushLogger = SDKComponent.pushLogger
-
-    override fun isValidForThisDevice(context: Context): Boolean {
+    private fun isValidForThisDevice(): Boolean {
         return try {
-            val result = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
+            val result = googleApiAvailabilityProvider.get().isGooglePlayServicesAvailable(context)
 
             if (result == ConnectionResult.SUCCESS) {
                 pushLogger.logGooglePlayServicesAvailable()
@@ -44,27 +43,26 @@ class FCMTokenProviderImpl(
     }
 
     override fun getCurrentToken(onComplete: (String?) -> Unit) {
-        logger.debug("getting current FCM device token...")
+        pushLogger.obtainingTokenStarted()
         try {
-            if (!isValidForThisDevice(context)) {
+            if (!isValidForThisDevice()) {
                 onComplete(null)
                 return
             }
 
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            firebaseMessagingProvider.get().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val existingDeviceToken = task.result
-                    logger.debug("got current FCM token: $existingDeviceToken")
+                    pushLogger.obtainingTokenSuccess(existingDeviceToken)
 
                     onComplete(existingDeviceToken)
                 } else {
-                    logger.debug("got current FCM token: null")
-                    logger.error(task.exception?.message ?: "error while getting FCM token")
+                    pushLogger.obtainingTokenFailed(task.exception)
                     onComplete(null)
                 }
             }
         } catch (exception: Throwable) {
-            logger.error(exception.message ?: "error while getting FCM token")
+            pushLogger.obtainingTokenFailed(exception)
             onComplete(null)
         }
     }

@@ -14,10 +14,10 @@ import org.amshove.kluent.internal.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class SdkInitializationLoggerTest : JUnitTest() {
+class DataPipelinesLoggerTest : JUnitTest() {
 
     private val mockLogger = mockk<Logger>()
-    private val initLogger = SdkInitializationLogger(mockLogger)
+    private val initLogger = DataPipelinesLogger(mockLogger)
 
     @BeforeEach
     fun setUp() {
@@ -87,6 +87,58 @@ class SdkInitializationLoggerTest : JUnitTest() {
             mockLogger.info(
                 tag = "Init",
                 message = "CustomerIO AnotherModule module is initialized and ready to use"
+            )
+        }
+    }
+
+    @Test
+    fun test_logStoringDevicePushToken_forwardsCorrectLog() {
+        val token = "fcm-token"
+        val userId = "user-id"
+        initLogger.logStoringDevicePushToken(token, userId)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Storing device token: $token for user profile: $userId"
+            )
+        }
+    }
+
+    @Test
+    fun test_logStoringBlankPushToken_forwardsCorrectLog() {
+        initLogger.logStoringBlankPushToken()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Attempting to register blank token, ignoring request"
+            )
+        }
+    }
+
+    @Test
+    fun test_logRegisteringPushToken_forwardsCorrectLog() {
+        val token = "fcm-token"
+        val userId = "user-id"
+        initLogger.logRegisteringPushToken(token, userId)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Registering device token: $token for user profile: $userId"
+            )
+        }
+    }
+
+    @Test
+    fun test_logPushTokenRefreshed_forwardsCorrectLog() {
+        initLogger.logPushTokenRefreshed()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Token refreshed, deleting old token to avoid registering same device multiple times"
             )
         }
     }

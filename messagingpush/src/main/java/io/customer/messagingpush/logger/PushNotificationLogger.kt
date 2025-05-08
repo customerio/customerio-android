@@ -29,4 +29,26 @@ internal class PushNotificationLogger(private val logger: Logger) {
             throwable = throwable
         )
     }
+
+    fun obtainingTokenStarted() {
+        logger.debug(
+            tag = TAG,
+            message = "Getting current device token from Firebase messaging on app launch"
+        )
+    }
+
+    fun obtainingTokenSuccess(token: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Got current device token: $token"
+        )
+    }
+
+    fun obtainingTokenFailed(throwable: Throwable?) {
+        logger.error(
+            tag = TAG,
+            message = "Failed to get device token with error: ${throwable?.message}",
+            throwable = throwable
+        )
+    }
 }

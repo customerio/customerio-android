@@ -2,6 +2,8 @@
 
 package io.customer.messagingpush.di
 
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
@@ -28,7 +30,14 @@ The use of extensions was chosen over creating a separate graph class for each m
  */
 
 internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
-    get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = applicationContext) }
+    get() = newInstance<DeviceTokenProvider> {
+        FCMTokenProviderImpl(
+            context = applicationContext,
+            googleApiAvailabilityProvider = { GoogleApiAvailability.getInstance() },
+            firebaseMessagingProvider = { FirebaseMessaging.getInstance() },
+            pushLogger = SDKComponent.pushLogger
+        )
+    }
 
 val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
     get() = newInstance {

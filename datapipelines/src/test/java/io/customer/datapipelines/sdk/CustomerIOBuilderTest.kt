@@ -12,7 +12,7 @@ import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
-import io.customer.sdk.SdkInitializationLogger
+import io.customer.sdk.DataPipelinesLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
@@ -30,7 +30,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CustomerIOBuilderTest : RobolectricTest() {
 
-    private val mockLogger = mockk<SdkInitializationLogger>(relaxed = true)
+    private val mockLogger = mockk<DataPipelinesLogger>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -38,7 +38,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
             testConfigurationDefault {
                 diGraph {
                     sdk {
-                        overrideDependency<SdkInitializationLogger>(mockLogger)
+                        overrideDependency<DataPipelinesLogger>(mockLogger)
                     }
                 }
             }

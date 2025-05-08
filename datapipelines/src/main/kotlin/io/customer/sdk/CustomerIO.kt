@@ -13,7 +13,7 @@ import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
-import io.customer.datapipelines.di.sdkInitLogger
+import io.customer.datapipelines.di.dataPipelinesLogger
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeNullsForJson
 import io.customer.datapipelines.extensions.type
@@ -63,6 +63,7 @@ class CustomerIO private constructor(
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
+    private val dataPipelinesLogger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
@@ -309,13 +310,14 @@ class CustomerIO private constructor(
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
         if (deviceToken.isBlank()) {
-            logger.debug("device token cannot be blank. ignoring request to register device token")
+            dataPipelinesLogger.logStoringBlankPushToken()
             return
         }
 
-        logger.info("storing and registering device token $deviceToken for user profile: ${this.userId}")
+        dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
+        dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
         trackDeviceAttributes(token = deviceToken)
     }
 
@@ -327,7 +329,7 @@ class CustomerIO private constructor(
 
         val existingDeviceToken = contextPlugin.deviceToken
         if (existingDeviceToken != null && existingDeviceToken != token) {
-            logger.debug("token has been refreshed, deleting old token to avoid registering same device multiple times")
+            dataPipelinesLogger.logPushTokenRefreshed()
             deleteDeviceToken { event ->
                 event?.putInContextUnderKey("device", "token", existingDeviceToken)
             }
@@ -406,7 +408,7 @@ class CustomerIO private constructor(
             androidSDKComponent: AndroidSDKComponent,
             moduleConfig: DataPipelinesModuleConfig
         ): CustomerIO {
-            val logger = SDKComponent.sdkInitLogger
+            val logger = SDKComponent.dataPipelinesLogger
 
             val existingInstance = instance
             if (existingInstance != null) {

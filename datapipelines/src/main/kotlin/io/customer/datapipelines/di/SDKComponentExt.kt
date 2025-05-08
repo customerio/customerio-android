@@ -2,7 +2,7 @@ package io.customer.datapipelines.di
 
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
-import io.customer.sdk.SdkInitializationLogger
+import io.customer.sdk.DataPipelinesLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.getOrNull
 
@@ -10,5 +10,5 @@ import io.customer.sdk.core.extensions.getOrNull
 internal val SDKComponent.analyticsFactory: ((moduleConfig: DataPipelinesModuleConfig) -> Analytics)?
     get() = getOrNull(identifier = SDKComponentKeys.AnalyticsFactory)
 
-internal val SDKComponent.sdkInitLogger: SdkInitializationLogger
-    get() = singleton<SdkInitializationLogger> { SdkInitializationLogger(logger) }
+internal val SDKComponent.dataPipelinesLogger: DataPipelinesLogger
+    get() = singleton<DataPipelinesLogger> { DataPipelinesLogger(logger) }

@@ -4,7 +4,7 @@ import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.config.ScreenView
-import io.customer.datapipelines.di.sdkInitLogger
+import io.customer.datapipelines.di.dataPipelinesLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
@@ -43,7 +43,7 @@ class CustomerIOBuilder(
 
     // Logging configuration
     private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
-    private val logger: SdkInitializationLogger = SDKComponent.sdkInitLogger
+    private val logger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
 
     // Host Settings
     private var region: Region = Region.US

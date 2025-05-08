@@ -47,7 +47,7 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
      * Listener to handle action clicks from inline in-app messages.
      * Set this property to receive callbacks when actions are triggered.
      */
-    var actionListener: InlineMessageActionListener? = null
+    internal var actionListener: InlineMessageActionListener? = null
 
     protected val logger = SDKComponent.logger
     internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -127,7 +127,7 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
         actionListener?.let { listener ->
             val inAppMessage = InAppMessage.getFromGistMessage(message)
             logViewEvent("Listener handling action: $action, name: $name")
-            listener.onActionClick(inAppMessage, action, name)
+            listener.onActionClick(message = inAppMessage, currentRoute = route, action = action, name = name)
         }
 
         when {

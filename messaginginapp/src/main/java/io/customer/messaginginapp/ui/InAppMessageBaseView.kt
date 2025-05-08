@@ -20,6 +20,8 @@ import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.sdk.core.di.SDKComponent
 import java.net.URI
 import java.nio.charset.StandardCharsets
@@ -40,6 +42,12 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
 
     protected var currentMessage: Message? = null
     protected var currentRoute: String? = null
+
+    /**
+     * Listener to handle action clicks from inline in-app messages.
+     * Set this property to receive callbacks when actions are triggered.
+     */
+    internal var actionListener: InlineMessageActionListener? = null
 
     protected val logger = SDKComponent.logger
     internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -104,6 +112,8 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
         val route = currentRoute ?: return
 
         var shouldLogAction = true
+
+        // Dispatch the tap event to track metric and send a global callback
         inAppMessagingManager.dispatch(
             InAppMessagingAction.EngineAction.Tap(
                 message = message,
@@ -112,6 +122,13 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
                 action = action
             )
         )
+
+        // Check if we have a listener to handle the action
+        actionListener?.let { listener ->
+            val inAppMessage = InAppMessage.getFromGistMessage(message)
+            logViewEvent("Listener handling action: $action, name: $name")
+            listener.onActionClick(message = inAppMessage, currentRoute = route, action = action, name = name)
+        }
 
         when {
             action.startsWith("gist://") -> {

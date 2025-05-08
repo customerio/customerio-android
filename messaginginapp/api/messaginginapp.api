@@ -413,6 +413,10 @@ public final class io/customer/messaginginapp/type/InAppMessageKt {
 	public static final fun getMessage (Lio/customer/messaginginapp/type/InAppMessage;)Lio/customer/messaginginapp/gist/data/model/Message;
 }
 
+public abstract interface class io/customer/messaginginapp/type/InlineMessageActionListener {
+	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
 public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
 	public fun <init> (Landroid/content/Context;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
@@ -466,5 +470,6 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/cus
 	public fun onLoadingStarted ()V
 	public fun onNoMessageToDisplay ()V
 	public fun onViewSizeChanged (II)V
+	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 }
 

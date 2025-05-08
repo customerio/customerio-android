@@ -10,6 +10,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.StyleRes
 import androidx.core.graphics.drawable.DrawableCompat
 import io.customer.messaginginapp.R
+import io.customer.messaginginapp.type.InlineMessageActionListener
 
 /**
  * InlineInAppMessageView is a custom view that displays an inline in-app message for given
@@ -33,6 +34,14 @@ class InlineInAppMessageView @JvmOverloads constructor(
 ) : InlineInAppMessageBaseView(context, attrs, defStyleAttr, defStyleRes),
     InlineInAppMessageViewListener {
     private val progressIndicator: ProgressBar = ProgressBar(context)
+
+    /**
+     * Sets a listener to receive callbacks when actions are triggered in the inline message.
+     * @param listener The listener that will handle action clicks.
+     */
+    fun setActionListener(listener: InlineMessageActionListener) {
+        this.actionListener = listener
+    }
 
     init {
         var progressColor = resolveThemeColor(android.R.attr.colorControlActivated, Color.GRAY)

@@ -13,7 +13,8 @@ import androidx.core.graphics.drawable.DrawableCompat
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
-import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewListener
+import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
+import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 import io.customer.messaginginapp.ui.controller.InlineInAppMessageViewController
 import io.customer.messaginginapp.ui.extensions.resolveThemeColor
 
@@ -37,9 +38,9 @@ class InlineInAppMessageView @JvmOverloads constructor(
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr, defStyleRes),
-    InlineInAppMessageViewListener {
+    InlineInAppMessageViewCallback {
     private val controller = InlineInAppMessageViewController(
-        viewDelegate = this,
+        viewDelegate = InAppHostViewDelegateImpl(view = this),
         platformDelegate = AndroidInAppPlatformDelegate(view = this)
     )
     private val progressIndicator: ProgressBar = ProgressBar(context)

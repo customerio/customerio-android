@@ -155,7 +155,7 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/bridge/ModalInAppMessageViewListener, io/customer/sdk/tracking/TrackableScreen {
+public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/bridge/ModalInAppMessageViewCallback, io/customer/sdk/tracking/TrackableScreen {
 	public static final field Companion Lio/customer/messaginginapp/gist/presentation/GistModalActivity$Companion;
 	public fun <init> ()V
 	public fun finish ()V
@@ -417,7 +417,7 @@ public abstract interface class io/customer/messaginginapp/type/InlineMessageAct
 	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 }
 
-public final class io/customer/messaginginapp/ui/InlineInAppMessageView : android/widget/FrameLayout, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewListener {
+public final class io/customer/messaginginapp/ui/InlineInAppMessageView : android/widget/FrameLayout, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {
 	public fun <init> (Landroid/content/Context;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V

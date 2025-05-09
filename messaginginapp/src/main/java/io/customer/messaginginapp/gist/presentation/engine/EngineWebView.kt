@@ -21,6 +21,7 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
@@ -28,9 +29,9 @@ import java.util.TimerTask
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
-) : FrameLayout(context, attrs), EngineWebViewListener, LifecycleObserver {
+) : FrameLayout(context, attrs), EngineWebViewListener, LifecycleObserver, EngineWebViewDelegate {
 
-    var listener: EngineWebViewListener? = null
+    override var listener: EngineWebViewListener? = null
     private var timer: Timer? = null
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
@@ -54,6 +55,10 @@ internal class EngineWebView @JvmOverloads constructor(
         }
     }
 
+    override fun getView(): EngineWebView {
+        return this
+    }
+
     @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     fun onLifecycleResumed() {
         logger.info("EngineWebView onLifecycleResumed")
@@ -72,7 +77,7 @@ internal class EngineWebView @JvmOverloads constructor(
      * and the view is already removed from the parent.
      * It stops loading WebView, removes JavaScript interface, and clears reference to WebView.
      */
-    fun releaseResources() {
+    override fun releaseResources() {
         try {
             val view = webView ?: return
             logger.debug("Cleaning up EngineWebView")
@@ -104,14 +109,14 @@ internal class EngineWebView @JvmOverloads constructor(
         }
     }
 
-    fun stopLoading() {
+    override fun stopLoading() {
         webView?.stopLoading()
         // stop the timer and clean up
         bootstrapped()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun setup(configuration: EngineWebConfiguration) {
+    override fun setup(configuration: EngineWebConfiguration) {
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)

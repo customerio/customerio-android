@@ -7,7 +7,8 @@ import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
-import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewListener
+import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
+import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
 import io.customer.messaginginapp.ui.controller.ModalInAppMessageViewController
 
 /**
@@ -22,11 +23,11 @@ internal class ModalInAppMessageView @JvmOverloads constructor(
     @StyleRes defStyleRes: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr, defStyleRes) {
     private val controller = ModalInAppMessageViewController(
-        viewDelegate = this,
+        viewDelegate = InAppHostViewDelegateImpl(view = this),
         platformDelegate = AndroidInAppPlatformDelegate(view = this)
     )
 
-    internal fun setViewCallback(viewCallback: ModalInAppMessageViewListener) {
+    internal fun setViewCallback(viewCallback: ModalInAppMessageViewCallback) {
         controller.viewCallback = viewCallback
     }
 

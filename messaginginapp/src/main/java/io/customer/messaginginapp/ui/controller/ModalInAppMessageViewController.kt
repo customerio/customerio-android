@@ -1,14 +1,14 @@
 package io.customer.messaginginapp.ui.controller
 
-import android.view.ViewGroup
 import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
-import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewListener
+import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
 
 internal class ModalInAppMessageViewController(
-    viewDelegate: ViewGroup,
+    viewDelegate: InAppHostViewDelegate,
     platformDelegate: InAppPlatformDelegate
-) : InAppMessageViewController<ModalInAppMessageViewListener>(
+) : InAppMessageViewController<ModalInAppMessageViewCallback>(
     type = "Modal",
     viewDelegate = viewDelegate,
     platformDelegate = platformDelegate

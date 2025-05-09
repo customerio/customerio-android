@@ -1,11 +1,7 @@
-package io.customer.messaginginapp.ui
+package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
-import android.content.Context
-import android.util.AttributeSet
-import android.widget.FrameLayout
-import androidx.annotation.AttrRes
-import androidx.annotation.StyleRes
+import android.view.ViewGroup
 import androidx.annotation.UiThread
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
@@ -13,29 +9,29 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
 import io.customer.messaginginapp.state.InAppMessagingAction
-import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
+import io.customer.messaginginapp.ui.bridge.InAppMessageViewListener
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.sdk.core.di.SDKComponent
 
 /**
- * Base view class for displaying in-app messages. This class is responsible for managing common
- * in-app message functionality, such as setting up the EngineWebView, handling tap events, etc.
- * This class will be extended by specific in-app message views (e.g., ModalInAppMessageView)
- * to handle specific message types.
+ * Base controller class for managing in-app message view behavior.
+ * Encapsulates logic for view state transitions, sizing, lifecycle, and WebView interaction.
+ * Designed to decouple business logic from Android view classes for better testability and reuse.
  */
-abstract class InAppMessageBaseView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    @AttrRes defStyleAttr: Int = 0,
-    @StyleRes defStyleRes: Int = 0
-) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), EngineWebViewListener {
-    internal abstract val platformDelegate: InAppPlatformDelegate
-    internal var engineWebView: EngineWebView? = null
+internal abstract class InAppMessageViewController<ViewCallback : InAppMessageViewListener>(
+    protected val type: String,
+    protected val platformDelegate: InAppPlatformDelegate,
+    protected val viewDelegate: ViewGroup
+) : EngineWebViewListener {
+    internal val logger = SDKComponent.logger
+    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
-    protected var currentMessage: Message? = null
-    protected var currentRoute: String? = null
+    internal var engineWebViewDelegate: EngineWebView? = null
+    internal var currentMessage: Message? = null
+    internal var currentRoute: String? = null
+    internal var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.
@@ -43,47 +39,48 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
      */
     internal var actionListener: InlineMessageActionListener? = null
 
-    protected val logger = SDKComponent.logger
-    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
-    internal val store: InAppMessagingState
-        get() = inAppMessagingManager.getCurrentState()
+    internal val isEngineWebViewAttached: Boolean
+        get() = engineWebViewDelegate != null
 
-    // indicates if the message is visible to user or not
-    internal val isEngineVisible: Boolean
-        get() = engineWebView?.alpha == 1.0f
-
-    protected fun logViewEvent(message: String) {
-        logger.debug("[InApp][View] $message")
+    internal fun logViewEvent(message: String) {
+        logger.debug("[InApp][$type] $message")
     }
 
     @UiThread
     protected fun attachEngineWebView() {
-        if (engineWebView != null) {
+        logViewEvent("Attaching EngineWebView")
+        if (isEngineWebViewAttached) {
             logViewEvent("EngineWebView already attached, skipping")
             return
         }
 
-        logViewEvent("Attaching EngineWebView")
-        engineWebView = EngineWebView(context).also { view ->
-            view.alpha = 0.0f
-            view.listener = this
-            this.addView(view)
-        }
+        val delegate = EngineWebView(viewDelegate.context)
+        engineWebViewDelegate = delegate
+
+        delegate.setAlpha(0.0f)
+        delegate.listener = this
+        viewDelegate.addView(delegate)
     }
 
     @UiThread
     protected fun detachEngineWebView() {
-        val view = engineWebView ?: return
-        engineWebView = null
-
         logViewEvent("Detaching EngineWebView")
-        view.listener = null
-        removeView(view)
+        val delegate = engineWebViewDelegate
+        if (!isEngineWebViewAttached || delegate == null) {
+            logViewEvent("EngineWebView already detached, skipping")
+            return
+        }
+
+        engineWebViewDelegate = null
+        viewCallback = null
+        delegate.listener = null
+        viewDelegate.removeView(delegate)
     }
 
-    fun setup(message: Message) {
-        logViewEvent("Setting up EngineWebView with message: $message")
-        val engineWebConfiguration = EngineWebConfiguration(
+    @UiThread
+    internal fun loadMessage(message: Message) {
+        val store = inAppMessagingManager.getCurrentState()
+        val config = EngineWebConfiguration(
             siteId = store.siteId,
             dataCenter = store.dataCenter,
             messageId = message.messageId,
@@ -93,15 +90,19 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
         )
 
         currentMessage = message
-        engineWebView?.setup(engineWebConfiguration)
+        engineWebViewDelegate?.setup(config)
     }
 
-    fun stopLoading() {
+    internal fun stopLoading() {
         logViewEvent("Stopping EngineWebView loading")
-        engineWebView?.stopLoading()
+        stopEngineWebViewLoading()
     }
 
-    override fun tap(name: String, action: String, system: Boolean) {
+    protected fun stopEngineWebViewLoading() {
+        engineWebViewDelegate?.stopLoading()
+    }
+
+    private fun handleTap(name: String, action: String, system: Boolean) {
         val message = currentMessage ?: return
         val route = currentRoute ?: return
 
@@ -121,7 +122,12 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
         actionListener?.let { listener ->
             val inAppMessage = InAppMessage.getFromGistMessage(message)
             logViewEvent("Listener handling action: $action, name: $name")
-            listener.onActionClick(message = inAppMessage, currentRoute = route, action = action, name = name)
+            listener.onActionClick(
+                message = inAppMessage,
+                currentRoute = route,
+                action = action,
+                name = name
+            )
         }
 
         when {
@@ -200,6 +206,14 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
         }
     }
 
+    override fun tap(name: String, action: String, system: Boolean) {
+        try {
+            handleTap(name, action, system)
+        } catch (ex: Exception) {
+            logViewEvent("Error handling tap: ${ex.message}")
+        }
+    }
+
     override fun routeError(route: String) {
         logViewEvent("Route error: $route")
         currentMessage?.let { message ->
@@ -229,5 +243,16 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
 
     override fun routeChanged(newRoute: String) {
         logViewEvent("Route changed: $newRoute")
+    }
+
+    override fun sizeChanged(width: Double, height: Double) {
+        logViewEvent("Size changed: $width x $height")
+        val widthInPx = platformDelegate.convertDpToPixels(width)
+        val heightInPx = platformDelegate.convertDpToPixels(height)
+        onWebViewSizeUpdated(widthInPx, heightInPx)
+    }
+
+    protected open fun onWebViewSizeUpdated(widthInPx: Int, heightInPx: Int) {
+        viewCallback?.onViewSizeChanged(widthInPx, heightInPx)
     }
 }

@@ -11,6 +11,9 @@ import androidx.annotation.StyleRes
 import androidx.core.graphics.drawable.DrawableCompat
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.type.InlineMessageActionListener
+import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
+import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewListener
+import io.customer.messaginginapp.ui.extensions.resolveThemeColor
 
 /**
  * InlineInAppMessageView is a custom view that displays an inline in-app message for given
@@ -33,6 +36,7 @@ class InlineInAppMessageView @JvmOverloads constructor(
     @StyleRes defStyleRes: Int = 0
 ) : InlineInAppMessageBaseView(context, attrs, defStyleAttr, defStyleRes),
     InlineInAppMessageViewListener {
+    override val platformDelegate = AndroidInAppPlatformDelegate(this)
     private val progressIndicator: ProgressBar = ProgressBar(context)
 
     /**
@@ -58,7 +62,7 @@ class InlineInAppMessageView @JvmOverloads constructor(
             typedArray.recycle()
         }
         setupProgressIndicator(progressColor)
-        viewListener = this
+        viewCallback = this
     }
 
     private fun setupProgressIndicator(@ColorInt progressColor: Int) {
@@ -81,18 +85,15 @@ class InlineInAppMessageView @JvmOverloads constructor(
     }
 
     override fun onLoadingStarted() {
-        super.onLoadingStarted()
         progressIndicator.visibility = VISIBLE
         progressIndicator.bringToFront()
     }
 
     override fun onLoadingFinished() {
-        super.onLoadingFinished()
         progressIndicator.visibility = GONE
     }
 
     override fun onNoMessageToDisplay() {
-        super.onNoMessageToDisplay()
         progressIndicator.visibility = GONE
     }
 }

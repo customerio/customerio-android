@@ -11,6 +11,7 @@ import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.InlineMessageState
+import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewListener
 
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
@@ -19,7 +20,7 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
 ) : InAppMessageBaseView(context, attrs, defStyleAttr, defStyleRes) {
-    internal var viewListener: InlineInAppMessageViewListener? = null
+    internal var viewCallback: InlineInAppMessageViewListener? = null
 
     protected val elapsedTimer: ElapsedTimer = ElapsedTimer()
     protected var contentWidthInDp: Double? = null
@@ -74,7 +75,7 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
         super.onDetachedFromWindow()
         val message = currentMessage ?: return
 
-        if (shouldDestroyOnDetach()) {
+        if (platformDelegate.shouldDestroyViewOnDetach()) {
             logViewEvent("View detached from window, dismissing inline message view for $elementId ")
             inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false, viaCloseAction = false))
         } else {
@@ -132,7 +133,7 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
     private fun displayMessage(message: Message) {
         elapsedTimer.start("Displaying inline message: ${message.messageId}")
         attachEngineWebView()
-        viewListener?.onLoadingStarted()
+        viewCallback?.onLoadingStarted()
         visibility = VISIBLE
         setup(message)
     }
@@ -159,11 +160,11 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
     private fun showMessageView(widthInDp: Double, heightInDp: Double) {
         logViewEvent("Updating inline message size: $widthInDp x $heightInDp")
 
-        val widthInPx = dpToPixels(widthInDp)
-        val heightInPx = dpToPixels(heightInDp)
-        viewListener?.onViewSizeChanged(widthInPx, heightInPx)
+        val widthInPx = platformDelegate.convertDpToPixels(widthInDp)
+        val heightInPx = platformDelegate.convertDpToPixels(heightInDp)
+        viewCallback?.onViewSizeChanged(widthInPx, heightInPx)
 
-        animateViewSize(
+        platformDelegate.animateViewSize(
             widthInPx = widthInPx,
             heightInPx = heightInPx,
             onStart = {
@@ -171,7 +172,7 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
                     view.alpha = 1.0F
                     view.bringToFront()
                 }
-                viewListener?.onLoadingFinished()
+                viewCallback?.onLoadingFinished()
             },
             onEnd = {}
         )
@@ -205,14 +206,14 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
             contentWidthInDp = null
             contentHeightInDp = null
             detachAndCleanupEngineWebView()
-            viewListener?.onNoMessageToDisplay()
+            viewCallback?.onNoMessageToDisplay()
             onComplete?.invoke()
         }
 
         logViewEvent("Hiding inline message view with animation: $shouldAnimate")
         stopLoading()
         if (shouldAnimate) {
-            animateViewSize(
+            platformDelegate.animateViewSize(
                 heightInPx = 0,
                 onEnd = completionHandler
             )

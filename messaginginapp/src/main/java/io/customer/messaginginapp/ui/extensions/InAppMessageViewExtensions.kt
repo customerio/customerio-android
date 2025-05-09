@@ -1,4 +1,4 @@
-package io.customer.messaginginapp.ui
+package io.customer.messaginginapp.ui.extensions
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
@@ -7,7 +7,6 @@ import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.util.DisplayMetrics
 import android.util.TypedValue
 import android.view.View
 import androidx.annotation.AttrRes
@@ -15,13 +14,6 @@ import androidx.annotation.ColorInt
 import androidx.annotation.UiThread
 import androidx.core.view.updateLayoutParams
 import io.customer.sdk.core.di.SDKComponent
-
-/**
- * Converts the given size from dp to pixels based on the device's screen density.
- */
-internal fun InAppMessageBaseView.dpToPixels(size: Double): Int {
-    return size.toInt() * context.resources.displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT
-}
 
 /**
  * Updates the layout parameters of the view with the specified width and height with animation
@@ -90,7 +82,7 @@ internal fun View.animateViewSize(
  * Resolves the theme color for the given attribute resource ID. If the attribute is not found,
  * it returns the fallback color.
  */
-internal fun InAppMessageBaseView.resolveThemeColor(
+internal fun View.resolveThemeColor(
     @AttrRes attrResId: Int,
     @ColorInt fallbackColor: Int
 ): Int = try {
@@ -102,17 +94,6 @@ internal fun InAppMessageBaseView.resolveThemeColor(
     }
 } catch (_: Throwable) {
     fallbackColor
-}
-
-/**
- * Determines whether the view should be destroyed when detached from its parent.
- * The view should be destroyed if the activity is finishing or not changing configurations.
- */
-internal fun View.shouldDestroyOnDetach(): Boolean {
-    val activity = context?.findActivity()
-    return activity?.let {
-        it.isFinishing || !it.isChangingConfigurations
-    } != false
 }
 
 /**

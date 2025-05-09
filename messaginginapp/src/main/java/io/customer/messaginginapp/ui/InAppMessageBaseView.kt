@@ -2,17 +2,11 @@ package io.customer.messaginginapp.ui
 
 import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.Intent
-import android.net.UrlQuerySanitizer
 import android.util.AttributeSet
-import android.util.Base64
 import android.widget.FrameLayout
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
 import androidx.annotation.UiThread
-import androidx.core.content.ContextCompat.startActivity
-import androidx.core.net.toUri
-import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -22,9 +16,8 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
+import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.sdk.core.di.SDKComponent
-import java.net.URI
-import java.nio.charset.StandardCharsets
 
 /**
  * Base view class for displaying in-app messages. This class is responsible for managing common
@@ -38,6 +31,7 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), EngineWebViewListener {
+    internal abstract val platformDelegate: InAppPlatformDelegate
     internal var engineWebView: EngineWebView? = null
 
     protected var currentMessage: Message? = null
@@ -132,8 +126,8 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
 
         when {
             action.startsWith("gist://") -> {
-                val gistAction = URI(action)
-                val urlQuery = UrlQuerySanitizer(action)
+                val gistAction = platformDelegate.parseJavaURI(action)
+                val urlQuery = platformDelegate.sanitizeUrlQuery(action)
                 when (gistAction.host) {
                     "close" -> {
                         shouldLogAction = false
@@ -148,10 +142,8 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
 
                     "loadPage" -> {
                         val url = urlQuery.getValue("url")
-                        val intent = Intent(Intent.ACTION_VIEW)
-                        intent.data = url.toUri()
                         logViewEvent("Opening URL: $url")
-                        startActivity(context, intent, null)
+                        platformDelegate.openUrl(url)
                     }
 
                     "showMessage" -> {
@@ -163,10 +155,7 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
                         )
                         val messageId = urlQuery.getValue("messageId")
                         val propertiesBase64 = urlQuery.getValue("properties")
-                        val parameterBinary = Base64.decode(propertiesBase64, Base64.DEFAULT)
-                        val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
-                        val map: Map<String, Any> = HashMap()
-                        val properties = Gson().fromJson(parameterString, map.javaClass)
+                        val properties = platformDelegate.parsePropertiesFromJson(propertiesBase64)
                         logViewEvent("Showing message: $messageId")
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.LoadMessage(
@@ -189,11 +178,7 @@ abstract class InAppMessageBaseView @JvmOverloads constructor(
                 try {
                     shouldLogAction = false
                     logViewEvent("Dismissing from system action: $action")
-                    val intent = Intent(Intent.ACTION_VIEW)
-                    intent.data = action.toUri()
-                    intent.flags =
-                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    startActivity(context, intent, null)
+                    platformDelegate.openUri(platformDelegate.parseAndroidUri(action))
 
                     // launch system action first otherwise there is a possibility
                     // that due to lifecycle change and message still being in queue to be displayed

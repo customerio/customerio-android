@@ -5,6 +5,8 @@ import android.util.AttributeSet
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
 import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
+import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewListener
 
 /**
  * Final implementation of the [InlineInAppMessageBaseView] for displaying modal in-app messages.
@@ -21,11 +23,16 @@ internal class ModalInAppMessageView @JvmOverloads constructor(
     defStyleAttr,
     defStyleRes
 ) {
-    internal var viewListener: ModalInAppMessageViewListener? = null
+    override val platformDelegate = AndroidInAppPlatformDelegate(this)
+    private var viewCallback: ModalInAppMessageViewListener? = null
     private var isMessageDisplayed: Boolean = true
 
     init {
         attachEngineWebView()
+    }
+
+    internal fun setViewCallback(viewCallback: ModalInAppMessageViewListener) {
+        this.viewCallback = viewCallback
     }
 
     override fun routeLoaded(route: String) {
@@ -52,11 +59,13 @@ internal class ModalInAppMessageView @JvmOverloads constructor(
         logViewEvent("Clearing resources for empty messageId")
         detachEngineWebView()
         currentMessage = null
-        viewListener = null
+        viewCallback = null
     }
 
     override fun sizeChanged(width: Double, height: Double) {
         logViewEvent("Modal in-app message size changed: $width x $height")
-        viewListener?.onViewSizeChanged(dpToPixels(width), dpToPixels(height))
+        val widthInPx = platformDelegate.convertDpToPixels(width)
+        val heightInPx = platformDelegate.convertDpToPixels(height)
+        viewCallback?.onViewSizeChanged(widthInPx, heightInPx)
     }
 }

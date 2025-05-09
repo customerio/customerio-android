@@ -2,14 +2,17 @@ package io.customer.messaginginapp.ui
 
 import android.content.Context
 import android.util.AttributeSet
+import android.widget.FrameLayout
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
-import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewListener
+import io.customer.messaginginapp.ui.controller.ModalInAppMessageViewController
 
 /**
- * Final implementation of the [InlineInAppMessageBaseView] for displaying modal in-app messages.
+ * Final view for displaying modal in-app messages.
+ * It utilizes [ModalInAppMessageViewController] to manage the lifecycle of the modal in-app message.
  * The view should be directly added to activity layout for displaying modal in-app messages.
  */
 internal class ModalInAppMessageView @JvmOverloads constructor(
@@ -17,55 +20,21 @@ internal class ModalInAppMessageView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
-) : InAppMessageBaseView(
-    context,
-    attrs,
-    defStyleAttr,
-    defStyleRes
-) {
-    override val platformDelegate = AndroidInAppPlatformDelegate(this)
-    private var viewCallback: ModalInAppMessageViewListener? = null
-    private var isMessageDisplayed: Boolean = true
-
-    init {
-        attachEngineWebView()
-    }
+) : FrameLayout(context, attrs, defStyleAttr, defStyleRes) {
+    private val controller = ModalInAppMessageViewController(
+        viewDelegate = this,
+        platformDelegate = AndroidInAppPlatformDelegate(view = this)
+    )
 
     internal fun setViewCallback(viewCallback: ModalInAppMessageViewListener) {
-        this.viewCallback = viewCallback
+        controller.viewCallback = viewCallback
     }
 
-    override fun routeLoaded(route: String) {
-        super.routeLoaded(route)
-        if (!isMessageDisplayed) return
-
-        isMessageDisplayed = false
-        engineWebView?.alpha = 1.0f
-        currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
-        }
+    internal fun setup(message: Message) {
+        controller.loadMessage(message = message)
     }
 
-    override fun bootstrapped() {
-        super.bootstrapped()
-        // Cleaning after engine web is bootstrapped and all assets downloaded.
-        clearResourcesIfMessageIdEmpty()
-    }
-
-    private fun clearResourcesIfMessageIdEmpty() {
-        val message = currentMessage ?: return
-        if (message.messageId.isNotBlank()) return
-
-        logViewEvent("Clearing resources for empty messageId")
-        detachEngineWebView()
-        currentMessage = null
-        viewCallback = null
-    }
-
-    override fun sizeChanged(width: Double, height: Double) {
-        logViewEvent("Modal in-app message size changed: $width x $height")
-        val widthInPx = platformDelegate.convertDpToPixels(width)
-        val heightInPx = platformDelegate.convertDpToPixels(height)
-        viewCallback?.onViewSizeChanged(widthInPx, heightInPx)
+    internal fun stopLoading() {
+        controller.stopLoading()
     }
 }

@@ -1,17 +1,17 @@
 package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
-import android.view.ViewGroup
 import androidx.annotation.UiThread
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
-import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
-import io.customer.messaginginapp.ui.bridge.InAppMessageViewListener
+import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
+import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
+import io.customer.messaginginapp.ui.bridge.InAppMessageViewCallback
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.sdk.core.di.SDKComponent
 
@@ -20,15 +20,15 @@ import io.customer.sdk.core.di.SDKComponent
  * Encapsulates logic for view state transitions, sizing, lifecycle, and WebView interaction.
  * Designed to decouple business logic from Android view classes for better testability and reuse.
  */
-internal abstract class InAppMessageViewController<ViewCallback : InAppMessageViewListener>(
+internal abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallback>(
     protected val type: String,
     protected val platformDelegate: InAppPlatformDelegate,
-    protected val viewDelegate: ViewGroup
+    protected val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
     internal val logger = SDKComponent.logger
     internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
-    internal var engineWebViewDelegate: EngineWebView? = null
+    internal var engineWebViewDelegate: EngineWebViewDelegate? = null
     internal var currentMessage: Message? = null
     internal var currentRoute: String? = null
     internal var viewCallback: ViewCallback? = null
@@ -54,7 +54,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             return
         }
 
-        val delegate = EngineWebView(viewDelegate.context)
+        val delegate = viewDelegate.createEngineWebViewInstance()
         engineWebViewDelegate = delegate
 
         delegate.setAlpha(0.0f)

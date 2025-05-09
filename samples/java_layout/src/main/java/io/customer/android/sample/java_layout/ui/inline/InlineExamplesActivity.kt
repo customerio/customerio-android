@@ -7,6 +7,7 @@ import com.google.android.material.progressindicator.LinearProgressIndicator
 import io.customer.android.sample.java_layout.R
 import io.customer.android.sample.java_layout.databinding.ActivitySimpleFragmentBinding
 import io.customer.android.sample.java_layout.ui.core.BaseFragmentContainerActivity
+import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel
 import io.customer.sdk.tracking.TrackableScreen
 
@@ -21,6 +22,7 @@ class InlineExamplesActivity :
 
     override fun getScreenName(): String = when (fragmentName) {
         FRAGMENT_ANDROID_XML -> getString(R.string.inline_examples_xml_layout)
+        FRAGMENT_COMPOSE -> getString(R.string.inline_examples_compose)
         else -> getString(R.string.label_inline_examples_activity)
     }
 
@@ -39,11 +41,13 @@ class InlineExamplesActivity :
 
     override fun findFragmentByName(fragmentName: String): Fragment? = when (fragmentName) {
         FRAGMENT_ANDROID_XML -> AndroidXMLInlineExampleFragment.newInstance()
+        FRAGMENT_COMPOSE -> ComposeInlineExampleFragment.newInstance()
         else -> null
     }
 
     companion object {
         const val FRAGMENT_ANDROID_XML: String = "FRAGMENT_ANDROID_XML"
+        const val FRAGMENT_COMPOSE: String = "FRAGMENT_COMPOSE"
 
         @JvmStatic
         fun getExtras(fragmentName: String?): Bundle {

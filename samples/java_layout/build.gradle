@@ -8,10 +8,11 @@ plugins {
 // Include Customer.io SDK dependencies and common gradle properties for sample apps
 ext.appConfigKeyPrefix = 'javaLayout_'
 apply from: "${rootDir}/samples/sample-app.gradle"
+apply from: "${rootDir}/samples/compose-common.gradle"
 
 android {
     namespace 'io.customer.android.sample.java_layout'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "io.customer.android.sample.java_layout"
@@ -33,12 +34,17 @@ android {
     }
     buildFeatures {
         viewBinding true
+        // compose is enabled in compose-common.gradle
     }
+
+    // composeOptions are configured in compose-common.gradle
 }
 
 dependencies {
     def datastore_version = "1.0.0"
     def lifecycle_version = "2.6.1"
+
+    // Existing dependencies
     implementation "androidx.annotation:annotation:1.6.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
@@ -54,6 +60,9 @@ dependencies {
     // Because RxAndroid releases are few and far between, it is recommended to
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     implementation "io.reactivex.rxjava3:rxjava:3.1.5"
+
+    // Material for Compose - app specific, not in common Gradle
+    implementation "androidx.compose.material:material"
 
     // If this block is removed, updating annotation from 1.5.0 and lifecycle version from 2.5.1
     // causes duplicate classes error because a large number of Lifecycle classes have been

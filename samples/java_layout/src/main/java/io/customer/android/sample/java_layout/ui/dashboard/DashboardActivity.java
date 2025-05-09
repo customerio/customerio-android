@@ -152,6 +152,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.inlineExamplesXmlLayoutButton.setOnClickListener(view -> {
             startInlineExamplesActivity(InlineExamplesActivity.FRAGMENT_ANDROID_XML);
         });
+        binding.inlineExamplesComposeButton.setOnClickListener(view -> {
+            startInlineExamplesActivity(InlineExamplesActivity.FRAGMENT_COMPOSE);
+        });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
         });

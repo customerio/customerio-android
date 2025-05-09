@@ -20,7 +20,7 @@ import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.ModalMessageState
-import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewListener
+import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
 import kotlinx.coroutines.Job
@@ -28,7 +28,7 @@ import kotlinx.coroutines.Job
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
-class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewListener, TrackableScreen {
+class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager

@@ -222,7 +222,7 @@ class CustomerIO private constructor(
         if (isChangingIdentifiedProfile) {
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
             if (registeredDeviceToken != null) {
-                logger.debug("deleting device token before identifying new profile")
+                dataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification()
                 deleteDeviceToken { event ->
                     event?.apply {
                         currentlyIdentifiedProfile?.let { this.userId = it }
@@ -244,7 +244,7 @@ class CustomerIO private constructor(
             logger.debug("first time identified or changing identified profile")
             val existingDeviceToken = registeredDeviceToken
             if (existingDeviceToken != null) {
-                logger.debug("automatically registering device token to newly identified profile")
+                dataPipelinesLogger.automaticTokenRegistrationForNewProfile(existingDeviceToken, userId)
                 // register device to newly identified profile
                 trackDeviceAttributes(token = existingDeviceToken)
             }
@@ -323,7 +323,7 @@ class CustomerIO private constructor(
 
     private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
         if (token.isNullOrBlank()) {
-            logger.debug("no device token found. ignoring request to track device.")
+            dataPipelinesLogger.logTrackingDevicesAttributesWithoutValidToken()
             return
         }
 

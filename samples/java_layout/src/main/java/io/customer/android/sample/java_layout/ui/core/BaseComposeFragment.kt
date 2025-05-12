@@ -36,16 +36,16 @@ abstract class BaseComposeFragment : Fragment() {
     ): View {
         // Initialize the ViewModel provider
         viewModelProvider = ViewModelProvider(this, applicationGraph.viewModelFactory)
-        
+
         // Call injectDependencies before creating the view
         injectDependencies()
-        
+
         // Create the compose view
         val view = createComposeView(inflater, container, savedInstanceState)
-        
+
         // Setup any other content
         setupContent()
-        
+
         return view
     }
 

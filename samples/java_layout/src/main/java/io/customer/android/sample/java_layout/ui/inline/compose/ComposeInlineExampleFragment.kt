@@ -23,20 +23,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
 import io.customer.android.sample.java_layout.ui.inline.InlineMessageActionListenerImpl
-import io.customer.android.sample.java_layout.ui.inline.compose.ComposeTheme
 import io.customer.messaginginapp.ui.InlineInAppMessageView
 
 /**
@@ -81,7 +75,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                         .height(64.dp),
                     factory = { ctx ->
                         InlineInAppMessageView(ctx).apply {
-                            elementId = "sticky-header" 
+                            elementId = "sticky-header"
                             setActionListener(InlineMessageActionListenerImpl(ctx, "Header"))
                         }
                     }
@@ -165,27 +159,27 @@ fun PlaceholderContent(modifier: Modifier = Modifier) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.3f)
-                    .aspectRatio(3f/4f)
+                    .aspectRatio(3f / 4f)
                     .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
             )
-            
+
             Spacer(modifier = Modifier.size(8.dp))
-            
+
             // Second column
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.45f)
-                    .aspectRatio(3f/4f)
+                    .aspectRatio(3f / 4f)
                     .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
             )
-            
+
             Spacer(modifier = Modifier.size(8.dp))
-            
+
             // Third column
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(3f/4f)
+                    .aspectRatio(3f / 4f)
                     .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
             )
         }
@@ -202,7 +196,7 @@ fun ProfileCardPlaceholder(modifier: Modifier = Modifier.padding(16.dp)) {
         Box(
             modifier = Modifier
                 .width(150.dp)
-                .aspectRatio(4f/3f)
+                .aspectRatio(4f / 3f)
                 .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
         )
 

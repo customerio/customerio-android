@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 // Define colors for our minimal theme
 private val LightColorPalette = lightColors(
-    primary = Color(0xFF3F51B5),  // Indigo
+    primary = Color(0xFF3F51B5), // Indigo
     primaryVariant = Color(0xFF303F9F),
     secondary = Color(0xFF03DAC5),
     background = Color.White,

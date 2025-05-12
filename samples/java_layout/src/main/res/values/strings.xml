@@ -16,6 +16,7 @@
     <string name="show_push_prompt">Show Push Prompt</string>
     <string name="view_logs">View Logs</string>
     <string name="inline_examples_xml_layout">Inline Examples (Android XML)</string>
+    <string name="inline_examples_compose">Inline Examples (Jetpack Compose)</string>
     <string name="log_out">Log Out</string>
     <string name="device_token">Device Token</string>
     <string name="device_token_not_registered">Not Registered</string>

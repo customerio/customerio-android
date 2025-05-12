@@ -1,20 +1,19 @@
 package io.customer.messaginginapp.ui.controller
 
-import android.view.ViewGroup
 import androidx.annotation.UiThread
-import androidx.core.view.isVisible
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.InlineMessageState
+import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
-import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewListener
+import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 
 internal class InlineInAppMessageViewController(
-    viewDelegate: ViewGroup,
+    viewDelegate: InAppHostViewDelegate,
     platformDelegate: InAppPlatformDelegate
-) : InAppMessageViewController<InlineInAppMessageViewListener>(
+) : InAppMessageViewController<InlineInAppMessageViewCallback>(
     type = "Inline",
     platformDelegate = platformDelegate,
     viewDelegate = viewDelegate

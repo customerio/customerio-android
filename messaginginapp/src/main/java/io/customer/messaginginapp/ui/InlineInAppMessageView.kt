@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.Gravity
+import android.widget.FrameLayout
 import android.widget.ProgressBar
 import androidx.annotation.AttrRes
 import androidx.annotation.ColorInt
@@ -11,6 +12,11 @@ import androidx.annotation.StyleRes
 import androidx.core.graphics.drawable.DrawableCompat
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.type.InlineMessageActionListener
+import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
+import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
+import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
+import io.customer.messaginginapp.ui.controller.InlineInAppMessageViewController
+import io.customer.messaginginapp.ui.extensions.resolveThemeColor
 
 /**
  * InlineInAppMessageView is a custom view that displays an inline in-app message for given
@@ -31,23 +37,34 @@ class InlineInAppMessageView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
-) : InlineInAppMessageBaseView(context, attrs, defStyleAttr, defStyleRes),
-    InlineInAppMessageViewListener {
+) : FrameLayout(context, attrs, defStyleAttr, defStyleRes),
+    InlineInAppMessageViewCallback {
+    private val controller = InlineInAppMessageViewController(
+        viewDelegate = InAppHostViewDelegateImpl(view = this),
+        platformDelegate = AndroidInAppPlatformDelegate(view = this)
+    )
     private val progressIndicator: ProgressBar = ProgressBar(context)
+
+    var elementId: String?
+        get() = controller.elementId
+        set(value) {
+            controller.elementId = value
+        }
 
     /**
      * Sets a listener to receive callbacks when actions are triggered in the inline message.
      * @param listener The listener that will handle action clicks.
      */
     fun setActionListener(listener: InlineMessageActionListener) {
-        this.actionListener = listener
+        controller.actionListener = listener
     }
 
     init {
         var progressColor = resolveThemeColor(android.R.attr.colorControlActivated, Color.GRAY)
         val typedArray = context.obtainStyledAttributes(attrs, R.styleable.InlineInAppMessageView)
         try {
-            elementId = typedArray.getString(R.styleable.InlineInAppMessageView_elementId)
+            controller.elementId =
+                typedArray.getString(R.styleable.InlineInAppMessageView_elementId)
             if (typedArray.hasValue(R.styleable.InlineInAppMessageView_progressTint)) {
                 progressColor = typedArray.getColor(
                     R.styleable.InlineInAppMessageView_progressTint,
@@ -58,7 +75,12 @@ class InlineInAppMessageView @JvmOverloads constructor(
             typedArray.recycle()
         }
         setupProgressIndicator(progressColor)
-        viewListener = this
+        controller.viewCallback = this
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        controller.onDetachedFromWindow()
     }
 
     private fun setupProgressIndicator(@ColorInt progressColor: Int) {
@@ -81,18 +103,15 @@ class InlineInAppMessageView @JvmOverloads constructor(
     }
 
     override fun onLoadingStarted() {
-        super.onLoadingStarted()
         progressIndicator.visibility = VISIBLE
         progressIndicator.bringToFront()
     }
 
     override fun onLoadingFinished() {
-        super.onLoadingFinished()
         progressIndicator.visibility = GONE
     }
 
     override fun onNoMessageToDisplay() {
-        super.onNoMessageToDisplay()
         progressIndicator.visibility = GONE
     }
 }

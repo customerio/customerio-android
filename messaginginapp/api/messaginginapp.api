@@ -155,7 +155,7 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/ModalInAppMessageViewListener, io/customer/sdk/tracking/TrackableScreen {
+public final class io/customer/messaginginapp/gist/presentation/GistModalActivity : androidx/appcompat/app/AppCompatActivity, io/customer/messaginginapp/ui/bridge/ModalInAppMessageViewCallback, io/customer/sdk/tracking/TrackableScreen {
 	public static final field Companion Lio/customer/messaginginapp/gist/presentation/GistModalActivity$Companion;
 	public fun <init> ()V
 	public fun finish ()V
@@ -417,59 +417,18 @@ public abstract interface class io/customer/messaginginapp/type/InlineMessageAct
 	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 }
 
-public abstract class io/customer/messaginginapp/ui/InAppMessageBaseView : android/widget/FrameLayout, io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
+public final class io/customer/messaginginapp/ui/InlineInAppMessageView : android/widget/FrameLayout, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {
 	public fun <init> (Landroid/content/Context;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
 	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	protected final fun attachEngineWebView ()V
-	public fun bootstrapped ()V
-	protected final fun detachEngineWebView ()V
-	public fun error ()V
-	protected final fun getCurrentMessage ()Lio/customer/messaginginapp/gist/data/model/Message;
-	protected final fun getCurrentRoute ()Ljava/lang/String;
-	protected final fun getLogger ()Lio/customer/sdk/core/util/Logger;
-	protected final fun logViewEvent (Ljava/lang/String;)V
-	public fun routeChanged (Ljava/lang/String;)V
-	public fun routeError (Ljava/lang/String;)V
-	public fun routeLoaded (Ljava/lang/String;)V
-	protected final fun setCurrentMessage (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	protected final fun setCurrentRoute (Ljava/lang/String;)V
-	public final fun setup (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun stopLoading ()V
-	public fun tap (Ljava/lang/String;Ljava/lang/String;Z)V
-}
-
-public abstract class io/customer/messaginginapp/ui/InlineInAppMessageBaseView : io/customer/messaginginapp/ui/InAppMessageBaseView {
-	public fun <init> (Landroid/content/Context;)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
-	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	protected final fun getContentHeightInDp ()Ljava/lang/Double;
-	protected final fun getContentWidthInDp ()Ljava/lang/Double;
-	protected final fun getElapsedTimer ()Lio/customer/messaginginapp/gist/utilities/ElapsedTimer;
 	public final fun getElementId ()Ljava/lang/String;
-	protected fun onDetachedFromWindow ()V
-	protected fun onElementIdChanged ()V
-	public fun routeLoaded (Ljava/lang/String;)V
-	protected final fun setContentHeightInDp (Ljava/lang/Double;)V
-	protected final fun setContentWidthInDp (Ljava/lang/Double;)V
-	public final fun setElementId (Ljava/lang/String;)V
-	public fun sizeChanged (DD)V
-}
-
-public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/customer/messaginginapp/ui/InlineInAppMessageBaseView, io/customer/messaginginapp/ui/InlineInAppMessageViewListener {
-	public fun <init> (Landroid/content/Context;)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
-	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
-	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun onLoadingFinished ()V
 	public fun onLoadingStarted ()V
 	public fun onNoMessageToDisplay ()V
 	public fun onViewSizeChanged (II)V
 	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
+	public final fun setElementId (Ljava/lang/String;)V
 }
 

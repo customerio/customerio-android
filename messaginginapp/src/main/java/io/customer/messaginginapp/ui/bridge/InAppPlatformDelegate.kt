@@ -2,7 +2,6 @@ package io.customer.messaginginapp.ui.bridge
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.net.UrlQuerySanitizer
 import android.util.Base64
 import android.util.DisplayMetrics
@@ -24,12 +23,9 @@ import java.nio.charset.StandardCharsets
  */
 internal interface InAppPlatformDelegate {
     fun parseJavaURI(uriString: String): URI
-    fun parseAndroidUri(uriString: String): Uri
     fun sanitizeUrlQuery(url: String): UrlQuerySanitizer
-    fun decodeBase64ToString(input: String): String
     fun parsePropertiesFromJson(json: String): Map<String, Any>
-    fun openUrl(url: String)
-    fun openUri(uri: Uri)
+    fun openUrl(url: String, useLaunchFlags: Boolean)
     fun startActivity(intent: Intent)
 
     /**
@@ -75,18 +71,8 @@ internal class AndroidInAppPlatformDelegate(
         return URI(uriString)
     }
 
-    override fun parseAndroidUri(uriString: String): Uri {
-        return uriString.toUri()
-    }
-
     override fun sanitizeUrlQuery(url: String): UrlQuerySanitizer {
         return UrlQuerySanitizer(url)
-    }
-
-    override fun decodeBase64ToString(input: String): String {
-        val parameterBinary = Base64.decode(input, Base64.DEFAULT)
-        val parameterString = String(parameterBinary, StandardCharsets.UTF_8)
-        return parameterString
     }
 
     override fun parsePropertiesFromJson(json: String): Map<String, Any> {
@@ -97,17 +83,14 @@ internal class AndroidInAppPlatformDelegate(
         return properties
     }
 
-    override fun openUrl(url: String) {
+    override fun openUrl(url: String, useLaunchFlags: Boolean) {
         val intent = Intent(Intent.ACTION_VIEW)
         intent.data = url.toUri()
-        ContextCompat.startActivity(context, intent, null)
-    }
-
-    override fun openUri(uri: Uri) {
-        val intent = Intent(Intent.ACTION_VIEW)
-        intent.data = uri
-        intent.flags =
-            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        if (useLaunchFlags) {
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
         ContextCompat.startActivity(context, intent, null)
     }
 

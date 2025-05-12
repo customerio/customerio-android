@@ -128,7 +128,7 @@ internal class InlineInAppMessageViewController(
             platformDelegate.animateViewSize(
                 widthInPx = null,
                 heightInPx = 0,
-                duration = 0,
+                duration = null,
                 onStart = null,
                 onEnd = {
                     currentMessage = null

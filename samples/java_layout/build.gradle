@@ -8,7 +8,6 @@ plugins {
 // Include Customer.io SDK dependencies and common gradle properties for sample apps
 ext.appConfigKeyPrefix = 'javaLayout_'
 apply from: "${rootDir}/samples/sample-app.gradle"
-apply from: "${rootDir}/samples/compose-common.gradle"
 
 android {
     namespace 'io.customer.android.sample.java_layout'
@@ -34,10 +33,10 @@ android {
     }
     buildFeatures {
         viewBinding true
-        // compose is enabled in compose-common.gradle
+        // BuildConfig is now enabled in sample-app.gradle
     }
 
-    // composeOptions are configured in compose-common.gradle
+    // No need for composeOptions reference as it's conditionally applied in sample-app.gradle
 }
 
 dependencies {
@@ -61,8 +60,7 @@ dependencies {
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     implementation "io.reactivex.rxjava3:rxjava:3.1.5"
 
-    // Material for Compose - app specific, not in common Gradle
-    implementation "androidx.compose.material:material"
+    // Material for Compose - now conditionally included in sample-app.gradle
 
     // If this block is removed, updating annotation from 1.5.0 and lifecycle version from 2.5.1
     // causes duplicate classes error because a large number of Lifecycle classes have been

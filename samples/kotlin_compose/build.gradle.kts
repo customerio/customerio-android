@@ -10,7 +10,6 @@ apply {
     // Include Customer.io SDK dependencies and common gradle properties for sample apps
     ext.set("appConfigKeyPrefix", "kotlinCompose_")
     from("$rootDir/samples/sample-app.gradle")
-    from("$rootDir/samples/compose-common.gradle")
 }
 
 android {
@@ -40,7 +39,7 @@ android {
             )
         }
     }
-    // buildFeatures and composeOptions are configured in compose-common.gradle
+    // buildFeatures and composeOptions are configured in sample-app.gradle
 
     packaging {
         resources {
@@ -59,9 +58,8 @@ val coroutinesVersion = "1.5.2"
 val roomVersion = "2.4.2"
 
 dependencies {
-    // Compose dependencies are included from compose-common.gradle
-
-    // App-specific Compose dependencies not included in common Gradle
+    // Compose dependencies are included from sample-app.gradle
+    implementation("androidx.activity:activity-compose:1.7.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")

@@ -1,32 +1,28 @@
-package io.customer.messaginginapp.ui
+package io.customer.messaginginapp.ui.controller
 
-import android.content.Context
-import android.util.AttributeSet
-import androidx.annotation.AttrRes
-import androidx.annotation.StyleRes
+import android.view.ViewGroup
 import androidx.annotation.UiThread
-import androidx.core.view.updateLayoutParams
+import androidx.core.view.isVisible
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.InlineMessageState
+import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewListener
 
-@Suppress("MemberVisibilityCanBePrivate")
-abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    @AttrRes defStyleAttr: Int = 0,
-    @StyleRes defStyleRes: Int = 0
-) : InAppMessageBaseView(context, attrs, defStyleAttr, defStyleRes) {
-    internal var viewCallback: InlineInAppMessageViewListener? = null
-
-    protected val elapsedTimer: ElapsedTimer = ElapsedTimer()
-    protected var contentWidthInDp: Double? = null
-    protected var contentHeightInDp: Double? = null
-
-    var elementId: String? = null
+internal class InlineInAppMessageViewController(
+    viewDelegate: ViewGroup,
+    platformDelegate: InAppPlatformDelegate
+) : InAppMessageViewController<InlineInAppMessageViewListener>(
+    type = "Inline",
+    platformDelegate = platformDelegate,
+    viewDelegate = viewDelegate
+) {
+    private val elapsedTimer: ElapsedTimer = ElapsedTimer()
+    private var contentWidthInDp: Double? = null
+    private var contentHeightInDp: Double? = null
+    internal var elementId: String? = null
         set(value) {
             val oldValue = field
             field = value
@@ -38,7 +34,7 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
         }
 
     init {
-        visibility = GONE
+        viewDelegate.isVisible = false
         subscribeToStore()
     }
 
@@ -52,15 +48,15 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
                 return@subscribeToState oldMessage == newMessage
             }
         ) { state ->
-            post { refreshViewState(state = state) }
+            viewDelegate.post { refreshViewState(state = state) }
         }
     }
 
-    protected open fun onElementIdChanged() {
+    private fun onElementIdChanged() {
         // Since the elementId has been changed, we need to fetch
         // current state to ensure correct message is displayed
         val state = inAppMessagingManager.getCurrentState()
-        post { refreshViewState(state = state) }
+        viewDelegate.post { refreshViewState(state = state) }
     }
 
     override fun routeLoaded(route: String) {
@@ -71,13 +67,18 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
         }
     }
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
+    internal fun onDetachedFromWindow() {
         val message = currentMessage ?: return
 
         if (platformDelegate.shouldDestroyViewOnDetach()) {
             logViewEvent("View detached from window, dismissing inline message view for $elementId ")
-            inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = message, shouldLog = false, viaCloseAction = false))
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.DismissMessage(
+                    message = message,
+                    shouldLog = false,
+                    viaCloseAction = false
+                )
+            )
         } else {
             logViewEvent("Skipping destroy for inline message view for $elementId — likely config change or temporary detach")
         }
@@ -123,9 +124,23 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
     @UiThread
     private fun dismissMessage(message: Message, onComplete: (() -> Unit)) {
         logViewEvent("Dismissing inline message: ${message.messageId}")
-        hideView {
-            currentMessage = null
-            onComplete()
+        stopEngineWebViewLoading()
+        viewDelegate.post {
+            platformDelegate.animateViewSize(
+                widthInPx = null,
+                heightInPx = 0,
+                duration = 0,
+                onStart = null,
+                onEnd = {
+                    currentMessage = null
+                    viewDelegate.isVisible = false
+                    contentWidthInDp = null
+                    contentHeightInDp = null
+                    detachAndCleanupEngineWebView()
+                    viewCallback?.onNoMessageToDisplay()
+                    onComplete()
+                }
+            )
         }
     }
 
@@ -134,8 +149,8 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
         elapsedTimer.start("Displaying inline message: ${message.messageId}")
         attachEngineWebView()
         viewCallback?.onLoadingStarted()
-        visibility = VISIBLE
-        setup(message)
+        viewDelegate.isVisible = true
+        loadMessage(message)
     }
 
     override fun sizeChanged(width: Double, height: Double) {
@@ -147,35 +162,27 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
 
         contentWidthInDp = width
         contentHeightInDp = height
-        post { showMessageView(width, height) }
+        super.sizeChanged(width, height)
         elapsedTimer.end()
     }
 
-    /**
-     * Expands the view to the specified width and height (in dp), with animation.
-     * This updates the size of the inline message view, notifies listeners,
-     * and ensures the content (e.g. WebView) is shown on top after hiding the loader.
-     */
-    @UiThread
-    private fun showMessageView(widthInDp: Double, heightInDp: Double) {
-        logViewEvent("Updating inline message size: $widthInDp x $heightInDp")
-
-        val widthInPx = platformDelegate.convertDpToPixels(widthInDp)
-        val heightInPx = platformDelegate.convertDpToPixels(heightInDp)
-        viewCallback?.onViewSizeChanged(widthInPx, heightInPx)
-
-        platformDelegate.animateViewSize(
-            widthInPx = widthInPx,
-            heightInPx = heightInPx,
-            onStart = {
-                engineWebView?.let { view ->
-                    view.alpha = 1.0F
-                    view.bringToFront()
-                }
-                viewCallback?.onLoadingFinished()
-            },
-            onEnd = {}
-        )
+    override fun onWebViewSizeUpdated(widthInPx: Int, heightInPx: Int) {
+        super.onWebViewSizeUpdated(widthInPx, heightInPx)
+        viewDelegate.post {
+            platformDelegate.animateViewSize(
+                widthInPx = widthInPx,
+                heightInPx = heightInPx,
+                duration = null,
+                onStart = {
+                    engineWebViewDelegate?.let { delegate ->
+                        delegate.setAlpha(1.0F)
+                        delegate.bringToFront()
+                    }
+                    viewCallback?.onLoadingFinished()
+                },
+                onEnd = null
+            )
+        }
     }
 
     /**
@@ -183,45 +190,10 @@ abstract class InlineInAppMessageBaseView @JvmOverloads constructor(
      * This method should be called when EngineWebView instance is no longer needed.
      */
     @UiThread
-    internal fun detachAndCleanupEngineWebView() {
-        val view = engineWebView ?: return
-
+    private fun detachAndCleanupEngineWebView() {
+        logViewEvent("Detaching and cleaning up EngineWebView")
+        val view = engineWebViewDelegate
         detachEngineWebView()
-        view.releaseResources()
-    }
-
-    /**
-     * Collapses the view by animating its height to zero and hiding internal elements.
-     * This is an asynchronous operation when [shouldAnimate] is true.
-     * Use [onComplete] to perform any actions after the collapse completes.
-     */
-    @UiThread
-    internal fun hideView(
-        shouldAnimate: Boolean = true,
-        onComplete: (() -> Unit)? = null
-    ) {
-        val completionHandler: () -> Unit = {
-            visibility = GONE
-            engineWebView?.alpha = 0F
-            contentWidthInDp = null
-            contentHeightInDp = null
-            detachAndCleanupEngineWebView()
-            viewCallback?.onNoMessageToDisplay()
-            onComplete?.invoke()
-        }
-
-        logViewEvent("Hiding inline message view with animation: $shouldAnimate")
-        stopLoading()
-        if (shouldAnimate) {
-            platformDelegate.animateViewSize(
-                heightInPx = 0,
-                onEnd = completionHandler
-            )
-        } else {
-            updateLayoutParams {
-                height = 0
-            }
-            completionHandler()
-        }
+        view?.releaseResources()
     }
 }

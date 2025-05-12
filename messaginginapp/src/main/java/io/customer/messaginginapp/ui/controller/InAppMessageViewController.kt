@@ -39,9 +39,6 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
      */
     internal var actionListener: InlineMessageActionListener? = null
 
-    internal val isEngineWebViewAttached: Boolean
-        get() = engineWebViewDelegate != null
-
     internal fun logViewEvent(message: String) {
         logger.debug("[InApp][$type] $message")
     }
@@ -49,24 +46,23 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @UiThread
     protected fun attachEngineWebView() {
         logViewEvent("Attaching EngineWebView")
-        if (isEngineWebViewAttached) {
+        if (engineWebViewDelegate != null) {
             logViewEvent("EngineWebView already attached, skipping")
             return
         }
 
-        val delegate = viewDelegate.createEngineWebViewInstance()
-        engineWebViewDelegate = delegate
-
-        delegate.setAlpha(0.0f)
-        delegate.listener = this
-        viewDelegate.addView(delegate)
+        engineWebViewDelegate = viewDelegate.createEngineWebViewInstance().also { engine ->
+            engine.setAlpha(0.0f)
+            engine.listener = this
+            viewDelegate.addView(engine)
+        }
     }
 
     @UiThread
     protected fun detachEngineWebView() {
         logViewEvent("Detaching EngineWebView")
         val delegate = engineWebViewDelegate
-        if (!isEngineWebViewAttached || delegate == null) {
+        if (delegate == null) {
             logViewEvent("EngineWebView already detached, skipping")
             return
         }
@@ -149,7 +145,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
                     "loadPage" -> {
                         val url = urlQuery.getValue("url")
                         logViewEvent("Opening URL: $url")
-                        platformDelegate.openUrl(url)
+                        platformDelegate.openUrl(url = url, useLaunchFlags = false)
                     }
 
                     "showMessage" -> {
@@ -184,7 +180,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
                 try {
                     shouldLogAction = false
                     logViewEvent("Dismissing from system action: $action")
-                    platformDelegate.openUri(platformDelegate.parseAndroidUri(action))
+                    platformDelegate.openUrl(url = action, useLaunchFlags = true)
 
                     // launch system action first otherwise there is a possibility
                     // that due to lifecycle change and message still being in queue to be displayed

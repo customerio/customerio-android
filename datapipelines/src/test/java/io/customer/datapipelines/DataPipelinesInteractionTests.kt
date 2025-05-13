@@ -896,5 +896,35 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         assertCalledOnce { mockDataPipelinesLogger.logRegisteringPushToken(token, null) }
     }
+
+    @Test
+    fun identify_givenNewIdentifiedUser_shouldLogAutomaticTokenRegistrationForNewProfile() {
+        val token = "fcm-token"
+        val userId = "someEmail@customer.io"
+        every { globalPreferenceStore.getDeviceToken() } returns token
+
+        sdkInstance.identify(userId)
+
+        assertCalledOnce { mockDataPipelinesLogger.automaticTokenRegistrationForNewProfile(token, userId) }
+    }
+
+    @Test
+    fun identify_givenIdentifiedUserChanged_shouldLogDeletingTokenDueToNewProfileIdentification() {
+        every { globalPreferenceStore.getDeviceToken() } returns String.random
+
+        sdkInstance.identify("someEmail@customer.io")
+        sdkInstance.identify("differentEmail@customer.io")
+
+        assertCalledOnce { mockDataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification() }
+    }
+
+    @Test
+    fun identify_givenNewIdentifiedUserWithBlankToken_shouldLogDeletingTokenDueToNewProfileIdentification() {
+        every { globalPreferenceStore.getDeviceToken() } returns ""
+
+        sdkInstance.identify("someEmail@customer.io")
+
+        assertCalledOnce { mockDataPipelinesLogger.logTrackingDevicesAttributesWithoutValidToken() }
+    }
     //endregion Logging
 }

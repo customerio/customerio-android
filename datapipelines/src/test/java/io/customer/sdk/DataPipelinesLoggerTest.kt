@@ -143,6 +143,42 @@ class DataPipelinesLoggerTest : JUnitTest() {
         }
     }
 
+    @Test
+    fun test_automaticTokenRegistrationForNewProfiled_forwardsCorrectLog() {
+        initLogger.automaticTokenRegistrationForNewProfile("token", "user-id")
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Automatically registering device token: token to newly identified profile: user-id"
+            )
+        }
+    }
+
+    @Test
+    fun test_logDeletingTokenDueToNewProfileIdentification_forwardsCorrectLog() {
+        initLogger.logDeletingTokenDueToNewProfileIdentification()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Deleting device token before identifying new profile"
+            )
+        }
+    }
+
+    @Test
+    fun test_logTrackingDevicesAttributesWithoutValidToken_forwardsCorrectLog() {
+        initLogger.logTrackingDevicesAttributesWithoutValidToken()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "No device token found. ignoring request to track device attributes"
+            )
+        }
+    }
+
     private class TestModule(
         private val name: String,
         private val configString: String

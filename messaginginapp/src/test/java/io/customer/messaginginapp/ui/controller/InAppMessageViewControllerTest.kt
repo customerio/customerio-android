@@ -68,6 +68,21 @@ class InAppMessageViewControllerTest : JUnitTest() {
 
     @Test
     fun tap_givenActionAndNoCurrentMessage_expectNoMessageManagerInteraction() {
+        controller.currentRoute = String.random
+
+        controller.tap(
+            name = String.random,
+            action = String.random,
+            system = true
+        )
+
+        assertNoInteractions(inAppMessagingManager)
+    }
+
+    @Test
+    fun tap_givenActionAndNoCurrentRoute_expectNoMessageManagerInteraction() {
+        controller.currentMessage = createInAppMessage()
+
         controller.tap(
             name = String.random,
             action = String.random,

@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
+import androidx.annotation.UiThread
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
@@ -31,10 +32,12 @@ internal class ModalInAppMessageView @JvmOverloads constructor(
         controller.viewCallback = viewCallback
     }
 
+    @UiThread
     internal fun setup(message: Message) {
         controller.loadMessage(message = message)
     }
 
+    @UiThread
     internal fun stopLoading() {
         controller.stopLoading()
     }

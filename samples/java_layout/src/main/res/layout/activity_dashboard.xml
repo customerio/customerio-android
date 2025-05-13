@@ -64,10 +64,10 @@
                 android:id="@+id/user_email_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:ellipsize="end"
                 android:gravity="center"
                 android:maxLines="2"
-                android:layout_marginStart="8dp"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 app:layout_constrainedWidth="true"
                 app:layout_constraintBottom_toTopOf="@id/device_id_label"
@@ -93,11 +93,11 @@
                 android:id="@+id/device_id_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackground"
                 android:ellipsize="end"
                 android:gravity="center"
                 android:maxLines="2"
-                android:layout_marginStart="8dp"
-                android:background="?attr/selectableItemBackground"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 app:layout_constrainedWidth="true"
                 app:layout_constraintBottom_toTopOf="@id/title_message_text_view"
@@ -211,7 +211,7 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/view_logs_button"
-                app:layout_constraintWidth_max="@dimen/material_button_max_width"/>
+                app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <Button
                 android:id="@+id/inline_examples_compose_button"
@@ -224,7 +224,7 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/inline_examples_xml_layout_button"
-                app:layout_constraintWidth_max="@dimen/material_button_max_width"/>
+                app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <Button
                 android:id="@+id/logout_button"
@@ -236,7 +236,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/inline_examples_xml_layout_button"
+                app:layout_constraintTop_toBottomOf="@id/inline_examples_compose_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <TextView

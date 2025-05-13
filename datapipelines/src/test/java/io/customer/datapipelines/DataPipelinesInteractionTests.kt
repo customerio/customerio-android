@@ -2,6 +2,7 @@ package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.JUnitTest
@@ -13,6 +14,7 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.sdk.DataPipelinesLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Settings
@@ -20,6 +22,7 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
 import io.mockk.every
+import io.mockk.mockk
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBe
@@ -40,8 +43,18 @@ class DataPipelinesInteractionTests : JUnitTest() {
     private lateinit var deviceStore: DeviceStore
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
+    private val mockDataPipelinesLogger = mockk<DataPipelinesLogger>(relaxed = true)
+
     override fun setup(testConfig: TestConfig) {
-        super.setup(testConfig)
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<DataPipelinesLogger>(mockDataPipelinesLogger)
+                    }
+                }
+            }
+        )
 
         val androidSDKComponent = SDKComponent.android()
         globalPreferenceStore = androidSDKComponent.globalPreferenceStore
@@ -858,4 +871,30 @@ class DataPipelinesInteractionTests : JUnitTest() {
     }
 
     //endregion
+
+    //region Logging
+    @Test
+    fun registerDeviceToken_givenValidToken_shouldLogStoringPushToken() {
+        val token = "fcm-token"
+        sdkInstance.registerDeviceToken(token)
+
+        assertCalledOnce { mockDataPipelinesLogger.logStoringDevicePushToken(token, null) }
+    }
+
+    @Test
+    fun registerDeviceToken_givenBlankToken_shouldLogStoringPushToken() {
+        val token = ""
+        sdkInstance.registerDeviceToken(token)
+
+        assertCalledOnce { mockDataPipelinesLogger.logStoringBlankPushToken() }
+    }
+
+    @Test
+    fun registerDeviceToken_givenValidToken_shouldLogRegisteringPushToken() {
+        val token = "fcm-token"
+        sdkInstance.registerDeviceToken(token)
+
+        assertCalledOnce { mockDataPipelinesLogger.logRegisteringPushToken(token, null) }
+    }
+    //endregion Logging
 }

@@ -2,11 +2,14 @@
 
 package io.customer.messagingpush.di
 
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.PushDeliveryTracker
 import io.customer.messagingpush.PushDeliveryTrackerImpl
+import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.network.HttpClient
 import io.customer.messagingpush.network.HttpClientImpl
 import io.customer.messagingpush.processor.PushMessageProcessor
@@ -27,7 +30,14 @@ The use of extensions was chosen over creating a separate graph class for each m
  */
 
 internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
-    get() = newInstance<DeviceTokenProvider> { FCMTokenProviderImpl(context = applicationContext) }
+    get() = newInstance<DeviceTokenProvider> {
+        FCMTokenProviderImpl(
+            context = applicationContext,
+            googleApiAvailabilityProvider = { GoogleApiAvailability.getInstance() },
+            firebaseMessagingProvider = { FirebaseMessaging.getInstance() },
+            pushLogger = SDKComponent.pushLogger
+        )
+    }
 
 val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
     get() = newInstance {
@@ -55,3 +65,6 @@ internal val SDKComponent.httpClient: HttpClient
 
 internal val SDKComponent.pushDeliveryTracker: PushDeliveryTracker
     get() = singleton<PushDeliveryTracker> { PushDeliveryTrackerImpl() }
+
+internal val SDKComponent.pushLogger: PushNotificationLogger
+    get() = singleton<PushNotificationLogger> { PushNotificationLogger(logger) }

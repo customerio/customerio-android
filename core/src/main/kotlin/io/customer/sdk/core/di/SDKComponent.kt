@@ -5,6 +5,7 @@ import io.customer.sdk.communication.EventBusImpl
 import io.customer.sdk.core.environment.BuildEnvironment
 import io.customer.sdk.core.environment.DefaultBuildEnvironment
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.LoggerImpl
@@ -22,7 +23,7 @@ import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 object SDKComponent : DiGraph() {
     // Static map to store all the modules registered with the SDK
-    val modules: MutableMap<String, CustomerIOModule<*>> = mutableMapOf()
+    val modules: MutableMap<String, CustomerIOModule<out CustomerIOModuleConfig>> = mutableMapOf()
 
     // Android component dependencies
     val activityLifecycleCallbacks: CustomerIOActivityLifecycleCallbacks

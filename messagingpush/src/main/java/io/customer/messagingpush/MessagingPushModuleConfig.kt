@@ -65,6 +65,10 @@ class MessagingPushModuleConfig private constructor(
         }
     }
 
+    override fun toString(): String {
+        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior)"
+    }
+
     companion object {
         internal fun default(): MessagingPushModuleConfig = Builder().build()
     }

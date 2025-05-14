@@ -43,12 +43,17 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         logger.debug("[InApp][$type] $message")
     }
 
+    /**
+     * Attaches a new EngineWebView instance to the view hierarchy if not already attached.
+     * Initializes the delegate, sets its alpha and listener, and adds it to the view.
+     * @return true if a new EngineWebView was attached, false if already attached.
+     */
     @UiThread
-    protected fun attachEngineWebView() {
+    internal open fun attachEngineWebView(): Boolean {
         logViewEvent("Attaching EngineWebView")
         if (engineWebViewDelegate != null) {
             logViewEvent("EngineWebView already attached, skipping")
-            return
+            return false
         }
 
         engineWebViewDelegate = viewDelegate.createEngineWebViewInstance().also { engine ->
@@ -56,21 +61,27 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             engine.listener = this
             viewDelegate.addView(engine)
         }
+        return true
     }
 
+    /**
+     * Detaches and cleans up currently attached EngineWebView instance, if present.
+     * Clears listeners, removes the view from hierarchy, and sets the delegate to null.
+     * @return true if an EngineWebView was detached, false if already detached.
+     */
     @UiThread
-    protected fun detachEngineWebView() {
+    internal open fun detachEngineWebView(): Boolean {
         logViewEvent("Detaching EngineWebView")
         val delegate = engineWebViewDelegate
         if (delegate == null) {
             logViewEvent("EngineWebView already detached, skipping")
-            return
+            return false
         }
 
         engineWebViewDelegate = null
-        viewCallback = null
         delegate.listener = null
         viewDelegate.removeView(delegate)
+        return true
     }
 
     @UiThread
@@ -89,6 +100,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         engineWebViewDelegate?.setup(config)
     }
 
+    @UiThread
     internal fun stopLoading() {
         logViewEvent("Stopping EngineWebView loading")
         stopEngineWebViewLoading()

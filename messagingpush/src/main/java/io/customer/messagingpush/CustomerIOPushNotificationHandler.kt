@@ -55,7 +55,6 @@ internal class CustomerIOPushNotificationHandler(
     }
 
     private val diGraph = SDKComponent
-    private val logger = SDKComponent.logger
     private val pushLogger = SDKComponent.pushLogger
 
     private val moduleConfig: MessagingPushModuleConfig
@@ -73,10 +72,10 @@ internal class CustomerIOPushNotificationHandler(
         context: Context,
         handleNotificationTrigger: Boolean = true
     ): Boolean {
-        logger.debug("Handling push message. Bundle: $bundle")
+        pushLogger.logReceivedPushMessage(remoteMessage, handleNotificationTrigger)
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
-            logger.debug("Push message received is empty")
+            pushLogger.logReceivedEmptyPushMessage()
             return false
         }
 
@@ -87,12 +86,15 @@ internal class CustomerIOPushNotificationHandler(
         val deliveryToken = bundle.getString(DELIVERY_TOKEN_KEY)
 
         if (deliveryId != null && deliveryToken != null) {
+            // CIO push notification
+            pushLogger.logReceivedCioPushMessage()
             // Use processor to track metrics properly and avoid duplication
             pushMessageProcessor.processRemoteMessageDeliveredMetrics(
                 deliveryId = deliveryId,
                 deliveryToken = deliveryToken
             )
         } else {
+            pushLogger.logReceivedNonCioPushMessage()
             // not a CIO push notification
             return false
         }

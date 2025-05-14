@@ -19,6 +19,14 @@ internal class ModalInAppMessageViewController(
         attachEngineWebView()
     }
 
+    override fun detachEngineWebView(): Boolean {
+        val result = super.detachEngineWebView()
+        if (result) {
+            viewCallback = null
+        }
+        return result
+    }
+
     override fun routeLoaded(route: String) {
         super.routeLoaded(route)
         if (!isMessageDisplayed) return

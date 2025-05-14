@@ -15,15 +15,18 @@ import io.customer.messaginginapp.ui.bridge.InAppMessageViewCallback
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.sdk.core.di.SDKComponent
 
+import io.customer.base.internal.InternalCustomerIOApi
+
 /**
  * Base controller class for managing in-app message view behavior.
  * Encapsulates logic for view state transitions, sizing, lifecycle, and WebView interaction.
  * Designed to decouple business logic from Android view classes for better testability and reuse.
  */
-internal abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallback>(
+@InternalCustomerIOApi
+abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallback>(
     protected val type: String,
     protected val platformDelegate: InAppPlatformDelegate,
-    protected val viewDelegate: InAppHostViewDelegate
+    val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
     internal val logger = SDKComponent.logger
     internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -31,13 +34,13 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     internal var engineWebViewDelegate: EngineWebViewDelegate? = null
     internal var currentMessage: Message? = null
     internal var currentRoute: String? = null
-    internal var viewCallback: ViewCallback? = null
+    var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.
      * Set this property to receive callbacks when actions are triggered.
      */
-    internal var actionListener: InlineMessageActionListener? = null
+    var actionListener: InlineMessageActionListener? = null
 
     internal fun logViewEvent(message: String) {
         logger.debug("[InApp][$type] $message")

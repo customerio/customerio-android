@@ -1,9 +1,12 @@
 package io.customer.messaginginapp.ui.bridge
 
+import io.customer.base.internal.InternalCustomerIOApi
+
 /**
  * Base callback interface to send events from in-app messages view to the host component.
  */
-internal interface InAppMessageViewCallback {
+@InternalCustomerIOApi
+interface InAppMessageViewCallback {
     fun onViewSizeChanged(width: Int, height: Int) {}
 }
 
@@ -15,7 +18,8 @@ internal interface ModalInAppMessageViewCallback : InAppMessageViewCallback
 /**
  * Callback interface to send events from in-app messages view to the host component.
  */
-internal interface InlineInAppMessageViewCallback : InAppMessageViewCallback {
+@InternalCustomerIOApi
+interface InlineInAppMessageViewCallback : InAppMessageViewCallback {
     fun onLoadingStarted()
     fun onLoadingFinished()
     fun onNoMessageToDisplay()

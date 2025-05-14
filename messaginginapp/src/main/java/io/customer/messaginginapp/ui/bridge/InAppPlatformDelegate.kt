@@ -15,13 +15,16 @@ import io.customer.messaginginapp.ui.extensions.findActivity
 import java.net.URI
 import java.nio.charset.StandardCharsets
 
+import io.customer.base.internal.InternalCustomerIOApi
+
 /**
  * Delegate interface to abstract Android platform operations used by in-app messaging views.
  * Encapsulates operations like URI parsing, URL sanitization, Base64 decoding, view animations,
  * activity launching, and utility conversions.
  * Allows for easier testing and mocking of platform-specific behavior.
  */
-internal interface InAppPlatformDelegate {
+@InternalCustomerIOApi
+interface InAppPlatformDelegate {
     fun parseJavaURI(uriString: String): URI
     fun sanitizeUrlQuery(url: String): UrlQuerySanitizer
     fun parsePropertiesFromJson(json: String): Map<String, Any>
@@ -61,7 +64,8 @@ internal interface InAppPlatformDelegate {
  * The implementation is coupled to a specific [View] instance, which is used for context and
  * UI related operations.
  */
-internal class AndroidInAppPlatformDelegate(
+@InternalCustomerIOApi
+class AndroidInAppPlatformDelegate(
     private val view: View
 ) : InAppPlatformDelegate {
     private val context: Context

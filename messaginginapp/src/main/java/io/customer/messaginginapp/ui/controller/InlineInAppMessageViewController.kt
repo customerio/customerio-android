@@ -10,7 +10,10 @@ import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 
-internal class InlineInAppMessageViewController(
+import io.customer.base.internal.InternalCustomerIOApi
+
+@InternalCustomerIOApi
+class InlineInAppMessageViewController(
     viewDelegate: InAppHostViewDelegate,
     platformDelegate: InAppPlatformDelegate
 ) : InAppMessageViewController<InlineInAppMessageViewCallback>(
@@ -21,7 +24,7 @@ internal class InlineInAppMessageViewController(
     private val elapsedTimer: ElapsedTimer = ElapsedTimer()
     private var contentWidthInDp: Double? = null
     private var contentHeightInDp: Double? = null
-    internal var elementId: String? = null
+    var elementId: String? = null
         set(value) {
             val oldValue = field
             field = value

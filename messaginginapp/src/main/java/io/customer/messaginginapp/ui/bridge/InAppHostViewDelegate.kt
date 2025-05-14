@@ -4,13 +4,16 @@ import android.view.ViewGroup
 import androidx.core.view.isVisible
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 
+import io.customer.base.internal.InternalCustomerIOApi
+
 /**
  * Delegate interface that abstracts host view operations for in-app messages.
  * Allows operations like adding/removing child views, creating new view instances,
  * and posting actions on UI thread without directly depending on Android framework.
  * Designed for easier testing and mocking.
  */
-internal interface InAppHostViewDelegate {
+@InternalCustomerIOApi
+interface InAppHostViewDelegate {
     var isVisible: Boolean
 
     fun addView(delegate: EngineWebViewDelegate)
@@ -23,7 +26,8 @@ internal interface InAppHostViewDelegate {
  * Default implementation of [InAppHostViewDelegate] that wraps a real Android ViewGroup.
  * Simplifies implementation by providing a concrete way to manage child views and UI actions.
  */
-internal class InAppHostViewDelegateImpl(
+@InternalCustomerIOApi
+class InAppHostViewDelegateImpl(
     private val view: ViewGroup
 ) : InAppHostViewDelegate {
     override var isVisible: Boolean

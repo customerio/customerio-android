@@ -2,9 +2,11 @@ package io.customer.android.sample.java_layout.ui.inline.compose
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,16 +30,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
-import io.customer.android.sample.java_layout.ui.inline.InlineMessageActionListenerImpl
-import io.customer.messaginginapp.ui.InlineInAppMessageView
+import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment.Companion.TAG
+import io.customer.messaginginapp.compose.InlineInAppMessageView
 
 /**
  * A fragment that demonstrates how to use InlineInAppMessageView with Jetpack Compose
- * in a Java-based app.
+ * in a Java-based app. This implementation wraps the XML-based InlineInAppMessageView in a
+ * Compose-friendly way.
  */
 class ComposeInlineExampleFragment : BaseComposeFragment() {
+    companion object {
+        const val TAG = "ComposeInlineExample"
+        
+        @JvmStatic
+        fun newInstance() = ComposeInlineExampleFragment()
+    }
 
     override fun createComposeView(
         inflater: LayoutInflater,
@@ -50,11 +58,6 @@ class ComposeInlineExampleFragment : BaseComposeFragment() {
             }
         }
     }
-
-    companion object {
-        @JvmStatic
-        fun newInstance() = ComposeInlineExampleFragment()
-    }
 }
 
 @Composable
@@ -66,18 +69,19 @@ fun ComposeInlineExampleScreen(context: Context) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                // No header to match XML layout
-
                 // Header inline in-app message (sticky header)
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp),
-                    factory = { ctx ->
-                        InlineInAppMessageView(ctx).apply {
-                            elementId = "sticky-header"
-                            setActionListener(InlineMessageActionListenerImpl(ctx, "Header"))
-                        }
+                // Using the same elementId "sticky-header" as in XML example
+                InlineInAppMessageView(
+                    elementId = "sticky-header",
+                    modifier = Modifier.fillMaxWidth(),
+                    progressTint = MaterialTheme.colors.primary,  // Using theme's primary color for loading indicator
+                    onAction = { action -> 
+                        // Log the action click
+                        Log.d(TAG, "[Header] Action clicked with value: $action")
+                        
+                        // Show a toast to the user
+                        val toastMessage = "Header Action Value: $action"
+                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
                     }
                 )
 
@@ -86,17 +90,20 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier.padding(16.dp)
                 )
 
-                // Middle inline in-app message
-                AndroidView(
+                // Middle inline in-app message with "inline" elementId to match XML
+                InlineInAppMessageView(
+                    elementId = "inline",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp)
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    factory = { ctx ->
-                        InlineInAppMessageView(ctx).apply {
-                            elementId = "inline"
-                            setActionListener(InlineMessageActionListenerImpl(ctx, "Inline"))
-                        }
+                    progressTint = Color(0xFF03DAC5),  // Using a custom teal color
+                    onAction = { action -> 
+                        // Log the action click
+                        Log.d(TAG, "[Inline] Action clicked with value: $action")
+                        
+                        // Show a toast to the user
+                        val toastMessage = "Inline Action Value: $action"
+                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
                     }
                 )
 
@@ -115,17 +122,19 @@ fun ComposeInlineExampleScreen(context: Context) {
                 // Third profile card layout
                 ProfileCardPlaceholder(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
 
-                // Bottom inline in-app message (below fold)
-                AndroidView(
+                // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
+                InlineInAppMessageView(
+                    elementId = "below-fold",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp)
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    factory = { ctx ->
-                        InlineInAppMessageView(ctx).apply {
-                            elementId = "below-fold"
-                            setActionListener(InlineMessageActionListenerImpl(ctx, "Below Fold"))
-                        }
+                    onAction = { action -> 
+                        // Log the action click
+                        Log.d(TAG, "[Below Fold] Action clicked with value: $action")
+                        
+                        // Show a toast to the user
+                        val toastMessage = "Below Fold Action Value: $action"
+                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
                     }
                 )
             }

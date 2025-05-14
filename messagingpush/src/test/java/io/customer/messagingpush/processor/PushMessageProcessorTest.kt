@@ -19,6 +19,7 @@ import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCa
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.pushMessageProcessor
+import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -41,6 +42,7 @@ import org.robolectric.Shadows
 class PushMessageProcessorTest : IntegrationTest() {
     private lateinit var deepLinkUtilMock: DeepLinkUtil
     private lateinit var eventBus: EventBus
+    private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
         return SDKComponent.pushMessageProcessor as PushMessageProcessorImpl
@@ -53,6 +55,7 @@ class PushMessageProcessorTest : IntegrationTest() {
                     sdk {
                         overrideDependency<DeepLinkUtil>(mockk())
                         overrideDependency<EventBus>(mockk(relaxed = true))
+                        overrideDependency<PushNotificationLogger>(mockPushLogger)
                     }
                 }
             }
@@ -118,6 +121,16 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processMessage_givenDeliveryDataInvalid_expectLogEmptyDeliveryId() {
+        val givenDeliveryId = ""
+        val processor = pushMessageProcessor()
+
+        processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+
+        assertCalledOnce { mockPushLogger.logReceivedPushMessageWithEmptyDeliveryId() }
+    }
+
+    @Test
     fun processMessage_givenMessageReceivedMultipleTimes_expectDoNoProcessPushMoreThanOnce() {
         val givenDeliveryId = String.random
         val processor = pushMessageProcessor()
@@ -132,6 +145,17 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processMessage_givenMessageReceivedMultipleTimes_expectLogDuplicateDeliveryId() {
+        val givenDeliveryId = String.random
+        val processor = pushMessageProcessor()
+
+        processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+        processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+
+        assertCalledOnce { mockPushLogger.logReceivedDuplicatePushMessageDeliveryId(givenDeliveryId) }
+    }
+
+    @Test
     fun processMessage_givenNewMessageReceived_expectProcessPush() {
         val givenDeliveryId = String.random
         val processor = pushMessageProcessor()
@@ -139,6 +163,16 @@ class PushMessageProcessorTest : IntegrationTest() {
         val result = processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
 
         result.shouldBeFalse()
+    }
+
+    @Test
+    fun processMessage_givenNewMessageReceived_expectLogNewMessageWithDeliveryId() {
+        val givenDeliveryId = String.random
+        val processor = pushMessageProcessor()
+
+        processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
+
+        assertCalledOnce { mockPushLogger.logReceivedNewMessageWithDeliveryId(givenDeliveryId) }
     }
 
     @Test
@@ -246,6 +280,22 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsDisabled_expectLogAutoTrackingDisabled() {
+        val givenDeliveryId = String.random
+        val givenDeviceToken = String.random
+        ModuleMessagingPushFCM(
+            moduleConfig = MessagingPushModuleConfig.Builder()
+                .setAutoTrackPushEvents(false)
+                .build()
+        ).attachToSDKComponent()
+        val processor = pushMessageProcessor()
+
+        processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
+
+        assertCalledOnce { mockPushLogger.logPushMetricsAutoTrackingDisabled() }
+    }
+
+    @Test
     fun processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsEnabled_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
@@ -267,6 +317,22 @@ class PushMessageProcessorTest : IntegrationTest() {
                 )
             )
         }
+    }
+
+    @Test
+    fun processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsEnabled_expectLogTrackingPushDelivered() {
+        val givenDeliveryId = String.random
+        val givenDeviceToken = String.random
+        ModuleMessagingPushFCM(
+            moduleConfig = MessagingPushModuleConfig.Builder()
+                .setAutoTrackPushEvents(true)
+                .build()
+        ).attachToSDKComponent()
+        val processor = pushMessageProcessor()
+
+        processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
+
+        assertCalledOnce { mockPushLogger.logTrackingPushMessageDelivered(givenDeliveryId) }
     }
 
     @Test

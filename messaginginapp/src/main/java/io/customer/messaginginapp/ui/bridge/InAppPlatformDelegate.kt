@@ -2,7 +2,6 @@ package io.customer.messaginginapp.ui.bridge
 
 import android.content.Context
 import android.content.Intent
-import android.net.UrlQuerySanitizer
 import android.util.Base64
 import android.util.DisplayMetrics
 import android.view.View
@@ -26,7 +25,7 @@ import io.customer.base.internal.InternalCustomerIOApi
 @InternalCustomerIOApi
 interface InAppPlatformDelegate {
     fun parseJavaURI(uriString: String): URI
-    fun sanitizeUrlQuery(url: String): UrlQuerySanitizer
+    fun sanitizeUrlQuery(url: String): UrlQuerySanitizerWrapper
     fun parsePropertiesFromJson(json: String): Map<String, Any>
     fun openUrl(url: String, useLaunchFlags: Boolean)
     fun startActivity(intent: Intent)
@@ -75,8 +74,8 @@ class AndroidInAppPlatformDelegate(
         return URI(uriString)
     }
 
-    override fun sanitizeUrlQuery(url: String): UrlQuerySanitizer {
-        return UrlQuerySanitizer(url)
+    override fun sanitizeUrlQuery(url: String): UrlQuerySanitizerWrapper {
+        return AndroidUrlQuerySanitizer(url)
     }
 
     override fun parsePropertiesFromJson(json: String): Map<String, Any> {

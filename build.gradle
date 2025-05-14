@@ -70,6 +70,7 @@ apiValidation {
      */
     ignoredClasses.add("io.customer.messagingpush.BuildConfig")
     ignoredClasses.add("io.customer.messaginginapp.BuildConfig")
+    ignoredClasses.add("io.customer.messaginginapp.compose.BuildConfig")
     ignoredClasses.add("io.customer.sdk.BuildConfig")
 }
 

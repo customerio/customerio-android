@@ -36,4 +36,8 @@ object Versions {
     internal const val ROBOLECTRIC = "4.9"
     internal const val OKHTTP = "4.11.0"
     internal const val RETROFIT = "2.9.0"
+    
+    // Compose versions
+    internal const val COMPOSE_BOM = "2023.08.00"
+    internal const val COMPOSE_COMPILER = "1.4.7"
 }

@@ -1,11 +1,10 @@
 package io.customer.messaginginapp.ui.bridge
 
 import android.view.View
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
-
-import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Delegate interface to decouple [EngineWebView] from its consumers.

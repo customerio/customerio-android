@@ -2,9 +2,8 @@ package io.customer.messaginginapp.ui.bridge
 
 import android.view.ViewGroup
 import androidx.core.view.isVisible
-import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
-
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 
 /**
  * Delegate interface that abstracts host view operations for in-app messages.

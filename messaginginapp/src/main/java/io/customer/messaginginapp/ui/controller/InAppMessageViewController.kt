@@ -2,6 +2,7 @@ package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
 import androidx.annotation.UiThread
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -14,8 +15,6 @@ import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppMessageViewCallback
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.sdk.core.di.SDKComponent
-
-import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Base controller class for managing in-app message view behavior.

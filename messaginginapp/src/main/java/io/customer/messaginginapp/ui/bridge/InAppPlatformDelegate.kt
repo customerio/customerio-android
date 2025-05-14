@@ -9,12 +9,11 @@ import androidx.annotation.UiThread
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.google.gson.Gson
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.ui.extensions.animateViewSize
 import io.customer.messaginginapp.ui.extensions.findActivity
 import java.net.URI
 import java.nio.charset.StandardCharsets
-
-import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Delegate interface to abstract Android platform operations used by in-app messaging views.

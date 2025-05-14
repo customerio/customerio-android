@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.ui.controller
 
 import androidx.annotation.UiThread
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -9,8 +10,6 @@ import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
-
-import io.customer.base.internal.InternalCustomerIOApi
 
 @InternalCustomerIOApi
 class InlineInAppMessageViewController(

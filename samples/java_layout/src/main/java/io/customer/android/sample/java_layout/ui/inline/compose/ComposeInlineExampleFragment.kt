@@ -42,7 +42,7 @@ import io.customer.messaginginapp.compose.InlineInAppMessageView
 class ComposeInlineExampleFragment : BaseComposeFragment() {
     companion object {
         const val TAG = "ComposeInlineExample"
-        
+
         @JvmStatic
         fun newInstance() = ComposeInlineExampleFragment()
     }
@@ -74,11 +74,11 @@ fun ComposeInlineExampleScreen(context: Context) {
                 InlineInAppMessageView(
                     elementId = "sticky-header",
                     modifier = Modifier.fillMaxWidth(),
-                    progressTint = MaterialTheme.colors.primary,  // Using theme's primary color for loading indicator
-                    onAction = { action -> 
+                    progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
+                    onAction = { action ->
                         // Log the action click
                         Log.d(TAG, "[Header] Action clicked with value: $action")
-                        
+
                         // Show a toast to the user
                         val toastMessage = "Header Action Value: $action"
                         Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
@@ -96,11 +96,11 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    progressTint = Color(0xFF03DAC5),  // Using a custom teal color
-                    onAction = { action -> 
+                    progressTint = Color(0xFF03DAC5), // Using a custom teal color
+                    onAction = { action ->
                         // Log the action click
                         Log.d(TAG, "[Inline] Action clicked with value: $action")
-                        
+
                         // Show a toast to the user
                         val toastMessage = "Inline Action Value: $action"
                         Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
@@ -128,10 +128,10 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    onAction = { action -> 
+                    onAction = { action ->
                         // Log the action click
                         Log.d(TAG, "[Below Fold] Action clicked with value: $action")
-                        
+
                         // Show a toast to the user
                         val toastMessage = "Below Fold Action Value: $action"
                         Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()

@@ -2,6 +2,7 @@ package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
 import androidx.annotation.UiThread
+import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -25,12 +26,19 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     protected val platformDelegate: InAppPlatformDelegate,
     protected val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
-    internal val logger = SDKComponent.logger
-    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    private val logger = SDKComponent.logger
+    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var engineWebViewDelegate: EngineWebViewDelegate? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var currentMessage: Message? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal var currentRoute: String? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var viewCallback: ViewCallback? = null
 
     /**

@@ -472,19 +472,20 @@ class InAppMessageViewControllerTest : JUnitTest() {
     @Test
     fun engineListener_givenSizeChanged_expectViewListenerReceivesCorrectSizeUpdates() {
         val screenDensity = Double.random(1.0, 3.0)
+        every { platformDelegate.convertDpToPixels(any()) } answers {
+            (firstArg<Double>() * screenDensity).roundToInt()
+        }
         val givenWidthInDp = Double.random(100.0, 500.0)
         val givenHeightInDp = Double.random(100.0, 500.0)
-        val givenWidthInPx = (givenWidthInDp * screenDensity).roundToInt()
-        val givenHeightInPx = (givenWidthInDp * screenDensity).roundToInt()
         val callback = mockk<InAppMessageViewCallback>(relaxed = true)
         controller.viewCallback = callback
-        every { platformDelegate.convertDpToPixels(givenWidthInDp) } returns givenWidthInPx
-        every { platformDelegate.convertDpToPixels(givenHeightInDp) } returns givenHeightInPx
 
         controller.sizeChanged(givenWidthInDp, givenHeightInDp)
 
+        val expectedWidthInPx = (givenWidthInDp * screenDensity).roundToInt()
+        val expectedHeightInPx = (givenHeightInDp * screenDensity).roundToInt()
         verify {
-            callback.onViewSizeChanged(givenWidthInPx, givenHeightInPx)
+            callback.onViewSizeChanged(expectedWidthInPx, expectedHeightInPx)
         }
     }
 }

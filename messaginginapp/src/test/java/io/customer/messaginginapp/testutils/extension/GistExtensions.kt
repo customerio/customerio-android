@@ -4,6 +4,7 @@ import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.getMessage
+import io.customer.messaginginapp.ui.controller.InAppMessageViewController
 import java.util.UUID
 
 fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random, String.random).getMessage()
@@ -38,3 +39,10 @@ fun createInAppMessage(
         )
     }
 )
+
+fun createGistAction(action: String): String = "gist://$action"
+
+internal fun InAppMessageViewController<*>.setMessageAndRouteForTest(message: Message, route: String) {
+    this.currentMessage = message
+    this.currentRoute = route
+}

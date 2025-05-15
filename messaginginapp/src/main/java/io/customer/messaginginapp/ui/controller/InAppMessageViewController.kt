@@ -2,6 +2,7 @@ package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
 import androidx.annotation.UiThread
+import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -25,21 +26,29 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     protected val platformDelegate: InAppPlatformDelegate,
     protected val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
-    internal val logger = SDKComponent.logger
-    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    private val logger = SDKComponent.logger
+    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var engineWebViewDelegate: EngineWebViewDelegate? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var currentMessage: Message? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal var currentRoute: String? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.
      * Set this property to receive callbacks when actions are triggered.
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var actionListener: InlineMessageActionListener? = null
 
-    internal fun logViewEvent(message: String) {
+    protected fun logViewEvent(message: String) {
         logger.debug("[InApp][$type] $message")
     }
 
@@ -49,6 +58,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
      * @return true if a new EngineWebView was attached, false if already attached.
      */
     @UiThread
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal open fun attachEngineWebView(): Boolean {
         logViewEvent("Attaching EngineWebView")
         if (engineWebViewDelegate != null) {
@@ -70,6 +80,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
      * @return true if an EngineWebView was detached, false if already detached.
      */
     @UiThread
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal open fun detachEngineWebView(): Boolean {
         logViewEvent("Detaching EngineWebView")
         val delegate = engineWebViewDelegate
@@ -85,6 +96,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     @UiThread
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal fun loadMessage(message: Message) {
         val store = inAppMessagingManager.getCurrentState()
         val config = EngineWebConfiguration(
@@ -101,6 +113,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     @UiThread
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal fun stopLoading() {
         logViewEvent("Stopping EngineWebView loading")
         stopEngineWebViewLoading()

@@ -3,6 +3,7 @@ package io.customer.messagingpush.logger
 import android.os.Bundle
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.testutils.core.JUnitTest
 import io.customer.sdk.core.util.Logger
@@ -291,6 +292,93 @@ class PushNotificationLoggerTest : JUnitTest() {
                 tag = "Push",
                 message = "Failed to handle push click: error message",
                 throwable = throwable
+            )
+        }
+    }
+
+    @Test
+    fun test_logHandlingNotificationDeepLink_forwardsCorrectCallToLogger() {
+        val payload = mockk<CustomerIOParsedPushPayload>(relaxed = true)
+        val behavior = PushClickBehavior.ACTIVITY_NO_FLAGS
+
+        pushLogger.logHandlingNotificationDeepLink(payload, behavior)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior"
+            )
+        }
+    }
+
+    @Test
+    fun test_logDeepLinkHandledByCallback_forwardsCorrectCallToLogger() {
+        pushLogger.logDeepLinkHandledByCallback()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Deep link handled by host app callback implementation"
+            )
+        }
+    }
+
+    @Test
+    fun test_logDeepLinkHandledByHostApp_forwardsCorrectCallToLogger() {
+        pushLogger.logDeepLinkHandledByHostApp()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Deep link handled by internal host app navigation"
+            )
+        }
+    }
+
+    @Test
+    fun test_logDeepLinkHandledExternally_forwardsCorrectCallToLogger() {
+        pushLogger.logDeepLinkHandledExternally()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Deep link handled by external app"
+            )
+        }
+    }
+
+    @Test
+    fun test_logDeepLinkHandledDefaultHostAppLauncher_forwardsCorrectCallToLogger() {
+        pushLogger.logDeepLinkHandledDefaultHostAppLauncher()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Deep link handled by opening default host app"
+            )
+        }
+    }
+
+    @Test
+    fun test_logDeepLinkWasNotHandled_forwardsCorrectCallToLogger() {
+        pushLogger.logDeepLinkWasNotHandled()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Deep link was not handled"
+            )
+        }
+    }
+
+    @Test
+    fun test_logNotificationActivityStartedWithInvalidIntent_forwardsCorrectCallToLogger() {
+        pushLogger.logNotificationActivityStartedWithInvalidIntent()
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Intent is null, cannot process notification click"
             )
         }
     }

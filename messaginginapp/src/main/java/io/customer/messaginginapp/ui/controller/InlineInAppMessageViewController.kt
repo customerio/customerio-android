@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.ui.controller
 
 import androidx.annotation.UiThread
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -11,8 +10,7 @@ import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 
-@InternalCustomerIOApi
-class InlineInAppMessageViewController(
+internal class InlineInAppMessageViewController(
     viewDelegate: InAppHostViewDelegate,
     platformDelegate: InAppPlatformDelegate
 ) : InAppMessageViewController<InlineInAppMessageViewCallback>(
@@ -23,7 +21,7 @@ class InlineInAppMessageViewController(
     private val elapsedTimer: ElapsedTimer = ElapsedTimer()
     private var contentWidthInDp: Double? = null
     private var contentHeightInDp: Double? = null
-    var elementId: String? = null
+    internal var elementId: String? = null
         set(value) {
             val oldValue = field
             field = value

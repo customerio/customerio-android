@@ -62,8 +62,7 @@ interface InAppPlatformDelegate {
  * The implementation is coupled to a specific [View] instance, which is used for context and
  * UI related operations.
  */
-@InternalCustomerIOApi
-class AndroidInAppPlatformDelegate(
+internal class AndroidInAppPlatformDelegate(
     private val view: View
 ) : InAppPlatformDelegate {
     private val context: Context

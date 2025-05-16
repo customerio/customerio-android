@@ -422,5 +422,6 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : androi
 	public fun onViewSizeChanged (II)V
 	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 	public final fun setElementId (Ljava/lang/String;)V
+	public final fun setProgressTint (I)V
 }
 

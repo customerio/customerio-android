@@ -32,7 +32,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
 import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment.Companion.TAG
-import io.customer.messaginginapp.compose.InlineInAppMessageView
+import io.customer.messaginginapp.compose.InlineInAppMessage
 
 /**
  * A fragment that demonstrates how to use InlineInAppMessageView with Jetpack Compose
@@ -71,7 +71,7 @@ fun ComposeInlineExampleScreen(context: Context) {
             ) {
                 // Header inline in-app message (sticky header)
                 // Using the same elementId "sticky-header" as in XML example
-                InlineInAppMessageView(
+                InlineInAppMessage(
                     elementId = "sticky-header",
                     modifier = Modifier.fillMaxWidth(),
                     progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
@@ -91,7 +91,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                 )
 
                 // Middle inline in-app message with "inline" elementId to match XML
-                InlineInAppMessageView(
+                InlineInAppMessage(
                     elementId = "inline",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -123,7 +123,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                 ProfileCardPlaceholder(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
 
                 // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
-                InlineInAppMessageView(
+                InlineInAppMessage(
                     elementId = "below-fold",
                     modifier = Modifier
                         .fillMaxWidth()

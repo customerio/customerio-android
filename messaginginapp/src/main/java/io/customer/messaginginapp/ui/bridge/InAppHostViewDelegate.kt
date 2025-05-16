@@ -25,8 +25,7 @@ interface InAppHostViewDelegate {
  * Default implementation of [InAppHostViewDelegate] that wraps a real Android ViewGroup.
  * Simplifies implementation by providing a concrete way to manage child views and UI actions.
  */
-@InternalCustomerIOApi
-class InAppHostViewDelegateImpl(
+internal class InAppHostViewDelegateImpl(
     private val view: ViewGroup
 ) : InAppHostViewDelegate {
     override var isVisible: Boolean

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test
 
 class EventBusTest : JUnit5Test() {
     private lateinit var eventBus: EventBus
-    private val testScopeProvider = ScopeProviderStub()
+    private val testScopeProvider = ScopeProviderStub.Unconfined()
 
     override fun setup(testConfig: TestConfig) {
         super.setup(

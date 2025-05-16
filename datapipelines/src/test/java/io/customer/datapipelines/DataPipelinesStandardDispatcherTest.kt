@@ -2,6 +2,7 @@ package io.customer.datapipelines
 
 import com.segment.analytics.kotlin.core.EventType
 import io.customer.commontest.config.TestConfig
+import io.customer.commontest.extensions.flushCoroutines
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
@@ -15,7 +16,6 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
 import io.mockk.every
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -68,9 +68,9 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         val givenPreviousDeviceToken = "old-token"
         val givenToken = "new-token"
 
-        sdkInstance.identify(givenIdentifier).flushCoroutines()
-        sdkInstance.registerDeviceToken(givenPreviousDeviceToken).flushCoroutines()
-        sdkInstance.registerDeviceToken(givenToken).flushCoroutines()
+        sdkInstance.identify(givenIdentifier).flushCoroutines(testScope)
+        sdkInstance.registerDeviceToken(givenPreviousDeviceToken).flushCoroutines(testScope)
+        sdkInstance.registerDeviceToken(givenToken).flushCoroutines(testScope)
 
         // 1. Device register (old token)
         // 2. Device delete (old token)
@@ -104,8 +104,8 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
 
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
-        sdkInstance.identify(givenPreviouslyIdentifiedProfile).flushCoroutines()
-        sdkInstance.identify(givenIdentifier).flushCoroutines()
+        sdkInstance.identify(givenPreviouslyIdentifiedProfile).flushCoroutines(testScope)
+        sdkInstance.identify(givenIdentifier).flushCoroutines(testScope)
 
         // 1. Identify event for the old profile
         // 2. Identify event for the new profile
@@ -133,8 +133,8 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
 
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
 
-        sdkInstance.identify(givenIdentifier).flushCoroutines()
-        sdkInstance.clearIdentify().flushCoroutines()
+        sdkInstance.identify(givenIdentifier).flushCoroutines(testScope)
+        sdkInstance.clearIdentify().flushCoroutines(testScope)
 
         outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 1
         // 1. Device update event
@@ -152,24 +152,5 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenToken
     }
 
-    //endregion
-    //region Extension functions
-
-    /**
-     * Extension function to run a block of code and flush all pending coroutines
-     * to ensure all events are processed
-     */
-    private fun runAndFlushCoroutines(block: () -> Unit) {
-        block().flushCoroutines()
-    }
-
-    /**
-     * Flushes all pending coroutines in the test scope to ensure all events are processed
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private fun <T : Any> T.flushCoroutines(): T {
-        testScope.runCurrent()
-        return this
-    }
     //endregion
 }

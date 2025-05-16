@@ -1,14 +1,30 @@
 package io.customer.commontest.util
 
 import io.customer.sdk.core.util.ScopeProvider
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
-@OptIn(ExperimentalCoroutinesApi::class)
-class ScopeProviderStub : ScopeProvider {
-    override val eventBusScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
-    override val lifecycleListenerScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
-    override val inAppLifecycleScope: CoroutineScope = TestScope(UnconfinedTestDispatcher())
+class ScopeProviderStub private constructor(
+    override val eventBusScope: TestScope,
+    override val lifecycleListenerScope: TestScope,
+    override val inAppLifecycleScope: TestScope
+) : ScopeProvider {
+
+    @Suppress("FunctionName")
+    companion object {
+        @OptIn(ExperimentalCoroutinesApi::class)
+        fun Unconfined(): ScopeProviderStub = ScopeProviderStub(
+            eventBusScope = TestScope(UnconfinedTestDispatcher()),
+            lifecycleListenerScope = TestScope(UnconfinedTestDispatcher()),
+            inAppLifecycleScope = TestScope(UnconfinedTestDispatcher())
+        )
+
+        fun Standard(): ScopeProviderStub = ScopeProviderStub(
+            eventBusScope = TestScope(StandardTestDispatcher()),
+            lifecycleListenerScope = TestScope(StandardTestDispatcher()),
+            inAppLifecycleScope = TestScope(StandardTestDispatcher())
+        )
+    }
 }

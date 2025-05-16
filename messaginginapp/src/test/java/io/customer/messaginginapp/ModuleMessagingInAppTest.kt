@@ -37,7 +37,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     private lateinit var eventBus: EventBus
     private lateinit var inAppEventListenerMock: InAppEventListener
     private lateinit var inAppMessagesProviderMock: GistProvider
-    private val testScopeProviderStub = ScopeProviderStub()
+    private val testScopeProviderStub = ScopeProviderStub.Unconfined()
 
     override fun setup(testConfig: TestConfig) {
         super.setup(

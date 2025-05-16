@@ -38,6 +38,6 @@ object Versions {
     internal const val RETROFIT = "2.9.0"
 
     // Compose versions
-    internal const val COMPOSE_BOM = "2023.08.00"
+    internal const val COMPOSE_BOM = "2023.10.00"
     internal const val COMPOSE_COMPILER = "1.4.7"
 }

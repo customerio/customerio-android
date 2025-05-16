@@ -11,7 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
-import io.customer.messaginginapp.ui.InlineInAppMessageView as ViewInlineInAppMessageView
+import io.customer.messaginginapp.ui.InlineInAppMessageView
 import kotlinx.coroutines.android.awaitFrame
 
 /**
@@ -32,13 +32,14 @@ fun InlineInAppMessage(
     elementId: String,
     modifier: Modifier = Modifier,
     progressTint: androidx.compose.ui.graphics.Color? = null,
-    onAction: (action: String) -> Unit = {}
+    onAction: (message: InAppMessage, currentRoute: String, action: String, name: String) -> Unit = { _, _, _, _ ->
+    }
 ) {
     val context = LocalContext.current
 
     // Use the existing InlineInAppMessageView implementation with explicit controller initialization
     val view = remember {
-        ViewInlineInAppMessageView(context).apply {
+        InlineInAppMessageView(context).apply {
             // Set proper layout parameters
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -71,7 +72,7 @@ fun InlineInAppMessage(
                 action: String,
                 name: String
             ) {
-                onAction(action)
+                onAction(message, currentRoute, action, name)
             }
         })
     }

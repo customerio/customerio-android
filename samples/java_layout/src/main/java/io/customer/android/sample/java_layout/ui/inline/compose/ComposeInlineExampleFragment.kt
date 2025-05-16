@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
 import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment.Companion.TAG
 import io.customer.messaginginapp.compose.InlineInAppMessage
+import io.customer.messaginginapp.type.InAppMessage
 
 /**
  * A fragment that demonstrates how to use InlineInAppMessageView with Jetpack Compose
@@ -62,6 +63,24 @@ class ComposeInlineExampleFragment : BaseComposeFragment() {
 
 @Composable
 fun ComposeInlineExampleScreen(context: Context) {
+    /**
+     * Helper function to handle in-app message actions consistently
+     */
+    fun handleMessageAction(
+        location: String,
+        message: InAppMessage,
+        currentRoute: String,
+        action: String,
+        name: String
+    ) {
+        // Log the action click
+        Log.d(TAG, "[$location] Action clicked with value: $action (name: $name)")
+
+        // Show a toast to the user
+        val toastMessage = "$location Action Value: $action"
+        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+    }
+    
     ComposeTheme {
         Surface(color = MaterialTheme.colors.background) {
             Column(
@@ -75,13 +94,8 @@ fun ComposeInlineExampleScreen(context: Context) {
                     elementId = "sticky-header",
                     modifier = Modifier.fillMaxWidth(),
                     progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
-                    onAction = { action ->
-                        // Log the action click
-                        Log.d(TAG, "[Header] Action clicked with value: $action")
-
-                        // Show a toast to the user
-                        val toastMessage = "Header Action Value: $action"
-                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+                    onAction = { message, currentRoute, action, name ->
+                        handleMessageAction("Header", message, currentRoute, action, name)
                     }
                 )
 
@@ -97,13 +111,8 @@ fun ComposeInlineExampleScreen(context: Context) {
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
                     progressTint = Color(0xFF03DAC5), // Using a custom teal color
-                    onAction = { action ->
-                        // Log the action click
-                        Log.d(TAG, "[Inline] Action clicked with value: $action")
-
-                        // Show a toast to the user
-                        val toastMessage = "Inline Action Value: $action"
-                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+                    onAction = { message, currentRoute, action, name ->
+                        handleMessageAction("Inline", message, currentRoute, action, name)
                     }
                 )
 
@@ -128,13 +137,8 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    onAction = { action ->
-                        // Log the action click
-                        Log.d(TAG, "[Below Fold] Action clicked with value: $action")
-
-                        // Show a toast to the user
-                        val toastMessage = "Below Fold Action Value: $action"
-                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+                    onAction = { message, currentRoute, action, name ->
+                        handleMessageAction("Below Fold", message, currentRoute, action, name)
                     }
                 )
             }

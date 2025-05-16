@@ -80,7 +80,7 @@ fun ComposeInlineExampleScreen(context: Context) {
         val toastMessage = "$location Action Value: $action"
         Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
     }
-    
+
     ComposeTheme {
         Surface(color = MaterialTheme.colors.background) {
             Column(

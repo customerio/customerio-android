@@ -2,7 +2,6 @@ package io.customer.messaginginapp.ui.bridge
 
 import android.view.ViewGroup
 import androidx.core.view.isVisible
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 
 /**
@@ -11,8 +10,7 @@ import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
  * and posting actions on UI thread without directly depending on Android framework.
  * Designed for easier testing and mocking.
  */
-@InternalCustomerIOApi
-interface InAppHostViewDelegate {
+internal interface InAppHostViewDelegate {
     var isVisible: Boolean
 
     fun addView(delegate: EngineWebViewDelegate)

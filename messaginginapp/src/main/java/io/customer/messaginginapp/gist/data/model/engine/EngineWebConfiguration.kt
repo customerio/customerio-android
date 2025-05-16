@@ -1,9 +1,6 @@
 package io.customer.messaginginapp.gist.data.model.engine
 
-import io.customer.base.internal.InternalCustomerIOApi
-
-@InternalCustomerIOApi
-data class EngineWebConfiguration(
+internal data class EngineWebConfiguration(
     val siteId: String,
     val dataCenter: String,
     val messageId: String,

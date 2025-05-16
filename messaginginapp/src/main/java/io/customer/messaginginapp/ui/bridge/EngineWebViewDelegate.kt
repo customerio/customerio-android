@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.ui.bridge
 
 import android.view.View
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
@@ -12,8 +11,7 @@ import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
  * depending on its implementation.
  * Useful for testing, mocking, or swapping the view behind the interface.
  */
-@InternalCustomerIOApi
-interface EngineWebViewDelegate {
+internal interface EngineWebViewDelegate {
     var listener: EngineWebViewListener?
 
     fun setup(configuration: EngineWebConfiguration)

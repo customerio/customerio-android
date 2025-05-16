@@ -3,7 +3,6 @@ package io.customer.messaginginapp.ui.controller
 import android.content.ActivityNotFoundException
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -22,8 +21,7 @@ import io.customer.sdk.core.di.SDKComponent
  * Encapsulates logic for view state transitions, sizing, lifecycle, and WebView interaction.
  * Designed to decouple business logic from Android view classes for better testability and reuse.
  */
-@InternalCustomerIOApi
-abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallback>(
+internal abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallback>(
     protected val type: String,
     protected val platformDelegate: InAppPlatformDelegate,
     val viewDelegate: InAppHostViewDelegate

@@ -9,7 +9,6 @@ import androidx.annotation.UiThread
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.google.gson.Gson
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.ui.extensions.animateViewSize
 import io.customer.messaginginapp.ui.extensions.findActivity
 import java.net.URI
@@ -21,8 +20,7 @@ import java.nio.charset.StandardCharsets
  * activity launching, and utility conversions.
  * Allows for easier testing and mocking of platform-specific behavior.
  */
-@InternalCustomerIOApi
-interface InAppPlatformDelegate {
+internal interface InAppPlatformDelegate {
     fun parseJavaURI(uriString: String): URI
     fun sanitizeUrlQuery(url: String): UrlQuerySanitizerWrapper
     fun parsePropertiesFromJson(json: String): Map<String, Any>

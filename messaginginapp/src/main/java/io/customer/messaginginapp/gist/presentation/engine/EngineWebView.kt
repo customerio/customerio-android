@@ -17,7 +17,6 @@ import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import com.google.gson.Gson
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
@@ -27,7 +26,6 @@ import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
 
-@InternalCustomerIOApi
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null

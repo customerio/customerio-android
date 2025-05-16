@@ -66,6 +66,7 @@ fun ComposeInlineExampleScreen(context: Context) {
     /**
      * Helper function to handle in-app message actions consistently
      */
+    @Suppress("UNUSED_PARAMETER")
     fun handleMessageAction(
         location: String,
         message: InAppMessage,
@@ -94,7 +95,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                     elementId = "sticky-header",
                     modifier = Modifier.fillMaxWidth(),
                     progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
-                    onAction = { message, currentRoute, action, name ->
+                    onAction = { message: InAppMessage, currentRoute: String, action: String, name: String ->
                         handleMessageAction("Header", message, currentRoute, action, name)
                     }
                 )
@@ -111,7 +112,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
                     progressTint = Color(0xFF03DAC5), // Using a custom teal color
-                    onAction = { message, currentRoute, action, name ->
+                    onAction = { message: InAppMessage, currentRoute: String, action: String, name: String ->
                         handleMessageAction("Inline", message, currentRoute, action, name)
                     }
                 )
@@ -137,7 +138,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    onAction = { message, currentRoute, action, name ->
+                    onAction = { message: InAppMessage, currentRoute: String, action: String, name: String ->
                         handleMessageAction("Below Fold", message, currentRoute, action, name)
                     }
                 )

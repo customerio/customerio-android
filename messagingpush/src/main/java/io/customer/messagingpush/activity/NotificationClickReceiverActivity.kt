@@ -3,6 +3,7 @@ package io.customer.messagingpush.activity
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -16,7 +17,7 @@ import io.customer.sdk.tracking.TrackableScreen
  */
 class NotificationClickReceiverActivity : Activity(), TrackableScreen {
     private val diGraph = SDKComponent
-    val logger = SDKComponent.logger
+    private val logger = SDKComponent.pushLogger
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -37,7 +38,7 @@ class NotificationClickReceiverActivity : Activity(), TrackableScreen {
     private fun handleIntent(data: Intent?) {
         if (data == null || data.extras == null) {
             // This should never happen ideally
-            logger.error("Intent is null, cannot process notification click")
+            logger.logNotificationActivityStartedWithInvalidIntent()
         } else {
             diGraph.pushMessageProcessor.processNotificationClick(
                 activityContext = this,

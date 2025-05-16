@@ -54,7 +54,6 @@ val SDKComponent.pushTrackingUtil: PushTrackingUtil
 internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
     get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
-            logger = logger,
             pushLogger = pushLogger,
             moduleConfig = pushModuleConfig,
             deepLinkUtil = deepLinkUtil

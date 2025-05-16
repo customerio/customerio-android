@@ -1,6 +1,7 @@
 package io.customer.messagingpush.logger
 
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.sdk.core.util.Logger
 
@@ -136,6 +137,55 @@ internal class PushNotificationLogger(private val logger: Logger) {
             tag = TAG,
             message = "Failed to handle push click: ${throwable.message}",
             throwable = throwable
+        )
+    }
+
+    fun logHandlingNotificationDeepLink(payload: CustomerIOParsedPushPayload, behavior: PushClickBehavior) {
+        logger.debug(
+            tag = TAG,
+            message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior"
+        )
+    }
+
+    fun logDeepLinkHandledByCallback() {
+        logger.debug(
+            tag = TAG,
+            message = "Deep link handled by host app callback implementation"
+        )
+    }
+
+    fun logDeepLinkHandledByHostApp() {
+        logger.debug(
+            tag = TAG,
+            message = "Deep link handled by internal host app navigation"
+        )
+    }
+
+    fun logDeepLinkHandledExternally() {
+        logger.debug(
+            tag = TAG,
+            message = "Deep link handled by external app"
+        )
+    }
+
+    fun logDeepLinkHandledDefaultHostAppLauncher() {
+        logger.debug(
+            tag = TAG,
+            message = "Deep link handled by opening default host app"
+        )
+    }
+
+    fun logDeepLinkWasNotHandled() {
+        logger.debug(
+            tag = TAG,
+            message = "Deep link was not handled"
+        )
+    }
+
+    fun logNotificationActivityStartedWithInvalidIntent() {
+        logger.error(
+            tag = TAG,
+            message = "Intent is null, cannot process notification click"
         )
     }
 

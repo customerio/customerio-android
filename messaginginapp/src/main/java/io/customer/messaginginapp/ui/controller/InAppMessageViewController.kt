@@ -2,8 +2,8 @@ package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
 import androidx.annotation.UiThread
-import io.customer.base.internal.InternalCustomerIOApi
 import androidx.annotation.VisibleForTesting
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -29,7 +29,7 @@ abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallbac
     val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
     private val logger = SDKComponent.logger
-    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var engineWebViewDelegate: EngineWebViewDelegate? = null
@@ -39,15 +39,14 @@ abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallbac
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal var currentRoute: String? = null
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    internal var viewCallback: ViewCallback? = null
+
+    var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.
      * Set this property to receive callbacks when actions are triggered.
      */
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    internal var actionListener: InlineMessageActionListener? = null
+    var actionListener: InlineMessageActionListener? = null
 
     protected fun logViewEvent(message: String) {
         logger.debug("[InApp][$type] $message")

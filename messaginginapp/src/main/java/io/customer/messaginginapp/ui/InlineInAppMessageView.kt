@@ -59,6 +59,21 @@ class InlineInAppMessageView @JvmOverloads constructor(
         controller.actionListener = listener
     }
 
+    /**
+     * Sets the tint color for the progress indicator.
+     * @param color The color to set for the progress indicator.
+     */
+    fun setProgressTint(@ColorInt color: Int) {
+        runCatching {
+            progressIndicator.indeterminateDrawable?.mutate()?.let { drawable ->
+                DrawableCompat.setTint(
+                    DrawableCompat.wrap(drawable),
+                    color
+                )
+            }
+        }
+    }
+
     init {
         var progressColor = resolveThemeColor(android.R.attr.colorControlActivated, Color.GRAY)
         val typedArray = context.obtainStyledAttributes(attrs, R.styleable.InlineInAppMessageView)

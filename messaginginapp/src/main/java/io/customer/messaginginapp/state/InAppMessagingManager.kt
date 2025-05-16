@@ -17,7 +17,7 @@ import org.reduxkotlin.threadsafe.createThreadSafeStore
  *
  * @property listener An optional listener for Gist events.
  */
-internal data class InAppMessagingManager(val listener: GistListener? = null) {
+data class InAppMessagingManager(val listener: GistListener? = null) {
     private val store: Store<InAppMessagingState> = createStore()
     private val storeStateFlow = MutableStateFlow(store.state)
     private val scope: CoroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope

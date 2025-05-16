@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.ui.controller
 
+import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
@@ -13,7 +14,8 @@ internal class ModalInAppMessageViewController(
     viewDelegate = viewDelegate,
     platformDelegate = platformDelegate
 ) {
-    private var isMessageDisplayed: Boolean = true
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal var shouldDispatchDisplayEvent: Boolean = true
 
     init {
         attachEngineWebView()
@@ -29,9 +31,9 @@ internal class ModalInAppMessageViewController(
 
     override fun routeLoaded(route: String) {
         super.routeLoaded(route)
-        if (!isMessageDisplayed) return
+        if (!shouldDispatchDisplayEvent) return
 
-        isMessageDisplayed = false
+        shouldDispatchDisplayEvent = false
         engineWebViewDelegate?.setAlpha(1.0F)
         currentMessage?.let { message ->
             inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))

@@ -114,11 +114,18 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         }
     }
 
-    // Helper function to set up the initial state for tests
+    // Helper functions to set up the initial state for tests
     private fun setupGistAndCreateViewController(): InlineInAppMessageViewController {
+        setupGistWithUserId()
+        return createViewController()
+    }
+
+    private fun setupGistWithUserId() {
         val givenUserId = String.random
         gistProvider.setUserId(givenUserId)
+    }
 
+    private fun createViewController(): InlineInAppMessageViewController {
         val instance = InlineInAppMessageViewController(
             platformDelegate = platformDelegate,
             viewDelegate = viewDelegate,
@@ -216,6 +223,37 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.viewCallback.shouldNotBeNull()
         controller.engineWebViewDelegate.shouldNotBeNull()
         controller.currentMessage shouldBeEqualTo givenNewInAppMessage
+    }
+
+    @Test
+    fun handleMessageState_givenControllerRecreated_expectExistingMessageShown() {
+        every { platformDelegate.shouldDestroyViewOnDetach() } returns false
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        val givenUserId = String.random
+        gistProvider.setUserId(givenUserId)
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager.dispatch(
+            InAppMessagingAction.DisplayMessage(givenInAppMessage)
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        val controller = createViewController()
+        val viewCallback = controller.initMockViewCallback()
+        controller.elementId = givenElementId
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        verifyOrder {
+            assertMessageLoadingCalls(
+                controller = controller,
+                viewCallback = viewCallback,
+                expectedMessage = givenInAppMessage
+            )
+        }
+        controller.viewCallback.shouldNotBeNull()
+        controller.engineWebViewDelegate.shouldNotBeNull()
+        controller.currentMessage shouldBeEqualTo givenInAppMessage
     }
 
     @Test

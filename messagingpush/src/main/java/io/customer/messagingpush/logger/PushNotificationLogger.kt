@@ -1,6 +1,7 @@
 package io.customer.messagingpush.logger
 
 import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.sdk.core.util.Logger
 
 internal class PushNotificationLogger(private val logger: Logger) {
@@ -57,6 +58,84 @@ internal class PushNotificationLogger(private val logger: Logger) {
         logger.debug(
             tag = TAG,
             message = "Showing notification for message: ${toString(message)}"
+        )
+    }
+
+    fun logReceivedPushMessage(message: RemoteMessage, handleNotificationTrigger: Boolean) {
+        logger.debug(
+            tag = TAG,
+            message = "handleNotificationTrigger: $handleNotificationTrigger - Received notification for message: ${toString(message)}"
+        )
+    }
+
+    fun logReceivedEmptyPushMessage() {
+        logger.debug(
+            tag = TAG,
+            message = "Push message received is empty"
+        )
+    }
+
+    fun logReceivedCioPushMessage() {
+        logger.debug(
+            tag = TAG,
+            message = "Received CIO push message"
+        )
+    }
+
+    fun logReceivedNonCioPushMessage() {
+        logger.debug(
+            tag = TAG,
+            message = "Received non CIO push message, ignoring message"
+        )
+    }
+
+    fun logReceivedPushMessageWithEmptyDeliveryId() {
+        logger.debug(
+            tag = TAG,
+            message = "Received message with empty deliveryId"
+        )
+    }
+
+    fun logReceivedDuplicatePushMessageDeliveryId(deliveryId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Received duplicate message with deliveryId: $deliveryId"
+        )
+    }
+
+    fun logReceivedNewMessageWithDeliveryId(deliveryId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Received new message with deliveryId: $deliveryId"
+        )
+    }
+
+    fun logPushMetricsAutoTrackingDisabled() {
+        logger.debug(
+            tag = TAG,
+            message = "Received message but auto tracking is disabled"
+        )
+    }
+
+    fun logTrackingPushMessageDelivered(deliveryId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Tracking push message delivered with deliveryId: $deliveryId"
+        )
+    }
+
+    fun logTrackingPushMessageOpened(payload: CustomerIOParsedPushPayload) {
+        logger.debug(
+            tag = TAG,
+            message = "Tracking push message opened with payload: $payload"
+        )
+    }
+
+    fun logFailedToHandlePushClick(throwable: Throwable) {
+        logger.error(
+            tag = TAG,
+            message = "Failed to handle push click: ${throwable.message}",
+            throwable = throwable
         )
     }
 

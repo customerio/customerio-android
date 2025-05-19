@@ -11,6 +11,7 @@ import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.messagingpush.extensions.parcelable
+import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
@@ -21,6 +22,7 @@ import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val logger: Logger,
+    private val pushLogger: PushNotificationLogger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil
 ) : PushMessageProcessor {
@@ -44,13 +46,13 @@ internal class PushMessageProcessorImpl(
         when {
             deliveryId.isNullOrBlank() -> {
                 // Ignore messages with empty/invalid deliveryId
-                logger.debug("Received message with empty deliveryId")
+                pushLogger.logReceivedPushMessageWithEmptyDeliveryId()
                 return true
             }
 
             PushMessageProcessor.recentMessagesQueue.contains(deliveryId) -> {
                 // Ignore messages that were processed already
-                logger.debug("Received duplicate message with deliveryId: $deliveryId")
+                pushLogger.logReceivedDuplicatePushMessageDeliveryId(deliveryId)
                 return true
             }
 
@@ -60,7 +62,7 @@ internal class PushMessageProcessorImpl(
                     PushMessageProcessor.recentMessagesQueue.removeLast()
                 }
                 PushMessageProcessor.recentMessagesQueue.addFirst(deliveryId)
-                logger.debug("Received new message with deliveryId: $deliveryId")
+                pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId)
                 return false
             }
         }
@@ -92,6 +94,7 @@ internal class PushMessageProcessorImpl(
     private fun trackDeliveredMetrics(deliveryId: String, deliveryToken: String) {
         // Track delivered event only if auto-tracking is enabled
         if (moduleConfig.autoTrackPushEvents) {
+            pushLogger.logTrackingPushMessageDelivered(deliveryId)
             // Track delivered metrics via http
             pushDeliveryTracker.trackMetric(
                 event = Metric.Delivered.name,
@@ -107,6 +110,8 @@ internal class PushMessageProcessorImpl(
                     deviceToken = deliveryToken
                 )
             )
+        } else {
+            pushLogger.logPushMetricsAutoTrackingDisabled()
         }
     }
 
@@ -115,12 +120,12 @@ internal class PushMessageProcessorImpl(
             val payload: CustomerIOParsedPushPayload? =
                 intent.extras?.parcelable(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA)
             if (payload == null) {
-                logger.error("Payload is null, cannot handle notification intent")
+                pushLogger.logFailedToHandlePushClick(IllegalArgumentException("Payload is null, cannot handle notification intent"))
             } else {
                 handleNotificationClickIntent(activityContext, payload)
             }
         }.onFailure { ex ->
-            logger.error("Failed to process notification intent: ${ex.message}")
+            pushLogger.logFailedToHandlePushClick(ex)
         }
     }
 
@@ -134,6 +139,7 @@ internal class PushMessageProcessorImpl(
 
     private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
         if (moduleConfig.autoTrackPushEvents) {
+            pushLogger.logTrackingPushMessageOpened(payload)
             eventBus.publish(
                 Event.TrackPushMetricEvent(
                     event = Metric.Opened,
@@ -141,6 +147,8 @@ internal class PushMessageProcessorImpl(
                     deviceToken = payload.cioDeliveryToken
                 )
             )
+        } else {
+            pushLogger.logPushMetricsAutoTrackingDisabled()
         }
     }
 

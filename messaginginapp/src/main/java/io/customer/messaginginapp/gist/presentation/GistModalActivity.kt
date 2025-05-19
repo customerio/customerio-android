@@ -10,6 +10,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
 import com.google.gson.Gson
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
@@ -28,6 +29,7 @@ import kotlinx.coroutines.Job
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
+@InternalCustomerIOApi
 class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()

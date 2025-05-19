@@ -19,7 +19,6 @@ import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verifyOrder
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
@@ -89,7 +88,6 @@ class ModalMessageViewControllerTest : JUnitTest() {
 
         controller.routeLoaded(givenRoute)
 
-        controller.shouldDispatchDisplayEvent.shouldBeFalse()
         controller.currentRoute shouldBeEqualTo givenRoute
         verifyOrder {
             engineWebViewDelegate.setAlpha(1.0F)
@@ -105,12 +103,11 @@ class ModalMessageViewControllerTest : JUnitTest() {
         val givenMessage = createInAppMessage()
         val givenRoute = String.random
         controller.currentMessage = givenMessage
-        controller.shouldDispatchDisplayEvent = false
-        clearMocks(engineWebViewDelegate)
+        controller.routeLoaded(givenRoute)
+        clearMocks(engineWebViewDelegate, inAppMessagingManager)
 
         controller.routeLoaded(givenRoute)
 
-        controller.shouldDispatchDisplayEvent.shouldBeFalse()
         controller.currentRoute shouldBeEqualTo givenRoute
         assertNoInteractions(engineWebViewDelegate, inAppMessagingManager)
     }

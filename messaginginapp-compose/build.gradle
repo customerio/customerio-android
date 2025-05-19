@@ -1,0 +1,63 @@
+import io.customer.android.Configurations
+import io.customer.android.Dependencies
+import io.customer.android.Versions
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.twilio.apkscale'
+}
+
+ext {
+    PUBLISH_GROUP_ID = Configurations.artifactGroup
+    PUBLISH_ARTIFACT_ID = "messaging-in-app-compose"
+}
+
+apply from: "${rootDir}/scripts/publish-module.gradle"
+apply from: "${rootDir}/scripts/android-config.gradle"
+apply from: "${rootDir}/scripts/codecov-android.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
+
+android {
+    namespace 'io.customer.messaginginapp.compose'
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures {
+        compose true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion Versions.COMPOSE_COMPILER
+    }
+}
+
+dependencies {
+    // Main dependencies
+    api project(":messaginginapp")  // This module builds on top of the messaginginapp module
+    
+    // Compose dependencies
+    implementation platform(Dependencies.composeBom)
+    implementation Dependencies.composeUi
+    implementation Dependencies.composeUiGraphics
+    implementation Dependencies.composeFoundation
+    implementation Dependencies.composeMaterial
+    implementation Dependencies.composeRuntime
+    implementation Dependencies.coroutinesAndroid
+    
+    // Testing
+    testImplementation project(":common-test")
+    testImplementation Dependencies.junit4
+    testImplementation Dependencies.kluentJava
+    testImplementation Dependencies.mockK
+    testImplementation Dependencies.coroutinesTest
+    androidTestImplementation Dependencies.androidxTestJunit
+    androidTestImplementation Dependencies.espressoCore
+}

@@ -1,6 +1,5 @@
 package io.customer.messaginginapp.ui.controller
 
-import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
@@ -14,8 +13,7 @@ internal class ModalInAppMessageViewController(
     viewDelegate = viewDelegate,
     platformDelegate = platformDelegate
 ) {
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal var shouldDispatchDisplayEvent: Boolean = true
+    private var shouldDispatchDisplayEvent: Boolean = true
 
     init {
         attachEngineWebView()

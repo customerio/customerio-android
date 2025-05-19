@@ -38,7 +38,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal var currentRoute: String? = null
 
-    var viewCallback: ViewCallback? = null
+    internal var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.

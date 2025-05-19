@@ -1,12 +1,10 @@
 package io.customer.messaginginapp.ui.controller
 
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
 
-@InternalCustomerIOApi
 internal class ModalInAppMessageViewController(
     viewDelegate: InAppHostViewDelegate,
     platformDelegate: InAppPlatformDelegate

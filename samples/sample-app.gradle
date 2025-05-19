@@ -130,11 +130,15 @@ dependencies {
         implementation(project(":datapipelines"))
         implementation(project(":messagingpush"))
         implementation(project(":messaginginapp"))
+        // messaginginapp-compose adds messaginginapp transitively
+        implementation(project(":messaginginapp-compose"))
     } else {
         // Stable releases dependency, use published versions directly
         implementation "io.customer.android:datapipelines:$cioSDKVersion"
         implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
+        // messaginginapp-compose adds messaginginapp transitively
+        implementation "io.customer.android:messaging-in-app-compose:$cioSDKVersion"
     }
     
     // Add Compose dependencies for all sample projects

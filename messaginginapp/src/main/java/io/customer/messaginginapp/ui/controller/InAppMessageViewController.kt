@@ -24,10 +24,10 @@ import io.customer.sdk.core.di.SDKComponent
 internal abstract class InAppMessageViewController<ViewCallback : InAppMessageViewCallback>(
     protected val type: String,
     protected val platformDelegate: InAppPlatformDelegate,
-    protected val viewDelegate: InAppHostViewDelegate
+    val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
     private val logger = SDKComponent.logger
-    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var engineWebViewDelegate: EngineWebViewDelegate? = null
@@ -38,15 +38,13 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal var currentRoute: String? = null
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.
      * Set this property to receive callbacks when actions are triggered.
      */
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    internal var actionListener: InlineMessageActionListener? = null
+    var actionListener: InlineMessageActionListener? = null
 
     protected fun logViewEvent(message: String) {
         logger.debug("[InApp][$type] $message")

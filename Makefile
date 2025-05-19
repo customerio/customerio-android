@@ -7,7 +7,7 @@ lint-error-message:
 # This is because the CI server is not meant to commit code so we don't want to format code on the CI 
 # server in case files get modified from formatting. 
 # 
-# This comand runs ktlint to try and find lint errors. If any are found an error message is shown and then the command fails which will 
+# This command runs ktlint to try and find lint errors. If any are found an error message is shown and then the command fails which will
 # trigger the CI server to show an error for linting. 
 # If there are no lint errors, the command will succeed and not show any error messages. 
 lint-no-format: 

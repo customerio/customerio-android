@@ -76,5 +76,26 @@ internal class DataPipelinesLogger(private val logger: Logger) {
             message = "Token refreshed, deleting old token to avoid registering same device multiple times"
         )
     }
+
+    fun automaticTokenRegistrationForNewProfile(token: String, userId: String) {
+        logger.debug(
+            tag = PUSH_TAG,
+            message = "Automatically registering device token: $token to newly identified profile: $userId"
+        )
+    }
+
+    fun logDeletingTokenDueToNewProfileIdentification() {
+        logger.debug(
+            tag = PUSH_TAG,
+            message = "Deleting device token before identifying new profile"
+        )
+    }
+
+    fun logTrackingDevicesAttributesWithoutValidToken() {
+        logger.debug(
+            tag = PUSH_TAG,
+            message = "No device token found. ignoring request to track device attributes"
+        )
+    }
     //endregion Push
 }

@@ -17,6 +17,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
@@ -55,6 +56,7 @@ internal class CustomerIOPushNotificationHandler(
 
     private val diGraph = SDKComponent
     private val logger = SDKComponent.logger
+    private val pushLogger = SDKComponent.pushLogger
 
     private val moduleConfig: MessagingPushModuleConfig
         get() = diGraph.pushModuleConfig
@@ -108,8 +110,9 @@ internal class CustomerIOPushNotificationHandler(
         deliveryId: String,
         deliveryToken: String
     ) {
-        val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
+        pushLogger.logShowingPushNotification(remoteMessage)
 
+        val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
         val requestCode = abs(System.currentTimeMillis().toInt())
 
         bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)

@@ -3,10 +3,13 @@ package io.customer.messagingpush
 import android.os.Bundle
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
+import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEqualTo
@@ -19,11 +22,22 @@ import org.robolectric.Shadows
 internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     private lateinit var pushNotificationHandler: CustomerIOPushNotificationHandler
     private lateinit var pushNotificationPayload: CustomerIOParsedPushPayload
+    private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
-        super.setup(testConfig)
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<PushNotificationLogger>(mockPushLogger)
+                    }
+                }
+            }
+        )
 
-        val extras = Bundle.EMPTY
+        val extras = Bundle()
+        extras.putString("CIO-Delivery-ID", "anyId")
+        extras.putString("CIO-Delivery-Token", "anyToken")
         pushNotificationHandler = CustomerIOPushNotificationHandler(mockk(relaxed = true), RemoteMessage(extras))
         pushNotificationPayload = CustomerIOParsedPushPayload(
             extras = extras,
@@ -51,5 +65,12 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
 
         nextStartedActivityIntent.intentClass shouldBeEqualTo NotificationClickReceiverActivity::class.java
         nextStartedActivityPayload shouldBeEqualTo pushNotificationPayload
+    }
+
+    @Test
+    fun handleMessage_shouldLogShowingPushNotification() {
+        pushNotificationHandler.handleMessage(contextMock, true)
+
+        assertCalledOnce { mockPushLogger.logShowingPushNotification(any()) }
     }
 }

@@ -1,5 +1,6 @@
 package io.customer.messagingpush.logger
 
+import com.google.firebase.messaging.RemoteMessage
 import io.customer.sdk.core.util.Logger
 
 internal class PushNotificationLogger(private val logger: Logger) {
@@ -50,5 +51,25 @@ internal class PushNotificationLogger(private val logger: Logger) {
             message = "Failed to get device token with error: ${throwable?.message}",
             throwable = throwable
         )
+    }
+
+    fun logShowingPushNotification(message: RemoteMessage) {
+        logger.debug(
+            tag = TAG,
+            message = "Showing notification for message: ${toString(message)}"
+        )
+    }
+
+    private fun toString(message: RemoteMessage): String {
+        val notification = message.notification ?: return message.data.toString()
+        return buildString {
+            appendLine("Notification:")
+            appendLine("  title = ${notification.title}")
+            appendLine("  body = ${notification.body}")
+            appendLine("  icon = ${notification.icon}")
+            appendLine("  color = ${notification.color}")
+            appendLine("  imageUrl = ${notification.imageUrl}")
+            appendLine("Data: ${message.data}")
+        }
     }
 }

@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.ui.controller
 
 import androidx.annotation.UiThread
+import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -10,17 +11,26 @@ import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 
-internal class InlineInAppMessageViewController(
+internal class InlineInAppMessageViewController
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+internal constructor(
     viewDelegate: InAppHostViewDelegate,
-    platformDelegate: InAppPlatformDelegate
+    platformDelegate: InAppPlatformDelegate,
+    private val elapsedTimer: ElapsedTimer
 ) : InAppMessageViewController<InlineInAppMessageViewCallback>(
     type = "Inline",
     platformDelegate = platformDelegate,
     viewDelegate = viewDelegate
 ) {
-    private val elapsedTimer: ElapsedTimer = ElapsedTimer()
-    private var contentWidthInDp: Double? = null
-    private var contentHeightInDp: Double? = null
+    internal constructor(
+        viewDelegate: InAppHostViewDelegate,
+        platformDelegate: InAppPlatformDelegate
+    ) : this(
+        viewDelegate = viewDelegate,
+        platformDelegate = platformDelegate,
+        elapsedTimer = ElapsedTimer()
+    )
+
     internal var elementId: String? = null
         set(value) {
             val oldValue = field
@@ -31,6 +41,12 @@ internal class InlineInAppMessageViewController(
                 onElementIdChanged()
             }
         }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal var contentWidthInDp: Double? = null
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal var contentHeightInDp: Double? = null
 
     init {
         viewDelegate.isVisible = false

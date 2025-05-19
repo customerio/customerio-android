@@ -36,4 +36,11 @@ object Versions {
     internal const val ROBOLECTRIC = "4.9"
     internal const val OKHTTP = "4.11.0"
     internal const val RETROFIT = "2.9.0"
+
+    // Compose versions
+    // Note: Using 2023.03.00 as it's the latest version compatible with compileSdk 33.
+    // Later versions (2023.06.00+) require compileSdk 34 due to dependencies like androidx.emoji2:emoji2:1.4.0.
+    // If compileSdk is updated to 34+, this can be upgraded to a newer version.
+    internal const val COMPOSE_BOM = "2023.03.00"
+    internal const val COMPOSE_COMPILER = "1.4.7"
 }

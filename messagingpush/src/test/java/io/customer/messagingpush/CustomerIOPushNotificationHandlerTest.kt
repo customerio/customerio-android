@@ -69,6 +69,13 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     }
 
     @Test
+    fun handleMessage_shouldLogShowingPushNotification() {
+        pushNotificationHandler.handleMessage(contextMock, true)
+
+        assertCalledOnce { mockPushLogger.logShowingPushNotification(any()) }
+    }
+
+    @Test
     fun handleMessage_givenNonCioBundle_shouldLogPushMessageEmpty() {
         val bundle = Bundle()
         bundle.putString("anyKey", "anyValue")

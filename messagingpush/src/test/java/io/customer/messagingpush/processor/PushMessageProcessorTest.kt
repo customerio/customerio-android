@@ -15,6 +15,7 @@ import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.config.PushClickBehavior
+import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTART
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
@@ -367,6 +368,28 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processNotificationClick_givenValidIntent_expectLogDefaultHostAppLauncherHandling() {
+        setupModuleConfig(autoTrackPushEvents = true)
+        val processor = pushMessageProcessor()
+        val givenDeepLink = "https://cio.example.com/"
+        val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(
+            deepLink = givenDeepLink,
+            defaultHostAppIntent = emptyIntent().withTestFlags()
+        )
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkHandledDefaultHostAppLauncher()
+        }
+    }
+
+    @Test
     fun processNotificationClick_givenAutoTrackingDisabled_expectDoNotTrackOpened() {
         setupModuleConfig(autoTrackPushEvents = false)
         val processor = pushMessageProcessor()
@@ -406,6 +429,26 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processNotificationClick_givenNoDeepLink_expectLogHandledByHostApp() {
+        val processor = pushMessageProcessor()
+        val givenPayload = pushMessagePayload()
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(
+            deepLink = null,
+            defaultHostAppIntent = emptyIntent().withTestFlags()
+        )
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkHandledDefaultHostAppLauncher()
+        }
+    }
+
+    @Test
     fun processNotificationClick_givenCallbackWithDeepLink_expectOpenCallbackIntent() {
         val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
         val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
@@ -427,6 +470,29 @@ class PushMessageProcessorTest : IntegrationTest() {
             processor.processNotificationClick(contextMock, intent)
 
             assertNoInteractions(deepLinkUtilMock)
+        }
+    }
+
+    @Test
+    fun processNotificationClick_givenCallbackWithDeepLink_expectLogHandledByCallback() {
+        val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
+        val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
+        every {
+            notificationCallback.onNotificationClicked(givenPayload, any())
+        } answers { }
+        setupModuleConfig(
+            notificationCallback = notificationCallback
+        )
+        val processor = pushMessageProcessor()
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkHandledByCallback()
         }
     }
 
@@ -456,6 +522,28 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processNotificationClick_givenCallbackWithoutDeepLink_expectLogHandledByCallback() {
+        val givenPayload = pushMessagePayload()
+        val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
+        every {
+            notificationCallback.onNotificationClicked(givenPayload, any())
+        } answers { }
+        setupModuleConfig(
+            notificationCallback = notificationCallback
+        )
+        val processor = pushMessageProcessor()
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkHandledByCallback()
+        }
+    }
+
+    @Test
     fun processNotificationClick_givenExternalLink_expectOpenExternalIntent() {
         val processor = pushMessageProcessor()
         val givenDeepLink = "https://cio.example.com/"
@@ -478,6 +566,27 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processNotificationClick_givenExternalLink_expectLogHandledByExternalApp() {
+        val processor = pushMessageProcessor()
+        val givenDeepLink = "https://cio.example.com/"
+        val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(
+            deepLink = givenDeepLink,
+            linkExternalIntent = emptyIntent().withTestFlags()
+        )
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkHandledExternally()
+        }
+    }
+
+    @Test
     fun processNotificationClick_givenInternalLink_expectOpenInternalIntent() {
         val processor = pushMessageProcessor()
         val givenDeepLink = "https://cio.example.com/"
@@ -497,6 +606,44 @@ class PushMessageProcessorTest : IntegrationTest() {
             deepLinkUtilMock.createDefaultHostAppIntent(any())
         }
         assertCalledNever { deepLinkUtilMock.createDeepLinkExternalIntent(any(), givenDeepLink) }
+    }
+
+    @Test
+    fun processNotificationClick_givenInternalLink_expectLogHandledByHostApp() {
+        val processor = pushMessageProcessor()
+        val givenDeepLink = "https://cio.example.com/"
+        val givenPayload = pushMessagePayload(deepLink = givenDeepLink)
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(
+            deepLink = givenDeepLink,
+            linkHostAppIntent = emptyIntent().withTestFlags()
+        )
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkHandledByHostApp()
+        }
+    }
+
+    @Test
+    fun processNotificationClick_givenUnresolvableLink_expectLogNotHandled() {
+        val processor = pushMessageProcessor()
+        val givenPayload = pushMessagePayload()
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(null)
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            mockPushLogger.logHandlingNotificationDeepLink(givenPayload, ACTIVITY_PREVENT_RESTART)
+            mockPushLogger.logDeepLinkWasNotHandled()
+        }
     }
 
     @Test
@@ -538,7 +685,7 @@ class PushMessageProcessorTest : IntegrationTest() {
     fun processNotificationClick_givenPushBehavior_expectPreventRestart() {
         setupModuleConfig(
             autoTrackPushEvents = false,
-            pushClickBehavior = PushClickBehavior.ACTIVITY_PREVENT_RESTART
+            pushClickBehavior = ACTIVITY_PREVENT_RESTART
         )
 
         val givenPackageName = contextMock.packageName

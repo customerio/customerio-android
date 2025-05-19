@@ -17,11 +17,9 @@ import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
-import io.customer.sdk.core.util.Logger
 import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
-    private val logger: Logger,
     private val pushLogger: PushNotificationLogger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil
@@ -156,6 +154,7 @@ internal class PushMessageProcessorImpl(
         activityContext: Context,
         payload: CustomerIOParsedPushPayload
     ) {
+        pushLogger.logHandlingNotificationDeepLink(payload, moduleConfig.pushClickBehavior)
         val deepLink = payload.deepLink?.takeIf { link -> link.isNotBlank() }
 
         // check if host app overrides the handling of deeplink
@@ -166,7 +165,7 @@ internal class PushMessageProcessorImpl(
         )
 
         if (wasClicked != null) {
-            logger.info("Notification target overridden by onNotificationClicked, link $deepLink handled by host app")
+            pushLogger.logDeepLinkHandledByCallback()
             return
         }
 
@@ -183,6 +182,7 @@ internal class PushMessageProcessorImpl(
             // Check if the deep links should be opened externally
             if (deepLinkExternalIntent != null) {
                 // Open link externally and return
+                pushLogger.logDeepLinkHandledExternally()
                 activityContext.startActivity(deepLinkExternalIntent)
                 return
             }
@@ -191,14 +191,29 @@ internal class PushMessageProcessorImpl(
         // Get the default intent for the host app
         val defaultHostAppIntent =
             deepLinkUtil.createDefaultHostAppIntent(context = activityContext)
-        val deepLinkIntent: Intent = deepLinkHostAppIntent
-            ?: defaultHostAppIntent
-            ?: return
+
+        when {
+            deepLinkHostAppIntent != null -> {
+                pushLogger.logDeepLinkHandledByHostApp()
+                startActivityForIntent(activityContext, deepLinkHostAppIntent, payload)
+            }
+            defaultHostAppIntent != null -> {
+                pushLogger.logDeepLinkHandledDefaultHostAppLauncher()
+                startActivityForIntent(activityContext, defaultHostAppIntent, payload)
+            }
+            else -> pushLogger.logDeepLinkWasNotHandled()
+        }
+    }
+
+    private fun startActivityForIntent(
+        activityContext: Context,
+        deepLinkIntent: Intent,
+        payload: CustomerIOParsedPushPayload
+    ) {
         deepLinkIntent.putExtra(
             NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA,
             payload
         )
-        logger.info("Dispatching notification with link $deepLink to intent: $deepLinkIntent with behavior: ${moduleConfig.pushClickBehavior}")
 
         when (moduleConfig.pushClickBehavior) {
             PushClickBehavior.RESET_TASK_STACK -> {

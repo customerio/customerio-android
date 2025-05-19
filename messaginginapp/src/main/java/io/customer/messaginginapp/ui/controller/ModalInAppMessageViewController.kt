@@ -15,7 +15,7 @@ internal class ModalInAppMessageViewController(
     platformDelegate = platformDelegate
 ) {
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal var shouldDispatchDisplayEvent: Boolean = true
+    var shouldDispatchDisplayEvent: Boolean = true
 
     init {
         attachEngineWebView()

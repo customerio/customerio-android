@@ -29,7 +29,6 @@ import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
-import io.mockk.MockKVerificationScope
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
@@ -154,13 +153,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             .dispatch(InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage)))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        verifyOrder {
-            assertMessageLoadingCalls(
-                controller = controller,
-                viewCallback = viewCallback,
-                expectedMessage = givenInAppMessage
-            )
-        }
+        assertMessageLoadingCalls(
+            controller = controller,
+            viewCallback = viewCallback,
+            expectedMessage = givenInAppMessage
+        )
         controller.engineWebViewDelegate.shouldNotBeNull()
         controller.currentMessage shouldBeEqualTo givenInAppMessage
     }
@@ -180,11 +177,9 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             .dispatch(InAppMessagingAction.DismissMessage(givenInAppMessage))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        verifyOrder {
-            assertMessageDismissedCalls(
-                viewCallback = viewCallback
-            )
-        }
+        assertMessageDismissedCalls(
+            viewCallback = viewCallback
+        )
         controller.viewCallback.shouldNotBeNull()
         controller.engineWebViewDelegate.shouldBeNull()
         controller.currentMessage.shouldBeNull()
@@ -210,16 +205,14 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.elementId = givenNewElementId
         flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        verifyOrder {
-            assertMessageDismissedCalls(
-                viewCallback = viewCallback
-            )
-            assertMessageLoadingCalls(
-                controller = controller,
-                viewCallback = viewCallback,
-                expectedMessage = givenNewInAppMessage
-            )
-        }
+        assertMessageDismissedCalls(
+            viewCallback = viewCallback
+        )
+        assertMessageLoadingCalls(
+            controller = controller,
+            viewCallback = viewCallback,
+            expectedMessage = givenNewInAppMessage
+        )
         controller.viewCallback.shouldNotBeNull()
         controller.engineWebViewDelegate.shouldNotBeNull()
         controller.currentMessage shouldBeEqualTo givenNewInAppMessage
@@ -244,13 +237,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.elementId = givenElementId
         flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        verifyOrder {
-            assertMessageLoadingCalls(
-                controller = controller,
-                viewCallback = viewCallback,
-                expectedMessage = givenInAppMessage
-            )
-        }
+        assertMessageLoadingCalls(
+            controller = controller,
+            viewCallback = viewCallback,
+            expectedMessage = givenInAppMessage
+        )
         controller.viewCallback.shouldNotBeNull()
         controller.engineWebViewDelegate.shouldNotBeNull()
         controller.currentMessage shouldBeEqualTo givenInAppMessage
@@ -271,13 +262,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
 
         controller.sizeChanged(givenWidthInDp, givenHeightInDp)
 
-        verifyOrder {
-            assertMessageDisplayedCalls(
-                viewCallback = viewCallback,
-                givenWidthInDp = givenWidthInDp,
-                givenHeightInDp = givenHeightInDp
-            )
-        }
+        assertMessageDisplayedCalls(
+            viewCallback = viewCallback,
+            givenWidthInDp = givenWidthInDp,
+            givenHeightInDp = givenHeightInDp
+        )
         controller.currentMessage shouldBeEqualTo givenInAppMessage
         controller.contentWidthInDp shouldBeEqualTo givenWidthInDp
         controller.contentHeightInDp shouldBeEqualTo givenHeightInDp
@@ -301,13 +290,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
 
         controller.sizeChanged(givenNewWidthInDp, givenHeightInDp)
 
-        verifyOrder {
-            assertMessageDisplayedCalls(
-                viewCallback = viewCallback,
-                givenWidthInDp = givenNewWidthInDp,
-                givenHeightInDp = givenHeightInDp
-            )
-        }
+        assertMessageDisplayedCalls(
+            viewCallback = viewCallback,
+            givenWidthInDp = givenNewWidthInDp,
+            givenHeightInDp = givenHeightInDp
+        )
         controller.currentMessage shouldBeEqualTo givenInAppMessage
         controller.contentWidthInDp shouldBeEqualTo givenNewWidthInDp
         controller.contentHeightInDp shouldBeEqualTo givenHeightInDp
@@ -331,13 +318,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
 
         controller.sizeChanged(givenWidthInDp, givenNewHeightInDp)
 
-        verifyOrder {
-            assertMessageDisplayedCalls(
-                viewCallback = viewCallback,
-                givenWidthInDp = givenWidthInDp,
-                givenHeightInDp = givenNewHeightInDp
-            )
-        }
+        assertMessageDisplayedCalls(
+            viewCallback = viewCallback,
+            givenWidthInDp = givenWidthInDp,
+            givenHeightInDp = givenNewHeightInDp
+        )
         controller.currentMessage shouldBeEqualTo givenInAppMessage
         controller.contentWidthInDp shouldBeEqualTo givenWidthInDp
         controller.contentHeightInDp shouldBeEqualTo givenNewHeightInDp
@@ -382,11 +367,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.contentHeightInDp.shouldBeNull()
     }
 
-    private fun MockKVerificationScope.assertMessageLoadingCalls(
+    private fun assertMessageLoadingCalls(
         controller: InlineInAppMessageViewController,
         viewCallback: InlineInAppMessageViewCallback,
         expectedMessage: Message
-    ) {
+    ) = verifyOrder {
         val expectedConfig = EngineWebConfiguration(
             siteId = moduleConfig.siteId,
             dataCenter = gistDataCenter,
@@ -406,11 +391,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         engineWebViewDelegate.setup(expectedConfig)
     }
 
-    private fun MockKVerificationScope.assertMessageDisplayedCalls(
+    private fun assertMessageDisplayedCalls(
         viewCallback: InlineInAppMessageViewCallback,
         givenWidthInDp: Double,
         givenHeightInDp: Double
-    ) {
+    ) = verifyOrder {
         val expectedWidthInPx = (givenWidthInDp * screenDensity).roundToInt()
         val expectedHeightInPx = (givenHeightInDp * screenDensity).roundToInt()
         viewCallback.onViewSizeChanged(expectedWidthInPx, expectedHeightInPx)
@@ -427,9 +412,9 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         elapsedTimer.end()
     }
 
-    private fun MockKVerificationScope.assertMessageDismissedCalls(
+    private fun assertMessageDismissedCalls(
         viewCallback: InlineInAppMessageViewCallback
-    ) {
+    ) = verifyOrder {
         engineWebViewDelegate.stopLoading()
         platformDelegate.animateViewSize(
             widthInPx = null,

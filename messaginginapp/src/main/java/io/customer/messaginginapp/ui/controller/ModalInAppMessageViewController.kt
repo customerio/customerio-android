@@ -1,6 +1,6 @@
 package io.customer.messaginginapp.ui.controller
 
-import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
@@ -13,8 +13,6 @@ internal class ModalInAppMessageViewController(
     viewDelegate = viewDelegate,
     platformDelegate = platformDelegate
 ) {
-    private var shouldDispatchDisplayEvent: Boolean = true
-
     init {
         attachEngineWebView()
     }
@@ -27,15 +25,9 @@ internal class ModalInAppMessageViewController(
         return result
     }
 
-    override fun routeLoaded(route: String) {
-        super.routeLoaded(route)
-        if (!shouldDispatchDisplayEvent) return
-
-        shouldDispatchDisplayEvent = false
+    override fun onRouteLoaded(message: Message, route: String) {
         engineWebViewDelegate?.setAlpha(1.0F)
-        currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
-        }
+        super.onRouteLoaded(message, route)
     }
 
     override fun bootstrapped() {

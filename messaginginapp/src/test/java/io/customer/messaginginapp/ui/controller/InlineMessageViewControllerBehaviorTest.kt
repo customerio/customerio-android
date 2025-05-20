@@ -3,6 +3,7 @@ package io.customer.messaginginapp.ui.controller
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.flushCoroutines
@@ -77,7 +78,8 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             dataCenter = gistDataCenter,
             environment = gistEnvironment
         ).also { SDKComponent.overrideDependency<GistProvider>(it) }
-        messagingManager = SDKComponent.inAppMessagingManager
+        messagingManager = spyk(SDKComponent.inAppMessagingManager)
+            .also { SDKComponent.overrideDependency<InAppMessagingManager>(it) }
         elapsedTimer = spyk(ElapsedTimer())
     }
 
@@ -248,6 +250,47 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     }
 
     @Test
+    fun handleMessageState_givenMultipleMessageDisplayed_expectCorrectEventsDispatched() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessageOne = createInAppMessage(queueId = "1", elementId = givenElementId)
+        val givenInAppMessageTwo = createInAppMessage(queueId = "2", elementId = givenElementId)
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessageOne))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        messagingManager.dispatch(
+            InAppMessagingAction.DismissMessage(givenInAppMessageOne)
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessageTwo))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+
+        assertCalledOnce {
+            messagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenInAppMessageOne))
+            messagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenInAppMessageTwo))
+        }
+        assertMessageLoadingCalls(
+            controller = controller,
+            viewCallback = viewCallback,
+            expectedMessage = givenInAppMessageOne
+        )
+        assertMessageDismissedCalls(
+            viewCallback = viewCallback
+        )
+        assertMessageLoadingCalls(
+            controller = controller,
+            viewCallback = viewCallback,
+            expectedMessage = givenInAppMessageTwo
+        )
+        controller.currentMessage shouldBeEqualTo givenInAppMessageTwo
+    }
+
+    @Test
     fun messageLoaded_givenSizeUpdate_expectViewMadeVisible() {
         val controller = setupGistAndCreateViewController()
         val viewCallback = controller.initMockViewCallback()
@@ -367,6 +410,46 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.contentHeightInDp.shouldBeNull()
     }
 
+    @Test
+    fun messageLoadingFailed_givenRouteError_expectViewDismissed() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.currentMessage = givenInAppMessage
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        controller.routeError(String.random)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageDismissedCalls(
+            viewCallback = viewCallback
+        )
+    }
+
+    @Test
+    fun messageLoadingFailed_givenLoadError_expectViewDismissed() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.currentMessage = givenInAppMessage
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        controller.error()
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageDismissedCalls(
+            viewCallback = viewCallback
+        )
+    }
+
     private fun assertMessageLoadingCalls(
         controller: InlineInAppMessageViewController,
         viewCallback: InlineInAppMessageViewCallback,
@@ -382,11 +465,11 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         )
 
         elapsedTimer.start(any())
+        viewCallback.onLoadingStarted()
         viewDelegate.createEngineWebViewInstance()
         engineWebViewDelegate.setAlpha(0.0F)
         engineWebViewDelegate.listener = controller
         viewDelegate.addView(engineWebViewDelegate)
-        viewCallback.onLoadingStarted()
         viewDelegate.isVisible = true
         engineWebViewDelegate.setup(expectedConfig)
     }

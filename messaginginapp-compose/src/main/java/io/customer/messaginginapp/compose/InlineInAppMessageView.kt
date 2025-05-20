@@ -46,9 +46,6 @@ fun InlineInAppMessage(
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
 
-            // Set a minimum height to ensure visibility
-            minimumHeight = (context.resources.displayMetrics.density * 48).toInt()
-
             // Set custom progress tint if provided
             progressTint?.let { color ->
                 setProgressTint(color.toArgb())

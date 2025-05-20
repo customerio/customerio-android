@@ -2,6 +2,7 @@ package io.customer.messaginginapp
 
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
+import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.di.inAppMessagingManager
@@ -354,7 +355,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun givenMessage_whenEmbedded_thenEmbedMessageCallbackIsCalled() = runTest {
+    fun givenMessage_whenEmbedded_thenNoCallbackIsCalled() = runTest {
         initializeAndSetUser()
         // Create a message with custom properties to include an elementId for embedding
         // We need to manually construct the Message here since our helper doesn't support elementId
@@ -366,7 +367,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
         manager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
 
-        verify { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(message)) }
+        assertNoInteractions(inAppEventListener)
     }
 
     @Test

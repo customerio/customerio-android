@@ -39,9 +39,10 @@ class InlineInAppMessageView @JvmOverloads constructor(
     @StyleRes defStyleRes: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr, defStyleRes),
     InlineInAppMessageViewCallback {
+    private val platformDelegate = AndroidInAppPlatformDelegate(view = this)
     private val controller = InlineInAppMessageViewController(
         viewDelegate = InAppHostViewDelegateImpl(view = this),
-        platformDelegate = AndroidInAppPlatformDelegate(view = this)
+        platformDelegate = platformDelegate
     )
     private val progressIndicator: ProgressBar = ProgressBar(context)
 
@@ -118,8 +119,17 @@ class InlineInAppMessageView @JvmOverloads constructor(
     }
 
     override fun onLoadingStarted() {
-        progressIndicator.visibility = VISIBLE
-        progressIndicator.bringToFront()
+        // Set a minimum height to ensure visibility
+        // Keep the animation duration shorter so it can be completed before we
+        // start receiving size update callbacks from WebView to avoid flickering
+        platformDelegate.animateViewSize(
+            heightInPx = platformDelegate.convertDpToPixels(48.0),
+            duration = 100,
+            onStart = {
+                progressIndicator.visibility = VISIBLE
+                progressIndicator.bringToFront()
+            }
+        )
     }
 
     override fun onLoadingFinished() {

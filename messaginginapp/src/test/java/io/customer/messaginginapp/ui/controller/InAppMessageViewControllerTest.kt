@@ -24,6 +24,7 @@ import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppMessageViewCallback
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -313,12 +314,33 @@ class InAppMessageViewControllerTest : JUnitTest() {
     //region Route tests
 
     @Test
-    fun routeListener_givenRouteLoaded_expectCurrentRouteIsUpdated() {
+    fun routeLoaded_givenPendingEvent_expectRouteUpdatedAndEventDispatched() {
+        val givenMessage = createInAppMessage()
         val givenRoute = String.random
+        controller.currentMessage = givenMessage
 
         controller.routeLoaded(givenRoute)
 
         controller.currentRoute shouldBeEqualTo givenRoute
+        verifyOrder {
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.DisplayMessage(givenMessage)
+            )
+        }
+    }
+
+    @Test
+    fun routeLoaded_givenEventAlreadyDispatched_expectRouteUpdatedAndNoDispatch() {
+        val givenMessage = createInAppMessage()
+        val givenRoute = String.random
+        controller.currentMessage = givenMessage
+        controller.routeLoaded(givenRoute)
+        clearMocks(inAppMessagingManager)
+
+        controller.routeLoaded(givenRoute)
+
+        controller.currentRoute shouldBeEqualTo givenRoute
+        assertNoInteractions(inAppMessagingManager)
     }
 
     @Test

@@ -230,6 +230,56 @@ class InAppMessageReducerTest : JUnitTest() {
     }
 
     @Test
+    fun messageLoadingFailed_whenModalMessage_expectModalMessageToBeDismissed() {
+        // Given a persistent message that is displayed but not yet marked as shown
+        val testMessage = createTestMessage(persistent = false)
+
+        // The message is displayed but not in shownMessageQueueIds
+        val startingState = initialState.copy(
+            modalMessageState = ModalMessageState.Displayed(testMessage),
+            shownMessageQueueIds = emptySet()
+        )
+
+        // When the message is dismissed via close action but logging is disabled
+        val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage)
+        val resultState = inAppMessagingReducer(startingState, dismissAction)
+
+        // Then the message should NOT be added to shownMessageQueueIds
+        assertTrue(resultState.shownMessageQueueIds.isEmpty())
+
+        // And the message state should be Dismissed
+        val modalState = resultState.modalMessageState as ModalMessageState.Dismissed
+        assertEquals(testMessage, modalState.message)
+    }
+
+    @Test
+    fun messageLoadingFailed_whenInlineMessage_expectInlineMessageToBeDismissed() {
+        // Given a persistent message that is displayed but not yet marked as shown
+        val elementId = String.random
+        val testMessage = createTestMessage(persistent = false, elementId = elementId)
+
+        // The message is displayed but not in shownMessageQueueIds
+        val startingState = initialState.copy(
+            queuedInlineMessagesState = QueuedInlineMessagesState()
+                .addMessage(message = testMessage, elementId = elementId),
+            shownMessageQueueIds = emptySet()
+        )
+
+        // When the message is dismissed via close action but logging is disabled
+        val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage)
+        val resultState = inAppMessagingReducer(startingState, dismissAction)
+
+        // Then the message should NOT be added to shownMessageQueueIds
+        assertTrue(resultState.shownMessageQueueIds.isEmpty())
+
+        // And the message state should be Dismissed
+        val inlineMessageStateMap = resultState.queuedInlineMessagesState.messagesByElementId
+        assertEquals(1, inlineMessageStateMap.count())
+        val inlineMessageState = inlineMessageStateMap[elementId] as InlineMessageState.Dismissed
+        assertEquals(testMessage, inlineMessageState.message)
+    }
+
+    @Test
     fun reset_shouldClearAllStates() {
         // Given a state with some messages
         val testMessage = createTestMessage(persistent = true)
@@ -252,7 +302,7 @@ class InAppMessageReducerTest : JUnitTest() {
     /**
      * Helper method to create a test message with customizable persistence
      */
-    private fun createTestMessage(persistent: Boolean): Message {
+    private fun createTestMessage(persistent: Boolean, elementId: String? = null): Message {
         val messageId = String.random
         val queueId = String.random
 
@@ -261,13 +311,13 @@ class InAppMessageReducerTest : JUnitTest() {
             every { this@mockk.queueId } returns queueId
             every { this@mockk.gistProperties } returns GistProperties(
                 routeRule = null,
-                elementId = null,
+                elementId = elementId,
                 campaignId = null,
                 position = MessagePosition.CENTER,
                 persistent = persistent,
                 overlayColor = null
             )
-            every { this@mockk.isEmbedded } returns false
+            every { this@mockk.isEmbedded } returns (elementId != null)
         }
     }
 }

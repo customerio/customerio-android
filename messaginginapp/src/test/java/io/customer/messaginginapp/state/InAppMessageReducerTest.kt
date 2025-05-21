@@ -230,6 +230,27 @@ class InAppMessageReducerTest : JUnitTest() {
     }
 
     @Test
+    fun messageDismissed_whenInlineMessageWithoutQueueId_expectStateUnchanged() {
+        // Given a persistent message that is displayed but not yet marked as shown
+        val elementId = String.random
+        val testMessage = createTestMessage(persistent = false, queueId = null, elementId = elementId)
+
+        // The message is displayed but not in shownMessageQueueIds
+        val startingState = initialState.copy(
+            queuedInlineMessagesState = QueuedInlineMessagesState()
+                .addMessage(message = testMessage, elementId = elementId),
+            shownMessageQueueIds = emptySet()
+        )
+
+        // When the message is dismissed via close action but logging is disabled
+        val dismissAction = InAppMessagingAction.DismissMessage(message = testMessage)
+        val resultState = inAppMessagingReducer(startingState, dismissAction)
+
+        // Starting state should be unchanged
+        assertEquals(startingState, resultState)
+    }
+
+    @Test
     fun messageLoadingFailed_whenModalMessage_expectModalMessageToBeDismissed() {
         // Given a persistent message that is displayed but not yet marked as shown
         val testMessage = createTestMessage(persistent = false)
@@ -240,7 +261,7 @@ class InAppMessageReducerTest : JUnitTest() {
             shownMessageQueueIds = emptySet()
         )
 
-        // When the message is dismissed via close action but logging is disabled
+        // When the message fails to load
         val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage)
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
@@ -265,7 +286,7 @@ class InAppMessageReducerTest : JUnitTest() {
             shownMessageQueueIds = emptySet()
         )
 
-        // When the message is dismissed via close action but logging is disabled
+        // When the message fails to load
         val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage)
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
@@ -302,9 +323,12 @@ class InAppMessageReducerTest : JUnitTest() {
     /**
      * Helper method to create a test message with customizable persistence
      */
-    private fun createTestMessage(persistent: Boolean, elementId: String? = null): Message {
+    private fun createTestMessage(
+        persistent: Boolean,
+        queueId: String? = String.random,
+        elementId: String? = null
+    ): Message {
         val messageId = String.random
-        val queueId = String.random
 
         return mockk<Message>(relaxed = true) {
             every { this@mockk.messageId } returns messageId

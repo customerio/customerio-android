@@ -231,7 +231,7 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun messageDismissed_whenInlineMessageWithoutQueueId_expectStateUnchanged() {
-        // Given a persistent message that is displayed but not yet marked as shown
+        // Given a non-persistent message that is displayed but not yet marked as shown
         val elementId = String.random
         val testMessage = createTestMessage(persistent = false, queueId = null, elementId = elementId)
 
@@ -242,7 +242,7 @@ class InAppMessageReducerTest : JUnitTest() {
             shownMessageQueueIds = emptySet()
         )
 
-        // When the message is dismissed via close action but logging is disabled
+        // When the message is dismissed
         val dismissAction = InAppMessagingAction.DismissMessage(message = testMessage)
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
@@ -252,7 +252,7 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun messageLoadingFailed_whenModalMessage_expectModalMessageToBeDismissed() {
-        // Given a persistent message that is displayed but not yet marked as shown
+        // Given a non-persistent message that is displayed but not yet marked as shown
         val testMessage = createTestMessage(persistent = false)
 
         // The message is displayed but not in shownMessageQueueIds
@@ -275,7 +275,7 @@ class InAppMessageReducerTest : JUnitTest() {
 
     @Test
     fun messageLoadingFailed_whenInlineMessage_expectInlineMessageToBeDismissed() {
-        // Given a persistent message that is displayed but not yet marked as shown
+        // Given a non-persistent message that is displayed but not yet marked as shown
         val elementId = String.random
         val testMessage = createTestMessage(persistent = false, elementId = elementId)
 

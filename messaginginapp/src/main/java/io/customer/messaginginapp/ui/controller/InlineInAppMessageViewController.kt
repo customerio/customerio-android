@@ -74,14 +74,6 @@ internal constructor(
         viewDelegate.post { refreshViewState(state = state) }
     }
 
-    override fun routeLoaded(route: String) {
-        super.routeLoaded(route)
-
-        currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
-        }
-    }
-
     internal fun onDetachedFromWindow() {
         val message = currentMessage ?: return
 
@@ -151,6 +143,7 @@ internal constructor(
                     viewDelegate.isVisible = false
                     contentWidthInDp = null
                     contentHeightInDp = null
+                    shouldDispatchDisplayEvent = true
                     detachAndCleanupEngineWebView()
                     viewCallback?.onNoMessageToDisplay()
                     onComplete()
@@ -162,8 +155,8 @@ internal constructor(
     @UiThread
     private fun displayMessage(message: Message) {
         elapsedTimer.start("Displaying inline message: ${message.messageId}")
-        attachEngineWebView()
         viewCallback?.onLoadingStarted()
+        attachEngineWebView()
         viewDelegate.isVisible = true
         loadMessage(message)
     }

@@ -46,7 +46,6 @@ class ModuleMessagingInApp(
     }
 
     override fun embedMessage(message: Message, elementId: String) {
-        moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
     }
 
     override fun onMessageShown(message: Message) {

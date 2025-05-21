@@ -45,20 +45,6 @@ internal data class InAppMessagingState(
     }
 }
 
-internal fun InAppMessagingState.withUpdatedEmbeddedMessage(
-    queueId: String,
-    newState: InlineMessageState,
-    shownMessageQueueIds: Set<String> = this.shownMessageQueueIds,
-    messagesInQueue: Set<Message> = this.messagesInQueue
-): InAppMessagingState {
-    val updatedEmbeddedMessagesState = queuedInlineMessagesState.updateMessageState(queueId, newState)
-    return copy(
-        queuedInlineMessagesState = updatedEmbeddedMessagesState,
-        shownMessageQueueIds = shownMessageQueueIds,
-        messagesInQueue = messagesInQueue
-    )
-}
-
 internal sealed class InlineMessageState {
     abstract val message: Message
 

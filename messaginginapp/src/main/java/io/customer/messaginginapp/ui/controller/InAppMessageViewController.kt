@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.ui.controller
 
 import android.content.ActivityNotFoundException
+import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.di.inAppMessagingManager
@@ -27,18 +28,20 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     val viewDelegate: InAppHostViewDelegate
 ) : EngineWebViewListener {
     private val logger = SDKComponent.logger
-    internal val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    protected var shouldDispatchDisplayEvent: Boolean = true
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    internal var engineWebViewDelegate: EngineWebViewDelegate? = null
+    var engineWebViewDelegate: EngineWebViewDelegate? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    internal var currentMessage: Message? = null
+    var currentMessage: Message? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal var currentRoute: String? = null
+    var currentRoute: String? = null
 
-    internal var viewCallback: ViewCallback? = null
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    var viewCallback: ViewCallback? = null
 
     /**
      * Listener to handle action clicks from inline in-app messages.
@@ -242,9 +245,21 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         }
     }
 
-    override fun routeLoaded(route: String) {
+    final override fun routeLoaded(route: String) {
         logViewEvent("Route loaded: $route")
         currentRoute = route
+        val message = currentMessage ?: return
+        if (!shouldDispatchDisplayEvent) return
+
+        // Dispatch the display event to track metrics
+        // The display event should be dispatched only once for each message
+        shouldDispatchDisplayEvent = false
+        onRouteLoaded(message = message, route = route)
+    }
+
+    @CallSuper
+    protected open fun onRouteLoaded(message: Message, route: String) {
+        inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
     }
 
     override fun error() {

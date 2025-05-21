@@ -23,8 +23,10 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.SetPollingInterval ->
             state.copy(pollInterval = action.interval)
 
-        is InAppMessagingAction.EngineAction.MessageLoadingFailed ->
-            state.copy(modalMessageState = ModalMessageState.Dismissed(action.message))
+        is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.withMessageDismissed(
+            message = action.message,
+            shouldMarkAsShown = false
+        )
 
         is InAppMessagingAction.LoadMessage ->
             state.copy(modalMessageState = ModalMessageState.Loading(action.message))
@@ -80,35 +82,10 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             } ?: state
         }
 
-        is InAppMessagingAction.DismissMessage -> {
-            var shownMessageQueueIds = state.shownMessageQueueIds
-            // If the message should be tracked shown when it is dismissed, add the queueId to shownMessageQueueIds.
-            if (action.shouldMarkMessageAsShown() && action.message.queueId != null) {
-                shownMessageQueueIds = shownMessageQueueIds + action.message.queueId
-            }
-
-            if (action.message.isEmbedded) {
-                // For embedded messages
-                if (action.message.queueId != null) {
-                    // Update embedded message state if it has a queueId
-                    state.withUpdatedEmbeddedMessage(
-                        queueId = action.message.queueId,
-                        newState = InlineMessageState.Dismissed(action.message),
-                        shownMessageQueueIds = shownMessageQueueIds
-                    )
-                } else {
-                    // For embedded messages without queueId
-                    // Just return the state unchanged
-                    state
-                }
-            } else {
-                // Handle modal message
-                state.copy(
-                    modalMessageState = ModalMessageState.Dismissed(action.message),
-                    shownMessageQueueIds = shownMessageQueueIds
-                )
-            }
-        }
+        is InAppMessagingAction.DismissMessage -> state.withMessageDismissed(
+            message = action.message,
+            shouldMarkAsShown = action.shouldMarkMessageAsShown()
+        )
 
         is InAppMessagingAction.EngineAction.Tap ->
             state // No state changes for tap action

@@ -3,6 +3,7 @@ package io.customer.messaginginapp.state
 import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
+import io.customer.messaginginapp.di.gistSdk
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
@@ -50,6 +51,7 @@ private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, 
     if (action.shouldMarkMessageAsShown()) {
         SDKComponent.logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
         SDKComponent.gistQueue.logView(action.message)
+        SDKComponent.gistSdk.fetchInAppMessages()
     } else {
         SDKComponent.logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
     }

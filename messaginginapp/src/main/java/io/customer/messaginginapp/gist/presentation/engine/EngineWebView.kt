@@ -43,6 +43,8 @@ internal class EngineWebView @JvmOverloads constructor(
 
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
+    private val viewLifecycleOwner: Lifecycle?
+        get() = findViewTreeLifecycleOwner()?.lifecycle
 
     init {
         // exception handling is required for webview in-case webview is not supported in the device
@@ -111,6 +113,9 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun stopLoading() {
         webView?.stopLoading()
+        // remove lifecycle observer to stop receiving further lifecycle events
+        onLifecyclePaused()
+        viewLifecycleOwner?.removeObserver(this)
         // stop the timer and clean up
         bootstrapped()
     }
@@ -132,9 +137,9 @@ internal class EngineWebView @JvmOverloads constructor(
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)
 
-            findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
+            viewLifecycleOwner?.addObserver(this) ?: run {
                 logger.error("Lifecycle owner not found, attaching interface to WebView manually")
-                engineWebViewInterface.attach(webView = it)
+                onLifecycleResumed()
             }
 
             it.webViewClient = object : WebViewClient() {

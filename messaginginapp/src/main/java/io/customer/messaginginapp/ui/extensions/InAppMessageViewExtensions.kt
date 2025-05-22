@@ -23,7 +23,7 @@ import io.customer.sdk.core.di.SDKComponent
 internal fun View.animateViewSize(
     widthInPx: Int? = null,
     heightInPx: Int? = null,
-    duration: Long = resources.getInteger(android.R.integer.config_longAnimTime).toLong(),
+    duration: Long = resources.getInteger(android.R.integer.config_shortAnimTime).toLong(),
     onStart: (() -> Unit)? = null,
     onEnd: (() -> Unit)? = null
 ) {

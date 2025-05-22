@@ -120,7 +120,7 @@ internal class AndroidInAppPlatformDelegate(
             widthInPx = widthInPx,
             heightInPx = heightInPx,
             duration = duration ?: view.resources.getInteger(
-                android.R.integer.config_longAnimTime
+                android.R.integer.config_shortAnimTime
             ).toLong(),
             onStart = onStart,
             onEnd = onEnd

@@ -15,13 +15,14 @@ import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
-import androidx.lifecycle.findViewTreeLifecycleOwner
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
+import io.customer.messaginginapp.ui.lifecycle.LifecycleProvider
+import io.customer.messaginginapp.ui.lifecycle.ManualLifecycleProvider
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
@@ -38,6 +39,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
+    private var lifecycleProvider: LifecycleProvider = ManualLifecycleProvider()
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -57,6 +59,20 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun getView(): EngineWebView {
         return this
+    }
+
+    /**
+     * Sets the lifecycle provider to be used for this EngineWebView.
+     * This should be called before setup() to ensure proper lifecycle handling.
+     *
+     * @param provider The lifecycle provider to use
+     */
+    override fun setLifecycleProvider(lifecycleProvider: LifecycleProvider) {
+        // If we already have a lifecycle provider, remove this as an observer
+        this.lifecycleProvider.removeObserver(this)
+
+        this.lifecycleProvider = lifecycleProvider
+        logger.debug("LifecycleProvider set to: ${lifecycleProvider.javaClass.simpleName}")
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
@@ -85,6 +101,9 @@ internal class EngineWebView @JvmOverloads constructor(
                 logger.debug("EngineWebView is still attached to parent, skipping cleanup")
                 return
             }
+
+            // Remove lifecycle observer
+            lifecycleProvider.removeObserver(this)
 
             webView = null
             if (view.parent != null) {
@@ -132,8 +151,10 @@ internal class EngineWebView @JvmOverloads constructor(
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)
 
-            findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
-                logger.error("Lifecycle owner not found, attaching interface to WebView manually")
+            if (lifecycleProvider.addObserver(this)) {
+                logger.debug("Lifecycle observer added successfully")
+            } else {
+                logger.error("Lifecycle observer could not be added, attaching interface to WebView manually")
                 engineWebViewInterface.attach(webView = it)
             }
 

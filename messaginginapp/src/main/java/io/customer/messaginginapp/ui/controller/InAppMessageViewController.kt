@@ -70,6 +70,11 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         engineWebViewDelegate = viewDelegate.createEngineWebViewInstance().also { engine ->
             engine.setAlpha(0.0f)
             engine.listener = this
+
+            // Set the appropriate lifecycle provider for this view type
+            val lifecycleProvider = viewDelegate.createLifecycleProvider()
+            engine.setLifecycleProvider(lifecycleProvider)
+
             viewDelegate.addView(engine)
         }
         return true

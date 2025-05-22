@@ -17,6 +17,7 @@ import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 import io.customer.messaginginapp.ui.controller.InlineInAppMessageViewController
 import io.customer.messaginginapp.ui.extensions.resolveThemeColor
+import io.customer.messaginginapp.ui.lifecycle.ViewLifecycleProvider
 
 /**
  * InlineInAppMessageView is a custom view that displays an inline in-app message for given
@@ -41,9 +42,17 @@ class InlineInAppMessageView @JvmOverloads constructor(
     InlineInAppMessageViewCallback {
     private val platformDelegate = AndroidInAppPlatformDelegate(view = this)
     private val controller = InlineInAppMessageViewController(
-        viewDelegate = InAppHostViewDelegateImpl(view = this),
+        viewDelegate = createInlineViewDelegate(),
         platformDelegate = platformDelegate
     )
+
+    private fun createInlineViewDelegate(): InAppHostViewDelegateImpl {
+        // For inline messages, explicitly use the view lifecycle
+        return InAppHostViewDelegateImpl(
+            view = this,
+            lifecycleProviderFactory = { ViewLifecycleProvider(this) }
+        )
+    }
     private val progressIndicator: ProgressBar = ProgressBar(context)
 
     var elementId: String?

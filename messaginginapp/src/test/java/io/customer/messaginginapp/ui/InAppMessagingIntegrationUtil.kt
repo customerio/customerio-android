@@ -6,7 +6,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 
-object InAppMessagingIntegrationTest {
+object InAppMessagingIntegrationUtil {
     internal fun Message.testMatchAndEmbed(
         elementId: String,
         manager: InAppMessagingManager,

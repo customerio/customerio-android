@@ -10,7 +10,7 @@ import io.mockk.mockk
  * Creates a configurable, well-mocked Message for testing.
  * This ensures consistent mock behavior across tests.
  */
-object MessageBuilderTest {
+object MessageBuilderMock {
     /**
      * Create a fully mocked Message instance for testing.
      * All common properties are properly stubbed.

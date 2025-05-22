@@ -2,7 +2,7 @@ package io.customer.messaginginapp.state
 
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.GistEnvironment
-import io.customer.messaginginapp.state.MessageBuilderTest.createMessage
+import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals

@@ -17,11 +17,11 @@ import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.type.InlineMessageActionListener
-import io.customer.messaginginapp.ui.InAppMessagingIntegrationTest.testDismiss
-import io.customer.messaginginapp.ui.InAppMessagingIntegrationTest.testDisplay
-import io.customer.messaginginapp.ui.InAppMessagingIntegrationTest.testLoadingFailed
-import io.customer.messaginginapp.ui.InAppMessagingIntegrationTest.testMatchAndEmbed
-import io.customer.messaginginapp.ui.InAppMessagingIntegrationTest.testTap
+import io.customer.messaginginapp.ui.InAppMessagingIntegrationUtil.testDismiss
+import io.customer.messaginginapp.ui.InAppMessagingIntegrationUtil.testDisplay
+import io.customer.messaginginapp.ui.InAppMessagingIntegrationUtil.testLoadingFailed
+import io.customer.messaginginapp.ui.InAppMessagingIntegrationUtil.testMatchAndEmbed
+import io.customer.messaginginapp.ui.InAppMessagingIntegrationUtil.testTap
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
@@ -94,7 +94,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
     @Test
     fun givenInlineMessage_whenEmbedAction_expectMessageInReadyToEmbedState() {
         val elementId = "test-element-id"
-        val message = io.customer.messaginginapp.state.MessageBuilderTest.createMessage(
+        val message = io.customer.messaginginapp.state.MessageBuilderMock.createMessage(
             elementId = elementId,
             routeRule = null
         )
@@ -117,7 +117,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
     @Test
     fun givenInlineMessage_whenTapAction_expectCorrectHandling() {
         val elementId = "test-element"
-        val message = io.customer.messaginginapp.state.MessageBuilderTest.createMessage(
+        val message = io.customer.messaginginapp.state.MessageBuilderMock.createMessage(
             elementId = elementId,
             routeRule = null
         )
@@ -152,7 +152,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
     @Test
     fun givenInlineMessage_whenDisplayedAndDismissed_expectCorrectStateTransitions() {
         val elementId = "test-element"
-        val message = io.customer.messaginginapp.state.MessageBuilderTest.createMessage(
+        val message = io.customer.messaginginapp.state.MessageBuilderMock.createMessage(
             elementId = elementId,
             routeRule = null
         )
@@ -196,7 +196,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
     @Test
     fun givenInlineMessage_whenLoadingFails_expectStateDismissed() {
         val elementId = "test-element"
-        val message = io.customer.messaginginapp.state.MessageBuilderTest.createMessage(
+        val message = io.customer.messaginginapp.state.MessageBuilderMock.createMessage(
             elementId = elementId,
             routeRule = null
         )

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test
 /**
  * Basic integration tests that verify essential functionality without complex mocking.
  */
-class BasicIntegrationTest : JUnitTest() {
+class MessagingInAppIntegrationTest : JUnitTest() {
 
     private val moduleConfig = MessagingInAppModuleConfig.Builder(
         siteId = "test-site-id",

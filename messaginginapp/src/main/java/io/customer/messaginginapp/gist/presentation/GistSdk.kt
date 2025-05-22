@@ -15,11 +15,12 @@ import java.util.Timer
 import kotlin.concurrent.timer
 import kotlinx.coroutines.flow.filter
 
-interface GistProvider {
+internal interface GistProvider {
     fun setCurrentRoute(route: String)
     fun setUserId(userId: String)
     fun dismissMessage()
     fun reset()
+    fun fetchInAppMessages()
 }
 
 class GistSdk(
@@ -62,6 +63,10 @@ class GistSdk(
         // Remove user token from preferences
         inAppPreferenceStore.clearAll()
         resetTimer()
+    }
+
+    override fun fetchInAppMessages() {
+        fetchInAppMessages(duration = state.pollInterval)
     }
 
     private fun fetchInAppMessages(duration: Long, initialDelay: Long = 0) {

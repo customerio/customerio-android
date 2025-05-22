@@ -32,6 +32,11 @@ internal val SDKComponent.inAppPreferenceStore: InAppPreferenceStore
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
 
+internal val SDKComponent.gistSdk: GistSdk
+    get() = singleton<GistSdk> {
+        GistSdk(siteId = inAppModuleConfig.siteId, dataCenter = inAppModuleConfig.region.code)
+    }
+
 /**
  * Get the [ModuleMessagingInApp] instance from the [CustomerIOInstance]
  * needed for the in-app messaging dismiss() method

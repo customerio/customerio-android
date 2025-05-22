@@ -5,6 +5,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.presentation.GistListener
+import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
@@ -27,6 +28,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     private val mockGistQueue: GistQueue = mockk(relaxed = true)
     private val mockGistListener: GistListener = mockk(relaxed = true)
     private val mockLogger: Logger = mockk(relaxed = true)
+    private val mockGistSdk: GistSdk = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         // Configure store state
@@ -39,6 +41,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
                     sdk {
                         overrideDependency<GistQueue>(mockGistQueue)
                         overrideDependency<Logger>(mockLogger)
+                        overrideDependency<GistSdk>(mockGistSdk)
                     }
                 }
             }
@@ -361,6 +364,66 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
             mockLogger.debug(any())
             nextFn(action)
         }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_shouldFetchMessagesWhenPersistentMessageDismissed() {
+        // Given a persistent message
+        val message = createInAppMessage(persistent = true)
+
+        // Create a dismiss action that should mark the message as shown
+        // (persistent message, shouldLog = true, viaCloseAction = true)
+        val action = InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = true)
+
+        // Run the middleware
+        val middleware = gistLoggingMessageMiddleware()
+        middleware(store)(nextFn)(action)
+
+        // Verify that message view was logged
+        verify { mockGistQueue.logView(message) }
+
+        // Verify that fetchInAppMessages was called
+        verify { mockGistSdk.fetchInAppMessages() }
+
+        // Verify next action was called
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_shouldNotFetchMessagesWhenNonPersistentMessageDismissed() {
+        // Given a non-persistent message being dismissed but not marked as shown
+        // (persistent=false, shouldLog=true, viaCloseAction=true)
+        val message = createInAppMessage(persistent = false)
+        val action = InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = true)
+
+        // Run the middleware
+        val middleware = gistLoggingMessageMiddleware()
+        middleware(store)(nextFn)(action)
+
+        // Should not log view or fetch messages since shouldMarkMessageAsShown() returns false for this case
+        verify(exactly = 0) { mockGistQueue.logView(message) }
+        verify(exactly = 0) { mockGistSdk.fetchInAppMessages() }
+
+        // Verify next action was called
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_shouldNotFetchMessagesWhenPersistentMessageDismissedButNotViaCloseAction() {
+        // Given a persistent message that's dismissed but not via close action
+        val message = createInAppMessage(persistent = true)
+        val action = InAppMessagingAction.DismissMessage(message, shouldLog = true, viaCloseAction = false)
+
+        // Run the middleware
+        val middleware = gistLoggingMessageMiddleware()
+        middleware(store)(nextFn)(action)
+
+        // Should not log view or fetch messages since viaCloseAction is false
+        verify(exactly = 0) { mockGistQueue.logView(message) }
+        verify(exactly = 0) { mockGistSdk.fetchInAppMessages() }
+
+        // Verify next action was called
+        verify { nextFn(action) }
     }
 
     @Test

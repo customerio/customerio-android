@@ -21,6 +21,7 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
@@ -28,9 +29,9 @@ import java.util.TimerTask
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
-) : FrameLayout(context, attrs), EngineWebViewListener, LifecycleObserver {
+) : FrameLayout(context, attrs), EngineWebViewListener, LifecycleObserver, EngineWebViewDelegate {
 
-    var listener: EngineWebViewListener? = null
+    override var listener: EngineWebViewListener? = null
     private var timer: Timer? = null
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
@@ -42,6 +43,8 @@ internal class EngineWebView @JvmOverloads constructor(
 
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
+    private val viewLifecycleOwner: Lifecycle?
+        get() = findViewTreeLifecycleOwner()?.lifecycle
 
     init {
         // exception handling is required for webview in-case webview is not supported in the device
@@ -52,6 +55,10 @@ internal class EngineWebView @JvmOverloads constructor(
         } catch (e: Exception) {
             logger.error("Error while creating EngineWebView: ${e.message}")
         }
+    }
+
+    override fun getView(): EngineWebView {
+        return this
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
@@ -66,14 +73,55 @@ internal class EngineWebView @JvmOverloads constructor(
         webView?.let { engineWebViewInterface.detach(webView = it) }
     }
 
-    fun stopLoading() {
+    /**
+     * Releases resources associated with EngineWebView.
+     * This method should be called when EngineWebView instance is no longer needed
+     * and the view is already removed from the parent.
+     * It stops loading WebView, removes JavaScript interface, and clears reference to WebView.
+     */
+    override fun releaseResources() {
+        try {
+            val view = webView ?: return
+            logger.debug("Cleaning up EngineWebView")
+            if (this.parent != null) {
+                logger.debug("EngineWebView is still attached to parent, skipping cleanup")
+                return
+            }
+
+            webView = null
+            if (view.parent != null) {
+                logger.debug("Removing WebView from parent before cleanup")
+                this.removeView(view)
+            }
+
+            logger.debug("Detaching JavaScript interface from EngineWebView")
+            engineWebViewInterface.detach(webView = view)
+
+            logger.debug("Stopping EngineWebView loading")
+            view.stopLoading()
+            // Calling destroy() on WebView to release resources.
+            // This call may log errors like following on some (or most) devices:
+            // [ERROR:aw_browser_terminator.cc(165)] Renderer process ($id) crash detected (code -1).
+            // This is likely a Chromium/WebView issue, but calling destroy() remains the correct way
+            // to properly clean up and prevent WebView from attempting further JS calls
+            // or keeping the webpage alive unnecessarily in the background.
+            view.destroy()
+        } catch (ex: Exception) {
+            logger.error("Error while releasing resources: ${ex.message}")
+        }
+    }
+
+    override fun stopLoading() {
         webView?.stopLoading()
+        // remove lifecycle observer to stop receiving further lifecycle events
+        onLifecyclePaused()
+        viewLifecycleOwner?.removeObserver(this)
         // stop the timer and clean up
         bootstrapped()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun setup(configuration: EngineWebConfiguration) {
+    override fun setup(configuration: EngineWebConfiguration) {
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
@@ -89,9 +137,9 @@ internal class EngineWebView @JvmOverloads constructor(
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)
 
-            findViewTreeLifecycleOwner()?.lifecycle?.addObserver(this) ?: run {
+            viewLifecycleOwner?.addObserver(this) ?: run {
                 logger.error("Lifecycle owner not found, attaching interface to WebView manually")
-                engineWebViewInterface.attach(webView = it)
+                onLifecycleResumed()
             }
 
             it.webViewClient = object : WebViewClient() {

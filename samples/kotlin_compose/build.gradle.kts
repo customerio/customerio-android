@@ -39,17 +39,7 @@ android {
             )
         }
     }
-    buildFeatures {
-        compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.4.7"
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+    // buildFeatures and composeOptions are configured in sample-app.gradle
 
     packaging {
         resources {
@@ -68,20 +58,11 @@ val coroutinesVersion = "1.5.2"
 val roomVersion = "2.4.2"
 
 dependencies {
-    // Compose compiler requires an updated version of Kotlin
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.20"))
-
-    // Compose dependencies
-    implementation("androidx.core:core-ktx:1.10.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    // Compose dependencies are included from sample-app.gradle
     implementation("androidx.activity:activity-compose:1.7.1")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")
-
-    implementation(platform("androidx.compose:compose-bom:2023.10.01"))
 
     // DI
     kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
@@ -110,7 +91,7 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.test:runner:1.5.2")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4:$composeVersion")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:$composeVersion")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:${project.ext["COMPOSE_VERSION"]}")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:${project.ext["COMPOSE_VERSION"]}")
 }
 

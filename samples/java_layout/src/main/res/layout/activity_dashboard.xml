@@ -64,10 +64,10 @@
                 android:id="@+id/user_email_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:ellipsize="end"
                 android:gravity="center"
                 android:maxLines="2"
-                android:layout_marginStart="8dp"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 app:layout_constrainedWidth="true"
                 app:layout_constraintBottom_toTopOf="@id/device_id_label"
@@ -93,11 +93,11 @@
                 android:id="@+id/device_id_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackground"
                 android:ellipsize="end"
                 android:gravity="center"
                 android:maxLines="2"
-                android:layout_marginStart="8dp"
-                android:background="?attr/selectableItemBackground"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 app:layout_constrainedWidth="true"
                 app:layout_constraintBottom_toTopOf="@id/title_message_text_view"
@@ -193,12 +193,38 @@
                 android:layout_marginTop="@dimen/margin_default"
                 android:text="@string/view_logs"
                 android:visibility="gone"
-                app:layout_constraintBottom_toTopOf="@id/logout_button"
+                app:layout_constraintBottom_toTopOf="@id/inline_examples_xml_layout_button"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/show_push_prompt_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width"
                 tools:visibility="visible" />
+
+            <Button
+                android:id="@+id/inline_examples_xml_layout_button"
+                style="?attr/materialButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/margin_default"
+                android:text="@string/inline_examples_xml_layout"
+                app:layout_constraintBottom_toTopOf="@id/inline_examples_compose_button"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/view_logs_button"
+                app:layout_constraintWidth_max="@dimen/material_button_max_width" />
+
+            <Button
+                android:id="@+id/inline_examples_compose_button"
+                style="?attr/materialButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/margin_default"
+                android:text="@string/inline_examples_compose"
+                app:layout_constraintBottom_toTopOf="@id/logout_button"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/inline_examples_xml_layout_button"
+                app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <Button
                 android:id="@+id/logout_button"
@@ -210,7 +236,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/view_logs_button"
+                app:layout_constraintTop_toBottomOf="@id/inline_examples_compose_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <TextView

@@ -15,6 +15,8 @@
     <string name="set_profile_attribute">Set Profile Attribute</string>
     <string name="show_push_prompt">Show Push Prompt</string>
     <string name="view_logs">View Logs</string>
+    <string name="inline_examples_xml_layout">Inline Examples (Android XML)</string>
+    <string name="inline_examples_compose">Inline Examples (Jetpack Compose)</string>
     <string name="log_out">Log Out</string>
     <string name="device_token">Device Token</string>
     <string name="device_token_not_registered">Not Registered</string>
@@ -67,7 +69,8 @@
     <string name="label_dashboard_activity">DashboardActivity</string>
     <string name="label_login_activity">LoginActivity</string>
     <string name="label_settings_activity">SettingsActivity</string>
-    <string name="label_simple_fragment_activity">SimpleFragmentActivity</string>
+    <string name="label_tracking_fragment_activity">SimpleFragmentActivity</string>
+    <string name="label_inline_examples_activity">InlineExamplesActivity</string>
     <string name="notification_permission_alert_title">Push Permission</string>
     <string name="notification_permission_success">Push notifications are enabled on this device</string>
     <string name="notification_permission_denied">Push notifications are disabled on this device</string>

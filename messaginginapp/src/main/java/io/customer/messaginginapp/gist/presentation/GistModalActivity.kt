@@ -10,6 +10,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
 import com.google.gson.Gson
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
@@ -19,7 +20,8 @@ import io.customer.messaginginapp.gist.utilities.MessageOverlayColorParser
 import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
-import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.state.ModalMessageState
+import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
 import kotlinx.coroutines.Job
@@ -27,7 +29,8 @@ import kotlinx.coroutines.Job
 const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
 const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 
-class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen {
+@InternalCustomerIOApi
+class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -36,14 +39,10 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private val logger = SDKComponent.logger
     private val attributesListenerJob: MutableList<Job> = mutableListOf()
 
-    // indicates if the message is visible to user or not
-    internal val isEngineVisible: Boolean
-        get() = binding.gistView.isEngineVisible
-
     private var messagePosition: MessagePosition = MessagePosition.CENTER
 
-    private val currentMessageState: MessageState.Displayed?
-        get() = state.currentMessageState as? MessageState.Displayed
+    private val currentMessageState: ModalMessageState.Displayed?
+        get() = state.modalMessageState as? ModalMessageState.Displayed
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -71,7 +70,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
             logger.debug("GistModelActivity onCreate: $parsedMessage")
             parsedMessage.let { message ->
                 elapsedTimer.start("Displaying modal for message: ${message.messageId}")
-                binding.gistView.listener = this
+                binding.gistView.setViewCallback(this)
                 binding.gistView.setup(message)
                 val messagePosition = if (modalPositionStr == null) {
                     message.gistProperties.position
@@ -98,22 +97,22 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
     private fun subscribeToAttributes() {
         attributesListenerJob.add(
             inAppMessagingManager.subscribeToAttribute(
-                selector = { it.currentMessageState },
+                selector = { it.modalMessageState },
                 areEquivalent = { old, new ->
                     when {
-                        old is MessageState.Initial && new is MessageState.Initial -> true
-                        old is MessageState.Displayed && new is MessageState.Displayed -> old.message == new.message
-                        old is MessageState.Dismissed && new is MessageState.Dismissed -> old.message == new.message
-                        old is MessageState.Loading && new is MessageState.Loading -> old.message == new.message
+                        old is ModalMessageState.Initial && new is ModalMessageState.Initial -> true
+                        old is ModalMessageState.Displayed && new is ModalMessageState.Displayed -> old.message == new.message
+                        old is ModalMessageState.Dismissed && new is ModalMessageState.Dismissed -> old.message == new.message
+                        old is ModalMessageState.Loading && new is ModalMessageState.Loading -> old.message == new.message
                         else -> false
                     }
                 }
             ) { state ->
-                if (state is MessageState.Displayed) {
+                if (state is ModalMessageState.Displayed) {
                     onMessageShown(state.message)
                 }
 
-                if (state is MessageState.Dismissed) {
+                if (state is ModalMessageState.Dismissed) {
                     cleanUp()
                 }
             }
@@ -193,7 +192,7 @@ class GistModalActivity : AppCompatActivity(), GistViewListener, TrackableScreen
         finish()
     }
 
-    override fun onGistViewSizeChanged(width: Int, height: Int) {
+    override fun onViewSizeChanged(width: Int, height: Int) {
         logger.debug("GistModelActivity Size changed: $width x $height")
         val params = binding.gistView.layoutParams
         params.height = height

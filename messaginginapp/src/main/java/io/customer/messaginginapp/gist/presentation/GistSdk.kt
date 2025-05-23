@@ -8,18 +8,19 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
-import io.customer.messaginginapp.state.MessageState
+import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import kotlin.concurrent.timer
 import kotlinx.coroutines.flow.filter
 
-interface GistProvider {
+internal interface GistProvider {
     fun setCurrentRoute(route: String)
     fun setUserId(userId: String)
     fun dismissMessage()
     fun reset()
+    fun fetchInAppMessages()
 }
 
 class GistSdk(
@@ -62,6 +63,10 @@ class GistSdk(
         // Remove user token from preferences
         inAppPreferenceStore.clearAll()
         resetTimer()
+    }
+
+    override fun fetchInAppMessages() {
+        fetchInAppMessages(duration = state.pollInterval)
     }
 
     private fun fetchInAppMessages(duration: Long, initialDelay: Long = 0) {
@@ -116,8 +121,8 @@ class GistSdk(
 
     override fun dismissMessage() {
         // only dismiss the message if it is currently displayed
-        val currentMessageState = state.currentMessageState as? MessageState.Displayed ?: return
-        inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentMessageState.message))
+        val currentModalMessageState = state.modalMessageState as? ModalMessageState.Displayed ?: return
+        inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = currentModalMessageState.message))
     }
 }
 

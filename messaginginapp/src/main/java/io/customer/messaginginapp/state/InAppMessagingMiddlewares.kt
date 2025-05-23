@@ -3,7 +3,9 @@ package io.customer.messaginginapp.state
 import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.gistQueue
+import io.customer.messaginginapp.di.gistSdk
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
 import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -49,6 +51,7 @@ private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, 
     if (action.shouldMarkMessageAsShown()) {
         SDKComponent.logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
         SDKComponent.gistQueue.logView(action.message)
+        SDKComponent.gistSdk.fetchInAppMessages()
     } else {
         SDKComponent.logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
     }
@@ -78,7 +81,7 @@ internal fun displayModalMessageMiddleware() = middleware { store, next, action 
 }
 
 private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
-    if (store.state.currentMessageState !is MessageState.Displayed) {
+    if (store.state.modalMessageState !is ModalMessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
@@ -118,9 +121,9 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
         next(action)
 
         // cancel the current message if the route rule does not match
-        val currentMessage = when (val currentMessageState = store.state.currentMessageState) {
-            is MessageState.Displayed -> currentMessageState.message
-            is MessageState.Loading -> currentMessageState.message
+        val currentMessage = when (val currentMessageState = store.state.modalMessageState) {
+            is ModalMessageState.Displayed -> currentMessageState.message
+            is ModalMessageState.Loading -> currentMessageState.message
             else -> null
         }
 
@@ -149,35 +152,41 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
         val notShownMessages = action.messages
             .filter { message ->
                 // filter out the messages that are already shown
-                // and the messages that have an elementId because we are not handling embedded messages
-                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId) && message.gistProperties.elementId == null
+                message.queueId != null && !store.state.shownMessageQueueIds.contains(message.queueId)
             }
             .distinctBy(Message::queueId)
             .sortedWith(compareBy(nullsLast()) { it.priority })
 
-        val messageToBeShownWithProperties = notShownMessages.firstOrNull { message ->
-            val routeRule = message.gistProperties.routeRule
-            val currentRoute = store.state.currentRoute
-            when {
-                // If the route rule is null, the message should be shown
-                routeRule == null -> true
-                // otherwise, if current route is null, the message should not be shown because we can't match the route
-                currentRoute == null -> false
-                // otherwise, match the route rule with the current route
-                else -> routeRule.toRegex().matches(currentRoute)
-            }
-        }
+        val modalMessages = notShownMessages.filter { it.gistProperties.elementId == null }
+        val inlineMessages = notShownMessages.filter { it.gistProperties.elementId != null }
 
-        val isCurrentMessageDisplaying = store.state.currentMessageState is MessageState.Displayed
-        val isCurrentMessageBeingProcessed = store.state.currentMessageState is MessageState.Loading
+        val isCurrentMessageDisplaying = store.state.modalMessageState is ModalMessageState.Displayed
+        val isCurrentMessageBeingProcessed = store.state.modalMessageState is ModalMessageState.Loading
 
         // update the state with the messages in the queue that are not shown
         // because in the next steps we will check if there is a message to be shown and display them
         next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
 
-        if (messageToBeShownWithProperties != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
+        // Handle embedded messages
+        val inLineMessagesToBeShown = inlineMessages
+            .filter { it.matchesRoute(store.state.currentRoute) }
+            .filter { message ->
+                // Ensure no duplicate embedded messages for the same elementId in the active state
+                val elementId = message.gistProperties.elementId ?: return@filter true
+                val existingState = store.state.queuedInlineMessagesState.getMessage(elementId)
+                existingState !is InlineMessageState.Embedded
+            }
+
+        if (inLineMessagesToBeShown.isNotEmpty()) {
+            store.dispatch(InAppMessagingAction.EmbedMessages(inLineMessagesToBeShown))
+        }
+
+        // Handle modal messages
+        val modalMessageToBeShown = modalMessages.firstOrNull { it.matchesRoute(store.state.currentRoute) }
+
+        if (modalMessageToBeShown != null && !isCurrentMessageDisplaying && !isCurrentMessageBeingProcessed) {
             // Load the message to be shown
-            store.dispatch(InAppMessagingAction.LoadMessage(messageToBeShownWithProperties))
+            store.dispatch(InAppMessagingAction.LoadMessage(modalMessageToBeShown))
         } else {
             // Handle the case where no message matches the criteria.
             // This might involve logging, dispatching another action, or simply doing nothing.
@@ -196,8 +205,12 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
  */
 internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<InAppMessagingState> { _, next, action ->
     when (action) {
-        is InAppMessagingAction.EmbedMessage -> {
-            gistListener?.embedMessage(action.message, action.elementId)
+        is InAppMessagingAction.EmbedMessages -> {
+            action.messages.forEach {
+                it.embeddedElementId?.let { elementId ->
+                    gistListener?.embedMessage(it, elementId)
+                }
+            }
         }
 
         is InAppMessagingAction.DisplayMessage -> {

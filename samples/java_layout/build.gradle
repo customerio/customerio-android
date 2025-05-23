@@ -1,5 +1,7 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
     id 'com.google.gms.google-services' // Google services Gradle plugin
 }
 
@@ -9,7 +11,7 @@ apply from: "${rootDir}/samples/sample-app.gradle"
 
 android {
     namespace 'io.customer.android.sample.java_layout'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "io.customer.android.sample.java_layout"
@@ -31,12 +33,17 @@ android {
     }
     buildFeatures {
         viewBinding true
+        // BuildConfig is now enabled in sample-app.gradle
     }
+
+    // No need for composeOptions reference as it's conditionally applied in sample-app.gradle
 }
 
 dependencies {
     def datastore_version = "1.0.0"
     def lifecycle_version = "2.6.1"
+
+    // Existing dependencies
     implementation "androidx.annotation:annotation:1.6.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
@@ -52,6 +59,8 @@ dependencies {
     // Because RxAndroid releases are few and far between, it is recommended to
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     implementation "io.reactivex.rxjava3:rxjava:3.1.5"
+
+    // Material for Compose - now conditionally included in sample-app.gradle
 
     // If this block is removed, updating annotation from 1.5.0 and lifecycle version from 2.5.1
     // causes duplicate classes error because a large number of Lifecycle classes have been

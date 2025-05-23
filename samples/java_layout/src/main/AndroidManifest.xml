@@ -120,13 +120,17 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".ui.common.SimpleFragmentActivity"
+            android:name=".ui.tracking.TrackingFragmentActivity"
             android:exported="false"
-            android:label="@string/label_simple_fragment_activity" />
+            android:label="@string/label_tracking_fragment_activity" />
         <activity
             android:name=".ui.settings.InternalSettingsActivity"
             android:exported="false"
             android:label="@string/label_internal_settings_activity" />
+        <activity
+            android:name=".ui.inline.InlineExamplesActivity"
+            android:exported="false"
+            android:label="@string/label_inline_examples_activity" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

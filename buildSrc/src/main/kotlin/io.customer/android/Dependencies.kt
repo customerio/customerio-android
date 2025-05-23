@@ -60,4 +60,14 @@ object Dependencies {
     const val okhttpLoggingInterceptor =
         "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
     const val segment = "com.segment.analytics.kotlin:android:${Versions.SEGMENT}"
+
+    // Compose dependencies
+    const val composeBom = "androidx.compose:compose-bom:${Versions.COMPOSE_BOM}"
+    const val composeUi = "androidx.compose.ui:ui"
+    const val composeUiGraphics = "androidx.compose.ui:ui-graphics"
+    const val composeUiTooling = "androidx.compose.ui:ui-tooling"
+    const val composeUiToolingPreview = "androidx.compose.ui:ui-tooling-preview"
+    const val composeFoundation = "androidx.compose.foundation:foundation"
+    const val composeMaterial = "androidx.compose.material:material"
+    const val composeRuntime = "androidx.compose.runtime:runtime"
 }

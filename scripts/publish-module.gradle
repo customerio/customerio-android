@@ -29,6 +29,10 @@ afterEvaluate {
                     from components.release
                 } else {
                     from components.java
+                    // Add sources jar for java-library modules
+                    if (tasks.findByName('kotlinSourcesJar')) {
+                        artifact kotlinSourcesJar
+                    }
                 }
 
                 // to speed up local development build times, skip dokka

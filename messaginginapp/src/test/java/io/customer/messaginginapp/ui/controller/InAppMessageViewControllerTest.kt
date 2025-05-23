@@ -153,9 +153,8 @@ class InAppMessageViewControllerTest : JUnitTest() {
             )
             actionListenerMock.onActionClick(
                 message = expectedInAppMessage,
-                currentRoute = givenRoute,
-                action = givenAction,
-                name = givenName
+                actionValue = givenAction,
+                actionName = givenName
             )
         }
     }

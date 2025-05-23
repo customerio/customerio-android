@@ -32,7 +32,7 @@ fun InlineInAppMessage(
     elementId: String,
     modifier: Modifier = Modifier,
     progressTint: androidx.compose.ui.graphics.Color? = null,
-    onAction: (message: InAppMessage, currentRoute: String, action: String, name: String) -> Unit = { _, _, _, _ ->
+    onAction: (message: InAppMessage, actionValue: String, actionName: String) -> Unit = { _, _, _ ->
     }
 ) {
     val context = LocalContext.current
@@ -65,11 +65,10 @@ fun InlineInAppMessage(
         view.setActionListener(object : InlineMessageActionListener {
             override fun onActionClick(
                 message: InAppMessage,
-                currentRoute: String,
-                action: String,
-                name: String
+                actionValue: String,
+                actionName: String
             ) {
-                onAction(message, currentRoute, action, name)
+                onAction(message, actionValue, actionName)
             }
         })
     }

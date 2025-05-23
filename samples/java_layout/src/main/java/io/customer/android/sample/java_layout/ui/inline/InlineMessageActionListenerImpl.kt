@@ -17,12 +17,12 @@ class InlineMessageActionListenerImpl(
 
     private val TAG = "InlineMessageListener"
 
-    override fun onActionClick(message: InAppMessage, currentRoute: String, action: String, name: String) {
+    override fun onActionClick(message: InAppMessage, actionValue: String, actionName: String) {
         // Log the action click
-        Log.d(TAG, "[$source] Action clicked: $name with value: $action for message: ${message.messageId}")
+        Log.d(TAG, "[$source] Action clicked: $actionName with value: $actionValue for message: ${message.messageId}")
 
         // Show a toast to the user
-        val toastMessage = "$source Action: $name\nValue: $action"
+        val toastMessage = "$source Action: $actionName\nValue: $actionValue"
         Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
     }
 }

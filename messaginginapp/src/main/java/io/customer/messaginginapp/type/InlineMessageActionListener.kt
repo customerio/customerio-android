@@ -9,8 +9,8 @@ interface InlineMessageActionListener {
      * Called when a custom button is tapped in an inline message.
      *
      * @param message The in-app message that triggered the action
-     * @param action The value associated with the action (typically a URL or identifier)
-     * @param name The name of the action that was triggered
+     * @param actionValue The value associated with the action (typically a URL or identifier)
+     * @param actionName The name of the action that was triggered
      */
-    fun onActionClick(message: InAppMessage, currentRoute: String, action: String, name: String)
+    fun onActionClick(message: InAppMessage, actionValue: String, actionName: String)
 }

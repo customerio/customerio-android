@@ -146,9 +146,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             logViewEvent("Listener handling action: $action, name: $name")
             listener.onActionClick(
                 message = inAppMessage,
-                currentRoute = route,
-                action = action,
-                name = name
+                actionValue = action,
+                actionName = name
             )
         }
 

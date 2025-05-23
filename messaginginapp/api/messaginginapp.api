@@ -400,7 +400,7 @@ public final class io/customer/messaginginapp/type/InAppMessageKt {
 }
 
 public abstract interface class io/customer/messaginginapp/type/InlineMessageActionListener {
-	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;)V
 }
 
 public final class io/customer/messaginginapp/ui/InlineInAppMessageView : android/widget/FrameLayout, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {

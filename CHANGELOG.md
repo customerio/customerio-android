@@ -4,18 +4,6 @@
 
 * inline in app messages ([#557](https://github.com/customerio/customerio-android/issues/557)) ([854a8ad](https://github.com/customerio/customerio-android/commit/854a8ad0445953768de9b15964a482ee45ae1463))
 
-## [4.6.0](https://github.com/customerio/customerio-android/compare/4.5.8...4.6.0) (2025-05-23)
-
-### Features
-
-* inline in app messages ([#557](https://github.com/customerio/customerio-android/issues/557)) ([854a8ad](https://github.com/customerio/customerio-android/commit/854a8ad0445953768de9b15964a482ee45ae1463))
-
-## [4.6.0](https://github.com/customerio/customerio-android/compare/4.5.8...4.6.0) (2025-05-23)
-
-### Features
-
-* inline in app messages ([#557](https://github.com/customerio/customerio-android/issues/557)) ([854a8ad](https://github.com/customerio/customerio-android/commit/854a8ad0445953768de9b15964a482ee45ae1463))
-
 ## [4.5.8](https://github.com/customerio/customerio-android/compare/4.5.7...4.5.8) (2025-04-24)
 
 ### Bug Fixes

@@ -19,7 +19,7 @@ buildscript {
         classpath Dependencies.kotlinBinaryValidator
         classpath Dependencies.gradleNexusPublishPlugin
         classpath Dependencies.dokka
-        classpath Dependencies.benManesVersions
+
         // if you have a Gradle plugin dependency in the classpath of the root project,
         // it will not be added to all modules even if they don't need it.
         // Gradle will only add the plugin to modules that explicitly declare a dependency on it.
@@ -78,5 +78,4 @@ apiValidation {
 apply from: "${rootDir}/scripts/publish-root.gradle"
 apply from: "${rootDir}/scripts/sdk-binary-size.gradle"
 
-// Dependency Update Tooling
-apply from: "${rootDir}/scripts/dependency-updates.gradle"
+

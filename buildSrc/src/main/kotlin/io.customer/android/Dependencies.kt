@@ -6,6 +6,7 @@ object Dependencies {
     const val androidxTestJunit = "androidx.test.ext:junit:${Versions.ANDROIDX_TEST_JUNIT}"
     const val androidxTestRunner = "androidx.test:runner:${Versions.ANDROIDX_TEST_RUNNER}"
     const val androidxTestRules = "androidx.test:rules:${Versions.ANDROIDX_TEST_RULES}"
+    const val benManesVersions = "com.github.ben-manes:gradle-versions-plugin:${Versions.BEN_MANES_VERSIONS}"
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"

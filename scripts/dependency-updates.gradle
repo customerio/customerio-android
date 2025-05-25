@@ -1,0 +1,97 @@
+// Dependency Update Tooling Configuration
+// This script sets up the Ben-Manes gradle versions plugin for dependency update checking
+// Apply this script to your root build.gradle with: apply from: "${rootDir}/scripts/dependency-updates.gradle"
+
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.github.ben-manes:gradle-versions-plugin:0.51.0"
+    }
+}
+
+apply plugin: 'com.github.ben-manes.versions'
+
+// Configure the dependencyUpdates task
+dependencyUpdates {
+    // Check for gradle updates
+    checkForGradleUpdate = true
+    
+    // Output format options: "plain", "json", "xml", "html"
+    outputFormatter = "plain"
+    
+    // Output directory for reports
+    outputDir = "build/dependencyUpdates"
+    
+    // Report filename (without extension)
+    reportfileName = "report"
+    
+    // Gradle release channel to check: "current", "release-candidate", "nightly"
+    gradleReleaseChannel = "release-candidate"
+    
+    // Revision strategy: "release", "milestone", "integration"
+    revision = "release"
+    
+    // Check constraints (useful for BOMs and version catalogs)
+    checkConstraints = true
+    
+    // Reject unstable versions
+    rejectVersionIf {
+        def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { keyword -> candidate.version.toUpperCase().contains(keyword) }
+        def regex = /^[0-9,.v-]+(-r)?$/
+        def isStable = stableKeyword || candidate.version ==~ regex
+        return !isStable && !isNonStable(currentVersion)
+    }
+}
+
+// Helper function to determine if a version is non-stable
+def isNonStable = { String version ->
+    def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { keyword -> version.toUpperCase().contains(keyword) }
+    def regex = /^[0-9,.v-]+(-r)?$/
+    return !stableKeyword && !(version ==~ regex)
+}
+
+// Add helpful tasks
+task dependencyUpdatesReport {
+    group = 'help'
+    description = 'Generates a report of available dependency updates'
+    dependsOn 'dependencyUpdates'
+    doLast {
+        println ""
+        println "Dependency update report generated at: ${project.buildDir}/dependencyUpdates/report.txt"
+        println "To view the report, run: cat ${project.buildDir}/dependencyUpdates/report.txt"
+        println ""
+        println "Available output formats:"
+        println "  - Plain text (default): ./gradlew dependencyUpdates"
+        println "  - JSON: ./gradlew dependencyUpdates -DoutputFormatter=json"
+        println "  - XML: ./gradlew dependencyUpdates -DoutputFormatter=xml"
+        println "  - HTML: ./gradlew dependencyUpdates -DoutputFormatter=html"
+        println ""
+        println "To check only for release versions: ./gradlew dependencyUpdates -Drevision=release"
+        println "To refresh dependency cache: ./gradlew dependencyUpdates --refresh-dependencies"
+    }
+}
+
+task dependencyUpdatesJson {
+    group = 'help'
+    description = 'Generates a JSON report of available dependency updates'
+    doLast {
+        project.exec {
+            commandLine './gradlew', 'dependencyUpdates', '-DoutputFormatter=json'
+        }
+        println "JSON dependency update report generated at: ${project.buildDir}/dependencyUpdates/report.json"
+    }
+}
+
+task dependencyUpdatesHtml {
+    group = 'help'
+    description = 'Generates an HTML report of available dependency updates'
+    doLast {
+        project.exec {
+            commandLine './gradlew', 'dependencyUpdates', '-DoutputFormatter=html'
+        }
+        println "HTML dependency update report generated at: ${project.buildDir}/dependencyUpdates/report.html"
+    }
+} 

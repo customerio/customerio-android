@@ -1,190 +1,106 @@
-# Dependency Update Tooling
+# Dependency Updates
 
-This document describes how to use the dependency update tooling setup for the Customer.io Android SDK.
+This document describes the dependency update system for the Customer.io Android SDK.
 
 ## Overview
 
-We use the [Ben-Manes gradle versions plugin](https://github.com/ben-manes/gradle-versions-plugin) to check for dependency updates across the project. This plugin provides tasks to discover which dependencies have updates available.
+The dependency update system automatically:
+1. **Detects patch and minor updates** for dependencies in `Versions.kt`
+2. **Applies safe updates** automatically
+3. **Runs tests and builds sample apps** to verify everything works
+4. **Creates a pull request** with the changes
+5. **Reports major updates** for manual review
 
-## Setup
+## 🤖 Automated Updates
 
-The dependency update tooling is configured in `scripts/dependency-updates.gradle`. To enable it, add the following line to your root `build.gradle` file:
+### How It Works
+- **Patch updates** (1.2.3 → 1.2.4): Bug fixes, security patches
+- **Minor updates** (1.2.3 → 1.3.0): New features, backward compatible
+- **Major updates** (1.2.3 → 2.0.0): Breaking changes - **manual review required**
 
-```gradle
-apply from: "${rootDir}/scripts/dependency-updates.gradle"
-```
+### Schedule
+- **Automatic**: Every Monday at 9 AM UTC
+- **Manual**: Trigger anytime via GitHub Actions → "Dependency Updates"
 
-## Usage
+### Verification Process
+Before creating a PR, the system:
+1. ✅ Runs clean build
+2. ✅ Executes unit tests  
+3. ✅ Compiles both sample apps (`kotlin_compose` and `java_layout`)
 
-### Basic Dependency Check
+## 🔧 Manual Usage
 
-To check for dependency updates:
-
+### Check for Updates
 ```bash
+# Generate dependency report
 ./gradlew dependencyUpdates
 ```
 
-This will generate a plain text report showing:
-- Dependencies that are up-to-date
-- Dependencies that have newer versions available
-- Dependencies that exceed the latest version found
-- Dependencies that failed to be resolved
-- Available Gradle updates
-
-### Report Formats
-
-The plugin supports multiple output formats:
-
-#### Plain Text (Default)
+### Apply Updates Manually
 ```bash
-./gradlew dependencyUpdates
+# Parse and apply updates
+node scripts/dependency-parser.ts
 ```
 
-#### JSON Format
+### Different Report Formats
 ```bash
+# JSON format (used by automation)
 ./gradlew dependencyUpdates -DoutputFormatter=json
-```
 
-#### XML Format
-```bash
-./gradlew dependencyUpdates -DoutputFormatter=xml
-```
-
-#### HTML Format
-```bash
+# HTML format (human-readable)
 ./gradlew dependencyUpdates -DoutputFormatter=html
 ```
 
-#### Multiple Formats
-```bash
-./gradlew dependencyUpdates -DoutputFormatter=json,xml,html
-```
+## 📦 What Gets Updated
 
-### Revision Strategies
+The system updates any dependency with a version constant in `Versions.kt`:
 
-You can control which types of versions to consider:
+- **Android & Kotlin**: AGP, Kotlin, Coroutines
+- **AndroidX**: Core KTX, AppCompat, Lifecycle, etc.
+- **Third-party**: Retrofit, OkHttp, Hilt, Firebase, etc.
+- **Testing**: JUnit, Mockito, Robolectric, etc.
 
-#### Release Versions Only
-```bash
-./gradlew dependencyUpdates -Drevision=release
-```
+### Adding New Dependencies
+To enable automatic updates for a new dependency:
 
-#### Milestone Versions (Default)
-```bash
-./gradlew dependencyUpdates -Drevision=milestone
-```
+1. **Add version constant** to `Versions.kt`:
+   ```kotlin
+   internal const val NEW_LIBRARY = "1.0.0"
+   ```
 
-#### Integration Versions (Including SNAPSHOTs)
-```bash
-./gradlew dependencyUpdates -Drevision=integration
-```
+2. **Use the constant** in your build files:
+   ```kotlin
+   implementation("com.example:new-library:${Versions.NEW_LIBRARY}")
+   ```
 
-### Refresh Dependencies
+3. **That's it!** The next workflow run will detect and update it.
 
-To refresh the dependency cache and fetch the latest versions:
+## 📁 Files Involved
 
-```bash
-./gradlew dependencyUpdates --refresh-dependencies
-```
+- **Workflow**: `.github/workflows/dependency-updates.yml`
+- **Parser**: `scripts/dependency-parser.ts`
+- **Config**: `scripts/dependency-updates.gradle`
+- **Versions**: `buildSrc/src/main/kotlin/io.customer/android/Versions.kt`
 
-### Custom Tasks
+## ⚠️ Limitations
 
-The configuration includes several helpful custom tasks:
+- Only updates dependencies with version constants in `Versions.kt`
+- Major updates require manual review and testing
+- Android SDK versions (compileSdk, targetSdk) are not automatically updated
 
-#### Generate Report with Instructions
-```bash
-./gradlew dependencyUpdatesReport
-```
+## 🔒 Security
 
-#### Generate JSON Report
-```bash
-./gradlew dependencyUpdatesJson
-```
+- Only updates dependencies already trusted in your `Versions.kt`
+- All changes are verified through build and test process
+- Pull requests allow for code review before merging
 
-#### Generate HTML Report
-```bash
-./gradlew dependencyUpdatesHtml
-```
-
-## Configuration
-
-The dependency update tooling is configured with the following settings:
-
-- **Gradle Updates**: Enabled (checks for Gradle updates)
-- **Release Channel**: `release-candidate` (for Gradle updates)
-- **Revision Strategy**: `release` (only stable releases)
-- **Output Directory**: `build/dependencyUpdates`
-- **Constraints Check**: Enabled (useful for BOMs and version catalogs)
-- **Unstable Version Rejection**: Enabled (filters out alpha, beta, RC versions when current version is stable)
-
-## Understanding the Report
-
-### Report Sections
-
-1. **Up-to-date dependencies**: Dependencies using the latest available version
-2. **Dependencies with later versions**: Dependencies that have newer versions available
-3. **Dependencies exceeding latest**: Dependencies using a version newer than the latest found (e.g., SNAPSHOTs)
-4. **Unresolved dependencies**: Dependencies that couldn't be resolved
-5. **Gradle updates**: Available Gradle version updates
-
-### Example Output
-
-```
-------------------------------------------------------------
-: Project Dependency Updates (report to plain text file)
-------------------------------------------------------------
-
-The following dependencies are using the latest release version:
- - androidx.core:core-ktx:1.6.0
- - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3
-
-The following dependencies have later release versions:
- - com.squareup.retrofit2:retrofit [2.9.0 -> 2.11.0]
- - com.squareup.okhttp3:okhttp [4.11.0 -> 4.12.0]
-
-Gradle updates:
- - Gradle: [8.3.1 -> 8.4 -> 8.5]
-```
-
-## Best Practices
-
-1. **Regular Checks**: Run dependency updates regularly (e.g., weekly or monthly)
-2. **Review Changes**: Always review changelogs before updating dependencies
-3. **Test Thoroughly**: Test your application after updating dependencies
-4. **Update Gradually**: Update dependencies incrementally rather than all at once
-5. **Monitor Security**: Pay special attention to security-related updates
-
-## Integration with CI/CD
-
-You can integrate dependency checking into your CI/CD pipeline:
-
-```yaml
-# Example GitHub Actions step
-- name: Check for dependency updates
-  run: ./gradlew dependencyUpdates -DoutputFormatter=json
-  
-- name: Upload dependency report
-  uses: actions/upload-artifact@v3
-  with:
-    name: dependency-updates
-    path: build/dependencyUpdates/report.json
-```
-
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 ### Common Issues
-
-1. **Plugin not found**: Ensure the plugin is properly added to the buildscript dependencies
-2. **Network issues**: Use `--refresh-dependencies` to refresh the cache
-3. **Proxy issues**: Configure Gradle proxy settings if behind a corporate firewall
+1. **No updates found**: Check if dependencies are defined in `Versions.kt`
+2. **Build failures**: Review the PR for breaking changes
+3. **Network issues**: Use `./gradlew dependencyUpdates --refresh-dependencies`
 
 ### Getting Help
-
 - [Ben-Manes Plugin Documentation](https://github.com/ben-manes/gradle-versions-plugin)
-- [Gradle Plugin Portal](https://plugins.gradle.org/plugin/com.github.ben-manes.versions)
-
-## Version Information
-
-- **Plugin Version**: 0.52.0
-- **Minimum Gradle Version**: 7.0
-- **Kotlin Compatibility**: 2.x (Note: Kotlin 1.x is no longer supported in plugin version 0.52.0+) 
+- Check GitHub Actions logs for detailed error messages 

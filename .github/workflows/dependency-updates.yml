@@ -1,0 +1,77 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  dependency-updates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Android environment
+        uses: ./.github/actions/setup-android
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate dependency update report
+        run: |
+          echo "🔍 Checking for dependency updates..."
+          ./gradlew dependencyUpdates --no-daemon
+
+      - name: Parse and apply updates
+        id: updates
+        run: |
+          echo "📋 Parsing dependency updates..."
+          node scripts/dependency-parser.ts
+
+      - name: Verify build works
+        if: steps.updates.outputs.has_updates == 'true'
+        run: |
+          echo "🧪 Verifying build..."
+          ./gradlew clean test --no-daemon
+          
+          echo "📱 Building sample apps..."
+          ./gradlew :samples:kotlin_compose:assembleDebug --no-daemon
+          ./gradlew :samples:java_layout:assembleDebug --no-daemon
+
+      - name: Create Pull Request
+        if: steps.updates.outputs.has_updates == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update dependencies"
+          title: "🔄 Dependency Updates"
+          body: |
+            ## 🔄 Automated Dependency Updates
+            
+            This PR contains **patch and minor** dependency updates.
+            
+            ### ✅ Verification Completed
+            - [x] Clean build successful
+            - [x] Unit tests passing  
+            - [x] Sample apps compile successfully
+            
+            ### 📦 Updated Dependencies
+            ${{ steps.updates.outputs.summary }}
+            
+            ### 🔍 Major Updates Available
+            ${{ steps.updates.outputs.major_updates }}
+            
+            ---
+            *This PR was automatically generated. Review the changes and merge when ready.*
+          branch: dependency-updates
+          delete-branch: true 

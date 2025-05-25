@@ -150,6 +150,5 @@ function main(): void {
     parser.setGitHubOutput('major_updates', parser.generateMajorUpdatesSummary(majorUpdates));
 }
 
-if (require.main === module) {
-    main();
-} 
+// Run main function if this is the entry point
+main(); 

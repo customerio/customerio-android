@@ -39,10 +39,10 @@ dependencyUpdates {
     
     // Reject unstable versions
     rejectVersionIf {
-        def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { keyword -> candidate.version.toUpperCase().contains(keyword) }
+        def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { keyword -> it.candidate.version.toUpperCase().contains(keyword) }
         def regex = /^[0-9,.v-]+(-r)?$/
-        def isStable = stableKeyword || candidate.version ==~ regex
-        return !isStable && !isNonStable(currentVersion)
+        def isStable = stableKeyword || it.candidate.version ==~ regex
+        return !isStable && !isNonStable(it.currentVersion)
     }
 }
 

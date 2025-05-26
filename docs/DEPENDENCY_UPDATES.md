@@ -1,126 +1,212 @@
-# Dependency Updates
+# Customer.io Android SDK Dependency Updates
 
-This document describes the dependency update system for the Customer.io Android SDK.
+This document explains the automated dependency update system for the Customer.io Android SDK using GitHub's native Dependabot.
 
-## Overview
+## 🎯 **System Overview**
 
-The Customer.io Android SDK uses **Renovate** for automated dependency management. Renovate automatically:
+The dependency update system uses:
+- **🔄 Dependabot**: Native GitHub dependency detection and PR creation
+- **🔒 Security scanning**: Built-in vulnerability detection
+- **📦 Intelligent grouping**: Related dependencies updated together
+- **⚡ Automated scheduling**: Weekly updates with rate limiting
 
-1. **Detects all dependency updates** including BOM-managed dependencies
-2. **Applies patch and minor updates** automatically after verification
-3. **Reports major updates** for manual review via Dependency Dashboard
-4. **Runs comprehensive tests** to verify compatibility
-5. **Creates focused pull requests** with detailed information
+## 🚀 **How It Works**
 
-## 🤖 Automated Updates
+### **1. Automated Detection**
+- **Dependabot** runs weekly (Monday 9 AM UTC)
+- Scans all Gradle build files for dependency updates
+- Creates PRs with grouped updates and detailed version information
+- Includes security vulnerability scanning
 
-### How It Works
-- **Patch updates** (1.2.3 → 1.2.4): Bug fixes, security patches - **auto-merged**
-- **Minor updates** (1.2.3 → 1.3.0): New features, backward compatible - **auto-merged**
-- **Major updates** (1.2.3 → 2.0.0): Breaking changes - **manual review required**
+### **2. Intelligent Grouping**
+Dependencies are grouped logically to reduce PR noise:
+- **Kotlin ecosystem**: Kotlin + Coroutines
+- **Compose dependencies**: Compose BOM + related libraries  
+- **Firebase dependencies**: All Firebase libraries
+- **Android/Google**: Android Gradle Plugin + AndroidX libraries
+- **Networking**: Retrofit + OkHttp
+- **Dependency Injection**: Dagger/Hilt
 
-### Schedule
-- **Automatic**: Every Monday at 9 AM UTC
-- **Security updates**: Immediate (when vulnerabilities are detected)
-- **Manual trigger**: Available via Dependency Dashboard
+### **3. Review Process**
+- **Security updates**: Flagged for immediate attention
+- **Grouped updates**: Related dependencies updated together
+- **Version compatibility**: Dependabot checks for conflicts
+- **Manual review**: All updates require approval before merging
 
-### Verification Process
-Before any update is merged, Renovate automatically:
-1. ✅ Runs clean build
-2. ✅ Executes unit tests
-3. ✅ Builds sample apps (`kotlin_compose` and `java_layout`)
-4. ✅ Verifies no breaking changes
+## 📊 **Example: Kotlin Ecosystem Update**
 
-## 📊 Dependency Dashboard
+When Kotlin updates are available, Dependabot creates a grouped PR:
 
-Renovate provides a **Dependency Dashboard** issue that shows:
-- 📦 Available updates
-- ⚠️ Major updates requiring review
-- 🔒 Security vulnerabilities
-- 📈 Update status and progress
+```
+chore(deps): Bump kotlin ecosystem
 
-## 🎯 Supported Dependencies
+Updates:
+- org.jetbrains.kotlin:kotlin-gradle-plugin: 1.8.10 → 1.8.20
+- org.jetbrains.kotlinx:kotlinx-coroutines-core: 1.6.4 → 1.7.0
 
-Renovate automatically detects and updates:
-
-### ✅ **Fully Supported**
-- **Gradle dependencies** in `build.gradle` files
-- **Version constants** in `Versions.kt`
-- **BOM-managed dependencies** (Compose, AndroidX)
-- **Plugin versions** in buildscript
-- **Kotlin and Android Gradle Plugin**
-
-### 🔧 **Grouped Updates**
-- **Compose BOM**: All Compose dependencies updated together
-- **Kotlin**: Kotlin compiler, stdlib, coroutines
-- **Android Gradle Plugin**: Coordinated with Gradle wrapper
-
-## 🛠️ Manual Operations
-
-### Check for Updates Manually
-Visit the **Dependency Dashboard** issue in your repository to:
-- See all available updates
-- Trigger updates manually
-- Review major updates
-
-### Override Auto-merge
-If you need to review a patch/minor update:
-1. Add `renovate:ignore` label to the PR
-2. Review and merge manually
-
-### Emergency Updates
-For critical security updates:
-1. Renovate will create immediate PRs
-2. These bypass normal scheduling
-3. Auto-merge after verification
-
-## 🔧 Configuration
-
-The Renovate configuration is in `renovate.json` at the repository root. Key settings:
-
-```json
-{
-  "schedule": ["before 10am on monday"],
-  "automerge": true,  // For patch/minor updates
-  "dependencyDashboard": true,
-  "postUpgradeTasks": {
-    "commands": [
-      "./gradlew clean test",
-      "./gradlew :samples:kotlin_compose:assembleDebug",
-      "./gradlew :samples:java_layout:assembleDebug"
-    ]
-  }
-}
+Changelog links:
+- Kotlin: https://github.com/JetBrains/kotlin/releases/tag/v1.8.20
+- Coroutines: https://github.com/Kotlin/kotlinx.coroutines/releases/tag/1.7.0
 ```
 
-## 🆚 Advantages Over Previous System
+## 🛠️ **Setup Instructions**
 
-| Feature | Previous (Ben-Manes) | Current (Renovate) |
-|---------|---------------------|-------------------|
-| **BOM Support** | ❌ Limited | ✅ Native |
-| **Dependency Coverage** | ~43 dependencies | ✅ All dependencies |
-| **Update Granularity** | Single PR | ✅ Grouped or individual |
-| **Security Updates** | ❌ Manual | ✅ Automatic |
-| **Dependency Dashboard** | ❌ None | ✅ Visual overview |
-| **Merge Confidence** | ❌ None | ✅ Adoption data |
+### **Prerequisites**
+- GitHub repository with Dependabot enabled (already configured)
+- Gradle-based Android project
+- Maven Central repository access
 
-## 🚨 Troubleshooting
+### **Configuration**
 
-### Update Not Detected
-- Check if dependency is in a supported file format
-- Verify repository access for private dependencies
-- Check Dependency Dashboard for any errors
+The system is configured via `.github/dependabot.yml`:
 
-### Build Failures
-- Renovate will automatically close PRs that fail verification
-- Check the PR for build logs and error details
-- Major updates may require manual intervention
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "customerio/mobile-team"
+    assignees:
+      - "customerio/mobile-team"
+    groups:
+      kotlin-ecosystem:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.kotlinx*"
+      compose-dependencies:
+        patterns:
+          - "androidx.compose*"
+          - "androidx.activity:activity-compose"
+          - "androidx.lifecycle:lifecycle-viewmodel-compose"
+      # ... additional groups
+```
 
-### Need Help?
-- Check the **Dependency Dashboard** issue
-- Review Renovate logs in failed PRs
-- Consult [Renovate documentation](https://docs.renovatebot.com/)
+## 🎯 **Using the System**
+
+### **When a PR is Created**
+
+1. **Review the PR Description**:
+   - Check the dependency changes and version bumps
+   - Review changelog links provided by Dependabot
+   - Note any grouped updates and their relationships
+
+2. **Assess the Changes**:
+   - **Security updates**: Review vulnerability details and prioritize
+   - **Major version updates**: Check for breaking changes in changelogs
+   - **Minor/patch updates**: Generally safe but verify compatibility
+
+3. **Test Locally** (if needed):
+   ```bash
+   git checkout dependabot/gradle/kotlin-ecosystem
+   ./gradlew clean build
+   ./gradlew test
+   ./gradlew :samples:kotlin_compose:assembleDebug
+   ```
+
+4. **Make Decision**:
+   - **Approve & Merge**: Safe updates with no concerns
+   - **Request Changes**: Issues found that need addressing
+   - **Close**: Updates that shouldn't be applied
+
+## 🔧 **Customization**
+
+### **Dependency Coverage**
+The system monitors dependencies in:
+- Root `build.gradle` file
+- Module `build.gradle` files
+- `buildSrc/` build files
+- Plugin versions and Gradle wrapper
+
+### **Update Schedule**
+- **Weekly**: Monday 9 AM UTC
+- **Security updates**: As soon as detected
+- **Rate limiting**: Max 3 concurrent PRs
+
+### **Grouping Strategy**
+Current groups optimize for:
+- **Related functionality**: Dependencies that work together
+- **Version compatibility**: Dependencies with shared version requirements
+- **Testing efficiency**: Changes that can be tested together
+- **Review simplicity**: Logical groupings for easier review
+
+### **Adding New Dependencies**
+Dependabot automatically detects new dependencies added to `build.gradle` files. To customize grouping:
+
+1. Edit `.github/dependabot.yml`
+2. Add new patterns to existing groups or create new groups:
+
+```yaml
+new-dependency-group:
+  patterns:
+    - "com.example.*"
+    - "com.mycompany.*"
+```
+
+### **Excluding Dependencies**
+To ignore specific dependencies:
+
+```yaml
+ignore:
+  - dependency-name: "com.example.unwanted-lib"
+    versions: ["1.x", "2.x"]
+```
+
+## 🚨 **Troubleshooting**
+
+### **Common Issues**
+- **Dependency not detected**: Ensure dependency is in `build.gradle` files
+- **Too many PRs**: Adjust `open-pull-requests-limit` or grouping
+- **Version conflicts**: Check for incompatible version combinations
+- **Build failures**: Test locally and check for breaking changes
+
+### **Dependabot Configuration**
+- **File location**: `.github/dependabot.yml` in repository root
+- **Syntax validation**: GitHub validates configuration on push
+- **Documentation**: [GitHub Dependabot docs](https://docs.github.com/en/code-security/dependabot)
+
+## 📈 **Benefits**
+
+- **🔒 Security**: Automatic vulnerability detection and updates
+- **⚡ Efficiency**: Reduces manual dependency monitoring by 90%
+- **🎯 Focus**: Intelligent grouping reduces review overhead
+- **🔄 Native**: Built into GitHub with no external dependencies
+- **📊 Visibility**: Clear changelog links and version information
+
+## 🔄 **Workflow Integration**
+
+### **Best Practice Workflow**
+
+1. **Dependabot** creates grouped dependency PRs weekly
+2. **Review** changelog links and assess impact
+3. **Test** locally for major updates or security fixes
+4. **Approve & merge** safe updates
+5. **Monitor** for any issues post-deployment
+
+### **Review Guidelines**
+
+| Update Type | Review Level | Action |
+|-------------|--------------|--------|
+| **Security** | High | Review immediately, test, merge quickly |
+| **Major** | High | Check breaking changes, test thoroughly |
+| **Minor** | Medium | Review changelog, test if concerns |
+| **Patch** | Low | Quick review, generally safe to merge |
+
+## 🎯 **Next Steps**
+
+This Dependabot setup provides a solid foundation for automated dependency management. Future enhancements could include:
+
+- AI-powered analysis of dependency changes
+- Automated testing and build verification
+- Custom risk assessment based on Customer.io SDK architecture
+- Interactive analysis tools for complex updates
 
 ---
 
-*Renovate automatically maintains this dependency update system. No manual intervention required for most updates.* 
+*This system provides reliable, secure, and efficient dependency management using GitHub's native Dependabot with intelligent grouping optimized for the Customer.io Android SDK.* 

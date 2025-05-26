@@ -1,18 +1,19 @@
 # Customer.io Android SDK Dependency Updates
 
-This document explains the automated dependency update system for the Customer.io Android SDK using GitHub's native Dependabot.
+This document explains the automated dependency update system for the Customer.io Android SDK, powered by Dependabot with AI-enhanced analysis.
 
 ## 🎯 **System Overview**
 
-The dependency update system uses:
+The dependency update system consists of:
 - **🔄 Dependabot**: Native GitHub dependency detection and PR creation
+- **🤖 Claude**: Interactive code-aware analysis with build verification
+- **🧠 OpenAI**: Deep changelog analysis and Customer.io impact assessment (automatic)
 - **🔒 Security scanning**: Built-in vulnerability detection
 - **📦 Intelligent grouping**: Related dependencies updated together
-- **⚡ Automated scheduling**: Weekly updates with rate limiting
 
 ## 🚀 **How It Works**
 
-### **1. Automated Detection**
+### **1. Automated Detection (Dependabot)**
 - **Dependabot** runs weekly (Monday 9 AM UTC)
 - Scans all Gradle build files for dependency updates
 - Creates PRs with grouped updates and detailed version information
@@ -27,36 +28,101 @@ Dependencies are grouped logically to reduce PR noise:
 - **Networking**: Retrofit + OkHttp
 - **Dependency Injection**: Dagger/Hilt
 
-### **3. Review Process**
-- **Security updates**: Flagged for immediate attention
-- **Grouped updates**: Related dependencies updated together
-- **Version compatibility**: Dependabot checks for conflicts
-- **Manual review**: All updates require approval before merging
+### **3. AI-Enhanced Analysis**
+- **Claude** provides interactive analysis:
+  - Automatically analyzes dependency PRs when created
+  - Responds to @claude mentions in PR comments
+  - Examines actual code and build files
+  - Runs build commands to verify compatibility
+  - Understands Customer.io SDK architecture
 
-## 📊 **Example: Kotlin Ecosystem Update**
+- **OpenAI workflow** (automatic) provides deep analysis:
+  - Fetches official changelogs from GitHub, Maven, docs
+  - Analyzes Customer.io SDK-specific impact
+  - Checks for breaking changes and compatibility issues
+  - Provides risk assessment and recommendations
 
-When Kotlin updates are available, Dependabot creates a grouped PR:
+### **4. Automated Actions**
+- **Safe updates** (patch/minor): Auto-approved after AI analysis
+- **Risky updates**: Flagged for manual review with AI insights
+- **Major updates**: Always require manual review
 
+## 🤖 **AI Analysis Features**
+
+### **Claude Interactive Analysis**
+Provides:
+- **Code Examination**: Reads actual source files and build configurations
+- **Build Verification**: Runs ./gradlew commands to test compatibility
+- **Dependency Analysis**: Searches for API usage and compatibility issues
+- **Interactive Investigation**: Responds to @claude mentions for specific questions
+- **Customer.io Context**: Understands SDK architecture and critical components
+
+### **OpenAI Contextual Analysis** (Automatic)
+Deep analysis including:
+- **Customer.io Impact**: How changes affect push notifications, messaging, analytics
+- **Breaking Changes**: Specific API changes that might affect the SDK
+- **Compatibility**: Kotlin ↔ AGP ↔ Compose version compatibility
+- **Migration**: Required code changes and testing focus areas
+- **Risk Assessment**: LOW/MEDIUM/HIGH with detailed reasoning
+
+## 📊 **Example: Firebase Messaging Update**
+
+When Firebase Messaging updates from 23.1.2 → 23.2.0:
+
+### **Dependabot PR Creation**
 ```
-chore(deps): Bump kotlin ecosystem
+chore(deps): Bump firebase dependencies
 
 Updates:
-- org.jetbrains.kotlin:kotlin-gradle-plugin: 1.8.10 → 1.8.20
-- org.jetbrains.kotlinx:kotlinx-coroutines-core: 1.6.4 → 1.7.0
+- com.google.firebase:firebase-messaging: 23.1.2 → 23.2.0
+- com.google.firebase:firebase-analytics: 21.2.0 → 21.3.0
 
 Changelog links:
-- Kotlin: https://github.com/JetBrains/kotlin/releases/tag/v1.8.20
-- Coroutines: https://github.com/Kotlin/kotlinx.coroutines/releases/tag/1.7.0
+- Firebase: https://firebase.google.com/support/release-notes/android
+```
+
+### **Claude Analysis** (Interactive)
+```
+@claude how does this Firebase update affect our push notification flow?
+
+Claude: I've examined the Firebase Messaging update and your CustomerIOPushMessaging.kt file:
+
+🔍 **Key Changes Found:**
+1. Token retrieval now requires async callback pattern
+2. Background processing API has new message handling
+3. Error handling needs updated exception types
+
+🛠️ **Required Updates:**
+- Update refreshFCMToken() method in CustomerIOPushMessaging.kt
+- Modify background message processing in PushNotificationService
+- Test with ./gradlew :samples:kotlin_compose:assembleDebug
+
+Would you like me to run the build to verify compatibility?
+```
+
+### **Build Verification** (Automatic)
+```
+@claude run ./gradlew clean build to verify these updates
+
+Claude: Running build verification...
+
+✅ **Build Results:**
+- Clean build: SUCCESSFUL
+- Unit tests: PASSED (127/127)
+- Sample apps: COMPILED successfully
+- No breaking changes detected
+
+The Firebase update is compatible with your current implementation.
 ```
 
 ## 🛠️ **Setup Instructions**
 
 ### **Prerequisites**
 - GitHub repository with Dependabot enabled (already configured)
-- Gradle-based Android project
-- Maven Central repository access
+- Claude integration with Customer.io GitHub App
+- Google Cloud Vertex AI access
 
-### **Configuration**
+### **Step 1: Dependabot Configuration**
 
 The system is configured via `.github/dependabot.yml`:
 
@@ -80,40 +146,77 @@ updates:
         patterns:
           - "org.jetbrains.kotlin*"
           - "org.jetbrains.kotlinx*"
-      compose-dependencies:
-        patterns:
-          - "androidx.compose*"
-          - "androidx.activity:activity-compose"
-          - "androidx.lifecycle:lifecycle-viewmodel-compose"
       # ... additional groups
 ```
+
+### **Step 2: Claude Configuration**
+
+#### **Automatic Analysis**
+- **No setup required** - Claude automatically analyzes dependency PRs
+- **Self-hosted runners** - Secure analysis on Customer.io infrastructure
+- **Interactive on-demand** - Use @claude mentions for specific questions
+
+📖 **Detailed setup guide**: [CLAUDE_SETUP.md](CLAUDE_SETUP.md)
+
+### **Step 3: OpenAI Deep Analysis (Optional)**
+For additional changelog analysis:
+1. Get OpenAI API key from [platform.openai.com](https://platform.openai.com)
+2. Add as `OPENAI_API_KEY` in GitHub repository secrets
+3. The workflow is already configured
+
+### **Configuration Files**
+- `.github/dependabot.yml`: Dependabot configuration
+- `.github/workflows/ai-pr-review.yml`: OpenAI analysis workflow (automatic)
+- `.github/workflows/claude.yml`: Claude analysis workflow
 
 ## 🎯 **Using the System**
 
 ### **When a PR is Created**
 
 1. **Review the PR Description**:
-   - Check the dependency changes and version bumps
+   - Check the dependency changes and version bumps from Dependabot
    - Review changelog links provided by Dependabot
    - Note any grouped updates and their relationships
 
-2. **Assess the Changes**:
-   - **Security updates**: Review vulnerability details and prioritize
-   - **Major version updates**: Check for breaking changes in changelogs
-   - **Minor/patch updates**: Generally safe but verify compatibility
+2. **Check Automatic AI Analysis**:
+   - **Claude** automatically analyzes dependency PRs
+   - **OpenAI** provides deep changelog analysis
+   - Review risk level and recommendations
 
-3. **Test Locally** (if needed):
-   ```bash
-   git checkout dependabot/gradle/kotlin-ecosystem
-   ./gradlew clean build
-   ./gradlew test
-   ./gradlew :samples:kotlin_compose:assembleDebug
+3. **Use Claude for Interactive Analysis**:
+   ```
+   @claude analyze these dependency updates for Customer.io Android SDK impact
+   
+   @claude how does this Kotlin update affect our coroutines usage?
+   
+   @claude what Firebase changes might break push notifications?
+   
+   @claude run ./gradlew clean build to verify compatibility
    ```
 
 4. **Make Decision**:
-   - **Approve & Merge**: Safe updates with no concerns
-   - **Request Changes**: Issues found that need addressing
-   - **Close**: Updates that shouldn't be applied
+   - **APPROVE**: Safe updates with no concerns
+   - **MANUAL_REVIEW**: Review and test specific areas
+   - **BLOCK**: High-risk updates requiring investigation
+
+## 💬 **Claude Analysis Guide**
+
+📖 **Complete command reference**: [CLAUDE_COMMANDS.md](CLAUDE_COMMANDS.md)
+
+### **Quick Examples**
+```
+@claude analyze these dependency updates for Customer.io Android SDK impact
+
+@claude how does this Firebase update affect push notifications in Customer.io SDK?
+
+@claude run ./gradlew clean build to verify these updates don't break anything
+```
+
+### **Best Practices**
+- **Provide context**: Always mention Customer.io SDK functionality
+- **Be specific**: Ask about exact impact rather than general safety
+- **Use build verification**: Ask Claude to run build commands
+- **Follow up**: Ask for specific testing recommendations
 
 ## 🔧 **Customization**
 
@@ -149,64 +252,47 @@ new-dependency-group:
     - "com.mycompany.*"
 ```
 
-### **Excluding Dependencies**
-To ignore specific dependencies:
-
-```yaml
-ignore:
-  - dependency-name: "com.example.unwanted-lib"
-    versions: ["1.x", "2.x"]
-```
+### **AI Analysis Customization**
+- **Claude commands**: See [CLAUDE_COMMANDS.md](CLAUDE_COMMANDS.md) for all available commands
+- **AI configuration**: See [AI_DEPENDENCY_CONFIG.md](AI_DEPENDENCY_CONFIG.md) for technical configuration
+- **OpenAI prompts**: Modify `.github/workflows/ai-pr-review.yml` for custom analysis
 
 ## 🚨 **Troubleshooting**
 
 ### **Common Issues**
-- **Dependency not detected**: Ensure dependency is in `build.gradle` files
-- **Too many PRs**: Adjust `open-pull-requests-limit` or grouping
-- **Version conflicts**: Check for incompatible version combinations
-- **Build failures**: Test locally and check for breaking changes
+- **Claude not responding**: Verify @claude mention format and try rephrasing with more context
+- **AI analysis missing**: Check GitHub Actions logs and workflow permissions
+- **Dependency not detected**: Ensure dependency is in `build.gradle` files and Dependabot config
+- **False positives**: AI may be cautious - always use your judgment for final decisions
 
-### **Dependabot Configuration**
-- **File location**: `.github/dependabot.yml` in repository root
-- **Syntax validation**: GitHub validates configuration on push
-- **Documentation**: [GitHub Dependabot docs](https://docs.github.com/en/code-security/dependabot)
+📖 **Detailed troubleshooting**: [CLAUDE_SETUP.md](CLAUDE_SETUP.md)
 
 ## 📈 **Benefits**
 
-- **🔒 Security**: Automatic vulnerability detection and updates
-- **⚡ Efficiency**: Reduces manual dependency monitoring by 90%
-- **🎯 Focus**: Intelligent grouping reduces review overhead
-- **🔄 Native**: Built into GitHub with no external dependencies
-- **📊 Visibility**: Clear changelog links and version information
+- **🚀 90% reduction** in manual dependency review time
+- **🔒 Breaking change detection** before they affect production  
+- **🧠 Customer.io SDK-specific** contextual analysis and impact assessment
+- **🔄 Native GitHub integration** with intelligent grouping and security scanning
+- **🎯 AI-guided testing** with specific focus areas and build verification
 
 ## 🔄 **Workflow Integration**
 
 ### **Best Practice Workflow**
 
 1. **Dependabot** creates grouped dependency PRs weekly
-2. **Review** changelog links and assess impact
-3. **Test** locally for major updates or security fixes
-4. **Approve & merge** safe updates
-5. **Monitor** for any issues post-deployment
+2. **Claude** provides automatic analysis with code examination
+3. **OpenAI** (automatic) provides deep changelog analysis
+4. **Claude** provides interactive "how it affects our code" analysis
+5. **You** make informed decision with full context
 
-### **Review Guidelines**
+### **Decision Matrix**
 
-| Update Type | Review Level | Action |
-|-------------|--------------|--------|
-| **Security** | High | Review immediately, test, merge quickly |
-| **Major** | High | Check breaking changes, test thoroughly |
-| **Minor** | Medium | Review changelog, test if concerns |
-| **Patch** | Low | Quick review, generally safe to merge |
-
-## 🎯 **Next Steps**
-
-This Dependabot setup provides a solid foundation for automated dependency management. Future enhancements could include:
-
-- AI-powered analysis of dependency changes
-- Automated testing and build verification
-- Custom risk assessment based on Customer.io SDK architecture
-- Interactive analysis tools for complex updates
+| AI Recommendation | Action | Description |
+|-------------------|--------|-------------|
+| **APPROVE** | Auto-merge | Safe update, no issues found |
+| **MANUAL_REVIEW** | Review & test | Potential impact, verify specific areas |
+| **BLOCK** | Investigate | High risk, requires careful analysis |
 
 ---
 
-*This system provides reliable, secure, and efficient dependency management using GitHub's native Dependabot with intelligent grouping optimized for the Customer.io Android SDK.* 
+*This system transforms dependency management from a manual, error-prone process into an intelligent, automated workflow that combines GitHub's native Dependabot with AI-powered analysis specific to your Customer.io SDK's needs.* 

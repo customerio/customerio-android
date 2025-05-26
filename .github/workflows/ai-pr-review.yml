@@ -1,0 +1,469 @@
+name: AI PR Review with Contextual Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    # Only run on Dependabot PRs
+    branches: ['**']
+
+jobs:
+  ai-contextual-review:
+    if: contains(github.event.pull_request.title, 'chore(deps)') || github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          npm install openai axios cheerio semver
+
+      - name: Analyze Dependency Changes
+        id: analyze
+        run: |
+          echo "🔍 Analyzing dependency changes..."
+          
+          # Get changed files
+          git diff --name-only HEAD~1 HEAD > changed_files.txt
+          
+          # Extract dependency changes
+          if grep -q "Versions.kt\|build.gradle\|dependencies" changed_files.txt; then
+            echo "dependency_changes=true" >> $GITHUB_OUTPUT
+            
+            # Get the diff for analysis
+            git diff HEAD~1 HEAD -- "*.gradle" "*.kt" > dependency_diff.txt
+            
+            # Extract version changes with more detail
+            git diff HEAD~1 HEAD | grep -E "^\+.*const val.*=|^\-.*const val.*=" > version_changes.txt || true
+            
+            # Parse specific dependency updates
+            git diff HEAD~1 HEAD buildSrc/src/main/kotlin/io.customer/android/Versions.kt | \
+              grep -E "^\+.*const val.*=|^\-.*const val.*=" | \
+              sed 's/[+-].*const val \([A-Z_]*\) = "\([^"]*\)".*/\1:\2/' > parsed_changes.txt || true
+          else
+            echo "dependency_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch Dependency Context and Changelogs
+        if: steps.analyze.outputs.dependency_changes == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          cat > contextual_analyzer.js << 'EOF'
+          const { OpenAI } = require('openai');
+          const axios = require('axios');
+          const fs = require('fs');
+          const semver = require('semver');
+          
+          const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+          });
+          
+          // Load dependency configuration from docs/AI_DEPENDENCY_CONFIG.md
+          const DEPENDENCY_MAPPING = {
+            'KOTLIN': {
+              name: 'Kotlin',
+              changelogUrl: 'https://github.com/JetBrains/kotlin/releases'
+            },
+            'ANDROID_GRADLE_PLUGIN': {
+              name: 'Android Gradle Plugin',
+              changelogUrl: 'https://developer.android.com/studio/releases/gradle-plugin'
+            },
+            'COMPOSE_BOM': {
+              name: 'Compose BOM',
+              changelogUrl: 'https://developer.android.com/jetpack/androidx/releases/compose'
+            },
+            'COROUTINES': {
+              name: 'Kotlin Coroutines',
+              changelogUrl: 'https://github.com/Kotlin/kotlinx.coroutines/releases'
+            },
+            'RETROFIT': {
+              name: 'Retrofit',
+              changelogUrl: 'https://github.com/square/retrofit/releases'
+            },
+            'OKHTTP': {
+              name: 'OkHttp',
+              changelogUrl: 'https://github.com/square/okhttp/releases'
+            },
+            'HILT': {
+              name: 'Dagger Hilt',
+              changelogUrl: 'https://github.com/google/dagger/releases'
+            },
+            'FIREBASE_MESSAGING': {
+              name: 'Firebase Messaging',
+              changelogUrl: 'https://firebase.google.com/support/release-notes/android'
+            },
+            'SEGMENT': {
+              name: 'Segment Analytics',
+              changelogUrl: 'https://github.com/segmentio/analytics-kotlin/releases'
+            },
+            'REDUX_KOTLIN': {
+              name: 'Redux Kotlin',
+              changelogUrl: 'https://github.com/reduxkotlin/redux-kotlin/releases'
+            }
+          };
+          
+          async function fetchChangelogContent(url, version) {
+            try {
+              console.log(`Fetching changelog from: ${url}`);
+              const response = await axios.get(url, {
+                timeout: 10000,
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (compatible; DependencyBot/1.0)'
+                }
+              });
+              
+              // Extract relevant content for the version
+              let content = response.data;
+              
+              // Look for version-specific content
+              const versionRegex = new RegExp(`(${version}|v${version}).*?(?=\\n##|\\n#|$)`, 'gis');
+              const versionMatch = content.match(versionRegex);
+              
+              if (versionMatch) {
+                return versionMatch[0].substring(0, 2000); // Limit content
+              }
+              
+              // Fallback: get recent releases section
+              const recentRegex = /(## \[?[0-9]+\.[0-9]+.*?)(?=## \[?[0-9]+\.[0-9]+|$)/gis;
+              const recentMatches = content.match(recentRegex);
+              
+              if (recentMatches && recentMatches.length > 0) {
+                return recentMatches.slice(0, 3).join('\n').substring(0, 2000);
+              }
+              
+              return content.substring(0, 1500); // Fallback to beginning
+            } catch (error) {
+              console.log(`Failed to fetch changelog: ${error.message}`);
+              return null;
+            }
+          }
+          
+          async function analyzeCustomerIOImpact(dependencyName, oldVersion, newVersion, changelog) {
+            const customerIOContext = `
+          Customer.io Android SDK Context:
+          - Push notification service (Firebase integration)
+          - In-app messaging system
+          - Event tracking and analytics
+          - Background processing and queuing
+          - Network requests for API communication
+          - Data persistence and caching
+          - Compose UI components for messaging
+          - Sample apps: Kotlin Compose and Java layouts
+          `;
+          
+            const prompt = `
+          You are analyzing the impact of a dependency update on the Customer.io Android SDK.
+          
+          ${customerIOContext}
+          
+          Dependency: ${dependencyName}
+          Version Change: ${oldVersion} → ${newVersion}
+          
+          Changelog/Release Notes:
+          ${changelog || 'No changelog available'}
+          
+          Please provide a detailed analysis focusing on:
+          
+          1. **Customer.io Specific Impact**:
+             - How might this affect push notifications?
+             - Impact on in-app messaging functionality?
+             - Effects on event tracking and analytics?
+             - Background processing implications?
+             - Network/API communication changes?
+             - Data persistence compatibility?
+             - Compose UI component effects?
+          
+          2. **Breaking Changes Analysis**:
+             - List specific breaking changes from changelog
+             - Assess likelihood of affecting Customer.io SDK
+             - Identify deprecated APIs that Customer.io might use
+          
+          3. **Compatibility Matrix**:
+             - Android SDK version compatibility
+             - Kotlin version requirements
+             - Other dependency conflicts
+          
+          4. **Migration Requirements**:
+             - Code changes needed in Customer.io SDK
+             - Configuration updates required
+             - Testing focus areas
+          
+          5. **Risk Assessment** (LOW/MEDIUM/HIGH):
+             - Overall risk level for Customer.io SDK
+             - Specific areas of concern
+             - Recommended testing strategy
+          
+          6. **Recommendation**: APPROVE, MANUAL_REVIEW, or BLOCK
+          
+          Be specific about Customer.io SDK functionality and provide actionable insights.
+          `;
+          
+            try {
+              const response = await openai.chat.completions.create({
+                model: 'gpt-4',
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 1500,
+                temperature: 0.1
+              });
+              
+              return response.choices[0].message.content;
+            } catch (error) {
+              console.error('OpenAI analysis failed:', error);
+              return `Analysis failed: ${error.message}`;
+            }
+          }
+          
+          async function main() {
+            const prTitle = process.env.PR_TITLE;
+            const prBody = process.env.PR_BODY;
+            
+            // Parse version changes
+            const versionChanges = fs.readFileSync('version_changes.txt', 'utf8');
+            const parsedChanges = fs.readFileSync('parsed_changes.txt', 'utf8');
+            
+            console.log('Parsed changes:', parsedChanges);
+            
+            const analyses = [];
+            const lines = parsedChanges.split('\n').filter(line => line.trim());
+            
+            for (const line of lines) {
+              const [depKey, version] = line.split(':');
+              if (!depKey || !version) continue;
+              
+              const dependency = DEPENDENCY_MAPPING[depKey];
+              if (!dependency) {
+                console.log(`No mapping found for ${depKey}`);
+                continue;
+              }
+              
+              console.log(`Analyzing ${dependency.name}: ${version}`);
+              
+              // Extract old version from git diff
+              const oldVersionMatch = versionChanges.match(new RegExp(`-.*${depKey}.*"([^"]+)"`));
+              const oldVersion = oldVersionMatch ? oldVersionMatch[1] : 'unknown';
+              
+              // Fetch changelog
+              const changelog = await fetchChangelogContent(dependency.changelogUrl, version);
+              
+              // Analyze impact
+              const analysis = await analyzeCustomerIOImpact(
+                dependency.name,
+                oldVersion,
+                version,
+                changelog
+              );
+              
+              analyses.push({
+                dependency: dependency.name,
+                oldVersion,
+                newVersion: version,
+                analysis
+              });
+              
+              // Rate limiting
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // Combine all analyses
+            const fullAnalysis = analyses.map(a => 
+              `## ${a.dependency} (${a.oldVersion} → ${a.newVersion})\n\n${a.analysis}`
+            ).join('\n\n---\n\n');
+            
+            // Extract overall recommendation
+            const recommendations = analyses.map(a => {
+              const match = a.analysis.match(/Recommendation.*?:\s*(APPROVE|MANUAL_REVIEW|BLOCK)/i);
+              return match ? match[1].toUpperCase() : 'MANUAL_REVIEW';
+            });
+            
+            const overallRecommendation = recommendations.includes('BLOCK') ? 'BLOCK' :
+                                        recommendations.includes('MANUAL_REVIEW') ? 'MANUAL_REVIEW' : 'APPROVE';
+            
+            console.log('ANALYSIS_START');
+            console.log(fullAnalysis);
+            console.log('ANALYSIS_END');
+            console.log(`RECOMMENDATION=${overallRecommendation}`);
+            
+            fs.writeFileSync('contextual_analysis.md', fullAnalysis);
+          }
+          
+          main().catch(console.error);
+          EOF
+          
+          # Run contextual analysis
+          PR_TITLE="${{ github.event.pull_request.title }}" \
+          PR_BODY="${{ github.event.pull_request.body }}" \
+          node contextual_analyzer.js > analysis_output.txt
+          
+          # Extract recommendation
+          RECOMMENDATION=$(grep "RECOMMENDATION=" analysis_output.txt | tail -1 | cut -d'=' -f2)
+          echo "ai_recommendation=$RECOMMENDATION" >> $GITHUB_OUTPUT
+          
+          # Extract analysis
+          sed -n '/ANALYSIS_START/,/ANALYSIS_END/p' analysis_output.txt | sed '1d;$d' > contextual_analysis.md
+
+      - name: Post Contextual AI Review
+        if: steps.analyze.outputs.dependency_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const analysis = fs.readFileSync('contextual_analysis.md', 'utf8');
+            const recommendation = '${{ steps.analyze.outputs.ai_recommendation }}';
+            
+            const emoji = {
+              'APPROVE': '✅',
+              'MANUAL_REVIEW': '🔍',
+              'BLOCK': '🚫'
+            }[recommendation] || '🤖';
+            
+            // Generate Claude commands based on dependencies (see docs/AI_DEPENDENCY_CONFIG.md for full templates)
+            const generateClaudeCommands = (analysis) => {
+              const commands = [];
+              
+              // Component-specific commands based on detected dependencies
+              if (analysis.includes('Firebase') || analysis.includes('firebase')) {
+                commands.push('@claude how does this Firebase update affect push notifications in Customer.io SDK?');
+              }
+              if (analysis.includes('Compose') || analysis.includes('compose')) {
+                commands.push('@claude what Compose changes might break our in-app messaging UI?');
+              }
+              if (analysis.includes('Kotlin') || analysis.includes('kotlin')) {
+                commands.push('@claude analyze Kotlin compatibility with our coroutines usage');
+              }
+              if (analysis.includes('Retrofit') || analysis.includes('retrofit')) {
+                commands.push('@claude check if this Retrofit update affects our API communication');
+              }
+              if (analysis.includes('Hilt') || analysis.includes('hilt') || analysis.includes('Dagger')) {
+                commands.push('@claude analyze Hilt/Dagger changes affecting our sample apps');
+              }
+              if (analysis.includes('Redux') || analysis.includes('redux')) {
+                commands.push('@claude analyze Redux changes affecting our in-app messaging state management');
+              }
+              if (analysis.includes('Segment') || analysis.includes('segment')) {
+                commands.push('@claude check if this Segment update affects our data pipeline architecture');
+              }
+              
+              // Always include general analysis
+              commands.unshift('@claude analyze these dependency updates for Customer.io Android SDK impact');
+              
+              return commands;
+            };
+            
+            const claudeCommands = generateClaudeCommands(analysis);
+            const commandsList = claudeCommands.map(cmd => `\`\`\`\n${cmd}\n\`\`\``).join('\n\n');
+            
+            const comment = `## ${emoji} Customer.io SDK Impact Analysis
+            
+            This analysis examines the specific impact of dependency updates on Customer.io SDK functionality.
+            
+            ${analysis}
+            
+            ---
+            
+            **Overall Recommendation**: \`${recommendation}\`
+            
+            ## 🤖 Next Steps with Claude
+            
+            For deeper analysis, use **@claude** in PR comments with these commands:
+            
+            ${commandsList}
+            
+            📖 **Command reference**: [docs/CLAUDE_COMMANDS.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs/CLAUDE_COMMANDS.md)
+            ⚙️ **AI configuration**: [docs/AI_DEPENDENCY_CONFIG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs/AI_DEPENDENCY_CONFIG.md)
+            
+            <details>
+            <summary>🎯 Customer.io SDK Focus Areas</summary>
+            
+            This analysis specifically considers:
+            - 📱 Push notification functionality (Firebase integration)
+            - 💬 In-app messaging system
+            - 📊 Event tracking and analytics
+            - ⚙️ Background processing and queuing
+            - 🌐 Network requests and API communication
+            - 💾 Data persistence and caching
+            - 🎨 Compose UI components
+            - 📱 Sample app compatibility
+            
+            </details>
+            
+            <details>
+            <summary>🔧 How to proceed</summary>
+            
+            ### ✅ **APPROVE** - Safe for Customer.io SDK
+            - No specific concerns identified
+            - Auto-merge after CI passes
+            
+            ### 🔍 **MANUAL_REVIEW** - Potential Impact
+            1. **Use @claude in PR comments** for targeted analysis
+            2. **Use Claude commands above** for specific investigation
+            3. **Focus testing** on areas highlighted in analysis
+            4. **Review specific files** mentioned in breaking changes
+            
+            ### 🚫 **BLOCK** - High Risk
+            1. **Do not merge** until thoroughly reviewed
+            2. **Use comprehensive Claude analysis** with full context
+            3. **Test extensively** in development environment
+            4. **Consider gradual rollout** or feature flags
+            
+            </details>
+            
+            *This contextual analysis was generated by AI with Customer.io SDK-specific knowledge. Use @claude for interactive analysis.*`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Auto-approve Safe Updates
+        if: steps.analyze.outputs.ai_recommendation == 'APPROVE'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: 'APPROVE',
+              body: '🤖 Contextual analysis indicates this update is safe for Customer.io SDK functionality.\n\n💡 **Optional**: For additional verification, use @claude with commands from [docs/CLAUDE_COMMANDS.md](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/CLAUDE_COMMANDS.md)'
+            });
+
+      - name: Request Manual Review
+        if: steps.analyze.outputs.ai_recommendation == 'MANUAL_REVIEW'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: 'REQUEST_CHANGES',
+              body: '🔍 Contextual analysis suggests manual review due to potential impact on Customer.io SDK functionality.\n\n**Next Steps:**\n1. Use **@claude** in PR comments for targeted analysis\n2. Use targeted commands from the analysis above\n3. Focus testing on highlighted areas\n\n📖 **Command reference**: [docs/CLAUDE_COMMANDS.md](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/CLAUDE_COMMANDS.md)'
+            });
+
+      - name: Block Risky Updates
+        if: steps.analyze.outputs.ai_recommendation == 'BLOCK'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: 'REQUEST_CHANGES',
+              body: '🚫 Contextual analysis indicates high risk to Customer.io SDK functionality. Manual review required.\n\n**⚠️ High Risk - Do Not Merge**\n\n**Required Actions:**\n1. **Use @claude** for comprehensive analysis\n2. **Use comprehensive analysis template** from [docs/CLAUDE_COMMANDS.md](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/CLAUDE_COMMANDS.md)\n3. **Test extensively** in development environment\n4. **Consider gradual rollout** or feature flags\n\n🔍 **Focus on breaking changes** identified in the analysis above.'
+            }); 

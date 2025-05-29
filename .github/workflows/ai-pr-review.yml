@@ -152,63 +152,25 @@ jobs:
           }
           
           async function analyzeCustomerIOImpact(dependencyName, oldVersion, newVersion, changelog) {
-            const customerIOContext = `
-          Customer.io Android SDK Context:
-          - Push notification service (Firebase integration)
-          - In-app messaging system
-          - Event tracking and analytics
-          - Background processing and queuing
-          - Network requests for API communication
-          - Data persistence and caching
-          - Compose UI components for messaging
-          - Sample apps: Kotlin Compose and Java layouts
-          `;
-          
             const prompt = `
           You are analyzing the impact of a dependency update on the Customer.io Android SDK.
           
-          ${customerIOContext}
+          **Project Context**: Read AGENTS.md for complete Customer.io Android SDK architecture, dependencies, and guidelines.
           
-          Dependency: ${dependencyName}
-          Version Change: ${oldVersion} → ${newVersion}
+          **Dependency Update**:
+          - Name: ${dependencyName}
+          - Version Change: ${oldVersion} → ${newVersion}
+          - Changelog: ${changelog || 'No changelog available'}
           
-          Changelog/Release Notes:
-          ${changelog || 'No changelog available'}
-          
-          Please provide a detailed analysis focusing on:
-          
-          1. **Customer.io Specific Impact**:
-             - How might this affect push notifications?
-             - Impact on in-app messaging functionality?
-             - Effects on event tracking and analytics?
-             - Background processing implications?
-             - Network/API communication changes?
-             - Data persistence compatibility?
-             - Compose UI component effects?
-          
-          2. **Breaking Changes Analysis**:
-             - List specific breaking changes from changelog
-             - Assess likelihood of affecting Customer.io SDK
-             - Identify deprecated APIs that Customer.io might use
-          
-          3. **Compatibility Matrix**:
-             - Android SDK version compatibility
-             - Kotlin version requirements
-             - Other dependency conflicts
-          
-          4. **Migration Requirements**:
-             - Code changes needed in Customer.io SDK
-             - Configuration updates required
-             - Testing focus areas
-          
-          5. **Risk Assessment** (LOW/MEDIUM/HIGH):
-             - Overall risk level for Customer.io SDK
-             - Specific areas of concern
-             - Recommended testing strategy
-          
+          **Analysis Required**:
+          1. **Customer.io Specific Impact**: How does this affect SDK functionality?
+          2. **Breaking Changes**: List specific breaking changes and their likelihood of affecting our SDK
+          3. **Compatibility**: Check Android SDK, Kotlin version, and dependency conflicts (reference buildSrc/Versions.kt)
+          4. **Migration**: What changes are needed in our SDK?
+          5. **Risk Assessment**: LOW/MEDIUM/HIGH with specific concerns
           6. **Recommendation**: APPROVE, MANUAL_REVIEW, or BLOCK
           
-          Be specific about Customer.io SDK functionality and provide actionable insights.
+          **Important**: Reference AGENTS.md for our actual tech stack, architecture, and dependencies. Focus on real impact to Customer.io SDK components.
           `;
           
             try {
@@ -323,49 +285,103 @@ jobs:
             const analysis = fs.readFileSync('contextual_analysis.md', 'utf8');
             const recommendation = '${{ steps.analyze.outputs.ai_recommendation }}';
             
+            // Double-check this is a dependency update PR before assigning Copilot
+            const isDependencyPR = (
+              '${{ github.actor }}' === 'dependabot[bot]' || 
+              '${{ github.event.pull_request.title }}'.includes('chore(deps)') ||
+              '${{ github.event.pull_request.title }}'.toLowerCase().includes('dependency') ||
+              '${{ github.event.pull_request.title }}'.toLowerCase().includes('deps')
+            );
+            
+            if (!isDependencyPR) {
+              console.log('🚫 Not a dependency PR - skipping Copilot assignment');
+              console.log('PR Title:', '${{ github.event.pull_request.title }}');
+              console.log('Actor:', '${{ github.actor }}');
+              return;
+            }
+            
+            console.log('✅ Confirmed dependency PR - proceeding with Copilot assignment');
+            console.log('PR Title:', '${{ github.event.pull_request.title }}');
+            console.log('Actor:', '${{ github.actor }}');
+            
             const emoji = {
               'APPROVE': '✅',
               'MANUAL_REVIEW': '🔍',
               'BLOCK': '🚫'
             }[recommendation] || '🤖';
             
-            // Generate Claude commands based on dependencies (see docs/AI_DEPENDENCY_CONFIG.md for full templates)
-            const generateClaudeCommands = (analysis) => {
+            // Assign Copilot as reviewer ONLY for dependency updates
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                reviewers: ['copilot']
+              });
+              console.log('✅ Successfully assigned Copilot as reviewer for dependency analysis');
+            } catch (error) {
+              console.log('⚠️ Copilot assignment failed:', error.message);
+              // Don't fail the workflow if Copilot assignment fails
+            }
+            
+            // Generate Copilot commands based on dependencies
+            const generateCopilotCommands = (analysis) => {
               const commands = [];
               
               // Component-specific commands based on detected dependencies
               if (analysis.includes('Firebase') || analysis.includes('firebase')) {
-                commands.push('@claude how does this Firebase update affect push notifications in Customer.io SDK?');
+                commands.push('How does this Firebase update affect push notifications in Customer.io SDK?');
               }
               if (analysis.includes('Compose') || analysis.includes('compose')) {
-                commands.push('@claude what Compose changes might break our in-app messaging UI?');
+                commands.push('What Compose changes might break our in-app messaging UI?');
               }
               if (analysis.includes('Kotlin') || analysis.includes('kotlin')) {
-                commands.push('@claude analyze Kotlin compatibility with our coroutines usage');
+                commands.push('Check Kotlin version compatibility across all dependencies in our SDK');
               }
-              if (analysis.includes('Retrofit') || analysis.includes('retrofit')) {
-                commands.push('@claude check if this Retrofit update affects our API communication');
-              }
-              if (analysis.includes('Hilt') || analysis.includes('hilt') || analysis.includes('Dagger')) {
-                commands.push('@claude analyze Hilt/Dagger changes affecting our sample apps');
+              if (analysis.includes('Retrofit') || analysis.includes('retrofit') || analysis.includes('OkHttp') || analysis.includes('okhttp')) {
+                commands.push('Analyze networking library changes impact on our API communication');
               }
               if (analysis.includes('Redux') || analysis.includes('redux')) {
-                commands.push('@claude analyze Redux changes affecting our in-app messaging state management');
+                commands.push('Analyze Redux changes affecting our in-app messaging state management');
               }
               if (analysis.includes('Segment') || analysis.includes('segment')) {
-                commands.push('@claude check if this Segment update affects our data pipeline architecture');
+                commands.push('Check if this Segment update affects our data pipeline architecture');
+              }
+              if (analysis.includes('Android Gradle Plugin') || analysis.includes('AGP')) {
+                commands.push('Verify AGP compatibility with our build configuration and Kotlin version');
+              }
+              if (analysis.includes('Coroutines') || analysis.includes('coroutines')) {
+                commands.push('Check coroutines compatibility with our asynchronous programming implementation');
               }
               
               // Always include general analysis
-              commands.unshift('@claude analyze these dependency updates for Customer.io Android SDK impact');
+              commands.unshift('Review AGENTS.md for project context, then analyze these dependency updates for Customer.io Android SDK impact');
               
               return commands;
             };
             
-            const claudeCommands = generateClaudeCommands(analysis);
-            const commandsList = claudeCommands.map(cmd => `\`\`\`\n${cmd}\n\`\`\``).join('\n\n');
+            const copilotCommands = generateCopilotCommands(analysis);
+            const commandsList = copilotCommands.map(cmd => `- ${cmd}`).join('\n');
             
-            const comment = `## ${emoji} Customer.io SDK Impact Analysis
+            // Add context comment for Copilot (ONLY for dependency PRs)
+            const contextComment = `🤖 **GitHub Copilot Dependency Review** - This is a dependency update PR.
+
+            **📋 Start Here**: Read **AGENTS.md** for complete Customer.io Android SDK context, architecture, and guidelines.
+
+            **🔍 Focus Your Analysis On**:
+            - Check current versions in \`buildSrc/src/main/kotlin/io.customer/android/Versions.kt\` for compatibility
+            - Verify Android API level compatibility (check min/target SDK in build files)
+            - Assess Kotlin version compatibility across all dependencies
+            - Review impact on Customer.io SDK components (detailed in AGENTS.md)
+
+            **🎯 Specific Questions to Consider**:
+            ${commandsList}
+
+            ---
+            **Note**: Copilot is only assigned to dependency update PRs, not general code reviews.
+            **Important**: AGENTS.md contains all project context - start there for accurate analysis.`;
+            
+            const comment = `## ${emoji} Customer.io SDK Dependency Impact Analysis
             
             This analysis examines the specific impact of dependency updates on Customer.io SDK functionality.
             
@@ -375,14 +391,11 @@ jobs:
             
             **Overall Recommendation**: \`${recommendation}\`
             
-            ## 🤖 Next Steps with Claude
+            ## 🤖 GitHub Copilot Dependency Review
             
-            For deeper analysis, use **@claude** in PR comments with these commands:
+            GitHub Copilot has been assigned to review this **dependency update** with Customer.io SDK-specific context. Copilot will analyze:
             
             ${commandsList}
-            
-            📖 **Command reference**: [docs/CLAUDE_COMMANDS.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs/CLAUDE_COMMANDS.md)
-            ⚙️ **AI configuration**: [docs/AI_DEPENDENCY_CONFIG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs/AI_DEPENDENCY_CONFIG.md)
             
             <details>
             <summary>🎯 Customer.io SDK Focus Areas</summary>
@@ -407,26 +420,37 @@ jobs:
             - Auto-merge after CI passes
             
             ### 🔍 **MANUAL_REVIEW** - Potential Impact
-            1. **Use @claude in PR comments** for targeted analysis
-            2. **Use Claude commands above** for specific investigation
+            1. **Review Copilot's analysis** when available
+            2. **Ask Copilot specific questions** about highlighted areas
             3. **Focus testing** on areas highlighted in analysis
             4. **Review specific files** mentioned in breaking changes
             
             ### 🚫 **BLOCK** - High Risk
             1. **Do not merge** until thoroughly reviewed
-            2. **Use comprehensive Claude analysis** with full context
+            2. **Use comprehensive Copilot analysis** with full context
             3. **Test extensively** in development environment
             4. **Consider gradual rollout** or feature flags
             
             </details>
             
-            *This contextual analysis was generated by AI with Customer.io SDK-specific knowledge. Use @claude for interactive analysis.*`;
+            *This contextual analysis was generated by AI with Customer.io SDK-specific knowledge. GitHub Copilot will provide detailed code-level dependency analysis.*
             
+            > **Note**: Copilot is automatically assigned only for dependency updates, not regular code reviews.`;
+            
+            // Post the main analysis comment
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: comment
+            });
+            
+            // Post context comment for Copilot (ONLY for dependency PRs)
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: contextComment
             });
 
       - name: Auto-approve Safe Updates
@@ -439,7 +463,7 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number,
               event: 'APPROVE',
-              body: '🤖 Contextual analysis indicates this update is safe for Customer.io SDK functionality.\n\n💡 **Optional**: For additional verification, use @claude with commands from [docs/CLAUDE_COMMANDS.md](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/CLAUDE_COMMANDS.md)'
+              body: '🤖 Contextual analysis indicates this update is safe for Customer.io SDK functionality.\n\n💡 **GitHub Copilot** has been assigned for additional code-level review and verification.'
             });
 
       - name: Request Manual Review
@@ -452,7 +476,7 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number,
               event: 'REQUEST_CHANGES',
-              body: '🔍 Contextual analysis suggests manual review due to potential impact on Customer.io SDK functionality.\n\n**Next Steps:**\n1. Use **@claude** in PR comments for targeted analysis\n2. Use targeted commands from the analysis above\n3. Focus testing on highlighted areas\n\n📖 **Command reference**: [docs/CLAUDE_COMMANDS.md](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/CLAUDE_COMMANDS.md)'
+              body: '🔍 Contextual analysis suggests manual review due to potential impact on Customer.io SDK functionality.\n\n**Next Steps:**\n1. **Review GitHub Copilot\'s analysis** when available\n2. **Ask Copilot specific questions** about highlighted areas\n3. **Focus testing** on areas highlighted in analysis\n\n🤖 **GitHub Copilot** has been assigned for detailed code review.'
             });
 
       - name: Block Risky Updates
@@ -465,5 +489,5 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number,
               event: 'REQUEST_CHANGES',
-              body: '🚫 Contextual analysis indicates high risk to Customer.io SDK functionality. Manual review required.\n\n**⚠️ High Risk - Do Not Merge**\n\n**Required Actions:**\n1. **Use @claude** for comprehensive analysis\n2. **Use comprehensive analysis template** from [docs/CLAUDE_COMMANDS.md](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/CLAUDE_COMMANDS.md)\n3. **Test extensively** in development environment\n4. **Consider gradual rollout** or feature flags\n\n🔍 **Focus on breaking changes** identified in the analysis above.'
+              body: '🚫 Contextual analysis indicates high risk to Customer.io SDK functionality. Manual review required.\n\n**⚠️ High Risk - Do Not Merge**\n\n**Required Actions:**\n1. **Review comprehensive Copilot analysis** with full context\n2. **Ask Copilot specific questions** about breaking changes\n3. **Test extensively** in development environment\n4. **Consider gradual rollout** or feature flags\n\n🤖 **GitHub Copilot** has been assigned for detailed risk assessment.'
             }); 

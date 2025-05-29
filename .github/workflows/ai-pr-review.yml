@@ -1,4 +1,4 @@
-name: AI PR Review with Contextual Analysis
+name: AI PR Review with GitHub Copilot
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
     branches: ['**']
 
 jobs:
-  ai-contextual-review:
+  github-copilot-review:
     if: contains(github.event.pull_request.title, 'chore(deps)') || github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -20,15 +20,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Dependencies
-        run: |
-          npm install openai axios cheerio semver
 
       - name: Analyze Dependency Changes
         id: analyze
@@ -56,235 +47,11 @@ jobs:
             echo "dependency_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Fetch Dependency Context and Changelogs
-        if: steps.analyze.outputs.dependency_changes == 'true'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          cat > contextual_analyzer.js << 'EOF'
-          const { OpenAI } = require('openai');
-          const axios = require('axios');
-          const fs = require('fs');
-          const semver = require('semver');
-          
-          const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY
-          });
-          
-          // Load dependency configuration from docs/AI_DEPENDENCY_CONFIG.md
-          const DEPENDENCY_MAPPING = {
-            'KOTLIN': {
-              name: 'Kotlin',
-              changelogUrl: 'https://github.com/JetBrains/kotlin/releases'
-            },
-            'ANDROID_GRADLE_PLUGIN': {
-              name: 'Android Gradle Plugin',
-              changelogUrl: 'https://developer.android.com/studio/releases/gradle-plugin'
-            },
-            'COMPOSE_BOM': {
-              name: 'Compose BOM',
-              changelogUrl: 'https://developer.android.com/jetpack/androidx/releases/compose'
-            },
-            'COROUTINES': {
-              name: 'Kotlin Coroutines',
-              changelogUrl: 'https://github.com/Kotlin/kotlinx.coroutines/releases'
-            },
-            'RETROFIT': {
-              name: 'Retrofit',
-              changelogUrl: 'https://github.com/square/retrofit/releases'
-            },
-            'OKHTTP': {
-              name: 'OkHttp',
-              changelogUrl: 'https://github.com/square/okhttp/releases'
-            },
-            'HILT': {
-              name: 'Dagger Hilt',
-              changelogUrl: 'https://github.com/google/dagger/releases'
-            },
-            'FIREBASE_MESSAGING': {
-              name: 'Firebase Messaging',
-              changelogUrl: 'https://firebase.google.com/support/release-notes/android'
-            },
-            'SEGMENT': {
-              name: 'Segment Analytics',
-              changelogUrl: 'https://github.com/segmentio/analytics-kotlin/releases'
-            },
-            'REDUX_KOTLIN': {
-              name: 'Redux Kotlin',
-              changelogUrl: 'https://github.com/reduxkotlin/redux-kotlin/releases'
-            }
-          };
-          
-          async function fetchChangelogContent(url, version) {
-            try {
-              console.log(`Fetching changelog from: ${url}`);
-              const response = await axios.get(url, {
-                timeout: 10000,
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (compatible; DependencyBot/1.0)'
-                }
-              });
-              
-              // Extract relevant content for the version
-              let content = response.data;
-              
-              // Look for version-specific content
-              const versionRegex = new RegExp(`(${version}|v${version}).*?(?=\\n##|\\n#|$)`, 'gis');
-              const versionMatch = content.match(versionRegex);
-              
-              if (versionMatch) {
-                return versionMatch[0].substring(0, 2000); // Limit content
-              }
-              
-              // Fallback: get recent releases section
-              const recentRegex = /(## \[?[0-9]+\.[0-9]+.*?)(?=## \[?[0-9]+\.[0-9]+|$)/gis;
-              const recentMatches = content.match(recentRegex);
-              
-              if (recentMatches && recentMatches.length > 0) {
-                return recentMatches.slice(0, 3).join('\n').substring(0, 2000);
-              }
-              
-              return content.substring(0, 1500); // Fallback to beginning
-            } catch (error) {
-              console.log(`Failed to fetch changelog: ${error.message}`);
-              return null;
-            }
-          }
-          
-          async function analyzeCustomerIOImpact(dependencyName, oldVersion, newVersion, changelog) {
-            const prompt = `
-          You are analyzing the impact of a dependency update on the Customer.io Android SDK.
-          
-          **Project Context**: Read AGENTS.md for complete Customer.io Android SDK architecture, dependencies, and guidelines.
-          
-          **Dependency Update**:
-          - Name: ${dependencyName}
-          - Version Change: ${oldVersion} → ${newVersion}
-          - Changelog: ${changelog || 'No changelog available'}
-          
-          **Analysis Required**:
-          1. **Customer.io Specific Impact**: How does this affect SDK functionality?
-          2. **Breaking Changes**: List specific breaking changes and their likelihood of affecting our SDK
-          3. **Compatibility**: Check Android SDK, Kotlin version, and dependency conflicts (reference buildSrc/Versions.kt)
-          4. **Migration**: What changes are needed in our SDK?
-          5. **Risk Assessment**: LOW/MEDIUM/HIGH with specific concerns
-          6. **Recommendation**: APPROVE, MANUAL_REVIEW, or BLOCK
-          
-          **Important**: Reference AGENTS.md for our actual tech stack, architecture, and dependencies. Focus on real impact to Customer.io SDK components.
-          `;
-          
-            try {
-              const response = await openai.chat.completions.create({
-                model: 'gpt-4',
-                messages: [{ role: 'user', content: prompt }],
-                max_tokens: 1500,
-                temperature: 0.1
-              });
-              
-              return response.choices[0].message.content;
-            } catch (error) {
-              console.error('OpenAI analysis failed:', error);
-              return `Analysis failed: ${error.message}`;
-            }
-          }
-          
-          async function main() {
-            const prTitle = process.env.PR_TITLE;
-            const prBody = process.env.PR_BODY;
-            
-            // Parse version changes
-            const versionChanges = fs.readFileSync('version_changes.txt', 'utf8');
-            const parsedChanges = fs.readFileSync('parsed_changes.txt', 'utf8');
-            
-            console.log('Parsed changes:', parsedChanges);
-            
-            const analyses = [];
-            const lines = parsedChanges.split('\n').filter(line => line.trim());
-            
-            for (const line of lines) {
-              const [depKey, version] = line.split(':');
-              if (!depKey || !version) continue;
-              
-              const dependency = DEPENDENCY_MAPPING[depKey];
-              if (!dependency) {
-                console.log(`No mapping found for ${depKey}`);
-                continue;
-              }
-              
-              console.log(`Analyzing ${dependency.name}: ${version}`);
-              
-              // Extract old version from git diff
-              const oldVersionMatch = versionChanges.match(new RegExp(`-.*${depKey}.*"([^"]+)"`));
-              const oldVersion = oldVersionMatch ? oldVersionMatch[1] : 'unknown';
-              
-              // Fetch changelog
-              const changelog = await fetchChangelogContent(dependency.changelogUrl, version);
-              
-              // Analyze impact
-              const analysis = await analyzeCustomerIOImpact(
-                dependency.name,
-                oldVersion,
-                version,
-                changelog
-              );
-              
-              analyses.push({
-                dependency: dependency.name,
-                oldVersion,
-                newVersion: version,
-                analysis
-              });
-              
-              // Rate limiting
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-            
-            // Combine all analyses
-            const fullAnalysis = analyses.map(a => 
-              `## ${a.dependency} (${a.oldVersion} → ${a.newVersion})\n\n${a.analysis}`
-            ).join('\n\n---\n\n');
-            
-            // Extract overall recommendation
-            const recommendations = analyses.map(a => {
-              const match = a.analysis.match(/Recommendation.*?:\s*(APPROVE|MANUAL_REVIEW|BLOCK)/i);
-              return match ? match[1].toUpperCase() : 'MANUAL_REVIEW';
-            });
-            
-            const overallRecommendation = recommendations.includes('BLOCK') ? 'BLOCK' :
-                                        recommendations.includes('MANUAL_REVIEW') ? 'MANUAL_REVIEW' : 'APPROVE';
-            
-            console.log('ANALYSIS_START');
-            console.log(fullAnalysis);
-            console.log('ANALYSIS_END');
-            console.log(`RECOMMENDATION=${overallRecommendation}`);
-            
-            fs.writeFileSync('contextual_analysis.md', fullAnalysis);
-          }
-          
-          main().catch(console.error);
-          EOF
-          
-          # Run contextual analysis
-          PR_TITLE="${{ github.event.pull_request.title }}" \
-          PR_BODY="${{ github.event.pull_request.body }}" \
-          node contextual_analyzer.js > analysis_output.txt
-          
-          # Extract recommendation
-          RECOMMENDATION=$(grep "RECOMMENDATION=" analysis_output.txt | tail -1 | cut -d'=' -f2)
-          echo "ai_recommendation=$RECOMMENDATION" >> $GITHUB_OUTPUT
-          
-          # Extract analysis
-          sed -n '/ANALYSIS_START/,/ANALYSIS_END/p' analysis_output.txt | sed '1d;$d' > contextual_analysis.md
-
-      - name: Post Contextual AI Review
+      - name: Assign GitHub Copilot and Add Context
         if: steps.analyze.outputs.dependency_changes == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const analysis = fs.readFileSync('contextual_analysis.md', 'utf8');
-            const recommendation = '${{ steps.analyze.outputs.ai_recommendation }}';
-            
             // Double-check this is a dependency update PR before assigning Copilot
             const isDependencyPR = (
               '${{ github.actor }}' === 'dependabot[bot]' || 
@@ -304,12 +71,6 @@ jobs:
             console.log('PR Title:', '${{ github.event.pull_request.title }}');
             console.log('Actor:', '${{ github.actor }}');
             
-            const emoji = {
-              'APPROVE': '✅',
-              'MANUAL_REVIEW': '🔍',
-              'BLOCK': '🚫'
-            }[recommendation] || '🤖';
-            
             // Assign Copilot as reviewer ONLY for dependency updates
             try {
               await github.rest.pulls.requestReviewers({
@@ -324,33 +85,38 @@ jobs:
               // Don't fail the workflow if Copilot assignment fails
             }
             
-            // Generate Copilot commands based on dependencies
-            const generateCopilotCommands = (analysis) => {
+            // Read the dependency changes for context
+            const fs = require('fs');
+            const changedFiles = fs.readFileSync('changed_files.txt', 'utf8');
+            const versionChanges = fs.readFileSync('version_changes.txt', 'utf8');
+            
+            // Generate Copilot commands based on detected changes
+            const generateCopilotCommands = (changes) => {
               const commands = [];
               
               // Component-specific commands based on detected dependencies
-              if (analysis.includes('Firebase') || analysis.includes('firebase')) {
+              if (changes.includes('Firebase') || changes.includes('firebase')) {
                 commands.push('How does this Firebase update affect push notifications in Customer.io SDK?');
               }
-              if (analysis.includes('Compose') || analysis.includes('compose')) {
+              if (changes.includes('Compose') || changes.includes('compose')) {
                 commands.push('What Compose changes might break our in-app messaging UI?');
               }
-              if (analysis.includes('Kotlin') || analysis.includes('kotlin')) {
+              if (changes.includes('Kotlin') || changes.includes('kotlin')) {
                 commands.push('Check Kotlin version compatibility across all dependencies in our SDK');
               }
-              if (analysis.includes('Retrofit') || analysis.includes('retrofit') || analysis.includes('OkHttp') || analysis.includes('okhttp')) {
+              if (changes.includes('Retrofit') || changes.includes('retrofit') || changes.includes('OkHttp') || changes.includes('okhttp')) {
                 commands.push('Analyze networking library changes impact on our API communication');
               }
-              if (analysis.includes('Redux') || analysis.includes('redux')) {
+              if (changes.includes('Redux') || changes.includes('redux')) {
                 commands.push('Analyze Redux changes affecting our in-app messaging state management');
               }
-              if (analysis.includes('Segment') || analysis.includes('segment')) {
+              if (changes.includes('Segment') || changes.includes('segment')) {
                 commands.push('Check if this Segment update affects our data pipeline architecture');
               }
-              if (analysis.includes('Android Gradle Plugin') || analysis.includes('AGP')) {
+              if (changes.includes('Android Gradle Plugin') || changes.includes('AGP')) {
                 commands.push('Verify AGP compatibility with our build configuration and Kotlin version');
               }
-              if (analysis.includes('Coroutines') || analysis.includes('coroutines')) {
+              if (changes.includes('Coroutines') || changes.includes('coroutines')) {
                 commands.push('Check coroutines compatibility with our asynchronous programming implementation');
               }
               
@@ -360,7 +126,7 @@ jobs:
               return commands;
             };
             
-            const copilotCommands = generateCopilotCommands(analysis);
+            const copilotCommands = generateCopilotCommands(versionChanges + changedFiles);
             const commandsList = copilotCommands.map(cmd => `- ${cmd}`).join('\n');
             
             // Add context comment for Copilot (ONLY for dependency PRs)
@@ -381,68 +147,47 @@ jobs:
             **Note**: Copilot is only assigned to dependency update PRs, not general code reviews.
             **Important**: AGENTS.md contains all project context - start there for accurate analysis.`;
             
-            const comment = `## ${emoji} Customer.io SDK Dependency Impact Analysis
+            const summaryComment = `## 🤖 Customer.io SDK Dependency Analysis
             
-            This analysis examines the specific impact of dependency updates on Customer.io SDK functionality.
+            **GitHub Copilot** has been assigned to review this dependency update with Customer.io SDK-specific context.
             
-            ${analysis}
-            
-            ---
-            
-            **Overall Recommendation**: \`${recommendation}\`
-            
-            ## 🤖 GitHub Copilot Dependency Review
-            
-            GitHub Copilot has been assigned to review this **dependency update** with Customer.io SDK-specific context. Copilot will analyze:
-            
+            ### 🎯 Analysis Focus Areas
             ${commandsList}
             
             <details>
-            <summary>🎯 Customer.io SDK Focus Areas</summary>
+            <summary>📋 Customer.io SDK Context</summary>
             
-            This analysis specifically considers:
-            - 📱 Push notification functionality (Firebase integration)
-            - 💬 In-app messaging system
-            - 📊 Event tracking and analytics
-            - ⚙️ Background processing and queuing
-            - 🌐 Network requests and API communication
-            - 💾 Data persistence and caching
-            - 🎨 Compose UI components
-            - 📱 Sample app compatibility
+            Copilot will analyze these changes against:
+            - Push notification functionality (Firebase integration)
+            - In-app messaging system (Compose UI)
+            - Event tracking and analytics
+            - Asynchronous programming (Kotlin coroutines)
+            - Network requests and API communication (Retrofit + OkHttp)
+            - Data persistence and caching
+            - Sample app compatibility
+            
+            **Project Guidelines**: All details are in AGENTS.md - Copilot will reference this for complete context.
             
             </details>
             
             <details>
-            <summary>🔧 How to proceed</summary>
+            <summary>🔧 How to Proceed</summary>
             
-            ### ✅ **APPROVE** - Safe for Customer.io SDK
-            - No specific concerns identified
-            - Auto-merge after CI passes
-            
-            ### 🔍 **MANUAL_REVIEW** - Potential Impact
-            1. **Review Copilot's analysis** when available
-            2. **Ask Copilot specific questions** about highlighted areas
-            3. **Focus testing** on areas highlighted in analysis
-            4. **Review specific files** mentioned in breaking changes
-            
-            ### 🚫 **BLOCK** - High Risk
-            1. **Do not merge** until thoroughly reviewed
-            2. **Use comprehensive Copilot analysis** with full context
-            3. **Test extensively** in development environment
-            4. **Consider gradual rollout** or feature flags
+            1. **Wait for Copilot's analysis** - Copilot will review the changes automatically
+            2. **Ask follow-up questions** - Use @copilot in comments for specific concerns
+            3. **Review highlighted areas** - Focus testing on components Copilot identifies as potentially affected
+            4. **Check compatibility** - Verify Kotlin version and Android API compatibility
             
             </details>
             
-            *This contextual analysis was generated by AI with Customer.io SDK-specific knowledge. GitHub Copilot will provide detailed code-level dependency analysis.*
-            
-            > **Note**: Copilot is automatically assigned only for dependency updates, not regular code reviews.`;
+            > **Note**: This analysis is powered by GitHub Copilot with Customer.io Android SDK-specific context. No external AI services or API keys required! 🚀`;
             
             // Post the main analysis comment
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: comment
+              body: summaryComment
             });
             
             // Post context comment for Copilot (ONLY for dependency PRs)
@@ -451,43 +196,4 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: contextComment
-            });
-
-      - name: Auto-approve Safe Updates
-        if: steps.analyze.outputs.ai_recommendation == 'APPROVE'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              event: 'APPROVE',
-              body: '🤖 Contextual analysis indicates this update is safe for Customer.io SDK functionality.\n\n💡 **GitHub Copilot** has been assigned for additional code-level review and verification.'
-            });
-
-      - name: Request Manual Review
-        if: steps.analyze.outputs.ai_recommendation == 'MANUAL_REVIEW'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              event: 'REQUEST_CHANGES',
-              body: '🔍 Contextual analysis suggests manual review due to potential impact on Customer.io SDK functionality.\n\n**Next Steps:**\n1. **Review GitHub Copilot\'s analysis** when available\n2. **Ask Copilot specific questions** about highlighted areas\n3. **Focus testing** on areas highlighted in analysis\n\n🤖 **GitHub Copilot** has been assigned for detailed code review.'
-            });
-
-      - name: Block Risky Updates
-        if: steps.analyze.outputs.ai_recommendation == 'BLOCK'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              event: 'REQUEST_CHANGES',
-              body: '🚫 Contextual analysis indicates high risk to Customer.io SDK functionality. Manual review required.\n\n**⚠️ High Risk - Do Not Merge**\n\n**Required Actions:**\n1. **Review comprehensive Copilot analysis** with full context\n2. **Ask Copilot specific questions** about breaking changes\n3. **Test extensively** in development environment\n4. **Consider gradual rollout** or feature flags\n\n🤖 **GitHub Copilot** has been assigned for detailed risk assessment.'
             }); 

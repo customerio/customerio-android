@@ -73,16 +73,36 @@ jobs:
             
             // Assign Copilot as reviewer ONLY for dependency updates
             try {
-              await github.rest.pulls.requestReviewers({
+              console.log('🔄 Attempting to assign Copilot as reviewer...');
+              
+              // Try to assign copilot as reviewer
+              const reviewResponse = await github.rest.pulls.requestReviewers({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: context.issue.number,
                 reviewers: ['copilot']
               });
-              console.log('✅ Successfully assigned Copilot as reviewer for dependency analysis');
+              
+              console.log('✅ Successfully assigned Copilot as reviewer');
+              console.log('Response:', JSON.stringify(reviewResponse.data, null, 2));
+              
             } catch (error) {
-              console.log('⚠️ Copilot assignment failed:', error.message);
-              // Don't fail the workflow if Copilot assignment fails
+              console.log('⚠️ Copilot assignment failed with error:', error.message);
+              console.log('Error details:', JSON.stringify(error, null, 2));
+              
+              // Try alternative: Add a comment mentioning @copilot instead
+              try {
+                console.log('🔄 Trying alternative: mentioning @copilot in a comment...');
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: `🤖 @copilot Please review this dependency update PR for Customer.io Android SDK impact.`
+                });
+                console.log('✅ Successfully mentioned @copilot in comment');
+              } catch (commentError) {
+                console.log('⚠️ Could not mention @copilot either:', commentError.message);
+              }
             }
             
             // Read the dependency changes for context
@@ -149,7 +169,7 @@ jobs:
             
             const summaryComment = `## 🤖 Customer.io SDK Dependency Analysis
             
-            **GitHub Copilot** has been assigned to review this dependency update with Customer.io SDK-specific context.
+            **GitHub Copilot** analysis for this dependency update with Customer.io SDK-specific context.
             
             ### 🎯 Analysis Focus Areas
             ${commandsList}
@@ -171,16 +191,20 @@ jobs:
             </details>
             
             <details>
-            <summary>🔧 How to Proceed</summary>
+            <summary>🔧 How to Engage Copilot</summary>
             
-            1. **Wait for Copilot's analysis** - Copilot will review the changes automatically
-            2. **Ask follow-up questions** - Use @copilot in comments for specific concerns
-            3. **Review highlighted areas** - Focus testing on components Copilot identifies as potentially affected
-            4. **Check compatibility** - Verify Kotlin version and Android API compatibility
+            If Copilot wasn't automatically assigned:
+            1. **Type @copilot** in a comment to ask questions
+            2. **Use specific prompts** like:
+               - "@copilot analyze this dependency update for Customer.io SDK impact"
+               - "@copilot check compatibility with our buildSrc/Versions.kt"
+               - "@copilot review breaking changes in this update"
+            3. **Ask follow-up questions** based on the focus areas above
+            4. **Reference AGENTS.md** for full project context
             
             </details>
             
-            > **Note**: This analysis is powered by GitHub Copilot with Customer.io Android SDK-specific context. No external AI services or API keys required! 🚀`;
+            > **Note**: This analysis framework works with GitHub Copilot. No external AI services or API keys required! 🚀`;
             
             // Post the main analysis comment
             await github.rest.issues.createComment({

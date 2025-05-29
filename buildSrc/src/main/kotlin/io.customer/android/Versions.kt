@@ -1,6 +1,7 @@
 package io.customer.android
 
 object Versions {
+    // Test comment for AI dependency review workflow
     // Android SDK versions
     const val COMPILE_SDK = 34
     const val TARGET_SDK = 33

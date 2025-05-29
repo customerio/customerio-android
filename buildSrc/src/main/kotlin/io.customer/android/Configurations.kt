@@ -1,8 +1,8 @@
 package io.customer.android
 
 object Configurations {
-    const val compileSdk = 33
-    const val targetSdk = 33
-    const val minSdk = 21
+    const val compileSdk = Versions.COMPILE_SDK
+    const val targetSdk = Versions.TARGET_SDK
+    const val minSdk = Versions.MIN_SDK
     const val artifactGroup = "io.customer.android"
 }

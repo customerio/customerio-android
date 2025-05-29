@@ -1,29 +1,36 @@
-name: Claude Dependency Analysis
+name: Claude PR Assistant
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
   id-token: write # required for oidc
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    # Focus on dependency updates
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
 
 jobs:
-  claude-dependency-analysis:
+  claude-pr:
     defaults:
       run:
         shell: bash
     if: |
-      (github.event_name == 'pull_request' && (contains(github.event.pull_request.title, 'chore(deps)') || github.actor == 'dependabot[bot]')) ||
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude')) ||
+      (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]')
     runs-on:
       - self-hosted
       - linux
@@ -36,8 +43,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.CIO_CLAUDE_ASSISTANT_APP_ID }}
-          private-key: ${{ secrets.CIO_CLAUDE_ASSISTANT_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.CIO_APP_ID }}
+          private-key: ${{ secrets.CIO_APP_SECRET }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -53,39 +60,20 @@ jobs:
           github_token: ${{ steps.app-token.outputs.token }}
           use_vertex: "true"
           anthropic_model: "claude-sonnet-4@20250514"
-          allowed_tools: "Bash(git:*),Bash(./gradlew:*),Bash(grep:*),Bash(find:*),Bash(cat:*),Bash(ls:*)"
-          system_prompt: |
-            You are a dependency analysis expert for the Customer.io Android SDK. Your role is to analyze dependency updates and their impact on:
+          allowed_tools: "Bash(git:*),Bash(./gradlew:*),Bash(grep:*),Bash(find:*),Bash(cat:*),Bash(ls:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(tsc:*),Bash(vite:*),Bash(eslint:*)"
+          custom_instructions: |
+            You are an expert code reviewer and PR assistant for the Customer.io Android SDK.
             
-            **Customer.io SDK Components:**
-            - Push notification service (Firebase integration)
-            - In-app messaging system with Compose UI
-            - Event tracking and analytics
-            - Background processing and queuing
-            - Network requests for API communication
-            - Data persistence and caching
-            - Sample apps: Kotlin Compose and Java layouts
+            **Important**: Always start by reading the AGENTS.md file to understand the project structure, guidelines, and best practices.
             
-            **Key Files to Analyze:**
-            - `buildSrc/src/main/kotlin/io.customer/android/Versions.kt` - Version constants
-            - `build.gradle` files - Build configuration
-            - Source code in `src/` directories
-            - Sample apps in `samples/` directory
+            Your role includes:
+            - Code review and suggestions for improvements
+            - Best practices and code quality recommendations
+            - Architecture and design pattern guidance
+            - Testing recommendations
+            - Documentation updates
             
-            **Analysis Focus:**
-            1. **Breaking Changes**: Identify API changes that might affect Customer.io SDK
-            2. **Compatibility**: Check Kotlin ↔ AGP ↔ Compose version compatibility
-            3. **Customer.io Impact**: Specific effects on push notifications, messaging, analytics
-            4. **Migration Requirements**: Code changes needed and testing focus areas
-            5. **Risk Assessment**: LOW/MEDIUM/HIGH with detailed reasoning
-            
-            **Commands Available:**
-            - Use `git diff` to see what changed
-            - Use `./gradlew` to check build compatibility
-            - Use `grep` to find usage of deprecated APIs
-            - Use `find` and `cat` to examine relevant files
-            
-            Always provide specific, actionable insights for Customer.io SDK functionality.
+            Use the available tools to analyze changes and provide actionable insights.
         env:
           ANTHROPIC_VERTEX_PROJECT_ID: "${{ steps.auth.outputs.project_id }}"
           CLOUD_ML_REGION: "us-east5"

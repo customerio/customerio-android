@@ -5,8 +5,12 @@ updates:
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "main"
     schedule:
       interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "UTC"
     open-pull-requests-limit: 1
     reviewers:
       - "customerio/squad-mobile"
@@ -21,16 +25,15 @@ updates:
   # Gradle dependencies (main project)
   - package-ecosystem: "gradle"
     directory: "/"
+    target-branch: "main"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "tuesday"
       time: "09:00"
       timezone: "UTC"
     open-pull-requests-limit: 3
     reviewers:
       - "customerio/squad-mobile"
-    assignees:
-      - "shahrozali"
     commit-message:
       prefix: "chore(deps)"
       include: "scope"

@@ -84,7 +84,7 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 - Run `make format` before committing
 - Run `make lint` to ensure code quality
 - Follow conventional commit messages
-- Use feature branches off `develop` branch
+- Use feature branches off `main` branch
 - Create pull requests for all changes
 - Ensure CI passes before merging
 
@@ -107,15 +107,24 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 ### Module Initialization Pattern
 ```kotlin
 // Configure the SDK with builder pattern
-val config = CustomerIOBuilder()
-    .setApplicationContext(applicationContext)
-    .setSiteId("your-site-id")
-    .setApiKey("your-api-key")
-    .setRegion(Region.US)
-    .build()
+CustomerIOBuilder(application, <CDP_API_KEY>).apply {
+    // If you're in the EU, set Region.EU. Default is Region.US and optional.
+    region(Region.US)
 
-// Initialize the SDK
-CustomerIO.initialize(config)
+    // Optional: Enable in-app messaging by adding siteId and Region
+    addCustomerIOModule(
+        ModuleMessagingInApp(
+            // If you're in the EU, set Region.EU
+            MessagingInAppModuleConfig.Builder(<SITE_ID>, Region.US).build()
+    )
+    )
+
+    // Optional: Enable support for push notifications
+    addCustomerIOModule(ModuleMessagingPushFCM())
+
+    // Completes setup and initializes the SDK
+    build()
+}
 
 // Use the SDK
 CustomerIO.instance().identify("user-id")
@@ -126,7 +135,6 @@ CustomerIO.instance().track("event-name")
 - All modules use constructor-based dependency injection
 - `DIGraphShared` serves as the central dependency registry
 - Module-specific DI graphs extend the shared graph
-- Use `@Singleton` annotations for shared instances
 - Test code can override dependencies for isolation
 - Avoid static dependencies and global state
 

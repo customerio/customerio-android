@@ -19,6 +19,7 @@ import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.gist.utilities.MessageOverlayColorParser
 import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
@@ -32,17 +33,22 @@ const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
 @InternalCustomerIOApi
 class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
-    private var elapsedTimer: ElapsedTimer = ElapsedTimer()
-    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
-    private val state: InAppMessagingState
-        get() = inAppMessagingManager.getCurrentState()
-    private val logger = SDKComponent.logger
-    private val attributesListenerJob: MutableList<Job> = mutableListOf()
-
     private var messagePosition: MessagePosition = MessagePosition.CENTER
 
+    private val attributesListenerJob: MutableList<Job> = mutableListOf()
+    private val elapsedTimer: ElapsedTimer = ElapsedTimer()
+    private val logger = SDKComponent.logger
+
+    // Dependencies requiring ModuleMessagingInApp to be initialized must be accessed lazily,
+    // only after confirming the SDK has been initialized.
+    private val inAppMessagingManager: InAppMessagingManager?
+        get() = kotlin.runCatching {
+            SDKComponent.inAppMessagingManager
+        }.getOrNull()
+    private val state: InAppMessagingState?
+        get() = inAppMessagingManager?.getCurrentState()
     private val currentMessageState: ModalMessageState.Displayed?
-        get() = state.modalMessageState as? ModalMessageState.Displayed
+        get() = state?.modalMessageState as? ModalMessageState.Displayed
 
     override fun getScreenName(): String? {
         // Return null to prevent this screen from being tracked
@@ -57,46 +63,78 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val message = validateAndParseIntentMessage()
+        if (message == null) {
+            // Finish the activity immediately to avoid running animations or further processing
+            completeFinish()
+            return
+        }
+
+        initializeActivity()
+        setupMessage(message)
+        subscribeToAttributes()
+        setupBackPressedCallback(message)
+    }
+
+    private fun validateAndParseIntentMessage(): Message? {
+        // Check if the SDK is initialized before parsing the intent
+        if (inAppMessagingManager == null) {
+            logger.error("GistModalActivity onCreate: ModuleMessagingInApp not initialized")
+            return null
+        }
+
+        val messageStr = intent.getStringExtra(GIST_MESSAGE_INTENT)
+        val message = runCatching {
+            Gson().fromJson(messageStr, Message::class.java)
+        }.getOrNull()
+        if (message == null) {
+            logger.error("GistModelActivity onCreate: Message is null or invalid")
+            return null
+        }
+        return message
+    }
+
+    private fun initializeActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         binding = ActivityGistBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        val messageStr = this.intent.getStringExtra(GIST_MESSAGE_INTENT)
-        val modalPositionStr = this.intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
-        val parsedMessage = kotlin.runCatching { Gson().fromJson(messageStr, Message::class.java) }.getOrNull()
-        if (parsedMessage == null) {
-            logger.error("GistModelActivity onCreate: Message is null")
-            finish()
+    }
+
+    private fun setupMessage(message: Message) {
+        logger.debug("GistModelActivity onCreate: $message")
+        elapsedTimer.start("Displaying modal for message: ${message.messageId}")
+
+        // Configure GistView
+        binding.gistView.setViewCallback(this)
+        binding.gistView.setup(message)
+
+        // Configure message position
+        val modalPositionStr = intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
+        val messagePosition = if (modalPositionStr == null) {
+            message.gistProperties.position
         } else {
-            logger.debug("GistModelActivity onCreate: $parsedMessage")
-            parsedMessage.let { message ->
-                elapsedTimer.start("Displaying modal for message: ${message.messageId}")
-                binding.gistView.setViewCallback(this)
-                binding.gistView.setup(message)
-                val messagePosition = if (modalPositionStr == null) {
-                    message.gistProperties.position
-                } else {
-                    MessagePosition.valueOf(modalPositionStr.uppercase())
-                }
-                when (messagePosition) {
-                    MessagePosition.CENTER -> binding.modalGistViewLayout.setVerticalGravity(Gravity.CENTER_VERTICAL)
-                    MessagePosition.BOTTOM -> binding.modalGistViewLayout.setVerticalGravity(Gravity.BOTTOM)
-                    MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
-                }
-            }
+            MessagePosition.valueOf(modalPositionStr.uppercase())
         }
 
-        subscribeToAttributes()
+        when (messagePosition) {
+            MessagePosition.CENTER -> binding.modalGistViewLayout.setVerticalGravity(Gravity.CENTER_VERTICAL)
+            MessagePosition.BOTTOM -> binding.modalGistViewLayout.setVerticalGravity(Gravity.BOTTOM)
+            MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
+        }
+    }
 
-        // Update back button to handle in-app message behavior, disable back press for persistent messages, true otherwise
-        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage(parsedMessage)) {
+    private fun setupBackPressedCallback(message: Message?) {
+        val onBackPressedCallback = object : OnBackPressedCallback(isPersistentMessage(message)) {
             override fun handleOnBackPressed() {}
         }
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
     }
 
     private fun subscribeToAttributes() {
+        val inAppManager = inAppMessagingManager ?: return
+
         attributesListenerJob.add(
-            inAppMessagingManager.subscribeToAttribute(
+            inAppManager.subscribeToAttribute(
                 selector = { it.modalMessageState },
                 areEquivalent = { old, new ->
                     when {
@@ -135,9 +173,14 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
             animationSet.start()
             animationSet.doOnEnd {
                 logger.debug("GistModelActivity finish animation completed")
-                super.finish()
+                completeFinish()
             }
         }
+    }
+
+    // Completes finish process by calling super and handling cleanup without further actions
+    private fun completeFinish() {
+        super.finish()
     }
 
     override fun onDestroy() {
@@ -147,11 +190,13 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         // to avoid sending any callbacks to the client app
         // If the message is not persistent, dismiss it and inform the callback
 
-        currentMessageState?.let { state ->
+        val state = currentMessageState
+        val inAppManager = inAppMessagingManager
+        if (state != null && inAppManager != null) {
             if (!isPersistentMessage()) {
-                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message))
+                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message))
             } else {
-                inAppMessagingManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message, shouldLog = false))
+                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message, shouldLog = false))
             }
         }
         super.onDestroy()

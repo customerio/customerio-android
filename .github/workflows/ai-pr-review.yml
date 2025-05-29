@@ -47,12 +47,12 @@ jobs:
             echo "dependency_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Assign GitHub Copilot and Add Context
+      - name: Post Dependency Analysis Context
         if: steps.analyze.outputs.dependency_changes == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            // Double-check this is a dependency update PR before assigning Copilot
+            // Double-check this is a dependency update PR
             const isDependencyPR = (
               '${{ github.actor }}' === 'dependabot[bot]' || 
               '${{ github.event.pull_request.title }}'.includes('chore(deps)') ||
@@ -61,163 +61,105 @@ jobs:
             );
             
             if (!isDependencyPR) {
-              console.log('🚫 Not a dependency PR - skipping Copilot assignment');
-              console.log('PR Title:', '${{ github.event.pull_request.title }}');
-              console.log('Actor:', '${{ github.actor }}');
+              console.log('🚫 Not a dependency PR - skipping analysis');
               return;
             }
             
-            console.log('✅ Confirmed dependency PR - proceeding with Copilot assignment');
-            console.log('PR Title:', '${{ github.event.pull_request.title }}');
-            console.log('Actor:', '${{ github.actor }}');
-            
-            // Assign Copilot as reviewer ONLY for dependency updates
-            try {
-              console.log('🔄 Attempting to assign Copilot as reviewer...');
-              
-              // Try to assign copilot as reviewer
-              const reviewResponse = await github.rest.pulls.requestReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number,
-                reviewers: ['copilot']
-              });
-              
-              console.log('✅ Successfully assigned Copilot as reviewer');
-              console.log('Response:', JSON.stringify(reviewResponse.data, null, 2));
-              
-            } catch (error) {
-              console.log('⚠️ Copilot assignment failed with error:', error.message);
-              console.log('Error details:', JSON.stringify(error, null, 2));
-              
-              // Try alternative: Add a comment mentioning @copilot instead
-              try {
-                console.log('🔄 Trying alternative: mentioning @copilot in a comment...');
-                await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body: `🤖 @copilot Please review this dependency update PR for Customer.io Android SDK impact.`
-                });
-                console.log('✅ Successfully mentioned @copilot in comment');
-              } catch (commentError) {
-                console.log('⚠️ Could not mention @copilot either:', commentError.message);
-              }
-            }
+            console.log('✅ Confirmed dependency PR - posting analysis context');
             
             // Read the dependency changes for context
             const fs = require('fs');
             const changedFiles = fs.readFileSync('changed_files.txt', 'utf8');
             const versionChanges = fs.readFileSync('version_changes.txt', 'utf8');
             
-            // Generate Copilot commands based on detected changes
-            const generateCopilotCommands = (changes) => {
-              const commands = [];
+            // Generate analysis questions based on detected changes
+            const generateAnalysisQuestions = (changes) => {
+              const questions = [];
               
-              // Component-specific commands based on detected dependencies
+              // Component-specific questions based on detected dependencies
               if (changes.includes('Firebase') || changes.includes('firebase')) {
-                commands.push('How does this Firebase update affect push notifications in Customer.io SDK?');
+                questions.push('How does this Firebase update affect push notifications in Customer.io SDK?');
               }
               if (changes.includes('Compose') || changes.includes('compose')) {
-                commands.push('What Compose changes might break our in-app messaging UI?');
+                questions.push('What Compose changes might break our in-app messaging UI?');
               }
               if (changes.includes('Kotlin') || changes.includes('kotlin')) {
-                commands.push('Check Kotlin version compatibility across all dependencies in our SDK');
+                questions.push('Check Kotlin version compatibility across all dependencies in our SDK');
               }
               if (changes.includes('Retrofit') || changes.includes('retrofit') || changes.includes('OkHttp') || changes.includes('okhttp')) {
-                commands.push('Analyze networking library changes impact on our API communication');
+                questions.push('Analyze networking library changes impact on our API communication');
               }
               if (changes.includes('Redux') || changes.includes('redux')) {
-                commands.push('Analyze Redux changes affecting our in-app messaging state management');
+                questions.push('Analyze Redux changes affecting our in-app messaging state management');
               }
               if (changes.includes('Segment') || changes.includes('segment')) {
-                commands.push('Check if this Segment update affects our data pipeline architecture');
+                questions.push('Check if this Segment update affects our data pipeline architecture');
               }
               if (changes.includes('Android Gradle Plugin') || changes.includes('AGP')) {
-                commands.push('Verify AGP compatibility with our build configuration and Kotlin version');
+                questions.push('Verify AGP compatibility with our build configuration and Kotlin version');
               }
               if (changes.includes('Coroutines') || changes.includes('coroutines')) {
-                commands.push('Check coroutines compatibility with our asynchronous programming implementation');
+                questions.push('Check coroutines compatibility with our asynchronous programming implementation');
+              }
+              if (changes.includes('Timber') || changes.includes('timber')) {
+                questions.push('Analyze logging changes impact on debugging and error tracking');
               }
               
               // Always include general analysis
-              commands.unshift('Review AGENTS.md for project context, then analyze these dependency updates for Customer.io Android SDK impact');
+              questions.unshift('Review AGENTS.md for project context, then analyze these dependency updates for Customer.io Android SDK impact');
               
-              return commands;
+              return questions;
             };
             
-            const copilotCommands = generateCopilotCommands(versionChanges + changedFiles);
-            const commandsList = copilotCommands.map(cmd => `- ${cmd}`).join('\n');
+            const analysisQuestions = generateAnalysisQuestions(versionChanges + changedFiles);
+            const questionsList = analysisQuestions.map(q => `- ${q}`).join('\n');
             
-            // Add context comment for Copilot (ONLY for dependency PRs)
-            const contextComment = `🤖 **GitHub Copilot Dependency Review** - This is a dependency update PR.
-
-            **📋 Start Here**: Read **AGENTS.md** for complete Customer.io Android SDK context, architecture, and guidelines.
-
-            **🔍 Focus Your Analysis On**:
-            - Check current versions in \`buildSrc/src/main/kotlin/io.customer/android/Versions.kt\` for compatibility
-            - Verify Android API level compatibility (check min/target SDK in build files)
-            - Assess Kotlin version compatibility across all dependencies
-            - Review impact on Customer.io SDK components (detailed in AGENTS.md)
-
-            **🎯 Specific Questions to Consider**:
-            ${commandsList}
-
+            const analysisComment = `## 🤖 Customer.io SDK Dependency Analysis Framework
+            
+            This PR contains dependency updates that need analysis for Customer.io Android SDK impact.
+            
+            ### 🎯 Key Analysis Questions:
+            ${questionsList}
+            
+            ### 📋 Analysis Checklist:
+            
+            #### 🔍 **Step 1: Review Project Context**
+            - [ ] Read **AGENTS.md** for complete Customer.io SDK architecture and guidelines
+            - [ ] Check **buildSrc/src/main/kotlin/io.customer/android/Versions.kt** for current versions
+            - [ ] Understand Customer.io SDK components affected
+            
+            #### ⚙️ **Step 2: Compatibility Analysis**
+            - [ ] **Kotlin Compatibility**: Does this work with Kotlin 1.8.21?
+            - [ ] **Android API Levels**: Compatible with min SDK 21, target SDK 33+?
+            - [ ] **Dependency Conflicts**: Any conflicts with other dependencies?
+            
+            #### 🧩 **Step 3: Customer.io SDK Impact**
+            - [ ] **Push Notifications**: Impact on Firebase integration and messaging
+            - [ ] **In-App Messaging**: Effects on Compose UI components and Redux state
+            - [ ] **Event Tracking**: Changes affecting analytics and data pipeline
+            - [ ] **Network Layer**: Impact on Retrofit + OkHttp API communication
+            - [ ] **Background Processing**: Effects on async operations and coroutines
+            - [ ] **Sample Apps**: Compatibility with both Kotlin Compose and Java layouts
+            
+            #### 📚 **Step 4: Review Resources**
+            - [ ] Check dependency changelog/release notes for breaking changes
+            - [ ] Review migration guides if available
+            - [ ] Test critical Customer.io SDK functionality
+            
+            ### 🚀 **How to Proceed:**
+            
+            1. **Manual Review**: Use the checklist above to analyze the changes
+            2. **Ask Questions**: Comment with specific concerns about Customer.io SDK impact
+            3. **Test Locally**: Focus testing on the components identified above
+            4. **Reference Documentation**: Use AGENTS.md as your guide for Customer.io SDK architecture
+            
             ---
-            **Note**: Copilot is only assigned to dependency update PRs, not general code reviews.
-            **Important**: AGENTS.md contains all project context - start there for accurate analysis.`;
+            **💡 Tip**: This framework helps ensure dependency updates don't break Customer.io SDK functionality. Focus your review on the specific components that could be affected by these changes.`;
             
-            const summaryComment = `## 🤖 Customer.io SDK Dependency Analysis
-            
-            **GitHub Copilot** analysis for this dependency update with Customer.io SDK-specific context.
-            
-            ### 🎯 Analysis Focus Areas
-            ${commandsList}
-            
-            <details>
-            <summary>📋 Customer.io SDK Context</summary>
-            
-            Copilot will analyze these changes against:
-            - Push notification functionality (Firebase integration)
-            - In-app messaging system (Compose UI)
-            - Event tracking and analytics
-            - Asynchronous programming (Kotlin coroutines)
-            - Network requests and API communication (Retrofit + OkHttp)
-            - Data persistence and caching
-            - Sample app compatibility
-            
-            **Project Guidelines**: All details are in AGENTS.md - Copilot will reference this for complete context.
-            
-            </details>
-            
-            <details>
-            <summary>🔧 How to Engage Copilot</summary>
-            
-            If Copilot wasn't automatically assigned:
-            1. **Type @copilot** in a comment to ask questions
-            2. **Use specific prompts** like:
-               - "@copilot analyze this dependency update for Customer.io SDK impact"
-               - "@copilot check compatibility with our buildSrc/Versions.kt"
-               - "@copilot review breaking changes in this update"
-            3. **Ask follow-up questions** based on the focus areas above
-            4. **Reference AGENTS.md** for full project context
-            
-            </details>
-            
-            > **Note**: This analysis framework works with GitHub Copilot. No external AI services or API keys required! 🚀`;
-            
-            // Post the main analysis comment
+            // Post the analysis framework
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: summaryComment
-            });
-            
-            // Post context comment for Copilot (ONLY for dependency PRs)
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: contextComment
+              body: analysisComment
             }); 

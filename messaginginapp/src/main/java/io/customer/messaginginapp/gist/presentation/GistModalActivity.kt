@@ -66,7 +66,7 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         val message = validateAndParseIntentMessage()
         if (message == null) {
             // Finish the activity immediately to avoid running animations or further processing
-            completeFinish()
+            finishImmediately()
             return
         }
 
@@ -173,13 +173,13 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
             animationSet.start()
             animationSet.doOnEnd {
                 logger.debug("GistModelActivity finish animation completed")
-                completeFinish()
+                finishImmediately()
             }
         }
     }
 
     // Completes finish process by calling super and handling cleanup without further actions
-    private fun completeFinish() {
+    private fun finishImmediately() {
         super.finish()
     }
 

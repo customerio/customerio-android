@@ -1,3 +1,9 @@
+## [4.6.1](https://github.com/customerio/customerio-android/compare/4.6.0...4.6.1) (2025-05-29)
+
+### Bug Fixes
+
+* finish modal message early if sdk is not initialized ([#561](https://github.com/customerio/customerio-android/issues/561)) ([83003b5](https://github.com/customerio/customerio-android/commit/83003b53e38fdc74cc608715112d65fb502ec802))
+
 ## [4.6.0](https://github.com/customerio/customerio-android/compare/4.5.8...4.6.0) (2025-05-23)
 
 ### Features

@@ -1,6 +1,7 @@
 package io.customer.sdk.core.di
 
 import androidx.annotation.CallSuper
+import io.customer.base.internal.InternalCustomerIOApi
 import java.util.concurrent.ConcurrentHashMap
 
 abstract class DiGraph {
@@ -129,8 +130,13 @@ abstract class DiGraph {
      * called to reset that state of the SDK at runtime.
      */
     @CallSuper
+    @InternalCustomerIOApi
     open fun reset() {
-        overrides.clear()
-        singletons.clear()
+        synchronized(lock = overrides) {
+            overrides.clear()
+        }
+        synchronized(lock = singletons) {
+            singletons.clear()
+        }
     }
 }

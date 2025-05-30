@@ -87,7 +87,6 @@ public final class io/customer/sdk/communication/Event$TrackPushMetricEvent : io
 public abstract interface class io/customer/sdk/communication/EventBus {
 	public abstract fun getFlow ()Lkotlinx/coroutines/flow/SharedFlow;
 	public abstract fun publish (Lio/customer/sdk/communication/Event;)V
-	public abstract fun removeAllSubscriptions ()V
 	public abstract fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
 }
 
@@ -137,7 +136,6 @@ public abstract class io/customer/sdk/core/di/DiGraph {
 	public fun <init> ()V
 	public final fun getOverrides ()Ljava/util/concurrent/ConcurrentHashMap;
 	public final fun getSingletons ()Ljava/util/concurrent/ConcurrentHashMap;
-	public fun reset ()V
 }
 
 public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/di/DiGraph {

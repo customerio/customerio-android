@@ -40,7 +40,6 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     var currentRoute: String? = null
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     var viewCallback: ViewCallback? = null
 
     /**
@@ -97,7 +96,6 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     @UiThread
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal fun loadMessage(message: Message) {
         val store = inAppMessagingManager.getCurrentState()
         val config = EngineWebConfiguration(
@@ -114,7 +112,6 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     @UiThread
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     internal fun stopLoading() {
         logViewEvent("Stopping EngineWebView loading")
         stopEngineWebViewLoading()

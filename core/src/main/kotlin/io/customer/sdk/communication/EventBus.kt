@@ -1,5 +1,6 @@
 package io.customer.sdk.communication
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
@@ -16,6 +17,8 @@ import kotlinx.coroutines.launch
 interface EventBus {
     val flow: SharedFlow<Event>
     fun publish(event: Event)
+
+    @InternalCustomerIOApi
     fun removeAllSubscriptions()
     fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job
 }
@@ -46,8 +49,10 @@ class EventBusImpl(
     inline fun <reified T : Event> EventBus.subscribe(noinline action: suspend (T) -> Unit) = subscribe(T::class, action)
 
     override fun removeAllSubscriptions() {
-        jobs.forEach { it.cancel() }
-        jobs.clear()
+        synchronized(jobs) {
+            jobs.forEach { it.cancel() }
+            jobs.clear()
+        }
     }
 
     override fun <T : Event> subscribe(type: KClass<T>, action: suspend (T) -> Unit): Job {

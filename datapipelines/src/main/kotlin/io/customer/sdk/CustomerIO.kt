@@ -15,7 +15,7 @@ import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.di.dataPipelinesLogger
 import io.customer.datapipelines.extensions.asMap
-import io.customer.datapipelines.extensions.sanitizeNullsForJson
+import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
@@ -194,7 +194,7 @@ class CustomerIO private constructor(
                 identify(userId = identifier, traits = value)
             } else {
                 logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
-                analytics.identify(traits = value.sanitizeNullsForJson())
+                analytics.identify(traits = value.sanitizeForJson())
             }
         }
 

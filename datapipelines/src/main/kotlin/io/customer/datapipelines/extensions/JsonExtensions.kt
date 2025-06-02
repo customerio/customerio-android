@@ -1,6 +1,8 @@
 package io.customer.datapipelines.extensions
 
 import com.segment.analytics.kotlin.core.utilities.toJsonElement
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Logger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -49,10 +51,39 @@ private fun Any?.toSerializableJson(): JsonElement {
  * preserving structure and type. Useful for safely converting to `JsonElement`
  * using `Any.toJsonElement()` extension.
  */
+/**
+ * Checks if a value is an invalid JSON numeric value (NaN or infinity)
+ */
+private fun isInvalidJsonNumber(value: Any?): Boolean {
+    return when (value) {
+        is Float -> value.isNaN() || value.isInfinite()
+        is Double -> value.isNaN() || value.isInfinite()
+        else -> false
+    }
+}
+
+/**
+ * Recursively sanitizes data for JSON serialization by:
+ * 1. Replacing all `null` values in nested structure with [JsonNull]
+ * 2. Removing entries with NaN or infinity values from maps
+ * This ensures the data can be safely converted to JSON.
+ *
+ * @param logger Logger to log when invalid numeric values are removed
+ */
 @Suppress("UNCHECKED_CAST")
-internal fun <T> T?.sanitizeNullsForJson(): T = when (this) {
+internal fun <T> T?.sanitizeForJson(logger: Logger = SDKComponent.logger): T = when (this) {
     null -> JsonNull as T
-    is Map<*, *> -> this.mapValues { (_, v) -> v.sanitizeNullsForJson() } as T
-    is List<*> -> this.map { it.sanitizeNullsForJson() } as T
+    is Map<*, *> -> {
+        // Filter out entries with NaN or infinity values before sanitizing
+        val filteredMap = this.filterValues { value ->
+            val isValid = !isInvalidJsonNumber(value)
+            if (!isValid) {
+                logger.error("Removed invalid JSON numeric value (NaN or infinity)")
+            }
+            isValid
+        }
+        filteredMap.mapValues { (_, v) -> v.sanitizeForJson(logger) } as T
+    }
+    is List<*> -> this.map { it.sanitizeForJson(logger) } as T
     else -> this
 }

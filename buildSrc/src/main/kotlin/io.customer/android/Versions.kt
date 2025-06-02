@@ -1,6 +1,11 @@
 package io.customer.android
 
 object Versions {
+    // Android SDK versions
+    const val COMPILE_SDK = 34
+    const val TARGET_SDK = 33
+    const val MIN_SDK = 21
+
     // When updating AGP version, make sure to also update workflow: gradle-compatibility-builds
     // and script: update-gradle-compatibility as needed.
     internal const val ANDROID_GRADLE_PLUGIN = "8.3.1"
@@ -12,6 +17,7 @@ object Versions {
     internal const val ANDROIDX_LIFECYCLE_PROCESS = "2.6.1"
     internal const val ANDROIDX_ANNOTATIONS = "1.3.0"
     internal const val APK_SCALE = "0.1.7"
+
     internal const val COROUTINES = "1.7.3"
     internal const val DOKKA = "1.8.20"
     internal const val JUNIT_BOM = "5.9.3"

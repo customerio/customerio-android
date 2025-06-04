@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test
 class SanitizeForJsonTest : JUnitTest() {
     @Test
     fun sanitize_givenNull_expectJsonNull() {
-        val input: String? = null
-        val expected = JsonNull
+        val input = mapOf("key" to null)
+        val expected = mapOf("key" to JsonNull)
         input.sanitizeForJson() shouldBeEqualTo expected
     }
 
@@ -40,8 +40,8 @@ class SanitizeForJsonTest : JUnitTest() {
 
     @Test
     fun sanitize_givenListWithNull_expectJsonNullReplacement() {
-        val input = listOf("a", null, "b")
-        val expected = listOf("a", JsonNull, "b")
+        val input = mapOf("key" to listOf("a", null, "b"))
+        val expected = mapOf("key" to listOf("a", JsonNull, "b"))
         input.sanitizeForJson() shouldBeEqualTo expected
     }
 
@@ -72,7 +72,7 @@ class SanitizeForJsonTest : JUnitTest() {
 
     @Test
     fun sanitize_givenListWithoutNull_expectReturnSameStructure() {
-        val input = listOf("apple", "banana", "cherry")
+        val input = mapOf("key" to listOf("apple", "banana", "cherry"))
         input.sanitizeForJson() shouldBeEqualTo input
     }
 
@@ -106,14 +106,16 @@ class SanitizeForJsonTest : JUnitTest() {
                 "temperature" to Double.NaN,
                 "battery" to Float.POSITIVE_INFINITY
             ),
-            "data" to "valid"
+            "data" to "valid",
+            "list" to listOf(20, Double.NaN)
         )
         val expected = mapOf(
             "meta" to mapOf(
                 "os" to "android",
                 "version" to 13
             ),
-            "data" to "valid"
+            "data" to "valid",
+            "list" to listOf(20)
         )
         input.sanitizeForJson() shouldBeEqualTo expected
     }
@@ -128,7 +130,7 @@ class SanitizeForJsonTest : JUnitTest() {
             ),
             "metrics" to listOf(
                 mapOf("key" to "views", "value" to 100),
-                mapOf("key" to "clicks", "value" to Float.POSITIVE_INFINITY),
+                listOf(15.0, Float.POSITIVE_INFINITY),
                 mapOf("key" to "conversions", "value" to null)
             ),
             "settings" to mapOf(
@@ -145,7 +147,7 @@ class SanitizeForJsonTest : JUnitTest() {
             ),
             "metrics" to listOf(
                 mapOf("key" to "views", "value" to 100),
-                mapOf("key" to "clicks"),
+                listOf(15.0),
                 mapOf("key" to "conversions", "value" to JsonNull)
             ),
             "settings" to mapOf(

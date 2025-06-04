@@ -47,22 +47,6 @@ private fun Any?.toSerializableJson(): JsonElement {
 }
 
 /**
- * Recursively replaces all `null` values in nested structure with [JsonNull],
- * preserving structure and type. Useful for safely converting to `JsonElement`
- * using `Any.toJsonElement()` extension.
- */
-/**
- * Checks if a value is an invalid JSON numeric value (NaN or infinity)
- */
-private fun isInvalidJsonNumber(value: Any?): Boolean {
-    return when (value) {
-        is Float -> value.isNaN() || value.isInfinite()
-        is Double -> value.isNaN() || value.isInfinite()
-        else -> false
-    }
-}
-
-/**
  * Recursively sanitizes data for JSON serialization by:
  * 1. Replacing all `null` values in nested structure with [JsonNull]
  * 2. Removing entries with NaN or infinity values from maps
@@ -70,20 +54,45 @@ private fun isInvalidJsonNumber(value: Any?): Boolean {
  *
  * @param logger Logger to log when invalid numeric values are removed
  */
-@Suppress("UNCHECKED_CAST")
-internal fun <T> T?.sanitizeForJson(logger: Logger = SDKComponent.logger): T = when (this) {
-    null -> JsonNull as T
-    is Map<*, *> -> {
-        // Filter out entries with NaN or infinity values before sanitizing
-        val filteredMap = this.filterValues { value ->
-            val isValid = !isInvalidJsonNumber(value)
-            if (!isValid) {
-                logger.error("Removed invalid JSON numeric value (NaN or infinity)")
-            }
-            isValid
+internal fun Map<String, Any?>.sanitizeForJson(logger: Logger = SDKComponent.logger): Map<String, Any?> {
+    val resultMap = mutableMapOf<String, Any>()
+
+    for (entry in this.entries) {
+        val sanitizedValue = entry.value.sanitizeValue(logger)
+        if (sanitizedValue != null) {
+            resultMap[entry.key] = sanitizedValue
+        } else {
+            logger.error("Removed invalid JSON numeric value (NaN or infinity)")
         }
-        filteredMap.mapValues { (_, v) -> v.sanitizeForJson(logger) } as T
     }
-    is List<*> -> this.map { it.sanitizeForJson(logger) } as T
+
+    return resultMap
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun <T> T?.sanitizeValue(logger: Logger = SDKComponent.logger): T? = when (this) {
+    null -> JsonNull as T
+    is Double, is Float -> if (isInvalidJsonNumber(this)) null else this
+    is Map<*, *> -> (this as? Map<String, Any?>)?.sanitizeForJson(logger) as T
+    is List<*> -> sanitizeList(logger) as T
     else -> this
+}
+
+private fun List<*>.sanitizeList(logger: Logger): List<*> {
+    return this.mapNotNull {
+        val sanitizedValue = it.sanitizeValue(logger)
+        if (sanitizedValue == null) {
+            logger.error("Removed invalid JSON numeric value (NaN or infinity)")
+
+        }
+        sanitizedValue
+    }
+}
+
+private fun isInvalidJsonNumber(value: Any?): Boolean {
+    return when (value) {
+        is Float -> value.isNaN() || value.isInfinite()
+        is Double -> value.isNaN() || value.isInfinite()
+        else -> false
+    }
 }

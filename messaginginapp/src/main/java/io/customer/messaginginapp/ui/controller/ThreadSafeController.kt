@@ -69,18 +69,6 @@ private class VolatilePropertyWithNotification<T>(
 }
 
 /**
- * Atomic property delegate for complex state
- */
-private class AtomicProperty<T>(initialValue: T) : ReadWriteProperty<Any?, T> {
-    private val atomicValue = java.util.concurrent.atomic.AtomicReference(initialValue)
-
-    override fun getValue(thisRef: Any?, property: KProperty<*>): T = atomicValue.get()
-    override fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
-        atomicValue.set(value)
-    }
-}
-
-/**
  * Annotation to mark properties that should be thread-safe
  * This helps with code reviews and static analysis
  */

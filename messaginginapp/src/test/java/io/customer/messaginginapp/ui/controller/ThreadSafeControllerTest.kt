@@ -20,8 +20,6 @@ class ThreadSafeControllerTest : JUnitTest() {
             lastOldValue.set(old)
             lastNewValue.set(new)
         }
-        var atomicStateProperty: Int by atomicState(0)
-
         val notificationCallCount = AtomicInteger(0)
         val lastOldValue = AtomicReference<String?>()
         val lastNewValue = AtomicReference<String?>()
@@ -86,23 +84,6 @@ class ThreadSafeControllerTest : JUnitTest() {
         controller.notificationCallCount.get() shouldBeEqualTo 1
         controller.lastOldValue.get() shouldBeEqualTo oldValue
         controller.lastNewValue.get() shouldBeEqualTo newValue
-    }
-
-    @Test
-    fun atomicState_givenDefaultValue_expectInitialValueReturned() {
-        val controller = TestController()
-
-        controller.atomicStateProperty shouldBeEqualTo 0
-    }
-
-    @Test
-    fun atomicState_givenValueSet_expectValueReturned() {
-        val controller = TestController()
-        val testValue = 42
-
-        controller.atomicStateProperty = testValue
-
-        controller.atomicStateProperty shouldBeEqualTo testValue
     }
 
     @Test

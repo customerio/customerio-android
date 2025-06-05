@@ -35,14 +35,6 @@ internal abstract class ThreadSafeController {
     ): ReadWriteProperty<Any?, T?> {
         return VolatilePropertyWithNotification(initialValue, onChange)
     }
-
-    /**
-     * For complex state requiring atomic updates of multiple properties.
-     * Use sparingly - prefer individual threadSafe() properties when possible.
-     */
-    protected fun <T> atomicState(initialValue: T): ReadWriteProperty<Any?, T> {
-        return AtomicProperty(initialValue)
-    }
 }
 
 /**

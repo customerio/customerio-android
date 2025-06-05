@@ -39,9 +39,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     var currentMessage: Message? by threadSafe()
 
     @ThreadSafeProperty("Accessed from UI and background threads during route changes")
-    internal var currentRoute: String? by threadSafe()
+    var currentRoute: String? by threadSafe()
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     var viewCallback: ViewCallback? by threadSafe()
 
     /**

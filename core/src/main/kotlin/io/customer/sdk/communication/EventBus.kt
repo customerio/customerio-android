@@ -6,8 +6,10 @@ import kotlin.reflect.KClass
 import kotlin.reflect.safeCast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
@@ -40,10 +42,18 @@ class EventBusImpl(
 
     val scope: CoroutineScope = SDKComponent.scopeProvider.eventBusScope
 
-    override fun publish(event: Event) {
+    private val eventChannel = Channel<Event>(capacity = Channel.UNLIMITED)
+
+    init {
         scope.launch {
-            sharedFlow.emit(event)
+            eventChannel.consumeAsFlow().collect { event ->
+                sharedFlow.tryEmit(event)
+            }
         }
+    }
+
+    override fun publish(event: Event) {
+        eventChannel.trySend(event)
     }
 
     inline fun <reified T : Event> EventBus.subscribe(noinline action: suspend (T) -> Unit) = subscribe(T::class, action)

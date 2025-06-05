@@ -419,3 +419,7 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : androi
 	public final fun setProgressTint (I)V
 }
 
+public abstract interface annotation class io/customer/messaginginapp/ui/controller/ThreadSafeProperty : java/lang/annotation/Annotation {
+	public abstract fun reason ()Ljava/lang/String;
+}
+

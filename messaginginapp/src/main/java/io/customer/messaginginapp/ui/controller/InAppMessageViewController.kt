@@ -26,21 +26,22 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     protected val type: String,
     protected val platformDelegate: InAppPlatformDelegate,
     val viewDelegate: InAppHostViewDelegate
-) : EngineWebViewListener {
+) : ThreadSafeController(), EngineWebViewListener {
     private val logger = SDKComponent.logger
     protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
     protected var shouldDispatchDisplayEvent: Boolean = true
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    var engineWebViewDelegate: EngineWebViewDelegate? = null
+    var engineWebViewDelegate: EngineWebViewDelegate? by threadSafe()
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
-    var currentMessage: Message? = null
+    @ThreadSafeProperty("Accessed from UI thread writes and background WebView callbacks")
+    var currentMessage: Message? by threadSafe()
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    var currentRoute: String? = null
+    @ThreadSafeProperty("Accessed from UI and background threads during route changes")
+    var currentRoute: String? by threadSafe()
 
-    var viewCallback: ViewCallback? = null
+    var viewCallback: ViewCallback? by threadSafe()
 
     /**
      * Listener to handle action clicks from inline in-app messages.

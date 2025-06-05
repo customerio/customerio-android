@@ -31,22 +31,20 @@ internal constructor(
         elapsedTimer = ElapsedTimer()
     )
 
-    internal var elementId: String? = null
-        set(value) {
-            val oldValue = field
-            field = value
-            if (oldValue != value) {
-                logViewEvent("Element ID changed from $oldValue to $value")
-                // Fetch current state to ensure we have latest message for given element ID
-                onElementIdChanged()
-            }
+    @ThreadSafeProperty("Accessed from UI thread and background state subscriptions")
+    internal var elementId: String? by threadSafeWithNotification { old, new ->
+        if (old != new) {
+            logViewEvent("Element ID changed from $old to $new")
+            // Fetch current state to ensure we have latest message for given element ID
+            onElementIdChanged()
         }
+    }
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal var contentWidthInDp: Double? = null
+    @ThreadSafeProperty("Accessed during layout changes and size callbacks")
+    internal var contentWidthInDp: Double? by threadSafe()
 
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal var contentHeightInDp: Double? = null
+    @ThreadSafeProperty("Accessed during layout changes and size callbacks")
+    internal var contentHeightInDp: Double? by threadSafe()
 
     init {
         viewDelegate.isVisible = false
@@ -56,7 +54,7 @@ internal constructor(
     private fun subscribeToStore() {
         inAppMessagingManager.subscribeToState(
             areEquivalent = { oldState, newState ->
-                val viewElementId = this.elementId ?: return@subscribeToState true
+                val viewElementId = elementId ?: return@subscribeToState true
 
                 val oldMessage = oldState.queuedInlineMessagesState.getMessage(viewElementId)
                 val newMessage = newState.queuedInlineMessagesState.getMessage(viewElementId)
@@ -76,9 +74,10 @@ internal constructor(
 
     internal fun onDetachedFromWindow() {
         val message = currentMessage ?: return
+        val currentElementId = elementId
 
         if (platformDelegate.shouldDestroyViewOnDetach()) {
-            logViewEvent("View detached from window, dismissing inline message view for $elementId ")
+            logViewEvent("View detached from window, dismissing inline message view for $currentElementId ")
             inAppMessagingManager.dispatch(
                 InAppMessagingAction.DismissMessage(
                     message = message,
@@ -87,7 +86,7 @@ internal constructor(
                 )
             )
         } else {
-            logViewEvent("Skipping destroy for inline message view for $elementId — likely config change or temporary detach")
+            logViewEvent("Skipping destroy for inline message view for $currentElementId — likely config change or temporary detach")
         }
     }
 

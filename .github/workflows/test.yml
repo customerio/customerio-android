@@ -17,7 +17,7 @@ jobs:
       - name: Run unit tests (${{ matrix.module }})
         run: ./gradlew :${{ matrix.module }}:runJacocoTestReport
       - name: Upload code coverage report
-        uses: codecov/codecov-action@e96185f4044c2f0cedf0f022454acf9811cf8057 # v5.4.0
+        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
         with:
@@ -25,7 +25,7 @@ jobs:
           verbose: true
           files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml
       - name: Publish test results (${{ matrix.module }})
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@65fe03598d8d251738592a497a9e8547a5c48eaa # v5.6.0
         with:
           report_paths: '**/build/test-results/test*/TEST-*.xml'
           fail_on_failure: true
@@ -45,7 +45,7 @@ jobs:
       - uses: ./.github/actions/setup-android
 
       - name: Gradle cache
-        uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
+        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.3.1
         continue-on-error: true
         timeout-minutes: 5
         with:
@@ -71,7 +71,7 @@ jobs:
       # Create AVD and generate snapshot for caching
       - name: Create AVD and generate snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
@@ -84,7 +84,7 @@ jobs:
 
       # Run the actual tests
       - name: Run instrumentation tests
-        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
@@ -97,7 +97,7 @@ jobs:
           script: ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true
 
       - name: Publish test results
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@65fe03598d8d251738592a497a9e8547a5c48eaa # v5.6.0
         if: always()
         with:
           report_paths: 'samples/${{ matrix.sample }}/build/outputs/androidTest-results/connected/TEST-*.xml'

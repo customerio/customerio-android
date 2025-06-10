@@ -7,12 +7,15 @@ import io.customer.commontest.util.ScopeProviderStub
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.events.Metric
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
+import org.amshove.kluent.shouldBeLessThan
 import org.amshove.kluent.shouldHaveSingleItem
 import org.junit.jupiter.api.Test
 
@@ -198,6 +201,103 @@ class EventBusTest : JUnit5Test() {
             (events[i] as Event.TrackInAppMetricEvent).deliveryID shouldBeEqualTo "deliveryId$i"
             (events[i] as Event.TrackInAppMetricEvent).params shouldBeEqualTo mapOf("message" to "Message $i")
         }
+
+        job.cancel()
+    }
+
+    @Test
+    fun givenConcurrentPublishingExpectCorrectOrdering() = runBlocking {
+        val events = mutableListOf<Event>()
+        val job = eventBus.subscribe<Event.TrackPushMetricEvent> { event ->
+            events.add(event)
+        }
+
+        // Publish 100 events concurrently to test ordering behavior
+        val publishJobs = (1..100).map { index ->
+            async {
+                eventBus.publish(Event.TrackPushMetricEvent("deliveryId$index", Metric.Delivered, "deviceToken$index"))
+            }
+        }
+        publishJobs.awaitAll()
+
+        delay(200) // Give time for all events to be processed
+
+        // Should receive all 100 events
+        events.size shouldBeEqualTo 100
+
+        // Events should be TrackPushMetricEvent instances
+        events.forEach { event ->
+            event.shouldBeInstanceOf<Event.TrackPushMetricEvent>()
+        }
+
+        // Verify all unique events were received (no duplicates/losses)
+        val deliveryIds = events.map { (it as Event.TrackPushMetricEvent).deliveryId }.toSet()
+        deliveryIds.size shouldBeEqualTo 100
+
+        job.cancel()
+    }
+
+    @Test
+    fun givenHighFrequencyPublishingExpectAllEventsReceived() = runBlocking {
+        val events = mutableListOf<Event>()
+        val job = eventBus.subscribe<Event.ScreenViewedEvent> { event ->
+            events.add(event)
+        }
+
+        val startTime = System.currentTimeMillis()
+
+        // Rapid publishing (simulates ViewPager or rapid navigation)
+        repeat(1000) { index ->
+            eventBus.publish(Event.ScreenViewedEvent("screen$index"))
+        }
+
+        delay(500) // Allow processing time
+
+        val duration = System.currentTimeMillis() - startTime
+
+        // Should receive all 1000 events
+        events.size shouldBeEqualTo 1000
+
+        // Should complete reasonably quickly (less than 1 second total)
+        duration shouldBeLessThan 1000
+
+        // Verify events are correct type and have expected content
+        events.forEachIndexed { index, event ->
+            event.shouldBeInstanceOf<Event.ScreenViewedEvent>()
+            (event as Event.ScreenViewedEvent).name shouldBeEqualTo "screen$index"
+        }
+
+        job.cancel()
+    }
+
+    @Test
+    fun givenMoreThan100EventsExpectReplayBufferLimited() = runBlocking {
+        // Publish 150 events without any subscribers to test replay buffer limit
+        repeat(150) { index ->
+            eventBus.publish(Event.TrackInAppMetricEvent("deliveryId$index", Metric.Delivered, params = mapOf("index" to index.toString())))
+        }
+
+        delay(100) // Allow events to be buffered
+
+        val events = mutableListOf<Event>()
+        val job = eventBus.subscribe<Event.TrackInAppMetricEvent> { event ->
+            events.add(event)
+        }
+
+        delay(100) // Give time for replay events to be delivered
+
+        // Should only receive the last 100 events due to replay buffer limit
+        events.size shouldBeEqualTo 100
+
+        // First received event should be from index 50 (events 0-49 should be dropped)
+        val firstEvent = events.first() as Event.TrackInAppMetricEvent
+        firstEvent.deliveryID shouldBeEqualTo "deliveryId50"
+        firstEvent.params["index"] shouldBeEqualTo "50"
+
+        // Last received event should be from index 149
+        val lastEvent = events.last() as Event.TrackInAppMetricEvent
+        lastEvent.deliveryID shouldBeEqualTo "deliveryId149"
+        lastEvent.params["index"] shouldBeEqualTo "149"
 
         job.cancel()
     }

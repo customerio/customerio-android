@@ -15,7 +15,6 @@ import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
-import org.amshove.kluent.shouldBeGreaterThan
 import org.amshove.kluent.shouldBeLessThan
 import org.amshove.kluent.shouldHaveSingleItem
 import org.junit.jupiter.api.Test
@@ -215,7 +214,7 @@ class EventBusTest : JUnit5Test() {
 
         // Publish 100 events concurrently to test ordering behavior
         val publishJobs = (1..100).map { index ->
-            async { 
+            async {
                 eventBus.publish(Event.TrackPushMetricEvent("deliveryId$index", Metric.Delivered, "deviceToken$index"))
             }
         }
@@ -225,7 +224,7 @@ class EventBusTest : JUnit5Test() {
 
         // Should receive all 100 events
         events.size shouldBeEqualTo 100
-        
+
         // Events should be TrackPushMetricEvent instances
         events.forEach { event ->
             event.shouldBeInstanceOf<Event.TrackPushMetricEvent>()
@@ -258,10 +257,10 @@ class EventBusTest : JUnit5Test() {
 
         // Should receive all 1000 events
         events.size shouldBeEqualTo 1000
-        
+
         // Should complete reasonably quickly (less than 1 second total)
         duration shouldBeLessThan 1000
-        
+
         // Verify events are correct type and have expected content
         events.forEachIndexed { index, event ->
             event.shouldBeInstanceOf<Event.ScreenViewedEvent>()
@@ -289,12 +288,12 @@ class EventBusTest : JUnit5Test() {
 
         // Should only receive the last 100 events due to replay buffer limit
         events.size shouldBeEqualTo 100
-        
+
         // First received event should be from index 50 (events 0-49 should be dropped)
         val firstEvent = events.first() as Event.TrackInAppMetricEvent
         firstEvent.deliveryID shouldBeEqualTo "deliveryId50"
         firstEvent.params["index"] shouldBeEqualTo "50"
-        
+
         // Last received event should be from index 149
         val lastEvent = events.last() as Event.TrackInAppMetricEvent
         lastEvent.deliveryID shouldBeEqualTo "deliveryId149"

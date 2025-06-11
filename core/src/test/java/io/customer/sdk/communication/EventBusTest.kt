@@ -9,8 +9,8 @@ import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.events.Metric
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -52,7 +52,7 @@ class EventBusTest : JUnit5Test() {
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
-        delay(100) // Give some time for the event to be collected
+        yield() // Allow event processing
 
         events.shouldHaveSingleItem()
             .shouldBeInstanceOf<Event.ProfileIdentifiedEvent>()
@@ -72,7 +72,7 @@ class EventBusTest : JUnit5Test() {
         println("Publishing first event: $firstEvent")
         eventBus.publish(firstEvent)
 
-        delay(100) // Give some time for the event to be collected
+        yield() // Allow event processing
 
         assertEquals(1, events.size)
         assertEquals(firstEvent.name, (events[0] as Event.ScreenViewedEvent).name)
@@ -84,7 +84,7 @@ class EventBusTest : JUnit5Test() {
         println("Publishing second event: $secondEvent")
         eventBus.publish(secondEvent)
 
-        delay(100) // Give some time for the event to be collected
+        yield() // Allow event processing
 
         events.size shouldBeEqualTo 1 // No new events should be collected after cancelAll()
     }
@@ -106,7 +106,7 @@ class EventBusTest : JUnit5Test() {
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
-        delay(200) // Give some time for the event to be collected
+        yield() // Allow event processing
 
         subscriber1.shouldHaveSingleItem()
             .shouldBeInstanceOf<Event.TrackPushMetricEvent>()
@@ -147,7 +147,7 @@ class EventBusTest : JUnit5Test() {
         eventBus.publish(testEvent1)
         eventBus.publish(testEvent2)
 
-        delay(100) // Give some time for the events to be collected
+        yield() // Allow event processing
 
         subscriber1.size shouldBeEqualTo 2
         subscriber1.map { it as Event.RegisterDeviceTokenEvent }.any { it.token == "Token 1" } shouldBe true
@@ -171,7 +171,7 @@ class EventBusTest : JUnit5Test() {
         val unrelatedEvent = Event.ResetEvent
         eventBus.publish(unrelatedEvent)
 
-        delay(100) // Give some time to ensure no events are collected
+        yield() // Allow event processing
 
         assertEquals(0, events.size) // No events should be collected
 
@@ -187,14 +187,14 @@ class EventBusTest : JUnit5Test() {
             eventBus.publish(event)
         }
 
-        delay(100) // Give some time for the events to be published
+        yield() // Allow event processing
 
         val events = mutableListOf<Event>()
         val job = eventBus.subscribe<Event.TrackInAppMetricEvent> { event ->
             events.add(event)
         }
 
-        delay(100) // Give some time for the events to be collected by the new subscriber
+        yield() // Allow event processing
 
         for (i in 0 until 15) {
             (events[i] as Event.TrackInAppMetricEvent).event shouldBeEqualTo Metric.Delivered
@@ -220,7 +220,7 @@ class EventBusTest : JUnit5Test() {
         }
         publishJobs.awaitAll()
 
-        delay(200) // Give time for all events to be processed
+        yield() // Allow event processing
 
         // Should receive all 100 events
         events.size shouldBeEqualTo 100
@@ -251,7 +251,7 @@ class EventBusTest : JUnit5Test() {
             eventBus.publish(Event.ScreenViewedEvent("screen$index"))
         }
 
-        delay(500) // Allow processing time
+        yield() // Allow event processing
 
         val duration = System.currentTimeMillis() - startTime
 
@@ -277,14 +277,14 @@ class EventBusTest : JUnit5Test() {
             eventBus.publish(Event.TrackInAppMetricEvent("deliveryId$index", Metric.Delivered, params = mapOf("index" to index.toString())))
         }
 
-        delay(100) // Allow events to be buffered
+        yield() // Allow event processing
 
         val events = mutableListOf<Event>()
         val job = eventBus.subscribe<Event.TrackInAppMetricEvent> { event ->
             events.add(event)
         }
 
-        delay(100) // Give time for replay events to be delivered
+        yield() // Allow event processing
 
         // Should only receive the last 100 events due to replay buffer limit
         events.size shouldBeEqualTo 100

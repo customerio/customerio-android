@@ -220,6 +220,7 @@ public final class io/customer/sdk/core/util/Logger$DefaultImpls {
 }
 
 public abstract interface class io/customer/sdk/core/util/ScopeProvider {
+	public abstract fun getBackgroundScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getInAppLifecycleScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
@@ -234,6 +235,7 @@ public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/co
 
 public final class io/customer/sdk/core/util/SdkScopeProvider : io/customer/sdk/core/util/ScopeProvider {
 	public fun <init> (Lio/customer/sdk/core/util/DispatchersProvider;)V
+	public fun getBackgroundScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getInAppLifecycleScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;

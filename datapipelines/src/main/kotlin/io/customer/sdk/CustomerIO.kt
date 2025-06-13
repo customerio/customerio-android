@@ -37,6 +37,7 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.serializer
 
@@ -66,6 +67,7 @@ class CustomerIO private constructor(
     private val dataPipelinesLogger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val deviceStore = androidSDKComponent.deviceStore
+    private val backgroundScope = SDKComponent.scopeProvider.backgroundScope
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
 
@@ -168,10 +170,19 @@ class CustomerIO private constructor(
         // Migrate unsent events from previous version
         migrateTrackingEvents()
 
-        // save settings to storage
-        analytics.configuration.let { config ->
-            val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
-            globalPreferenceStore.saveSettings(settings)
+        // Initialize device token and save settings asynchronously
+        backgroundScope.launch {
+            // Load existing device token and set it in context plugin
+            val existingToken = globalPreferenceStore.getDeviceToken()
+            if (!existingToken.isNullOrBlank()) {
+                contextPlugin.deviceToken = existingToken
+            }
+
+            // Save settings to storage
+            analytics.configuration.let { config ->
+                val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
+                globalPreferenceStore.saveSettings(settings)
+            }
         }
 
         // add plugins to analytics instance
@@ -294,7 +305,7 @@ class CustomerIO private constructor(
     }
 
     override val registeredDeviceToken: String?
-        get() = globalPreferenceStore.getDeviceToken()
+        get() = contextPlugin.deviceToken
 
     override val anonymousId: String
         get() = analytics.anonymousId()
@@ -315,7 +326,11 @@ class CustomerIO private constructor(
         }
 
         dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
-        globalPreferenceStore.saveDeviceToken(deviceToken)
+
+        // Save to storage asynchronously
+        backgroundScope.launch {
+            globalPreferenceStore.saveDeviceToken(deviceToken)
+        }
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
         trackDeviceAttributes(token = deviceToken)
@@ -361,6 +376,12 @@ class CustomerIO private constructor(
         if (deviceToken.isNullOrBlank()) {
             logger.debug("No device token found to delete.")
             return
+        }
+
+        // Clear device token from storage and context plugin
+        contextPlugin.deviceToken = null
+        backgroundScope.launch {
+            globalPreferenceStore.removeDeviceToken()
         }
 
         track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)

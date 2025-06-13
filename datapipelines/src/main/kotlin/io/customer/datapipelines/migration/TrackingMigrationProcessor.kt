@@ -93,8 +93,8 @@ internal class TrackingMigrationProcessor(
         CustomerIO.instance().identify(userId = identifier)
     }
 
-    override fun processDeviceMigration(oldDeviceToken: String): Result<Unit> = runCatching {
-        when (globalPreferenceStore.getDeviceToken()) {
+    override suspend fun processDeviceMigration(oldDeviceToken: String): Result<Unit> = runCatching {
+        when (CustomerIO.instance().registeredDeviceToken) {
             null -> {
                 logger.debug("Migrating existing device with token: $oldDeviceToken")
                 CustomerIO.instance().registerDeviceToken(oldDeviceToken)

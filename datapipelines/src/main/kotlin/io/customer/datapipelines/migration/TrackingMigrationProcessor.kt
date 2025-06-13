@@ -43,6 +43,7 @@ internal class TrackingMigrationProcessor(
 
     private val logger: Logger = SDKComponent.logger
     private val globalPreferenceStore = SDKComponent.android().globalPreferenceStore
+    private val deviceTokenManager = SDKComponent.android().deviceTokenManager
     private var subscriptionID: SubscriptionID? = null
 
     // Start the migration process in init block to start migration as soon as possible
@@ -93,8 +94,8 @@ internal class TrackingMigrationProcessor(
         CustomerIO.instance().identify(userId = identifier)
     }
 
-    override suspend fun processDeviceMigration(oldDeviceToken: String): Result<Unit> = runCatching {
-        when (CustomerIO.instance().registeredDeviceToken) {
+    override fun processDeviceMigration(oldDeviceToken: String): Result<Unit> = runCatching {
+        when (deviceTokenManager.deviceToken) {
             null -> {
                 logger.debug("Migrating existing device with token: $oldDeviceToken")
                 CustomerIO.instance().registerDeviceToken(oldDeviceToken)

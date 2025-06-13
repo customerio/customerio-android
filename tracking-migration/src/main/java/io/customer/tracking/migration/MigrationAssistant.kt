@@ -57,7 +57,7 @@ class MigrationAssistant internal constructor(
         }
     }
 
-    private suspend fun migrateExistingDevice() {
+    private fun migrateExistingDevice() {
         // If there is no old device token, then either the device was never added or it was already migrated
         val oldDeviceToken = sitePreferences.getDeviceToken() ?: return
 

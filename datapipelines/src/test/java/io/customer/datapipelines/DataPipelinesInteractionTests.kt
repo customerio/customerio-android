@@ -22,7 +22,6 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
-import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.serialization.json.buildJsonObject
@@ -479,7 +478,6 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         outputReaderPlugin.reset()
 
         sdkInstance.clearIdentify()
@@ -500,9 +498,8 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenPreviouslyIdentifiedProfile = String.random
         val givenToken = String.random
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
-
         sdkInstance.identify(givenPreviouslyIdentifiedProfile)
+        sdkInstance.registerDeviceToken(givenToken)
         outputReaderPlugin.reset()
 
         sdkInstance.identify(givenIdentifier)
@@ -528,7 +525,8 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        // ✅ Set token in DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.setDeviceToken(givenToken)
 
         sdkInstance.identify(givenIdentifier)
         outputReaderPlugin.reset()
@@ -547,11 +545,9 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenToken = String.random
 
         sdkInstance.identify(givenIdentifier)
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenPreviousDeviceToken
         sdkInstance.registerDeviceToken(givenPreviousDeviceToken)
         outputReaderPlugin.reset()
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
 
         // 1. Device delete event for the old token
@@ -622,9 +618,8 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.registerDeviceToken(givenToken)
 
-        assertCoCalledOnce { globalPreferenceStore.saveDeviceToken(givenToken) }
-
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        // Verify device token was stored via DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.deviceToken shouldBeEqualTo givenToken
 
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
 
@@ -648,8 +643,10 @@ class DataPipelinesInteractionTests : JUnitTest() {
     @Test
     fun device_givenDeleteDeviceWithIdentifiedUser_expectUserIdWithTrackRequest() {
         val givenIdentifier = String.random
+        val givenToken = String.random
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns String.random
+        // ✅ Set token in DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.setDeviceToken(givenToken)
 
         sdkInstance.identify(givenIdentifier)
 
@@ -907,7 +904,8 @@ class DataPipelinesInteractionTests : JUnitTest() {
     fun identify_givenNewIdentifiedUser_shouldLogAutomaticTokenRegistrationForNewProfile() {
         val token = "fcm-token"
         val userId = "someEmail@customer.io"
-        coEvery { globalPreferenceStore.getDeviceToken() } returns token
+        // ✅ Set token in DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.setDeviceToken(token)
 
         sdkInstance.identify(userId)
 
@@ -916,7 +914,9 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
     @Test
     fun identify_givenIdentifiedUserChanged_shouldLogDeletingTokenDueToNewProfileIdentification() {
-        coEvery { globalPreferenceStore.getDeviceToken() } returns String.random
+        val givenToken = String.random
+        // ✅ Set token in DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.setDeviceToken(givenToken)
 
         sdkInstance.identify("someEmail@customer.io")
         sdkInstance.identify("differentEmail@customer.io")
@@ -926,7 +926,8 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
     @Test
     fun identify_givenNewIdentifiedUserWithBlankToken_shouldLogDeletingTokenDueToNewProfileIdentification() {
-        coEvery { globalPreferenceStore.getDeviceToken() } returns ""
+        // ✅ Set blank token in DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.setDeviceToken("")
 
         sdkInstance.identify("someEmail@customer.io")
 

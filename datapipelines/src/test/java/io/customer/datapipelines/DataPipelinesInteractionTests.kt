@@ -435,7 +435,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        // ✅ No mock needed - token was just registered
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
@@ -459,7 +459,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        deviceTokenManagerStub.setDeviceToken(givenToken)
         sdkInstance.deviceAttributes = givenAttributes
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
@@ -574,10 +574,11 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        // ✅ Set up: Profile identified first
         sdkInstance.identify(givenIdentifier)
         outputReaderPlugin.reset()
 
+        // ✅ Action: Register device token
         sdkInstance.registerDeviceToken(givenToken)
 
         outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 0
@@ -594,10 +595,11 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        // ✅ Set up: Register device token first
         sdkInstance.registerDeviceToken(givenToken)
         outputReaderPlugin.reset()
 
+        // ✅ Action: Identify profile after token registration
         sdkInstance.identify(givenIdentifier)
 
         outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 1
@@ -636,8 +638,10 @@ class DataPipelinesInteractionTests : JUnitTest() {
     fun device_givenDeviceTokenStoredInStore_expectStoredValueForRegisteredToken() {
         val givenToken = String.random
 
-        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
+        // ✅ Set token in DeviceTokenManager (source of truth)
+        deviceTokenManagerStub.setDeviceToken(givenToken)
 
+        // ✅ Verify SDK returns correct token
         sdkInstance.registeredDeviceToken shouldBeEqualTo givenToken
     }
 

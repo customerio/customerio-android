@@ -16,7 +16,7 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
-import io.mockk.every
+import io.mockk.coEvery
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldHaveSingleItem
@@ -51,7 +51,7 @@ class ContextPluginTest : JUnitTest() {
         )
 
         val givenOriginalToken = String.random
-        every { globalPreferenceStore.getDeviceToken() } returns givenOriginalToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenOriginalToken
         sdkInstance.registerDeviceToken(givenOriginalToken)
         outputReaderPlugin.reset()
 
@@ -74,7 +74,7 @@ class ContextPluginTest : JUnitTest() {
         setupWithConfig()
 
         val givenOriginalToken = String.random
-        every { globalPreferenceStore.getDeviceToken() } returns givenOriginalToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenOriginalToken
         sdkInstance.registerDeviceToken(givenOriginalToken)
         outputReaderPlugin.reset()
 

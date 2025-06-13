@@ -22,6 +22,7 @@ import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
+import io.mockk.coEvery
 import io.mockk.every
 import java.io.File
 import kotlinx.coroutines.test.runTest
@@ -413,7 +414,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         val queuedEvents = getQueuedEvents()
         // 1. Identify event
@@ -443,7 +444,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.deviceAttributes = customAttributes
 
         val queuedEvents = getQueuedEvents()
@@ -470,7 +471,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.deleteDeviceToken()
 

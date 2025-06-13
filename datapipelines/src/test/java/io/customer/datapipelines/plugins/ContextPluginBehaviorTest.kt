@@ -86,7 +86,7 @@ class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher(
                 return result
             }
         }
-        val contextPlugin = ContextPlugin(deviceStore, contextPluginProcessor)
+        val contextPlugin = ContextPlugin(deviceStore, deviceTokenManagerStub, contextPluginProcessor)
         analytics.add(contextPlugin)
         // Set initial value for test
         val writerLog = mutableMapOf<Long, String>() // (timestamp, read)

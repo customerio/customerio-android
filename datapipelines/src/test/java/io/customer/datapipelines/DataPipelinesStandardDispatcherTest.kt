@@ -15,7 +15,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
-import io.mockk.every
+import io.mockk.coEvery
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -102,7 +102,7 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         val givenPreviouslyIdentifiedProfile = "old-profile"
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.identify(givenPreviouslyIdentifiedProfile).flushCoroutines(testScope)
         sdkInstance.identify(givenIdentifier).flushCoroutines(testScope)
@@ -131,7 +131,7 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.identify(givenIdentifier).flushCoroutines(testScope)
         sdkInstance.clearIdentify().flushCoroutines(testScope)

@@ -67,6 +67,7 @@ class CustomerIO private constructor(
     private val dataPipelinesLogger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val deviceStore = androidSDKComponent.deviceStore
+    private val deviceTokenManager = androidSDKComponent.deviceTokenManager
     private val backgroundScope = SDKComponent.scopeProvider.backgroundScope
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
@@ -105,7 +106,7 @@ class CustomerIO private constructor(
         )
     )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore, deviceTokenManager)
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -170,15 +171,8 @@ class CustomerIO private constructor(
         // Migrate unsent events from previous version
         migrateTrackingEvents()
 
-        // Initialize device token and save settings asynchronously
+        // Save settings to storage asynchronously
         backgroundScope.launch {
-            // Load existing device token and set it in context plugin
-            val existingToken = globalPreferenceStore.getDeviceToken()
-            if (!existingToken.isNullOrBlank()) {
-                contextPlugin.deviceToken = existingToken
-            }
-
-            // Save settings to storage
             analytics.configuration.let { config ->
                 val settings = Settings(writeKey = config.writeKey, apiHost = config.apiHost)
                 globalPreferenceStore.saveSettings(settings)
@@ -327,10 +321,8 @@ class CustomerIO private constructor(
 
         dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
 
-        // Save to storage asynchronously
-        backgroundScope.launch {
-            globalPreferenceStore.saveDeviceToken(deviceToken)
-        }
+        // Update device token via manager (handles storage automatically)
+        deviceTokenManager.setDeviceToken(deviceToken)
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
         trackDeviceAttributes(token = deviceToken)
@@ -378,11 +370,8 @@ class CustomerIO private constructor(
             return
         }
 
-        // Clear device token from storage and context plugin
-        contextPlugin.deviceToken = null
-        backgroundScope.launch {
-            globalPreferenceStore.removeDeviceToken()
-        }
+        // Clear device token via manager (handles storage and context plugin automatically)
+        deviceTokenManager.clearDeviceToken()
 
         track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
     }

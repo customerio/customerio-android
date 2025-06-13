@@ -4,6 +4,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.commontest.extensions.assertCoCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.data.model.UserTraits
@@ -21,6 +22,7 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.serialization.json.buildJsonObject
@@ -91,7 +93,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
 
         analytics.userId().shouldBeNull()
-        every { globalPreferenceStore.getDeviceToken() } returns String.random
+        deviceTokenManagerStub.setDeviceToken(String.random)
 
         sdkInstance.profileAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
         analytics.userId() shouldBe ""
@@ -433,7 +435,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
@@ -457,7 +459,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         every { deviceStore.buildDeviceAttributes() } returns emptyMap()
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.deviceAttributes = givenAttributes
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
@@ -477,7 +479,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         outputReaderPlugin.reset()
 
         sdkInstance.clearIdentify()
@@ -498,7 +500,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenPreviouslyIdentifiedProfile = String.random
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.identify(givenPreviouslyIdentifiedProfile)
         outputReaderPlugin.reset()
@@ -526,7 +528,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.identify(givenIdentifier)
         outputReaderPlugin.reset()
@@ -545,11 +547,11 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenToken = String.random
 
         sdkInstance.identify(givenIdentifier)
-        every { globalPreferenceStore.getDeviceToken() } returns givenPreviousDeviceToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenPreviousDeviceToken
         sdkInstance.registerDeviceToken(givenPreviousDeviceToken)
         outputReaderPlugin.reset()
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
 
         // 1. Device delete event for the old token
@@ -572,7 +574,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.identify(givenIdentifier)
         outputReaderPlugin.reset()
 
@@ -592,7 +594,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         val givenIdentifier = String.random
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
         outputReaderPlugin.reset()
 
@@ -609,7 +611,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
     @Test
     fun device_givenSDKInitialized_expectSettingsToBeStored() {
-        assertCalledOnce { globalPreferenceStore.saveSettings(Settings(writeKey = analytics.configuration.writeKey, apiHost = analytics.configuration.apiHost)) }
+        assertCoCalledOnce { globalPreferenceStore.saveSettings(Settings(writeKey = analytics.configuration.writeKey, apiHost = analytics.configuration.apiHost)) }
     }
 
     @Test
@@ -618,9 +620,9 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.registerDeviceToken(givenToken)
 
-        assertCalledOnce { globalPreferenceStore.saveDeviceToken(givenToken) }
+        assertCoCalledOnce { globalPreferenceStore.saveDeviceToken(givenToken) }
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 1
 
@@ -634,7 +636,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
     fun device_givenDeviceTokenStoredInStore_expectStoredValueForRegisteredToken() {
         val givenToken = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
 
         sdkInstance.registeredDeviceToken shouldBeEqualTo givenToken
     }
@@ -643,7 +645,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
     fun device_givenDeleteDeviceWithIdentifiedUser_expectUserIdWithTrackRequest() {
         val givenIdentifier = String.random
 
-        every { globalPreferenceStore.getDeviceToken() } returns String.random
+        coEvery { globalPreferenceStore.getDeviceToken() } returns String.random
 
         sdkInstance.identify(givenIdentifier)
 
@@ -901,7 +903,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
     fun identify_givenNewIdentifiedUser_shouldLogAutomaticTokenRegistrationForNewProfile() {
         val token = "fcm-token"
         val userId = "someEmail@customer.io"
-        every { globalPreferenceStore.getDeviceToken() } returns token
+        coEvery { globalPreferenceStore.getDeviceToken() } returns token
 
         sdkInstance.identify(userId)
 
@@ -910,7 +912,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
     @Test
     fun identify_givenIdentifiedUserChanged_shouldLogDeletingTokenDueToNewProfileIdentification() {
-        every { globalPreferenceStore.getDeviceToken() } returns String.random
+        coEvery { globalPreferenceStore.getDeviceToken() } returns String.random
 
         sdkInstance.identify("someEmail@customer.io")
         sdkInstance.identify("differentEmail@customer.io")
@@ -920,7 +922,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
     @Test
     fun identify_givenNewIdentifiedUserWithBlankToken_shouldLogDeletingTokenDueToNewProfileIdentification() {
-        every { globalPreferenceStore.getDeviceToken() } returns ""
+        coEvery { globalPreferenceStore.getDeviceToken() } returns ""
 
         sdkInstance.identify("someEmail@customer.io")
 

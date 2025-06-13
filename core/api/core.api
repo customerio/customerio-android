@@ -117,6 +117,7 @@ public abstract class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/
 	public abstract fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
 	public abstract fun getClient ()Lio/customer/sdk/data/store/Client;
 	public abstract fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public abstract fun getDeviceTokenManager ()Lio/customer/sdk/data/store/DeviceTokenManager;
 	public abstract fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
 }
 
@@ -128,6 +129,7 @@ public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer
 	public fun getBuildStore ()Lio/customer/sdk/data/store/BuildStore;
 	public fun getClient ()Lio/customer/sdk/data/store/Client;
 	public fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
+	public fun getDeviceTokenManager ()Lio/customer/sdk/data/store/DeviceTokenManager;
 	public fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
 	public fun reset ()V
 }

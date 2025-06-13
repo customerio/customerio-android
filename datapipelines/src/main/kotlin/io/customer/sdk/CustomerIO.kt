@@ -231,11 +231,13 @@ class CustomerIO private constructor(
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
             if (existingDeviceToken != null) {
                 dataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification()
-                deleteDeviceToken { event ->
+                val tokenToDelete = existingDeviceToken
+                trackDeviceTokenDeletion(tokenToDelete) { event ->
                     event?.apply {
                         currentlyIdentifiedProfile?.let { this.userId = it }
                     }
                 }
+                deviceTokenManager.clearDeviceToken()
             }
         }
 
@@ -295,8 +297,12 @@ class CustomerIO private constructor(
         // since the tasks are asynchronous, we need to store the userId before deleting the device token
         // otherwise, the userId could be null when the delete task is executed
         val existingUserId = userId
-        deleteDeviceToken { event ->
-            event?.apply { userId = existingUserId.toString() }
+        val tokenToDelete = deviceTokenManager.deviceToken
+        if (tokenToDelete != null) {
+            trackDeviceTokenDeletion(tokenToDelete) { event ->
+                event?.apply { userId = existingUserId.toString() }
+            }
+            deviceTokenManager.clearDeviceToken()
         }
 
         logger.debug("resetting user profile")
@@ -328,29 +334,30 @@ class CustomerIO private constructor(
 
         dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
 
-        // Get existing token before updating manager for refresh detection
-        val existingToken = deviceTokenManager.deviceToken
-
-        // Update device token via manager (handles storage automatically)
-        deviceTokenManager.setDeviceToken(deviceToken)
+        // Replace token via manager - it handles deletion of old token automatically
+        deviceTokenManager.replaceToken(deviceToken) { oldToken ->
+            dataPipelinesLogger.logPushTokenRefreshed()
+            trackDeviceTokenDeletion(oldToken) { event ->
+                event?.putInContextUnderKey("device", "token", oldToken)
+            }
+        }
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
-        trackDeviceAttributes(token = deviceToken, existingToken = existingToken)
+        trackDeviceAttributes(token = deviceToken)
     }
 
-    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap(), existingToken: String? = null) {
+    private fun trackDeviceTokenDeletion(deviceToken: String, enrichment: EnrichmentClosure?) {
+        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer()) { event ->
+            // Preserve device token in context for the delete event
+            event?.putInContextUnderKey("device", "token", deviceToken)
+            enrichment?.invoke(event)
+        }
+    }
+
+    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
         if (token.isNullOrBlank()) {
             dataPipelinesLogger.logTrackingDevicesAttributesWithoutValidToken()
             return
-        }
-
-        // Use provided existingToken if available, otherwise get from device token manager (single source of truth)
-        val existingDeviceToken = existingToken ?: deviceTokenManager.deviceToken
-        if (existingDeviceToken != null && existingDeviceToken != token) {
-            dataPipelinesLogger.logPushTokenRefreshed()
-            deleteDeviceToken { event ->
-                event?.putInContextUnderKey("device", "token", existingDeviceToken)
-            }
         }
 
         val attributes = if (moduleConfig.autoTrackDeviceAttributes) {
@@ -360,9 +367,6 @@ class CustomerIO private constructor(
             customAddedAttributes
         }
 
-        // Update plugin with updated device information
-        contextPlugin.deviceToken = token
-
         logger.info("updating device attributes: $attributes")
         track(
             name = EventNames.DEVICE_UPDATE,
@@ -370,9 +374,7 @@ class CustomerIO private constructor(
         )
     }
 
-    override fun deleteDeviceTokenImpl() = deleteDeviceToken(null)
-
-    private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
+    override fun deleteDeviceTokenImpl() {
         logger.info("deleting device token")
 
         val deviceToken = deviceTokenManager.deviceToken
@@ -381,14 +383,8 @@ class CustomerIO private constructor(
             return
         }
 
-        // Clear device token via manager (handles storage and context plugin automatically)
+        trackDeviceTokenDeletion(deviceToken, null)
         deviceTokenManager.clearDeviceToken()
-
-        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer()) { event ->
-            // Preserve device token in context for the delete event
-            event?.putInContextUnderKey("device", "token", deviceToken)
-            enrichment?.invoke(event)
-        }
     }
 
     override fun trackMetricImpl(event: TrackMetric) {

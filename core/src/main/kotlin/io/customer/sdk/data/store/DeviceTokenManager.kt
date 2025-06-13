@@ -37,6 +37,15 @@ interface DeviceTokenManager {
      * Clears the device token. Immediately clears memory and async removes from storage.
      */
     fun clearDeviceToken()
+
+    /**
+     * Replaces the current token with a new one, handling the transition properly.
+     * If there was an existing token different from the new one, calls onOldTokenDelete.
+     *
+     * @param newToken The new device token to set
+     * @param onOldTokenDelete Callback invoked with the old token if a replacement occurred
+     */
+    fun replaceToken(newToken: String?, onOldTokenDelete: (String) -> Unit)
 }
 
 internal class DeviceTokenManagerImpl(
@@ -76,5 +85,17 @@ internal class DeviceTokenManagerImpl(
 
     override fun clearDeviceToken() {
         setDeviceToken(null)
+    }
+
+    override fun replaceToken(newToken: String?, onOldTokenDelete: (String) -> Unit) {
+        val currentToken = _deviceTokenFlow.value
+
+        // If there's an existing token and it's different from the new one, notify about deletion
+        if (currentToken != null && currentToken != newToken) {
+            onOldTokenDelete(currentToken)
+        }
+
+        // Set the new token
+        setDeviceToken(newToken)
     }
 }

@@ -22,6 +22,18 @@ class DeviceTokenManagerStub : DeviceTokenManager {
         _deviceTokenFlow.value = null
     }
 
+    override fun replaceToken(newToken: String?, onOldTokenDelete: (String) -> Unit) {
+        val currentToken = _deviceTokenFlow.value
+
+        // If there's an existing token and it's different from the new one, notify about deletion
+        if (currentToken != null && currentToken != newToken) {
+            onOldTokenDelete(currentToken)
+        }
+
+        // Set the new token
+        _deviceTokenFlow.value = newToken
+    }
+
     fun reset() {
         _deviceTokenFlow.value = null
     }

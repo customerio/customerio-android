@@ -56,7 +56,6 @@ internal class DeviceTokenManagerImpl(
     private val backgroundScope: CoroutineScope = SDKComponent.scopeProvider.backgroundScope
 
     init {
-        // Load existing token from storage in background
         backgroundScope.launch {
             val existingToken = globalPreferenceStore.getDeviceToken()
             _deviceTokenFlow.value = existingToken
@@ -70,10 +69,8 @@ internal class DeviceTokenManagerImpl(
         get() = _deviceTokenFlow.asStateFlow()
 
     override fun setDeviceToken(token: String?) {
-        // Update memory immediately
         _deviceTokenFlow.value = token
 
-        // Save to storage asynchronously
         backgroundScope.launch {
             if (token != null) {
                 globalPreferenceStore.saveDeviceToken(token)
@@ -95,7 +92,6 @@ internal class DeviceTokenManagerImpl(
             onOldTokenDelete(currentToken)
         }
 
-        // Set the new token
         setDeviceToken(newToken)
     }
 }

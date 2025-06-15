@@ -97,6 +97,110 @@ class ContextPluginTest : JUnitTest() {
         result.event shouldBeEqualTo givenEventName
         result.context.deviceToken.shouldBeNull()
     }
+
+    @Test
+    fun process_givenTokenSetThroughDeviceTokenManager_expectTokenInContext() {
+        setupWithConfig()
+
+        val givenToken = String.random
+
+        deviceTokenManagerStub.setDeviceToken(givenToken)
+
+        val givenEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, givenEventName))
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.event shouldBeEqualTo givenEventName
+        result.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun process_givenTokenClearedThroughDeviceTokenManager_expectNoTokenInContext() {
+        setupWithConfig()
+
+        val initialToken = String.random
+
+        deviceTokenManagerStub.setDeviceToken(initialToken)
+        deviceTokenManagerStub.clearDeviceToken()
+
+        val givenEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, givenEventName))
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.event shouldBeEqualTo givenEventName
+        result.context.deviceToken.shouldBeNull()
+    }
+
+    @Test
+    fun process_givenRapidTokenChanges_expectLatestTokenInSubsequentEvents() {
+        setupWithConfig()
+
+        val token1 = String.random
+        val token2 = String.random
+        val token3 = String.random
+
+        deviceTokenManagerStub.setDeviceToken(token1)
+        val event1Name = String.random
+        analytics.process(TrackEvent(emptyJsonObject, event1Name))
+
+        deviceTokenManagerStub.setDeviceToken(token2)
+        val event2Name = String.random
+        analytics.process(TrackEvent(emptyJsonObject, event2Name))
+
+        deviceTokenManagerStub.setDeviceToken(token3)
+        val event3Name = String.random
+        analytics.process(TrackEvent(emptyJsonObject, event3Name))
+
+        val results = outputReaderPlugin.trackEvents
+        results.size shouldBeEqualTo 3
+
+        results[0].context.deviceToken shouldBeEqualTo token1
+        results[1].context.deviceToken shouldBeEqualTo token2
+        results[2].context.deviceToken shouldBeEqualTo token3
+    }
+
+    @Test
+    fun process_givenTokenSetToEmptyString_expectEmptyStringInContext() {
+        setupWithConfig()
+
+        val emptyToken = ""
+
+        deviceTokenManagerStub.setDeviceToken(emptyToken)
+
+        val givenEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, givenEventName))
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.event shouldBeEqualTo givenEventName
+        result.context.deviceToken shouldBeEqualTo emptyToken
+    }
+
+    @Test
+    fun process_givenTokenReplaceOperationWithCallback_expectNewTokenInContext() {
+        setupWithConfig()
+
+        val oldToken = String.random
+        val newToken = String.random
+        var callbackInvoked = false
+        var callbackToken: String? = null
+
+        deviceTokenManagerStub.setDeviceToken(oldToken)
+
+        deviceTokenManagerStub.replaceToken(newToken) { deletedToken ->
+            callbackInvoked = true
+            callbackToken = deletedToken
+        }
+
+        val givenEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, givenEventName))
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.event shouldBeEqualTo givenEventName
+        result.context.deviceToken shouldBeEqualTo newToken
+
+        callbackInvoked shouldBeEqualTo true
+        callbackToken shouldBeEqualTo oldToken
+    }
 }
 
 private class MigrationTokenPlugin : Plugin {

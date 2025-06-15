@@ -47,17 +47,13 @@ internal interface ContextPluginEventProcessor {
  */
 internal class DefaultContextPluginEventProcessor : ContextPluginEventProcessor {
     override fun execute(event: BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): BaseEvent {
-        // Set user agent in context as it is required by Customer.io Data Pipelines
         event.putInContext("userAgent", deviceStore.buildUserAgent())
-        // Remove analytics library information from context as Customer.io
-        // SDK information is being sent through user-agent
         event.removeFromContext("library")
 
         // In case of migration from older versions, the token might already be present in context
         // We need to ensure that the token is not overridden to avoid corruption of data
         // So we add current token to context only if context does not have any token already
         event.findInContextAtPath("device.token").firstOrNull()?.content ?: deviceTokenProvider()?.let { token ->
-            // Device token is expected to be attached to device in context
             event.putInContextUnderKey("device", "token", token)
         }
 

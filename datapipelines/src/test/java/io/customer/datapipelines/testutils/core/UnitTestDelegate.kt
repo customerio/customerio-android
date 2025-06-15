@@ -4,6 +4,7 @@ import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.config.configureAndroidSDKComponent
 import io.customer.commontest.util.DeviceStoreStub
+import io.customer.commontest.util.DeviceTokenManagerStub
 import io.customer.datapipelines.testutils.extensions.registerAnalyticsFactory
 import io.customer.datapipelines.testutils.stubs.TestCoroutineConfiguration
 import io.customer.datapipelines.testutils.utils.clearPersistentStorage
@@ -13,7 +14,9 @@ import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.DeviceStore
+import io.customer.sdk.data.store.DeviceTokenManager
 import io.customer.sdk.data.store.GlobalPreferenceStore
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -35,6 +38,7 @@ class UnitTestDelegate(
 
     private lateinit var testConfig: DataPipelinesTestConfig
     lateinit var sdkInstance: CustomerIO
+    lateinit var deviceTokenManagerStub: DeviceTokenManagerStub
 
     // analytics instance that can be used to spy on
     lateinit var analytics: Analytics
@@ -80,7 +84,12 @@ class UnitTestDelegate(
         val globalPreferenceStore = mockk<GlobalPreferenceStore>(relaxUnitFun = true).also { instance ->
             androidSDKComponent.overrideDependency<GlobalPreferenceStore>(instance)
         }
-        every { globalPreferenceStore.getDeviceToken() } returns null
+        // Set up default behavior for suspend functions
+        coEvery { globalPreferenceStore.getDeviceToken() } returns null
+        // Use test stub for device token manager to provide predictable behavior
+        deviceTokenManagerStub = DeviceTokenManagerStub().also { instance ->
+            androidSDKComponent.overrideDependency<DeviceTokenManager>(instance)
+        }
         // Mock device store to avoid reading/writing to device store
         // Spy on the stub to provide custom implementation for the test
         val deviceStoreStub = DeviceStoreStub().getDeviceStore(androidSDKComponent.client)
@@ -111,6 +120,9 @@ class UnitTestDelegate(
 
     fun teardownSDKComponent() {
         analytics.clearPersistentStorage()
+        if (this::deviceTokenManagerStub.isInitialized) {
+            deviceTokenManagerStub.reset()
+        }
         CustomerIO.clearInstance()
     }
 }

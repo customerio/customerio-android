@@ -15,6 +15,7 @@ import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
+import io.mockk.coEvery
 import io.mockk.every
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -74,7 +75,7 @@ class DeviceAttributesTests : IntegrationTest() {
         val givenToken = String.random
 
         sdkInstance.identify(givenIdentifier)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
@@ -100,7 +101,7 @@ class DeviceAttributesTests : IntegrationTest() {
         val givenToken = String.random
 
         sdkInstance.identify(givenIdentifier)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
@@ -147,7 +148,7 @@ class DeviceAttributesTests : IntegrationTest() {
         )
 
         sdkInstance.identify(givenIdentifier)
-        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+        coEvery { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
         sdkInstance.deviceAttributes = givenAttributes
 

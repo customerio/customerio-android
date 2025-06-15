@@ -45,14 +45,11 @@ internal class HttpClientImpl : HttpClient {
         // Launch a coroutine on our IO dispatcher
         CoroutineScope(dispatcher.background).launch {
             val result = doNetworkRequest(params)
-            // If you want to call onComplete on the same IO thread, just invoke it here.
-            // If you prefer to call it on the main thread, do:
-            // withContext(Dispatchers.Main) { onComplete(result) }
             onComplete(result)
         }
     }
 
-    private fun doNetworkRequest(params: HttpRequestParams): Result<String> {
+    private suspend fun doNetworkRequest(params: HttpRequestParams): Result<String> {
         val settings = globalPreferenceStore.getSettings() ?: return Result.failure(IllegalStateException("Setting not available"))
         val apiHost = settings.apiHost
         val writeKey = settings.writeKey

@@ -5,8 +5,7 @@ import com.segment.analytics.kotlin.core.utilities.putAll
 import io.customer.base.extenstions.getUnixTimestamp
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
-import io.customer.commontest.extensions.assertCalledNever
-import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.commontest.extensions.assertCoCalledNever
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
@@ -26,7 +25,6 @@ import io.customer.sdk.events.serializedName
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
 import io.customer.tracking.migration.request.MigrationTask
-import io.mockk.every
 import io.mockk.spyk
 import java.util.Date
 import kotlinx.coroutines.test.TestScope
@@ -131,15 +129,18 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
     }
 
     @Test
-    fun migrate_givenNoDeviceIdentified_expectDeviceUpdatedSuccessfully() {
+    fun migrate_givenNoDeviceIdentified_expectDeviceUpdatedSuccessfully() = runTest {
         setupWithMigrationProcessorSpy()
         val oldDeviceToken = String.random
-        every { globalPreferenceStore.getDeviceToken() } returns null
+        deviceTokenManagerStub.setDeviceToken(null)
 
         outputReaderPlugin.reset()
         migrationProcessorSpy.processDeviceMigration(oldDeviceToken)
 
-        assertCalledOnce { globalPreferenceStore.saveDeviceToken(oldDeviceToken) }
+        // Verify device token was registered via DeviceTokenManager (source of truth)
+        // CustomerIO.registerDeviceToken() should update DeviceTokenManager
+        deviceTokenManagerStub.deviceToken shouldBeEqualTo oldDeviceToken
+
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
@@ -147,29 +148,29 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
     }
 
     @Test
-    fun migrate_givenDeviceAlreadyIdentified_expectDeviceNotUpdated() {
+    fun migrate_givenDeviceAlreadyIdentified_expectDeviceNotUpdated() = runTest {
         setupWithMigrationProcessorSpy()
         val existingDeviceToken = String.random
-        every { globalPreferenceStore.getDeviceToken() } returns existingDeviceToken
+        deviceTokenManagerStub.setDeviceToken(existingDeviceToken)
 
         outputReaderPlugin.reset()
         migrationProcessorSpy.processDeviceMigration(existingDeviceToken)
 
-        assertCalledNever { globalPreferenceStore.saveDeviceToken(any()) }
+        assertCoCalledNever { globalPreferenceStore.saveDeviceToken(any()) }
         outputReaderPlugin.allEvents.shouldBeEmpty()
     }
 
     @Test
-    fun migrate_givenDifferentDeviceIdentified_expectOldDeviceDeleted() {
+    fun migrate_givenDifferentDeviceIdentified_expectOldDeviceDeleted() = runTest {
         setupWithMigrationProcessorSpy()
         val existingDeviceToken = String.random
         val oldDeviceToken = String.random
-        every { globalPreferenceStore.getDeviceToken() } returns existingDeviceToken
+        deviceTokenManagerStub.setDeviceToken(existingDeviceToken)
 
         outputReaderPlugin.reset()
         migrationProcessorSpy.processDeviceMigration(oldDeviceToken)
 
-        assertCalledNever { globalPreferenceStore.saveDeviceToken(any()) }
+        assertCoCalledNever { globalPreferenceStore.saveDeviceToken(any()) }
         val deviceDeleteEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo oldDeviceToken

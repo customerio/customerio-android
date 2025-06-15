@@ -10,6 +10,8 @@ import io.customer.sdk.data.store.BuildStoreImpl
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.DeviceStoreImpl
+import io.customer.sdk.data.store.DeviceTokenManager
+import io.customer.sdk.data.store.DeviceTokenManagerImpl
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.data.store.GlobalPreferenceStoreImpl
 
@@ -21,6 +23,7 @@ abstract class AndroidSDKComponent : DiGraph() {
     abstract val applicationStore: ApplicationStore
     abstract val deviceStore: DeviceStore
     abstract val globalPreferenceStore: GlobalPreferenceStore
+    abstract val deviceTokenManager: DeviceTokenManager
 }
 
 /**
@@ -57,6 +60,12 @@ class AndroidSDKComponentImpl(
         }
     override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
+    override val deviceTokenManager: DeviceTokenManager
+        get() = singleton<DeviceTokenManager> {
+            DeviceTokenManagerImpl(
+                globalPreferenceStore = globalPreferenceStore
+            )
+        }
 
     override fun reset() {
         super.reset()

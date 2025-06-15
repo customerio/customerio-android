@@ -12,7 +12,10 @@ public class SampleApplication extends Application {
     public void onCreate() {
         super.onCreate();
         // Enable StrictMode to catch accidental disk or network access on main thread
-        enableStrictMode();
+        // Only enable in debug builds to avoid performance impact in release builds
+        if (BuildConfig.DEBUG) {
+            enableStrictMode();
+        }
         // Initialize Customer.io SDK on app start
         appGraph.getCustomerIORepository().initializeSdk(SampleApplication.this);
     }

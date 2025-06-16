@@ -57,9 +57,4 @@ constructor(
     fun setActionListener(listener: InlineMessageActionListener) {
         controller.actionListener = listener
     }
-
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        controller.onDetachedFromWindow()
-    }
 }

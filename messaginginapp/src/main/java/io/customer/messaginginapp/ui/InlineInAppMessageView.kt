@@ -35,10 +35,10 @@ class InlineInAppMessageView @JvmOverloads constructor(
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
 ) : BaseInlineInAppMessageView<AndroidInAppPlatformDelegate>(
-    context,
-    attrs,
-    defStyleAttr,
-    defStyleRes
+    context = context,
+    attrs = attrs,
+    defStyleAttr = defStyleAttr,
+    defStyleRes = defStyleRes
 ),
     InlineInAppMessageViewCallback {
     override val platformDelegate = AndroidInAppPlatformDelegate(view = this)
@@ -76,6 +76,11 @@ class InlineInAppMessageView @JvmOverloads constructor(
         }
         setupProgressIndicator(progressColor)
         configureView()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        controller.onDetachedFromWindow()
     }
 
     private fun setupProgressIndicator(@ColorInt progressColor: Int) {

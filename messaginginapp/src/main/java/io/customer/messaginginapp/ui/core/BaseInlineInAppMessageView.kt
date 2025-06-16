@@ -29,23 +29,12 @@ constructor(
     @StyleRes defStyleRes: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), InlineInAppMessageViewCallback {
     protected abstract val platformDelegate: InAppPlatformDelegate
-    internal val controller: InlineInAppMessageViewController = InlineInAppMessageViewController(
-        viewDelegate = InAppHostViewDelegateImpl(view = resolveView()),
-        platformDelegate = resolvePlatformDelegate()
-    )
-
-    /**
-     * Returns `this` safely for use during controller initialization.
-     * Used to avoid leaking `this` before superclass constructor is complete.
-     */
-    private fun resolveView() = this
-
-    /**
-     * Provides safe access to the platform delegate during initialization.
-     * Avoids accessing the abstract val directly in constructor, which is not allowed
-     * because abstract properties not being final.
-     */
-    private fun resolvePlatformDelegate(): InAppPlatformDelegate = platformDelegate
+    internal val controller: InlineInAppMessageViewController by lazy {
+        InlineInAppMessageViewController(
+            viewDelegate = InAppHostViewDelegateImpl(view = this),
+            platformDelegate = platformDelegate
+        )
+    }
 
     @InternalCustomerIOApi
     protected fun configureView() {

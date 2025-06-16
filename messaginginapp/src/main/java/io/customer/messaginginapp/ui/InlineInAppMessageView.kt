@@ -80,7 +80,7 @@ class InlineInAppMessageView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        controller.onDetachedFromWindow()
+        onViewDetached()
     }
 
     private fun setupProgressIndicator(@ColorInt progressColor: Int) {

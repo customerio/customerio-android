@@ -41,6 +41,11 @@ constructor(
         controller.viewCallback = this
     }
 
+    @InternalCustomerIOApi
+    protected fun onViewDetached() {
+        controller.onDetachedFromWindow()
+    }
+
     /**
      * Element ID for targeting this view with specific inline messages.
      */

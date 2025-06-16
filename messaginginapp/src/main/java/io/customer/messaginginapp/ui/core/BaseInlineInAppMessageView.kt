@@ -19,7 +19,7 @@ import io.customer.messaginginapp.ui.controller.InlineInAppMessageViewController
  * and action listener support. Subclasses must implement [platformDelegate] to provide
  * platform-specific rendering and interaction handling.
  */
-abstract class BaseInlineInAppMessageView
+abstract class BaseInlineInAppMessageView<P : InAppPlatformDelegate>
 @InternalCustomerIOApi
 @JvmOverloads
 constructor(
@@ -28,7 +28,7 @@ constructor(
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), InlineInAppMessageViewCallback {
-    protected abstract val platformDelegate: InAppPlatformDelegate
+    protected abstract val platformDelegate: P
     internal val controller: InlineInAppMessageViewController by lazy {
         InlineInAppMessageViewController(
             viewDelegate = InAppHostViewDelegateImpl(view = this),

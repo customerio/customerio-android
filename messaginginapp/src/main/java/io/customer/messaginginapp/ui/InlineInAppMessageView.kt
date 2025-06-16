@@ -34,7 +34,12 @@ class InlineInAppMessageView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
-) : BaseInlineInAppMessageView(context, attrs, defStyleAttr, defStyleRes),
+) : BaseInlineInAppMessageView<AndroidInAppPlatformDelegate>(
+    context,
+    attrs,
+    defStyleAttr,
+    defStyleRes
+),
     InlineInAppMessageViewCallback {
     override val platformDelegate = AndroidInAppPlatformDelegate(view = this)
     private val progressIndicator: ProgressBar = ProgressBar(context)

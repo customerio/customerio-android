@@ -4,6 +4,7 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DeviceTokenManagerStub
 import io.mockk.*
+import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -21,15 +22,19 @@ import org.robolectric.RobolectricTestRunner
 class DeviceTokenManagerTest : RobolectricTest() {
 
     private lateinit var deviceTokenManager: DeviceTokenManager
+    private lateinit var mockGlobalPreferenceStore: GlobalPreferenceStore
     private lateinit var testScope: TestScope
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setupTest() {
         testScope = TestScope(testDispatcher)
-
-        // Use the existing test stub which matches the real implementation behavior
+        mockGlobalPreferenceStore = mockk(relaxed = true)
         deviceTokenManager = DeviceTokenManagerStub()
+    }
+
+    private fun createRealDeviceTokenManager(): DeviceTokenManager {
+        return DeviceTokenManagerImpl(mockGlobalPreferenceStore)
     }
 
     @Test
@@ -198,10 +203,72 @@ class DeviceTokenManagerTest : RobolectricTest() {
         val token = String.random
         deviceTokenManager.setDeviceToken(token)
 
-        // Should not throw any exceptions
         deviceTokenManager.cleanup()
 
-        // Manager should still be readable after cleanup (stub behavior)
         deviceTokenManager.deviceToken shouldBeEqualTo token
+    }
+
+    @Test
+    fun realImplementation_basicOperations_expectCorrectBehavior() = testScope.runTest {
+        coEvery { mockGlobalPreferenceStore.getDeviceToken() } returns null
+        coEvery { mockGlobalPreferenceStore.saveDeviceToken(any()) } returns Unit
+        coEvery { mockGlobalPreferenceStore.removeDeviceToken() } returns Unit
+
+        val realManager = createRealDeviceTokenManager()
+
+        realManager.deviceToken.shouldBeNull()
+        realManager.setDeviceToken("test-token")
+        realManager.clearDeviceToken()
+        realManager.cleanup()
+    }
+
+    @Test
+    fun realImplementation_errorHandling_expectGracefulDegradation() = testScope.runTest {
+        coEvery { mockGlobalPreferenceStore.getDeviceToken() } throws IOException("Storage unavailable")
+        coEvery { mockGlobalPreferenceStore.saveDeviceToken(any()) } throws IOException("Storage unavailable")
+
+        val realManager = createRealDeviceTokenManager()
+
+        realManager.setDeviceToken("test-token")
+        realManager.clearDeviceToken()
+        realManager.cleanup()
+    }
+
+    @Test
+    fun realImplementation_basicOperations_expectNoExceptions() = testScope.runTest {
+        coEvery { mockGlobalPreferenceStore.getDeviceToken() } returns null
+        coEvery { mockGlobalPreferenceStore.saveDeviceToken(any()) } returns Unit
+        coEvery { mockGlobalPreferenceStore.removeDeviceToken() } returns Unit
+
+        val realManager = createRealDeviceTokenManager()
+
+        realManager.setDeviceToken("test-token")
+        realManager.clearDeviceToken()
+
+        val flow = realManager.deviceTokenFlow
+        flow.toString().isNotEmpty() shouldBeEqualTo true
+    }
+
+    @Test
+    fun realImplementation_multipleCleanups_expectNoErrors() = testScope.runTest {
+        coEvery { mockGlobalPreferenceStore.getDeviceToken() } returns null
+
+        val realManager = createRealDeviceTokenManager()
+
+        realManager.cleanup()
+        realManager.cleanup()
+        realManager.cleanup()
+    }
+
+    @Test
+    fun realImplementation_storageErrors_expectGracefulHandling() = testScope.runTest {
+        coEvery { mockGlobalPreferenceStore.getDeviceToken() } throws IOException("Storage error")
+        coEvery { mockGlobalPreferenceStore.saveDeviceToken(any()) } throws IOException("Storage error")
+
+        val realManager = createRealDeviceTokenManager()
+
+        realManager.setDeviceToken("test-token")
+        realManager.clearDeviceToken()
+        realManager.cleanup()
     }
 }

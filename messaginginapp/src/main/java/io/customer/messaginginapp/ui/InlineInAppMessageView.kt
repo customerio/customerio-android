@@ -4,18 +4,15 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.Gravity
-import android.widget.FrameLayout
 import android.widget.ProgressBar
 import androidx.annotation.AttrRes
 import androidx.annotation.ColorInt
 import androidx.annotation.StyleRes
 import androidx.core.graphics.drawable.DrawableCompat
 import io.customer.messaginginapp.R
-import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.AndroidInAppPlatformDelegate
-import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
-import io.customer.messaginginapp.ui.controller.InlineInAppMessageViewController
+import io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView
 import io.customer.messaginginapp.ui.extensions.resolveThemeColor
 
 /**
@@ -37,28 +34,15 @@ class InlineInAppMessageView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
-) : FrameLayout(context, attrs, defStyleAttr, defStyleRes),
+) : BaseInlineInAppMessageView<AndroidInAppPlatformDelegate>(
+    context = context,
+    attrs = attrs,
+    defStyleAttr = defStyleAttr,
+    defStyleRes = defStyleRes
+),
     InlineInAppMessageViewCallback {
-    private val platformDelegate = AndroidInAppPlatformDelegate(view = this)
-    private val controller = InlineInAppMessageViewController(
-        viewDelegate = InAppHostViewDelegateImpl(view = this),
-        platformDelegate = platformDelegate
-    )
+    override val platformDelegate = AndroidInAppPlatformDelegate(view = this)
     private val progressIndicator: ProgressBar = ProgressBar(context)
-
-    var elementId: String?
-        get() = controller.elementId
-        set(value) {
-            controller.elementId = value
-        }
-
-    /**
-     * Sets a listener to receive callbacks when actions are triggered in the inline message.
-     * @param listener The listener that will handle action clicks.
-     */
-    fun setActionListener(listener: InlineMessageActionListener) {
-        controller.actionListener = listener
-    }
 
     /**
      * Sets the tint color for the progress indicator.
@@ -91,12 +75,12 @@ class InlineInAppMessageView @JvmOverloads constructor(
             typedArray.recycle()
         }
         setupProgressIndicator(progressColor)
-        controller.viewCallback = this
+        configureView()
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        controller.onDetachedFromWindow()
+        onViewDetached()
     }
 
     private fun setupProgressIndicator(@ColorInt progressColor: Int) {
@@ -123,7 +107,7 @@ class InlineInAppMessageView @JvmOverloads constructor(
         // Keep the animation duration shorter so it can be completed before we
         // start receiving size update callbacks from WebView to avoid flickering
         platformDelegate.animateViewSize(
-            heightInPx = platformDelegate.convertDpToPixels(48.0),
+            heightInDp = 48.0,
             duration = 100,
             onStart = {
                 progressIndicator.visibility = VISIBLE

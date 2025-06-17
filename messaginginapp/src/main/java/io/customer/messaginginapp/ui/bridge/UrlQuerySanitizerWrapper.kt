@@ -1,12 +1,14 @@
 package io.customer.messaginginapp.ui.bridge
 
 import android.net.UrlQuerySanitizer
+import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Abstraction for reading query parameter values from URL.
  * Allows decoupling from Android specific implementations for easier testing.
  */
-internal interface UrlQuerySanitizerWrapper {
+@InternalCustomerIOApi
+interface UrlQuerySanitizerWrapper {
     fun getValue(key: String): String
 }
 

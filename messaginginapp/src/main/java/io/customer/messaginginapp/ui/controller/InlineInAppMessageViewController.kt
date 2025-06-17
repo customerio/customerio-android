@@ -133,10 +133,7 @@ internal constructor(
         stopEngineWebViewLoading()
         viewDelegate.post {
             platformDelegate.animateViewSize(
-                widthInPx = null,
-                heightInPx = 0,
-                duration = null,
-                onStart = null,
+                heightInDp = 0.0,
                 onEnd = {
                     currentMessage = null
                     viewDelegate.isVisible = false
@@ -173,12 +170,12 @@ internal constructor(
         elapsedTimer.end()
     }
 
-    override fun onWebViewSizeUpdated(widthInPx: Int, heightInPx: Int) {
-        super.onWebViewSizeUpdated(widthInPx, heightInPx)
+    override fun onWebViewSizeUpdated(widthInDp: Double, heightInDp: Double) {
+        super.onWebViewSizeUpdated(widthInDp, heightInDp)
         viewDelegate.post {
             platformDelegate.animateViewSize(
-                widthInPx = widthInPx,
-                heightInPx = heightInPx,
+                widthInDp = widthInDp,
+                heightInDp = heightInDp,
                 duration = null,
                 onStart = {
                     engineWebViewDelegate?.let { delegate ->

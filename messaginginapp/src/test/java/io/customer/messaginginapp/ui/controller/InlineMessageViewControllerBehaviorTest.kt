@@ -94,13 +94,13 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             // Simulate posting to UI thread
             firstArg<() -> Unit>().invoke()
         }
-        every { platformDelegate.convertDpToPixels(any()) } answers {
+        every { platformDelegate.dpToPx(any()) } answers {
             (firstArg<Double>() * screenDensity).roundToInt()
         }
         every {
             platformDelegate.animateViewSize(
-                widthInPx = any(),
-                heightInPx = any(),
+                widthInDp = any(),
+                heightInDp = any(),
                 duration = any(),
                 onStart = any(),
                 onEnd = any()
@@ -483,8 +483,8 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         val expectedHeightInPx = (givenHeightInDp * screenDensity).roundToInt()
         viewCallback.onViewSizeChanged(expectedWidthInPx, expectedHeightInPx)
         platformDelegate.animateViewSize(
-            widthInPx = expectedWidthInPx,
-            heightInPx = expectedHeightInPx,
+            widthInDp = givenWidthInDp,
+            heightInDp = givenHeightInDp,
             duration = null,
             onStart = any(),
             onEnd = any()
@@ -500,8 +500,8 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     ) = verifyOrder {
         engineWebViewDelegate.stopLoading()
         platformDelegate.animateViewSize(
-            widthInPx = null,
-            heightInPx = 0,
+            widthInDp = null,
+            heightInDp = 0.0,
             duration = null,
             onStart = any(),
             onEnd = any()

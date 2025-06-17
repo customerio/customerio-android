@@ -192,4 +192,16 @@ class DeviceTokenManagerTest : RobolectricTest() {
         deviceTokenManager.replaceToken(token3, callbackMock)
         verify(exactly = 2) { callbackMock(any()) }
     }
+
+    @Test
+    fun cleanup_givenManagerInUse_expectCleanupCompletesWithoutError() {
+        val token = String.random
+        deviceTokenManager.setDeviceToken(token)
+
+        // Should not throw any exceptions
+        deviceTokenManager.cleanup()
+
+        // Manager should still be readable after cleanup (stub behavior)
+        deviceTokenManager.deviceToken shouldBeEqualTo token
+    }
 }

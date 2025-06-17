@@ -2,11 +2,16 @@ package io.customer.sdk.data.store
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.extensions.safeData
+import io.customer.sdk.core.extensions.safeGetString
 import io.customer.sdk.data.model.Settings
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -30,10 +35,18 @@ internal class GlobalPreferenceStoreImpl(
     private val context: Context
 ) : GlobalPreferenceStore {
 
+    private val logger = SDKComponent.logger
+
     private val dataStore: DataStore<Preferences> by lazy {
-        PreferenceDataStoreFactory.create {
-            context.preferencesDataStoreFile("io.customer.sdk.${context.packageName}")
-        }
+        PreferenceDataStoreFactory.create(
+            corruptionHandler = ReplaceFileCorruptionHandler(
+                produceNewData = {
+                    logger.error("DataStore corrupted, replacing with empty preferences")
+                    emptyPreferences()
+                }
+            ),
+            produceFile = { context.preferencesDataStoreFile("io.customer.sdk.${context.packageName}") }
+        )
     }
 
     override suspend fun saveDeviceToken(token: String) {
@@ -49,19 +62,21 @@ internal class GlobalPreferenceStoreImpl(
     }
 
     override suspend fun getDeviceToken(): String? {
-        return dataStore.data.map { preferences ->
-            preferences[KEY_DEVICE_TOKEN]
-        }.first()
+        return dataStore.safeGetString(KEY_DEVICE_TOKEN)
     }
 
     override suspend fun getSettings(): Settings? {
-        return dataStore.data.map { preferences ->
-            preferences[KEY_CONFIG_SETTINGS]?.let { settingsJson ->
-                runCatching {
-                    Json.decodeFromString(Settings.serializer(), settingsJson)
-                }.getOrNull()
-            }
-        }.first()
+        return dataStore.safeData()
+            .map { preferences ->
+                preferences[KEY_CONFIG_SETTINGS]?.let { settingsJson ->
+                    runCatching {
+                        Json.decodeFromString(Settings.serializer(), settingsJson)
+                    }.getOrElse { parseException ->
+                        logger.error("Error parsing settings JSON: ${parseException.message}")
+                        null
+                    }
+                }
+            }.first()
     }
 
     override suspend fun removeDeviceToken() = clear(KEY_DEVICE_TOKEN.name)

@@ -34,6 +34,10 @@ class DeviceTokenManagerStub : DeviceTokenManager {
         _deviceTokenFlow.value = newToken
     }
 
+    override fun cleanup() {
+        // No-op for stub
+    }
+
     fun reset() {
         _deviceTokenFlow.value = null
     }

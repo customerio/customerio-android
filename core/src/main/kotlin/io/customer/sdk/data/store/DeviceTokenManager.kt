@@ -58,7 +58,6 @@ interface DeviceTokenManager {
     fun cleanup()
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
 internal class DeviceTokenManagerImpl(
     private val globalPreferenceStore: GlobalPreferenceStore
 ) : DeviceTokenManager {
@@ -68,6 +67,7 @@ internal class DeviceTokenManagerImpl(
     private val logger = SDKComponent.logger
 
     // Single-threaded dispatcher for all token operations to eliminate race conditions
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val tokenOperationScope = CoroutineScope(
         backgroundScope.coroutineContext +
             Dispatchers.Default.limitedParallelism(1) +
@@ -81,7 +81,6 @@ internal class DeviceTokenManagerImpl(
                 _deviceTokenFlow.value = existingToken
             } catch (e: Exception) {
                 logger.error("Error during DeviceTokenManager initialization: ${e.message}")
-                // Continue with null token - SDK must not crash the host app
                 _deviceTokenFlow.value = null
             }
         }
@@ -95,10 +94,8 @@ internal class DeviceTokenManagerImpl(
 
     override fun setDeviceToken(token: String?) {
         tokenOperationScope.launch {
-            // Update memory state immediately
             _deviceTokenFlow.value = token
 
-            // Persist to storage asynchronously with proper error handling
             try {
                 if (token != null) {
                     globalPreferenceStore.saveDeviceToken(token)
@@ -107,7 +104,6 @@ internal class DeviceTokenManagerImpl(
                 }
             } catch (e: Exception) {
                 logger.error("Error saving device token: ${e.message}")
-                // Memory state is already updated, SDK must not crash the host app
             }
         }
     }
@@ -125,10 +121,8 @@ internal class DeviceTokenManagerImpl(
                 onOldTokenDelete(currentToken)
             }
 
-            // Update memory state immediately
             _deviceTokenFlow.value = newToken
 
-            // Persist to storage asynchronously with proper error handling
             try {
                 if (newToken != null) {
                     globalPreferenceStore.saveDeviceToken(newToken)
@@ -137,7 +131,6 @@ internal class DeviceTokenManagerImpl(
                 }
             } catch (e: Exception) {
                 logger.error("Error saving replaced device token: ${e.message}")
-                // Memory state is already updated, SDK must not crash the host app
             }
         }
     }

@@ -68,6 +68,8 @@ class AndroidSDKComponentImpl(
         }
 
     override fun reset() {
+        deviceTokenManager.cleanup()
+
         super.reset()
 
         SDKComponent.activityLifecycleCallbacks.unregister(application)

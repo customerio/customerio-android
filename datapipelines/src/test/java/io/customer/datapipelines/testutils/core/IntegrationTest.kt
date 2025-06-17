@@ -3,6 +3,7 @@ package io.customer.datapipelines.testutils.core
 import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.RobolectricTest
+import io.customer.commontest.util.DeviceTokenManagerStub
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.test.TestDispatcher
 
@@ -17,6 +18,7 @@ abstract class IntegrationTest : RobolectricTest() {
     val testDispatcher: TestDispatcher get() = delegate.testDispatcher
     val sdkInstance: CustomerIO get() = delegate.sdkInstance
     val analytics: Analytics get() = delegate.analytics
+    val deviceTokenManagerStub: DeviceTokenManagerStub get() = delegate.deviceTokenManagerStub
 
     override fun setup(testConfig: TestConfig) {
         val config = defaultTestConfiguration + testConfig

@@ -23,6 +23,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.internal.assertEquals
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
@@ -86,7 +88,7 @@ class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher(
                 return result
             }
         }
-        val contextPlugin = ContextPlugin(deviceStore, contextPluginProcessor)
+        val contextPlugin = ContextPlugin(deviceStore, deviceTokenManagerStub, contextPluginProcessor)
         analytics.add(contextPlugin)
         // Set initial value for test
         val writerLog = mutableMapOf<Long, String>() // (timestamp, read)
@@ -171,6 +173,81 @@ class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher(
                 )
             }
         )
+    }
+
+    @Test
+    fun execute_whenTokenReplacedDuringEventProcessing_thenMaintainsConsistency() = runTest {
+        val oldToken = "old-token"
+        val newToken = "new-token"
+
+        deviceTokenManagerStub.setDeviceToken(oldToken)
+
+        // Create a custom context plugin that replaces token during processing
+        val tokenReplacingProcessor = object : ContextPluginEventProcessor {
+            val defaultProcessor = DefaultContextPluginEventProcessor()
+            override fun execute(event: com.segment.analytics.kotlin.core.BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): com.segment.analytics.kotlin.core.BaseEvent {
+                val currentToken = deviceTokenProvider()
+
+                deviceTokenManagerStub.setDeviceToken(newToken)
+
+                return defaultProcessor.execute(event, deviceStore) { currentToken }
+            }
+        }
+
+        val contextPlugin = ContextPlugin(deviceStore, deviceTokenManagerStub, tokenReplacingProcessor)
+        analytics.add(contextPlugin)
+
+        // Process event - should use old token despite mid-processing replacement
+        sdkInstance.track("test-event")
+        @Suppress("OPT_IN_USAGE")
+        testScope.runCurrent()
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.context.deviceToken shouldBeEqualTo oldToken
+    }
+
+    @Test
+    fun execute_whenVeryLongTokenIsUsed_thenHandlesCorrectly() = runTest {
+        val longToken = "a".repeat(10000) // 10KB token
+
+        deviceTokenManagerStub.setDeviceToken(longToken)
+
+        sdkInstance.track("test-event")
+        @Suppress("OPT_IN_USAGE")
+        testScope.runCurrent()
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.context.deviceToken shouldBeEqualTo longToken
+    }
+
+    @Test
+    fun execute_whenDelegationPatternIsUsed_thenTokenProviderMatchesManagerDirectly() = runTest {
+        val givenToken = "test-token"
+
+        deviceTokenManagerStub.setDeviceToken(givenToken)
+
+        // Create custom processor to verify delegation pattern
+        val verificationProcessor = object : ContextPluginEventProcessor {
+            val defaultProcessor = DefaultContextPluginEventProcessor()
+            override fun execute(event: com.segment.analytics.kotlin.core.BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): com.segment.analytics.kotlin.core.BaseEvent {
+                val tokenFromProvider = deviceTokenProvider()
+                val tokenFromManager = deviceTokenManagerStub.deviceToken
+
+                assertEquals(tokenFromManager, tokenFromProvider)
+
+                return defaultProcessor.execute(event, deviceStore, deviceTokenProvider)
+            }
+        }
+
+        val contextPlugin = ContextPlugin(deviceStore, deviceTokenManagerStub, verificationProcessor)
+        analytics.add(contextPlugin)
+
+        sdkInstance.track("test-event")
+        @Suppress("OPT_IN_USAGE")
+        testScope.runCurrent()
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.context.deviceToken shouldBeEqualTo givenToken
     }
 
     private fun waitUntil(timeMs: Long) {

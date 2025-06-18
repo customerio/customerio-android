@@ -177,8 +177,10 @@ class SanitizeForJsonTest : JUnitTest() {
         input.sanitizeForJson(mockLogger)
 
         // Verify that debug was called 3 times (once for each invalid value)
-        verify(exactly = 3) {
-            mockLogger.error("Removed invalid JSON numeric value (NaN or infinity)")
+        verify {
+            mockLogger.error("Removed invalid JSON numeric value (NaN or infinity) for key: nan")
+            mockLogger.error("Removed invalid JSON numeric value (NaN or infinity) for key: posInf")
+            mockLogger.error("Removed invalid JSON numeric value (NaN or infinity) for key: negInf")
         }
     }
 }

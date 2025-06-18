@@ -62,7 +62,7 @@ internal fun Map<String, Any?>.sanitizeForJson(logger: Logger = SDKComponent.log
         if (sanitizedValue != null) {
             resultMap[entry.key] = sanitizedValue
         } else {
-            logger.error("Removed invalid JSON numeric value (NaN or infinity)")
+            logger.error("Removed invalid JSON numeric value (NaN or infinity) for key: ${entry.key}")
         }
     }
 
@@ -83,7 +83,6 @@ private fun List<*>.sanitizeList(logger: Logger): List<*> {
         val sanitizedValue = it.sanitizeValue(logger)
         if (sanitizedValue == null) {
             logger.error("Removed invalid JSON numeric value (NaN or infinity)")
-
         }
         sanitizedValue
     }

@@ -416,6 +416,21 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/cus
 	public final fun setProgressTint (I)V
 }
 
+public abstract class io/customer/messaginginapp/ui/bridge/WrapperPlatformDelegate : io/customer/messaginginapp/ui/bridge/AndroidInAppPlatformDelegate {
+	public fun <init> (Landroid/view/View;)V
+	public fun animateViewSize (Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/Long;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)V
+	protected abstract fun dispatchEvent (Ljava/lang/String;Ljava/util/Map;)V
+	public final fun sendLoadingStateEvent (Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;)V
+}
+
+public final class io/customer/messaginginapp/ui/bridge/WrapperStateEvent : java/lang/Enum {
+	public static final field LoadingFinished Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
+	public static final field LoadingStarted Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
+	public static final field NoMessageToDisplay Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
+	public static fun values ()[Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
+}
+
 public abstract interface annotation class io/customer/messaginginapp/ui/controller/ThreadSafeProperty : java/lang/annotation/Annotation {
 	public abstract fun reason ()Ljava/lang/String;
 }
@@ -426,5 +441,18 @@ public abstract class io/customer/messaginginapp/ui/core/BaseInlineInAppMessageV
 	public fun onViewSizeChanged (II)V
 	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 	public final fun setElementId (Ljava/lang/String;)V
+}
+
+public abstract class io/customer/messaginginapp/ui/core/WrapperInlineView : io/customer/messaginginapp/ui/core/BaseInlineInAppMessageView {
+	public fun <init> (Landroid/content/Context;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
+	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
+	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	protected final fun initializeView ()V
+	protected fun onDetachedFromWindow ()V
+	public fun onLoadingFinished ()V
+	public fun onLoadingStarted ()V
+	public fun onNoMessageToDisplay ()V
 }
 

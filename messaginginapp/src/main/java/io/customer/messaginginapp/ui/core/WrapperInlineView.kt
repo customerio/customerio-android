@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.ui.bridge.WrapperPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.WrapperStateEvent
 
@@ -18,6 +19,7 @@ import io.customer.messaginginapp.ui.bridge.WrapperStateEvent
  *
  * @param T The type of WrapperPlatformDelegate that this view will use
  */
+@InternalCustomerIOApi
 abstract class WrapperInlineView<T : WrapperPlatformDelegate> @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,

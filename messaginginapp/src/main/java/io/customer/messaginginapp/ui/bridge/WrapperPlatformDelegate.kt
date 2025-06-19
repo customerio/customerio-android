@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.ui.bridge
 
 import android.view.View
+import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Platform delegate that eliminates duplication between Flutter and React Native.
@@ -11,6 +12,7 @@ import android.view.View
  * Each platform (Flutter/React Native) needs to implement the dispatchEvent method
  * to route events to their respective bridge systems.
  */
+@InternalCustomerIOApi
 abstract class WrapperPlatformDelegate(view: View) : AndroidInAppPlatformDelegate(view) {
 
     /**

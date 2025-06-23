@@ -87,30 +87,34 @@ fun BaselineProfileRule.exploreJavaLayoutApp() {
     device.wait(Until.hasObject(By.res("login_button")), TIMEOUT)
     device.waitForIdle()
 
-    // Use the random login button to quickly authenticate
-    // (simulates typical user flow without manual input)
+    // CRITICAL: Random login triggers Customer.io identify() call
+    // This exercises SDK initialization and user identification code paths
     waitAndFindObject(By.res("random_login_button"), TIMEOUT).click()
     device.waitForIdle()
 
-    // Wait for dashboard to load after login
+    // Wait for dashboard to load after login (SDK should be initialized)
     device.wait(Until.hasObject(By.res("send_random_event_button")), TIMEOUT)
     device.waitForIdle()
 
-    // Interact with Customer.io SDK features (main user journeys)
+    // CRITICAL: Exercise Customer.io tracking code paths
+    // This pre-compiles event tracking, validation, and queuing logic
     waitAndFindObject(By.res("send_random_event_button"), TIMEOUT).click()
     device.waitForIdle()
 
     waitAndFindObject(By.res("send_custom_event_button"), TIMEOUT).click()
     device.waitForIdle()
 
+    // CRITICAL: Exercise Customer.io attribute handling
+    // This pre-compiles user/device attribute processing code
     waitAndFindObject(By.res("set_device_attributes_button"), TIMEOUT).click()
     device.waitForIdle()
 
-    // Navigate to settings (tests navigation flows)
-    waitAndFindObject(By.res("settings_button"), TIMEOUT).click()
+    waitAndFindObject(By.res("set_profile_attributes_button"), TIMEOUT).click()
     device.waitForIdle()
 
-    // Go back to dashboard
-    device.pressBack()
-    device.waitForIdle()
+    // These interactions ensure Customer.io SDK's core functionality is pre-compiled:
+    // - User identification and authentication
+    // - Event tracking and queuing
+    // - Attribute processing and storage
+    // Result: Faster SDK startup and better runtime performance
 }

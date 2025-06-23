@@ -39,7 +39,13 @@ android {
             )
         }
     }
-    // buildFeatures and composeOptions are configured in sample-app.gradle
+    buildFeatures {
+        compose = true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.4.7"
+    }
 
     packaging {
         resources {
@@ -58,7 +64,24 @@ val coroutinesVersion = "1.5.2"
 val roomVersion = "2.4.2"
 
 dependencies {
-    // Compose dependencies are included from sample-app.gradle
+    // Kotlin BOM for consistent Kotlin dependencies
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.20"))
+
+    // Compose BOM for consistent Compose dependencies
+    implementation(platform("androidx.compose:compose-bom:2023.10.01"))
+
+    // Required Compose dependencies
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material:material")
+    
+    // Core KTX needed for Compose
+    implementation("androidx.core:core-ktx:1.10.1")
+    
+    // Debug tooling
+    debugImplementation("androidx.compose.ui:ui-tooling:1.4.1")
+    
     implementation("androidx.activity:activity-compose:1.7.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.compose.material3:material3")

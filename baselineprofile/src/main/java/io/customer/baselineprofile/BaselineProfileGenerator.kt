@@ -1,5 +1,6 @@
 package io.customer.baselineprofile
 
+import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -82,34 +83,28 @@ internal fun UiDevice.waitAndFindObject(selector: BySelector, timeout: Long = TI
     return findObject(selector)
 }
 
-fun BaselineProfileRule.exploreJavaLayoutApp() {
+fun MacrobenchmarkScope.exploreJavaLayoutApp() {
     // Wait for login screen to load
     device.wait(Until.hasObject(By.res("login_button")), TIMEOUT)
     device.waitForIdle()
 
     // CRITICAL: Random login triggers Customer.io identify() call
     // This exercises SDK initialization and user identification code paths
-    waitAndFindObject(By.res("random_login_button"), TIMEOUT).click()
-    device.waitForIdle()
-
-    // Wait for dashboard to load after login (SDK should be initialized)
-    device.wait(Until.hasObject(By.res("send_random_event_button")), TIMEOUT)
+    device.waitAndFindObject(By.res("random_login_button"), TIMEOUT).click()
     device.waitForIdle()
 
     // CRITICAL: Exercise Customer.io tracking code paths
     // This pre-compiles event tracking, validation, and queuing logic
-    waitAndFindObject(By.res("send_random_event_button"), TIMEOUT).click()
-    device.waitForIdle()
-
-    waitAndFindObject(By.res("send_custom_event_button"), TIMEOUT).click()
+    // waitAndFindObject will wait for dashboard to load and SDK initialization
+    device.waitAndFindObject(By.res("send_random_event_button"), TIMEOUT).click()
     device.waitForIdle()
 
     // CRITICAL: Exercise Customer.io attribute handling
     // This pre-compiles user/device attribute processing code
-    waitAndFindObject(By.res("set_device_attributes_button"), TIMEOUT).click()
+    device.waitAndFindObject(By.res("set_device_attributes_button"), TIMEOUT).click()
     device.waitForIdle()
 
-    waitAndFindObject(By.res("set_profile_attributes_button"), TIMEOUT).click()
+    device.waitAndFindObject(By.res("set_profile_attributes_button"), TIMEOUT).click()
     device.waitForIdle()
 
     // These interactions ensure Customer.io SDK's core functionality is pre-compiled:

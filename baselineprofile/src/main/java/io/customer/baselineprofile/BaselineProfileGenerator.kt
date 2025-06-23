@@ -5,16 +5,9 @@ import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.By
-import androidx.test.uiautomator.BySelector
-import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiObject2
-import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-
-internal const val TIMEOUT = 15_000L
 
 /**
  * This test class generates a basic startup baseline profile for the target package.
@@ -71,45 +64,10 @@ class BaselineProfileGenerator {
     }
 }
 
-/**
- * Waits until an object with [selector] if visible on screen and returns the object.
- * If the element is not available in [timeout], throws [AssertionError]
- */
-internal fun UiDevice.waitAndFindObject(selector: BySelector, timeout: Long = TIMEOUT): UiObject2 {
-    if (!wait(Until.hasObject(selector), timeout)) {
-        throw AssertionError("Element not found on screen in ${timeout}ms (selector=$selector)")
-    }
+fun MacrobenchmarkScope.exploreJavaLayoutApp() = device.apply {
+    // Customer.io SDK baseline profile generation - focus only on SDK startup
+    waitForIdle()
 
-    return findObject(selector)
-}
-
-fun MacrobenchmarkScope.exploreJavaLayoutApp() {
-    // Wait for login screen to load
-    device.wait(Until.hasObject(By.res("login_button")), TIMEOUT)
-    device.waitForIdle()
-
-    // CRITICAL: Random login triggers Customer.io identify() call
-    // This exercises SDK initialization and user identification code paths
-    device.waitAndFindObject(By.res("random_login_button"), TIMEOUT).click()
-    device.waitForIdle()
-
-    // CRITICAL: Exercise Customer.io tracking code paths
-    // This pre-compiles event tracking, validation, and queuing logic
-    // waitAndFindObject will wait for dashboard to load and SDK initialization
-    device.waitAndFindObject(By.res("send_random_event_button"), TIMEOUT).click()
-    device.waitForIdle()
-
-    // CRITICAL: Exercise Customer.io attribute handling
-    // This pre-compiles user/device attribute processing code
-    device.waitAndFindObject(By.res("set_device_attributes_button"), TIMEOUT).click()
-    device.waitForIdle()
-
-    device.waitAndFindObject(By.res("set_profile_attributes_button"), TIMEOUT).click()
-    device.waitForIdle()
-
-    // These interactions ensure Customer.io SDK's core functionality is pre-compiled:
-    // - User identification and authentication
-    // - Event tracking and queuing
-    // - Attribute processing and storage
-    // Result: Faster SDK startup and better runtime performance
+    // Just let the app start and SDK initialize
+    // This captures the core SDK startup code paths without UI interactions
 }

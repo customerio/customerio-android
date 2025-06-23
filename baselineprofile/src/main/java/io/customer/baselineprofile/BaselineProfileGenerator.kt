@@ -4,9 +4,16 @@ import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObject2
+import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+
+internal const val TIMEOUT = 15_000L
 
 /**
  * This test class generates a basic startup baseline profile for the target package.
@@ -18,7 +25,7 @@ import org.junit.runner.RunWith
  * You can run the generator with the "Generate Baseline Profile" run configuration in Android Studio or
  * the equivalent `generateBaselineProfile` gradle task:
  * ```
- * ./gradlew :samples.kotlin_compose:generateReleaseBaselineProfile
+ * ./gradlew :samples:java_layout:generateReleaseBaselineProfile
  * ```
  * The run configuration runs the Gradle task and applies filtering to run only the generators.
  *
@@ -36,65 +43,74 @@ import org.junit.runner.RunWith
 class BaselineProfileGenerator {
 
     @get:Rule
-    val rule = BaselineProfileRule()
+    val baselineProfileRule = BaselineProfileRule()
 
     @Test
     fun generate() {
-        rule.collect(
+        baselineProfileRule.collect(
             packageName = getTargetPackage(),
+            stableIterations = 2,
+            maxIterations = 8,
             includeInStartupProfile = true
         ) {
+            // Start default activity for your app
             pressHome()
             startActivityAndWait()
-
-            device.waitForIdle(2000)
-
-            // Wait for app to fully load
             device.waitForIdle()
-        }
-    }
 
-    @Test
-    fun generateStartupProfile() {
-        rule.collect(
-            packageName = getTargetPackage(),
-            includeInStartupProfile = true
-        ) {
-            pressHome()
-            startActivityAndWait()
-            device.waitForIdle(3000)
-        }
-    }
-
-    @Test
-    fun generateUserJourneyProfile() {
-        rule.collect(
-            packageName = getTargetPackage(),
-            includeInStartupProfile = false
-        ) {
-            pressHome()
-            startActivityAndWait()
-
-            // Wait for initial load
-            device.waitForIdle(2000)
-
-            // Simulate user interactions that are common in your app
-            // This helps optimize the most frequently used code paths
-            repeat(3) {
-                device.swipe(
-                    device.displayWidth / 2,
-                    device.displayHeight / 2,
-                    device.displayWidth / 2,
-                    device.displayHeight / 4,
-                    50
-                )
-                device.waitForIdle(1000)
-            }
+            // This block defines the app's critical user journey. Here we are interested in
+            // optimizing for app startup. But you can also navigate and scroll through your most important UI.
+            exploreJavaLayoutApp()
         }
     }
 
     private fun getTargetPackage(): String {
         return InstrumentationRegistry.getArguments().getString("targetAppId")
-            ?: throw Exception("targetAppId not passed as instrumentation runner arg")
+            ?: throw IllegalArgumentException("targetAppId not passed as instrumentation runner arg")
     }
+}
+
+/**
+ * Waits until an object with [selector] if visible on screen and returns the object.
+ * If the element is not available in [timeout], throws [AssertionError]
+ */
+internal fun UiDevice.waitAndFindObject(selector: BySelector, timeout: Long = TIMEOUT): UiObject2 {
+    if (!wait(Until.hasObject(selector), timeout)) {
+        throw AssertionError("Element not found on screen in ${timeout}ms (selector=$selector)")
+    }
+
+    return findObject(selector)
+}
+
+fun BaselineProfileRule.exploreJavaLayoutApp() {
+    // Wait for login screen to load
+    device.wait(Until.hasObject(By.res("login_button")), TIMEOUT)
+    device.waitForIdle()
+
+    // Use the random login button to quickly authenticate
+    // (simulates typical user flow without manual input)
+    waitAndFindObject(By.res("random_login_button"), TIMEOUT).click()
+    device.waitForIdle()
+
+    // Wait for dashboard to load after login
+    device.wait(Until.hasObject(By.res("send_random_event_button")), TIMEOUT)
+    device.waitForIdle()
+
+    // Interact with Customer.io SDK features (main user journeys)
+    waitAndFindObject(By.res("send_random_event_button"), TIMEOUT).click()
+    device.waitForIdle()
+
+    waitAndFindObject(By.res("send_custom_event_button"), TIMEOUT).click()
+    device.waitForIdle()
+
+    waitAndFindObject(By.res("set_device_attributes_button"), TIMEOUT).click()
+    device.waitForIdle()
+
+    // Navigate to settings (tests navigation flows)
+    waitAndFindObject(By.res("settings_button"), TIMEOUT).click()
+    device.waitForIdle()
+
+    // Go back to dashboard
+    device.pressBack()
+    device.waitForIdle()
 }

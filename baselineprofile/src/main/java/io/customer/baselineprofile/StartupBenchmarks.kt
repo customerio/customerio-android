@@ -2,7 +2,6 @@ package io.customer.baselineprofile
 
 import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
-import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
@@ -29,10 +28,7 @@ import org.junit.runner.RunWith
  *
  * You should run the benchmarks on a physical device, not an Android emulator, because the
  * emulator doesn't represent real world performance and shares system resources with its host.
- *
- * For more information, see the [Macrobenchmark documentation](https://d.android.com/macrobenchmark#create-macrobenchmark)
- * and the [instrumentation arguments documentation](https://d.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation-args).
- **/
+ */
 @RunWith(AndroidJUnit4::class)
 @LargeTest
 class StartupBenchmarks {
@@ -41,87 +37,22 @@ class StartupBenchmarks {
     val rule = MacrobenchmarkRule()
 
     @Test
-    fun startupCompilationNone() =
-        benchmark(CompilationMode.None())
+    fun startupCompilationNone() = benchmark(CompilationMode.None())
 
     @Test
-    fun startupCompilationPartial() =
-        benchmark(CompilationMode.Partial(BaselineProfileMode.Require))
-
-    @Test
-    fun startupCompilationFull() =
-        benchmark(CompilationMode.Full())
-
-    @Test
-    fun startupColdCompilationNone() =
-        benchmarkColdStartup(CompilationMode.None())
-
-    @Test
-    fun startupColdCompilationPartial() =
-        benchmarkColdStartup(CompilationMode.Partial(BaselineProfileMode.Require))
-
-    @Test
-    fun startupWarmCompilationNone() =
-        benchmarkWarmStartup(CompilationMode.None())
-
-    @Test
-    fun startupWarmCompilationPartial() =
-        benchmarkWarmStartup(CompilationMode.Partial(BaselineProfileMode.Require))
+    fun startupCompilationBaselineProfiles() = benchmark(CompilationMode.Partial(BaselineProfileMode.Require))
 
     private fun benchmark(compilationMode: CompilationMode) {
+        // The application id for the running build variant is read from the instrumentation arguments.
         rule.measureRepeated(
-            packageName = getTargetPackage(),
+            packageName = InstrumentationRegistry.getArguments().getString("targetAppId")
+                ?: throw IllegalArgumentException("targetAppId not passed as instrumentation runner arg"),
             metrics = listOf(StartupTimingMetric()),
             compilationMode = compilationMode,
             startupMode = StartupMode.COLD,
             iterations = 10,
-            setupBlock = {
-                pressHome()
-            },
-            measureBlock = {
-                startActivityAndWait()
-                device.waitForIdle()
-            }
+            setupBlock = { pressHome() },
+            measureBlock = { startActivityAndWait() }
         )
-    }
-
-    private fun benchmarkColdStartup(compilationMode: CompilationMode) {
-        rule.measureRepeated(
-            packageName = getTargetPackage(),
-            metrics = listOf(StartupTimingMetric(), FrameTimingMetric()),
-            compilationMode = compilationMode,
-            startupMode = StartupMode.COLD,
-            iterations = 5,
-            setupBlock = {
-                pressHome()
-                killProcess()
-            },
-            measureBlock = {
-                startActivityAndWait()
-                device.waitForIdle(2000)
-            }
-        )
-    }
-
-    private fun benchmarkWarmStartup(compilationMode: CompilationMode) {
-        rule.measureRepeated(
-            packageName = getTargetPackage(),
-            metrics = listOf(StartupTimingMetric()),
-            compilationMode = compilationMode,
-            startupMode = StartupMode.WARM,
-            iterations = 10,
-            setupBlock = {
-                startActivityAndWait()
-                pressHome()
-            },
-            measureBlock = {
-                startActivityAndWait()
-            }
-        )
-    }
-
-    private fun getTargetPackage(): String {
-        return InstrumentationRegistry.getArguments().getString("targetAppId")
-            ?: throw Exception("targetAppId not passed as instrumentation runner arg")
     }
 }

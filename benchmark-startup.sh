@@ -42,7 +42,7 @@ if command -v jq >/dev/null 2>&1; then
     echo "📊 Startup Performance Metrics:"
     echo ""
     
-    # Parse with jq
+    # Parse startup timing with jq
     jq -r '
         .benchmarks[] | 
         "🔸 " + .name + ":" +
@@ -53,7 +53,7 @@ if command -v jq >/dev/null 2>&1; then
         "\n"
     ' "$RESULT_FILE"
     
-    # Calculate improvement if both tests exist
+    # Calculate startup improvement if both tests exist
     NONE_MEDIAN=$(jq -r '.benchmarks[] | select(.name == "startupCompilationNone") | .metrics.timeToInitialDisplayMs.median' "$RESULT_FILE")
     BASELINE_MEDIAN=$(jq -r '.benchmarks[] | select(.name == "startupCompilationBaselineProfiles") | .metrics.timeToInitialDisplayMs.median' "$RESULT_FILE")
     
@@ -65,6 +65,65 @@ if command -v jq >/dev/null 2>&1; then
             REGRESSION=$(echo "scale=2; (($BASELINE_MEDIAN - $NONE_MEDIAN) / $NONE_MEDIAN) * 100" | bc -l)
             echo "⚠️  Baseline Profile Impact: ${REGRESSION}% slower"
         fi
+        echo ""
+    fi
+    
+    # Parse frame timing metrics for ANR analysis if available
+    FRAME_DATA_BASELINE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationBaselineProfiles") | .sampledMetrics.frameOverrunMs.P99' "$RESULT_FILE" 2>/dev/null)
+    FRAME_DATA_NONE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationNone") | .sampledMetrics.frameOverrunMs.P99' "$RESULT_FILE" 2>/dev/null)
+    
+    if [ "$FRAME_DATA_BASELINE" != "null" ] && [ "$FRAME_DATA_NONE" != "null" ] && [ -n "$FRAME_DATA_BASELINE" ] && [ -n "$FRAME_DATA_NONE" ]; then
+        echo "🖼️  Frame Timing ANR Analysis:"
+        echo ""
+        
+        # Parse frame timing data
+        jq -r '
+            .benchmarks[] | 
+            "🔸 " + .name + " Frame Performance:" +
+            "\n   Frame Overrun P99: " + (.sampledMetrics.frameOverrunMs.P99 | tostring) + "ms" +
+            "\n   Frame Duration P99: " + (.sampledMetrics.frameDurationCpuMs.P99 | tostring) + "ms" +
+            "\n   Frame Count Median: " + (.metrics.frameCount.median | tostring) +
+            "\n"
+        ' "$RESULT_FILE"
+        
+        # Calculate frame timing impact
+        FRAME_IMPACT=$(echo "scale=2; (($FRAME_DATA_BASELINE - $FRAME_DATA_NONE) / $FRAME_DATA_NONE) * 100" | bc -l 2>/dev/null || echo "0")
+        
+        # ANR risk assessment
+        echo "🚨 ANR Risk Assessment:"
+        
+        # Assess baseline profiles
+        if (( $(echo "$FRAME_DATA_BASELINE > 200" | bc -l) )); then
+            echo "   With Baseline Profiles: 🔴 HIGH ANR RISK (${FRAME_DATA_BASELINE}ms P99)"
+        elif (( $(echo "$FRAME_DATA_BASELINE > 100" | bc -l) )); then
+            echo "   With Baseline Profiles: 🟡 MODERATE ANR RISK (${FRAME_DATA_BASELINE}ms P99)"
+        else
+            echo "   With Baseline Profiles: 🟢 LOW ANR RISK (${FRAME_DATA_BASELINE}ms P99)"
+        fi
+        
+        # Assess without baseline profiles
+        if (( $(echo "$FRAME_DATA_NONE > 200" | bc -l) )); then
+            echo "   Without Baseline Profiles: 🔴 HIGH ANR RISK (${FRAME_DATA_NONE}ms P99)"
+        elif (( $(echo "$FRAME_DATA_NONE > 100" | bc -l) )); then
+            echo "   Without Baseline Profiles: 🟡 MODERATE ANR RISK (${FRAME_DATA_NONE}ms P99)"
+        else
+            echo "   Without Baseline Profiles: 🟢 LOW ANR RISK (${FRAME_DATA_NONE}ms P99)"
+        fi
+        
+        # Frame timing impact
+        if (( $(echo "$FRAME_IMPACT > 0" | bc -l) )); then
+            echo "   Frame Timing Impact: ⚠️  ${FRAME_IMPACT}% worse with baseline profiles"
+        else
+            FRAME_IMPROVEMENT=$(echo "scale=2; -1 * $FRAME_IMPACT" | bc -l)
+            echo "   Frame Timing Impact: ✅ ${FRAME_IMPROVEMENT}% better with baseline profiles"
+        fi
+        
+        echo ""
+        echo "📋 ANR Analysis Notes:"
+        echo "   • Frames >16.67ms cause UI jank"
+        echo "   • Frames >100ms indicate main thread blocking"
+        echo "   • Frames >200ms are high ANR risk"
+        echo "   • Android ANRs trigger after ~5 seconds of main thread blocking"
         echo ""
     fi
 else

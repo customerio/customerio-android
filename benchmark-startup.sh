@@ -68,62 +68,43 @@ if command -v jq >/dev/null 2>&1; then
         echo ""
     fi
     
-    # Parse frame timing metrics for ANR analysis if available
-    FRAME_DATA_BASELINE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationBaselineProfiles") | .sampledMetrics.frameOverrunMs.P99' "$RESULT_FILE" 2>/dev/null)
-    FRAME_DATA_NONE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationNone") | .sampledMetrics.frameOverrunMs.P99' "$RESULT_FILE" 2>/dev/null)
+    # Parse SDK startup trace metrics if available
+    SDK_TIME_BASELINE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationBaselineProfiles") | .metrics.cio_sdk_startupSumMs.median' "$RESULT_FILE" 2>/dev/null)
+    SDK_TIME_NONE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationNone") | .metrics.cio_sdk_startupSumMs.median' "$RESULT_FILE" 2>/dev/null)
     
-    if [ "$FRAME_DATA_BASELINE" != "null" ] && [ "$FRAME_DATA_NONE" != "null" ] && [ -n "$FRAME_DATA_BASELINE" ] && [ -n "$FRAME_DATA_NONE" ]; then
-        echo "🖼️  Frame Timing ANR Analysis:"
+    if [ "$SDK_TIME_BASELINE" != "null" ] && [ "$SDK_TIME_NONE" != "null" ] && [ -n "$SDK_TIME_BASELINE" ] && [ -n "$SDK_TIME_NONE" ]; then
+        echo "🔧 SDK Main Thread Analysis:"
         echo ""
         
-        # Parse frame timing data
-        jq -r '
-            .benchmarks[] | 
-            "🔸 " + .name + " Frame Performance:" +
-            "\n   Frame Overrun P99: " + (.sampledMetrics.frameOverrunMs.P99 | tostring) + "ms" +
-            "\n   Frame Duration P99: " + (.sampledMetrics.frameDurationCpuMs.P99 | tostring) + "ms" +
-            "\n   Frame Count Median: " + (.metrics.frameCount.median | tostring) +
-            "\n"
-        ' "$RESULT_FILE"
+        # Calculate SDK performance metrics
+        SDK_IMPROVEMENT=$(echo "scale=2; (($SDK_TIME_NONE - $SDK_TIME_BASELINE) / $SDK_TIME_NONE) * 100" | bc -l 2>/dev/null || echo "0")
         
-        # Calculate frame timing impact
-        FRAME_IMPACT=$(echo "scale=2; (($FRAME_DATA_BASELINE - $FRAME_DATA_NONE) / $FRAME_DATA_NONE) * 100" | bc -l 2>/dev/null || echo "0")
+        # Get SDK execution counts
+        SDK_COUNT_BASELINE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationBaselineProfiles") | .metrics.cio_sdk_startupCount.median' "$RESULT_FILE")
+        SDK_COUNT_NONE=$(jq -r '.benchmarks[] | select(.name == "startupCompilationNone") | .metrics.cio_sdk_startupCount.median' "$RESULT_FILE")
+        
+        # Display core metrics
+        echo "🔸 SDK Main Thread Time:"
+        echo "   With Baseline Profiles: ${SDK_TIME_BASELINE}ms (${SDK_COUNT_BASELINE} execution)"
+        echo "   Without Baseline Profiles: ${SDK_TIME_NONE}ms (${SDK_COUNT_NONE} execution)"
+        echo ""
+        
+        # Performance assessment
+        if (( $(echo "$SDK_IMPROVEMENT > 0" | bc -l) )); then
+            echo "📊 SDK Performance: ✅ ${SDK_IMPROVEMENT}% faster with baseline profiles"
+        else
+            SDK_REGRESSION=$(echo "scale=2; -1 * $SDK_IMPROVEMENT" | bc -l)
+            echo "📊 SDK Performance: ⚠️  ${SDK_REGRESSION}% slower with baseline profiles"
+        fi
         
         # ANR risk assessment
-        echo "🚨 ANR Risk Assessment:"
-        
-        # Assess baseline profiles
-        if (( $(echo "$FRAME_DATA_BASELINE > 200" | bc -l) )); then
-            echo "   With Baseline Profiles: 🔴 HIGH ANR RISK (${FRAME_DATA_BASELINE}ms P99)"
-        elif (( $(echo "$FRAME_DATA_BASELINE > 100" | bc -l) )); then
-            echo "   With Baseline Profiles: 🟡 MODERATE ANR RISK (${FRAME_DATA_BASELINE}ms P99)"
+        if (( $(echo "$SDK_TIME_BASELINE > 100" | bc -l) )) || (( $(echo "$SDK_TIME_NONE > 100" | bc -l) )); then
+            echo "🚨 SDK ANR Risk: 🔴 HIGH - SDK blocking main thread >100ms"
+        elif (( $(echo "$SDK_TIME_BASELINE > 50" | bc -l) )) || (( $(echo "$SDK_TIME_NONE > 50" | bc -l) )); then
+            echo "🚨 SDK ANR Risk: 🟡 MODERATE - SDK blocking main thread 50-100ms"  
         else
-            echo "   With Baseline Profiles: 🟢 LOW ANR RISK (${FRAME_DATA_BASELINE}ms P99)"
+            echo "🚨 SDK ANR Risk: 🟢 LOW - SDK main thread time <50ms"
         fi
-        
-        # Assess without baseline profiles
-        if (( $(echo "$FRAME_DATA_NONE > 200" | bc -l) )); then
-            echo "   Without Baseline Profiles: 🔴 HIGH ANR RISK (${FRAME_DATA_NONE}ms P99)"
-        elif (( $(echo "$FRAME_DATA_NONE > 100" | bc -l) )); then
-            echo "   Without Baseline Profiles: 🟡 MODERATE ANR RISK (${FRAME_DATA_NONE}ms P99)"
-        else
-            echo "   Without Baseline Profiles: 🟢 LOW ANR RISK (${FRAME_DATA_NONE}ms P99)"
-        fi
-        
-        # Frame timing impact
-        if (( $(echo "$FRAME_IMPACT > 0" | bc -l) )); then
-            echo "   Frame Timing Impact: ⚠️  ${FRAME_IMPACT}% worse with baseline profiles"
-        else
-            FRAME_IMPROVEMENT=$(echo "scale=2; -1 * $FRAME_IMPACT" | bc -l)
-            echo "   Frame Timing Impact: ✅ ${FRAME_IMPROVEMENT}% better with baseline profiles"
-        fi
-        
-        echo ""
-        echo "📋 ANR Analysis Notes:"
-        echo "   • Frames >16.67ms cause UI jank"
-        echo "   • Frames >100ms indicate main thread blocking"
-        echo "   • Frames >200ms are high ANR risk"
-        echo "   • Android ANRs trigger after ~5 seconds of main thread blocking"
         echo ""
     fi
 else

@@ -1,5 +1,6 @@
 package io.customer.android.sample.java_layout.sdk;
 
+import android.os.Trace;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
@@ -22,32 +23,37 @@ import io.customer.sdk.CustomerIOBuilder;
  */
 public class CustomerIORepository {
     public void initializeSdk(SampleApplication application) {
-        ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
+        ApplicationGraph appGraph = application.getApplicationGraph();
+
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
 
         // Initialize Customer.io SDK builder
         CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+        Trace.beginSection("cio_sdk_startup");
+        try {
+            // Modify SDK settings for testing purposes only.
+            // If you don't need to override any of these settings, you can skip this line.
+            configureSdk(builder, sdkConfig);
 
-        // Modify SDK settings for testing purposes only.
-        // If you don't need to override any of these settings, you can skip this line.
-        configureSdk(builder, sdkConfig);
+            // Enable optional features of the SDK by adding desired modules.
+            // Enables push notification
+            builder.addCustomerIOModule(new ModuleMessagingPushFCM());
 
-        // Enable optional features of the SDK by adding desired modules.
-        // Enables push notification
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+            // Enables in-app messages
+            if (sdkConfig.isInAppMessagingEnabled()) {
+                builder.addCustomerIOModule(new ModuleMessagingInApp(
+                        new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
+                                .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                                .build()
+                ));
+            }
 
-        // Enables in-app messages
-        if (sdkConfig.isInAppMessagingEnabled()) {
-            builder.addCustomerIOModule(new ModuleMessagingInApp(
-                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
-                            .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
-                            .build()
-            ));
+            // Finally, build to finish initializing the SDK.
+            builder.build();
+        } finally {
+            Trace.endSection();
         }
-
-        // Finally, build to finish initializing the SDK.
-        builder.build();
     }
 
     /**

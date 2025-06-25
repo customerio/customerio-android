@@ -416,6 +416,9 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/cus
 	public final fun setProgressTint (I)V
 }
 
+public final class io/customer/messaginginapp/ui/bridge/WrapperPlatformDelegate$Companion {
+}
+
 public abstract interface annotation class io/customer/messaginginapp/ui/controller/ThreadSafeProperty : java/lang/annotation/Annotation {
 	public abstract fun reason ()Ljava/lang/String;
 }

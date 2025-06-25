@@ -1,3 +1,9 @@
+## [4.6.2](https://github.com/customerio/customerio-android/compare/4.6.1...4.6.2) (2025-06-25)
+
+### Bug Fixes
+
+* Sanitize unsupported numeric values ([#569](https://github.com/customerio/customerio-android/issues/569)) ([e75a721](https://github.com/customerio/customerio-android/commit/e75a721239ff17624f963760157766a8b88d9ae6))
+
 ## [4.6.1](https://github.com/customerio/customerio-android/compare/4.6.0...4.6.1) (2025-05-29)
 
 ### Bug Fixes

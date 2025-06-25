@@ -1,3 +1,9 @@
+## [4.6.3](https://github.com/customerio/customerio-android/compare/4.6.2...4.6.3) (2025-06-25)
+
+### Bug Fixes
+
+* expose inline classes for wrapper support ([#579](https://github.com/customerio/customerio-android/issues/579)) ([1459529](https://github.com/customerio/customerio-android/commit/145952954532ff65ed6e4ecd93f01c93c15b25fc))
+
 ## [4.6.2](https://github.com/customerio/customerio-android/compare/4.6.1...4.6.2) (2025-06-25)
 
 ### Bug Fixes

@@ -15,6 +15,18 @@ import io.customer.base.internal.InternalCustomerIOApi
 @InternalCustomerIOApi
 abstract class WrapperPlatformDelegate(view: View) : AndroidInAppPlatformDelegate(view) {
 
+    companion object {
+        /**
+         * Event name constant for size change events
+         */
+        const val ON_SIZE_CHANGE = "onSizeChange"
+
+        /**
+         * Event name constant for state change events
+         */
+        const val ON_STATE_CHANGE = "onStateChange"
+    }
+
     /**
      * Platform-specific event dispatch mechanism.
      * Each platform (Flutter/React Native) implements this to route events to their bridge.
@@ -56,7 +68,7 @@ abstract class WrapperPlatformDelegate(view: View) : AndroidInAppPlatformDelegat
         payload["duration"] = animDuration.toDouble()
 
         // Use platform-specific dispatch instead of direct method calls
-        dispatchEvent("onSizeChange", payload)
+        dispatchEvent(ON_SIZE_CHANGE, payload)
 
         // Schedule the onEnd callback after animation duration
         onEnd?.let {
@@ -75,7 +87,7 @@ abstract class WrapperPlatformDelegate(view: View) : AndroidInAppPlatformDelegat
      */
     fun sendLoadingStateEvent(state: WrapperStateEvent) {
         val payload = mapOf("state" to state.name)
-        dispatchEvent("onStateChange", payload)
+        dispatchEvent(ON_STATE_CHANGE, payload)
     }
 }
 
@@ -86,6 +98,7 @@ abstract class WrapperPlatformDelegate(view: View) : AndroidInAppPlatformDelegat
  * These states are used to provide consistent feedback to the hosting platform about
  * the current status of message loading and display.
  */
+@InternalCustomerIOApi
 enum class WrapperStateEvent {
     /**
      * Indicates that the in-app message has started loading.

@@ -416,12 +416,7 @@ public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/cus
 	public final fun setProgressTint (I)V
 }
 
-public final class io/customer/messaginginapp/ui/bridge/WrapperStateEvent : java/lang/Enum {
-	public static final field LoadingFinished Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
-	public static final field LoadingStarted Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
-	public static final field NoMessageToDisplay Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
-	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
-	public static fun values ()[Lio/customer/messaginginapp/ui/bridge/WrapperStateEvent;
+public final class io/customer/messaginginapp/ui/bridge/WrapperPlatformDelegate$Companion {
 }
 
 public abstract interface annotation class io/customer/messaginginapp/ui/controller/ThreadSafeProperty : java/lang/annotation/Annotation {

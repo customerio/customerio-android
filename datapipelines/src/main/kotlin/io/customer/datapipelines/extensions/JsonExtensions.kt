@@ -1,6 +1,8 @@
 package io.customer.datapipelines.extensions
 
 import com.segment.analytics.kotlin.core.utilities.toJsonElement
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Logger
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -45,14 +47,51 @@ private fun Any?.toSerializableJson(): JsonElement {
 }
 
 /**
- * Recursively replaces all `null` values in nested structure with [JsonNull],
- * preserving structure and type. Useful for safely converting to `JsonElement`
- * using `Any.toJsonElement()` extension.
+ * Recursively sanitizes data for JSON serialization by:
+ * 1. Replacing all `null` values in nested structure with [JsonNull]
+ * 2. Removing entries with NaN or infinity values from maps
+ * This ensures the data can be safely converted to JSON.
+ *
+ * @param logger Logger to log when invalid numeric values are removed
  */
+internal fun Map<String, Any?>.sanitizeForJson(logger: Logger = SDKComponent.logger): Map<String, Any?> {
+    val resultMap = mutableMapOf<String, Any>()
+
+    for (entry in this.entries) {
+        val sanitizedValue = entry.value.sanitizeValue(logger)
+        if (sanitizedValue != null) {
+            resultMap[entry.key] = sanitizedValue
+        } else {
+            logger.error("Removed invalid JSON numeric value (NaN or infinity) for key: ${entry.key}")
+        }
+    }
+
+    return resultMap
+}
+
 @Suppress("UNCHECKED_CAST")
-internal fun <T> T?.sanitizeNullsForJson(): T = when (this) {
+private fun <T> T?.sanitizeValue(logger: Logger = SDKComponent.logger): T? = when (this) {
     null -> JsonNull as T
-    is Map<*, *> -> this.mapValues { (_, v) -> v.sanitizeNullsForJson() } as T
-    is List<*> -> this.map { it.sanitizeNullsForJson() } as T
+    is Double, is Float -> if (isInvalidJsonNumber(this)) null else this
+    is Map<*, *> -> (this as? Map<String, Any?>)?.sanitizeForJson(logger) as T
+    is List<*> -> sanitizeList(logger) as T
     else -> this
+}
+
+private fun List<*>.sanitizeList(logger: Logger): List<*> {
+    return this.mapNotNull {
+        val sanitizedValue = it.sanitizeValue(logger)
+        if (sanitizedValue == null) {
+            logger.error("Removed invalid JSON numeric value (NaN or infinity)")
+        }
+        sanitizedValue
+    }
+}
+
+private fun isInvalidJsonNumber(value: Any?): Boolean {
+    return when (value) {
+        is Float -> value.isNaN() || value.isInfinite()
+        is Double -> value.isNaN() || value.isInfinite()
+        else -> false
+    }
 }

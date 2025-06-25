@@ -278,12 +278,12 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
 
     override fun sizeChanged(width: Double, height: Double) {
         logViewEvent("Size changed: $width x $height")
-        val widthInPx = platformDelegate.convertDpToPixels(width)
-        val heightInPx = platformDelegate.convertDpToPixels(height)
-        onWebViewSizeUpdated(widthInPx, heightInPx)
+        onWebViewSizeUpdated(width, height)
     }
 
-    protected open fun onWebViewSizeUpdated(widthInPx: Int, heightInPx: Int) {
+    protected open fun onWebViewSizeUpdated(widthInDp: Double, heightInDp: Double) {
+        val widthInPx = platformDelegate.dpToPx(widthInDp)
+        val heightInPx = platformDelegate.dpToPx(heightInDp)
         viewCallback?.onViewSizeChanged(widthInPx, heightInPx)
     }
 }

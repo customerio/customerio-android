@@ -3,16 +3,17 @@ package io.customer.messaginginapp.ui.bridge
 import android.content.Context
 import android.content.Intent
 import android.util.Base64
-import android.util.DisplayMetrics
 import android.view.View
 import androidx.annotation.UiThread
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.google.gson.Gson
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.ui.extensions.animateViewSize
 import io.customer.messaginginapp.ui.extensions.findActivity
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import kotlin.math.roundToInt
 
 /**
  * Delegate interface to abstract Android platform operations used by in-app messaging views.
@@ -20,7 +21,8 @@ import java.nio.charset.StandardCharsets
  * activity launching, and utility conversions.
  * Allows for easier testing and mocking of platform-specific behavior.
  */
-internal interface InAppPlatformDelegate {
+@InternalCustomerIOApi
+interface InAppPlatformDelegate {
     fun parseJavaURI(uriString: String): URI
     fun sanitizeUrlQuery(url: String): UrlQuerySanitizerWrapper
     fun parsePropertiesFromJson(json: String): Map<String, Any>
@@ -37,7 +39,7 @@ internal interface InAppPlatformDelegate {
     /**
      * Converts the given size from dp to pixels based on the device's screen density.
      */
-    fun convertDpToPixels(size: Double): Int
+    fun dpToPx(size: Double): Int
 
     /**
      * Animates the size of the view to the specified width and height in pixels.
@@ -46,8 +48,8 @@ internal interface InAppPlatformDelegate {
      */
     @UiThread
     fun animateViewSize(
-        widthInPx: Int? = null,
-        heightInPx: Int? = null,
+        widthInDp: Double? = null,
+        heightInDp: Double? = null,
         duration: Long? = null,
         onStart: (() -> Unit)? = null,
         onEnd: (() -> Unit)? = null
@@ -60,11 +62,18 @@ internal interface InAppPlatformDelegate {
  * The implementation is coupled to a specific [View] instance, which is used for context and
  * UI related operations.
  */
-internal class AndroidInAppPlatformDelegate(
-    private val view: View
+@InternalCustomerIOApi
+open class AndroidInAppPlatformDelegate(
+    protected val view: View
 ) : InAppPlatformDelegate {
     private val context: Context
         get() = view.context
+
+    @Suppress("MemberVisibilityCanBePrivate")
+    protected val defaultAnimDuration: Long
+        get() = view.resources.getInteger(
+            android.R.integer.config_shortAnimTime
+        ).toLong()
 
     override fun parseJavaURI(uriString: String): URI {
         return URI(uriString)
@@ -104,24 +113,22 @@ internal class AndroidInAppPlatformDelegate(
         } ?: true
     }
 
-    override fun convertDpToPixels(size: Double): Int {
-        return size.toInt() * context.resources.displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT
+    override fun dpToPx(size: Double): Int {
+        return (size * context.resources.displayMetrics.density).roundToInt()
     }
 
     @UiThread
     override fun animateViewSize(
-        widthInPx: Int?,
-        heightInPx: Int?,
+        widthInDp: Double?,
+        heightInDp: Double?,
         duration: Long?,
         onStart: (() -> Unit)?,
         onEnd: (() -> Unit)?
     ) {
         view.animateViewSize(
-            widthInPx = widthInPx,
-            heightInPx = heightInPx,
-            duration = duration ?: view.resources.getInteger(
-                android.R.integer.config_shortAnimTime
-            ).toLong(),
+            widthInPx = widthInDp?.let { dpToPx(it) },
+            heightInPx = heightInDp?.let { dpToPx(it) },
+            duration = duration ?: defaultAnimDuration,
             onStart = onStart,
             onEnd = onEnd
         )

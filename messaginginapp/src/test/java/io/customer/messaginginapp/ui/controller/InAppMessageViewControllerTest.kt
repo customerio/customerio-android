@@ -493,7 +493,7 @@ class InAppMessageViewControllerTest : JUnitTest() {
     @Test
     fun engineListener_givenSizeChanged_expectViewListenerReceivesCorrectSizeUpdates() {
         val screenDensity = Double.random(1.0, 3.0)
-        every { platformDelegate.convertDpToPixels(any()) } answers {
+        every { platformDelegate.dpToPx(any()) } answers {
             (firstArg<Double>() * screenDensity).roundToInt()
         }
         val givenWidthInDp = Double.random(100.0, 500.0)

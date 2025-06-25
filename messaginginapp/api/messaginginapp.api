@@ -403,23 +403,31 @@ public abstract interface class io/customer/messaginginapp/type/InlineMessageAct
 	public abstract fun onActionClick (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;)V
 }
 
-public final class io/customer/messaginginapp/ui/InlineInAppMessageView : android/widget/FrameLayout, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {
+public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/customer/messaginginapp/ui/core/BaseInlineInAppMessageView, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {
 	public fun <init> (Landroid/content/Context;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;I)V
 	public fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;II)V
 	public synthetic fun <init> (Landroid/content/Context;Landroid/util/AttributeSet;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun getElementId ()Ljava/lang/String;
+	public synthetic fun getPlatformDelegate ()Lio/customer/messaginginapp/ui/bridge/InAppPlatformDelegate;
 	public fun onLoadingFinished ()V
 	public fun onLoadingStarted ()V
 	public fun onNoMessageToDisplay ()V
-	public fun onViewSizeChanged (II)V
-	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
-	public final fun setElementId (Ljava/lang/String;)V
 	public final fun setProgressTint (I)V
+}
+
+public final class io/customer/messaginginapp/ui/bridge/WrapperPlatformDelegate$Companion {
 }
 
 public abstract interface annotation class io/customer/messaginginapp/ui/controller/ThreadSafeProperty : java/lang/annotation/Annotation {
 	public abstract fun reason ()Ljava/lang/String;
+}
+
+public abstract class io/customer/messaginginapp/ui/core/BaseInlineInAppMessageView : android/widget/FrameLayout, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {
+	public final fun getElementId ()Ljava/lang/String;
+	protected abstract fun getPlatformDelegate ()Lio/customer/messaginginapp/ui/bridge/InAppPlatformDelegate;
+	public fun onViewSizeChanged (II)V
+	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
+	public final fun setElementId (Ljava/lang/String;)V
 }
 

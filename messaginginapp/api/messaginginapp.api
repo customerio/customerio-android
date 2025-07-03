@@ -159,11 +159,6 @@ public final class io/customer/messaginginapp/gist/presentation/GistModalActivit
 	public final fun newIntent (Landroid/content/Context;)Landroid/content/Intent;
 }
 
-public final class io/customer/messaginginapp/gist/presentation/GistModalActivityKt {
-	public static final field GIST_MESSAGE_INTENT Ljava/lang/String;
-	public static final field GIST_MODAL_POSITION_INTENT Ljava/lang/String;
-}
-
 public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/customer/messaginginapp/gist/presentation/GistProvider {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V

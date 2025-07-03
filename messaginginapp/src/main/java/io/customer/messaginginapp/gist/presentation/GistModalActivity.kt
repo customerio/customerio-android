@@ -9,15 +9,18 @@ import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
-import com.google.gson.Gson
+import androidx.lifecycle.lifecycleScope
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.di.modalMessageParser
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.gist.utilities.MessageOverlayColorParser
 import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
+import io.customer.messaginginapp.gist.utilities.ModalMessageExtras
+import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -26,9 +29,7 @@ import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.tracking.TrackableScreen
 import kotlinx.coroutines.Job
-
-const val GIST_MESSAGE_INTENT: String = "GIST_MESSAGE"
-const val GIST_MODAL_POSITION_INTENT: String = "GIST_MODAL_POSITION"
+import kotlinx.coroutines.launch
 
 @InternalCustomerIOApi
 class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, TrackableScreen {
@@ -38,6 +39,8 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
     private val attributesListenerJob: MutableList<Job> = mutableListOf()
     private val elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val logger = SDKComponent.logger
+    private val dispatchersProvider = SDKComponent.dispatchersProvider
+    private val modalMessageParser = SDKComponent.modalMessageParser
 
     // Dependencies requiring ModuleMessagingInApp to be initialized must be accessed lazily,
     // only after confirming the SDK has been initialized.
@@ -63,12 +66,20 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val message = validateAndParseIntentMessage()
-        if (message == null) {
+        setupActivity()
+    }
+
+    private fun setupActivity() = lifecycleScope.launch(dispatchersProvider.main) {
+        val result = validateAndParseIntentExtras()
+
+        if (result == null) {
             // Finish the activity immediately to avoid running animations or further processing
             finishImmediately()
-            return
+            return@launch
         }
+
+        val (message, modalPosition) = result
+        messagePosition = modalPosition
 
         initializeActivity()
         setupMessage(message)
@@ -76,22 +87,18 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         setupBackPressedCallback(message)
     }
 
-    private fun validateAndParseIntentMessage(): Message? {
+    private suspend fun validateAndParseIntentExtras(): ModalMessageExtras? {
         // Check if the SDK is initialized before parsing the intent
         if (inAppMessagingManager == null) {
             logger.error("GistModalActivity onCreate: ModuleMessagingInApp not initialized")
             return null
         }
 
-        val messageStr = intent.getStringExtra(GIST_MESSAGE_INTENT)
-        val message = runCatching {
-            Gson().fromJson(messageStr, Message::class.java)
-        }.getOrNull()
-        if (message == null) {
-            logger.error("GistModelActivity onCreate: Message is null or invalid")
-            return null
-        }
-        return message
+        return modalMessageParser.parseExtras(object : ModalMessageParser.ExtrasProvider {
+            override fun getString(key: String): String? {
+                return intent.getStringExtra(key)
+            }
+        })
     }
 
     private fun initializeActivity() {
@@ -108,14 +115,7 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         binding.gistView.setViewCallback(this)
         binding.gistView.setup(message)
 
-        // Configure message position
-        val modalPositionStr = intent.getStringExtra(GIST_MODAL_POSITION_INTENT)
-        val messagePosition = if (modalPositionStr == null) {
-            message.gistProperties.position
-        } else {
-            MessagePosition.valueOf(modalPositionStr.uppercase())
-        }
-
+        // Apply pre-parsed message position
         when (messagePosition) {
             MessagePosition.CENTER -> binding.modalGistViewLayout.setVerticalGravity(Gravity.CENTER_VERTICAL)
             MessagePosition.BOTTOM -> binding.modalGistViewLayout.setVerticalGravity(Gravity.BOTTOM)

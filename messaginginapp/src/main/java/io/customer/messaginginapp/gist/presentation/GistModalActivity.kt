@@ -20,7 +20,6 @@ import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.gist.utilities.MessageOverlayColorParser
 import io.customer.messaginginapp.gist.utilities.ModalAnimationUtil
 import io.customer.messaginginapp.gist.utilities.ModalMessageExtras
-import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -94,11 +93,7 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
             return null
         }
 
-        return modalMessageParser.parseExtras(object : ModalMessageParser.ExtrasProvider {
-            override fun getString(key: String): String? {
-                return intent.getStringExtra(key)
-            }
-        })
+        return modalMessageParser.parseExtras(intent = intent)
     }
 
     private fun initializeActivity() {

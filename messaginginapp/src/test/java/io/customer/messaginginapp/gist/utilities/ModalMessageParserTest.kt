@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.utilities
 
+import android.content.Intent
 import com.google.gson.Gson
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -11,6 +12,7 @@ import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
@@ -55,12 +57,12 @@ class ModalMessageParserTest : IntegrationTest() {
             position = MessagePosition.CENTER.name
         )
 
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = gson.toJson(givenMessage),
             position = MessagePosition.TOP.name
         )
 
-        val result = parser.parseExtras(provider).shouldNotBeNull()
+        val result = parser.parseExtras(mockIntent).shouldNotBeNull()
         result.message shouldBeEqualTo givenMessage
         result.messagePosition shouldBeEqualTo MessagePosition.TOP
     }
@@ -73,24 +75,24 @@ class ModalMessageParserTest : IntegrationTest() {
             position = MessagePosition.BOTTOM.name
         )
 
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = gson.toJson(givenMessage),
             position = null
         )
 
-        val result = parser.parseExtras(provider).shouldNotBeNull()
+        val result = parser.parseExtras(mockIntent).shouldNotBeNull()
         result.message shouldBeEqualTo givenMessage
         result.messagePosition shouldBeEqualTo MessagePosition.BOTTOM // From message gist properties
     }
 
     @Test
     fun parseExtras_givenNullMessage_expectNullResultAndError() = runTest {
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = null,
             position = MessagePosition.CENTER.name
         )
 
-        val result = parser.parseExtras(provider)
+        val result = parser.parseExtras(mockIntent)
 
         result.shouldBeNull()
         verify { mockLogger.error("ModalMessageParser: Message is null or empty") }
@@ -98,12 +100,12 @@ class ModalMessageParserTest : IntegrationTest() {
 
     @Test
     fun parseExtras_givenEmptyMessage_expectNullResultAndError() = runTest {
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = "",
             position = MessagePosition.CENTER.name
         )
 
-        val result = parser.parseExtras(provider)
+        val result = parser.parseExtras(mockIntent)
 
         result.shouldBeNull()
         verify { mockLogger.error("ModalMessageParser: Message is null or empty") }
@@ -111,12 +113,12 @@ class ModalMessageParserTest : IntegrationTest() {
 
     @Test
     fun parseExtras_givenInvalidJson_expectNullResultAndError() = runTest {
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = "invalid-json-{",
             position = MessagePosition.CENTER.name
         )
 
-        val result = parser.parseExtras(provider)
+        val result = parser.parseExtras(mockIntent)
 
         result.shouldBeNull()
         verify { mockLogger.error(match { it.contains("Failed to parse modal message with error") }) }
@@ -126,12 +128,12 @@ class ModalMessageParserTest : IntegrationTest() {
     fun parseExtras_givenInvalidPosition_expectExceptionHandling() = runTest {
         val givenMessage = Message(messageId = "test-789", priority = 2)
 
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = gson.toJson(givenMessage),
             position = "INVALID_POSITION"
         )
 
-        val result = parser.parseExtras(provider)
+        val result = parser.parseExtras(mockIntent)
 
         result.shouldBeNull()
         verify { mockLogger.error(match { it.contains("Failed to parse modal message with error") }) }
@@ -145,12 +147,12 @@ class ModalMessageParserTest : IntegrationTest() {
             position = MessagePosition.CENTER.name
         )
 
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = gson.toJson(givenMessage),
             position = "bottom" // lowercase should work
         )
 
-        val result = parser.parseExtras(provider)
+        val result = parser.parseExtras(mockIntent)
 
         result?.messagePosition shouldBeEqualTo MessagePosition.BOTTOM
     }
@@ -162,12 +164,12 @@ class ModalMessageParserTest : IntegrationTest() {
             position = MessagePosition.CENTER.name // Message default
         )
 
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = gson.toJson(givenMessage),
             position = MessagePosition.BOTTOM.name // Extras override
         )
 
-        val result = parser.parseExtras(provider).shouldNotBeNull()
+        val result = parser.parseExtras(mockIntent).shouldNotBeNull()
         // Extras position should override message position
         result.messagePosition shouldBeEqualTo MessagePosition.BOTTOM
         // But message still contains its original gist properties
@@ -176,11 +178,9 @@ class ModalMessageParserTest : IntegrationTest() {
 
     @Test
     fun parseExtras_givenNullProvider_expectGracefulHandling() = runTest {
-        val provider = object : ModalMessageParser.ExtrasProvider {
-            override fun getString(key: String): String? = null
-        }
+        val mockIntent = createMockIntentWithExtras(null, null)
 
-        val result = parser.parseExtras(provider)
+        val result = parser.parseExtras(mockIntent)
 
         result.shouldBeNull()
         verify { mockLogger.error("ModalMessageParser: Message is null or empty") }
@@ -205,12 +205,12 @@ class ModalMessageParserTest : IntegrationTest() {
             priority = 1
         )
 
-        val provider = createExtrasProvider(
+        val mockIntent = createMockIntentWithExtras(
             message = gson.toJson(givenMessage),
             position = MessagePosition.CENTER.name
         )
 
-        val result = messageParser.parseExtras(provider).shouldNotBeNull()
+        val result = messageParser.parseExtras(mockIntent).shouldNotBeNull()
         // Compare specific fields instead of entire object - Gson deserializes nested Maps as LinkedTreeMap
         // while createInAppMessage uses different Map types, causing equals() to fail despite same data
         result.message.messageId shouldBeEqualTo givenMessage.messageId
@@ -219,18 +219,11 @@ class ModalMessageParserTest : IntegrationTest() {
         dispatchersProviderStub.resetToTestDispatchers()
     }
 
-    private fun createExtrasProvider(
+    private fun createMockIntentWithExtras(
         message: String?,
         position: String?
-    ): ModalMessageParser.ExtrasProvider {
-        return object : ModalMessageParser.ExtrasProvider {
-            override fun getString(key: String): String? {
-                return when (key) {
-                    ModalMessageParser.EXTRA_IN_APP_MESSAGE -> message
-                    ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION -> position
-                    else -> null
-                }
-            }
-        }
+    ): Intent = mockk<Intent>(relaxed = true).apply {
+        every { getStringExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE) } returns message
+        every { getStringExtra(ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION) } returns position
     }
 }

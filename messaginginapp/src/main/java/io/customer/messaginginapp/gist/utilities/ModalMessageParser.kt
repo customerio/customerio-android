@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.utilities
 
+import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
@@ -20,14 +21,7 @@ internal data class ModalMessageExtras(
  * It provides methods to extract message data and position from extras.
  */
 internal interface ModalMessageParser {
-    suspend fun parseExtras(provider: ExtrasProvider): ModalMessageExtras?
-
-    /**
-     * Abstraction for accessing string values by key from extras like Intent or Bundle.
-     */
-    interface ExtrasProvider {
-        fun getString(key: String): String?
-    }
+    suspend fun parseExtras(intent: Intent): ModalMessageExtras?
 
     /**
      * Abstraction for parsing JSON strings into Message objects.
@@ -63,8 +57,8 @@ internal class ModalMessageParserDefault(
     private val dispatchersProvider: DispatchersProvider,
     private val parser: ModalMessageParser.JsonParser
 ) : ModalMessageParser {
-    override suspend fun parseExtras(provider: ModalMessageParser.ExtrasProvider): ModalMessageExtras? {
-        val rawMessage = provider.getString(ModalMessageParser.EXTRA_IN_APP_MESSAGE)
+    override suspend fun parseExtras(intent: Intent): ModalMessageExtras? {
+        val rawMessage = intent.getStringExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE)
         if (rawMessage.isNullOrEmpty()) {
             logger.error("ModalMessageParser: Message is null or empty")
             return null
@@ -78,7 +72,7 @@ internal class ModalMessageParserDefault(
                     return@withContext null
                 }
 
-                val rawPosition = provider.getString(ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION)
+                val rawPosition = intent.getStringExtra(ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION)
                 val position = if (rawPosition == null) {
                     message.gistProperties.position
                 } else {

@@ -6,10 +6,9 @@ import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.gistSdk
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.matchesRoute
-import io.customer.messaginginapp.gist.presentation.GIST_MESSAGE_INTENT
-import io.customer.messaginginapp.gist.presentation.GIST_MODAL_POSITION_INTENT
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
+import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.sdk.core.di.SDKComponent
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
@@ -86,8 +85,8 @@ private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action:
         SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            putExtra(GIST_MESSAGE_INTENT, Gson().toJson(action.message))
-            putExtra(GIST_MODAL_POSITION_INTENT, action.position?.toString())
+            putExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE, Gson().toJson(action.message))
+            putExtra(ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION, action.position?.toString())
         }
         context.startActivity(intent)
         next(action)

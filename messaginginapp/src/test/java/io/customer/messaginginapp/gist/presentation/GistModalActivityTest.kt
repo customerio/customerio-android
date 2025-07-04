@@ -7,9 +7,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.gson.Gson
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.flushCoroutines
+import io.customer.commontest.extensions.postOnUiThread
+import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
@@ -18,16 +21,22 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.gist.utilities.ModalMessageExtras
+import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
+import kotlinx.coroutines.delay
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.junit.Test
@@ -37,6 +46,8 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class GistModalActivityTest : IntegrationTest() {
     private val mockLogger = mockk<Logger>(relaxed = true)
+    private val mockMessageParser = mockk<ModalMessageParser>(relaxed = true)
+    private val dispatchersProviderStub = spyk(DispatchersProviderStub())
     private val scopeProviderStub = ScopeProviderStub.Standard()
 
     override fun setup(testConfig: TestConfig) {
@@ -45,6 +56,8 @@ class GistModalActivityTest : IntegrationTest() {
                 diGraph {
                     sdk {
                         overrideDependency<Logger>(mockLogger)
+                        overrideDependency<ModalMessageParser>(mockMessageParser)
+                        overrideDependency<DispatchersProvider>(dispatchersProviderStub)
                         overrideDependency<ScopeProvider>(scopeProviderStub)
                         overrideDependency<GistQueue>(mockk(relaxed = true))
                     }
@@ -104,13 +117,16 @@ class GistModalActivityTest : IntegrationTest() {
         // Launch activity - it should finish normally due to null message
         val scenario = ActivityScenario.launch<GistModalActivity>(intent)
 
-        // Now check that it is destroyed immediately
-        scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
-        // Verify correct error was logged
-        assertCalledOnce {
-            mockLogger.error(match { it.contains("Message is null") })
+        // Wait for async parsing and activity lifecycle to complete before assertions
+        postOnUiThread {
+            // Now check that it is destroyed immediately
+            scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
+            // Verify correct error was logged
+            assertCalledOnce {
+                mockLogger.error(match { it.contains("Message is null") })
+            }
+            scenario.close()
         }
-        scenario.close()
     }
 
     @Test
@@ -123,13 +139,54 @@ class GistModalActivityTest : IntegrationTest() {
         // Launch activity - it should finish due to null message
         val scenario = ActivityScenario.launch<GistModalActivity>(intent)
 
-        // Now check that it is destroyed immediately
-        scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
-        // Verify correct error was logged
-        assertCalledOnce {
-            mockLogger.error(match { it.contains("Message is null") })
+        // Wait for async parsing and activity lifecycle to complete before assertions
+        postOnUiThread {
+            // Now check that it is destroyed immediately
+            scenario.state shouldBeEqualTo Lifecycle.State.DESTROYED
+            // Verify correct error was logged
+            assertCalledOnce {
+                mockLogger.error(match { it.contains("Message is null") })
+            }
+            scenario.close()
         }
-        scenario.close()
+    }
+
+    @Test
+    fun onCreate_givenSlowParsing_expectProperAsyncHandling() {
+        // Initialize ModuleMessagingInApp
+        initializeModuleMessagingInApp()
+
+        val parseDelayMs = 500L
+        val expectedResult = ModalMessageExtras(
+            message = createTestMessage(),
+            messagePosition = MessagePosition.CENTER
+        )
+        val intent = createActivityIntent(expectedResult.message)
+
+        // Mock parser with intentional delay to test async behavior
+        coEvery { mockMessageParser.parseExtras(any()) } coAnswers {
+            delay(parseDelayMs) // Simulate realistic parsing time
+            expectedResult
+        }
+
+        val scenario = ActivityScenario.launch<GistModalActivity>(intent)
+
+        // Verify parsing was initiated
+        coVerify(exactly = 1) { mockMessageParser.parseExtras(any()) }
+
+        // Complete async operations
+        scopeProviderStub.flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        scenario.onActivity { activity ->
+            activity.isFinishing.shouldBeFalse()
+        }
+
+        assertCalledNever { mockLogger.error(any()) }
+
+        // Allow time for any remaining async operations before cleanup
+        postOnUiThread(delay = parseDelayMs) {
+            scenario.close()
+        }
     }
 
     private fun initializeModuleMessagingInApp() {
@@ -158,8 +215,8 @@ class GistModalActivityTest : IntegrationTest() {
 
     private fun createActivityIntent(message: Any? = null, position: MessagePosition? = null): Intent {
         return GistModalActivity.newIntent(ApplicationProvider.getApplicationContext()).apply {
-            message?.let { putExtra(GIST_MESSAGE_INTENT, Gson().toJson(it)) }
-            position?.let { putExtra(GIST_MODAL_POSITION_INTENT, it.name) }
+            message?.let { putExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE, Gson().toJson(it)) }
+            position?.let { putExtra(ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION, it.name) }
         }
     }
 }

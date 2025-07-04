@@ -22,6 +22,14 @@ class DispatchersProviderStub : DispatchersProvider {
         }
     }
 
+    // Resets to using fast test dispatchers instead of real dispatchers.
+    // Should be called after setRealDispatchers() to avoid interfering with other tests.
+    fun resetToTestDispatchers() {
+        overrideBackground = null
+        overrideMain = null
+        overrideDefault = null
+    }
+
     override val background: CoroutineDispatcher
         get() = overrideBackground ?: UnconfinedTestDispatcher()
 

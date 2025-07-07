@@ -1,11 +1,15 @@
 package io.customer.messaginginapp.di
 
+import com.google.gson.Gson
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
+import io.customer.messaginginapp.gist.utilities.ModalMessageParser
+import io.customer.messaginginapp.gist.utilities.ModalMessageParserDefault
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
@@ -35,6 +39,15 @@ internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
 internal val SDKComponent.gistSdk: GistSdk
     get() = singleton<GistSdk> {
         GistSdk(siteId = inAppModuleConfig.siteId, dataCenter = inAppModuleConfig.region.code)
+    }
+
+internal val SDKComponent.modalMessageParser: ModalMessageParser
+    get() = singleton<ModalMessageParser> {
+        ModalMessageParserDefault(
+            logger = logger,
+            dispatchersProvider = dispatchersProvider,
+            parser = ModalMessageGsonParser(gson = Gson())
+        )
     }
 
 /**

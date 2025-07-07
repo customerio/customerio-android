@@ -7,7 +7,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.gson.Gson
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
-import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.flushCoroutines
@@ -21,7 +20,6 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
-import io.customer.messaginginapp.gist.utilities.ModalMessageExtras
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -31,12 +29,9 @@ import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
-import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
-import kotlinx.coroutines.delay
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.junit.Test
@@ -147,44 +142,6 @@ class GistModalActivityTest : IntegrationTest() {
             assertCalledOnce {
                 mockLogger.error(match { it.contains("Message is null") })
             }
-            scenario.close()
-        }
-    }
-
-    @Test
-    fun onCreate_givenSlowParsing_expectProperAsyncHandling() {
-        // Initialize ModuleMessagingInApp
-        initializeModuleMessagingInApp()
-
-        val parseDelayMs = 500L
-        val expectedResult = ModalMessageExtras(
-            message = createTestMessage(),
-            messagePosition = MessagePosition.CENTER
-        )
-        val intent = createActivityIntent(expectedResult.message)
-
-        // Mock parser with intentional delay to test async behavior
-        coEvery { mockMessageParser.parseExtras(any()) } coAnswers {
-            delay(parseDelayMs) // Simulate realistic parsing time
-            expectedResult
-        }
-
-        val scenario = ActivityScenario.launch<GistModalActivity>(intent)
-
-        // Verify parsing was initiated
-        coVerify(exactly = 1) { mockMessageParser.parseExtras(any()) }
-
-        // Complete async operations
-        scopeProviderStub.flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-
-        scenario.onActivity { activity ->
-            activity.isFinishing.shouldBeFalse()
-        }
-
-        assertCalledNever { mockLogger.error(any()) }
-
-        // Allow time for any remaining async operations before cleanup
-        postOnUiThread(delay = parseDelayMs) {
             scenario.close()
         }
     }

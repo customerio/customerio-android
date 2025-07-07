@@ -65,10 +65,10 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setupActivity()
+        prepareActivity()
     }
 
-    private fun setupActivity() = lifecycleScope.launch(dispatchersProvider.main) {
+    private fun prepareActivity() = lifecycleScope.launch(dispatchersProvider.main) {
         val result = validateAndParseIntentExtras()
 
         if (result == null) {

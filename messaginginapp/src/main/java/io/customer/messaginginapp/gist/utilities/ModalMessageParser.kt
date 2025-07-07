@@ -66,12 +66,7 @@ internal class ModalMessageParserDefault(
 
         return withContext(dispatchersProvider.background) {
             try {
-                val message = parser.parseMessageFromJson(rawMessage)
-                if (message == null) {
-                    logger.error("ModalMessageParser: Message parsing failed for: $rawMessage")
-                    return@withContext null
-                }
-
+                val message = requireNotNull(parser.parseMessageFromJson(rawMessage))
                 val rawPosition = intent.getStringExtra(ModalMessageParser.EXTRA_IN_APP_MODAL_POSITION)
                 val position = if (rawPosition == null) {
                     message.gistProperties.position

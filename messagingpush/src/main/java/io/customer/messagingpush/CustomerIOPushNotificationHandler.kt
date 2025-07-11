@@ -1,6 +1,5 @@
 package io.customer.messagingpush
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -21,15 +20,16 @@ import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
+import io.customer.messagingpush.util.NotificationChannelManager
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
-import java.net.URL
-import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import java.net.URL
+import kotlin.math.abs
 
 /**
  * Class to handle PushNotification.
@@ -38,7 +38,8 @@ import kotlinx.coroutines.withContext
  */
 internal class CustomerIOPushNotificationHandler(
     private val pushMessageProcessor: PushMessageProcessor,
-    private val remoteMessage: RemoteMessage
+    private val remoteMessage: RemoteMessage,
+    private val notificationChannelManager: NotificationChannelManager
 ) {
 
     companion object {
@@ -139,7 +140,16 @@ internal class CustomerIOPushNotificationHandler(
         val title = bundle.getString(TITLE_KEY) ?: remoteMessage.notification?.title ?: ""
         val body = bundle.getString(BODY_KEY) ?: remoteMessage.notification?.body ?: ""
 
-        val channelId = context.packageName
+        val notificationManager =
+            context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
+        
+        // Create notification channel if needed and get channel ID
+        val channelId = notificationChannelManager.createNotificationChannelIfNeededAndReturnChannelId(
+            context = context,
+            applicationName = applicationName,
+            appMetaData = appMetaData,
+            notificationManager = notificationManager
+        )
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)
@@ -163,20 +173,6 @@ internal class CustomerIOPushNotificationHandler(
             e.printStackTrace()
         }
 
-        val notificationManager =
-            context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
-
-        val channelName = "$applicationName Notifications"
-
-        // Since android Oreo notification channel is needed.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                channelName,
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            notificationManager.createNotificationChannel(channel)
-        }
 
         // set pending intent
         val payload = CustomerIOParsedPushPayload(

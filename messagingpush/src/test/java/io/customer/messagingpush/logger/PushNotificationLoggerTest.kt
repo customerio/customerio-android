@@ -382,4 +382,48 @@ class PushNotificationLoggerTest : JUnitTest() {
             )
         }
     }
+
+    @Test
+    fun test_logCreatingNotificationChannel_forwardsCorrectCallToLogger() {
+        val channelId = "test_channel_id"
+        val channelName = "Test Channel Name"
+        val importance = 3 // NotificationManager.IMPORTANCE_DEFAULT
+
+        pushLogger.logCreatingNotificationChannel(channelId, channelName, importance)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Creating new notification channel id: $channelId, name: $channelName, importance: $importance"
+            )
+        }
+    }
+
+    @Test
+    fun test_logNotificationChannelAlreadyExists_forwardsCorrectCallToLogger() {
+        val channelId = "test_channel_id"
+
+        pushLogger.logNotificationChannelAlreadyExists(channelId)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Notification channel already exists id: $channelId"
+            )
+        }
+    }
+
+    @Test
+    fun test_logInvalidNotificationChannelImportance_forwardsCorrectCallToLogger() {
+        val invalidImportance = 999
+
+        pushLogger.logInvalidNotificationChannelImportance(invalidImportance)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Notification channel importance level invalid: $invalidImportance"
+            )
+        }
+    }
 }

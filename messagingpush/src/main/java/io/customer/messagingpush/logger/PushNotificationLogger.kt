@@ -189,6 +189,27 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logCreatingNotificationChannel(channelId: String, channelName: String, importance: Int) {
+        logger.debug(
+            tag = TAG,
+            message = "Creating new notification channel id: $channelId, name: $channelName, importance: $importance"
+        )
+    }
+
+    fun logNotificationChannelAlreadyExists(channelId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Notification channel already exists id: $channelId"
+        )
+    }
+
+    fun logInvalidNotificationChannelImportance(importanceLevel: Int) {
+        logger.error(
+            tag = TAG,
+            message = "Notification channel importance level invalid: $importanceLevel"
+        )
+    }
+
     private fun toString(message: RemoteMessage): String {
         val notification = message.notification ?: return message.data.toString()
         return buildString {

@@ -1,3 +1,9 @@
+## [4.7.0](https://github.com/customerio/customerio-android/compare/4.6.3...4.7.0) (2025-07-16)
+
+### Features
+
+* Add ability to configure messaging channels for local notifications ([#582](https://github.com/customerio/customerio-android/issues/582)) ([75ac690](https://github.com/customerio/customerio-android/commit/75ac6900c21bf97e05f1808cb7524ecb4437ca5e))
+
 ## [4.6.3](https://github.com/customerio/customerio-android/compare/4.6.2...4.6.3) (2025-06-25)
 
 ### Bug Fixes

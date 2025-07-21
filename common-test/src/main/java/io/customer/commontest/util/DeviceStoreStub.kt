@@ -12,15 +12,15 @@ class DeviceStoreStub {
     fun getDeviceStore(client: Client): DeviceStore {
         return DeviceStoreImpl(
             buildStore = object : BuildStore {
-                override val deviceBrand: String
+                override val deviceBrand: String?
                     get() = "Google"
-                override val deviceModel: String
+                override val deviceModel: String?
                     get() = "Pixel 6"
-                override val deviceManufacturer: String
+                override val deviceManufacturer: String?
                     get() = "Google"
-                override val deviceOSVersion: Int
+                override val deviceOSVersion: Int?
                     get() = 30
-                override val deviceLocale: String
+                override val deviceLocale: String?
                     get() = Locale.US.toLanguageTag()
             },
             applicationStore = object : ApplicationStore {

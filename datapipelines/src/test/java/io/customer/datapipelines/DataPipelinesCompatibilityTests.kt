@@ -441,8 +441,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
             "app_release" to "1.0",
             "app_build" to "100",
             "app_namespace" to "io.customer.android",
-            "device_os_version" to "13",
-            "device_os" to "Android",
+            "device_os" to 13,
             "device_manufacturer" to null,
             "device_model" to "Pixel 5"
         )

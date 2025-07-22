@@ -1,3 +1,9 @@
+## [4.7.1](https://github.com/customerio/customerio-android/compare/4.7.0...4.7.1) (2025-07-22)
+
+### Bug Fixes
+
+* crash when build attributes are nullable ([#584](https://github.com/customerio/customerio-android/issues/584)) ([33a938f](https://github.com/customerio/customerio-android/commit/33a938f030b2bb4883fa5a391b1511135aebf0a0))
+
 ## [4.7.0](https://github.com/customerio/customerio-android/compare/4.6.3...4.7.0) (2025-07-16)
 
 ### Features

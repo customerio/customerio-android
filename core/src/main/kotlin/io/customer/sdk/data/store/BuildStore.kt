@@ -6,31 +6,31 @@ import java.util.*
 interface BuildStore {
 
     // Brand : Google
-    val deviceBrand: String
+    val deviceBrand: String?
 
     // Device model: Pixel
-    val deviceModel: String
+    val deviceModel: String?
 
     // Hardware manufacturer: Samsung
-    val deviceManufacturer: String
+    val deviceManufacturer: String?
 
     // Android SDK Version: 21
-    val deviceOSVersion: Int
+    val deviceOSVersion: Int?
 
     // Device locale: en-US
-    val deviceLocale: String
+    val deviceLocale: String?
 }
 
 internal class BuildStoreImpl : BuildStore {
 
-    override val deviceBrand: String
+    override val deviceBrand: String?
         get() = Build.BRAND
-    override val deviceModel: String
+    override val deviceModel: String?
         get() = Build.MODEL
-    override val deviceManufacturer: String
+    override val deviceManufacturer: String?
         get() = Build.MANUFACTURER
-    override val deviceOSVersion: Int
+    override val deviceOSVersion: Int?
         get() = Build.VERSION.SDK_INT
-    override val deviceLocale: String
+    override val deviceLocale: String?
         get() = Locale.getDefault().toLanguageTag()
 }

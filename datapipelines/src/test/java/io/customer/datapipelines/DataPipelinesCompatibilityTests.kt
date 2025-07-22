@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -430,6 +431,36 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         // server does not require 'last_used' and 'platform' and may fail if included
         payloadContext.containsKey("last_used") shouldBeEqualTo false
         payloadContext.containsKey("platform") shouldBeEqualTo false
+    }
+
+    @Test
+    fun device_givenTokenRegisteredWithNullableDeviceAttributes_expectDeviceAttributesAreSent() = runTest {
+        val givenToken = String.random
+        val givenAttributes = mapOf(
+            "cio_sdk_version" to "2.0.0-alpha.10",
+            "app_release" to "1.0",
+            "app_build" to "100",
+            "app_namespace" to "io.customer.android",
+            "device_os" to 13,
+            "device_manufacturer" to null,
+            "device_model" to "Pixel 5"
+        )
+
+        every { deviceStore.buildDeviceAttributes() } returns givenAttributes
+        sdkInstance.registerDeviceToken(givenToken)
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+
+        val queuedEvents = getQueuedEvents()
+        // 1. Identify event
+        // 2. Device registration event
+        queuedEvents.count() shouldBeEqualTo 1
+
+        val payload = queuedEvents.last().jsonObject
+        payload.eventType shouldBeEqualTo "track"
+        payload.eventName shouldBeEqualTo EventNames.DEVICE_UPDATE
+
+        val payloadProperties = payload["properties"]?.jsonObject.shouldNotBeNull()
+        payloadProperties["device_manufacturer"] shouldBeEqualTo JsonNull
     }
 
     @Test

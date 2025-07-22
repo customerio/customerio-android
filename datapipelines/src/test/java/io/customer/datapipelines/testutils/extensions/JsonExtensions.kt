@@ -3,7 +3,6 @@ package io.customer.datapipelines.testutils.extensions
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.datapipelines.plugins.findAtPath
-import io.customer.sdk.data.model.CustomAttributes
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -17,9 +16,9 @@ import org.amshove.kluent.internal.assertEquals
 import org.json.JSONObject
 
 /**
- * Similar to Kluent's `shouldBeEqualTo` but for comparing JSON objects with custom attributes map.
+ * Similar to Kluent's `shouldBeEqualTo` but for comparing JSON objects with map with nullable values.
  */
-infix fun JsonObject.shouldMatchTo(expected: CustomAttributes): JsonObject {
+infix fun JsonObject.shouldMatchTo(expected: Map<String, Any?>): JsonObject {
     return this.apply { assertEquals(expected.toJsonObject(), this) }
 }
 
@@ -38,16 +37,12 @@ inline fun <K, reified V> Pair<K, V>.encodeToJsonValue(): Pair<K, JsonElement> {
 }
 
 /**
- * Converts a map of custom attributes to a JSON object.
+ * Converts a map with nullable values to a JSON object.
  * If the map is empty, it returns an empty JSON object.
  */
-fun CustomAttributes?.toJsonObject(): JsonObject {
-    val encodedMap = if (this.isNullOrEmpty()) {
-        emptyMap()
-    } else {
-        with(Json) {
-            mapValues { (_, value) -> encode(value) }
-        }
+fun Map<String, Any?>.toJsonObject(): JsonObject {
+    val encodedMap = with(Json) {
+        mapValues { (_, value) -> encode(value) }
     }
     return JsonObject(encodedMap)
 }

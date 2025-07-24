@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 
 import java.util.Map;
 
+import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -27,8 +28,11 @@ public class CustomerIORepository {
         // Get desired SDK config, only required by sample app
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
 
-        // Enable strict mode after config
-        enableStrictMode();
+        // Enable strict mode after config to focus on SDK issues
+        // Only enable in debug builds to avoid performance impact in release builds
+        if (BuildConfig.DEBUG) {
+            enableStrictMode();
+        }
 
         // Initialize Customer.io SDK builder
         CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());

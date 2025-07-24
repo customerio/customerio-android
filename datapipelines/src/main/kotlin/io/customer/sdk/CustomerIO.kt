@@ -37,6 +37,7 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.serializer
 
@@ -67,6 +68,7 @@ class CustomerIO private constructor(
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
+    private val dispatchersProvider = SDKComponent.dispatchersProvider
     internal var migrationProcessor: MigrationProcessor? = null
 
     // Display logs under the CIO tag for easier filtering in logcat
@@ -94,14 +96,16 @@ class CustomerIO private constructor(
         }
     }
 
-    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
-        writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext,
-        configs = updateAnalyticsConfig(
-            moduleConfig = moduleConfig,
-            errorHandler = errorLogger
+    internal val analytics: Analytics = overrideAnalytics ?: runBlocking(dispatchersProvider.background) {
+        Analytics(
+            writeKey = moduleConfig.cdpApiKey,
+            context = androidSDKComponent.applicationContext,
+            configs = updateAnalyticsConfig(
+                moduleConfig = moduleConfig,
+                errorHandler = errorLogger
+            )
         )
-    )
+    }
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
 

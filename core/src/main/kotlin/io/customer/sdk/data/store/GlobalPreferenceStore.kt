@@ -26,7 +26,7 @@ internal class GlobalPreferenceStoreImpl(
     context: Context
 ) : PreferenceStore(context), GlobalPreferenceStore {
 
-    val scope: CoroutineScope = SDKComponent.scopeProvider.globalPreferenceStoreScope
+    private val scope: CoroutineScope = SDKComponent.scopeProvider.globalPreferenceStoreScope
 
     override val prefsName: String by lazy {
         "io.customer.sdk.${context.packageName}"

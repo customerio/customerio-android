@@ -7,6 +7,7 @@ interface ScopeProvider {
     val eventBusScope: CoroutineScope
     val lifecycleListenerScope: CoroutineScope
     val inAppLifecycleScope: CoroutineScope
+    val globalPreferenceStoreScope: CoroutineScope
 }
 
 class SdkScopeProvider(private val dispatchers: DispatchersProvider) : ScopeProvider {
@@ -16,4 +17,6 @@ class SdkScopeProvider(private val dispatchers: DispatchersProvider) : ScopeProv
         get() = CoroutineScope(dispatchers.default + SupervisorJob())
     override val inAppLifecycleScope: CoroutineScope
         get() = CoroutineScope(dispatchers.default + SupervisorJob())
+    override val globalPreferenceStoreScope: CoroutineScope
+        get() = CoroutineScope(dispatchers.background + SupervisorJob())
 }

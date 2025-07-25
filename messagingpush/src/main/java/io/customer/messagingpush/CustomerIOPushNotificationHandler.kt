@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
@@ -13,12 +14,15 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
-import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.extensions.*
+import io.customer.messagingpush.extensions.getColorOrNull
+import io.customer.messagingpush.extensions.getDrawableByName
+import io.customer.messagingpush.extensions.getMetaDataResource
+import io.customer.messagingpush.extensions.getMetaDataString
+import io.customer.messagingpush.extensions.toColorOrNull
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
@@ -38,7 +42,8 @@ import kotlinx.coroutines.withContext
  */
 internal class CustomerIOPushNotificationHandler(
     private val pushMessageProcessor: PushMessageProcessor,
-    private val remoteMessage: RemoteMessage,
+    private val remoteMessageData: Map<String, String>,
+    private val remoteMessageNotificationData: Map<String, String?>,
     private val notificationChannelCreator: NotificationChannelCreator
 ) {
 
@@ -63,17 +68,43 @@ internal class CustomerIOPushNotificationHandler(
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
-            remoteMessage.data.forEach { entry ->
+            // RESTRICTION
+//            remoteMessage.data.forEach { entry ->
+//                putString(entry.key, entry.value)
+//            }
+            remoteMessageData.forEach { entry ->
                 putString(entry.key, entry.value)
             }
         }
+    }
+
+    private val remoteNotificationIcon by lazy {
+        remoteMessageNotificationData[CustomerIOPushNotificationHandlerWorker.REMOTE_NOTIFICATION_ICON_KEY]
+    }
+
+    private val remoteNotificationColor by lazy {
+        remoteMessageNotificationData[CustomerIOPushNotificationHandlerWorker.REMOTE_NOTIFICATION_COLOR_KEY]
+    }
+
+    private val remoteNotificationTitle by lazy {
+        remoteMessageNotificationData[CustomerIOPushNotificationHandlerWorker.REMOTE_NOTIFICATION_TITLE_KEY]
+    }
+
+    private val remoteNotificationBody by lazy {
+        remoteMessageNotificationData[CustomerIOPushNotificationHandlerWorker.REMOTE_NOTIFICATION_BODY_KEY]
+    }
+
+    private val remoteNotificationImage by lazy {
+        remoteMessageNotificationData[CustomerIOPushNotificationHandlerWorker.REMOTE_NOTIFICATION_IMAGE_KEY]
     }
 
     fun handleMessage(
         context: Context,
         handleNotificationTrigger: Boolean = true
     ): Boolean {
-        pushLogger.logReceivedPushMessage(remoteMessage, handleNotificationTrigger)
+        // RESTRICTION
+        // pushLogger.logReceivedPushMessage(remoteMessage, handleNotificationTrigger)
+
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
             pushLogger.logReceivedEmptyPushMessage()
@@ -113,7 +144,8 @@ internal class CustomerIOPushNotificationHandler(
         deliveryId: String,
         deliveryToken: String
     ) {
-        pushLogger.logShowingPushNotification(remoteMessage)
+        // RESTRICTION
+//        pushLogger.logShowingPushNotification(remoteMessage)
 
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
         val requestCode = abs(System.currentTimeMillis().toInt())
@@ -124,21 +156,21 @@ internal class CustomerIOPushNotificationHandler(
 
         @DrawableRes
         val smallIcon: Int =
-            remoteMessage.notification?.icon?.let { iconName -> context.getDrawableByName(iconName) }
+            remoteNotificationIcon?.let { iconName -> context.getDrawableByName(iconName) }
                 ?: appMetaData?.getMetaDataResource(name = FCM_METADATA_DEFAULT_NOTIFICATION_ICON)
                 ?: context.applicationInfo.icon
 
         @ColorInt
         val tintColor: Int? =
-            remoteMessage.notification?.color?.toColorOrNull()
+            remoteNotificationColor?.toColorOrNull()
                 ?: appMetaData?.getMetaDataResource(name = FCM_METADATA_DEFAULT_NOTIFICATION_COLOR)
                     ?.let { id -> context.getColorOrNull(id) }
                 ?: appMetaData?.getMetaDataString(name = FCM_METADATA_DEFAULT_NOTIFICATION_COLOR)
                     ?.toColorOrNull()
 
         // set title and body
-        val title = bundle.getString(TITLE_KEY) ?: remoteMessage.notification?.title ?: ""
-        val body = bundle.getString(BODY_KEY) ?: remoteMessage.notification?.body ?: ""
+        val title = bundle.getString(TITLE_KEY) ?: remoteNotificationTitle ?: ""
+        val body = bundle.getString(BODY_KEY) ?: remoteNotificationBody ?: ""
 
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
@@ -164,7 +196,7 @@ internal class CustomerIOPushNotificationHandler(
             // check for image in data and notification payload to cater for both simple and rich push
             // data only payload (foreground and background)
             // notification + data payload (foreground)
-            val notificationImage = bundle.getString(IMAGE_KEY) ?: remoteMessage.notification?.imageUrl?.toString()
+            val notificationImage = bundle.getString(IMAGE_KEY) ?: remoteNotificationImage
             if (notificationImage != null) {
                 addImage(notificationImage, notificationBuilder, body)
             }
@@ -223,10 +255,11 @@ internal class CustomerIOPushNotificationHandler(
     private fun addImage(
         imageUrl: String,
         builder: NotificationCompat.Builder,
-        body: String
+        body: String,
+        defaultBitmap: Bitmap? = null
     ) = runBlocking {
         val style = NotificationCompat.BigPictureStyle()
-            .bigLargeIcon(null)
+            .bigLargeIcon(defaultBitmap)
             .setSummaryText(body)
         val url = URL(imageUrl)
         withContext(Dispatchers.IO) {

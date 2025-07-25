@@ -38,5 +38,6 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.googlePlayServicesBase
+    implementation Dependencies.androidxWork
     api Dependencies.firebaseMessaging
 }

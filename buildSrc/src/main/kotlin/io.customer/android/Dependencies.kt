@@ -71,4 +71,5 @@ object Dependencies {
     const val composeFoundation = "androidx.compose.foundation:foundation"
     const val composeMaterial = "androidx.compose.material:material"
     const val composeRuntime = "androidx.compose.runtime:runtime"
+    const val androidxWork = "androidx.work:work-runtime-ktx:${Versions.ANDROIDX_WORK}"
 }

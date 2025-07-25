@@ -16,6 +16,7 @@ object Versions {
     internal const val ANDROIDX_KTX = "1.6.0"
     internal const val ANDROIDX_LIFECYCLE_PROCESS = "2.6.1"
     internal const val ANDROIDX_ANNOTATIONS = "1.3.0"
+    internal const val ANDROIDX_WORK = "2.9.0"
     internal const val APK_SCALE = "0.1.7"
 
     internal const val COROUTINES = "1.7.3"

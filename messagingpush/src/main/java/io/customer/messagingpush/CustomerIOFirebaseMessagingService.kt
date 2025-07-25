@@ -1,10 +1,10 @@
 package io.customer.messagingpush
 
 import android.content.Context
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -60,13 +60,28 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             remoteMessage: RemoteMessage,
             handleNotificationTrigger: Boolean = true
         ): Boolean {
+            remoteMessage.notification
+
             SDKComponent.setupAndroidComponent(context = context)
-            val handler = CustomerIOPushNotificationHandler(
-                pushMessageProcessor = SDKComponent.pushMessageProcessor,
-                remoteMessage = remoteMessage,
-                notificationChannelCreator = NotificationChannelCreator()
-            )
-            return handler.handleMessage(context, handleNotificationTrigger)
+//            val handler = CustomerIOPushNotificationHandler(
+//                pushMessageProcessor = SDKComponent.pushMessageProcessor,
+//                remoteMessage = remoteMessage,
+//                notificationChannelCreator = NotificationChannelCreator()
+//            )
+//            return handler.handleMessage(context, handleNotificationTrigger)
+            val workRequest = CustomerIOPushNotificationHandlerWorker
+                .buildWorkRequest(remoteMessage, handleNotificationTrigger)
+            val workManager = WorkManager.getInstance(context)
+            workManager.enqueue(workRequest)
+            return try {
+                val workInfo = workManager.getWorkInfoById(workRequest.id).get()
+                when (workInfo?.state) {
+                    WorkInfo.State.SUCCEEDED -> true
+                    else -> false
+                }
+            } catch (e: Exception) {
+                false
+            }
         }
     }
 

@@ -2,7 +2,10 @@ package io.customer.sdk.data.store
 
 import android.content.Context
 import androidx.core.content.edit
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.Settings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
 /**
@@ -23,6 +26,8 @@ internal class GlobalPreferenceStoreImpl(
     context: Context
 ) : PreferenceStore(context), GlobalPreferenceStore {
 
+    private val scope: CoroutineScope = SDKComponent.scopeProvider.globalPreferenceStoreScope
+
     override val prefsName: String by lazy {
         "io.customer.sdk.${context.packageName}"
     }
@@ -31,8 +36,12 @@ internal class GlobalPreferenceStoreImpl(
         putString(KEY_DEVICE_TOKEN, token)
     }
 
-    override fun saveSettings(value: Settings) = prefs.edit {
-        putString(KEY_CONFIG_SETTINGS, Json.encodeToString(Settings.serializer(), value))
+    override fun saveSettings(value: Settings) {
+        scope.launch {
+            prefs.edit {
+                putString(KEY_CONFIG_SETTINGS, Json.encodeToString(Settings.serializer(), value))
+            }
+        }
     }
 
     override fun getDeviceToken(): String? = prefs.read {

@@ -96,6 +96,8 @@ class CustomerIO private constructor(
         }
     }
 
+    // Still synchronously create Analytics instance to ensure it is created before any other module uses it
+    // but we initialize it on background thread to avoid any storage access on main thread by Analytics.
     internal val analytics: Analytics = overrideAnalytics ?: runBlocking(dispatchersProvider.background) {
         Analytics(
             writeKey = moduleConfig.cdpApiKey,

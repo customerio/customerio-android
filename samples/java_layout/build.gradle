@@ -23,6 +23,8 @@ android {
         String universalDeepLinkHost = "www.java-sample.com"
         buildConfigField "String", "UNIVERSAL_DEEP_LINK_HOST", "\"${universalDeepLinkHost}\""
         manifestPlaceholders += [universalDeepLinkHost: universalDeepLinkHost]
+
+        testInstrumentationRunner "io.customer.android.sample.java_layout.StrictModeTestRunner"
     }
 
     buildTypes {
@@ -59,6 +61,10 @@ dependencies {
     // Because RxAndroid releases are few and far between, it is recommended to
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     implementation "io.reactivex.rxjava3:rxjava:3.1.5"
+
+    // Test dependencies
+    androidTestImplementation "androidx.test.ext:junit:1.1.5"
+    androidTestImplementation "androidx.test:runner:1.5.2"
 
     // Material for Compose - now conditionally included in sample-app.gradle
 

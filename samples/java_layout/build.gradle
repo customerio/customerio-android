@@ -40,13 +40,13 @@ android {
 }
 
 dependencies {
-    def datastore_version = "1.0.0"
-    def lifecycle_version = "2.6.1"
+    def datastore_version = "1.1.7"
+    def lifecycle_version = "2.9.2"
 
     // Existing dependencies
-    implementation "androidx.annotation:annotation:1.6.0"
-    implementation "androidx.appcompat:appcompat:1.6.1"
-    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+    implementation "androidx.annotation:annotation:1.9.1"
+    implementation "androidx.appcompat:appcompat:1.7.1"
+    implementation "androidx.constraintlayout:constraintlayout:2.2.1"
     implementation "androidx.core:core-splashscreen:1.0.1"
     implementation "androidx.datastore:datastore-preferences:$datastore_version"
     implementation "androidx.datastore:datastore-preferences-rxjava3:$datastore_version"
@@ -54,7 +54,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-reactivestreams:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
-    implementation "com.google.android.material:material:1.9.0"
+    implementation "com.google.android.material:material:1.12.0"
     implementation "io.reactivex.rxjava3:rxandroid:3.0.2"
     // Because RxAndroid releases are few and far between, it is recommended to
     // explicitly depend on RxJava's latest version for bug fixes and new features.

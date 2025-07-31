@@ -64,6 +64,16 @@ baselineProfile {
 
     // Make use of Dex Layout Optimizations via Startup Profiles
     dexLayoutOptimization = true
+
+    filter {
+        include("io.customer.sdk.core.**")
+        include("io.customer.datapipelines.**")
+//        include("io.customer.messaginginapp.**")
+//        include("io.customer.messagingpush.**")
+//        include("io.customer.tracking.migration.**")
+
+//        exclude("io.customer.android.sample.java_layout.**")
+    }
 }
 
 dependencies {
@@ -87,7 +97,7 @@ dependencies {
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     implementation "io.reactivex.rxjava3:rxjava:3.1.5"
 
-    implementation "androidx.profileinstaller:profileinstaller:1.3.1"
+    implementation "androidx.profileinstaller:profileinstaller:1.4.1"
     baselineProfile project(":baselineprofile")
     
     // Minimal Compose dependencies for ComposeInlineExampleFragment

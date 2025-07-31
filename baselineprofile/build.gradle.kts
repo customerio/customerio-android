@@ -24,6 +24,7 @@ android {
         targetSdk = 34
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR"
     }
 
     targetProjectPath = ":samples:java_layout"
@@ -61,7 +62,7 @@ android {
 }
 
 baselineProfile {
-    managedDevices += "pixel6Api34"
+    // managedDevices += "pixel9ProApi35"
     useConnectedDevices = true
 }
 

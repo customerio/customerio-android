@@ -9,7 +9,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 class ScopeProviderStub private constructor(
     override val eventBusScope: TestScope,
     override val lifecycleListenerScope: TestScope,
-    override val inAppLifecycleScope: TestScope
+    override val inAppLifecycleScope: TestScope,
+    override val globalPreferenceStoreScope: TestScope
 ) : ScopeProvider {
 
     @Suppress("FunctionName")
@@ -18,13 +19,15 @@ class ScopeProviderStub private constructor(
         fun Unconfined(): ScopeProviderStub = ScopeProviderStub(
             eventBusScope = TestScope(UnconfinedTestDispatcher()),
             lifecycleListenerScope = TestScope(UnconfinedTestDispatcher()),
-            inAppLifecycleScope = TestScope(UnconfinedTestDispatcher())
+            inAppLifecycleScope = TestScope(UnconfinedTestDispatcher()),
+            globalPreferenceStoreScope = TestScope(UnconfinedTestDispatcher())
         )
 
         fun Standard(): ScopeProviderStub = ScopeProviderStub(
             eventBusScope = TestScope(StandardTestDispatcher()),
             lifecycleListenerScope = TestScope(StandardTestDispatcher()),
-            inAppLifecycleScope = TestScope(StandardTestDispatcher())
+            inAppLifecycleScope = TestScope(StandardTestDispatcher()),
+            globalPreferenceStoreScope = TestScope(StandardTestDispatcher())
         )
     }
 }

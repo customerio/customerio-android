@@ -1,11 +1,13 @@
 package io.customer.android.sample.java_layout.sdk;
 
+import android.os.StrictMode;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 
 import java.util.Map;
 
+import io.customer.android.sample.java_layout.BuildConfig;
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
@@ -25,6 +27,12 @@ public class CustomerIORepository {
         ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
+
+        // Enable strict mode after config to focus on SDK issues
+        // Only enable in debug builds to avoid performance impact in release builds
+        if (BuildConfig.DEBUG) {
+            enableStrictMode();
+        }
 
         // Initialize Customer.io SDK builder
         CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
@@ -121,5 +129,25 @@ public class CustomerIORepository {
 
         // Return default configurations if no configurations were saved in data store
         return CustomerIOSDKConfig.getDefaultConfigurations();
+    }
+
+    private void enableStrictMode() {
+        // Thread policy - detects network calls, disk reads, custom slow calls on main thread
+        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
+                .detectNetwork()   // Detect network calls on main thread
+                .detectDiskReads() // Detect disk reads on main thread
+                .detectDiskWrites() // Detect disk writes on main thread
+                .detectCustomSlowCalls() // Detect custom slow calls marked with StrictMode.noteSlowCall()
+                .penaltyLog()      // Log violations to LogCat
+                //.penaltyDialog()   // Show dialog for violations (useful for debugging)
+                .build());
+
+        // VM policy - detects leaks and other VM-level violations
+        StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
+                .detectLeakedSqlLiteObjects() // Detect leaked SQLite objects
+                .detectLeakedClosableObjects() // Detect leaked closeable objects
+                .detectActivityLeaks()         // Detect leaked activities
+                .penaltyLog()
+                .build());
     }
 }

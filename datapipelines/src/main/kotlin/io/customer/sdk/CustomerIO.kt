@@ -302,11 +302,9 @@ class CustomerIO private constructor(
     override val userId: String?
         get() = analytics.userId()
 
-    override var deviceAttributes: CustomAttributes
-        get() = emptyMap()
-        set(value) {
-            trackDeviceAttributes(registeredDeviceToken, value)
-        }
+    override fun setDeviceAttributes(attributes: CustomAttributes) {
+        trackDeviceAttributes(registeredDeviceToken, attributes)
+    }
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
         if (deviceToken.isBlank()) {

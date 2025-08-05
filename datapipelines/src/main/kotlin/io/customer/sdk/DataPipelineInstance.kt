@@ -301,7 +301,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
-    abstract var deviceAttributes: CustomAttributes
+    abstract fun setDeviceAttributes(attributes: CustomAttributes)
 
     /**
      * Registers a new device token with Customer.io, associated with the current

@@ -93,7 +93,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         analytics.userId().shouldBeNull()
         every { globalPreferenceStore.getDeviceToken() } returns String.random
 
-        sdkInstance.profileAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
+        sdkInstance.setProfileAttributes(mapOf("first_name" to "Dana", "ageInYears" to 30))
         analytics.userId() shouldBe ""
         sdkInstance.identify(givenIdentifier)
 

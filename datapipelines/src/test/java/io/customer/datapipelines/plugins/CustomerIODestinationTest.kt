@@ -2,7 +2,7 @@ package io.customer.datapipelines.plugins
 
 import com.segment.analytics.kotlin.core.HTTPClient
 import io.customer.commontest.config.TestConfig
-import io.customer.datapipelines.testutils.core.JUnitTest
+import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
@@ -14,14 +14,21 @@ import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeNull
-import org.junit.jupiter.api.Test
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * Test for CustomerIODestination plugin, focusing on behavior when network settings fetch fails.
  * These tests verify that even when the settings fetch fails, the plugin remains enabled
  * and can process events.
+ *
+ * Note: This test uses Robolectric (@RunWith(RobolectricTestRunner::class)) instead of pure unit tests
+ * to ensure compatibility with Segment Analytics SDK 1.20.0+ which introduced ProcessLifecycleOwner
+ * dependency in Analytics.startup(). Robolectric provides the necessary Android environment.
  */
-class CustomerIODestinationTest : JUnitTest() {
+@RunWith(RobolectricTestRunner::class)
+class CustomerIODestinationTest : IntegrationTest() {
 
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
@@ -42,7 +49,6 @@ class CustomerIODestinationTest : JUnitTest() {
         analytics.add(outputReaderPlugin)
     }
 
-    // process_givenScreenViewUseAnalytics_expectScreenEventWithoutPropertiesProcessed
     @Test
     fun givenFetchingSettingFails_expectCustomerIODestinationPluginStillBeEnabled() {
         // Verify plugin is present in analytics instance

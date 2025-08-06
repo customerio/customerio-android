@@ -12,6 +12,7 @@ import io.customer.datapipelines.testutils.utils.mockHTTPClient
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
@@ -97,6 +98,9 @@ class UnitTestDelegate(
         val applicationContext = applicationInstance as? Application ?: mockk<Application>(relaxed = true).apply {
             every { applicationContext } returns this
         }
+        SDKComponent.setupAndroidComponent(
+            context = applicationContext
+        )
         val builder = CustomerIOBuilder(applicationContext, testConfig.cdpApiKey)
         // Register AndroidSDKComponent with mocked dependencies as we are not using real context in tests
         overrideAndroidComponentDependencies()

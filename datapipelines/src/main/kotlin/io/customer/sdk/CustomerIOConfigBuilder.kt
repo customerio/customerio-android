@@ -9,48 +9,23 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 
 /**
- * Creates a new instance of builder for CustomerIO SDK.
- * The class uses builder pattern to simplify the setup and configuration of CustomerIO SDK,
- * including its core components and additional modules.
- * It automatically includes implementations of [DataPipelineInstance] to ensure all events are routed to it.
+ * Builder class for creating CustomerIO SDK configuration.
+ * This class uses the builder pattern to simplify the setup and configuration of CustomerIO SDK.
  *
- * @deprecated Use [CustomerIOConfigBuilder] and [CustomerIO.initialize] instead.
- * 
- * Migration example:
- * Old way:
- * ```
- * with(CustomerIOBuilder(appContext: Application context, cdpApiKey = "XXX")) {
- *   setLogLevel(...)
- *   addCustomerIOModule(...)
- *   build()
- * }
- * ```
- * 
- * New way:
+ * Example usage:
  * ```
  * val config = CustomerIOConfigBuilder(appContext, "your-api-key")
- *   .logLevel(...)
- *   .addCustomerIOModule(...)
- *   .build()
+ *     .logLevel(CioLogLevel.DEBUG)
+ *     .region(Region.EU)
+ *     .build()
  * 
  * CustomerIO.initialize(config)
  * ```
  */
-@Deprecated(
-    message = "Use CustomerIOConfigBuilder and CustomerIO.initialize() instead",
-    replaceWith = ReplaceWith(
-        "CustomerIOConfigBuilder(applicationContext, cdpApiKey).build().let { CustomerIO.initialize(it) }",
-        "io.customer.sdk.CustomerIOConfigBuilder", 
-        "io.customer.sdk.CustomerIO"
-    )
-)
-class CustomerIOBuilder(
+class CustomerIOConfigBuilder(
     private val applicationContext: Application,
     private val cdpApiKey: String
 ) {
-    // List of modules to be initialized with the SDK
-    private val registeredModules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
-
     // Logging configuration
     private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
 
@@ -82,11 +57,14 @@ class CustomerIOBuilder(
     // Determines how SDK should handle screen view events
     private var screenViewUse: ScreenView = ScreenView.All
 
+    // List of modules to be initialized with the SDK
+    private val modules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
+
     /**
      * Specifies the log level for the SDK.
      * Default value is [CioLogLevel.ERROR].
      */
-    fun logLevel(level: CioLogLevel): CustomerIOBuilder {
+    fun logLevel(level: CioLogLevel): CustomerIOConfigBuilder {
         this.logLevel = level
         return this
     }
@@ -96,17 +74,17 @@ class CustomerIOBuilder(
      * Default values for apiHost and cdnHost are determined by the region.
      * However, if apiHost or cdnHost are manually specified, those values override region-based defaults.
      */
-    fun region(region: Region): CustomerIOBuilder {
+    fun region(region: Region): CustomerIOConfigBuilder {
         this.region = region
         return this
     }
 
-    fun apiHost(apiHost: String): CustomerIOBuilder {
+    fun apiHost(apiHost: String): CustomerIOConfigBuilder {
         this.apiHost = apiHost
         return this
     }
 
-    fun cdnHost(cdnHost: String): CustomerIOBuilder {
+    fun cdnHost(cdnHost: String): CustomerIOConfigBuilder {
         this.cdnHost = cdnHost
         return this
     }
@@ -115,7 +93,7 @@ class CustomerIOBuilder(
      * Specifies the number of events that should be queued before they are flushed to the server.
      * Default value is 20.
      */
-    fun flushAt(flushAt: Int): CustomerIOBuilder {
+    fun flushAt(flushAt: Int): CustomerIOConfigBuilder {
         this.flushAt = flushAt
         return this
     }
@@ -124,7 +102,7 @@ class CustomerIOBuilder(
      * Specifies the interval in seconds at which events should be flushed to the server.
      * Default value is 30 seconds.
      */
-    fun flushInterval(flushInterval: Int): CustomerIOBuilder {
+    fun flushInterval(flushInterval: Int): CustomerIOConfigBuilder {
         this.flushInterval = flushInterval
         return this
     }
@@ -133,7 +111,7 @@ class CustomerIOBuilder(
      * Specifies the list of flush policies that should be applied to the event queue.
      * Default value is an empty list.
      */
-    fun flushPolicies(flushPolicies: List<FlushPolicy>): CustomerIOBuilder {
+    fun flushPolicies(flushPolicies: List<FlushPolicy>): CustomerIOConfigBuilder {
         this.flushPolicies = flushPolicies
         return this
     }
@@ -141,7 +119,7 @@ class CustomerIOBuilder(
     /**
      * Automatically add Customer.io destination plugin, defaults to `true`
      */
-    fun autoAddCustomerIODestination(autoAdd: Boolean): CustomerIOBuilder {
+    fun autoAddCustomerIODestination(autoAdd: Boolean): CustomerIOConfigBuilder {
         this.autoAddCustomerIODestination = autoAdd
         return this
     }
@@ -149,7 +127,7 @@ class CustomerIOBuilder(
     /**
      * Automatically send track for Lifecycle events (eg: Application Opened, Application Backgrounded, etc.), defaults to `true`
      */
-    fun trackApplicationLifecycleEvents(track: Boolean): CustomerIOBuilder {
+    fun trackApplicationLifecycleEvents(track: Boolean): CustomerIOConfigBuilder {
         this.trackApplicationLifecycleEvents = track
         return this
     }
@@ -158,7 +136,7 @@ class CustomerIOBuilder(
      * Enable this property if you want SDK to automatic track device attributes such as
      * operating system, device locale, device model, app version etc.
      */
-    fun autoTrackDeviceAttributes(track: Boolean): CustomerIOBuilder {
+    fun autoTrackDeviceAttributes(track: Boolean): CustomerIOConfigBuilder {
         this.autoTrackDeviceAttributes = track
         return this
     }
@@ -167,7 +145,7 @@ class CustomerIOBuilder(
      * Enable this property if you want SDK to automatic track screen views for Activities.
      * Note: This feature is not useful for UI toolkit like Jetpack Compose as it consist of only one Activity and multiple Composable.
      */
-    fun autoTrackActivityScreens(track: Boolean): CustomerIOBuilder {
+    fun autoTrackActivityScreens(track: Boolean): CustomerIOConfigBuilder {
         this.autoTrackActivityScreens = track
         return this
     }
@@ -175,7 +153,7 @@ class CustomerIOBuilder(
     /**
      * Set the migration site id to migrate the events from the tracking SDK version.
      */
-    fun migrationSiteId(migrationSiteId: String?): CustomerIOBuilder {
+    fun migrationSiteId(migrationSiteId: String?): CustomerIOConfigBuilder {
         this.migrationSiteId = migrationSiteId
         return this
     }
@@ -185,19 +163,24 @@ class CustomerIOBuilder(
      *
      * @see ScreenView for more details.
      */
-    fun screenViewUse(screenView: ScreenView): CustomerIOBuilder {
+    fun screenViewUse(screenView: ScreenView): CustomerIOConfigBuilder {
         this.screenViewUse = screenView
         return this
     }
 
-    fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): CustomerIOBuilder {
-        registeredModules.add(module)
+    /**
+     * Add a CustomerIO module to be initialized with the SDK.
+     */
+    fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): CustomerIOConfigBuilder {
+        modules.add(module)
         return this
     }
 
-    fun build(): CustomerIO {
-        // Create CustomerIOConfig from the current builder state
-        val config = CustomerIOConfig(
+    /**
+     * Build the CustomerIOConfig instance with the specified configuration.
+     */
+    fun build(): CustomerIOConfig {
+        return CustomerIOConfig(
             applicationContext = applicationContext,
             cdpApiKey = cdpApiKey,
             logLevel = logLevel,
@@ -213,11 +196,7 @@ class CustomerIOBuilder(
             autoTrackActivityScreens = autoTrackActivityScreens,
             migrationSiteId = migrationSiteId,
             screenViewUse = screenViewUse,
-            modules = registeredModules.toList()
+            modules = modules.toList()
         )
-
-        // Initialize the SDK and return the instance
-        CustomerIO.initialize(config)
-        return CustomerIO.instance()
     }
 }

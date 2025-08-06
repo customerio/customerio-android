@@ -26,43 +26,64 @@ class CustomerIOConfigBuilder(
     private val applicationContext: Application,
     private val cdpApiKey: String
 ) {
+    /**
+     * Default values for CustomerIO SDK configuration.
+     * These defaults are used by both CustomerIOConfigBuilder and the deprecated CustomerIOBuilder.
+     */
+    internal companion object Defaults {
+        val logLevel: CioLogLevel = CioLogLevel.DEFAULT
+        val region: Region = Region.US
+        val apiHost: String? = null
+        val cdnHost: String? = null
+        val flushAt: Int = 20
+        val flushInterval: Int = 30
+        val flushPolicies: List<FlushPolicy> = emptyList()
+        val autoAddCustomerIODestination: Boolean = true
+        val trackApplicationLifecycleEvents: Boolean = true
+        val autoTrackDeviceAttributes: Boolean = true
+        val autoTrackActivityScreens: Boolean = false
+        val migrationSiteId: String? = null
+        val screenViewUse: ScreenView = ScreenView.All
+        val modules: List<CustomerIOModule<out CustomerIOModuleConfig>> = emptyList()
+    }
+
     // Logging configuration
-    private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
+    private var logLevel: CioLogLevel = Defaults.logLevel
 
     // Host Settings
-    private var region: Region = Region.US
-    private var apiHost: String? = null
-    private var cdnHost: String? = null
+    private var region: Region = Defaults.region
+    private var apiHost: String? = Defaults.apiHost
+    private var cdnHost: String? = Defaults.cdnHost
 
     // Dispatching configuration
-    private var flushAt: Int = 20
-    private var flushInterval: Int = 30
-    private var flushPolicies: List<FlushPolicy> = emptyList()
+    private var flushAt: Int = Defaults.flushAt
+    private var flushInterval: Int = Defaults.flushInterval
+    private var flushPolicies: List<FlushPolicy> = Defaults.flushPolicies
 
     // Destination configuration
-    private var autoAddCustomerIODestination: Boolean = true
+    private var autoAddCustomerIODestination: Boolean = Defaults.autoAddCustomerIODestination
 
     // Lifecycle tracking
-    private var trackApplicationLifecycleEvents: Boolean = true
+    private var trackApplicationLifecycleEvents: Boolean = Defaults.trackApplicationLifecycleEvents
 
     // Track device information
-    private var autoTrackDeviceAttributes: Boolean = true
+    private var autoTrackDeviceAttributes: Boolean = Defaults.autoTrackDeviceAttributes
 
     // Track screen views for Activities
-    private var autoTrackActivityScreens: Boolean = false
+    private var autoTrackActivityScreens: Boolean = Defaults.autoTrackActivityScreens
 
     // Configuration options required for migration from earlier versions
-    private var migrationSiteId: String? = null
+    private var migrationSiteId: String? = Defaults.migrationSiteId
 
     // Determines how SDK should handle screen view events
-    private var screenViewUse: ScreenView = ScreenView.All
+    private var screenViewUse: ScreenView = Defaults.screenViewUse
 
     // List of modules to be initialized with the SDK
     private val modules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
 
     /**
      * Specifies the log level for the SDK.
-     * Default value is [CioLogLevel.ERROR].
+     * Default value is [CioLogLevel.DEFAULT].
      */
     fun logLevel(level: CioLogLevel): CustomerIOConfigBuilder {
         this.logLevel = level
@@ -71,6 +92,7 @@ class CustomerIOConfigBuilder(
 
     /**
      * Specifies the workspace region to ensure CDP requests are routed to the correct regional endpoint.
+     * Default value is [Region.US].
      * Default values for apiHost and cdnHost are determined by the region.
      * However, if apiHost or cdnHost are manually specified, those values override region-based defaults.
      */
@@ -135,6 +157,7 @@ class CustomerIOConfigBuilder(
     /**
      * Enable this property if you want SDK to automatic track device attributes such as
      * operating system, device locale, device model, app version etc.
+     * Default value is `true`.
      */
     fun autoTrackDeviceAttributes(track: Boolean): CustomerIOConfigBuilder {
         this.autoTrackDeviceAttributes = track
@@ -144,6 +167,7 @@ class CustomerIOConfigBuilder(
     /**
      * Enable this property if you want SDK to automatic track screen views for Activities.
      * Note: This feature is not useful for UI toolkit like Jetpack Compose as it consist of only one Activity and multiple Composable.
+     * Default value is `false`.
      */
     fun autoTrackActivityScreens(track: Boolean): CustomerIOConfigBuilder {
         this.autoTrackActivityScreens = track
@@ -152,6 +176,7 @@ class CustomerIOConfigBuilder(
 
     /**
      * Set the migration site id to migrate the events from the tracking SDK version.
+     * Default value is `null`.
      */
     fun migrationSiteId(migrationSiteId: String?): CustomerIOConfigBuilder {
         this.migrationSiteId = migrationSiteId
@@ -160,6 +185,7 @@ class CustomerIOConfigBuilder(
 
     /**
      * Set the screen view configuration for the SDK.
+     * Default value is [ScreenView.All].
      *
      * @see ScreenView for more details.
      */

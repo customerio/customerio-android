@@ -52,35 +52,35 @@ class CustomerIOBuilder(
     private val registeredModules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
 
     // Logging configuration
-    private var logLevel: CioLogLevel = CioLogLevel.DEFAULT
+    private var logLevel: CioLogLevel = CustomerIOConfigBuilder.Defaults.logLevel
 
     // Host Settings
-    private var region: Region = Region.US
-    private var apiHost: String? = null
-    private var cdnHost: String? = null
+    private var region: Region = CustomerIOConfigBuilder.Defaults.region
+    private var apiHost: String? = CustomerIOConfigBuilder.Defaults.apiHost
+    private var cdnHost: String? = CustomerIOConfigBuilder.Defaults.cdnHost
 
     // Dispatching configuration
-    private var flushAt: Int = 20
-    private var flushInterval: Int = 30
-    private var flushPolicies: List<FlushPolicy> = emptyList()
+    private var flushAt: Int = CustomerIOConfigBuilder.Defaults.flushAt
+    private var flushInterval: Int = CustomerIOConfigBuilder.Defaults.flushInterval
+    private var flushPolicies: List<FlushPolicy> = CustomerIOConfigBuilder.Defaults.flushPolicies
 
     // Destination configuration
-    private var autoAddCustomerIODestination: Boolean = true
+    private var autoAddCustomerIODestination: Boolean = CustomerIOConfigBuilder.Defaults.autoAddCustomerIODestination
 
     // Lifecycle tracking
-    private var trackApplicationLifecycleEvents: Boolean = true
+    private var trackApplicationLifecycleEvents: Boolean = CustomerIOConfigBuilder.Defaults.trackApplicationLifecycleEvents
 
     // Track device information
-    private var autoTrackDeviceAttributes: Boolean = true
+    private var autoTrackDeviceAttributes: Boolean = CustomerIOConfigBuilder.Defaults.autoTrackDeviceAttributes
 
     // Track screen views for Activities
-    private var autoTrackActivityScreens: Boolean = false
+    private var autoTrackActivityScreens: Boolean = CustomerIOConfigBuilder.Defaults.autoTrackActivityScreens
 
     // Configuration options required for migration from earlier versions
-    private var migrationSiteId: String? = null
+    private var migrationSiteId: String? = CustomerIOConfigBuilder.Defaults.migrationSiteId
 
     // Determines how SDK should handle screen view events
-    private var screenViewUse: ScreenView = ScreenView.All
+    private var screenViewUse: ScreenView = CustomerIOConfigBuilder.Defaults.screenViewUse
 
     /**
      * Specifies the log level for the SDK.

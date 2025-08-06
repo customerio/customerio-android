@@ -18,7 +18,7 @@ import io.customer.sdk.data.model.Region
  *     .logLevel(CioLogLevel.DEBUG)
  *     .region(Region.EU)
  *     .build()
- * 
+ *
  * CustomerIO.initialize(config)
  * ```
  */

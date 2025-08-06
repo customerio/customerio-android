@@ -51,7 +51,7 @@ import kotlinx.serialization.serializer
  *   .logLevel(CioLogLevel.DEBUG)
  *   .addCustomerIOModule(...)
  *   .build()
- * 
+ *
  * CustomerIO.initialize(config)
  * val customerIO = CustomerIO.instance()
  * ```
@@ -404,18 +404,18 @@ class CustomerIO private constructor(
          * Initialize the CustomerIO SDK with the provided configuration.
          * This method should be called once during the application lifecycle, typically in Application.onCreate().
          * After initialization, use CustomerIO.instance() to get the initialized SDK instance.
-         * 
+         *
          * Example usage:
          * ```
          * val config = CustomerIOConfigBuilder(this, "your-api-key")
          *     .logLevel(CioLogLevel.DEBUG)
          *     .region(Region.EU)
          *     .build()
-         * 
+         *
          * CustomerIO.initialize(config)
          * val customerIO = CustomerIO.instance()
          * ```
-         * 
+         *
          * @param config The configuration for initializing the CustomerIO SDK
          */
         @JvmStatic

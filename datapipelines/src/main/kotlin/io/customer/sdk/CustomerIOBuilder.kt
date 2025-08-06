@@ -15,7 +15,7 @@ import io.customer.sdk.data.model.Region
  * It automatically includes implementations of [DataPipelineInstance] to ensure all events are routed to it.
  *
  * @deprecated Use [CustomerIOConfigBuilder] and [CustomerIO.initialize] instead.
- * 
+ *
  * Migration example:
  * Old way:
  * ```
@@ -25,14 +25,14 @@ import io.customer.sdk.data.model.Region
  *   build()
  * }
  * ```
- * 
+ *
  * New way:
  * ```
  * val config = CustomerIOConfigBuilder(appContext, "your-api-key")
  *   .logLevel(...)
  *   .addCustomerIOModule(...)
  *   .build()
- * 
+ *
  * CustomerIO.initialize(config)
  * ```
  */
@@ -40,7 +40,7 @@ import io.customer.sdk.data.model.Region
     message = "Use CustomerIOConfigBuilder and CustomerIO.initialize() instead",
     replaceWith = ReplaceWith(
         "CustomerIOConfigBuilder(applicationContext, cdpApiKey).build().let { CustomerIO.initialize(it) }",
-        "io.customer.sdk.CustomerIOConfigBuilder", 
+        "io.customer.sdk.CustomerIOConfigBuilder",
         "io.customer.sdk.CustomerIO"
     )
 )

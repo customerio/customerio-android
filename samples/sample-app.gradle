@@ -7,13 +7,11 @@ if (localPropertiesFile.exists()) {
 // Common Compose version variables
 def compose_version = "1.4.1"
 def compose_bom_version = "2023.10.01"
-def compose_compiler_version = "1.4.7"
 def kotlin_bom_version = "1.8.20"
 def core_ktx_version = "1.10.1"
 
 ext {
     COMPOSE_VERSION = compose_version
-    COMPOSE_COMPILER_VERSION = compose_compiler_version
 }
 
 android {
@@ -89,11 +87,6 @@ android {
         
         // Enable Compose for all projects, since both Java Layout and Kotlin Compose need it
         compose true
-    }
-    
-    // Set Compose compiler version for all projects
-    composeOptions {
-        kotlinCompilerExtensionVersion compose_compiler_version
     }
     
     buildTypes {

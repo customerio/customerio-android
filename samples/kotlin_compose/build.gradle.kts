@@ -4,12 +4,14 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
     id("dagger.hilt.android.plugin")
     id("com.google.gms.google-services")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 apply {
     // Include Customer.io SDK dependencies and common gradle properties for sample apps
     ext.set("appConfigKeyPrefix", "kotlinCompose_")
     from("$rootDir/samples/sample-app.gradle")
+    from("$rootDir/scripts/packaging.gradle")
 }
 
 android {
@@ -53,9 +55,7 @@ kotlin {
 }
 
 val hiltVersion = io.customer.android.Versions.HILT
-val composeVersion = "1.4.1"
-val coroutinesVersion = "1.5.2"
-val roomVersion = "2.4.2"
+val roomVersion = "2.7.0"
 
 dependencies {
     // Compose dependencies are included from sample-app.gradle

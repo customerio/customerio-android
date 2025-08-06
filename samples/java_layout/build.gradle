@@ -3,6 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.kapt'
     id 'com.google.gms.google-services' // Google services Gradle plugin
+    id 'org.jetbrains.kotlin.plugin.compose' // Starting in Kotlin 2.0, the Compose Compiler Gradle plugin is required
 }
 
 // Include Customer.io SDK dependencies and common gradle properties for sample apps

@@ -5,6 +5,7 @@ import io.customer.android.Versions
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
     id 'com.twilio.apkscale'
 }
 
@@ -17,6 +18,7 @@ apply from: "${rootDir}/scripts/publish-module.gradle"
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
+apply from: "${rootDir}/scripts/packaging.gradle"
 
 android {
     namespace 'io.customer.messaginginapp.compose'
@@ -32,10 +34,6 @@ android {
     }
     buildFeatures {
         compose true
-    }
-    
-    composeOptions {
-        kotlinCompilerExtensionVersion Versions.COMPOSE_COMPILER
     }
 }
 

@@ -64,6 +64,7 @@ object Dependencies {
 
     // Compose dependencies
     const val composeBom = "androidx.compose:compose-bom:${Versions.COMPOSE_BOM}"
+    const val composeCompilerGradlePlugin = "org.jetbrains.kotlin:compose-compiler-gradle-plugin:${Versions.COMPOSE_COMPILER}"
     const val composeUi = "androidx.compose.ui:ui"
     const val composeUiGraphics = "androidx.compose.ui:ui-graphics"
     const val composeUiTooling = "androidx.compose.ui:ui-tooling"

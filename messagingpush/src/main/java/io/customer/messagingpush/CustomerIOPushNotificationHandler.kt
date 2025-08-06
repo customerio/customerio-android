@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
@@ -223,10 +224,11 @@ internal class CustomerIOPushNotificationHandler(
     private fun addImage(
         imageUrl: String,
         builder: NotificationCompat.Builder,
-        body: String
+        body: String,
+        defaultLargeIcon: Bitmap? = null
     ) = runBlocking {
         val style = NotificationCompat.BigPictureStyle()
-            .bigLargeIcon(null)
+            .bigLargeIcon(defaultLargeIcon)
             .setSummaryText(body)
         val url = URL(imageUrl)
         withContext(Dispatchers.IO) {

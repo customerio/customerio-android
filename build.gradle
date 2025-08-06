@@ -3,6 +3,7 @@ import io.customer.android.Dependencies
 apply plugin: 'io.github.gradle-nexus.publish-plugin'
 apply plugin: 'binary-compatibility-validator'
 apply plugin: 'org.jetbrains.dokka'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 buildscript {
 
@@ -19,6 +20,7 @@ buildscript {
         classpath Dependencies.kotlinBinaryValidator
         classpath Dependencies.gradleNexusPublishPlugin
         classpath Dependencies.dokka
+        classpath Dependencies.composeCompilerGradlePlugin
 
         // if you have a Gradle plugin dependency in the classpath of the root project,
         // it will not be added to all modules even if they don't need it.

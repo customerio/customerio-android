@@ -34,6 +34,11 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      */
+    @Deprecated(
+        message = "Use identify(userId: String, traits: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("identify(userId, traits as Map<String, Any?>)"),
+        level = DeprecationLevel.WARNING
+    )
     inline fun <reified Traits> identify(userId: String, traits: Traits) {
         identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
@@ -49,8 +54,12 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits JsonObject about the user.
      */
-    @JvmOverloads
-    fun identify(userId: String, traits: JsonObject = emptyJsonObject) {
+    @Deprecated(
+        message = "Use identify(userId: String, traits: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("identify(userId, emptyMap())"),
+        level = DeprecationLevel.WARNING
+    )
+    fun identify(userId: String, traits: JsonObject) {
         identify(userId = userId, traits = traits, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
@@ -65,7 +74,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * [Learn more](https://customer.io/docs/api/#operation/identify)
      * @param traits Map of <String, Any> to be added
      */
-    fun identify(userId: String, traits: Map<String, Any?>) {
+    @JvmOverloads
+    fun identify(userId: String, traits: Map<String, Any?> = emptyMap()) {
         // Method needed for Java interop as inline doesn't work with Java
         identify(userId = userId, traits = traits.sanitizeForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
@@ -83,6 +93,11 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param traits [Traits] about the user. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      * @param serializationStrategy strategy to serialize [traits]
      */
+    @Deprecated(
+        message = "Use identify(userId: String, traits: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("identify(userId, emptyMap())"),
+        level = DeprecationLevel.WARNING
+    )
     fun <Traits> identify(
         userId: String,
         traits: Traits,
@@ -113,8 +128,12 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties custom values providing extra information about the event.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
-    @JvmOverloads
-    fun track(name: String, properties: JsonObject = emptyJsonObject) {
+    @Deprecated(
+        message = "Use track(name: String, properties: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("track(name, emptyMap())"),
+        level = DeprecationLevel.WARNING
+    )
+    fun track(name: String, properties: JsonObject) {
         track(name = name, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
@@ -129,7 +148,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Map of <String, Any> to be added
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
-    fun track(name: String, properties: Map<String, Any?>) {
+    @JvmOverloads
+    fun track(name: String, properties: Map<String, Any?> = emptyMap()) {
         // Method needed for Java interop as inline doesn't work with Java
         track(name = name, properties = properties.sanitizeForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
@@ -146,6 +166,11 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param serializationStrategy strategy to serialize [properties]
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
+    @Deprecated(
+        message = "Use track(name: String, properties: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("track(name, emptyMap())"),
+        level = DeprecationLevel.WARNING
+    )
     fun <T> track(
         name: String,
         properties: T,
@@ -176,6 +201,11 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties to describe the action. Needs to be [serializable](https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/serializers.md)
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/track-spec/)
      */
+    @Deprecated(
+        message = "Use track(name: String, properties: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("track(name, properties as Map<String, Any?>)"),
+        level = DeprecationLevel.WARNING
+    )
     inline fun <reified T> track(
         name: String,
         properties: T
@@ -190,8 +220,12 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
-    @JvmOverloads
-    fun screen(title: String, properties: JsonObject = emptyJsonObject) {
+    @Deprecated(
+        message = "Use screen(title: String, properties: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("screen(title, emptyMap())"),
+        level = DeprecationLevel.WARNING
+    )
+    fun screen(title: String, properties: JsonObject) {
         screen(title = title, properties = properties, serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
 
@@ -202,7 +236,8 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen in Map <String, Any> format.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
-    fun screen(title: String, properties: Map<String, Any?>) {
+    @JvmOverloads
+    fun screen(title: String, properties: Map<String, Any?> = emptyMap()) {
         // Method needed for Java interop as inline doesn't work with Java
         screen(title = title, properties = properties.sanitizeForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
     }
@@ -214,6 +249,11 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
+    @Deprecated(
+        message = "Use screen(title: String, properties: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("screen(title, emptyMap())"),
+        level = DeprecationLevel.WARNING
+    )
     fun <T> screen(
         title: String,
         properties: T,
@@ -240,6 +280,11 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * @param properties Additional details about the screen.
      * @see [Learn more](https://customer.io/docs/cdp/sources/source-spec/screen-spec/)
      */
+    @Deprecated(
+        message = "Use screen(title: String, properties: Map<String, Any?>) instead",
+        replaceWith = ReplaceWith("screen(title, properties as Map<String, Any?>)"),
+        level = DeprecationLevel.WARNING
+    )
     inline fun <reified T> screen(
         title: String,
         properties: T

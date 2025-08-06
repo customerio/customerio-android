@@ -188,7 +188,7 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public final fun identify (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun identify (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun identify (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
-	public static synthetic fun identify$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public static synthetic fun identify$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)V
 	protected abstract fun identifyImpl (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun registerDeviceToken (Ljava/lang/String;)V
 	protected abstract fun registerDeviceTokenImpl (Ljava/lang/String;)V
@@ -196,7 +196,7 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public final fun screen (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun screen (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun screen (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
-	public static synthetic fun screen$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public static synthetic fun screen$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)V
 	protected abstract fun screenImpl (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public abstract fun setDeviceAttributes (Ljava/util/Map;)V
 	public abstract fun setProfileAttributes (Ljava/util/Map;)V
@@ -204,7 +204,7 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public final fun track (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun track (Ljava/lang/String;Ljava/util/Map;)V
 	public final fun track (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
-	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)V
+	public static synthetic fun track$default (Lio/customer/sdk/DataPipelineInstance;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)V
 	protected abstract fun trackImpl (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public final fun trackMetric (Lio/customer/sdk/events/TrackMetric;)V
 	protected abstract fun trackMetricImpl (Lio/customer/sdk/events/TrackMetric;)V

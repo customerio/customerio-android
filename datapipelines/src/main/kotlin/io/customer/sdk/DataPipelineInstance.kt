@@ -1,6 +1,5 @@
 package io.customer.sdk
 
-import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.sdk.data.model.CustomAttributes

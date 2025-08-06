@@ -205,9 +205,9 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<InAppMessagingState> { _, next, action ->
     when (action) {
         is InAppMessagingAction.EmbedMessages -> {
-            action.messages.forEach {
-                it.embeddedElementId?.let { elementId ->
-                    gistListener?.embedMessage(it, elementId)
+            for (message in action.messages) {
+                message.embeddedElementId?.let { elementId ->
+                    gistListener?.embedMessage(message, elementId)
                 }
             }
         }

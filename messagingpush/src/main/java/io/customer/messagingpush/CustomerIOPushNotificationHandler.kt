@@ -64,7 +64,7 @@ internal class CustomerIOPushNotificationHandler(
 
     private val bundle: Bundle by lazy {
         Bundle().apply {
-            remoteMessage.data.forEach { entry ->
+            for (entry in remoteMessage.data) {
                 putString(entry.key, entry.value)
             }
         }

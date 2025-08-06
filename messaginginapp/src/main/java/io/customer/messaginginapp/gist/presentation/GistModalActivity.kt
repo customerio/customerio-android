@@ -180,7 +180,9 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
 
     override fun onDestroy() {
         logger.debug("GistModelActivity onDestroy")
-        attributesListenerJob.forEach(Job::cancel)
+        for (job in attributesListenerJob) {
+            job.cancel()
+        }
         // if the message has been cancelled, do not perform any further actions
         // to avoid sending any callbacks to the client app
         // If the message is not persistent, dismiss it and inform the callback

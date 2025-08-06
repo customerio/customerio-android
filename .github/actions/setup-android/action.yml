@@ -19,4 +19,4 @@ runs:
     - name: Setup Gradle and cache dependencies
       uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
       with:
-        gradle-version: '8.14'
+        gradle-version: '8.7'

@@ -28,8 +28,6 @@ buildscript {
         // needed for hilt in kotlin sample app
         classpath Dependencies.hiltGradlePlugin
         classpath Dependencies.googleServicesPlugin
-        // APKScale plugin to track binary size of the SDK
-        classpath Dependencies.apkScale
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }

@@ -1,4 +1,10 @@
 import io.customer.android.Configurations
+import io.customer.android.apkscale.ApkscaleGradlePlugin
+
+// Apply apkscale plugin to all Android library modules
+if (project.plugins.hasPlugin('com.android.library')) {
+    apply plugin: ApkscaleGradlePlugin
+}
 
 android {
     compileSdk Configurations.compileSdk

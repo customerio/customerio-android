@@ -145,12 +145,14 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public fun getUserId ()Ljava/lang/String;
 	public fun initialize ()V
+	public static final fun initialize (Lio/customer/sdk/CustomerIOConfig;)V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
 	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
 }
 
 public final class io/customer/sdk/CustomerIO$Companion {
+	public final fun initialize (Lio/customer/sdk/CustomerIOConfig;)V
 	public final fun instance ()Lio/customer/sdk/CustomerIO;
 }
 
@@ -171,6 +173,34 @@ public final class io/customer/sdk/CustomerIOBuilder {
 	public final fun region (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun screenViewUse (Lio/customer/datapipelines/config/ScreenView;)Lio/customer/sdk/CustomerIOBuilder;
 	public final fun trackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOBuilder;
+}
+
+public final class io/customer/sdk/CustomerIOConfig {
+	public fun <init> (Landroid/app/Application;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Ljava/util/List;)V
+	public final fun copy (Landroid/app/Application;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Ljava/util/List;)Lio/customer/sdk/CustomerIOConfig;
+	public static synthetic fun copy$default (Lio/customer/sdk/CustomerIOConfig;Landroid/app/Application;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Ljava/util/List;ILjava/lang/Object;)Lio/customer/sdk/CustomerIOConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/CustomerIOConfigBuilder {
+	public fun <init> (Landroid/app/Application;Ljava/lang/String;)V
+	public final fun addCustomerIOModule (Lio/customer/sdk/core/module/CustomerIOModule;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun apiHost (Ljava/lang/String;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun autoAddCustomerIODestination (Z)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun autoTrackActivityScreens (Z)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun autoTrackDeviceAttributes (Z)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun build ()Lio/customer/sdk/CustomerIOConfig;
+	public final fun cdnHost (Ljava/lang/String;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun flushAt (I)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun flushInterval (I)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun flushPolicies (Ljava/util/List;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun logLevel (Lio/customer/sdk/core/util/CioLogLevel;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun migrationSiteId (Ljava/lang/String;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun region (Lio/customer/sdk/data/model/Region;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun screenViewUse (Lio/customer/datapipelines/config/ScreenView;)Lio/customer/sdk/CustomerIOConfigBuilder;
+	public final fun trackApplicationLifecycleEvents (Z)Lio/customer/sdk/CustomerIOConfigBuilder;
 }
 
 public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/CustomerIOInstance {

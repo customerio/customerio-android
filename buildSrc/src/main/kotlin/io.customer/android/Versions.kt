@@ -18,7 +18,7 @@ object Versions {
     internal const val ANDROIDX_ANNOTATIONS = "1.8.2"
     internal const val APK_SCALE = "0.1.7"
 
-    internal const val COROUTINES = "1.9.0"
+    internal const val COROUTINES = "1.10.2"
     internal const val DOKKA = "1.9.20"
     internal const val JUNIT_BOM = "5.9.3"
     internal const val ESPRESSO = "3.4.0"
@@ -29,7 +29,7 @@ object Versions {
     const val HILT = "2.57"
     internal const val KLUENT = "1.73"
     internal const val KOTLIN_BINARY_VALIDATOR = "0.16.3"
-    internal const val KOTLINX_SERIALIZATION_JSON = "1.7.3"
+    internal const val KOTLINX_SERIALIZATION_JSON = "1.9.0"
     internal const val KOTLIN = "2.1.21"
     internal const val MATERIAL_COMPONENTS = "1.12.0"
     internal const val MOCKITO_KOTLIN = "5.4.0"

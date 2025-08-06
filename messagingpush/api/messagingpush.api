@@ -69,6 +69,7 @@ public final class io/customer/messagingpush/config/PushClickBehavior : java/lan
 	public static final field ACTIVITY_NO_FLAGS Lio/customer/messagingpush/config/PushClickBehavior;
 	public static final field ACTIVITY_PREVENT_RESTART Lio/customer/messagingpush/config/PushClickBehavior;
 	public static final field RESET_TASK_STACK Lio/customer/messagingpush/config/PushClickBehavior;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/messagingpush/config/PushClickBehavior;
 	public static fun values ()[Lio/customer/messagingpush/config/PushClickBehavior;
 }

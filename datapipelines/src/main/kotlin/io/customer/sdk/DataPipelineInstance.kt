@@ -35,7 +35,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use identify(userId: String, traits: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("identify(userId, traits as Map<String, Any?>)"),
         level = DeprecationLevel.WARNING
     )
     inline fun <reified Traits> identify(userId: String, traits: Traits) {
@@ -55,7 +54,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use identify(userId: String, traits: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("identify(userId, emptyMap())"),
         level = DeprecationLevel.WARNING
     )
     fun identify(userId: String, traits: JsonObject) {
@@ -94,7 +92,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use identify(userId: String, traits: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("identify(userId, emptyMap())"),
         level = DeprecationLevel.WARNING
     )
     fun <Traits> identify(
@@ -129,7 +126,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use track(name: String, properties: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("track(name, emptyMap())"),
         level = DeprecationLevel.WARNING
     )
     fun track(name: String, properties: JsonObject) {
@@ -167,7 +163,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use track(name: String, properties: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("track(name, emptyMap())"),
         level = DeprecationLevel.WARNING
     )
     fun <T> track(
@@ -202,7 +197,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use track(name: String, properties: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("track(name, properties as Map<String, Any?>)"),
         level = DeprecationLevel.WARNING
     )
     inline fun <reified T> track(
@@ -221,7 +215,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use screen(title: String, properties: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("screen(title, emptyMap())"),
         level = DeprecationLevel.WARNING
     )
     fun screen(title: String, properties: JsonObject) {
@@ -250,7 +243,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use screen(title: String, properties: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("screen(title, emptyMap())"),
         level = DeprecationLevel.WARNING
     )
     fun <T> screen(
@@ -281,7 +273,6 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     @Deprecated(
         message = "Use screen(title: String, properties: Map<String, Any?>) instead",
-        replaceWith = ReplaceWith("screen(title, properties as Map<String, Any?>)"),
         level = DeprecationLevel.WARNING
     )
     inline fun <reified T> screen(

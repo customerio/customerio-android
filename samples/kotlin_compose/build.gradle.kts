@@ -54,6 +54,14 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Workaround for Hilt + Kotlin 2.1 compatibility issue
+// Disable problematic hiltAggregateDeps tasks until Hilt 2.58+ is available
+tasks.withType<org.gradle.api.DefaultTask>().configureEach {
+    if (name.startsWith("hiltAggregateDeps")) {
+        enabled = false
+    }
+}
+
 val hiltVersion = io.customer.android.Versions.HILT
 val roomVersion = "2.7.0"
 

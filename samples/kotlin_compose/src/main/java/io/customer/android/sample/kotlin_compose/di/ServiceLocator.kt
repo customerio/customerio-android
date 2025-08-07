@@ -11,7 +11,7 @@ import io.customer.android.sample.kotlin_compose.data.repositories.UserRepositor
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepositoryImpl
 
 // Extension property to create DataStore
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "sample_app_kotlin_preferences")
 
 /**
  * Simple service locator for dependency injection

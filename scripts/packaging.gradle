@@ -1,9 +1,0 @@
-android {
-    packagingOptions {
-        resources {
-            // Pick the first match and ignore others
-            pickFirst("META-INF/LICENSE.md")
-            pickFirst("META-INF/LICENSE-notice.md")
-        }
-    }
-}

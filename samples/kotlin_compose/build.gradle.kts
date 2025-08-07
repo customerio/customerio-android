@@ -64,9 +64,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")
 
-    // DI
-    kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
-    implementation("com.google.dagger:hilt-android:$hiltVersion")
+    // DI - Use working Hilt version compatible with current setup
+    kapt("com.google.dagger:hilt-android-compiler:2.54")
+    implementation("com.google.dagger:hilt-android:2.54")
 
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.6.0-rc01")
@@ -83,8 +83,8 @@ dependencies {
     debugImplementation("com.squareup.leakcanary:leakcanary-android:2.11")
     androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:2.11")
 
-    androidTestImplementation("com.google.dagger:hilt-android-testing:2.39.1")
-    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.44.2")
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.54")
+    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.54")
 
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")

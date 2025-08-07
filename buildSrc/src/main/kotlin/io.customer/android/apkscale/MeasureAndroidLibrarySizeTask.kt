@@ -100,20 +100,20 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
         val settingsFile = File(projectDir, "settings.gradle")
         settingsFile.writeText("rootProject.name = 'mock-project'")
 
-        // Create gradle wrapper
-        val gradleDir = File(projectDir, "gradle/wrapper")
-        gradleDir.mkdirs()
+        // Copy gradle wrapper from main project
+        val mainProjectGradleDir = File(project.rootDir, "gradle")
+        val projectGradleDir = File(projectDir, "gradle")
+        if (mainProjectGradleDir.exists()) {
+            mainProjectGradleDir.copyRecursively(projectGradleDir, overwrite = true)
+        }
 
-        val wrapperPropsFile = File(gradleDir, "gradle-wrapper.properties")
-        wrapperPropsFile.writeText(
-            """
-            distributionBase=GRADLE_USER_HOME
-            distributionPath=wrapper/dists
-            distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-            zipStoreBase=GRADLE_USER_HOME
-            zipStorePath=wrapper/dists
-            """.trimIndent()
-        )
+        // Copy gradlew script
+        val mainProjectGradlew = File(project.rootDir, "gradlew")
+        val projectGradlew = File(projectDir, "gradlew")
+        if (mainProjectGradlew.exists()) {
+            mainProjectGradlew.copyTo(projectGradlew, overwrite = true)
+            projectGradlew.setExecutable(true)
+        }
 
         return projectDir
     }

@@ -29,7 +29,6 @@ object Versions {
     internal const val KOTLIN_BINARY_VALIDATOR = "0.16.3"
     internal const val KOTLINX_SERIALIZATION_JSON = "1.8.1"
     internal const val KOTLIN = "2.1.21"
-    internal const val KSP = "2.1.0-1.0.29"
     internal const val MATERIAL_COMPONENTS = "1.12.0"
     internal const val MOCKITO_KOTLIN = "5.4.0"
     internal const val MOCKITO = "5.14.2"

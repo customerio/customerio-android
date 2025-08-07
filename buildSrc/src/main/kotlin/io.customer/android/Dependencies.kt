@@ -23,7 +23,6 @@ object Dependencies {
     const val espressoCore = "androidx.test.espresso:espresso-core:${Versions.ESPRESSO}"
     const val espressoIntents = "androidx.test.espresso:espresso-intents:${Versions.ESPRESSO}"
     const val dokka = "org.jetbrains.dokka:dokka-gradle-plugin:${Versions.DOKKA}"
-    const val kspGradlePlugin = "com.google.devtools.ksp:ksp-gradle-plugin:${Versions.KSP}"
     const val firebaseMessaging =
         "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
     const val googlePlayServicesBase =

@@ -3,11 +3,10 @@ package io.customer.android.sample.kotlin_compose.ui.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
+import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.sdk.CustomerIO
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -19,9 +18,8 @@ data class SettingsUiState(
     val deviceToken: String by lazy { CustomerIO.instance().registeredDeviceToken ?: "" }
 }
 
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    private val preferenceRepository: PreferenceRepository
+class SettingsViewModel(
+    private val preferenceRepository: PreferenceRepository = ServiceLocator.preferenceRepository
 ) : ViewModel() {
 
     private val _uiState: MutableStateFlow<SettingsUiState> = MutableStateFlow(SettingsUiState())

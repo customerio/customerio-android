@@ -1,16 +1,14 @@
 package io.customer.android.sample.kotlin_compose.ui.login
 
 import androidx.lifecycle.ViewModel
-import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
+import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.android.sample.kotlin_compose.navigation.Screen
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
-@HiltViewModel
-class AuthenticationViewModel @Inject constructor(
-    private val userRepository: UserRepository
+class AuthenticationViewModel(
+    private val userRepository: UserRepository = ServiceLocator.userRepository
 ) : ViewModel() {
 
     fun getDestination(): String {

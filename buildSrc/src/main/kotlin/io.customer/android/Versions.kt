@@ -25,7 +25,6 @@ object Versions {
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "2.0.0"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "18.2.0"
     internal const val GOOGLE_SERVICES_PLUGIN = "4.4.2"
-    const val HILT = "2.56.2"
     internal const val KLUENT = "1.73"
     internal const val KOTLIN_BINARY_VALIDATOR = "0.16.3"
     internal const val KOTLINX_SERIALIZATION_JSON = "1.8.1"

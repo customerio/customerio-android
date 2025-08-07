@@ -8,12 +8,11 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import dagger.hilt.android.testing.HiltAndroidRule
-import dagger.hilt.android.testing.HiltAndroidTest
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.persistance.AppDatabase
 import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
+import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
@@ -21,7 +20,6 @@ import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.data.model.Region
-import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import leakcanary.AppWatcher
@@ -38,7 +36,6 @@ import org.junit.runner.RunWith
  *
  * See [testing documentation](http://d.android.com/tools/testing).
  */
-@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class MemoryLeakageInstrumentedTest {
     @get:Rule
@@ -47,21 +44,18 @@ class MemoryLeakageInstrumentedTest {
     @get:Rule
     val rule = DetectLeaksAfterTestSuccess()
 
-    @get:Rule
-    val hiltRule = HiltAndroidRule(this)
-
-    @Inject
-    lateinit var appDatabase: AppDatabase
-
-    @Inject
-    lateinit var preferences: PreferenceRepository
+    private lateinit var appDatabase: AppDatabase
+    private lateinit var preferences: PreferenceRepository
 
     @Before
     fun setUp() {
-        hiltRule.inject()
-
         val appContext =
             InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
+
+        // Initialize ServiceLocator
+        ServiceLocator.initialize(appContext)
+        appDatabase = ServiceLocator.appDatabase
+        preferences = ServiceLocator.preferenceRepository
 
         val configuration = runBlocking {
             preferences.getConfiguration().first()

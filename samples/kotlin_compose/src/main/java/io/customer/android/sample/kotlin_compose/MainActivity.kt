@@ -16,21 +16,27 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import dagger.hilt.android.AndroidEntryPoint
 import io.customer.android.sample.kotlin_compose.navigation.AppNavGraph
 import io.customer.android.sample.kotlin_compose.ui.login.AuthenticationViewModel
 import io.customer.android.sample.kotlin_compose.ui.theme.CustomerIoSDKTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val authenticationViewModel: AuthenticationViewModel by viewModels()
+    private val authenticationViewModel: AuthenticationViewModel by viewModels {
+        viewModelFactory {
+            initializer {
+                AuthenticationViewModel()
+            }
+        }
+    }
     private val deepLinkIntentState: MutableStateFlow<Intent?> = MutableStateFlow(null)
     lateinit var notificationPermissionRequestLauncher: ActivityResultLauncher<String>
 

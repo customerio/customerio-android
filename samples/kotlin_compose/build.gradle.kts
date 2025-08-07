@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
-    id("dagger.hilt.android.plugin")
     id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.plugin.compose")
 }
@@ -54,15 +53,7 @@ kotlin {
     jvmToolchain(17)
 }
 
-// Workaround for Hilt + Kotlin 2.1 compatibility issue
-// Disable problematic hiltAggregateDeps tasks until Hilt 2.58+ is available
-tasks.withType<org.gradle.api.DefaultTask>().configureEach {
-    if (name.startsWith("hiltAggregateDeps")) {
-        enabled = false
-    }
-}
 
-val hiltVersion = io.customer.android.Versions.HILT
 val roomVersion = "2.7.0"
 
 dependencies {
@@ -72,16 +63,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")
 
-    // DI - Use working Hilt version compatible with current setup
-    // DI
-    kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
-    implementation("com.google.dagger:hilt-android:$hiltVersion")
 
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.6.0-rc01")
-    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
 
-    // Persistence
+    // Persistence - using KAPT since we removed KSP
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
@@ -92,8 +79,6 @@ dependencies {
     debugImplementation("com.squareup.leakcanary:leakcanary-android:2.11")
     androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:2.11")
 
-    androidTestImplementation("com.google.dagger:hilt-android-testing:$hiltVersion")
-    kaptAndroidTest("com.google.dagger:hilt-android-compiler:$hiltVersion")
 
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")

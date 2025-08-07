@@ -45,7 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.Configuration
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
@@ -55,7 +55,7 @@ import io.customer.sdk.CustomerIO
 fun SettingsRoute(
     cdpApiKey: String? = null,
     siteId: String? = null,
-    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = viewModel { SettingsViewModel() },
     onBackPressed: () -> Unit
 ) {
     val state by settingsViewModel.uiState.collectAsState()

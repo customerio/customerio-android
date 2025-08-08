@@ -302,6 +302,14 @@ class CustomerIO private constructor(
     override val userId: String?
         get() = analytics.userId()
 
+    @Deprecated("Use setDeviceAttributes() function instead")
+    @set:JvmName("setDeviceAttributesDeprecated")
+    override var deviceAttributes: CustomAttributes
+        get() = emptyMap()
+        set(value) {
+            setDeviceAttributes(value)
+        }
+
     override fun setDeviceAttributes(attributes: CustomAttributes) {
         trackDeviceAttributes(registeredDeviceToken, attributes)
     }

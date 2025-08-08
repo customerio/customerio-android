@@ -137,6 +137,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun getAnonymousId ()Ljava/lang/String;
+	public fun getDeviceAttributes ()Ljava/util/Map;
 	public fun getModuleConfig ()Lio/customer/datapipelines/config/DataPipelinesModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
@@ -146,6 +147,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
 	public fun setDeviceAttributes (Ljava/util/Map;)V
+	public fun setDeviceAttributesDeprecated (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
 }
 
@@ -179,6 +181,7 @@ public abstract class io/customer/sdk/DataPipelineInstance : io/customer/sdk/Cus
 	public final fun deleteDeviceToken ()V
 	protected abstract fun deleteDeviceTokenImpl ()V
 	public abstract fun getAnonymousId ()Ljava/lang/String;
+	public abstract fun getDeviceAttributes ()Ljava/util/Map;
 	public abstract fun getProfileAttributes ()Ljava/util/Map;
 	public abstract fun getRegisteredDeviceToken ()Ljava/lang/String;
 	public abstract fun getUserId ()Ljava/lang/String;

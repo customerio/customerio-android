@@ -301,6 +301,13 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * Use to provide additional and custom device attributes
      * apart from the ones the SDK is programmed to send to customer workspace.
      */
+    @Deprecated("Use setDeviceAttributes() function instead")
+    abstract val deviceAttributes: CustomAttributes
+
+    /**
+     * Use to provide additional and custom device attributes
+     * apart from the ones the SDK is programmed to send to customer workspace.
+     */
     abstract fun setDeviceAttributes(attributes: CustomAttributes)
 
     /**

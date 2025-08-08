@@ -149,7 +149,7 @@ class DeviceAttributesTests : IntegrationTest() {
         sdkInstance.identify(givenIdentifier)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
-        sdkInstance.deviceAttributes = givenAttributes
+        sdkInstance.setDeviceAttributes(givenAttributes)
 
         // 1. Device Created
         // 2. Device Updated

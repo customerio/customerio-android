@@ -3,6 +3,8 @@ package io.customer.sdk
 import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.ScreenView
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
@@ -48,6 +50,11 @@ class CustomerIOBuilder(
     private val applicationContext: Application,
     private val cdpApiKey: String
 ) {
+
+    init {
+        SDKComponent.setupAndroidComponent(context = applicationContext)
+    }
+
     // List of modules to be initialized with the SDK
     private val registeredModules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
 

@@ -420,9 +420,7 @@ class CustomerIO private constructor(
          */
         @JvmStatic
         fun initialize(config: CustomerIOConfig) {
-            val androidSDKComponent = SDKComponent.setupAndroidComponent(
-                context = config.applicationContext
-            )
+            val androidSDKComponent = SDKComponent.android()
 
             val modules = SDKComponent.modules
             val logger = SDKComponent.dataPipelinesLogger

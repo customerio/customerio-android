@@ -3,6 +3,8 @@ package io.customer.sdk
 import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import io.customer.datapipelines.config.ScreenView
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.CioLogLevel
@@ -45,6 +47,10 @@ class CustomerIOConfigBuilder(
         val migrationSiteId: String? = null
         val screenViewUse: ScreenView = ScreenView.All
         val modules: List<CustomerIOModule<out CustomerIOModuleConfig>> = emptyList()
+    }
+
+    init {
+        SDKComponent.setupAndroidComponent(context = applicationContext)
     }
 
     // Logging configuration

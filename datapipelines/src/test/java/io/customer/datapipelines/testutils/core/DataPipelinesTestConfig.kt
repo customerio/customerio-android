@@ -9,7 +9,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.TestConfigBuilder
 import io.customer.commontest.config.plus
 import io.customer.commontest.core.TestConstants
-import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.CustomerIOConfigBuilder
 
 /**
  * Test configuration for setting up the CustomerIO SDK and analytics instance.
@@ -23,7 +23,7 @@ class DataPipelinesTestConfig private constructor(
     override val arguments: List<TestArgument>,
     override val diGraph: DIGraphConfiguration,
     val cdpApiKey: String,
-    val sdkConfig: ConfigDSL<CustomerIOBuilder>,
+    val sdkConfig: ConfigDSL<CustomerIOConfigBuilder>,
     val analytics: AnalyticsDSL<Analytics>
 ) : TestConfig {
     override fun plus(other: TestConfig): DataPipelinesTestConfig {
@@ -50,14 +50,14 @@ class DataPipelinesTestConfig private constructor(
 
     class Builder : TestConfigBuilder<DataPipelinesTestConfig>() {
         private var cdpApiKey: String = TestConstants.Keys.CDP_API_KEY
-        private var sdkConfig: ConfigDSL<CustomerIOBuilder> = {}
+        private var sdkConfig: ConfigDSL<CustomerIOConfigBuilder> = {}
         private var analytics: AnalyticsDSL<Analytics> = { this }
 
         fun cdpApiKey(cdpApiKey: String) {
             this.cdpApiKey = cdpApiKey
         }
 
-        fun sdkConfig(block: ConfigDSL<CustomerIOBuilder>) {
+        fun sdkConfig(block: ConfigDSL<CustomerIOConfigBuilder>) {
             sdkConfig = block
         }
 

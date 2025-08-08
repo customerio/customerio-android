@@ -15,7 +15,7 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
-import io.customer.sdk.CustomerIOBuilder;
+import io.customer.sdk.CustomerIOConfigBuilder;
 
 /**
  * Repository class to hold all Customer.io related operations at single place
@@ -27,7 +27,7 @@ public class CustomerIORepository {
         final CustomerIOSDKConfig sdkConfig = getSdkConfig(appGraph.getPreferencesDataStore());
 
         // Initialize Customer.io SDK builder
-        CustomerIOBuilder builder = new CustomerIOBuilder(application, sdkConfig.getCdpApiKey());
+        CustomerIOConfigBuilder builder = new CustomerIOConfigBuilder(application, sdkConfig.getCdpApiKey());
 
         // Modify SDK settings for testing purposes only.
         // If you don't need to override any of these settings, you can skip this line.
@@ -55,7 +55,7 @@ public class CustomerIORepository {
      * purposes and may not be needed unless there is a need to override any
      * default configuration from the SDK.
      */
-    private void configureSdk(CustomerIOBuilder builder, final CustomerIOSDKConfig sdkConfig) {
+    private void configureSdk(CustomerIOConfigBuilder builder, final CustomerIOSDKConfig sdkConfig) {
         builder.migrationSiteId(sdkConfig.getSiteId());
 
         final String apiHost = sdkConfig.getApiHost();

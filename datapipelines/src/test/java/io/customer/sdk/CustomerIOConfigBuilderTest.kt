@@ -113,8 +113,6 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
         assertCalledOnce { givenModule2.initialize() }
     }
 
-
-
     @Test
     fun initialize_givenModule_expectInitializeModule() {
         val givenModule: CustomerIOGenericModule = mockGenericModule().apply {

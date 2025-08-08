@@ -458,7 +458,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
-        sdkInstance.deviceAttributes = givenAttributes
+        sdkInstance.setDeviceAttributes(givenAttributes)
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 2

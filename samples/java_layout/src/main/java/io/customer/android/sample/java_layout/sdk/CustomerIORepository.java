@@ -15,6 +15,7 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
+import io.customer.sdk.CustomerIOConfig;
 import io.customer.sdk.CustomerIOConfigBuilder;
 
 /**
@@ -45,9 +46,7 @@ public class CustomerIORepository {
                             .build()
             ));
         }
-
-        // Finally, build to finish initializing the SDK.
-        builder.build();
+        CustomerIO.initialize(builder.build());
     }
 
     /**

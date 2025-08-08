@@ -176,7 +176,6 @@ public final class io/customer/sdk/CustomerIOBuilder {
 }
 
 public final class io/customer/sdk/CustomerIOConfig {
-	public fun <init> (Landroid/app/Application;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Ljava/util/List;)V
 	public final fun copy (Landroid/app/Application;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Ljava/util/List;)Lio/customer/sdk/CustomerIOConfig;
 	public static synthetic fun copy$default (Lio/customer/sdk/CustomerIOConfig;Landroid/app/Application;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;Lio/customer/sdk/data/model/Region;Ljava/lang/String;Ljava/lang/String;IILjava/util/List;ZZZZLjava/lang/String;Lio/customer/datapipelines/config/ScreenView;Ljava/util/List;ILjava/lang/Object;)Lio/customer/sdk/CustomerIOConfig;
 	public fun equals (Ljava/lang/Object;)Z

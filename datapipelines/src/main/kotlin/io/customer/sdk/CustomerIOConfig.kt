@@ -12,7 +12,7 @@ import io.customer.sdk.data.model.Region
  * Configuration class for initializing CustomerIO SDK.
  * Contains all the necessary configuration options for setting up the SDK.
  */
-data class CustomerIOConfig(
+data class CustomerIOConfig internal constructor(
     internal val applicationContext: Application,
     internal val cdpApiKey: String,
     internal val logLevel: CioLogLevel,

@@ -17,9 +17,17 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     private inline fun <T> synchronized(block: () -> T): T = synchronized(this) { block() }
 
     /**
-     * Custom profile attributes to be added to current profile.
+     * Custom profile attributes for the current profile.
+     * Note: For setting attributes, use the setProfileAttributes() function.
      */
-    abstract var profileAttributes: CustomAttributes
+    @Deprecated("Use setProfileAttributes() function instead")
+    abstract val profileAttributes: CustomAttributes
+
+    /**
+     * Set custom profile attributes to be added to current profile.
+     * @param attributes Map of custom attributes to be added to the profile
+     */
+    abstract fun setProfileAttributes(attributes: CustomAttributes)
 
     /**
      * Identify a customer (aka: Add or update a profile).

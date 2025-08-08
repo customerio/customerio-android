@@ -186,17 +186,23 @@ class CustomerIO private constructor(
         }
     }
 
+    @Deprecated("Use setProfileAttributes() function instead")
+    @set:JvmName("setProfileAttributesDeprecated")
     override var profileAttributes: CustomAttributes
         get() = analytics.traits() ?: emptyMap()
         set(value) {
-            val identifier = this.userId
-            if (identifier != null) {
-                identify(userId = identifier, traits = value)
-            } else {
-                logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
-                analytics.identify(traits = value.sanitizeForJson())
-            }
+            setProfileAttributes(value)
         }
+
+    override fun setProfileAttributes(attributes: CustomAttributes) {
+        val identifier = this.userId
+        if (identifier != null) {
+            identify(userId = identifier, traits = attributes)
+        } else {
+            logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
+            analytics.identify(traits = attributes.sanitizeForJson())
+        }
+    }
 
     /**
      * Common method to identify a user profile with traits.

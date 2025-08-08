@@ -148,6 +148,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
 	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
+	public fun setProfileAttributesDeprecated (Ljava/util/Map;)V
 }
 
 public final class io/customer/sdk/CustomerIO$Companion {

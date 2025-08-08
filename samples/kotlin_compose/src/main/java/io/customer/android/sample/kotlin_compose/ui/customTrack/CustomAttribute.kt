@@ -98,7 +98,7 @@ fun CustomAttributeRoute(
                 Pair(
                     stringResource(R.string.send_profile_attribute)
                 ) {
-                    CustomerIO.instance().profileAttributes = mapOf(attributeName to attributeValue)
+                    CustomerIO.instance().setProfileAttributes(mapOf(attributeName to attributeValue))
                 }
             } else {
                 Pair(stringResource(R.string.send_device_attribute)) {

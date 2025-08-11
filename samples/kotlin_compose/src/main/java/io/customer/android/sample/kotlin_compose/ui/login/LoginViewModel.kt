@@ -4,12 +4,11 @@ import android.util.Patterns
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
+import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.sdk.CustomerIO
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,9 +27,8 @@ data class LoginUiState(
     val user: User? = null
 )
 
-@HiltViewModel
-class LoginViewModel @Inject constructor(
-    private val userRepository: UserRepository
+class LoginViewModel(
+    private val userRepository: UserRepository = ServiceLocator.userRepository
 ) : ViewModel() {
 
     // UI state exposed to the UI

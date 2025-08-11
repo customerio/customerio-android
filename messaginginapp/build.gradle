@@ -15,7 +15,6 @@ apply from: "${rootDir}/scripts/publish-module.gradle"
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
-apply from: "${rootDir}/scripts/packaging.gradle"
 
 android {
     namespace 'io.customer.messaginginapp'

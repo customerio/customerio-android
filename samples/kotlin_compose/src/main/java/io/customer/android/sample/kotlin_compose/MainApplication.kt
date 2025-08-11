@@ -1,27 +1,27 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
-import dagger.hilt.android.HiltAndroidApp
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
-import io.customer.android.sample.kotlin_compose.data.repositories.PreferenceRepository
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
+import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIOBuilder
 import io.customer.sdk.data.model.Region
-import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
-@HiltAndroidApp
 class MainApplication : Application() {
 
-    @Inject
-    lateinit var preferences: PreferenceRepository
+    private val preferences by lazy { ServiceLocator.preferenceRepository }
 
     override fun onCreate() {
         super.onCreate()
+
+        // Initialize our simple DI container
+        ServiceLocator.initialize(this)
+
         val configuration = runBlocking {
             preferences.getConfiguration().first()
         }

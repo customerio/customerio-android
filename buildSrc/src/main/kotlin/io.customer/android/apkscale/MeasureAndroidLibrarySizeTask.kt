@@ -98,7 +98,19 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
 
         // Create settings.gradle
         val settingsFile = File(projectDir, "settings.gradle")
-        settingsFile.writeText("rootProject.name = 'mock-project'")
+        settingsFile.writeText(
+            """
+            pluginManagement {
+                repositories {
+                    google()
+                    mavenCentral()
+                    gradlePluginPortal()
+                }
+            }
+            
+            rootProject.name = 'mock-project'
+            """.trimIndent()
+        )
 
         // Copy gradle wrapper from main project
         val mainProjectGradleDir = File(project.rootDir, "gradle")
@@ -115,25 +127,23 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
             projectGradlew.setExecutable(true)
         }
 
+        // Create gradle.properties with AndroidX enabled
+        val gradlePropertiesFile = File(projectDir, "gradle.properties")
+        gradlePropertiesFile.writeText(
+            """
+            android.useAndroidX=true
+            android.enableJetifier=true
+            """.trimIndent()
+        )
+
         return projectDir
     }
 
     private fun createBuildGradleContent(aarFile: File): String {
         return """
-            buildscript {
-                repositories {
-                    google()
-                    mavenCentral()
-                }
-                dependencies {
-                    classpath 'com.android.tools.build:gradle:8.6.1'
-                    classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.21'
-                }
-            }
-            
             plugins {
-                id 'com.android.application'
-                id 'org.jetbrains.kotlin.android'
+                id 'com.android.application' version '8.6.1'
+                id 'org.jetbrains.kotlin.android' version '2.1.21'
             }
 
             android {
@@ -172,6 +182,9 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
 
             dependencies {
                 withLibraryImplementation files('${aarFile.absolutePath}')
+                implementation 'androidx.appcompat:appcompat:1.7.0'
+                implementation 'androidx.core:core-ktx:1.13.1'
+                implementation 'com.google.android.material:material:1.12.0'
             }
         """.trimIndent()
     }
@@ -219,7 +232,9 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
                 return null
             }
 
-            val apkDir = File(projectDir, "build/outputs/apk/${task.toLowerCase()}")
+            // Extract flavor name from task (e.g., "withLibraryRelease" -> "withLibrary")
+            val flavorName = task.replaceFirst("Release$".toRegex(), "")
+            val apkDir = File(projectDir, "build/outputs/apk/$flavorName/release")
             if (!apkDir.exists()) {
                 logger.warn("APK directory does not exist: ${apkDir.absolutePath}")
                 return null

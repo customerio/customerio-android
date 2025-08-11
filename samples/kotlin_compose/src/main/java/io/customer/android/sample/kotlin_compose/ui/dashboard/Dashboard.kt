@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import io.customer.android.sample.kotlin_compose.R
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.navigation.Screen.CustomAttribute.TYPE_DEVICE
@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun DashboardRoute(
-    viewModel: DashboardViewModel = hiltViewModel(),
+    viewModel: DashboardViewModel = viewModel { DashboardViewModel() },
     onTrackCustomEvent: () -> Unit,
     onTrackCustomAttribute: (type: String) -> Unit,
     onLogout: () -> Unit,

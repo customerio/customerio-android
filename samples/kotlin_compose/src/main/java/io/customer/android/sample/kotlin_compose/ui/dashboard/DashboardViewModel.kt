@@ -2,21 +2,19 @@ package io.customer.android.sample.kotlin_compose.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import io.customer.android.sample.kotlin_compose.data.models.User
 import io.customer.android.sample.kotlin_compose.data.repositories.UserRepository
+import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.sdk.CustomerIO
 import java.util.Calendar
 import java.util.Random
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-@HiltViewModel
-class DashboardViewModel @Inject constructor(
-    private val userRepository: UserRepository
+class DashboardViewModel(
+    private val userRepository: UserRepository = ServiceLocator.userRepository
 ) : ViewModel() {
 
     // UI state exposed to the UI

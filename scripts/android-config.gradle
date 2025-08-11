@@ -1,4 +1,10 @@
 import io.customer.android.Configurations
+import io.customer.android.apkscale.ApkscaleGradlePlugin
+
+// Apply apkscale plugin to all Android library modules
+if (project.plugins.hasPlugin('com.android.library')) {
+    apply plugin: ApkscaleGradlePlugin
+}
 
 android {
     compileSdk Configurations.compileSdk
@@ -16,5 +22,11 @@ android {
                 '-opt-in=kotlin.RequiresOptIn',
                 '-opt-in=io.customer.base.internal.InternalCustomerIOApi',
         ]
+    }
+    // starting in AGP 8.0+, and particularly enforced in Gradle 8.2+, the new variant-aware publishing DSL requires you to explicitly opt-in to publishing variants
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
     }
 }

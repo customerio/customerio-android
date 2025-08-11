@@ -1,0 +1,17 @@
+{
+    "core": {
+        "universal": "50.00 KB"
+    },
+    "datapipelines": {
+        "universal": "60.00 KB"
+    },
+    "messaginginapp": {
+        "universal": "100.00 KB"
+    },
+    "messagingpush": {
+        "universal": "40.00 KB"
+    },
+    "tracking-migration": {
+        "universal": "30.00 KB"
+    }
+}

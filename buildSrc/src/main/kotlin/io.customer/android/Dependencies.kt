@@ -13,7 +13,6 @@ object Dependencies {
     const val androidxProcessLifecycle = "androidx.lifecycle:lifecycle-process:${Versions.ANDROIDX_LIFECYCLE_PROCESS}"
     const val androidxAnnotations =
         "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
-    const val apkScale = "com.twilio:apkscale:${Versions.APK_SCALE}"
     const val coroutinesCore =
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.COROUTINES}"
     const val materialComponents =
@@ -24,7 +23,6 @@ object Dependencies {
     const val espressoCore = "androidx.test.espresso:espresso-core:${Versions.ESPRESSO}"
     const val espressoIntents = "androidx.test.espresso:espresso-intents:${Versions.ESPRESSO}"
     const val dokka = "org.jetbrains.dokka:dokka-gradle-plugin:${Versions.DOKKA}"
-    const val hiltGradlePlugin = "com.google.dagger:hilt-android-gradle-plugin:${Versions.HILT}"
     const val firebaseMessaging =
         "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
     const val googlePlayServicesBase =
@@ -64,6 +62,7 @@ object Dependencies {
 
     // Compose dependencies
     const val composeBom = "androidx.compose:compose-bom:${Versions.COMPOSE_BOM}"
+    const val composeCompilerGradlePlugin = "org.jetbrains.kotlin:compose-compiler-gradle-plugin:${Versions.COMPOSE_COMPILER}"
     const val composeUi = "androidx.compose.ui:ui"
     const val composeUiGraphics = "androidx.compose.ui:ui-graphics"
     const val composeUiTooling = "androidx.compose.ui:ui-tooling"

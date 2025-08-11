@@ -187,6 +187,7 @@ public final class io/customer/sdk/core/util/CioLogLevel : java/lang/Enum {
 	public static final field ERROR Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field INFO Lio/customer/sdk/core/util/CioLogLevel;
 	public static final field NONE Lio/customer/sdk/core/util/CioLogLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public final fun getPriority ()I
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/core/util/CioLogLevel;
 	public static fun values ()[Lio/customer/sdk/core/util/CioLogLevel;
@@ -260,7 +261,6 @@ public final class io/customer/sdk/data/model/Region$US : io/customer/sdk/data/m
 
 public final class io/customer/sdk/data/model/Settings {
 	public static final field Companion Lio/customer/sdk/data/model/Settings$Companion;
-	public synthetic fun <init> (ILjava/lang/String;Ljava/lang/String;Lkotlinx/serialization/internal/SerializationConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
@@ -271,18 +271,16 @@ public final class io/customer/sdk/data/model/Settings {
 	public final fun getWriteKey ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-	public static final synthetic fun write$Self (Lio/customer/sdk/data/model/Settings;Lkotlinx/serialization/encoding/CompositeEncoder;Lkotlinx/serialization/descriptors/SerialDescriptor;)V
 }
 
-public final class io/customer/sdk/data/model/Settings$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+public synthetic class io/customer/sdk/data/model/Settings$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
 	public static final field INSTANCE Lio/customer/sdk/data/model/Settings$$serializer;
-	public fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lio/customer/sdk/data/model/Settings;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lio/customer/sdk/data/model/Settings;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public fun serialize (Lkotlinx/serialization/encoding/Encoder;Lio/customer/sdk/data/model/Settings;)V
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lio/customer/sdk/data/model/Settings;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
 public final class io/customer/sdk/data/model/Settings$Companion {
@@ -294,6 +292,7 @@ public final class io/customer/sdk/events/Metric : java/lang/Enum {
 	public static final field Converted Lio/customer/sdk/events/Metric;
 	public static final field Delivered Lio/customer/sdk/events/Metric;
 	public static final field Opened Lio/customer/sdk/events/Metric;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/events/Metric;
 	public static fun values ()[Lio/customer/sdk/events/Metric;
 }

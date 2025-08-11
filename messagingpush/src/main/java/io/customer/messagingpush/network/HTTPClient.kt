@@ -85,7 +85,7 @@ internal class HttpClientImpl : HttpClient {
             connection.setRequestProperty("Authorization", "Basic $base64Value")
 
             // Additional headers
-            params.headers.forEach { (key, value) ->
+            for ((key, value) in params.headers) {
                 connection.setRequestProperty(key, value)
             }
 

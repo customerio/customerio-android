@@ -5,7 +5,7 @@ import io.customer.android.Versions
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
-    id 'com.twilio.apkscale'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 ext {
@@ -32,10 +32,6 @@ android {
     }
     buildFeatures {
         compose true
-    }
-    
-    composeOptions {
-        kotlinCompilerExtensionVersion Versions.COMPOSE_COMPILER
     }
 }
 

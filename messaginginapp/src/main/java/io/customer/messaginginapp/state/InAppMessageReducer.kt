@@ -104,7 +104,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
     val changes = state.diff(newState)
     if (changes.isNotEmpty()) {
         SDKComponent.logger.debug("Store: state changes after action:")
-        changes.forEach { (property, values) ->
+        for ((property, values) in changes) {
             SDKComponent.logger.debug("  $property: ${values.first} -> ${values.second}")
         }
     } else {

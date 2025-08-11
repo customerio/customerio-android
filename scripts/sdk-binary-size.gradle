@@ -7,7 +7,7 @@ final List<String> targetModules = ['core', 'datapipelines', 'messagingpush', 'm
 // Default output file name for the combined report
 final String defaultSdkReportName = 'sdk-binary-size.json'
 // Unit used for generating binary size report
-final String sdkSizeUnit = 'MB'
+final String sdkSizeUnit = 'KB'
 
 // Task to generate combined report of binary sizes of all SDK modules
 // The report is generated in JSON format using apkscale plugin and is saved to

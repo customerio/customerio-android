@@ -2,8 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
-    id("dagger.hilt.android.plugin")
     id("com.google.gms.google-services")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 apply {
@@ -52,10 +52,8 @@ kotlin {
     jvmToolchain(17)
 }
 
-val hiltVersion = io.customer.android.Versions.HILT
-val composeVersion = "1.4.1"
-val coroutinesVersion = "1.5.2"
-val roomVersion = "2.4.2"
+
+val roomVersion = "2.7.0"
 
 dependencies {
     // Compose dependencies are included from sample-app.gradle
@@ -64,15 +62,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("com.google.android.material:material:1.12.0")
 
-    // DI
-    kapt("com.google.dagger:hilt-android-compiler:$hiltVersion")
-    implementation("com.google.dagger:hilt-android:$hiltVersion")
 
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.6.0-rc01")
-    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
 
-    // Persistence
+    // Persistence - using KAPT since we removed KSP
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
@@ -83,8 +78,6 @@ dependencies {
     debugImplementation("com.squareup.leakcanary:leakcanary-android:2.11")
     androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:2.11")
 
-    androidTestImplementation("com.google.dagger:hilt-android-testing:2.39.1")
-    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.44.2")
 
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")

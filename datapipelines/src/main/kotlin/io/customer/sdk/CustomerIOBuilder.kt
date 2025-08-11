@@ -221,7 +221,7 @@ class CustomerIOBuilder(
         modules[CustomerIO.MODULE_NAME] = customerIO
         modules.putAll(registeredModules.associateBy { module -> module.moduleName })
 
-        modules.forEach { (_, module) ->
+        for ((_, module) in modules) {
             logger.moduleInitStart(module)
             module.initialize()
             logger.moduleInitSuccess(module)

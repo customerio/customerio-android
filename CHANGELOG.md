@@ -1,3 +1,9 @@
+## [4.8.0](https://github.com/customerio/customerio-android/compare/4.7.1...4.8.0) (2025-08-11)
+
+### Features
+
+* Support for Kotlin 2.1.21 ([#591](https://github.com/customerio/customerio-android/issues/591)) ([b5f94ff](https://github.com/customerio/customerio-android/commit/b5f94ff89f487dd32db07bef9d5b4f528fa77af5))
+
 ## [4.7.1](https://github.com/customerio/customerio-android/compare/4.7.0...4.7.1) (2025-07-22)
 
 ### Bug Fixes

@@ -7,5 +7,5 @@ package io.customer.sdk
 
 // TODO: Check before final release if we still need to keep Version class public or can be internal
 object Version {
-    const val version: String = "4.7.1"
+    const val version: String = "4.8.0"
 }

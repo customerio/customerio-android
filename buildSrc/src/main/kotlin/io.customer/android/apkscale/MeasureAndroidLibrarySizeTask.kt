@@ -120,8 +120,20 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
 
     private fun createBuildGradleContent(aarFile: File): String {
         return """
+            buildscript {
+                repositories {
+                    google()
+                    mavenCentral()
+                }
+                dependencies {
+                    classpath 'com.android.tools.build:gradle:8.6.1'
+                    classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.21'
+                }
+            }
+            
             plugins {
                 id 'com.android.application'
+                id 'org.jetbrains.kotlin.android'
             }
 
             android {
@@ -151,6 +163,11 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
                         dimension "library"
                     }
                 }
+            }
+
+            repositories {
+                google()
+                mavenCentral()
             }
 
             dependencies {
@@ -189,18 +206,32 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
         try {
             val process = ProcessBuilder()
                 .directory(projectDir)
-                .command("./gradlew", "assemble$task", "--quiet")
+                .command("./gradlew", "assemble$task", "--stacktrace")
+                .redirectErrorStream(true)
                 .start()
 
+            val output = process.inputStream.bufferedReader().readText()
             val exitCode = process.waitFor(5, TimeUnit.MINUTES)
+
             if (!exitCode || process.exitValue() != 0) {
                 logger.warn("Build failed for task $task")
+                logger.warn("Build output: $output")
                 return null
             }
 
-            val apkDir = File(projectDir, "build/outputs/apk/${task.lowercase()}")
+            val apkDir = File(projectDir, "build/outputs/apk/${task.toLowerCase()}")
+            if (!apkDir.exists()) {
+                logger.warn("APK directory does not exist: ${apkDir.absolutePath}")
+                return null
+            }
+
             val apkFiles = apkDir.listFiles { _, name -> name.endsWith(".apk") }
-            return apkFiles?.firstOrNull()
+            if (apkFiles.isNullOrEmpty()) {
+                logger.warn("No APK files found in ${apkDir.absolutePath}")
+                return null
+            }
+
+            return apkFiles.firstOrNull()
         } catch (e: Exception) {
             logger.warn("Exception during build: ${e.message}")
             return null

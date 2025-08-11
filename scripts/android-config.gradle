@@ -23,7 +23,10 @@ android {
                 '-opt-in=io.customer.base.internal.InternalCustomerIOApi',
         ]
     }
+    // starting in AGP 8.0+, and particularly enforced in Gradle 8.2+, the new variant-aware publishing DSL requires you to explicitly opt-in to publishing variants
     publishing {
-        singleVariant("release") {}
+        singleVariant("release") {
+            withSourcesJar()
+        }
     }
 }

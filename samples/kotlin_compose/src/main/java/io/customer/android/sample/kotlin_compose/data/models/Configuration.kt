@@ -1,7 +1,7 @@
 package io.customer.android.sample.kotlin_compose.data.models
 
 import io.customer.android.sample.kotlin_compose.util.CustomerIOSDKConstants
-import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.CustomerIOConfigBuilder
 import io.customer.sdk.core.util.CioLogLevel
 
 data class Configuration(
@@ -16,7 +16,7 @@ data class Configuration(
     var debugMode: Boolean = false
 )
 
-fun Configuration.setValuesFromBuilder(builder: CustomerIOBuilder): CustomerIOBuilder {
+fun Configuration.setValuesFromBuilder(builder: CustomerIOConfigBuilder): CustomerIOConfigBuilder {
     builder.migrationSiteId(this.siteId)
     this.apiHost?.let { builder.apiHost(it) }
     this.cdnHost?.let { builder.cdnHost(it) }

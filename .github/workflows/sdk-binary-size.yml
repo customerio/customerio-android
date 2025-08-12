@@ -7,13 +7,13 @@ jobs:
     name: Generate Comparison Report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Android SDK
         uses: ./.github/actions/setup-android
 
       - name: Checkout base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.base_ref }}
 
@@ -32,10 +32,10 @@ jobs:
           path: build/sdk-binary-size.json
 
       - name: Checkout to head branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download report for base branch
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: generated-report-base-sdk-binary-size.json
           path: gh-artifacts/base

@@ -1,12 +1,18 @@
 package io.customer.messaginginapp.state
 
 import io.customer.sdk.core.di.SDKComponent
+import java.util.UUID
 import org.reduxkotlin.Reducer
 
 internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, action ->
     val newState = when (action) {
         is InAppMessagingAction.Initialize ->
-            state.copy(siteId = action.siteId, dataCenter = action.dataCenter, environment = action.environment)
+            state.copy(
+                siteId = action.siteId,
+                dataCenter = action.dataCenter,
+                environment = action.environment,
+                sessionId = UUID.randomUUID().toString()
+            )
 
         is InAppMessagingAction.SetPageRoute ->
             state.copy(currentRoute = action.route)
@@ -34,6 +40,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.Reset -> state.copy(
             userId = null,
             currentRoute = null,
+            sessionId = UUID.randomUUID().toString(),
             modalMessageState = ModalMessageState.Initial,
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),

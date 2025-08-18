@@ -24,16 +24,17 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface GistQueueService {
-    @POST("/api/v2/users")
-    suspend fun fetchMessagesForUser(@Body body: Any = Object()): Response<List<Message>>
+    @POST("/api/v3/users")
+    suspend fun fetchMessagesForUser(@Body body: Any = Object(), @Query("sessionId") sessionId: String): Response<List<Message>>
 
     @POST("/api/v1/logs/message/{messageId}")
-    suspend fun logMessageView(@Path("messageId") messageId: String)
+    suspend fun logMessageView(@Path("messageId") messageId: String, @Query("sessionId") sessionId: String)
 
     @POST("/api/v1/logs/queue/{queueId}")
-    suspend fun logUserMessageView(@Path("queueId") queueId: String)
+    suspend fun logUserMessageView(@Path("queueId") queueId: String, @Query("sessionId") sessionId: String)
 }
 
 interface GistQueue {
@@ -69,7 +70,7 @@ class Queue : GistQueue {
                 val networkRequest = originalRequest.newBuilder()
                     .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId)
                     .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter)
-                    .addHeader(NetworkUtilities.CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase())
+                    .addHeader(NetworkUtilities.CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase() + "-android")
                     .addHeader(NetworkUtilities.CIO_CLIENT_VERSION, SDKComponent.android().client.sdkVersion)
                     .apply {
                         state.userId?.let { userToken ->
@@ -131,7 +132,7 @@ class Queue : GistQueue {
                     logger.debug("User not set, skipping fetch")
                     return@launch
                 }
-                val latestMessagesResponse = gistQueueService.fetchMessagesForUser()
+                val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
                 val code = latestMessagesResponse.code()
                 when {
@@ -181,9 +182,9 @@ class Queue : GistQueue {
             try {
                 logger.debug("Logging view for message: $message")
                 if (message.queueId != null) {
-                    gistQueueService.logUserMessageView(message.queueId)
+                    gistQueueService.logUserMessageView(message.queueId, sessionId = state.sessionId)
                 } else {
-                    gistQueueService.logMessageView(message.messageId)
+                    gistQueueService.logMessageView(message.messageId, sessionId = state.sessionId)
                 }
             } catch (e: Exception) {
                 logger.debug("Failed to log message view: ${e.message}")

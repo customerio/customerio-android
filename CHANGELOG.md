@@ -1,3 +1,9 @@
+## [4.9.0](https://github.com/customerio/customerio-android/compare/4.8.0...4.9.0) (2025-08-18)
+
+### Features
+
+* Added support for queue sticky sessions ([#598](https://github.com/customerio/customerio-android/issues/598)) ([4dd7639](https://github.com/customerio/customerio-android/commit/4dd7639120800d81712c0ed50656e10ed9a65d45))
+
 ## [4.8.0](https://github.com/customerio/customerio-android/compare/4.7.1...4.8.0) (2025-08-11)
 
 ### Features

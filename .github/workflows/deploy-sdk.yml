@@ -19,10 +19,10 @@ jobs:
       new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
       - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
+        uses: kenji-miyake/setup-sd@f4181660873fa5814708e1c0a640d8e9975a4ae5 # v2.0.0
 
       # Setup Android SDK as it's needed to generate the SDK size report.
       - name: Setup Android SDK
@@ -54,7 +54,7 @@ jobs:
       # 2. Updates metadata files. Such as updating the version number in package.json and adding entries to CHANGELOG.md file.
       # 3. Create git tag and push it to github.
       - name: Deploy git tag via semantic-release
-        uses: cycjimmy/semantic-release-action@0a51e81a6baff2acad3ee88f4121c589c73d0f0e # v4.2.0
+        uses: cycjimmy/semantic-release-action@16ca923e6ccbb50770c415a0ccd43709a8c5f7a4 # v4.2.2
         id: semantic-release
         with:
           dry_run: false
@@ -68,7 +68,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
 
       - name: Notify team of git tag being created
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.0.0-rc.3
         if: steps.semantic-release.outputs.new_release_published == 'true' # only run if a git tag was made.
         with:
           webhook: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
@@ -107,7 +107,7 @@ jobs:
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
       - name: Notify team of failure
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.0.0-rc.3
         if: ${{ failure() }} # only run this if any previous step failed
         with:
           webhook: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout git tag that got created in previous step
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.deploy-git-tag.outputs.new_release_version }}
       - uses: ./.github/actions/setup-android
@@ -167,7 +167,7 @@ jobs:
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
 
       - name: Notify team of successful deployment
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.0.0-rc.3
         if: ${{ success() }}
         with:
           webhook: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
@@ -206,7 +206,7 @@ jobs:
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
       - name: Notify team of failure
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.0.0-rc.3
         if: ${{ failure() }} # only run this if any previous step failed
         with:
           webhook: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}

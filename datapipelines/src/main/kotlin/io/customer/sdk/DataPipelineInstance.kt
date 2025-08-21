@@ -94,6 +94,58 @@ abstract class DataPipelineInstance : CustomerIOInstance {
     }
 
     /**
+     * Update subscription topic preferences for the currently identified profile using Track Identify.
+     * This replaces the entire topics map on the server side.
+     * If no profile is identified, the call is ignored.
+     */
+    fun updateSubscriptionTopics(topics: Map<String, Boolean>) {
+        val identifier = this.userId
+        if (identifier.isNullOrBlank()) {
+            // No identified user; nothing to update
+            return
+        }
+
+        // Start from existing preferences (if present) to avoid clobbering other nested keys
+        val existingPrefs = (profileAttributes["cio_subscription_preferences"] as? Map<*, *>)
+            ?.entries
+            ?.associate { (k, v) -> (k as? String ?: k.toString()) to v }
+            ?.toMutableMap()
+            ?: mutableMapOf()
+
+        // Replace topics with provided map
+        existingPrefs["topics"] = topics
+
+        // Build traits payload: { "cio_subscription_preferences": { ...existing..., "topics": { ... } } }
+        val traits: Map<String, Any?> = mapOf(
+            "cio_subscription_preferences" to existingPrefs
+        )
+
+        identify(userId = identifier, traits = traits)
+    }
+
+    /**
+     * Fetch subscription topic preferences from locally stored profile traits.
+     * Returns an empty map if the value is not present or cannot be parsed.
+     */
+    fun getSubscriptionTopics(): Map<String, Boolean> {
+        val attributes = profileAttributes
+        val prefs = attributes["cio_subscription_preferences"] as? Map<*, *> ?: return emptyMap()
+        val rawTopics = prefs["topics"] as? Map<*, *> ?: return emptyMap()
+
+        val result = mutableMapOf<String, Boolean>()
+        for ((key, value) in rawTopics) {
+            val name = key as? String ?: continue
+            val enabled = when (value) {
+                is Boolean -> value
+                is Number -> value.toInt() != 0
+                else -> continue
+            }
+            result[name] = enabled
+        }
+        return result
+    }
+
+    /**
      * Implementation of identify to be overridden by subclasses.
      */
     protected abstract fun <Traits> identifyImpl(

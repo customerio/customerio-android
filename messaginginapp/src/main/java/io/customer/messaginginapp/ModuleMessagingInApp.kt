@@ -22,42 +22,8 @@ class ModuleMessagingInApp(
         get() = SDKComponent.gistProvider
     private val logger = SDKComponent.logger
 
-    @Volatile
-    private var inAppEnabled: Boolean = true
-
-    /**
-     * Disable displaying and polling of in-app messages.
-     * Calling this method will immediately dismiss any message currently being
-     * shown and stop further polling for new messages until [enable] is called.
-     */
-    fun disable() {
-        if (!inAppEnabled) return
-        logger.info("In-app messaging disabled by user call")
-        inAppEnabled = false
-        // Reset provider which clears timers, queues and dismisses currently shown message
-        gistProvider.reset()
-    }
-
-    /**
-     * Re-enable in-app messaging after it has been disabled via [disable].
-     * When re-enabled, polling for messages will resume immediately using the
-     * last known polling interval.
-     */
-    fun enable() {
-        if (inAppEnabled) return
-        logger.info("In-app messaging enabled by user call")
-        inAppEnabled = true
-        // Start polling again to fetch fresh messages
-        gistProvider.fetchInAppMessages()
-    }
-
-    /** Internal convenience to quickly check if in-app is enabled */
-    private inline fun ifEnabled(block: () -> Unit) {
-        if (inAppEnabled) block()
-    }
-
     fun dismissMessage() {
-        ifEnabled { gistProvider.dismissMessage() }
+        gistProvider.dismissMessage()
     }
 
     override fun initialize() {
@@ -66,18 +32,16 @@ class ModuleMessagingInApp(
 
     private fun setupHooks() {
         eventBus.subscribe<Event.ScreenViewedEvent> {
-            ifEnabled { gistProvider.setCurrentRoute(it.name) }
+            gistProvider.setCurrentRoute(it.name)
         }
 
         eventBus.subscribe<Event.ProfileIdentifiedEvent> {
-            ifEnabled { gistProvider.setUserId(it.identifier) }
+            gistProvider.setUserId(it.identifier)
         }
 
         eventBus.subscribe<Event.ResetEvent> {
-            ifEnabled {
-                logger.debug("Resetting user token")
-                gistProvider.reset()
-            }
+            logger.debug("Resetting user token")
+            gistProvider.reset()
         }
     }
 

@@ -28,7 +28,6 @@ import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
-import io.mockk.clearMocks
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -237,43 +236,5 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         verify(exactly = 0) {
             eventBus.publish(any<Event.TrackInAppMetricEvent>())
         }
-    }
-
-    @Test
-    fun disable_whenCalled_shouldResetAndBlockFurtherActions() {
-        module.initialize()
-
-        // Disable in-app messaging
-        module.disable()
-
-        // Reset should be invoked once
-        assertCalledOnce { inAppMessagesProviderMock.reset() }
-
-        // Any subsequent interactions should be blocked
-        eventBus.publish(Event.ScreenViewedEvent(name = "test_route"))
-        assertCalledNever { inAppMessagesProviderMock.setCurrentRoute(any()) }
-
-        // Even direct API calls are ignored
-        module.dismissMessage()
-        assertCalledNever { inAppMessagesProviderMock.dismissMessage() }
-    }
-
-    @Test
-    fun enable_afterDisable_shouldFetchMessagesAndResumeProcessing() {
-        module.initialize()
-        module.disable()
-
-        // Clear previous interactions so we only capture calls after enabling
-        clearMocks(inAppMessagesProviderMock, answers = false)
-
-        module.enable()
-
-        // Should trigger an immediate fetch
-        assertCalledOnce { inAppMessagesProviderMock.fetchInAppMessages() }
-
-        // Verify that normal processing resumes
-        val givenRoute = "home_screen"
-        eventBus.publish(Event.ScreenViewedEvent(name = givenRoute))
-        assertCalledOnce { inAppMessagesProviderMock.setCurrentRoute(givenRoute) }
     }
 }

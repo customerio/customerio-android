@@ -46,11 +46,13 @@ import kotlinx.serialization.serializer
  * You must have an instance of `CustomerIO` to use the features of the SDK.
  * Create your own instance using
  * ```
- * with(CustomerIOBuilder(appContext: Application context, cdpApiKey = "XXX")) {
- *   setLogLevel(...)
- *   addCustomerIOModule(...)
- *   build()
- * }
+ * val config = CustomerIOConfigBuilder(appContext, "your-api-key")
+ *   .logLevel(CioLogLevel.DEBUG)
+ *   .addCustomerIOModule(...)
+ *   .build()
+ *
+ * CustomerIO.initialize(config)
+ * val customerIO = CustomerIO.instance()
  * ```
  * It is recommended to initialize the client in the `Application::onCreate()` method.
  * After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
@@ -186,17 +188,23 @@ class CustomerIO private constructor(
         }
     }
 
+    @Deprecated("Use setProfileAttributes() function instead")
+    @set:JvmName("setProfileAttributesDeprecated")
     override var profileAttributes: CustomAttributes
         get() = analytics.traits() ?: emptyMap()
         set(value) {
-            val identifier = this.userId
-            if (identifier != null) {
-                identify(userId = identifier, traits = value)
-            } else {
-                logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
-                analytics.identify(traits = value.sanitizeForJson())
-            }
+            setProfileAttributes(value)
         }
+
+    override fun setProfileAttributes(attributes: CustomAttributes) {
+        val identifier = this.userId
+        if (identifier != null) {
+            identify(userId = identifier, traits = attributes)
+        } else {
+            logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
+            analytics.identify(traits = attributes.sanitizeForJson())
+        }
+    }
 
     /**
      * Common method to identify a user profile with traits.
@@ -302,11 +310,17 @@ class CustomerIO private constructor(
     override val userId: String?
         get() = analytics.userId()
 
+    @Deprecated("Use setDeviceAttributes() function instead")
+    @set:JvmName("setDeviceAttributesDeprecated")
     override var deviceAttributes: CustomAttributes
         get() = emptyMap()
         set(value) {
-            trackDeviceAttributes(registeredDeviceToken, value)
+            setDeviceAttributes(value)
         }
+
+    override fun setDeviceAttributes(attributes: CustomAttributes) {
+        trackDeviceAttributes(registeredDeviceToken, attributes)
+    }
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
         if (deviceToken.isBlank()) {
@@ -393,8 +407,74 @@ class CustomerIO private constructor(
         @JvmStatic
         fun instance(): CustomerIO {
             return instance ?: throw IllegalStateException(
-                "CustomerIO is not initialized. CustomerIOBuilder::build() must be called before obtaining SDK instance."
+                "CustomerIO is not initialized. CustomerIO.initialize() must be called before obtaining SDK instance."
             )
+        }
+
+        /**
+         * Initialize the CustomerIO SDK with the provided configuration.
+         * This method should be called once during the application lifecycle, typically in Application.onCreate().
+         * After initialization, use CustomerIO.instance() to get the initialized SDK instance.
+         *
+         * Example usage:
+         * ```
+         * val config = CustomerIOConfigBuilder(this, "your-api-key")
+         *     .logLevel(CioLogLevel.DEBUG)
+         *     .region(Region.EU)
+         *     .build()
+         *
+         * CustomerIO.initialize(config)
+         * val customerIO = CustomerIO.instance()
+         * ```
+         *
+         * @param config The configuration for initializing the CustomerIO SDK
+         */
+        @JvmStatic
+        fun initialize(config: CustomerIOConfig) {
+            val androidSDKComponent = SDKComponent.android()
+
+            val modules = SDKComponent.modules
+            val logger = SDKComponent.dataPipelinesLogger
+
+            // Update the log level for the SDK
+            SDKComponent.logger.logLevel = config.logLevel
+
+            logger.coreSdkInitStart()
+
+            // Initialize DataPipelinesModule with the provided configuration
+            val dataPipelinesConfig = DataPipelinesModuleConfig(
+                cdpApiKey = config.cdpApiKey,
+                region = config.region,
+                apiHostOverride = config.apiHost,
+                cdnHostOverride = config.cdnHost,
+                flushAt = config.flushAt,
+                flushInterval = config.flushInterval,
+                flushPolicies = config.flushPolicies,
+                autoAddCustomerIODestination = config.autoAddCustomerIODestination,
+                trackApplicationLifecycleEvents = config.trackApplicationLifecycleEvents,
+                autoTrackDeviceAttributes = config.autoTrackDeviceAttributes,
+                autoTrackActivityScreens = config.autoTrackActivityScreens,
+                migrationSiteId = config.migrationSiteId,
+                screenViewUse = config.screenViewUse
+            )
+
+            // Initialize CustomerIO instance before initializing the modules
+            val customerIO = createInstance(
+                androidSDKComponent = androidSDKComponent,
+                moduleConfig = dataPipelinesConfig
+            )
+
+            // Register DataPipelines module and all other modules with SDKComponent
+            modules[MODULE_NAME] = customerIO
+            modules.putAll(config.modules.associateBy { module -> module.moduleName })
+
+            modules.forEach { (_, module) ->
+                logger.moduleInitStart(module)
+                module.initialize()
+                logger.moduleInitSuccess(module)
+            }
+
+            logger.coreSdkInitSuccess()
         }
 
         /**
@@ -404,7 +484,7 @@ class CustomerIO private constructor(
          */
         @Synchronized
         @InternalCustomerIOApi
-        fun createInstance(
+        private fun createInstance(
             androidSDKComponent: AndroidSDKComponent,
             moduleConfig: DataPipelinesModuleConfig
         ): CustomerIO {

@@ -93,7 +93,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         analytics.userId().shouldBeNull()
         every { globalPreferenceStore.getDeviceToken() } returns String.random
 
-        sdkInstance.profileAttributes = mapOf("first_name" to "Dana", "ageInYears" to 30)
+        sdkInstance.setProfileAttributes(mapOf("first_name" to "Dana", "ageInYears" to 30))
         analytics.userId() shouldBe ""
         sdkInstance.identify(givenIdentifier)
 
@@ -458,7 +458,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         sdkInstance.identify(givenIdentifier)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
-        sdkInstance.deviceAttributes = givenAttributes
+        sdkInstance.setDeviceAttributes(givenAttributes)
 
         outputReaderPlugin.identifyEvents.size shouldBeEqualTo 1
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 2

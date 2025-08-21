@@ -10,7 +10,7 @@ import io.customer.datapipelines.testutils.utils.clearPersistentStorage
 import io.customer.datapipelines.testutils.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.testutils.utils.mockHTTPClient
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.CustomerIOConfigBuilder
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
@@ -97,7 +97,7 @@ class UnitTestDelegate(
         val applicationContext = applicationInstance as? Application ?: mockk<Application>(relaxed = true).apply {
             every { applicationContext } returns this
         }
-        val builder = CustomerIOBuilder(applicationContext, testConfig.cdpApiKey)
+        val builder = CustomerIOConfigBuilder(applicationContext, testConfig.cdpApiKey)
         // Register AndroidSDKComponent with mocked dependencies as we are not using real context in tests
         overrideAndroidComponentDependencies()
         // Disable adding destination to analytics instance so events are not sent to the server by default
@@ -106,7 +106,8 @@ class UnitTestDelegate(
         builder.trackApplicationLifecycleEvents(false)
         // Apply custom configuration for the test at the end to allow overriding default configurations
         testConfig.sdkConfig(builder)
-        return builder.build()
+        CustomerIO.initialize(builder.build())
+        return CustomerIO.instance()
     }
 
     fun teardownSDKComponent() {

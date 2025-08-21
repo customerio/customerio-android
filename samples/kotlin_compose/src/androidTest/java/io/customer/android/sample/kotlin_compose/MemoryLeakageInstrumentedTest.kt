@@ -18,7 +18,7 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
-import io.customer.sdk.CustomerIOBuilder
+import io.customer.sdk.CustomerIOConfigBuilder
 import io.customer.sdk.data.model.Region
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -61,24 +61,19 @@ class MemoryLeakageInstrumentedTest {
             preferences.getConfiguration().first()
         }
 
-        CustomerIOBuilder(
-            applicationContext = appContext as Application,
-            cdpApiKey = configuration.cdpApiKey
-        ).apply {
-            configuration.setValuesFromBuilder(this)
-
-            addCustomerIOModule(
+        val builder = CustomerIOConfigBuilder(applicationContext = appContext as Application, configuration.cdpApiKey)
+            .addCustomerIOModule(
                 ModuleMessagingInApp(
                     config = MessagingInAppModuleConfig.Builder(
                         siteId = configuration.siteId,
                         region = Region.US
-                    )
-                        .setEventListener(InAppMessageEventListener()).build()
+                    ).setEventListener(InAppMessageEventListener()).build()
                 )
             )
-            addCustomerIOModule(ModuleMessagingPushFCM())
-            build()
-        }
+            .addCustomerIOModule(ModuleMessagingPushFCM())
+        configuration.setValuesFromBuilder(builder)
+
+        CustomerIO.initialize(builder.build())
 
         // Delete all users. So we always land in `Login Screen`
         runBlocking {

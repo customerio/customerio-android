@@ -475,7 +475,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         sdkInstance.identify(String.random)
         sdkInstance.registerDeviceToken(givenToken)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
-        sdkInstance.deviceAttributes = customAttributes
+        sdkInstance.setDeviceAttributes(customAttributes)
 
         val queuedEvents = getQueuedEvents()
         // 1. Identify

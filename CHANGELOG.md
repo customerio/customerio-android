@@ -1,3 +1,9 @@
+## [4.10.0](https://github.com/customerio/customerio-android/compare/4.9.0...4.10.0) (2025-08-21)
+
+### Features
+
+* Align public API with other CIO SDK platforms ([#600](https://github.com/customerio/customerio-android/issues/600)) ([fedbcc9](https://github.com/customerio/customerio-android/commit/fedbcc954a254bcbc678f1091098f94d634963db))
+
 ## [4.9.0](https://github.com/customerio/customerio-android/compare/4.8.0...4.9.0) (2025-08-18)
 
 ### Features

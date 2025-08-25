@@ -2,31 +2,27 @@ package io.customer.messagingpush.processor
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.MessagingPushModuleConfig
-import io.customer.messagingpush.PushDeliveryTracker
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
-import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
-import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
     private val moduleConfig: MessagingPushModuleConfig,
-    private val deepLinkUtil: DeepLinkUtil
+    private val deepLinkUtil: DeepLinkUtil,
+    private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler
 ) : PushMessageProcessor {
-
-    private val pushDeliveryTracker: PushDeliveryTracker
-        get() = SDKComponent.pushDeliveryTracker
 
     /**
      * Responsible for storing and updating recent messages in queue atomically.
@@ -51,6 +47,7 @@ internal class PushMessageProcessorImpl(
             PushMessageProcessor.recentMessagesQueue.contains(deliveryId) -> {
                 // Ignore messages that were processed already
                 pushLogger.logReceivedDuplicatePushMessageDeliveryId(deliveryId)
+                Log.i("DelayedPush", "PushMessageProcessorImpl - ignoring message as duplicate $deliveryId")
                 return true
             }
 
@@ -93,12 +90,8 @@ internal class PushMessageProcessorImpl(
         // Track delivered event only if auto-tracking is enabled
         if (moduleConfig.autoTrackPushEvents) {
             pushLogger.logTrackingPushMessageDelivered(deliveryId)
-            // Track delivered metrics via http
-            pushDeliveryTracker.trackMetric(
-                event = Metric.Delivered.name,
-                deliveryId = deliveryId,
-                token = deliveryToken
-            )
+
+            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
 
             // Track delivered metrics via event bus
             eventBus.publish(

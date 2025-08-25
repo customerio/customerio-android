@@ -28,7 +28,7 @@ internal class ApplicationStoreImpl(val context: Context) : ApplicationStore {
     override val isPushEnabled: Boolean
         get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
-    private fun tryGetValueOrNull(tryGetValue: () -> String): String? {
+    private fun tryGetValueOrNull(tryGetValue: () -> String?): String? {
         return try {
             tryGetValue()
         } catch (e: Exception) {

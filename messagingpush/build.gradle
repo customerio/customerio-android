@@ -37,5 +37,8 @@ dependencies {
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.googlePlayServicesBase
+    implementation Dependencies.workManager
     api Dependencies.firebaseMessaging
+
+    testImplementation Dependencies.workManagerTesting
 }

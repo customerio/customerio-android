@@ -426,4 +426,34 @@ class PushNotificationLoggerTest : JUnitTest() {
             )
         }
     }
+
+    @Test
+    fun test_logWorkManagerInitializationAttempt_forwardsCorrectCallToLogger() {
+        val exception = RuntimeException("WorkManager not available")
+
+        pushLogger.logWorkManagerInitializationAttempt(exception)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "WorkManager not initialized, attempting to initialize",
+                throwable = exception
+            )
+        }
+    }
+
+    @Test
+    fun test_logWorkManagerInitializationFailed_forwardsCorrectCallToLogger() {
+        val exception = RuntimeException("Initialization failed")
+
+        pushLogger.logWorkManagerInitializationFailed(exception)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Failed to initialize WorkManager",
+                throwable = exception
+            )
+        }
+    }
 }

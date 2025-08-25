@@ -14,7 +14,7 @@ apply {
 
 android {
     namespace = "io.customer.android.sample.kotlin_compose"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "io.customer.android.sample.kotlin_compose"

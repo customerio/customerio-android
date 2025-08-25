@@ -39,8 +39,8 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val deliveryId = String.random
         val deliveryToken = String.random
         val inputData = createInputData(deliveryId, deliveryToken)
-        
-        coEvery { 
+
+        coEvery {
             mockPushDeliveryTracker.trackMetric(
                 event = Metric.Delivered.name,
                 deliveryId = deliveryId,
@@ -52,7 +52,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 1) {
             mockPushDeliveryTracker.trackMetric(
                 event = Metric.Delivered.name,
@@ -67,8 +67,8 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val deliveryId = String.random
         val deliveryToken = String.random
         val inputData = createInputData(deliveryId, deliveryToken)
-        
-        coEvery { 
+
+        coEvery {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         } returns Result.failure(Exception("Network error"))
 
@@ -76,7 +76,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.failure()
-        
+
         coVerify(exactly = 1) {
             mockPushDeliveryTracker.trackMetric(
                 event = Metric.Delivered.name,
@@ -94,7 +94,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }
@@ -108,7 +108,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }
@@ -122,7 +122,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }
@@ -136,7 +136,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }
@@ -150,7 +150,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }
@@ -164,7 +164,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }
@@ -178,7 +178,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val result = worker.doWork()
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
-        
+
         coVerify(exactly = 0) {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
         }

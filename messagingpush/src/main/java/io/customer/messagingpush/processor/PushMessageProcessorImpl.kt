@@ -2,6 +2,7 @@ package io.customer.messagingpush.processor
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
 import io.customer.messagingpush.MessagingPushModuleConfig
@@ -46,6 +47,7 @@ internal class PushMessageProcessorImpl(
             PushMessageProcessor.recentMessagesQueue.contains(deliveryId) -> {
                 // Ignore messages that were processed already
                 pushLogger.logReceivedDuplicatePushMessageDeliveryId(deliveryId)
+                Log.i("DelayedPush", "PushMessageProcessorImpl - ignoring message as duplicate $deliveryId")
                 return true
             }
 

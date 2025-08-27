@@ -20,6 +20,11 @@ internal class PushDeliveryMetricsBackgroundScheduler(
     private val workManagerProvider: WorkManagerProvider
 ) {
 
+    companion object {
+        private const val WORK_MANAGER_TAG_CIO = "cio-requests"
+        private const val WORK_MANAGER_TAG_PUSH_DELIVERY = "cio-push-delivery"
+    }
+
     fun scheduleDeliveredPushMetricsReceipt(deliveryId: String, deliveryToken: String) {
         val input = Data.Builder()
             .putString(DELIVERY_ID, deliveryId)
@@ -33,6 +38,8 @@ internal class PushDeliveryMetricsBackgroundScheduler(
                     .build()
             )
             .setInputData(input)
+            .addTag(WORK_MANAGER_TAG_CIO)
+            .addTag(WORK_MANAGER_TAG_PUSH_DELIVERY)
             .build()
 
         workManagerProvider.getWorkManager()?.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)

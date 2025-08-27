@@ -11,6 +11,7 @@ import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.messagingpush.util.WorkManagerProvider
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.events.Metric
+import java.io.IOException
 
 private const val DELIVERY_ID = "delivery-id"
 private const val DELIVERY_TOKEN = "delivery-token"
@@ -48,7 +49,7 @@ internal class PushDeliveryMetricsWorker(
 
         if (deliveryId.isNullOrEmpty() || deliveryToken.isNullOrEmpty()) {
             // Missing delivery data, prevent task from being retried
-            return Result.success()
+            return Result.failure()
         }
 
         val result = SDKComponent.pushDeliveryTracker.trackMetric(
@@ -59,6 +60,7 @@ internal class PushDeliveryMetricsWorker(
 
         return when {
             result.isSuccess -> Result.success()
+            result.exceptionOrNull() is IOException -> Result.retry()
             else -> Result.failure()
         }
     }

@@ -159,6 +159,13 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
 
     override fun finish() {
         logger.debug("GistModelActivity finish")
+        // Prevent crash if finish() called before binding initialization (e.g., from back press during onCreate)
+        if (!::binding.isInitialized) {
+            logger.debug("GistModelActivity finish: binding not initialized, finishing immediately")
+            finishImmediately()
+            return
+        }
+
         runOnUiThread {
             val animationSet = if (messagePosition == MessagePosition.TOP) {
                 ModalAnimationUtil.createAnimationSetOutToTop(binding.modalGistViewLayout)

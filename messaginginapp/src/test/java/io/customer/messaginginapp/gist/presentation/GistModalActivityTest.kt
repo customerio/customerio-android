@@ -29,9 +29,11 @@ import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
+import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
+import kotlinx.coroutines.delay
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.junit.Test
@@ -144,6 +146,29 @@ class GistModalActivityTest : IntegrationTest() {
             }
             scenario.close()
         }
+    }
+
+    @Test
+    fun finish_givenBindingNotInitialized_expectNoExceptionThrown() {
+        // Initialize ModuleMessagingInApp
+        initializeModuleMessagingInApp()
+        val testMessage = createTestMessage()
+        val intent = createActivityIntent(testMessage)
+
+        // Mock parser to delay, giving us time to call finish() before binding initialization
+        coEvery { mockMessageParser.parseExtras(any()) } coAnswers {
+            delay(100) // Delay to simulate async parsing
+            null // Return null to trigger early finish after delay
+        }
+
+        val scenario = ActivityScenario.launch<GistModalActivity>(intent)
+
+        // Call finish immediately after launch, during the parsing delay
+        scenario.onActivity { activity ->
+            activity.finish() // This should not crash due to binding check
+        }
+
+        scenario.close()
     }
 
     private fun initializeModuleMessagingInApp() {

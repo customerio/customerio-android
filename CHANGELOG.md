@@ -1,3 +1,9 @@
+## [4.10.1](https://github.com/customerio/customerio-android/compare/4.10.0...4.10.1) (2025-08-29)
+
+### Bug Fixes
+
+* prevent GistModalActivity crash on early back press ([#608](https://github.com/customerio/customerio-android/issues/608)) ([ea725f0](https://github.com/customerio/customerio-android/commit/ea725f02e39b5aae5b0ca1895795f3d39de20afb))
+
 ## [4.10.0](https://github.com/customerio/customerio-android/compare/4.9.0...4.10.0) (2025-08-21)
 
 ### Features

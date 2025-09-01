@@ -7,6 +7,7 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.messagingpush.util.WorkManagerProvider
 import io.customer.sdk.core.di.SDKComponent
@@ -17,7 +18,8 @@ private const val DELIVERY_ID = "delivery-id"
 private const val DELIVERY_TOKEN = "delivery-token"
 
 internal class PushDeliveryMetricsBackgroundScheduler(
-    private val workManagerProvider: WorkManagerProvider
+    private val workManagerProvider: WorkManagerProvider,
+    private val asyncPushDeliveryTracker: AsyncPushDeliveryTracker
 ) {
 
     companion object {
@@ -42,7 +44,12 @@ internal class PushDeliveryMetricsBackgroundScheduler(
             .addTag(WORK_MANAGER_TAG_PUSH_DELIVERY)
             .build()
 
-        workManagerProvider.getWorkManager()?.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)
+        val workManager = workManagerProvider.getWorkManager()
+        if (workManager != null) {
+            workManager.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)
+        } else {
+            asyncPushDeliveryTracker.trackMetric(deliveryToken, Metric.Delivered.toString(), deliveryId)
+        }
     }
 }
 

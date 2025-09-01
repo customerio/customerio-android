@@ -4,7 +4,10 @@ import io.customer.messagingpush.di.httpClient
 import io.customer.messagingpush.network.HttpClient
 import io.customer.messagingpush.network.HttpRequestParams
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.util.EventNames
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 internal interface PushDeliveryTracker {
@@ -46,5 +49,18 @@ internal class PushDeliveryTrackerImpl : PushDeliveryTracker {
 
         val result = httpClient.request(params)
         return result.map { /* we only need success/failure */ }
+    }
+}
+
+internal class AsyncPushDeliveryTracker(
+    private val deliveryTracker: PushDeliveryTrackerImpl
+) {
+    private val dispatcher: DispatchersProvider
+        get() = SDKComponent.dispatchersProvider
+
+    fun trackMetric(token: String, event: String, deliveryId: String) {
+        CoroutineScope(dispatcher.background).launch {
+            deliveryTracker.trackMetric(token, event, deliveryId)
+        }
     }
 }

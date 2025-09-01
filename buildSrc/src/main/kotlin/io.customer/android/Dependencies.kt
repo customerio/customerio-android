@@ -59,6 +59,8 @@ object Dependencies {
     const val okhttpLoggingInterceptor =
         "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
     const val segment = "com.segment.analytics.kotlin:android:${Versions.SEGMENT}"
+    const val workManager = "androidx.work:work-runtime-ktx:${Versions.WORK_MANAGER}"
+    const val workManagerTesting = "androidx.work:work-testing:${Versions.WORK_MANAGER}"
 
     // Compose dependencies
     const val composeBom = "androidx.compose:compose-bom:${Versions.COMPOSE_BOM}"

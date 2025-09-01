@@ -12,7 +12,7 @@ apply from: "${rootDir}/samples/sample-app.gradle"
 
 android {
     namespace 'io.customer.android.sample.java_layout'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "io.customer.android.sample.java_layout"

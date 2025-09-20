@@ -96,26 +96,11 @@ private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action:
 }
 
 /**
- * Middleware to handle user change actions.
- */
-internal fun userChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
-    when {
-        // the state parameters that are independent of the user need to be set
-        // so that when the user is set we can display the messages right away
-        action is InAppMessagingAction.Initialize -> next(action)
-        action is InAppMessagingAction.SetUserIdentifier -> next(action)
-        action is InAppMessagingAction.SetPageRoute -> next(action)
-        store.state.userId != null -> next(action)
-        else -> next(InAppMessagingAction.ReportError("User is not set."))
-    }
-}
-
-/**
  * Middleware to handle route change actions.
  */
 internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
 
-    if (action is InAppMessagingAction.SetPageRoute && store.state.userId != null) {
+    if (action is InAppMessagingAction.SetPageRoute) {
         // update the current route
         next(action)
 

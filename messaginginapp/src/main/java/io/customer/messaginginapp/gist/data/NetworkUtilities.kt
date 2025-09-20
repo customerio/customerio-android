@@ -7,5 +7,6 @@ class NetworkUtilities {
         internal const val CIO_DATACENTER_HEADER = "X-CIO-Datacenter"
         internal const val CIO_CLIENT_PLATFORM = "X-CIO-Client-Platform"
         internal const val CIO_CLIENT_VERSION = "X-CIO-Client-Version"
+        internal const val GIST_USER_ANONYMOUS_HEADER = "X-Gist-User-Anonymous"
     }
 }

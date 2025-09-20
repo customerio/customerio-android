@@ -72,11 +72,13 @@ class Queue : GistQueue {
                     .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter)
                     .addHeader(NetworkUtilities.CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase() + "-android")
                     .addHeader(NetworkUtilities.CIO_CLIENT_VERSION, SDKComponent.android().client.sdkVersion)
+                    .addHeader(NetworkUtilities.GIST_USER_ANONYMOUS_HEADER, (state.userId == null).toString())
                     .apply {
-                        state.userId?.let { userToken ->
+                        val userToken = state.userId ?: state.anonymousId
+                        userToken?.let { token ->
                             addHeader(
                                 NetworkUtilities.USER_TOKEN_HEADER,
-                                Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
+                                Base64.encodeToString(token.toByteArray(), Base64.NO_WRAP)
                             )
                         }
                     }
@@ -127,11 +129,6 @@ class Queue : GistQueue {
     override fun fetchUserMessages() {
         scope.launch {
             try {
-                logger.debug("Fetching user messages")
-                if (state.userId == null) {
-                    logger.debug("User not set, skipping fetch")
-                    return@launch
-                }
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
                 val code = latestMessagesResponse.code()

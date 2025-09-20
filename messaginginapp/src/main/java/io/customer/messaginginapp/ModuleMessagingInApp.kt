@@ -39,6 +39,10 @@ class ModuleMessagingInApp(
             gistProvider.setUserId(it.identifier)
         }
 
+        eventBus.subscribe<Event.AnonymousIdGeneratedEvent> {
+            gistProvider.setAnonymousId(it.anonymousId)
+        }
+
         eventBus.subscribe<Event.ResetEvent> {
             logger.debug("Resetting user token")
             gistProvider.reset()

@@ -129,13 +129,19 @@ class CustomerIO private constructor(
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
-        // if profile is already identified, republish identifier for late-added modules.
-        postProfileAlreadyIdentified()
+        // republish profile/anonymous events for late-added modules
+        postUserIdentificationEvents()
     }
 
-    private fun postProfileAlreadyIdentified() {
-        analytics.userId()?.let { userId ->
+    private fun postUserIdentificationEvents() {
+        val userId = analytics.userId()
+        if (userId != null) {
             eventBus.publish(Event.ProfileIdentifiedEvent(identifier = userId))
+        } else {
+            val anonymousId = analytics.anonymousId()
+            if (anonymousId.isNotBlank()) {
+                eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = anonymousId))
+            }
         }
     }
 

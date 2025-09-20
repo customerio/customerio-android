@@ -190,15 +190,16 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun givenNoUser_whenProcessingMessage_thenNoActionIsTaken() = runTest {
-        // Initialize without setting user
+    fun givenNoUser_whenProcessingMessage_thenAnonymousMessagingIsSupported() = runTest {
+        // Initialize without setting user - should support anonymous messaging
         manager.dispatch(InAppMessagingAction.Initialize(siteId = String.random, dataCenter = String.random, environment = GistEnvironment.PROD))
 
         val message = createInAppMessage(queueId = "1")
         manager.dispatch(InAppMessagingAction.LoadMessage(message))
 
         val state = manager.getCurrentState()
-        state.modalMessageState shouldBeInstanceOf ModalMessageState.Initial::class.java
+        // Anonymous users should be able to see messages
+        state.modalMessageState shouldBeInstanceOf ModalMessageState.Loading::class.java
 
         verify { inAppEventListener wasNot Called }
     }

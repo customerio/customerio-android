@@ -167,6 +167,7 @@ public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/cus
 	public fun dismissMessage ()V
 	public fun fetchInAppMessages ()V
 	public fun reset ()V
+	public fun setAnonymousId (Ljava/lang/String;)V
 	public fun setCurrentRoute (Ljava/lang/String;)V
 	public fun setUserId (Ljava/lang/String;)V
 }
@@ -321,6 +322,17 @@ public final class io/customer/messaginginapp/state/InAppMessagingAction$ReportE
 
 public final class io/customer/messaginginapp/state/InAppMessagingAction$Reset : io/customer/messaginginapp/state/InAppMessagingAction {
 	public static final field INSTANCE Lio/customer/messaginginapp/state/InAppMessagingAction$Reset;
+}
+
+public final class io/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier : io/customer/messaginginapp/state/InAppMessagingAction {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnonymousId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/customer/messaginginapp/state/InAppMessagingAction$SetPageRoute : io/customer/messaginginapp/state/InAppMessagingAction {

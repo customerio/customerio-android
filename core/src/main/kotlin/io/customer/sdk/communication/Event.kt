@@ -21,6 +21,10 @@ sealed class Event {
         val identifier: String
     ) : Event()
 
+    data class AnonymousIdGeneratedEvent(
+        val anonymousId: String
+    ) : Event()
+
     data class ScreenViewedEvent(
         val name: String
     ) : Event()

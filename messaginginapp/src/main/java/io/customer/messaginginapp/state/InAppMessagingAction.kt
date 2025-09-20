@@ -11,6 +11,7 @@ sealed class InAppMessagingAction {
     data class LoadMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()
     data class EmbedMessages(val messages: List<Message>) : InAppMessagingAction()
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()
+    data class SetAnonymousIdentifier(val anonymousId: String) : InAppMessagingAction()
     data class ProcessMessageQueue(val messages: List<Message>) : InAppMessagingAction()
     data class DisplayMessage(val message: Message) : InAppMessagingAction()
     data class DismissMessage(val message: Message, val shouldLog: Boolean = true, val viaCloseAction: Boolean = true) : InAppMessagingAction()

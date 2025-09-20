@@ -24,6 +24,7 @@ internal data class InAppMessagingState(
         append("environment=$environment,\n")
         append("pollInterval=$pollInterval,\n")
         append("userId=$userId,\n")
+        append("anonymousId=$anonymousId,\n")
         append("currentRoute=$currentRoute,\n")
         append("sessionId='$sessionId',\n")
         append("modalMessageState=$modalMessageState,\n")

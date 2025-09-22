@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="0dp"
+    tools:context=".ui.inline.InlineMessagesNavigationActivity">
+
+    <io.customer.messaginginapp.ui.InlineInAppMessageView
+        android:id="@+id/inapp_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_margin="0dp"
+        app:elementId="sticky-header"
+        tools:background="@android:color/holo_green_light"
+        tools:layout_height="@dimen/inline_message_preview_height" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/margin_default"
+        android:layout_weight="1"
+        android:background="@android:color/holo_blue_light" />
+</LinearLayout>

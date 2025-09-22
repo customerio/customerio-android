@@ -10,6 +10,7 @@ import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
+import kotlinx.coroutines.Job
 
 internal class InlineInAppMessageViewController
 @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -46,13 +47,14 @@ internal constructor(
     @ThreadSafeProperty("Accessed during layout changes and size callbacks")
     internal var contentHeightInDp: Double? by threadSafe()
 
+    private var stateSubscriptionJob: Job? = null
+
     init {
         viewDelegate.isVisible = false
-        subscribeToStore()
     }
 
     private fun subscribeToStore() {
-        inAppMessagingManager.subscribeToState(
+        stateSubscriptionJob = inAppMessagingManager.subscribeToState(
             areEquivalent = { oldState, newState ->
                 val viewElementId = elementId ?: return@subscribeToState true
 
@@ -65,6 +67,11 @@ internal constructor(
         }
     }
 
+    private fun unsubscribeFromStore() {
+        stateSubscriptionJob?.cancel()
+        stateSubscriptionJob = null
+    }
+
     private fun onElementIdChanged() {
         // Since the elementId has been changed, we need to fetch
         // current state to ensure correct message is displayed
@@ -72,12 +79,15 @@ internal constructor(
         viewDelegate.post { refreshViewState(state = state) }
     }
 
-    internal fun onDetachedFromWindow() {
-        val message = currentMessage ?: return
-        val currentElementId = elementId
+    internal fun onViewOwnerCreated() {
+        unsubscribeFromStore()
+        subscribeToStore()
+    }
 
-        if (platformDelegate.shouldDestroyViewOnDetach()) {
-            logViewEvent("View detached from window, dismissing inline message view for $currentElementId ")
+    internal fun onViewOwnerDestroyed() {
+        val message = currentMessage
+        if (message != null && platformDelegate.shouldDestroyWithOwner()) {
+            logViewEvent("View owner destroyed, dismissing inline message view for elementId=$elementId")
             inAppMessagingManager.dispatch(
                 InAppMessagingAction.DismissMessage(
                     message = message,
@@ -85,9 +95,9 @@ internal constructor(
                     viaCloseAction = false
                 )
             )
-        } else {
-            logViewEvent("Skipping destroy for inline message view for $currentElementId — likely config change or temporary detach")
         }
+
+        unsubscribeFromStore()
     }
 
     @UiThread
@@ -96,7 +106,14 @@ internal constructor(
         val inlineMessageState = state.queuedInlineMessagesState.getMessage(viewElementId) ?: return
 
         when (inlineMessageState) {
-            is InlineMessageState.ReadyToEmbed -> embedMessage(message = inlineMessageState.message)
+            is InlineMessageState.ReadyToEmbed -> {
+                if (currentMessage == inlineMessageState.message) {
+                    logViewEvent("Current message is the same as new message, no need to embed again: ${inlineMessageState.message.messageId}")
+                } else {
+                    embedMessage(message = inlineMessageState.message)
+                }
+            }
+
             is InlineMessageState.Dismissed -> dismissMessage(message = inlineMessageState.message) {}
             is InlineMessageState.Embedded -> {
                 // The message is already embedded, but we are not displaying it. This can happen

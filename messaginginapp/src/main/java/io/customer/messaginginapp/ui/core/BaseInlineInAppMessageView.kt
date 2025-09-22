@@ -5,6 +5,10 @@ import android.util.AttributeSet
 import android.widget.FrameLayout
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegateImpl
@@ -27,13 +31,35 @@ constructor(
     attrs: AttributeSet? = null,
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
-) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), InlineInAppMessageViewCallback {
+) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), InlineInAppMessageViewCallback, DefaultLifecycleObserver {
     protected abstract val platformDelegate: P
     internal val controller: InlineInAppMessageViewController by lazy {
         InlineInAppMessageViewController(
             viewDelegate = InAppHostViewDelegateImpl(view = this),
             platformDelegate = platformDelegate
         )
+    }
+    private val viewLifecycleOwner: Lifecycle?
+        get() = findViewTreeLifecycleOwner()?.lifecycle
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        // Register lifecycle observer to clean up resources when the view is fully destroyed
+        viewLifecycleOwner?.addObserver(this)
+    }
+
+    override fun onCreate(owner: LifecycleOwner) {
+        super.onCreate(owner)
+        // Notify controller when owner is created so it can subscribe to in-app messaging state
+        onViewOwnerCreated()
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        super.onDestroy(owner)
+        // Remove observer to prevent further callbacks after destruction
+        viewLifecycleOwner?.removeObserver(this)
+        // Clean up controller resources to prevent memory leaks
+        onViewOwnerDestroyed()
     }
 
     @InternalCustomerIOApi
@@ -42,8 +68,13 @@ constructor(
     }
 
     @InternalCustomerIOApi
-    protected fun onViewDetached() {
-        controller.onDetachedFromWindow()
+    protected fun onViewOwnerCreated() {
+        controller.onViewOwnerCreated()
+    }
+
+    @InternalCustomerIOApi
+    protected fun onViewOwnerDestroyed() {
+        controller.onViewOwnerDestroyed()
     }
 
     /**

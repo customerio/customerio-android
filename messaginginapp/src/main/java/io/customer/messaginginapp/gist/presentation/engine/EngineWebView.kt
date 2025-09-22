@@ -12,9 +12,9 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.inAppMessagingManager
@@ -29,7 +29,7 @@ import java.util.TimerTask
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
-) : FrameLayout(context, attrs), EngineWebViewListener, LifecycleObserver, EngineWebViewDelegate {
+) : FrameLayout(context, attrs), EngineWebViewListener, DefaultLifecycleObserver, EngineWebViewDelegate {
 
     override var listener: EngineWebViewListener? = null
     private var timer: Timer? = null
@@ -61,13 +61,21 @@ internal class EngineWebView @JvmOverloads constructor(
         return this
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    override fun onResume(owner: LifecycleOwner) {
+        super.onResume(owner)
+        onLifecycleResumed()
+    }
+
     fun onLifecycleResumed() {
         logger.info("EngineWebView onLifecycleResumed")
         webView?.let { engineWebViewInterface.attach(webView = it) }
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+    override fun onPause(owner: LifecycleOwner) {
+        super.onPause(owner)
+        onLifecyclePaused()
+    }
+
     fun onLifecyclePaused() {
         logger.info("EngineWebView onLifecyclePaused")
         webView?.let { engineWebViewInterface.detach(webView = it) }

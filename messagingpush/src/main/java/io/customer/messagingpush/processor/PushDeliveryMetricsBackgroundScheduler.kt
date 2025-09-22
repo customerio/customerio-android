@@ -48,7 +48,7 @@ internal class PushDeliveryMetricsBackgroundScheduler(
         if (workManager != null) {
             workManager.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)
         } else {
-            asyncPushDeliveryTracker.trackMetric(deliveryToken, Metric.Delivered.toString(), deliveryId)
+            asyncPushDeliveryTracker.trackMetric(deliveryToken, Metric.Delivered.name, deliveryId)
         }
     }
 }

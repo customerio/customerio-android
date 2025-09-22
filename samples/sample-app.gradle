@@ -87,6 +87,9 @@ android {
         
         // Enable Compose for all projects, since both Java Layout and Kotlin Compose need it
         compose true
+
+        // Enable ViewBinding for all sample apps
+        viewBinding = true
     }
     
     buildTypes {

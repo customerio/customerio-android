@@ -22,6 +22,10 @@ interface InAppPreferenceStore {
     fun isBroadcastDismissed(messageId: String): Boolean
     fun clearBroadcastTracking(messageId: String)
     fun clearAllBroadcastData()
+
+    // Optimization: Store ignoreDismiss flag separately to avoid JSON parsing
+    fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
+    fun getBroadcastIgnoreDismiss(messageId: String): Boolean?
 }
 
 internal class InAppPreferenceStoreImpl(
@@ -37,6 +41,7 @@ internal class InAppPreferenceStoreImpl(
         private const val BROADCAST_MESSAGES_EXPIRY_KEY = "broadcast_messages_expiry"
         private const val BROADCAST_TIMES_SHOWN_PREFIX = "broadcast_times_shown_"
         private const val BROADCAST_DISMISSED_PREFIX = "broadcast_dismissed_"
+        private const val BROADCAST_IGNORE_DISMISS_PREFIX = "broadcast_ignore_dismiss_"
     }
 
     override fun saveNetworkResponse(url: String, response: String) = prefs.edit {
@@ -94,6 +99,7 @@ internal class InAppPreferenceStoreImpl(
     override fun clearBroadcastTracking(messageId: String) = prefs.edit {
         remove("$BROADCAST_TIMES_SHOWN_PREFIX$messageId")
         remove("$BROADCAST_DISMISSED_PREFIX$messageId")
+        remove("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")
     }
 
     override fun clearAllBroadcastData() = prefs.edit {
@@ -101,5 +107,21 @@ internal class InAppPreferenceStoreImpl(
         remove(BROADCAST_MESSAGES_EXPIRY_KEY)
         // Note: We intentionally keep individual message tracking (times shown, dismissed)
         // as they might be useful if the same broadcast comes back later
+    }
+
+    override fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean) = prefs.edit {
+        if (ignoreDismiss) {
+            putBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", true)
+        } else {
+            remove("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")
+        }
+    }
+
+    override fun getBroadcastIgnoreDismiss(messageId: String): Boolean? = prefs.read {
+        if (contains("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")) {
+            getBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", false)
+        } else {
+            null
+        }
     }
 }

@@ -61,7 +61,7 @@ fun KotlinComposeInlineComponent(context: Context) {
                 // Header inline in-app message (sticky header)
                 // Using the same elementId "sticky-header" as in XML example
                 InlineInAppMessage(
-                    elementId = "sticky-header-compose",
+                    elementId = "compose-sticky-header",
                     modifier = Modifier.fillMaxWidth(),
                     progressTint = MaterialTheme.colorScheme.primary, // Using theme's primary color for loading indicator
                     onAction = { message: InAppMessage, action: String, name: String ->
@@ -76,7 +76,7 @@ fun KotlinComposeInlineComponent(context: Context) {
 
                 // Middle inline in-app message with "inline" elementId to match XML
                 InlineInAppMessage(
-                    elementId = "inline-compose",
+                    elementId = "compose-sticky-center",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
@@ -103,7 +103,7 @@ fun KotlinComposeInlineComponent(context: Context) {
 
                 // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
                 InlineInAppMessage(
-                    elementId = "below-fold-compose",
+                    elementId = "compose-sticky-bottom",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),

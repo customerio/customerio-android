@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
         android:layout_margin="0dp"
-        app:elementId="sticky-header"
+        app:elementId="single-tab-inline"
         tools:background="@android:color/holo_green_light"
         tools:layout_height="@dimen/inline_message_preview_height" />
 

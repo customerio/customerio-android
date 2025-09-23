@@ -30,9 +30,9 @@ class DynamicAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         if (holder is InlineViewHolder) {
             holder.itemView.id = INLINE_VIEW_IDS[position]!!
             when (position) {
-                FIRST_INLINE_INDEX -> holder.bind("below-fold")
-                MIDDLE_INLINE_INDEX -> holder.bind("inline-list")
-                LAST_INLINE_INDEX -> holder.bind("below-fold-list")
+                FIRST_INLINE_INDEX -> holder.bind("recycler-top")
+                MIDDLE_INLINE_INDEX -> holder.bind("recycler-center")
+                LAST_INLINE_INDEX -> holder.bind("recycler-bottom")
             }
         } else if (holder is SimpleListItemViewHolder) {
             holder.bind(position)

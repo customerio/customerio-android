@@ -17,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top|center_horizontal"
-            app:elementId="inline"
+            app:elementId="multi-inline-top"
             tools:background="@android:color/holo_green_light"
             tools:layout_height="@dimen/inline_message_preview_height" />
     </com.google.android.material.appbar.AppBarLayout>
@@ -53,7 +53,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/margin_small"
-                app:elementId="inline-multiple"
+                app:elementId="multi-inline-center"
                 app:layout_constraintBottom_toTopOf="@id/block_2"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -78,7 +78,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/margin_small"
-                app:elementId="below-fold-multiple"
+                app:elementId="multi-inline-bottom"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"

@@ -33,7 +33,7 @@ class InlineExamplesActivity : AppCompatActivity(), TrackableScreen {
         TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
             val iconResId: Int
             val textResId: Int
-            
+
             when (position) {
                 0 -> {
                     iconResId = R.drawable.ic_single_black_24dp
@@ -53,16 +53,14 @@ class InlineExamplesActivity : AppCompatActivity(), TrackableScreen {
                 }
                 else -> throw IllegalArgumentException("Invalid position: $position")
             }
-            
+
             tab.setIcon(iconResId)
             tab.setText(textResId)
         }.attach()
-
     }
 
     override fun onSupportNavigateUp(): Boolean {
         onBackPressed()
         return true
     }
-
 }

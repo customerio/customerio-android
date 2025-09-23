@@ -285,7 +285,8 @@ class InAppMessageReducerTest : JUnitTest() {
                 campaignId = null,
                 position = MessagePosition.CENTER,
                 persistent = persistent,
-                overlayColor = null
+                overlayColor = null,
+                broadcast = null
             )
             every { this@mockk.isEmbedded } returns (elementId != null)
         }

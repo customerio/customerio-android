@@ -84,4 +84,118 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         val retrievedResponse = inAppPreferenceStore.getNetworkResponse(givenUrl)
         retrievedResponse shouldBeEqualTo givenResponse2
     }
+
+    // Broadcast Message Tests
+    @Test
+    fun saveBroadcastMessages_givenJsonAndExpiry_expectSavedAndRetrieved() {
+        val givenJson = """[{"queueId":"bc1","messageId":"msg1"}]"""
+        val givenExpiry = System.currentTimeMillis() + 60000 // 1 minute
+
+        inAppPreferenceStore.saveBroadcastMessages(givenJson, givenExpiry)
+
+        val retrieved = inAppPreferenceStore.getBroadcastMessages()
+        retrieved shouldBeEqualTo givenJson
+        inAppPreferenceStore.isBroadcastMessagesExpired() shouldBe false
+    }
+
+    @Test
+    fun getBroadcastMessages_givenExpiredData_expectNullAndAutoCleanup() {
+        val givenJson = """[{"queueId":"bc1"}]"""
+        val expiredTime = System.currentTimeMillis() - 1000 // 1 second ago
+
+        inAppPreferenceStore.saveBroadcastMessages(givenJson, expiredTime)
+
+        val retrieved = inAppPreferenceStore.getBroadcastMessages()
+        retrieved shouldBe null
+        inAppPreferenceStore.isBroadcastMessagesExpired() shouldBe false // Should be cleaned up
+    }
+
+    @Test
+    fun incrementBroadcastTimesShown_givenMessageId_expectCorrectCounting() {
+        val messageId = "test_broadcast"
+
+        // Initial count should be 0
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 0
+
+        // Increment and verify
+        inAppPreferenceStore.incrementBroadcastTimesShown(messageId)
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 1
+
+        inAppPreferenceStore.incrementBroadcastTimesShown(messageId)
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 2
+    }
+
+    @Test
+    fun setBroadcastDismissed_givenVariousStates_expectCorrectStorage() {
+        val messageId = "dismiss_test"
+
+        // Initially not dismissed
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe false
+
+        // Set dismissed
+        inAppPreferenceStore.setBroadcastDismissed(messageId, true)
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe true
+
+        // Unset dismissed
+        inAppPreferenceStore.setBroadcastDismissed(messageId, false)
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe false
+    }
+
+    @Test
+    fun setBroadcastIgnoreDismiss_givenVariousStates_expectCorrectStorage() {
+        val messageId = "ignore_test"
+
+        // Initially null (not set)
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe null
+
+        // Set to true
+        inAppPreferenceStore.setBroadcastIgnoreDismiss(messageId, true)
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe true
+
+        // Set to false (removes from storage)
+        inAppPreferenceStore.setBroadcastIgnoreDismiss(messageId, false)
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe null
+    }
+
+    @Test
+    fun clearBroadcastTracking_givenMessageWithAllData_expectCompleteCleanup() {
+        val messageId = "cleanup_test"
+
+        // Set up all types of tracking data
+        inAppPreferenceStore.incrementBroadcastTimesShown(messageId)
+        inAppPreferenceStore.setBroadcastDismissed(messageId, true)
+        inAppPreferenceStore.setBroadcastIgnoreDismiss(messageId, true)
+
+        // Verify data exists
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 1
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe true
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe true
+
+        // Clear tracking
+        inAppPreferenceStore.clearBroadcastTracking(messageId)
+
+        // Verify all data cleared
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 0
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe false
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe null
+    }
+
+    @Test
+    fun clearAllBroadcastData_givenStoredMessages_expectOnlyMessagesCleared() {
+        val messageId = "partial_cleanup_test"
+        val broadcastJson = """[{"queueId":"bc1"}]"""
+
+        // Set up broadcast messages and tracking data
+        inAppPreferenceStore.saveBroadcastMessages(broadcastJson, System.currentTimeMillis() + 60000)
+        inAppPreferenceStore.incrementBroadcastTimesShown(messageId)
+        inAppPreferenceStore.setBroadcastDismissed(messageId, true)
+
+        // Clear only broadcast message storage
+        inAppPreferenceStore.clearAllBroadcastData()
+
+        // Verify messages cleared but tracking data preserved
+        inAppPreferenceStore.getBroadcastMessages() shouldBe null
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 1 // Preserved
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe true // Preserved
+    }
 }

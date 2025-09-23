@@ -41,6 +41,10 @@ internal class BroadcastMessageManagerImpl(
             val expiryTimeMillis = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(BROADCASTS_EXPIRY_MINUTES)
             val messagesJson = gson.toJson(messagesWithBroadcast)
             inAppPreferenceStore.saveBroadcastMessages(messagesJson, expiryTimeMillis)
+
+            // Clean up tracking data for broadcasts no longer in server response
+            cleanupExpiredBroadcastTracking(messagesWithBroadcast)
+
             logger.debug("Saved ${messagesWithBroadcast.size} broadcast messages to local store")
         } else {
             // Server has no broadcasts - they've expired, remove locally
@@ -117,6 +121,29 @@ internal class BroadcastMessageManagerImpl(
         } catch (e: Exception) {
             logger.debug("Error fetching broadcast message $broadcastId: ${e.message}")
             null
+        }
+    }
+
+    private fun cleanupExpiredBroadcastTracking(currentBroadcasts: List<Message>) {
+        // Get previously stored broadcasts to compare
+        val previousBroadcastsJson = inAppPreferenceStore.getBroadcastMessages()
+        if (previousBroadcastsJson != null) {
+            try {
+                val listType = object : TypeToken<List<Message>>() {}.type
+                val previousBroadcasts: List<Message> = gson.fromJson(previousBroadcastsJson, listType)
+
+                // Find broadcasts that were previously stored but are no longer in server response
+                val currentBroadcastIds = currentBroadcasts.mapNotNull { it.queueId }.toSet()
+                val expiredBroadcastIds = previousBroadcasts.mapNotNull { it.queueId } - currentBroadcastIds
+
+                // Clean up tracking data for expired broadcasts
+                expiredBroadcastIds.forEach { expiredId ->
+                    inAppPreferenceStore.clearBroadcastTracking(expiredId)
+                    logger.debug("Cleaned up tracking data for expired broadcast: $expiredId")
+                }
+            } catch (e: Exception) {
+                logger.debug("Error cleaning up expired broadcast tracking: ${e.message}")
+            }
         }
     }
 

@@ -65,6 +65,13 @@ public abstract interface class io/customer/messaginginapp/gist/GistEnvironmentE
 	public abstract fun getGistRendererUrl ()Ljava/lang/String;
 }
 
+public abstract interface class io/customer/messaginginapp/gist/data/BroadcastMessageManager {
+	public abstract fun getEligibleBroadcasts ()Ljava/util/List;
+	public abstract fun markBroadcastAsDismissed (Ljava/lang/String;)V
+	public abstract fun markBroadcastAsSeen (Ljava/lang/String;)V
+	public abstract fun updateBroadcastsLocalStore (Ljava/util/List;)V
+}
+
 public final class io/customer/messaginginapp/gist/data/NetworkUtilities {
 	public static final field Companion Lio/customer/messaginginapp/gist/data/NetworkUtilities$Companion;
 	public fun <init> ()V
@@ -94,17 +101,46 @@ public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/cus
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
+public final class io/customer/messaginginapp/gist/data/model/BroadcastFrequency {
+	public fun <init> (IIZ)V
+	public synthetic fun <init> (IIZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun copy (IIZ)Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;IIZILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCount ()I
+	public final fun getDelay ()I
+	public final fun getIgnoreDismiss ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messaginginapp/gist/data/model/BroadcastProperties {
+	public fun <init> (Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;)V
+	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public final fun copy (Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;)Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrequency ()Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/messaginginapp/gist/data/model/GistProperties {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public final fun component5 ()Z
 	public final fun component6 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/GistProperties;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
+	public final fun component7 ()Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/GistProperties;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBroadcast ()Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
 	public final fun getCampaignId ()Ljava/lang/String;
 	public final fun getElementId ()Ljava/lang/String;
 	public final fun getOverlayColor ()Ljava/lang/String;
@@ -136,6 +172,11 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public fun hashCode ()I
 	public final fun isEmbedded ()Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messaginginapp/gist/data/model/MessageKt {
+	public static final fun isMessageBroadcast (Lio/customer/messaginginapp/gist/data/model/Message;)Z
+	public static final fun isShowAlwaysBroadcast (Lio/customer/messaginginapp/gist/data/model/Message;)Z
 }
 
 public final class io/customer/messaginginapp/gist/data/model/MessagePosition : java/lang/Enum {
@@ -374,8 +415,17 @@ public final class io/customer/messaginginapp/state/InAppMessagingActionKt {
 
 public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {
 	public abstract fun clearAll ()V
+	public abstract fun clearAllBroadcastData ()V
+	public abstract fun clearBroadcastTracking (Ljava/lang/String;)V
+	public abstract fun getBroadcastMessages ()Ljava/lang/String;
+	public abstract fun getBroadcastTimesShown (Ljava/lang/String;)I
 	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun incrementBroadcastTimesShown (Ljava/lang/String;)V
+	public abstract fun isBroadcastDismissed (Ljava/lang/String;)Z
+	public abstract fun isBroadcastMessagesExpired ()Z
+	public abstract fun saveBroadcastMessages (Ljava/lang/String;J)V
 	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun setBroadcastDismissed (Ljava/lang/String;Z)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

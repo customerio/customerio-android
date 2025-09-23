@@ -9,6 +9,16 @@ enum class MessagePosition(val position: String) {
     BOTTOM("bottom")
 }
 
+data class BroadcastFrequency(
+    val count: Int,
+    val delay: Int,
+    val ignoreDismiss: Boolean = false
+)
+
+data class BroadcastProperties(
+    val frequency: BroadcastFrequency
+)
+
 data class GistProperties(
     val routeRule: String?,
     val elementId: String?,
@@ -16,7 +26,8 @@ data class GistProperties(
     val position: MessagePosition,
     val persistent: Boolean,
     // This color is formated as #RRGGBBAA
-    val overlayColor: String?
+    val overlayColor: String?,
+    val broadcast: BroadcastProperties?
 )
 
 data class Message(
@@ -44,6 +55,7 @@ data class Message(
         var position: MessagePosition = MessagePosition.CENTER
         var persistent = false
         var overlayColor: String? = null
+        var broadcast: BroadcastProperties? = null
 
         (properties?.get("gist") as? Map<String, Any?>)?.let { gistProperties ->
             gistProperties["routeRuleAndroid"]?.let { rule ->
@@ -76,6 +88,25 @@ data class Message(
                     overlayColor = color
                 }
             }
+            gistProperties["broadcast"]?.let { broadcastData ->
+                (broadcastData as? Map<String, Any?>)?.let { broadcastMap ->
+                    broadcastMap["frequency"]?.let { frequencyData ->
+                        (frequencyData as? Map<String, Any?>)?.let { frequencyMap ->
+                            val count = (frequencyMap["count"] as? Number)?.toInt() ?: 0
+                            val delay = (frequencyMap["delay"] as? Number)?.toInt() ?: 0
+                            val ignoreDismiss = (frequencyMap["ignoreDismiss"] as? Boolean) ?: false
+
+                            broadcast = BroadcastProperties(
+                                frequency = BroadcastFrequency(
+                                    count = count,
+                                    delay = delay,
+                                    ignoreDismiss = ignoreDismiss
+                                )
+                            )
+                        }
+                    }
+                }
+            }
         }
         return GistProperties(
             routeRule = routeRule,
@@ -83,7 +114,8 @@ data class Message(
             campaignId = campaignId,
             position = position,
             persistent = persistent,
-            overlayColor = overlayColor
+            overlayColor = overlayColor,
+            broadcast = broadcast
         )
     }
 
@@ -114,4 +146,20 @@ internal fun Message.matchesRoute(currentRoute: String?): Boolean {
             }
         }
     }
+}
+
+/**
+ * Extension function to check if a message is a broadcast message
+ */
+fun Message.isMessageBroadcast(): Boolean {
+    return this.gistProperties.broadcast != null
+}
+
+/**
+ * Extension function to check if a broadcast message should show always
+ */
+fun Message.isShowAlwaysBroadcast(): Boolean {
+    if (!isMessageBroadcast()) return false
+    val broadcastDetails = this.gistProperties.broadcast!!.frequency
+    return broadcastDetails.delay == 0 && broadcastDetails.count == 0
 }

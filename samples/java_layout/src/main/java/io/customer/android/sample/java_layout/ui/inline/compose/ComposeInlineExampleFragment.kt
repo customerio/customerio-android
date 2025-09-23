@@ -89,9 +89,9 @@ fun ComposeInlineExampleScreen(context: Context) {
                     .verticalScroll(rememberScrollState())
             ) {
                 // Header inline in-app message (sticky header)
-                // Using the same elementId "sticky-header" as in XML example
+                // Using elementId "compose-sticky-header" to match KotlinComposeInlineComponent
                 InlineInAppMessage(
-                    elementId = "sticky-header",
+                    elementId = "compose-sticky-header",
                     modifier = Modifier.fillMaxWidth(),
                     progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
                     onAction = { message: InAppMessage, action: String, name: String ->
@@ -104,9 +104,9 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier.padding(16.dp)
                 )
 
-                // Middle inline in-app message with "inline" elementId to match XML
+                // Middle inline in-app message with "compose-sticky-center" elementId to match KotlinComposeInlineComponent
                 InlineInAppMessage(
-                    elementId = "inline",
+                    elementId = "compose-sticky-center",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
@@ -131,9 +131,9 @@ fun ComposeInlineExampleScreen(context: Context) {
                 // Third profile card layout
                 ProfileCardPlaceholder(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
 
-                // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
+                // Bottom inline in-app message (below fold) with "compose-sticky-bottom" elementId to match KotlinComposeInlineComponent
                 InlineInAppMessage(
-                    elementId = "below-fold",
+                    elementId = "compose-sticky-bottom",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),

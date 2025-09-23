@@ -15,8 +15,6 @@
     <string name="set_profile_attribute">Set Profile Attribute</string>
     <string name="show_push_prompt">Show Push Prompt</string>
     <string name="view_logs">View Logs</string>
-    <string name="inline_examples_xml_layout">Inline Examples (Android XML)</string>
-    <string name="inline_examples_compose">Inline Examples (Jetpack Compose)</string>
     <string name="log_out">Log Out</string>
     <string name="device_token">Device Token</string>
     <string name="device_token_not_registered">Not Registered</string>
@@ -87,5 +85,12 @@
     <string name="label_internal_settings_activity">InternalSettingsActivity</string>
     <string name="error_url_input_field">This field must be a valid URL</string>
     <string name="screen_view_use_settings_label">ScreenView use</string>
+
+    <!-- Inline Messages Tabs -->
+    <string name="title_inline_single">Single</string>
+    <string name="title_inline_multiple">Multiple</string>
+    <string name="title_inline_compose">Compose</string>
+    <string name="title_inline_recycler">RecyclerView</string>
+    <string name="inline_examples_tabbed">Inline Examples</string>
 
 </resources>

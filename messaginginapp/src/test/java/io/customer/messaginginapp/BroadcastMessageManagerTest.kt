@@ -41,7 +41,7 @@ class BroadcastMessageManagerTest : JUnitTest() {
         // Configure mock behavior to act like a real preference store
         val broadcastTimesShownMap = mutableMapOf<String, Int>()
         val broadcastDismissedMap = mutableMapOf<String, Boolean>()
-        val broadcastIgnoreDismissMap = mutableMapOf<String, Boolean?>()
+        val broadcastIgnoreDismissMap = mutableMapOf<String, Boolean>()
         var broadcastMessagesData: String? = null
         var broadcastMessagesExpiry: Long = 0
 
@@ -56,11 +56,11 @@ class BroadcastMessageManagerTest : JUnitTest() {
             val dismissed = secondArg<Boolean>()
             if (dismissed) broadcastDismissedMap[messageId] = true else broadcastDismissedMap.remove(messageId)
         }
-        every { mockPreferenceStore.getBroadcastIgnoreDismiss(any()) } answers { broadcastIgnoreDismissMap[firstArg()] }
+        every { mockPreferenceStore.getBroadcastIgnoreDismiss(any()) } answers { broadcastIgnoreDismissMap[firstArg()] ?: false }
         every { mockPreferenceStore.setBroadcastIgnoreDismiss(any(), any()) } answers {
             val messageId = firstArg<String>()
             val ignoreDismiss = secondArg<Boolean>()
-            if (ignoreDismiss) broadcastIgnoreDismissMap[messageId] = true else broadcastIgnoreDismissMap.remove(messageId)
+            broadcastIgnoreDismissMap[messageId] = ignoreDismiss
         }
         every { mockPreferenceStore.saveBroadcastMessages(any(), any()) } answers {
             broadcastMessagesData = firstArg()

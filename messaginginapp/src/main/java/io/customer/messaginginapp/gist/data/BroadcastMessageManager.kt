@@ -115,40 +115,16 @@ internal class BroadcastMessageManagerImpl(
         logger.debug("Marking broadcast $broadcastId as dismissed")
         if (!hasValidUserToken()) return
 
-        // Optimization: Check ignoreDismiss flag from preferences instead of parsing full JSON
+        // Check ignoreDismiss flag from preferences
         val ignoreDismiss = inAppPreferenceStore.getBroadcastIgnoreDismiss(broadcastId)
-        if (ignoreDismiss == true) {
+        if (ignoreDismiss) {
             logger.debug("Broadcast $broadcastId is set to ignore dismiss")
             return
-        }
-
-        // If ignoreDismiss is null, fallback to parsing JSON (for backward compatibility)
-        if (ignoreDismiss == null) {
-            val broadcast = fetchMessageBroadcast(broadcastId) ?: return
-            val broadcastDetails = broadcast.gistProperties.broadcast?.frequency ?: return
-
-            if (broadcastDetails.ignoreDismiss) {
-                logger.debug("Broadcast $broadcastId is set to ignore dismiss (fallback check)")
-                return
-            }
         }
 
         // Mark as dismissed
         inAppPreferenceStore.setBroadcastDismissed(broadcastId, true)
         logger.debug("Marked broadcast $broadcastId as dismissed and will not show again")
-    }
-
-    private fun fetchMessageBroadcast(broadcastId: String): Message? {
-        val broadcastsJson = inAppPreferenceStore.getBroadcastMessages() ?: return null
-
-        return try {
-            val listType = object : TypeToken<List<Message>>() {}.type
-            val broadcasts: List<Message> = gson.fromJson(broadcastsJson, listType)
-            broadcasts.find { it.queueId == broadcastId }
-        } catch (e: Exception) {
-            logger.debug("Error fetching broadcast message $broadcastId: ${e.message}")
-            null
-        }
     }
 
     private fun getParsedBroadcastMessages(): List<Message> {

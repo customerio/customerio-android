@@ -23,9 +23,9 @@ interface InAppPreferenceStore {
     fun clearBroadcastTracking(messageId: String)
     fun clearAllBroadcastData()
 
-    // Optimization: Store ignoreDismiss flag separately to avoid JSON parsing
+    // Store ignoreDismiss flag separately to avoid JSON parsing
     fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
-    fun getBroadcastIgnoreDismiss(messageId: String): Boolean?
+    fun getBroadcastIgnoreDismiss(messageId: String): Boolean
 }
 
 internal class InAppPreferenceStoreImpl(
@@ -110,18 +110,10 @@ internal class InAppPreferenceStoreImpl(
     }
 
     override fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean) = prefs.edit {
-        if (ignoreDismiss) {
-            putBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", true)
-        } else {
-            remove("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")
-        }
+        putBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", ignoreDismiss)
     }
 
-    override fun getBroadcastIgnoreDismiss(messageId: String): Boolean? = prefs.read {
-        if (contains("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")) {
-            getBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", false)
-        } else {
-            null
-        }
-    }
+    override fun getBroadcastIgnoreDismiss(messageId: String): Boolean = prefs.read {
+        getBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", false)
+    } ?: false
 }

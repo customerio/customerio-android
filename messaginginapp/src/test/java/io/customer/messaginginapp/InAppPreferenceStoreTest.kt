@@ -145,16 +145,16 @@ class InAppPreferenceStoreTest : IntegrationTest() {
     fun setBroadcastIgnoreDismiss_givenVariousStates_expectCorrectStorage() {
         val messageId = "ignore_test"
 
-        // Initially null (not set)
-        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe null
+        // Initially false (default value)
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe false
 
         // Set to true
         inAppPreferenceStore.setBroadcastIgnoreDismiss(messageId, true)
         inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe true
 
-        // Set to false (removes from storage)
+        // Set to false (stores false value)
         inAppPreferenceStore.setBroadcastIgnoreDismiss(messageId, false)
-        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe null
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe false
     }
 
     @Test
@@ -177,7 +177,7 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         // Verify all data cleared
         inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 0
         inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe false
-        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe null
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe false
     }
 
     @Test

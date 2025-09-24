@@ -28,6 +28,10 @@ class InlineExamplesActivity : AppCompatActivity(), TrackableScreen {
         // Setup ViewPager with tabs
         val sectionsPagerAdapter = SectionsPagerAdapter(supportFragmentManager, lifecycle)
         binding.viewPager.adapter = sectionsPagerAdapter
+        
+        // Keep all fragments in memory to prevent reload/reanimate on tab switch
+        // Since we only have 4 tabs, this is acceptable for memory usage
+        binding.viewPager.offscreenPageLimit = 4
 
         // Setup tab layout with ViewPager
         TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->

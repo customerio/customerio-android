@@ -31,7 +31,7 @@ constructor(
     attrs: AttributeSet? = null,
     @AttrRes defStyleAttr: Int = 0,
     @StyleRes defStyleRes: Int = 0
-) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), InlineInAppMessageViewCallback, DefaultLifecycleObserver {
+) : FrameLayout(context, attrs, defStyleAttr, defStyleRes), InlineInAppMessageViewCallback {
     protected abstract val platformDelegate: P
     internal val controller: InlineInAppMessageViewController by lazy {
         InlineInAppMessageViewController(
@@ -39,27 +39,30 @@ constructor(
             platformDelegate = platformDelegate
         )
     }
+
+    private val lifecycleObserver: DefaultLifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onCreate(owner: LifecycleOwner) {
+            super.onCreate(owner)
+            // Notify controller when owner is created so it can subscribe to in-app messaging state
+            onViewOwnerCreated()
+        }
+
+        override fun onDestroy(owner: LifecycleOwner) {
+            super.onDestroy(owner)
+            // Remove observer to prevent further callbacks after destruction
+            viewLifecycleOwner?.removeObserver(this)
+            // Clean up controller resources to prevent memory leaks
+            onViewOwnerDestroyed()
+        }
+    }
+
     private val viewLifecycleOwner: Lifecycle?
         get() = findViewTreeLifecycleOwner()?.lifecycle
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         // Register lifecycle observer to clean up resources when the view is fully destroyed
-        viewLifecycleOwner?.addObserver(this)
-    }
-
-    override fun onCreate(owner: LifecycleOwner) {
-        super.onCreate(owner)
-        // Notify controller when owner is created so it can subscribe to in-app messaging state
-        onViewOwnerCreated()
-    }
-
-    override fun onDestroy(owner: LifecycleOwner) {
-        super.onDestroy(owner)
-        // Remove observer to prevent further callbacks after destruction
-        viewLifecycleOwner?.removeObserver(this)
-        // Clean up controller resources to prevent memory leaks
-        onViewOwnerDestroyed()
+        viewLifecycleOwner?.addObserver(lifecycleObserver)
     }
 
     @InternalCustomerIOApi

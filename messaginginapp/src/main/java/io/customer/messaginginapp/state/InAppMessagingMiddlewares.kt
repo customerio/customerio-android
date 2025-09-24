@@ -48,17 +48,17 @@ internal fun gistLoggingMessageMiddleware() = middleware<InAppMessagingState> { 
 }
 
 private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
+    // Handle broadcast message dismissal
+    if (action.message.isMessageBroadcast() && action.message.queueId != null) {
+        SDKComponent.logger.debug("Broadcast message dismissed: ${action.message.queueId}")
+        try {
+            SDKComponent.broadcastMessageManager.markBroadcastAsDismissed(action.message.queueId)
+        } catch (e: Exception) {
+            SDKComponent.logger.debug("Failed to mark broadcast message as dismissed: ${e.message}")
+        }
+    }
     // Log message close only if message should be tracked as shown on dismiss action
     if (action.shouldMarkMessageAsShown()) {
-        // Handle broadcast message dismissal
-        if (action.message.isMessageBroadcast() && action.message.queueId != null) {
-            SDKComponent.logger.debug("Broadcast message dismissed: ${action.message.queueId}")
-            try {
-                SDKComponent.broadcastMessageManager.markBroadcastAsDismissed(action.message.queueId)
-            } catch (e: Exception) {
-                SDKComponent.logger.debug("Failed to mark broadcast message as dismissed: ${e.message}")
-            }
-        }
         SDKComponent.logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
         SDKComponent.gistQueue.logView(action.message)
         SDKComponent.gistSdk.fetchInAppMessages()
@@ -70,13 +70,13 @@ private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, 
 }
 
 private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {
+    // Handle broadcast message tracking
+    if (action.message.isMessageBroadcast() && action.message.queueId != null) {
+        SDKComponent.logger.debug("Broadcast message displayed: ${action.message.queueId}")
+        SDKComponent.broadcastMessageManager.markBroadcastAsSeen(action.message.queueId)
+    }
     // Log message view only if message should be tracked as shown on display action
     if (action.shouldMarkMessageAsShown()) {
-        // Handle broadcast message tracking
-        if (action.message.isMessageBroadcast() && action.message.queueId != null) {
-            SDKComponent.logger.debug("Broadcast message displayed: ${action.message.queueId}")
-            SDKComponent.broadcastMessageManager.markBroadcastAsSeen(action.message.queueId)
-        }
         SDKComponent.logger.debug("Message shown, logging view for message: ${action.message}")
         SDKComponent.gistQueue.logView(action.message)
     } else {

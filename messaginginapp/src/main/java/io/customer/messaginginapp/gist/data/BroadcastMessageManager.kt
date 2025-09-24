@@ -126,18 +126,22 @@ internal class BroadcastMessageManagerImpl(
         val numberOfTimesShown = inAppPreferenceStore.getBroadcastTimesShown(broadcastId)
 
         // Apply delay logic aligned with web SDK
-        if (broadcastDetails.count == 1) {
-            // Permanent dismissal for single-show broadcasts
-            inAppPreferenceStore.setBroadcastDismissed(broadcastId, true)
-            logger.debug("Marked broadcast $broadcastId as permanently dismissed (count=1)")
-        } else if (broadcastDetails.delay > 0) {
-            // Temporary restriction with delay
-            val nextShowTimeMillis = System.currentTimeMillis() + (broadcastDetails.delay * 1000L)
-            inAppPreferenceStore.setBroadcastNextShowTime(broadcastId, nextShowTimeMillis)
-            logger.debug("Marked broadcast $broadcastId as seen, shown $numberOfTimesShown times, next show time: ${java.util.Date(nextShowTimeMillis)}")
-        } else {
-            // No delay, can show again immediately (subject to frequency limits)
-            logger.debug("Marked broadcast $broadcastId as seen, shown $numberOfTimesShown times, no delay restriction")
+        when {
+            broadcastDetails.count == 1 -> {
+                // Permanent dismissal for single-show broadcasts
+                inAppPreferenceStore.setBroadcastDismissed(broadcastId, true)
+                logger.debug("Marked broadcast $broadcastId as permanently dismissed (count=1)")
+            }
+            broadcastDetails.delay > 0 -> {
+                // Temporary restriction with delay
+                val nextShowTimeMillis = System.currentTimeMillis() + (broadcastDetails.delay * 1000L)
+                inAppPreferenceStore.setBroadcastNextShowTime(broadcastId, nextShowTimeMillis)
+                logger.debug("Marked broadcast $broadcastId as seen, shown $numberOfTimesShown times, next show time: ${java.util.Date(nextShowTimeMillis)}")
+            }
+            else -> {
+                // No delay, can show again immediately (subject to frequency limits)
+                logger.debug("Marked broadcast $broadcastId as seen, shown $numberOfTimesShown times, no delay restriction")
+            }
         }
     }
 

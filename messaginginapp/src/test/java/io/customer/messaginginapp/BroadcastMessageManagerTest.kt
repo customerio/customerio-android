@@ -14,7 +14,6 @@ import io.mockk.mockk
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldHaveSize
 import org.amshove.kluent.shouldNotContain
 import org.junit.jupiter.api.Test
@@ -113,8 +112,8 @@ class BroadcastMessageManagerTest : JUnitTest() {
         broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast, givenRegularMessage))
 
         val eligibleFirst = broadcastManager.getEligibleBroadcasts()
-        eligibleFirst shouldContain givenBroadcast
-        eligibleFirst shouldNotContain givenRegularMessage
+        eligibleFirst.any { it.queueId == givenBroadcast.queueId && it.messageId == givenBroadcast.messageId } shouldBe true
+        eligibleFirst.any { it.queueId == givenRegularMessage.queueId } shouldBe false
 
         broadcastManager.markBroadcastAsSeen("bc1")
 
@@ -135,12 +134,12 @@ class BroadcastMessageManagerTest : JUnitTest() {
 
         repeat(5) {
             val eligibleBroadcasts = broadcastManager.getEligibleBroadcasts()
-            eligibleBroadcasts shouldContain givenBroadcast
+            eligibleBroadcasts.any { it.queueId == givenBroadcast.queueId && it.messageId == givenBroadcast.messageId } shouldBe true
             broadcastManager.markBroadcastAsSeen("bc_unlimited")
         }
 
         val finalEligible = broadcastManager.getEligibleBroadcasts()
-        finalEligible shouldContain givenBroadcast
+        finalEligible.any { it.queueId == givenBroadcast.queueId && it.messageId == givenBroadcast.messageId } shouldBe true
     }
 
     @Test
@@ -156,7 +155,7 @@ class BroadcastMessageManagerTest : JUnitTest() {
         broadcastManager.markBroadcastAsDismissed("bc_ignore_dismiss")
 
         val eligibleBroadcasts = broadcastManager.getEligibleBroadcasts()
-        eligibleBroadcasts shouldContain givenBroadcast
+        eligibleBroadcasts.any { it.queueId == givenBroadcast.queueId && it.messageId == givenBroadcast.messageId } shouldBe true
         mockPreferenceStore.isBroadcastDismissed("bc_ignore_dismiss") shouldBe false
     }
 

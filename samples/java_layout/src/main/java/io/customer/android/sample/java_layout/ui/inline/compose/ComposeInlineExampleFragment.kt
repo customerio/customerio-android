@@ -25,11 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
 import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment.Companion.TAG
 import io.customer.messaginginapp.compose.InlineInAppMessage
@@ -88,10 +91,27 @@ fun ComposeInlineExampleScreen(context: Context) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
+                // Test information view
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    color = Color(0xFFF3E5F5),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "📋 Test Info: This Compose tab contains InlineInAppMessages with elementIds:\n• 'compose-sticky-header'\n• 'compose-sticky-center'\n• 'compose-sticky-bottom'",
+                        modifier = Modifier.padding(12.dp),
+                        fontSize = 14.sp,
+                        color = Color(0xFF7B1FA2),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
                 // Header inline in-app message (sticky header)
-                // Using the same elementId "sticky-header" as in XML example
+                // Using elementId "compose-sticky-header" to match KotlinComposeInlineComponent
                 InlineInAppMessage(
-                    elementId = "sticky-header",
+                    elementId = "compose-sticky-header",
                     modifier = Modifier.fillMaxWidth(),
                     progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
                     onAction = { message: InAppMessage, action: String, name: String ->
@@ -104,9 +124,9 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier.padding(16.dp)
                 )
 
-                // Middle inline in-app message with "inline" elementId to match XML
+                // Middle inline in-app message with "compose-sticky-center" elementId to match KotlinComposeInlineComponent
                 InlineInAppMessage(
-                    elementId = "inline",
+                    elementId = "compose-sticky-center",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),
@@ -131,9 +151,9 @@ fun ComposeInlineExampleScreen(context: Context) {
                 // Third profile card layout
                 ProfileCardPlaceholder(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
 
-                // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
+                // Bottom inline in-app message (below fold) with "compose-sticky-bottom" elementId to match KotlinComposeInlineComponent
                 InlineInAppMessage(
-                    elementId = "below-fold",
+                    elementId = "compose-sticky-bottom",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp),

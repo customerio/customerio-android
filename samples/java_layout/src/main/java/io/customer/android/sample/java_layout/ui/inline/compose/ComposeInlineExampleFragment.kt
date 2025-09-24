@@ -107,7 +107,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                         fontWeight = FontWeight.Medium
                     )
                 }
-                
+
                 // Header inline in-app message (sticky header)
                 // Using elementId "compose-sticky-header" to match KotlinComposeInlineComponent
                 InlineInAppMessage(

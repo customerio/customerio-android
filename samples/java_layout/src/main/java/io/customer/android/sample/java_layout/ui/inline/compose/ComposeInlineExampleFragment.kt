@@ -25,11 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
 import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment.Companion.TAG
 import io.customer.messaginginapp.compose.InlineInAppMessage
@@ -88,6 +91,23 @@ fun ComposeInlineExampleScreen(context: Context) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
+                // Test information view
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    color = Color(0xFFF3E5F5),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "📋 Test Info: This Compose tab contains InlineInAppMessages with elementIds:\n• 'compose-sticky-header'\n• 'compose-sticky-center'\n• 'compose-sticky-bottom'",
+                        modifier = Modifier.padding(12.dp),
+                        fontSize = 14.sp,
+                        color = Color(0xFF7B1FA2),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
                 // Header inline in-app message (sticky header)
                 // Using elementId "compose-sticky-header" to match KotlinComposeInlineComponent
                 InlineInAppMessage(

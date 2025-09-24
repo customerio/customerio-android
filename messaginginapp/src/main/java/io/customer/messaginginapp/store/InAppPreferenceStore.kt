@@ -23,7 +23,7 @@ interface InAppPreferenceStore {
     fun clearBroadcastTracking(messageId: String)
     fun clearAllBroadcastData()
 
-    // Store ignoreDismiss flag separately to avoid JSON parsing
+    // Broadcast ignore dismiss setting (kept separate as it can be modified independently)
     fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
     fun getBroadcastIgnoreDismiss(messageId: String): Boolean
 

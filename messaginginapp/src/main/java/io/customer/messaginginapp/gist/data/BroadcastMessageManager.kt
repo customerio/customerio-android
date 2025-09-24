@@ -3,6 +3,7 @@ package io.customer.messaginginapp.gist.data
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import io.customer.messaginginapp.di.inAppPreferenceStore
+import io.customer.messaginginapp.gist.data.model.BroadcastFrequency
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageBroadcast
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -27,10 +28,6 @@ internal class BroadcastMessageManagerImpl(
     private val logger: Logger = SDKComponent.logger
     private val gson = Gson()
 
-    // Cache for parsed broadcasts to avoid re-parsing JSON multiple times per operation
-    private var cachedBroadcasts: List<Message>? = null
-    private var cachedBroadcastsHash: String? = null
-
     companion object {
         private const val BROADCASTS_EXPIRY_MINUTES = 60L
         private val BROADCAST_LIST_TYPE = object : TypeToken<List<Message>>() {}.type
@@ -49,17 +46,20 @@ internal class BroadcastMessageManagerImpl(
             val messagesJson = gson.toJson(messagesWithBroadcast)
             inAppPreferenceStore.saveBroadcastMessages(messagesJson, expiryTimeMillis)
 
-            // Store ignoreDismiss flags separately for quick access (optimization)
+            // Store ignoreDismiss separately as it can be modified independently
             messagesWithBroadcast.forEach { message ->
                 message.queueId?.let { queueId ->
-                    val ignoreDismiss = message.gistProperties.broadcast?.frequency?.ignoreDismiss ?: false
-                    inAppPreferenceStore.setBroadcastIgnoreDismiss(queueId, ignoreDismiss)
+                    val frequency = message.gistProperties.broadcast?.frequency
+                    if (frequency != null) {
+                        // Validate frequency values and skip invalid ones
+                        if (frequency.count >= 0 && frequency.delay >= 0) {
+                            inAppPreferenceStore.setBroadcastIgnoreDismiss(queueId, frequency.ignoreDismiss)
+                        } else {
+                            logger.debug("Skipping broadcast $queueId with invalid frequency values: count=${frequency.count}, delay=${frequency.delay}")
+                        }
+                    }
                 }
             }
-
-            // Invalidate cache since we just updated storage
-            cachedBroadcasts = null
-            cachedBroadcastsHash = null
 
             // Clean up tracking data for broadcasts no longer in server response
             cleanupExpiredBroadcastTracking(messagesWithBroadcast, previousBroadcasts)
@@ -79,17 +79,18 @@ internal class BroadcastMessageManagerImpl(
         val broadcasts = getParsedBroadcastMessages()
 
         return broadcasts.filter { broadcast ->
-            val broadcastDetails = broadcast.gistProperties.broadcast?.frequency ?: return@filter false
             val queueId = broadcast.queueId ?: return@filter false
 
+            // Get frequency details directly from message
+            val frequency = getFrequencyFor(broadcast) ?: return@filter false
+
             // Validate frequency values
-            if (broadcastDetails.count < 0 || broadcastDetails.delay < 0) {
-                logger.debug("Skipping broadcast $queueId with invalid frequency values: count=${broadcastDetails.count}, delay=${broadcastDetails.delay}")
+            if (frequency.count < 0 || frequency.delay < 0) {
                 return@filter false
             }
 
             // Check if dismissed (and not ignoreDismiss)
-            if (inAppPreferenceStore.isBroadcastDismissed(queueId) && !broadcastDetails.ignoreDismiss) {
+            if (inAppPreferenceStore.isBroadcastDismissed(queueId) && !frequency.ignoreDismiss) {
                 return@filter false
             }
 
@@ -100,10 +101,10 @@ internal class BroadcastMessageManagerImpl(
 
             // Check frequency limits
             val numberOfTimesShown = inAppPreferenceStore.getBroadcastTimesShown(queueId)
-            val isFrequencyUnlimited = broadcastDetails.count == 0
+            val isFrequencyUnlimited = frequency.count == 0
 
             // Show if unlimited or under count limit
-            isFrequencyUnlimited || numberOfTimesShown < broadcastDetails.count
+            isFrequencyUnlimited || numberOfTimesShown < frequency.count
         }
     }
 
@@ -164,26 +165,16 @@ internal class BroadcastMessageManagerImpl(
     private fun getParsedBroadcastMessages(): List<Message> {
         val broadcastsJson = inAppPreferenceStore.getBroadcastMessages() ?: return emptyList()
 
-        // Check cache first - avoid re-parsing same JSON
-        if (cachedBroadcastsHash == broadcastsJson && cachedBroadcasts != null) {
-            return cachedBroadcasts!!
-        }
-
         return try {
-            val parsed = gson.fromJson<List<Message>>(broadcastsJson, BROADCAST_LIST_TYPE) ?: emptyList()
-
-            // Update cache
-            cachedBroadcasts = parsed
-            cachedBroadcastsHash = broadcastsJson
-
-            parsed
+            gson.fromJson<List<Message>>(broadcastsJson, BROADCAST_LIST_TYPE) ?: emptyList()
         } catch (e: Exception) {
             logger.debug("Error parsing stored broadcast messages: ${e.message}")
-            // Clear cache on parse error
-            cachedBroadcasts = null
-            cachedBroadcastsHash = null
             emptyList()
         }
+    }
+
+    private fun getFrequencyFor(message: Message): BroadcastFrequency? {
+        return message.gistProperties.broadcast?.frequency
     }
 
     private fun cleanupExpiredBroadcastTracking(currentBroadcasts: List<Message>, previousBroadcasts: List<Message>) {
@@ -200,9 +191,6 @@ internal class BroadcastMessageManagerImpl(
 
     private fun clearAllBroadcastData() {
         inAppPreferenceStore.clearAllBroadcastData()
-        // Invalidate cache since we just cleared storage
-        cachedBroadcasts = null
-        cachedBroadcastsHash = null
         logger.debug("Cleared all broadcast message storage")
     }
 

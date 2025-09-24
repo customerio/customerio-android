@@ -78,6 +78,7 @@ class BroadcastMessageManagerTest : JUnitTest() {
             broadcastTimesShownMap.remove(messageId)
             broadcastDismissedMap.remove(messageId)
             broadcastIgnoreDismissMap.remove(messageId)
+            broadcastNextShowTimeMap.remove(messageId)
         }
         every { mockPreferenceStore.clearAllBroadcastData() } answers {
             broadcastMessagesData = null
@@ -376,5 +377,210 @@ class BroadcastMessageManagerTest : JUnitTest() {
                 )
             )
         )
+    }
+
+    // EDGE CASE TESTS
+
+    @Test
+    fun edgeCase_invalidFrequencyValues_expectFiltered() {
+        val givenInvalidBroadcast1 = createBroadcastMessage("invalid1", count = -1, delay = 0)
+        val givenInvalidBroadcast2 = createBroadcastMessage("invalid2", count = 1, delay = -5)
+        val givenValidBroadcast = createBroadcastMessage("valid", count = 2, delay = 1)
+
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenInvalidBroadcast1, givenInvalidBroadcast2, givenValidBroadcast))
+
+        val eligibleBroadcasts = broadcastManager.getEligibleBroadcasts()
+
+        eligibleBroadcasts.size shouldBeEqualTo 1
+        eligibleBroadcasts.first().queueId shouldBeEqualTo "valid"
+    }
+
+    @Test
+    fun edgeCase_multipleFrequencyExhaustion_expectCorrectFiltering() {
+        val givenBroadcast1 = createBroadcastMessage("freq1", count = 1, delay = 0) // Single use
+        val givenBroadcast2 = createBroadcastMessage("freq2", count = 2, delay = 0) // Two uses
+        val givenBroadcast3 = createBroadcastMessage("freq3", count = 0, delay = 0) // Unlimited
+
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast1, givenBroadcast2, givenBroadcast3))
+
+        // All should be eligible initially
+        var eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 3
+
+        // Use broadcast1 once - should be permanently dismissed
+        broadcastManager.markBroadcastAsSeen("freq1")
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 2
+        eligible.none { it.queueId == "freq1" } shouldBe true
+
+        // Use broadcast2 once - should still be eligible
+        broadcastManager.markBroadcastAsSeen("freq2")
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 2
+        eligible.any { it.queueId == "freq2" } shouldBe true
+
+        // Use broadcast2 second time - should be exhausted
+        broadcastManager.markBroadcastAsSeen("freq2")
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 1
+        eligible.first().queueId shouldBeEqualTo "freq3"
+
+        // Use broadcast3 multiple times - should always remain eligible
+        repeat(10) {
+            broadcastManager.markBroadcastAsSeen("freq3")
+            eligible = broadcastManager.getEligibleBroadcasts()
+            eligible.size shouldBeEqualTo 1
+            eligible.first().queueId shouldBeEqualTo "freq3"
+        }
+    }
+
+    @Test
+    fun edgeCase_delayWithFrequencyExhaustion_expectCorrectTimingAndLimits() {
+        val givenBroadcast = createBroadcastMessage("delay_freq", count = 2, delay = 1) // 2 uses, 1s delay
+
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
+
+        // First use
+        broadcastManager.markBroadcastAsSeen("delay_freq")
+        mockPreferenceStore.getBroadcastTimesShown("delay_freq") shouldBeEqualTo 1
+        mockPreferenceStore.isBroadcastInDelayPeriod("delay_freq") shouldBe true
+        broadcastManager.getEligibleBroadcasts().shouldBeEmpty()
+
+        // Simulate delay period passing
+        val pastTime = System.currentTimeMillis() - 2000 // 2 seconds ago
+        mockPreferenceStore.setBroadcastNextShowTime("delay_freq", pastTime)
+
+        // Should be eligible again (1/2 uses consumed)
+        var eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 1
+
+        // Second use - should exhaust frequency
+        broadcastManager.markBroadcastAsSeen("delay_freq")
+        mockPreferenceStore.getBroadcastTimesShown("delay_freq") shouldBeEqualTo 2
+
+        // Even after delay passes, should not be eligible (frequency exhausted)
+        mockPreferenceStore.setBroadcastNextShowTime("delay_freq", pastTime)
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.shouldBeEmpty()
+    }
+
+    @Test
+    fun edgeCase_ignoreDismissTrueWithFrequencyLimits_expectDismissIgnoredButFrequencyRespected() {
+        val givenBroadcast = createBroadcastMessage("ignore_dismiss_freq", count = 2, delay = 0, ignoreDismiss = true)
+
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
+
+        // Manually dismiss - should be ignored
+        broadcastManager.markBroadcastAsDismissed("ignore_dismiss_freq")
+        mockPreferenceStore.isBroadcastDismissed("ignore_dismiss_freq") shouldBe false
+
+        // Should still be eligible
+        var eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 1
+
+        // Use frequency twice
+        broadcastManager.markBroadcastAsSeen("ignore_dismiss_freq")
+        broadcastManager.markBroadcastAsSeen("ignore_dismiss_freq")
+        mockPreferenceStore.getBroadcastTimesShown("ignore_dismiss_freq") shouldBeEqualTo 2
+
+        // Should be exhausted despite ignoreDismiss = true
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.shouldBeEmpty()
+    }
+
+    @Test
+    fun edgeCase_serverRemovesPartialBroadcasts_expectCorrectCleanup() {
+        val givenBroadcast1 = createBroadcastMessage("keep", count = 3, delay = 0)
+        val givenBroadcast2 = createBroadcastMessage("remove", count = 3, delay = 0)
+        val givenBroadcast3 = createBroadcastMessage("also_remove", count = 3, delay = 0)
+
+        // Initial server response with all 3
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast1, givenBroadcast2, givenBroadcast3))
+
+        // Use some tracking data
+        broadcastManager.markBroadcastAsSeen("keep")
+        broadcastManager.markBroadcastAsSeen("remove")
+        broadcastManager.markBroadcastAsDismissed("also_remove")
+
+        // Verify tracking data exists
+        mockPreferenceStore.getBroadcastTimesShown("keep") shouldBeEqualTo 1
+        mockPreferenceStore.getBroadcastTimesShown("remove") shouldBeEqualTo 1
+        mockPreferenceStore.isBroadcastDismissed("also_remove") shouldBe true
+
+        // Server now only returns 1 broadcast
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast1))
+
+        // Only "keep" should remain eligible
+        val eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 1
+        eligible.first().queueId shouldBeEqualTo "keep"
+
+        // Tracking data for "keep" should be preserved
+        mockPreferenceStore.getBroadcastTimesShown("keep") shouldBeEqualTo 1
+
+        // Tracking data for removed broadcasts should be cleaned up
+        mockPreferenceStore.getBroadcastTimesShown("remove") shouldBeEqualTo 0
+        mockPreferenceStore.isBroadcastDismissed("also_remove") shouldBe false
+    }
+
+    @Test
+    fun edgeCase_complexDelayScenario_expectCorrectTimingBehavior() {
+        val givenBroadcast1 = createBroadcastMessage("fast", count = 0, delay = 1) // 1s delay
+        val givenBroadcast2 = createBroadcastMessage("slow", count = 0, delay = 5) // 5s delay
+
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast1, givenBroadcast2))
+
+        // Both eligible initially
+        var eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 2
+
+        // Use both
+        broadcastManager.markBroadcastAsSeen("fast")
+        broadcastManager.markBroadcastAsSeen("slow")
+
+        // Both should be in delay period
+        mockPreferenceStore.isBroadcastInDelayPeriod("fast") shouldBe true
+        mockPreferenceStore.isBroadcastInDelayPeriod("slow") shouldBe true
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.shouldBeEmpty()
+
+        // Simulate 2 seconds passing - only fast should be available
+        val twoSecondsAgo = System.currentTimeMillis() - 2000
+        mockPreferenceStore.setBroadcastNextShowTime("fast", twoSecondsAgo)
+
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 1
+        eligible.first().queueId shouldBeEqualTo "fast"
+
+        // Simulate 6 seconds total passing - both should be available
+        val sixSecondsAgo = System.currentTimeMillis() - 6000
+        mockPreferenceStore.setBroadcastNextShowTime("slow", sixSecondsAgo)
+
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 2
+    }
+
+    @Test
+    fun edgeCase_zeroDelayWithFrequency_expectImmediateEligibility() {
+        val givenBroadcast = createBroadcastMessage("no_delay", count = 3, delay = 0)
+
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
+
+        // Use and verify immediate eligibility
+        repeat(2) {
+            var eligible = broadcastManager.getEligibleBroadcasts()
+            eligible.size shouldBeEqualTo 1
+            broadcastManager.markBroadcastAsSeen("no_delay")
+            // Should be immediately eligible again (no delay)
+            eligible = broadcastManager.getEligibleBroadcasts()
+            eligible.size shouldBeEqualTo 1
+        }
+
+        // Third use should exhaust frequency
+        var eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.size shouldBeEqualTo 1
+        broadcastManager.markBroadcastAsSeen("no_delay")
+        eligible = broadcastManager.getEligibleBroadcasts()
+        eligible.shouldBeEmpty()
     }
 }

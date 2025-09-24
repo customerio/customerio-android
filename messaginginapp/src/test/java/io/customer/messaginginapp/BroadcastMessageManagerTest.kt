@@ -42,6 +42,7 @@ class BroadcastMessageManagerTest : JUnitTest() {
         val broadcastTimesShownMap = mutableMapOf<String, Int>()
         val broadcastDismissedMap = mutableMapOf<String, Boolean>()
         val broadcastIgnoreDismissMap = mutableMapOf<String, Boolean>()
+        val broadcastNextShowTimeMap = mutableMapOf<String, Long>()
         var broadcastMessagesData: String? = null
         var broadcastMessagesExpiry: Long = 0
 
@@ -82,6 +83,17 @@ class BroadcastMessageManagerTest : JUnitTest() {
         every { mockPreferenceStore.clearAllBroadcastData() } answers {
             broadcastMessagesData = null
             broadcastMessagesExpiry = 0
+        }
+        every { mockPreferenceStore.setBroadcastNextShowTime(any(), any()) } answers {
+            val messageId = firstArg<String>()
+            val nextShowTime = secondArg<Long>()
+            broadcastNextShowTimeMap[messageId] = nextShowTime
+        }
+        every { mockPreferenceStore.getBroadcastNextShowTime(any()) } answers { broadcastNextShowTimeMap[firstArg()] ?: 0 }
+        every { mockPreferenceStore.isBroadcastInDelayPeriod(any()) } answers {
+            val messageId = firstArg<String>()
+            val nextShowTime = broadcastNextShowTimeMap[messageId] ?: 0
+            nextShowTime > 0 && System.currentTimeMillis() < nextShowTime
         }
 
         state = InAppMessagingState(userId = "testuser123")
@@ -268,6 +280,54 @@ class BroadcastMessageManagerTest : JUnitTest() {
         broadcastManager.markBroadcastAsSeen("bc_count")
         mockPreferenceStore.getBroadcastTimesShown("bc_count") shouldBeEqualTo 3
         broadcastManager.getEligibleBroadcasts().shouldBeEmpty()
+    }
+
+    @Test
+    fun markBroadcastAsSeen_givenSingleShowBroadcast_expectPermanentDismissal() {
+        val givenBroadcast = createBroadcastMessage(
+            queueId = "bc_single_show",
+            count = 1,
+            delay = 0
+        )
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
+
+        broadcastManager.markBroadcastAsSeen("bc_single_show")
+
+        mockPreferenceStore.isBroadcastDismissed("bc_single_show") shouldBe true
+        broadcastManager.getEligibleBroadcasts().shouldBeEmpty()
+    }
+
+    @Test
+    fun markBroadcastAsSeen_givenBroadcastWithDelay_expectTemporaryRestriction() {
+        val givenBroadcast = createBroadcastMessage(
+            queueId = "bc_with_delay",
+            count = 3,
+            delay = 2 // 2 seconds delay
+        )
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
+
+        broadcastManager.markBroadcastAsSeen("bc_with_delay")
+
+        mockPreferenceStore.getBroadcastTimesShown("bc_with_delay") shouldBeEqualTo 1
+        mockPreferenceStore.isBroadcastInDelayPeriod("bc_with_delay") shouldBe true
+        broadcastManager.getEligibleBroadcasts().shouldBeEmpty()
+    }
+
+    @Test
+    fun getEligibleBroadcasts_givenBroadcastInDelayPeriod_expectNotEligible() {
+        val givenBroadcast = createBroadcastMessage(
+            queueId = "bc_delay_check",
+            count = 5,
+            delay = 1
+        )
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
+
+        // Manually set delay period
+        val futureTime = System.currentTimeMillis() + 3000 // 3 seconds from now
+        mockPreferenceStore.setBroadcastNextShowTime("bc_delay_check", futureTime)
+
+        val eligibleBroadcasts = broadcastManager.getEligibleBroadcasts()
+        eligibleBroadcasts.shouldBeEmpty()
     }
 
     private fun createBroadcastMessage(

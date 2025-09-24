@@ -419,15 +419,18 @@ public abstract interface class io/customer/messaginginapp/store/InAppPreference
 	public abstract fun clearBroadcastTracking (Ljava/lang/String;)V
 	public abstract fun getBroadcastIgnoreDismiss (Ljava/lang/String;)Z
 	public abstract fun getBroadcastMessages ()Ljava/lang/String;
+	public abstract fun getBroadcastNextShowTime (Ljava/lang/String;)J
 	public abstract fun getBroadcastTimesShown (Ljava/lang/String;)I
 	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
 	public abstract fun incrementBroadcastTimesShown (Ljava/lang/String;)V
 	public abstract fun isBroadcastDismissed (Ljava/lang/String;)Z
+	public abstract fun isBroadcastInDelayPeriod (Ljava/lang/String;)Z
 	public abstract fun isBroadcastMessagesExpired ()Z
 	public abstract fun saveBroadcastMessages (Ljava/lang/String;J)V
 	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun setBroadcastDismissed (Ljava/lang/String;Z)V
 	public abstract fun setBroadcastIgnoreDismiss (Ljava/lang/String;Z)V
+	public abstract fun setBroadcastNextShowTime (Ljava/lang/String;J)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

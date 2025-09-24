@@ -198,4 +198,52 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 1 // Preserved
         inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe true // Preserved
     }
+
+    @Test
+    fun setBroadcastNextShowTime_givenFutureTime_expectDelayPeriodActive() {
+        val messageId = "delay_test"
+        val futureTime = System.currentTimeMillis() + 5000 // 5 seconds from now
+
+        inAppPreferenceStore.setBroadcastNextShowTime(messageId, futureTime)
+
+        inAppPreferenceStore.getBroadcastNextShowTime(messageId) shouldBeEqualTo futureTime
+        inAppPreferenceStore.isBroadcastInDelayPeriod(messageId) shouldBe true
+    }
+
+    @Test
+    fun isBroadcastInDelayPeriod_givenPastTime_expectDelayPeriodInactive() {
+        val messageId = "delay_past_test"
+        val pastTime = System.currentTimeMillis() - 1000 // 1 second ago
+
+        inAppPreferenceStore.setBroadcastNextShowTime(messageId, pastTime)
+
+        inAppPreferenceStore.isBroadcastInDelayPeriod(messageId) shouldBe false
+    }
+
+    @Test
+    fun clearBroadcastTracking_givenMessageWithDelayData_expectCompleteCleanup() {
+        val messageId = "delay_cleanup_test"
+
+        // Set up all types of tracking data including delay
+        inAppPreferenceStore.incrementBroadcastTimesShown(messageId)
+        inAppPreferenceStore.setBroadcastDismissed(messageId, true)
+        inAppPreferenceStore.setBroadcastIgnoreDismiss(messageId, true)
+        inAppPreferenceStore.setBroadcastNextShowTime(messageId, System.currentTimeMillis() + 5000)
+
+        // Verify data exists
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 1
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe true
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe true
+        inAppPreferenceStore.isBroadcastInDelayPeriod(messageId) shouldBe true
+
+        // Clear tracking
+        inAppPreferenceStore.clearBroadcastTracking(messageId)
+
+        // Verify all data cleared including delay
+        inAppPreferenceStore.getBroadcastTimesShown(messageId) shouldBeEqualTo 0
+        inAppPreferenceStore.isBroadcastDismissed(messageId) shouldBe false
+        inAppPreferenceStore.getBroadcastIgnoreDismiss(messageId) shouldBe false
+        inAppPreferenceStore.isBroadcastInDelayPeriod(messageId) shouldBe false
+        inAppPreferenceStore.getBroadcastNextShowTime(messageId) shouldBeEqualTo 0
+    }
 }

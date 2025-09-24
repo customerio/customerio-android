@@ -93,6 +93,11 @@ internal class BroadcastMessageManagerImpl(
                 return@filter false
             }
 
+            // Check if in delay period (temporary restriction after being shown)
+            if (inAppPreferenceStore.isBroadcastInDelayPeriod(queueId)) {
+                return@filter false
+            }
+
             // Check frequency limits
             val numberOfTimesShown = inAppPreferenceStore.getBroadcastTimesShown(queueId)
             val isFrequencyUnlimited = broadcastDetails.count == 0
@@ -106,9 +111,34 @@ internal class BroadcastMessageManagerImpl(
         logger.debug("Marking broadcast $broadcastId as seen")
         if (!hasValidUserToken()) return
 
-        // Simply increment the times shown counter
+        // Get broadcast details to check delay configuration
+        val broadcasts = getParsedBroadcastMessages()
+        val broadcast = broadcasts.find { it.queueId == broadcastId }
+        val broadcastDetails = broadcast?.gistProperties?.broadcast?.frequency
+
+        if (broadcastDetails == null) {
+            logger.debug("Could not find broadcast details for $broadcastId")
+            return
+        }
+
+        // Increment the times shown counter
         inAppPreferenceStore.incrementBroadcastTimesShown(broadcastId)
-        logger.debug("Incremented seen count for broadcast $broadcastId")
+        val numberOfTimesShown = inAppPreferenceStore.getBroadcastTimesShown(broadcastId)
+
+        // Apply delay logic aligned with web SDK
+        if (broadcastDetails.count == 1) {
+            // Permanent dismissal for single-show broadcasts
+            inAppPreferenceStore.setBroadcastDismissed(broadcastId, true)
+            logger.debug("Marked broadcast $broadcastId as permanently dismissed (count=1)")
+        } else if (broadcastDetails.delay > 0) {
+            // Temporary restriction with delay
+            val nextShowTimeMillis = System.currentTimeMillis() + (broadcastDetails.delay * 1000L)
+            inAppPreferenceStore.setBroadcastNextShowTime(broadcastId, nextShowTimeMillis)
+            logger.debug("Marked broadcast $broadcastId as seen, shown $numberOfTimesShown times, next show time: ${java.util.Date(nextShowTimeMillis)}")
+        } else {
+            // No delay, can show again immediately (subject to frequency limits)
+            logger.debug("Marked broadcast $broadcastId as seen, shown $numberOfTimesShown times, no delay restriction")
+        }
     }
 
     override fun markBroadcastAsDismissed(broadcastId: String) {

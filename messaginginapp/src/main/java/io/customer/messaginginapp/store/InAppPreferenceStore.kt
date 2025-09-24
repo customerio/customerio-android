@@ -26,6 +26,11 @@ interface InAppPreferenceStore {
     // Store ignoreDismiss flag separately to avoid JSON parsing
     fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
     fun getBroadcastIgnoreDismiss(messageId: String): Boolean
+
+    // Delay functionality for temporary show restrictions
+    fun setBroadcastNextShowTime(messageId: String, nextShowTimeMillis: Long)
+    fun getBroadcastNextShowTime(messageId: String): Long
+    fun isBroadcastInDelayPeriod(messageId: String): Boolean
 }
 
 internal class InAppPreferenceStoreImpl(
@@ -42,6 +47,7 @@ internal class InAppPreferenceStoreImpl(
         private const val BROADCAST_TIMES_SHOWN_PREFIX = "broadcast_times_shown_"
         private const val BROADCAST_DISMISSED_PREFIX = "broadcast_dismissed_"
         private const val BROADCAST_IGNORE_DISMISS_PREFIX = "broadcast_ignore_dismiss_"
+        private const val BROADCAST_NEXT_SHOW_TIME_PREFIX = "broadcast_next_show_time_"
     }
 
     override fun saveNetworkResponse(url: String, response: String) = prefs.edit {
@@ -100,6 +106,7 @@ internal class InAppPreferenceStoreImpl(
         remove("$BROADCAST_TIMES_SHOWN_PREFIX$messageId")
         remove("$BROADCAST_DISMISSED_PREFIX$messageId")
         remove("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")
+        remove("$BROADCAST_NEXT_SHOW_TIME_PREFIX$messageId")
     }
 
     override fun clearAllBroadcastData() = prefs.edit {
@@ -116,4 +123,17 @@ internal class InAppPreferenceStoreImpl(
     override fun getBroadcastIgnoreDismiss(messageId: String): Boolean = prefs.read {
         getBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", false)
     } ?: false
+
+    override fun setBroadcastNextShowTime(messageId: String, nextShowTimeMillis: Long) = prefs.edit {
+        putLong("$BROADCAST_NEXT_SHOW_TIME_PREFIX$messageId", nextShowTimeMillis)
+    }
+
+    override fun getBroadcastNextShowTime(messageId: String): Long = prefs.read {
+        getLong("$BROADCAST_NEXT_SHOW_TIME_PREFIX$messageId", 0)
+    } ?: 0
+
+    override fun isBroadcastInDelayPeriod(messageId: String): Boolean {
+        val nextShowTime = getBroadcastNextShowTime(messageId)
+        return nextShowTime > 0 && System.currentTimeMillis() < nextShowTime
+    }
 }

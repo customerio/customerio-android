@@ -10,6 +10,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -253,6 +254,8 @@ class InAppMessageReducerTest : JUnitTest() {
     fun reset_givenMessageInState_expectAllStateCleared() {
         val testMessage = createTestMessage(persistent = true)
         val startingState = initialState.copy(
+            userId = "testuser123",
+            anonymousId = "anon456",
             messagesInQueue = setOf(testMessage),
             shownMessageQueueIds = setOf(testMessage.queueId!!),
             modalMessageState = ModalMessageState.Displayed(testMessage)
@@ -264,6 +267,9 @@ class InAppMessageReducerTest : JUnitTest() {
         assertTrue(resultState.messagesInQueue.isEmpty())
         assertTrue(resultState.shownMessageQueueIds.isEmpty())
         assertTrue(resultState.modalMessageState is ModalMessageState.Initial)
+        assertNull(resultState.userId)
+        assertNull(resultState.anonymousId)
+        assertNull(resultState.currentRoute)
     }
 
     /**

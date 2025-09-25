@@ -42,6 +42,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
 
         is InAppMessagingAction.Reset -> state.copy(
             userId = null,
+            anonymousId = null,
             currentRoute = null,
             sessionId = UUID.randomUUID().toString(),
             modalMessageState = ModalMessageState.Initial,

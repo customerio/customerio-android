@@ -2,9 +2,11 @@ package io.customer.messaginginapp
 
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.gist.data.BroadcastMessageManagerImpl
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.testutils.core.JUnitTest
@@ -22,6 +24,7 @@ class BroadcastMessageManagerTest : JUnitTest() {
 
     private lateinit var broadcastManager: BroadcastMessageManagerImpl
     private lateinit var mockPreferenceStore: InAppPreferenceStore
+    private lateinit var mockInAppMessagingManager: InAppMessagingManager
     private lateinit var state: InAppMessagingState
 
     override fun setup(testConfig: TestConfig) {
@@ -30,12 +33,14 @@ class BroadcastMessageManagerTest : JUnitTest() {
                 diGraph {
                     sdk {
                         overrideDependency(mockk<InAppPreferenceStore>(relaxed = true))
+                        overrideDependency(mockk<InAppMessagingManager>(relaxed = true))
                     }
                 }
             }
         )
 
         mockPreferenceStore = SDKComponent.inAppPreferenceStore
+        mockInAppMessagingManager = SDKComponent.inAppMessagingManager
 
         // Configure mock behavior to act like a real preference store
         val broadcastTimesShownMap = mutableMapOf<String, Int>()
@@ -97,7 +102,8 @@ class BroadcastMessageManagerTest : JUnitTest() {
         }
 
         state = InAppMessagingState(userId = "testuser123")
-        broadcastManager = BroadcastMessageManagerImpl(state)
+        every { mockInAppMessagingManager.getCurrentState() } returns state
+        broadcastManager = BroadcastMessageManagerImpl()
     }
 
     @Test
@@ -254,12 +260,12 @@ class BroadcastMessageManagerTest : JUnitTest() {
     @Test
     fun updateBroadcastsLocalStore_givenNoUserToken_expectNoOperations() {
         val givenStateNoUser = InAppMessagingState(userId = null, anonymousId = null)
-        val givenManagerNoUser = BroadcastMessageManagerImpl(givenStateNoUser)
+        every { mockInAppMessagingManager.getCurrentState() } returns givenStateNoUser
         val givenBroadcast = createBroadcastMessage("bc_no_user", count = 1)
 
-        givenManagerNoUser.updateBroadcastsLocalStore(listOf(givenBroadcast))
+        broadcastManager.updateBroadcastsLocalStore(listOf(givenBroadcast))
 
-        givenManagerNoUser.getEligibleBroadcasts().shouldBeEmpty()
+        broadcastManager.getEligibleBroadcasts().shouldBeEmpty()
         mockPreferenceStore.getBroadcastMessages() shouldBe null
     }
 

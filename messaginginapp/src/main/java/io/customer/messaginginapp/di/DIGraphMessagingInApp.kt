@@ -54,7 +54,7 @@ internal val SDKComponent.modalMessageParser: ModalMessageParser
 
 internal val SDKComponent.broadcastMessageManager: BroadcastMessageManager
     get() = singleton<BroadcastMessageManager> {
-        BroadcastMessageManagerImpl(inAppMessagingManager.getCurrentState())
+        BroadcastMessageManagerImpl()
     }
 
 /**

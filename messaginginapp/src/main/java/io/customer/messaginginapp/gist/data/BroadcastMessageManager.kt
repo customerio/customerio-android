@@ -2,6 +2,7 @@ package io.customer.messaginginapp.gist.data
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.gist.data.model.BroadcastFrequency
 import io.customer.messaginginapp.gist.data.model.Message
@@ -19,10 +20,11 @@ interface BroadcastMessageManager {
     fun markBroadcastAsDismissed(broadcastId: String)
 }
 
-internal class BroadcastMessageManagerImpl(
-    private val state: InAppMessagingState
-) : BroadcastMessageManager {
+internal class BroadcastMessageManagerImpl() : BroadcastMessageManager {
 
+    private val inAppMessagingManager = SDKComponent.inAppMessagingManager
+    private val state: InAppMessagingState
+        get() = inAppMessagingManager.getCurrentState()
     private val inAppPreferenceStore: InAppPreferenceStore
         get() = SDKComponent.inAppPreferenceStore
     private val logger: Logger = SDKComponent.logger

@@ -424,6 +424,7 @@ public abstract class io/customer/messaginginapp/ui/core/BaseInlineInAppMessageV
 	public final fun getElementId ()Ljava/lang/String;
 	protected abstract fun getPlatformDelegate ()Lio/customer/messaginginapp/ui/bridge/InAppPlatformDelegate;
 	protected fun onAttachedToWindow ()V
+	protected fun onDetachedFromWindow ()V
 	public fun onViewSizeChanged (II)V
 	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 	public final fun setElementId (Ljava/lang/String;)V

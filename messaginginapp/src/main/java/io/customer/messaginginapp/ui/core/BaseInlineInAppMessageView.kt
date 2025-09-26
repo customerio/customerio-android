@@ -61,9 +61,8 @@ constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        
+
         val lifecycle = viewLifecycleOwner
-        
         if (lifecycle != null) {
             lifecycle.addObserver(lifecycleObserver)
         } else {

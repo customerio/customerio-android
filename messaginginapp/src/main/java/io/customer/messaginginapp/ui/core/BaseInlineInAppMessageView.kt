@@ -54,7 +54,6 @@ constructor(
         }
     }
 
-    private var currentLifecycle: Lifecycle? = null
     private var hasSubscribedToController = false
 
     private val viewLifecycleOwner: Lifecycle?
@@ -66,15 +65,7 @@ constructor(
         val lifecycle = viewLifecycleOwner
         
         if (lifecycle != null) {
-            // Only add observer if we haven't already added it to this lifecycle
-            if (currentLifecycle != lifecycle) {
-                // Remove from previous lifecycle if different
-                currentLifecycle?.removeObserver(lifecycleObserver)
-                
-                // Add to new lifecycle
-                lifecycle.addObserver(lifecycleObserver)
-                currentLifecycle = lifecycle
-            }
+            lifecycle.addObserver(lifecycleObserver)
         } else {
             // Fallback: Subscribe directly if no lifecycle owner is available
             // This ensures compatibility with wrappers and other contexts that may not have LifecycleOwner
@@ -87,14 +78,12 @@ constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        // Clean up observer when view is detached to prevent memory leaks
-        currentLifecycle?.removeObserver(lifecycleObserver)
-        currentLifecycle = null
-        
         // Clean up controller if we subscribed directly
         if (hasSubscribedToController) {
             onViewOwnerDestroyed()
             hasSubscribedToController = false
+        } else {
+            viewLifecycleOwner?.removeObserver(lifecycleObserver)
         }
     }
 

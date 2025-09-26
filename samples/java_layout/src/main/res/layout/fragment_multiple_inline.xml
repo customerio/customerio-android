@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".ui.inline.MultipleInlineFragment">
+
+    <!-- Test information view -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:background="#E8F5E8"
+        android:padding="12dp"
+        android:text="📋 Test Info: This tab contains 3 InlineInAppMessageViews with elementIds:\n• 'multi-inline-top' (first)\n• 'multi-inline-center' (second)\n• 'multi-inline-bottom' (third)"
+        android:textColor="#388E3C"
+        android:textSize="14sp" />
+
+    <!-- First inline message -->
+    <io.customer.messaginginapp.ui.InlineInAppMessageView
+        android:id="@+id/first_inapp_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:elementId="multi-inline-top"
+        tools:background="@android:color/holo_red_light"
+        tools:layout_height="64dp" />
+
+    <!-- Spacer content -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_margin="16dp"
+        android:background="@drawable/gray_rounded_background" />
+
+    <!-- Second inline message -->
+    <io.customer.messaginginapp.ui.InlineInAppMessageView
+        android:id="@+id/second_inapp_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:elementId="multi-inline-center"
+        tools:background="@android:color/holo_green_light"
+        tools:layout_height="64dp" />
+
+    <!-- More spacer content -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_margin="16dp"
+        android:background="@drawable/gray_rounded_background" />
+
+    <!-- Third inline message -->
+    <io.customer.messaginginapp.ui.InlineInAppMessageView
+        android:id="@+id/third_inapp_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:elementId="multi-inline-bottom"
+        tools:background="@android:color/holo_blue_light"
+        tools:layout_height="64dp" />
+
+    <!-- Bottom spacer -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+</LinearLayout>

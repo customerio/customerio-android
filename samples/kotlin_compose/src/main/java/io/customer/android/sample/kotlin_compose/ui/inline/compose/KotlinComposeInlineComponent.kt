@@ -1,11 +1,7 @@
-package io.customer.android.sample.java_layout.ui.inline.compose
+package io.customer.android.sample.kotlin_compose.ui.inline.compose
 
 import android.content.Context
-import android.os.Bundle
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,49 +19,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import io.customer.android.sample.java_layout.ui.core.BaseComposeFragment
-import io.customer.android.sample.java_layout.ui.inline.compose.ComposeInlineExampleFragment.Companion.TAG
+import io.customer.android.sample.kotlin_compose.ui.theme.CustomerIoSDKTheme
 import io.customer.messaginginapp.compose.InlineInAppMessage
 import io.customer.messaginginapp.type.InAppMessage
 
-/**
- * A fragment that demonstrates how to use InlineInAppMessageView with Jetpack Compose
- * in a Java-based app. This implementation wraps the XML-based InlineInAppMessageView in a
- * Compose-friendly way.
- */
-class ComposeInlineExampleFragment : BaseComposeFragment() {
-    companion object {
-        const val TAG = "ComposeInlineExample"
-
-        @JvmStatic
-        fun newInstance() = ComposeInlineExampleFragment()
-    }
-
-    override fun createComposeView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        return ComposeView(requireContext()).apply {
-            setContent {
-                ComposeInlineExampleScreen(requireContext())
-            }
-        }
-    }
-}
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ComposeInlineExampleScreen(context: Context) {
+fun KotlinComposeInlineComponent(context: Context) {
     /**
      * Helper function to handle in-app message actions consistently
      */
@@ -77,43 +44,26 @@ fun ComposeInlineExampleScreen(context: Context) {
         name: String
     ) {
         // Log the action click
-        Log.d(TAG, "[$location] Action clicked with value: $action (name: $name)")
+        Log.d("KotlinComposeInline", "[$location] Action clicked with value: $action (name: $name)")
 
         // Show a toast to the user
         val toastMessage = "$location Action Value: $action"
         Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
     }
 
-    ComposeTheme {
-        Surface(color = MaterialTheme.colors.background) {
+    CustomerIoSDKTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Test information view
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    color = Color(0xFFF3E5F5),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "📋 Test Info: This Compose tab contains InlineInAppMessages with elementIds:\n• 'compose-sticky-header'\n• 'compose-sticky-center'\n• 'compose-sticky-bottom'",
-                        modifier = Modifier.padding(12.dp),
-                        fontSize = 14.sp,
-                        color = Color(0xFF7B1FA2),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
                 // Header inline in-app message (sticky header)
-                // Using elementId "compose-sticky-header" to match KotlinComposeInlineComponent
+                // Using the same elementId "sticky-header" as in XML example
                 InlineInAppMessage(
                     elementId = "compose-sticky-header",
                     modifier = Modifier.fillMaxWidth(),
-                    progressTint = MaterialTheme.colors.primary, // Using theme's primary color for loading indicator
+                    progressTint = MaterialTheme.colorScheme.primary, // Using theme's primary color for loading indicator
                     onAction = { message: InAppMessage, action: String, name: String ->
                         handleMessageAction("Header", message, action, name)
                     }
@@ -124,7 +74,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier.padding(16.dp)
                 )
 
-                // Middle inline in-app message with "compose-sticky-center" elementId to match KotlinComposeInlineComponent
+                // Middle inline in-app message with "inline" elementId to match XML
                 InlineInAppMessage(
                     elementId = "compose-sticky-center",
                     modifier = Modifier
@@ -151,7 +101,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                 // Third profile card layout
                 ProfileCardPlaceholder(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
 
-                // Bottom inline in-app message (below fold) with "compose-sticky-bottom" elementId to match KotlinComposeInlineComponent
+                // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
                 InlineInAppMessage(
                     elementId = "compose-sticky-bottom",
                     modifier = Modifier

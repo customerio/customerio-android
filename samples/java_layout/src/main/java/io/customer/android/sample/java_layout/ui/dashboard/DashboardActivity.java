@@ -149,11 +149,8 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.showPushPromptButton.setOnClickListener(view -> {
             requestNotificationPermission();
         });
-        binding.inlineExamplesXmlLayoutButton.setOnClickListener(view -> {
-            startInlineExamplesActivity(InlineExamplesActivity.FRAGMENT_ANDROID_XML);
-        });
-        binding.inlineExamplesComposeButton.setOnClickListener(view -> {
-            startInlineExamplesActivity(InlineExamplesActivity.FRAGMENT_COMPOSE);
+        binding.inlineExamplesButton.setOnClickListener(view -> {
+            startInlineExamplesActivity();
         });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
@@ -203,10 +200,8 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         startActivity(intent);
     }
 
-    private void startInlineExamplesActivity(String fragmentName) {
+    private void startInlineExamplesActivity() {
         Intent intent = new Intent(DashboardActivity.this, InlineExamplesActivity.class);
-        Bundle extras = InlineExamplesActivity.getExtras(fragmentName);
-        intent.putExtras(extras);
         startActivity(intent);
     }
 

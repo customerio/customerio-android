@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/navigation_inline_single">
+
+    <fragment
+        android:id="@+id/navigation_inline_single"
+        android:name="io.customer.android.sample.kotlin_compose.ui.inline.components.SingleInlineFragment"
+        android:label="@string/title_inline_single"
+        tools:layout="@layout/fragment_single_inline" />
+
+    <fragment
+        android:id="@+id/navigation_inline_multiple"
+        android:name="io.customer.android.sample.kotlin_compose.ui.inline.components.MultipleInlineFragment"
+        android:label="@string/title_inline_multiple"
+        tools:layout="@layout/fragment_multiple_inline" />
+
+    <fragment
+        android:id="@+id/navigation_inline_compose"
+        android:name="io.customer.android.sample.kotlin_compose.ui.inline.compose.KotlinComposeFragment"
+        android:label="@string/title_inline_compose"
+        tools:layout="@layout/fragment_multiple_inline" />
+
+    <fragment
+        android:id="@+id/navigation_inline_recycler"
+        android:name="io.customer.android.sample.kotlin_compose.ui.inline.recyclerview.RecyclerViewFragment"
+        android:label="@string/title_inline_recycler"
+        tools:layout="@layout/fragment_recycler_view" />
+</navigation>

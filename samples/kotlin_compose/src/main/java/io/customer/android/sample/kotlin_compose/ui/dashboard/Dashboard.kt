@@ -1,5 +1,6 @@
 package io.customer.android.sample.kotlin_compose.ui.dashboard
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,8 @@ import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.SettingsIcon
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
+import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesNavigationActivity
+import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesTabbedActivity
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -152,6 +155,18 @@ fun SendEventsView(
             text = stringResource(R.string.show_push_prompt),
             modifier = Modifier.testTag(stringResource(id = R.string.acd_push_prompt_button)),
             onClick = onCheckPermission
+        )
+        ActionButton(
+            text = "Inline Examples (Navigation)",
+            onClick = {
+                context.startActivity(Intent(context, InlineMessagesNavigationActivity::class.java))
+            }
+        )
+        ActionButton(
+            text = "Inline Examples (Tabs)",
+            onClick = {
+                context.startActivity(Intent(context, InlineMessagesTabbedActivity::class.java))
+            }
         )
         ActionButton(
             text = stringResource(R.string.logout),

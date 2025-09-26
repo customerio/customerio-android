@@ -47,4 +47,8 @@
     <string name="attribute_set_successfully">Attribute sent successfully!</string>
     <string name="open_settings">Open Settings</string>
     <string name="token_copied">Token copied!</string>
+    <string name="title_inline_single">Single</string>
+    <string name="title_inline_multiple">Multiple</string>
+    <string name="title_inline_compose">Compose</string>
+    <string name="title_inline_recycler">RecyclerView</string>
 </resources>

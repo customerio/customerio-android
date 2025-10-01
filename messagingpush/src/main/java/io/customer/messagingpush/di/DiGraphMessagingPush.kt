@@ -5,6 +5,7 @@ package io.customer.messagingpush.di
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.PushDeliveryTracker
@@ -56,8 +57,11 @@ val SDKComponent.pushTrackingUtil: PushTrackingUtil
 internal val SDKComponent.workManagerProvider: WorkManagerProvider
     get() = singleton<WorkManagerProvider> { WorkManagerProvider(android().applicationContext, pushLogger) }
 
+internal val SDKComponent.asyncPushDeliveryTracker: AsyncPushDeliveryTracker
+    get() = singleton<AsyncPushDeliveryTracker> { AsyncPushDeliveryTracker(pushDeliveryTracker) }
+
 internal val SDKComponent.deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler
-    get() = singleton<PushDeliveryMetricsBackgroundScheduler> { PushDeliveryMetricsBackgroundScheduler(workManagerProvider) }
+    get() = singleton<PushDeliveryMetricsBackgroundScheduler> { PushDeliveryMetricsBackgroundScheduler(workManagerProvider, asyncPushDeliveryTracker) }
 
 internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
     get() = singleton<PushMessageProcessor> {

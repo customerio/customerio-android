@@ -53,7 +53,7 @@ internal class PushDeliveryTrackerImpl : PushDeliveryTracker {
 }
 
 internal class AsyncPushDeliveryTracker(
-    private val deliveryTracker: PushDeliveryTrackerImpl
+    private val deliveryTracker: PushDeliveryTracker
 ) {
     private val dispatcher: DispatchersProvider
         get() = SDKComponent.dispatchersProvider

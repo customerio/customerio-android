@@ -163,7 +163,8 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
     private fun cleanupExpiredAnonymousTracking(currentAnonymousMessages: List<Message>, previousAnonymousMessages: List<Message>) {
         val currentAnonymousIds = currentAnonymousMessages.mapNotNull { it.queueId }.toSet()
-        val expiredAnonymousIds = previousAnonymousMessages.mapNotNull { it.queueId } - currentAnonymousIds
+        val previousAnonymousIds = previousAnonymousMessages.mapNotNull { it.queueId }.toSet()
+        val expiredAnonymousIds = previousAnonymousIds - currentAnonymousIds
 
         expiredAnonymousIds.forEach { expiredId ->
             inAppPreferenceStore.clearAnonymousTracking(expiredId)

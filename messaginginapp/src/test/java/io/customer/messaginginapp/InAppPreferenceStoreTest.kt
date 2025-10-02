@@ -142,34 +142,19 @@ class InAppPreferenceStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun setAnonymousIgnoreDismiss_givenVariousStates_expectCorrectStorage() {
-        val messageId = "ignore_test"
-
-        // Initially false (default value)
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe false
-
-        // Set to true
-        inAppPreferenceStore.setAnonymousIgnoreDismiss(messageId, true)
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe true
-
-        // Set to false (stores false value)
-        inAppPreferenceStore.setAnonymousIgnoreDismiss(messageId, false)
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe false
-    }
-
-    @Test
     fun clearAnonymousTracking_givenMessageWithAllData_expectCompleteCleanup() {
         val messageId = "cleanup_test"
 
-        // Set up all types of tracking data
+        // Set up tracking data
         inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
         inAppPreferenceStore.setAnonymousDismissed(messageId, true)
-        inAppPreferenceStore.setAnonymousIgnoreDismiss(messageId, true)
+        inAppPreferenceStore.setAnonymousNextShowTime(messageId, System.currentTimeMillis() + 60000)
 
         // Verify data exists
+        val nextShowTime = inAppPreferenceStore.getAnonymousNextShowTime(messageId)
         inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 1
         inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe true
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe true
+        (nextShowTime > 0) shouldBe true
 
         // Clear tracking
         inAppPreferenceStore.clearAnonymousTracking(messageId)
@@ -177,7 +162,7 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         // Verify all data cleared
         inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 0
         inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe false
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe false
+        inAppPreferenceStore.getAnonymousNextShowTime(messageId) shouldBeEqualTo 0
     }
 
     @Test
@@ -227,13 +212,11 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         // Set up all types of tracking data including delay
         inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
         inAppPreferenceStore.setAnonymousDismissed(messageId, true)
-        inAppPreferenceStore.setAnonymousIgnoreDismiss(messageId, true)
         inAppPreferenceStore.setAnonymousNextShowTime(messageId, System.currentTimeMillis() + 5000)
 
         // Verify data exists
         inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 1
         inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe true
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe true
         inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe true
 
         // Clear tracking
@@ -242,7 +225,6 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         // Verify all data cleared including delay
         inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 0
         inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe false
-        inAppPreferenceStore.getAnonymousIgnoreDismiss(messageId) shouldBe false
         inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe false
         inAppPreferenceStore.getAnonymousNextShowTime(messageId) shouldBeEqualTo 0
     }

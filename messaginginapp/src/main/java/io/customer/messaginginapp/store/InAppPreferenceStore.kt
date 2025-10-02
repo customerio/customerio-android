@@ -23,10 +23,6 @@ interface InAppPreferenceStore {
     fun clearAnonymousTracking(messageId: String)
     fun clearAllAnonymousData()
 
-    // Anonymous ignore dismiss setting (kept separate as it can be modified independently)
-    fun setAnonymousIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
-    fun getAnonymousIgnoreDismiss(messageId: String): Boolean
-
     // Delay functionality for temporary show restrictions
     fun setAnonymousNextShowTime(messageId: String, nextShowTimeMillis: Long)
     fun getAnonymousNextShowTime(messageId: String): Long
@@ -47,7 +43,6 @@ internal class InAppPreferenceStoreImpl(
         private const val ANONYMOUS_MESSAGES_EXPIRY_KEY = "broadcast_messages_expiry"
         private const val ANONYMOUS_TIMES_SHOWN_PREFIX = "broadcast_times_shown_"
         private const val ANONYMOUS_DISMISSED_PREFIX = "broadcast_dismissed_"
-        private const val ANONYMOUS_IGNORE_DISMISS_PREFIX = "broadcast_ignore_dismiss_"
         private const val ANONYMOUS_NEXT_SHOW_TIME_PREFIX = "broadcast_next_show_time_"
     }
 
@@ -106,7 +101,6 @@ internal class InAppPreferenceStoreImpl(
     override fun clearAnonymousTracking(messageId: String) = prefs.edit {
         remove("$ANONYMOUS_TIMES_SHOWN_PREFIX$messageId")
         remove("$ANONYMOUS_DISMISSED_PREFIX$messageId")
-        remove("$ANONYMOUS_IGNORE_DISMISS_PREFIX$messageId")
         remove("$ANONYMOUS_NEXT_SHOW_TIME_PREFIX$messageId")
     }
 
@@ -116,14 +110,6 @@ internal class InAppPreferenceStoreImpl(
         // Note: We intentionally keep individual message tracking (times shown, dismissed)
         // as they might be useful if the same anonymous message comes back later
     }
-
-    override fun setAnonymousIgnoreDismiss(messageId: String, ignoreDismiss: Boolean) = prefs.edit {
-        putBoolean("$ANONYMOUS_IGNORE_DISMISS_PREFIX$messageId", ignoreDismiss)
-    }
-
-    override fun getAnonymousIgnoreDismiss(messageId: String): Boolean = prefs.read {
-        getBoolean("$ANONYMOUS_IGNORE_DISMISS_PREFIX$messageId", false)
-    } ?: false
 
     override fun setAnonymousNextShowTime(messageId: String, nextShowTimeMillis: Long) = prefs.edit {
         putLong("$ANONYMOUS_NEXT_SHOW_TIME_PREFIX$messageId", nextShowTimeMillis)

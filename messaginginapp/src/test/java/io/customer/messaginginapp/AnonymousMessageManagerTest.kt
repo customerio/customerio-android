@@ -45,7 +45,6 @@ class AnonymousMessageManagerTest : JUnitTest() {
         // Configure mock behavior to act like a real preference store
         val anonymousTimesShownMap = mutableMapOf<String, Int>()
         val anonymousDismissedMap = mutableMapOf<String, Boolean>()
-        val anonymousIgnoreDismissMap = mutableMapOf<String, Boolean>()
         val anonymousNextShowTimeMap = mutableMapOf<String, Long>()
         var anonymousMessagesData: String? = null
         var anonymousMessagesExpiry: Long = 0
@@ -60,12 +59,6 @@ class AnonymousMessageManagerTest : JUnitTest() {
             val messageId = firstArg<String>()
             val dismissed = secondArg<Boolean>()
             if (dismissed) anonymousDismissedMap[messageId] = true else anonymousDismissedMap.remove(messageId)
-        }
-        every { mockPreferenceStore.getAnonymousIgnoreDismiss(any()) } answers { anonymousIgnoreDismissMap[firstArg()] ?: false }
-        every { mockPreferenceStore.setAnonymousIgnoreDismiss(any(), any()) } answers {
-            val messageId = firstArg<String>()
-            val ignoreDismiss = secondArg<Boolean>()
-            anonymousIgnoreDismissMap[messageId] = ignoreDismiss
         }
         every { mockPreferenceStore.saveAnonymousMessages(any(), any()) } answers {
             anonymousMessagesData = firstArg()
@@ -82,7 +75,6 @@ class AnonymousMessageManagerTest : JUnitTest() {
             val messageId = firstArg<String>()
             anonymousTimesShownMap.remove(messageId)
             anonymousDismissedMap.remove(messageId)
-            anonymousIgnoreDismissMap.remove(messageId)
             anonymousNextShowTimeMap.remove(messageId)
         }
         every { mockPreferenceStore.clearAllAnonymousData() } answers {

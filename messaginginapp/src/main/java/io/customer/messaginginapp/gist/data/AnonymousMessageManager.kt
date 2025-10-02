@@ -48,21 +48,6 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
             val messagesJson = gson.toJson(messagesWithAnonymous)
             inAppPreferenceStore.saveAnonymousMessages(messagesJson, expiryTimeMillis)
 
-            // Store ignoreDismiss separately as it can be modified independently
-            messagesWithAnonymous.forEach { message ->
-                message.queueId?.let { queueId ->
-                    val frequency = message.gistProperties.broadcast?.frequency
-                    if (frequency != null) {
-                        // Validate frequency values and skip invalid ones
-                        if (frequency.count >= 0 && frequency.delay >= 0) {
-                            inAppPreferenceStore.setAnonymousIgnoreDismiss(queueId, frequency.ignoreDismiss)
-                        } else {
-                            logger.debug("Skipping anonymous message $queueId with invalid frequency values: count=${frequency.count}, delay=${frequency.delay}")
-                        }
-                    }
-                }
-            }
-
             // Clean up tracking data for anonymous messages no longer in server response
             cleanupExpiredAnonymousTracking(messagesWithAnonymous, previousAnonymousMessages)
 
@@ -152,9 +137,18 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
         logger.debug("Marking anonymous message $anonymousId as dismissed")
         if (!hasValidUserToken()) return
 
-        // Check ignoreDismiss flag from preferences
-        val ignoreDismiss = inAppPreferenceStore.getAnonymousIgnoreDismiss(anonymousId)
-        if (ignoreDismiss) {
+        // Get anonymous message details to check ignoreDismiss flag
+        val anonymousMessages = getParsedAnonymousMessages()
+        val anonymousMessage = anonymousMessages.find { it.queueId == anonymousId }
+        val anonymousDetails = anonymousMessage?.gistProperties?.broadcast?.frequency
+
+        if (anonymousDetails == null) {
+            logger.debug("Could not find anonymous message details for $anonymousId")
+            return
+        }
+
+        // Check ignoreDismiss flag from message
+        if (anonymousDetails.ignoreDismiss) {
             logger.debug("Anonymous message $anonymousId is set to ignore dismiss")
             return
         }

@@ -410,7 +410,6 @@ public abstract interface class io/customer/messaginginapp/store/InAppPreference
 	public abstract fun clearAll ()V
 	public abstract fun clearAllAnonymousData ()V
 	public abstract fun clearAnonymousTracking (Ljava/lang/String;)V
-	public abstract fun getAnonymousIgnoreDismiss (Ljava/lang/String;)Z
 	public abstract fun getAnonymousMessages ()Ljava/lang/String;
 	public abstract fun getAnonymousNextShowTime (Ljava/lang/String;)J
 	public abstract fun getAnonymousTimesShown (Ljava/lang/String;)I
@@ -422,7 +421,6 @@ public abstract interface class io/customer/messaginginapp/store/InAppPreference
 	public abstract fun saveAnonymousMessages (Ljava/lang/String;J)V
 	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun setAnonymousDismissed (Ljava/lang/String;Z)V
-	public abstract fun setAnonymousIgnoreDismiss (Ljava/lang/String;Z)V
 	public abstract fun setAnonymousNextShowTime (Ljava/lang/String;J)V
 }
 

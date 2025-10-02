@@ -149,17 +149,17 @@ internal fun Message.matchesRoute(currentRoute: String?): Boolean {
 }
 
 /**
- * Extension function to check if a message is a broadcast message
+ * Extension function to check if a message is an anonymous message
  */
-fun Message.isMessageBroadcast(): Boolean {
+fun Message.isMessageAnonymous(): Boolean {
     return this.gistProperties.broadcast != null
 }
 
 /**
- * Extension function to check if a broadcast message should show always
+ * Extension function to check if an anonymous message should show always
  */
-fun Message.isShowAlwaysBroadcast(): Boolean {
-    if (!isMessageBroadcast()) return false
-    val broadcastDetails = this.gistProperties.broadcast!!.frequency
-    return broadcastDetails.delay == 0 && broadcastDetails.count == 0
+fun Message.isShowAlwaysAnonymous(): Boolean {
+    if (!isMessageAnonymous()) return false
+    val anonymousDetails = this.gistProperties.broadcast!!.frequency
+    return anonymousDetails.delay == 0 && anonymousDetails.count == 0
 }

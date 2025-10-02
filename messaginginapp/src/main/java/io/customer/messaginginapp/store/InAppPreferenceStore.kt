@@ -10,27 +10,27 @@ interface InAppPreferenceStore {
     fun getNetworkResponse(url: String): String?
     fun clearAll()
 
-    // Broadcast message storage with expiry
-    fun saveBroadcastMessages(messages: String, expiryTimeMillis: Long)
-    fun getBroadcastMessages(): String?
-    fun isBroadcastMessagesExpired(): Boolean
+    // Anonymous message storage with expiry
+    fun saveAnonymousMessages(messages: String, expiryTimeMillis: Long)
+    fun getAnonymousMessages(): String?
+    fun isAnonymousMessagesExpired(): Boolean
 
-    // Simple broadcast tracking
-    fun getBroadcastTimesShown(messageId: String): Int
-    fun incrementBroadcastTimesShown(messageId: String)
-    fun setBroadcastDismissed(messageId: String, dismissed: Boolean)
-    fun isBroadcastDismissed(messageId: String): Boolean
-    fun clearBroadcastTracking(messageId: String)
-    fun clearAllBroadcastData()
+    // Simple anonymous message tracking
+    fun getAnonymousTimesShown(messageId: String): Int
+    fun incrementAnonymousTimesShown(messageId: String)
+    fun setAnonymousDismissed(messageId: String, dismissed: Boolean)
+    fun isAnonymousDismissed(messageId: String): Boolean
+    fun clearAnonymousTracking(messageId: String)
+    fun clearAllAnonymousData()
 
-    // Broadcast ignore dismiss setting (kept separate as it can be modified independently)
-    fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
-    fun getBroadcastIgnoreDismiss(messageId: String): Boolean
+    // Anonymous ignore dismiss setting (kept separate as it can be modified independently)
+    fun setAnonymousIgnoreDismiss(messageId: String, ignoreDismiss: Boolean)
+    fun getAnonymousIgnoreDismiss(messageId: String): Boolean
 
     // Delay functionality for temporary show restrictions
-    fun setBroadcastNextShowTime(messageId: String, nextShowTimeMillis: Long)
-    fun getBroadcastNextShowTime(messageId: String): Long
-    fun isBroadcastInDelayPeriod(messageId: String): Boolean
+    fun setAnonymousNextShowTime(messageId: String, nextShowTimeMillis: Long)
+    fun getAnonymousNextShowTime(messageId: String): Long
+    fun isAnonymousInDelayPeriod(messageId: String): Boolean
 }
 
 internal class InAppPreferenceStoreImpl(
@@ -42,12 +42,13 @@ internal class InAppPreferenceStoreImpl(
     }
 
     companion object {
-        private const val BROADCAST_MESSAGES_KEY = "broadcast_messages"
-        private const val BROADCAST_MESSAGES_EXPIRY_KEY = "broadcast_messages_expiry"
-        private const val BROADCAST_TIMES_SHOWN_PREFIX = "broadcast_times_shown_"
-        private const val BROADCAST_DISMISSED_PREFIX = "broadcast_dismissed_"
-        private const val BROADCAST_IGNORE_DISMISS_PREFIX = "broadcast_ignore_dismiss_"
-        private const val BROADCAST_NEXT_SHOW_TIME_PREFIX = "broadcast_next_show_time_"
+        // Keep string values as "broadcast_*" for backward compatibility with existing user data
+        private const val ANONYMOUS_MESSAGES_KEY = "broadcast_messages"
+        private const val ANONYMOUS_MESSAGES_EXPIRY_KEY = "broadcast_messages_expiry"
+        private const val ANONYMOUS_TIMES_SHOWN_PREFIX = "broadcast_times_shown_"
+        private const val ANONYMOUS_DISMISSED_PREFIX = "broadcast_dismissed_"
+        private const val ANONYMOUS_IGNORE_DISMISS_PREFIX = "broadcast_ignore_dismiss_"
+        private const val ANONYMOUS_NEXT_SHOW_TIME_PREFIX = "broadcast_next_show_time_"
     }
 
     override fun saveNetworkResponse(url: String, response: String) = prefs.edit {
@@ -58,82 +59,82 @@ internal class InAppPreferenceStoreImpl(
         getString(url, null)
     }
 
-    override fun saveBroadcastMessages(messages: String, expiryTimeMillis: Long) = prefs.edit {
-        putString(BROADCAST_MESSAGES_KEY, messages)
-        putLong(BROADCAST_MESSAGES_EXPIRY_KEY, expiryTimeMillis)
+    override fun saveAnonymousMessages(messages: String, expiryTimeMillis: Long) = prefs.edit {
+        putString(ANONYMOUS_MESSAGES_KEY, messages)
+        putLong(ANONYMOUS_MESSAGES_EXPIRY_KEY, expiryTimeMillis)
     }
 
-    override fun getBroadcastMessages(): String? {
-        if (isBroadcastMessagesExpired()) {
+    override fun getAnonymousMessages(): String? {
+        if (isAnonymousMessagesExpired()) {
             prefs.edit {
-                remove(BROADCAST_MESSAGES_KEY)
-                remove(BROADCAST_MESSAGES_EXPIRY_KEY)
+                remove(ANONYMOUS_MESSAGES_KEY)
+                remove(ANONYMOUS_MESSAGES_EXPIRY_KEY)
             }
             return null
         }
         return prefs.read {
-            getString(BROADCAST_MESSAGES_KEY, null)
+            getString(ANONYMOUS_MESSAGES_KEY, null)
         }
     }
 
-    override fun isBroadcastMessagesExpired(): Boolean = prefs.read {
-        val expiryTime = getLong(BROADCAST_MESSAGES_EXPIRY_KEY, 0)
+    override fun isAnonymousMessagesExpired(): Boolean = prefs.read {
+        val expiryTime = getLong(ANONYMOUS_MESSAGES_EXPIRY_KEY, 0)
         expiryTime > 0 && System.currentTimeMillis() > expiryTime
     } ?: false
 
-    override fun getBroadcastTimesShown(messageId: String): Int = prefs.read {
-        getInt("$BROADCAST_TIMES_SHOWN_PREFIX$messageId", 0)
+    override fun getAnonymousTimesShown(messageId: String): Int = prefs.read {
+        getInt("$ANONYMOUS_TIMES_SHOWN_PREFIX$messageId", 0)
     } ?: 0
 
-    override fun incrementBroadcastTimesShown(messageId: String) = prefs.edit {
-        val current = getBroadcastTimesShown(messageId)
-        putInt("$BROADCAST_TIMES_SHOWN_PREFIX$messageId", current + 1)
+    override fun incrementAnonymousTimesShown(messageId: String) = prefs.edit {
+        val current = getAnonymousTimesShown(messageId)
+        putInt("$ANONYMOUS_TIMES_SHOWN_PREFIX$messageId", current + 1)
     }
 
-    override fun setBroadcastDismissed(messageId: String, dismissed: Boolean) = prefs.edit {
+    override fun setAnonymousDismissed(messageId: String, dismissed: Boolean) = prefs.edit {
         if (dismissed) {
-            putBoolean("$BROADCAST_DISMISSED_PREFIX$messageId", true)
+            putBoolean("$ANONYMOUS_DISMISSED_PREFIX$messageId", true)
         } else {
-            remove("$BROADCAST_DISMISSED_PREFIX$messageId")
+            remove("$ANONYMOUS_DISMISSED_PREFIX$messageId")
         }
     }
 
-    override fun isBroadcastDismissed(messageId: String): Boolean = prefs.read {
-        getBoolean("$BROADCAST_DISMISSED_PREFIX$messageId", false)
+    override fun isAnonymousDismissed(messageId: String): Boolean = prefs.read {
+        getBoolean("$ANONYMOUS_DISMISSED_PREFIX$messageId", false)
     } ?: false
 
-    override fun clearBroadcastTracking(messageId: String) = prefs.edit {
-        remove("$BROADCAST_TIMES_SHOWN_PREFIX$messageId")
-        remove("$BROADCAST_DISMISSED_PREFIX$messageId")
-        remove("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId")
-        remove("$BROADCAST_NEXT_SHOW_TIME_PREFIX$messageId")
+    override fun clearAnonymousTracking(messageId: String) = prefs.edit {
+        remove("$ANONYMOUS_TIMES_SHOWN_PREFIX$messageId")
+        remove("$ANONYMOUS_DISMISSED_PREFIX$messageId")
+        remove("$ANONYMOUS_IGNORE_DISMISS_PREFIX$messageId")
+        remove("$ANONYMOUS_NEXT_SHOW_TIME_PREFIX$messageId")
     }
 
-    override fun clearAllBroadcastData() = prefs.edit {
-        remove(BROADCAST_MESSAGES_KEY)
-        remove(BROADCAST_MESSAGES_EXPIRY_KEY)
+    override fun clearAllAnonymousData() = prefs.edit {
+        remove(ANONYMOUS_MESSAGES_KEY)
+        remove(ANONYMOUS_MESSAGES_EXPIRY_KEY)
         // Note: We intentionally keep individual message tracking (times shown, dismissed)
-        // as they might be useful if the same broadcast comes back later
+        // as they might be useful if the same anonymous message comes back later
     }
 
-    override fun setBroadcastIgnoreDismiss(messageId: String, ignoreDismiss: Boolean) = prefs.edit {
-        putBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", ignoreDismiss)
+    override fun setAnonymousIgnoreDismiss(messageId: String, ignoreDismiss: Boolean) = prefs.edit {
+        putBoolean("$ANONYMOUS_IGNORE_DISMISS_PREFIX$messageId", ignoreDismiss)
     }
 
-    override fun getBroadcastIgnoreDismiss(messageId: String): Boolean = prefs.read {
-        getBoolean("$BROADCAST_IGNORE_DISMISS_PREFIX$messageId", false)
+    override fun getAnonymousIgnoreDismiss(messageId: String): Boolean = prefs.read {
+        getBoolean("$ANONYMOUS_IGNORE_DISMISS_PREFIX$messageId", false)
     } ?: false
 
-    override fun setBroadcastNextShowTime(messageId: String, nextShowTimeMillis: Long) = prefs.edit {
-        putLong("$BROADCAST_NEXT_SHOW_TIME_PREFIX$messageId", nextShowTimeMillis)
+    override fun setAnonymousNextShowTime(messageId: String, nextShowTimeMillis: Long) = prefs.edit {
+        putLong("$ANONYMOUS_NEXT_SHOW_TIME_PREFIX$messageId", nextShowTimeMillis)
     }
 
-    override fun getBroadcastNextShowTime(messageId: String): Long = prefs.read {
-        getLong("$BROADCAST_NEXT_SHOW_TIME_PREFIX$messageId", 0)
+    override fun getAnonymousNextShowTime(messageId: String): Long = prefs.read {
+        getLong("$ANONYMOUS_NEXT_SHOW_TIME_PREFIX$messageId", 0)
     } ?: 0
 
-    override fun isBroadcastInDelayPeriod(messageId: String): Boolean {
-        val nextShowTime = getBroadcastNextShowTime(messageId)
+    override fun isAnonymousInDelayPeriod(messageId: String): Boolean {
+        val nextShowTime = getAnonymousNextShowTime(messageId)
         return nextShowTime > 0 && System.currentTimeMillis() < nextShowTime
     }
 }

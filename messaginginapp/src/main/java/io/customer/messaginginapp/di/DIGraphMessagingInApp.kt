@@ -3,8 +3,8 @@ package io.customer.messaginginapp.di
 import com.google.gson.Gson
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
-import io.customer.messaginginapp.gist.data.BroadcastMessageManager
-import io.customer.messaginginapp.gist.data.BroadcastMessageManagerImpl
+import io.customer.messaginginapp.gist.data.AnonymousMessageManager
+import io.customer.messaginginapp.gist.data.AnonymousMessageManagerImpl
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.presentation.GistProvider
@@ -52,9 +52,9 @@ internal val SDKComponent.modalMessageParser: ModalMessageParser
         )
     }
 
-internal val SDKComponent.broadcastMessageManager: BroadcastMessageManager
-    get() = singleton<BroadcastMessageManager> {
-        BroadcastMessageManagerImpl()
+internal val SDKComponent.anonymousMessageManager: AnonymousMessageManager
+    get() = singleton<AnonymousMessageManager> {
+        AnonymousMessageManagerImpl()
     }
 
 /**

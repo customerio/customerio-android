@@ -2,13 +2,13 @@ package io.customer.messaginginapp.gist.data.listeners
 
 import android.content.Context
 import android.util.Base64
-import io.customer.messaginginapp.di.broadcastMessageManager
+import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
-import io.customer.messaginginapp.gist.data.BroadcastMessageManager
+import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.data.model.isMessageBroadcast
+import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.store.InAppPreferenceStore
@@ -56,8 +56,8 @@ class Queue : GistQueue {
         get() = SDKComponent.android().applicationContext
     private val inAppPreferenceStore: InAppPreferenceStore
         get() = SDKComponent.inAppPreferenceStore
-    private val broadcastMessageManager: BroadcastMessageManager
-        get() = SDKComponent.broadcastMessageManager
+    private val anonymousMessageManager: AnonymousMessageManager
+        get() = SDKComponent.anonymousMessageManager
 
     private val cacheSize = 10 * 1024 * 1024 // 10 MB
     private val cacheDirectory by lazy { File(application.cacheDir, "http_cache") }
@@ -158,19 +158,19 @@ class Queue : GistQueue {
     private fun handleSuccessfulFetch(responseBody: List<Message>?) {
         logger.debug("Found ${responseBody?.count()} messages for user")
         responseBody?.let { messages ->
-            // Store broadcast messages locally for frequency management
-            broadcastMessageManager.updateBroadcastsLocalStore(messages)
+            // Store anonymous messages locally for frequency management
+            anonymousMessageManager.updateAnonymousMessagesLocalStore(messages)
 
-            // Get eligible broadcasts from local storage (respects frequency/dismissal rules)
-            val eligibleBroadcasts = broadcastMessageManager.getEligibleBroadcasts()
+            // Get eligible anonymous messages from local storage (respects frequency/dismissal rules)
+            val eligibleAnonymousMessages = anonymousMessageManager.getEligibleAnonymousMessages()
 
-            // Filter out broadcast messages from server response (we use local ones instead)
-            val regularMessages = messages.filter { !it.isMessageBroadcast() }
+            // Filter out anonymous messages from server response (we use local ones instead)
+            val regularMessages = messages.filter { !it.isMessageAnonymous() }
 
-            // Combine regular messages with eligible broadcasts
-            val allMessages = regularMessages + eligibleBroadcasts
+            // Combine regular messages with eligible anonymous messages
+            val allMessages = regularMessages + eligibleAnonymousMessages
 
-            logger.debug("Processing ${regularMessages.size} regular messages and ${eligibleBroadcasts.size} eligible broadcasts")
+            logger.debug("Processing ${regularMessages.size} regular messages and ${eligibleAnonymousMessages.size} eligible anonymous messages")
 
             // Process all messages through the normal queue
             inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(allMessages))

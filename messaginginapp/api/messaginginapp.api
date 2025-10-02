@@ -65,13 +65,6 @@ public abstract interface class io/customer/messaginginapp/gist/GistEnvironmentE
 	public abstract fun getGistRendererUrl ()Ljava/lang/String;
 }
 
-public abstract interface class io/customer/messaginginapp/gist/data/BroadcastMessageManager {
-	public abstract fun getEligibleBroadcasts ()Ljava/util/List;
-	public abstract fun markBroadcastAsDismissed (Ljava/lang/String;)V
-	public abstract fun markBroadcastAsSeen (Ljava/lang/String;)V
-	public abstract fun updateBroadcastsLocalStore (Ljava/util/List;)V
-}
-
 public final class io/customer/messaginginapp/gist/data/NetworkUtilities {
 	public static final field Companion Lio/customer/messaginginapp/gist/data/NetworkUtilities$Companion;
 	public fun <init> ()V
@@ -175,8 +168,8 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 }
 
 public final class io/customer/messaginginapp/gist/data/model/MessageKt {
-	public static final fun isMessageBroadcast (Lio/customer/messaginginapp/gist/data/model/Message;)Z
-	public static final fun isShowAlwaysBroadcast (Lio/customer/messaginginapp/gist/data/model/Message;)Z
+	public static final fun isMessageAnonymous (Lio/customer/messaginginapp/gist/data/model/Message;)Z
+	public static final fun isShowAlwaysAnonymous (Lio/customer/messaginginapp/gist/data/model/Message;)Z
 }
 
 public final class io/customer/messaginginapp/gist/data/model/MessagePosition : java/lang/Enum {
@@ -415,22 +408,22 @@ public final class io/customer/messaginginapp/state/InAppMessagingActionKt {
 
 public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {
 	public abstract fun clearAll ()V
-	public abstract fun clearAllBroadcastData ()V
-	public abstract fun clearBroadcastTracking (Ljava/lang/String;)V
-	public abstract fun getBroadcastIgnoreDismiss (Ljava/lang/String;)Z
-	public abstract fun getBroadcastMessages ()Ljava/lang/String;
-	public abstract fun getBroadcastNextShowTime (Ljava/lang/String;)J
-	public abstract fun getBroadcastTimesShown (Ljava/lang/String;)I
+	public abstract fun clearAllAnonymousData ()V
+	public abstract fun clearAnonymousTracking (Ljava/lang/String;)V
+	public abstract fun getAnonymousIgnoreDismiss (Ljava/lang/String;)Z
+	public abstract fun getAnonymousMessages ()Ljava/lang/String;
+	public abstract fun getAnonymousNextShowTime (Ljava/lang/String;)J
+	public abstract fun getAnonymousTimesShown (Ljava/lang/String;)I
 	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
-	public abstract fun incrementBroadcastTimesShown (Ljava/lang/String;)V
-	public abstract fun isBroadcastDismissed (Ljava/lang/String;)Z
-	public abstract fun isBroadcastInDelayPeriod (Ljava/lang/String;)Z
-	public abstract fun isBroadcastMessagesExpired ()Z
-	public abstract fun saveBroadcastMessages (Ljava/lang/String;J)V
+	public abstract fun incrementAnonymousTimesShown (Ljava/lang/String;)V
+	public abstract fun isAnonymousDismissed (Ljava/lang/String;)Z
+	public abstract fun isAnonymousInDelayPeriod (Ljava/lang/String;)Z
+	public abstract fun isAnonymousMessagesExpired ()Z
+	public abstract fun saveAnonymousMessages (Ljava/lang/String;J)V
 	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
-	public abstract fun setBroadcastDismissed (Ljava/lang/String;Z)V
-	public abstract fun setBroadcastIgnoreDismiss (Ljava/lang/String;Z)V
-	public abstract fun setBroadcastNextShowTime (Ljava/lang/String;J)V
+	public abstract fun setAnonymousDismissed (Ljava/lang/String;Z)V
+	public abstract fun setAnonymousIgnoreDismiss (Ljava/lang/String;Z)V
+	public abstract fun setAnonymousNextShowTime (Ljava/lang/String;J)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

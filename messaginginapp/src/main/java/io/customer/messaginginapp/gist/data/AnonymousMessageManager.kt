@@ -90,8 +90,11 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
             val numberOfTimesShown = inAppPreferenceStore.getAnonymousTimesShown(queueId)
             val isFrequencyUnlimited = frequency.count == 0
 
-            // Show if unlimited or under count limit
-            isFrequencyUnlimited || numberOfTimesShown < frequency.count
+            if (isFrequencyUnlimited) {
+                true
+            } else {
+                numberOfTimesShown < frequency.count
+            }
         }
     }
 
@@ -99,35 +102,25 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
         logger.debug("Marking anonymous message $anonymousId as seen")
         if (!hasValidUserToken()) return
 
-        // Get anonymous message details to check delay configuration
-        val anonymousMessages = getParsedAnonymousMessages()
-        val anonymousMessage = anonymousMessages.find { it.queueId == anonymousId }
-        val anonymousDetails = anonymousMessage?.gistProperties?.broadcast?.frequency
-
-        if (anonymousDetails == null) {
+        val anonymousDetails = getAnonymousFrequency(anonymousId) ?: run {
             logger.debug("Could not find anonymous message details for $anonymousId")
             return
         }
 
-        // Increment the times shown counter
         inAppPreferenceStore.incrementAnonymousTimesShown(anonymousId)
         val numberOfTimesShown = inAppPreferenceStore.getAnonymousTimesShown(anonymousId)
 
-        // Apply delay logic aligned with web SDK
         when {
             anonymousDetails.count == 1 -> {
-                // Permanent dismissal for single-show anonymous messages
                 inAppPreferenceStore.setAnonymousDismissed(anonymousId, true)
                 logger.debug("Marked anonymous message $anonymousId as permanently dismissed (count=1)")
             }
             anonymousDetails.delay > 0 -> {
-                // Temporary restriction with delay
                 val nextShowTimeMillis = System.currentTimeMillis() + (anonymousDetails.delay * 1000L)
                 inAppPreferenceStore.setAnonymousNextShowTime(anonymousId, nextShowTimeMillis)
                 logger.debug("Marked anonymous message $anonymousId as seen, shown $numberOfTimesShown times, next show time: ${java.util.Date(nextShowTimeMillis)}")
             }
             else -> {
-                // No delay, can show again immediately (subject to frequency limits)
                 logger.debug("Marked anonymous message $anonymousId as seen, shown $numberOfTimesShown times, no delay restriction")
             }
         }
@@ -137,12 +130,7 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
         logger.debug("Marking anonymous message $anonymousId as dismissed")
         if (!hasValidUserToken()) return
 
-        // Get anonymous message details to check ignoreDismiss flag
-        val anonymousMessages = getParsedAnonymousMessages()
-        val anonymousMessage = anonymousMessages.find { it.queueId == anonymousId }
-        val anonymousDetails = anonymousMessage?.gistProperties?.broadcast?.frequency
-
-        if (anonymousDetails == null) {
+        val anonymousDetails = getAnonymousFrequency(anonymousId) ?: run {
             logger.debug("Could not find anonymous message details for $anonymousId")
             return
         }
@@ -174,11 +162,9 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
     }
 
     private fun cleanupExpiredAnonymousTracking(currentAnonymousMessages: List<Message>, previousAnonymousMessages: List<Message>) {
-        // Find anonymous messages that were previously stored but are no longer in server response
         val currentAnonymousIds = currentAnonymousMessages.mapNotNull { it.queueId }.toSet()
         val expiredAnonymousIds = previousAnonymousMessages.mapNotNull { it.queueId } - currentAnonymousIds
 
-        // Clean up tracking data for expired anonymous messages
         expiredAnonymousIds.forEach { expiredId ->
             inAppPreferenceStore.clearAnonymousTracking(expiredId)
             logger.debug("Cleaned up tracking data for expired anonymous message: $expiredId")
@@ -188,6 +174,12 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
     private fun clearAllAnonymousData() {
         inAppPreferenceStore.clearAllAnonymousData()
         logger.debug("Cleared all anonymous message storage")
+    }
+
+    private fun getAnonymousFrequency(anonymousId: String): BroadcastFrequency? {
+        val anonymousMessages = getParsedAnonymousMessages()
+        val anonymousMessage = anonymousMessages.find { it.queueId == anonymousId }
+        return anonymousMessage?.gistProperties?.broadcast?.frequency
     }
 
     private fun hasValidUserToken(): Boolean {

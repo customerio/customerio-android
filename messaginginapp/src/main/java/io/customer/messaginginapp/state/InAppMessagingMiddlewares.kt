@@ -12,6 +12,7 @@ import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Logger
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
 
@@ -19,8 +20,9 @@ import org.reduxkotlin.middleware
  * Middleware to log actions and state changes.
  */
 internal fun loggerMiddleware() = middleware<InAppMessagingState> { store, next, action ->
-    SDKComponent.logger.debug("Store: action: $action")
-    SDKComponent.logger.debug("Store: state before reducer: ${store.state}")
+    val logger = SDKComponent.logger
+    logger.debug("Store: action: $action")
+    logger.debug("Store: state before reducer: ${store.state}")
 
     // continue passing the original action down the middleware chain
     next(action)
@@ -30,8 +32,9 @@ internal fun loggerMiddleware() = middleware<InAppMessagingState> { store, next,
  * Middleware to log errors.
  */
 internal fun errorLoggerMiddleware() = middleware<InAppMessagingState> { _, next, action ->
+    val logger = SDKComponent.logger
     if (action is InAppMessagingAction.ReportError) {
-        SDKComponent.logger.error("Error: ${action.message}")
+        logger.error("Error: ${action.message}")
     }
     next(action)
 }
@@ -40,47 +43,49 @@ internal fun errorLoggerMiddleware() = middleware<InAppMessagingState> { _, next
  * Middleware to handle gist logging for message.
  */
 internal fun gistLoggingMessageMiddleware() = middleware<InAppMessagingState> { _, next, action ->
+    val logger = SDKComponent.logger
     when (action) {
-        is InAppMessagingAction.DismissMessage -> handleMessageDismissal(action, next)
-        is InAppMessagingAction.DisplayMessage -> handleMessageDisplay(action, next)
+        is InAppMessagingAction.DismissMessage -> handleMessageDismissal(logger, action, next)
+        is InAppMessagingAction.DisplayMessage -> handleMessageDisplay(logger, action, next)
         else -> next(action)
     }
 }
 
-private fun handleMessageDismissal(action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
+private fun handleMessageDismissal(logger: Logger, action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
     // Handle anonymous message dismissal
     if (action.message.isMessageAnonymous() && action.message.queueId != null) {
-        SDKComponent.logger.debug("Anonymous message dismissed: ${action.message.queueId}")
+        logger.debug("Anonymous message dismissed: ${action.message.queueId}")
         try {
             SDKComponent.anonymousMessageManager.markAnonymousAsDismissed(action.message.queueId)
         } catch (e: Exception) {
-            SDKComponent.logger.debug("Failed to mark anonymous message as dismissed: ${e.message}")
+            logger.debug("Failed to mark anonymous message as dismissed: ${e.message}")
         }
     }
     // Log message close only if message should be tracked as shown on dismiss action
     if (action.shouldMarkMessageAsShown()) {
-        SDKComponent.logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
+        logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
         SDKComponent.gistQueue.logView(action.message)
+        logger.debug("Fetching in-app messages after message dismissal")
         SDKComponent.gistSdk.fetchInAppMessages()
     } else {
-        SDKComponent.logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
+        logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
     }
 
     next(action)
 }
 
-private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {
+private fun handleMessageDisplay(logger: Logger, action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {
     // Handle anonymous message tracking
     if (action.message.isMessageAnonymous() && action.message.queueId != null) {
-        SDKComponent.logger.debug("Anonymous message displayed: ${action.message.queueId}")
+        logger.debug("Anonymous message displayed: ${action.message.queueId}")
         SDKComponent.anonymousMessageManager.markAnonymousAsSeen(action.message.queueId)
     }
     // Log message view only if message should be tracked as shown on display action
     if (action.shouldMarkMessageAsShown()) {
-        SDKComponent.logger.debug("Message shown, logging view for message: ${action.message}")
+        logger.debug("Message shown, logging view for message: ${action.message}")
         SDKComponent.gistQueue.logView(action.message)
     } else {
-        SDKComponent.logger.debug("Persistent message shown, not logging view for message: ${action.message}")
+        logger.debug("Persistent message shown, not logging view for message: ${action.message}")
     }
     next(action)
 }
@@ -89,17 +94,18 @@ private fun handleMessageDisplay(action: InAppMessagingAction.DisplayMessage, ne
  * Middleware to handle modal message display actions.
  */
 internal fun displayModalMessageMiddleware() = middleware { store, next, action ->
+    val logger = SDKComponent.logger
     if (action is InAppMessagingAction.LoadMessage) {
-        handleModalMessageDisplay(store, action, next)
+        handleModalMessageDisplay(logger, store, action, next)
     } else {
         next(action)
     }
 }
 
-private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
+private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
     if (store.state.modalMessageState !is ModalMessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
-        SDKComponent.logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
+        logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
         val intent = GistModalActivity.newIntent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE, Gson().toJson(action.message))
@@ -116,6 +122,7 @@ private fun handleModalMessageDisplay(store: Store<InAppMessagingState>, action:
  * Middleware to handle route change actions.
  */
 internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, next, action ->
+    val logger = SDKComponent.logger
 
     if (action is InAppMessagingAction.SetPageRoute) {
         // update the current route
@@ -133,7 +140,7 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
             val currentMessageRouteRule = currentMessage.gistProperties.routeRule
             val isCurrentMessageRouteAllowedOnNewRoute = currentMessageRouteRule == null || runCatching { currentMessageRouteRule.toRegex().matches(action.route) }.getOrNull() ?: true
             if (!isCurrentMessageRouteAllowedOnNewRoute) {
-                SDKComponent.logger.debug("Dismissing message: ${currentMessage.queueId} because route does not match current route: ${action.route}")
+                logger.debug("Dismissing message: ${currentMessage.queueId} because route does not match current route: ${action.route}")
                 store.dispatch(InAppMessagingAction.DismissMessage(message = currentMessage, shouldLog = false))
             }
         }

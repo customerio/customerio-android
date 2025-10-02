@@ -61,15 +61,23 @@ internal class InAppPreferenceStoreImpl(
 
     override fun getAnonymousMessages(): String? {
         if (isAnonymousMessagesExpired()) {
-            prefs.edit {
-                remove(ANONYMOUS_MESSAGES_KEY)
-                remove(ANONYMOUS_MESSAGES_EXPIRY_KEY)
-            }
+            clearAnonymousMessages()
             return null
         }
-        return prefs.read {
-            getString(ANONYMOUS_MESSAGES_KEY, null)
-        }
+        return getAnonymousMessagesRaw()
+    }
+
+    private fun getAnonymousMessagesRaw(): String? = prefs.read {
+        getString(ANONYMOUS_MESSAGES_KEY, null)
+    }
+
+    private fun getAnonymousMessagesExpiry(): Long = prefs.read {
+        getLong(ANONYMOUS_MESSAGES_EXPIRY_KEY, 0)
+    } ?: 0
+
+    private fun clearAnonymousMessages() = prefs.edit {
+        remove(ANONYMOUS_MESSAGES_KEY)
+        remove(ANONYMOUS_MESSAGES_EXPIRY_KEY)
     }
 
     override fun isAnonymousMessagesExpired(): Boolean = prefs.read {

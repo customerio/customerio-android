@@ -134,6 +134,7 @@ class Queue : GistQueue {
     override fun fetchUserMessages() {
         scope.launch {
             try {
+                logger.debug("Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
                 val code = latestMessagesResponse.code()

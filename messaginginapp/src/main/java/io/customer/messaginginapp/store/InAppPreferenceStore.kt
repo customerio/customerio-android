@@ -115,8 +115,8 @@ internal class InAppPreferenceStoreImpl(
     override fun clearAllAnonymousData() = prefs.edit {
         remove(ANONYMOUS_MESSAGES_KEY)
         remove(ANONYMOUS_MESSAGES_EXPIRY_KEY)
-        // Note: We intentionally keep individual message tracking (times shown, dismissed)
-        // as they might be useful if the same anonymous message comes back later
+        // Note: Individual message tracking is cleared by AnonymousMessageManager
+        // which calls clearAnonymousTracking() for each previous message
     }
 
     override fun setAnonymousNextShowTime(messageId: String, nextShowTimeMillis: Long) = prefs.edit {

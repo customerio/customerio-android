@@ -53,10 +53,12 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
             logger.debug("Saved ${messagesWithAnonymous.size} anonymous messages to local store")
         } else {
+            val previousAnonymousMessages = getParsedAnonymousMessages()
+
             // Server has no anonymous messages - they've expired, remove locally
             // Anonymous messages are sticky, so absence means they're no longer active
             logger.debug("No anonymous messages in server response - clearing local storage as anonymous messages have expired")
-            clearAllAnonymousData()
+            clearAllAnonymousData(previousAnonymousMessages)
         }
     }
 
@@ -172,9 +174,17 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
         }
     }
 
-    private fun clearAllAnonymousData() {
+    private fun clearAllAnonymousData(previousAnonymousMessages: List<Message>) {
+        // Clear message storage
         inAppPreferenceStore.clearAllAnonymousData()
-        logger.debug("Cleared all anonymous message storage")
+
+        // Clean up tracking data for all previous anonymous messages
+        previousAnonymousMessages.mapNotNull { it.queueId }.toSet().forEach { messageId ->
+            inAppPreferenceStore.clearAnonymousTracking(messageId)
+            logger.debug("Cleaned up tracking data for expired anonymous message: $messageId")
+        }
+
+        logger.debug("Cleared all anonymous message storage and tracking data")
     }
 
     private fun getAnonymousFrequency(anonymousId: String): BroadcastFrequency? {

@@ -92,9 +92,15 @@ data class Message(
                 (broadcastData as? Map<String, Any?>)?.let { broadcastMap ->
                     broadcastMap["frequency"]?.let { frequencyData ->
                         (frequencyData as? Map<String, Any?>)?.let { frequencyMap ->
-                            val count = (frequencyMap["count"] as? Number)?.toInt() ?: 0
-                            val delay = (frequencyMap["delay"] as? Number)?.toInt() ?: 0
+                            val count = (frequencyMap["count"] as? Number)?.toInt()
+                            val delay = (frequencyMap["delay"] as? Number)?.toInt()
                             val ignoreDismiss = (frequencyMap["ignoreDismiss"] as? Boolean) ?: false
+
+                            // Validate required fields - match web SDK behavior but with logging
+                            if (count == null || delay == null) {
+                                SDKComponent.logger.error("Anonymous message has invalid frequency data - count: $count, delay: $delay. Message will be skipped.")
+                                return@let
+                            }
 
                             broadcast = BroadcastProperties(
                                 frequency = BroadcastFrequency(

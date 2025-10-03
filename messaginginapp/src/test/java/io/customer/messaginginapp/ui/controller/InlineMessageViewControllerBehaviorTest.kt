@@ -132,6 +132,8 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             viewDelegate = viewDelegate,
             elapsedTimer = elapsedTimer
         )
+        // Simulate view lifecycle owner creation for testing
+        instance.onViewOwnerCreated()
         return instance
     }
 
@@ -222,7 +224,7 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
 
     @Test
     fun handleMessageState_givenControllerRecreated_expectExistingMessageShown() {
-        every { platformDelegate.shouldDestroyViewOnDetach() } returns false
+        every { platformDelegate.shouldDestroyWithOwner() } returns false
         val givenElementId = "test-element-id"
         val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
         val givenUserId = String.random
@@ -417,7 +419,6 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         val givenElementId = "test-element-id"
         controller.elementId = givenElementId
         val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
-        controller.currentMessage = givenInAppMessage
         messagingManager.dispatch(
             InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
         ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
@@ -437,7 +438,6 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         val givenElementId = "test-element-id"
         controller.elementId = givenElementId
         val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
-        controller.currentMessage = givenInAppMessage
         messagingManager.dispatch(
             InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
         ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
@@ -511,5 +511,30 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         viewDelegate.removeView(engineWebViewDelegate)
         engineWebViewDelegate.releaseResources()
         viewCallback.onNoMessageToDisplay()
+    }
+
+    @Test
+    fun refreshViewState_givenSameMessageAlreadyEmbedded_expectNoReEmbedding() {
+        val controller = setupGistAndCreateViewController()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+
+        // First, embed the message
+        controller.currentMessage = givenInAppMessage
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Clear mocks to track subsequent calls
+        clearMocks(viewDelegate, engineWebViewDelegate, platformDelegate)
+
+        // Trigger state refresh with the same message (optimization scenario)
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify that no re-embedding occurred due to optimization
+        assertNoInteractions(viewDelegate, engineWebViewDelegate, platformDelegate)
     }
 }

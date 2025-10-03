@@ -41,18 +41,6 @@ abstract class WrapperInlineView<T : WrapperPlatformDelegate> @JvmOverloads cons
     }
 
     /**
-     * Lifecycle management - no more duplication!
-     *
-     * This method handles the common cleanup logic when the view is detached from its window.
-     * It ensures proper resource cleanup and prevents memory leaks by calling the base
-     * implementation and then performing consolidated cleanup operations.
-     */
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        onViewDetached()
-    }
-
-    /**
      * Loading state callbacks - no more duplication!
      * Routes through the platform delegate for consistent event handling.
      *

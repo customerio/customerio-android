@@ -10,7 +10,6 @@ import io.customer.sdk.core.di.SDKComponent
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -106,9 +105,17 @@ class ConcurrentScreenViewTest : JUnitTest() {
         executor.awaitTermination(1, TimeUnit.SECONDS)
 
         // Verify that screen method was called the expected number of times
-        verify(exactly = totalEvents) {
-            eventBus.publish(any<Event.ScreenViewedEvent>())
+        assertEquals(totalEvents, capturedEvents.size, "Expected exactly $totalEvents screen events but got ${capturedEvents.size}")
+
+        // Verify all events are ScreenViewedEvents with correct names
+        val expectedScreenNames = mutableSetOf<String>()
+        repeat(threadCount) { threadId ->
+            repeat(eventsPerThread) { eventIndex ->
+                expectedScreenNames.add("Screen_${eventIndex}_Thread_$threadId")
+            }
         }
+        val actualScreenNames = capturedEvents.map { it.name }.toSet()
+        assertEquals(expectedScreenNames, actualScreenNames, "Screen names don't match expected set")
     }
 
     @Test

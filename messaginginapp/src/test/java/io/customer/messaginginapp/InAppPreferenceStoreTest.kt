@@ -84,4 +84,148 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         val retrievedResponse = inAppPreferenceStore.getNetworkResponse(givenUrl)
         retrievedResponse shouldBeEqualTo givenResponse2
     }
+
+    // Broadcast Message Tests
+    @Test
+    fun saveAnonymousMessages_givenJsonAndExpiry_expectSavedAndRetrieved() {
+        val givenJson = """[{"queueId":"bc1","messageId":"msg1"}]"""
+        val givenExpiry = System.currentTimeMillis() + 60000 // 1 minute
+
+        inAppPreferenceStore.saveAnonymousMessages(givenJson, givenExpiry)
+
+        val retrieved = inAppPreferenceStore.getAnonymousMessages()
+        retrieved shouldBeEqualTo givenJson
+        inAppPreferenceStore.isAnonymousMessagesExpired() shouldBe false
+    }
+
+    @Test
+    fun getAnonymousMessages_givenExpiredData_expectNullAndAutoCleanup() {
+        val givenJson = """[{"queueId":"bc1"}]"""
+        val expiredTime = System.currentTimeMillis() - 1000 // 1 second ago
+
+        inAppPreferenceStore.saveAnonymousMessages(givenJson, expiredTime)
+
+        val retrieved = inAppPreferenceStore.getAnonymousMessages()
+        retrieved shouldBe null
+        inAppPreferenceStore.isAnonymousMessagesExpired() shouldBe false // Should be cleaned up
+    }
+
+    @Test
+    fun incrementAnonymousTimesShown_givenMessageId_expectCorrectCounting() {
+        val messageId = "test_broadcast"
+
+        // Initial count should be 0
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 0
+
+        // Increment and verify
+        inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 1
+
+        inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 2
+    }
+
+    @Test
+    fun setAnonymousDismissed_givenVariousStates_expectCorrectStorage() {
+        val messageId = "dismiss_test"
+
+        // Initially not dismissed
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe false
+
+        // Set dismissed
+        inAppPreferenceStore.setAnonymousDismissed(messageId, true)
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe true
+
+        // Unset dismissed
+        inAppPreferenceStore.setAnonymousDismissed(messageId, false)
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe false
+    }
+
+    @Test
+    fun clearAnonymousTracking_givenMessageWithAllData_expectCompleteCleanup() {
+        val messageId = "cleanup_test"
+
+        // Set up tracking data
+        inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
+        inAppPreferenceStore.setAnonymousDismissed(messageId, true)
+        inAppPreferenceStore.setAnonymousNextShowTime(messageId, System.currentTimeMillis() + 60000)
+
+        // Verify data exists
+        val nextShowTime = inAppPreferenceStore.getAnonymousNextShowTime(messageId)
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 1
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe true
+        (nextShowTime > 0) shouldBe true
+
+        // Clear tracking
+        inAppPreferenceStore.clearAnonymousTracking(messageId)
+
+        // Verify all data cleared
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 0
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe false
+        inAppPreferenceStore.getAnonymousNextShowTime(messageId) shouldBeEqualTo 0
+    }
+
+    @Test
+    fun clearAllAnonymousData_givenStoredMessages_expectOnlyMessagesCleared() {
+        val messageId = "partial_cleanup_test"
+        val broadcastJson = """[{"queueId":"bc1"}]"""
+
+        // Set up broadcast messages and tracking data
+        inAppPreferenceStore.saveAnonymousMessages(broadcastJson, System.currentTimeMillis() + 60000)
+        inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
+        inAppPreferenceStore.setAnonymousDismissed(messageId, true)
+
+        // Clear only broadcast message storage
+        inAppPreferenceStore.clearAllAnonymousData()
+
+        // Verify messages cleared but tracking data preserved
+        inAppPreferenceStore.getAnonymousMessages() shouldBe null
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 1 // Preserved
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe true // Preserved
+    }
+
+    @Test
+    fun setAnonymousNextShowTime_givenFutureTime_expectDelayPeriodActive() {
+        val messageId = "delay_test"
+        val futureTime = System.currentTimeMillis() + 5000 // 5 seconds from now
+
+        inAppPreferenceStore.setAnonymousNextShowTime(messageId, futureTime)
+
+        inAppPreferenceStore.getAnonymousNextShowTime(messageId) shouldBeEqualTo futureTime
+        inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe true
+    }
+
+    @Test
+    fun isAnonymousInDelayPeriod_givenPastTime_expectDelayPeriodInactive() {
+        val messageId = "delay_past_test"
+        val pastTime = System.currentTimeMillis() - 1000 // 1 second ago
+
+        inAppPreferenceStore.setAnonymousNextShowTime(messageId, pastTime)
+
+        inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe false
+    }
+
+    @Test
+    fun clearAnonymousTracking_givenMessageWithDelayData_expectCompleteCleanup() {
+        val messageId = "delay_cleanup_test"
+
+        // Set up all types of tracking data including delay
+        inAppPreferenceStore.incrementAnonymousTimesShown(messageId)
+        inAppPreferenceStore.setAnonymousDismissed(messageId, true)
+        inAppPreferenceStore.setAnonymousNextShowTime(messageId, System.currentTimeMillis() + 5000)
+
+        // Verify data exists
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 1
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe true
+        inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe true
+
+        // Clear tracking
+        inAppPreferenceStore.clearAnonymousTracking(messageId)
+
+        // Verify all data cleared including delay
+        inAppPreferenceStore.getAnonymousTimesShown(messageId) shouldBeEqualTo 0
+        inAppPreferenceStore.isAnonymousDismissed(messageId) shouldBe false
+        inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe false
+        inAppPreferenceStore.getAnonymousNextShowTime(messageId) shouldBeEqualTo 0
+    }
 }

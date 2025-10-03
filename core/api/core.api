@@ -12,6 +12,17 @@ public abstract class io/customer/sdk/communication/Event {
 	public fun getTimestamp ()Ljava/util/Date;
 }
 
+public final class io/customer/sdk/communication/Event$AnonymousIdGeneratedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/sdk/communication/Event$AnonymousIdGeneratedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$AnonymousIdGeneratedEvent;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$AnonymousIdGeneratedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnonymousId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> ()V
 }

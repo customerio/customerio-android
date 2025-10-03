@@ -426,63 +426,13 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         verify { nextFn(action) }
     }
 
-    @Test
-    fun userChangeMiddleware_shouldBlockActionsWhenUserNotSet() {
-        val state = InAppMessagingState(
-            siteId = String.random,
-            dataCenter = String.random,
-            userId = null
-        )
-        every { store.state } returns state
-
-        val middleware = userChangeMiddleware()
-        val action = InAppMessagingAction.ProcessMessageQueue(emptyList())
-
-        val dispatchedActions = mutableListOf<InAppMessagingAction>()
-        every { store.dispatch(capture(slot())) } answers {
-            val capturedAction = firstArg<InAppMessagingAction>()
-            dispatchedActions.add(capturedAction)
-            Unit
-        }
-
-        middleware(store)(nextFn)(action)
-
-        verify { nextFn(ofType<InAppMessagingAction.ReportError>()) }
-        verify(exactly = 0) { nextFn(action) }
-    }
-
-    @Test
-    fun userChangeMiddleware_shouldAllowInitializeAction() {
-        val state = InAppMessagingState(
-            siteId = String.random,
-            dataCenter = String.random,
-            userId = null
-        )
-        every { store.state } returns state
-
-        val middleware = userChangeMiddleware()
-        val action = InAppMessagingAction.Initialize("site-id", "data-center", io.customer.messaginginapp.gist.GistEnvironment.PROD)
-        middleware(store)(nextFn)(action)
-
-        verify { nextFn(action) }
-    }
-
     // Test removed: displayModalMessageMiddleware requires Android components that can't be easily mocked in unit tests
     // The test-specific middleware was originally created to address this very issue
 
     @Test
-    fun middlewareChain_shouldExecuteInCorrectOrder() {
-        val state = InAppMessagingState(userId = null)
+    fun routeChangeMiddleware_shouldWorkForAnonymousUsers() {
+        val state = InAppMessagingState(userId = null) // Anonymous user
         every { store.state } returns state
-
-        val userMiddleware = userChangeMiddleware()
-        val action = InAppMessagingAction.ProcessMessageQueue(emptyList())
-
-        userMiddleware(store)(nextFn)(action)
-        verify { nextFn(ofType<InAppMessagingAction.ReportError>()) }
-
-        val stateWithUser = state.copy(userId = "test-user")
-        every { store.state } returns stateWithUser
 
         val dispatchedActions = mutableListOf<InAppMessagingAction>()
         every { store.dispatch(capture(slot())) } answers {
@@ -494,15 +444,16 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         val routeMiddleware = routeChangeMiddleware()
         val routeAction = InAppMessagingAction.SetPageRoute("new/route")
 
+        // Route middleware should work for anonymous users
         routeMiddleware(store)(nextFn)(routeAction)
 
         assert(dispatchedActions.any { it is InAppMessagingAction.ProcessMessageQueue }) {
-            "Expected ProcessMessageQueue action to be dispatched"
+            "Expected ProcessMessageQueue action to be dispatched for anonymous users"
         }
 
         val inlineMessage = createMessage(elementId = "test-element")
         val messagesInQueue = setOf(inlineMessage)
-        val stateWithMessages = stateWithUser.copy(
+        val stateWithMessages = state.copy(
             messagesInQueue = messagesInQueue,
             currentRoute = "test/route"
         )

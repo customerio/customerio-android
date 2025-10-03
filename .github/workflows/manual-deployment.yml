@@ -10,7 +10,7 @@ jobs:
     name: Deploy SDK to Maven Central
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0  # fetches all history for all tags and branches
@@ -36,7 +36,7 @@ jobs:
           SONATYPE_STAGING_PROFILE_ID: ${{ secrets.SONATYPE_STAGING_PROFILE_ID }}
 
       - name: Notify team of successful deployment
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.0.0-rc.3
         if: ${{ success() }}
         with:
           payload: |
@@ -69,7 +69,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
       - name: Notify team of failure
-        uses: slackapi/slack-github-action@71c4f79cb8ada5ed920ec668b73f8530444a133b # v2.0.0-rc.3
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.0.0-rc.3
         if: ${{ failure() }}
         with:
           payload: |

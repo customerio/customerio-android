@@ -30,6 +30,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
@@ -44,6 +45,7 @@ class PushMessageProcessorTest : IntegrationTest() {
     private lateinit var deepLinkUtilMock: DeepLinkUtil
     private lateinit var eventBus: EventBus
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
+    private val mockDeliveryMetricsScheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
         return SDKComponent.pushMessageProcessor as PushMessageProcessorImpl
@@ -57,6 +59,7 @@ class PushMessageProcessorTest : IntegrationTest() {
                         overrideDependency<DeepLinkUtil>(mockk())
                         overrideDependency<EventBus>(mockk(relaxed = true))
                         overrideDependency<PushNotificationLogger>(mockPushLogger)
+                        overrideDependency<PushDeliveryMetricsBackgroundScheduler>(mockDeliveryMetricsScheduler)
                     }
                 }
             }
@@ -232,6 +235,9 @@ class PushMessageProcessorTest : IntegrationTest() {
         processor.processGCMMessageIntent(gcmIntent)
 
         assertNoInteractions(eventBus)
+        verify(exactly = 0) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
+        }
     }
 
     @Test
@@ -262,6 +268,10 @@ class PushMessageProcessorTest : IntegrationTest() {
                 )
             )
         }
+
+        verify(exactly = 1) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken)
+        }
     }
 
     @Test
@@ -278,6 +288,9 @@ class PushMessageProcessorTest : IntegrationTest() {
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
         assertNoInteractions(eventBus)
+        verify(exactly = 0) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
+        }
     }
 
     @Test
@@ -294,6 +307,9 @@ class PushMessageProcessorTest : IntegrationTest() {
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
         assertCalledOnce { mockPushLogger.logPushMetricsAutoTrackingDisabled() }
+        verify(exactly = 0) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
+        }
     }
 
     @Test
@@ -317,6 +333,10 @@ class PushMessageProcessorTest : IntegrationTest() {
                     deviceToken = givenDeviceToken
                 )
             )
+        }
+
+        verify(exactly = 1) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken)
         }
     }
 

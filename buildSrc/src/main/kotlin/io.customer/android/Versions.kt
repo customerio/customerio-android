@@ -2,7 +2,7 @@ package io.customer.android
 
 object Versions {
     // Android SDK versions
-    const val COMPILE_SDK = 34
+    const val COMPILE_SDK = 35
     const val TARGET_SDK = 33
     const val MIN_SDK = 21
 
@@ -44,4 +44,5 @@ object Versions {
     // Compose (using latest stable BOM compatible with Kotlin 2.1.20)
     internal const val COMPOSE_BOM = "2024.12.01"
     internal const val COMPOSE_COMPILER = "2.1.21"
+    internal const val WORK_MANAGER = "2.10.3"
 }

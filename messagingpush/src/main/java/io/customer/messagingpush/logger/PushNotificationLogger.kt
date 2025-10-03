@@ -222,4 +222,20 @@ internal class PushNotificationLogger(private val logger: Logger) {
             appendLine("Data: ${message.data}")
         }
     }
+
+    fun logWorkManagerInitializationAttempt(exception: Exception) {
+        logger.error(
+            tag = TAG,
+            message = "WorkManager not initialized, attempting to initialize",
+            throwable = exception
+        )
+    }
+
+    fun logWorkManagerInitializationFailed(exception: Exception) {
+        logger.error(
+            tag = TAG,
+            message = "Failed to initialize WorkManager",
+            throwable = exception
+        )
+    }
 }

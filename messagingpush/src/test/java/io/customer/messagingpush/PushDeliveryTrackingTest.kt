@@ -5,10 +5,11 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.messagingpush.network.HttpClient
 import io.customer.messagingpush.network.HttpRequestParams
 import io.customer.messagingpush.testutils.core.IntegrationTest
-import io.mockk.every
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBe
@@ -36,27 +37,18 @@ class PushDeliveryTrackingTest : IntegrationTest() {
     }
 
     @Test
-    fun trackMetric_givenValidInputs_expectCorrectPathAndSuccessCallback() {
+    fun trackMetric_givenValidInputs_expectCorrectPathAndSuccessCallback() = runTest {
         val token = "token123"
         val event = "OPENED"
         val deliveryId = "delivery_abc"
 
         val capturedParams = slot<HttpRequestParams>()
 
-        every {
-            httpClient.request(capture(capturedParams), any())
-        } answers {
-            // Invoke the second arg (the callback) with success.
-            secondArg<(Result<String>) -> Unit>().invoke(Result.success("Success"))
-        }
+        coEvery {
+            httpClient.request(capture(capturedParams))
+        } returns Result.success("Success")
 
-        var callbackResult: Result<Unit>? = null
-
-        pushDeliveryTracker.trackMetric(token, event, deliveryId) { result ->
-            callbackResult = result
-            // Return Unit to match the function signature
-            Unit
-        }
+        val result = pushDeliveryTracker.trackMetric(token, event, deliveryId)
 
         // Assert #1: Confirm the correct path.
         capturedParams.captured.path shouldBeEqualTo "/track"
@@ -70,29 +62,21 @@ class PushDeliveryTrackingTest : IntegrationTest() {
         requestBody shouldContain event.lowercase()
         requestBody shouldContain deliveryId
 
-        // Assert #3: The callback result is success.
-        callbackResult!!.isSuccess.shouldBeEqualTo(true)
+        // Assert #3: The result is success.
+        result.isSuccess.shouldBeEqualTo(true)
 
         // Ensure we only called once
-        verify(exactly = 1) { httpClient.request(any(), any()) }
+        coVerify(exactly = 1) { httpClient.request(any()) }
     }
 
     @Test
-    fun trackMetric_givenHttpClientFails_expectCallbackFailure() {
-        every {
-            httpClient.request(any(), any())
-        } answers {
-            // Simulate failure
-            secondArg<(Result<String>) -> Unit>().invoke(Result.failure(Exception("Network error")))
-        }
+    fun trackMetric_givenHttpClientFails_expectCallbackFailure() = runTest {
+        coEvery {
+            httpClient.request(any())
+        } returns Result.failure(Exception("Network error"))
 
-        var callbackResult: Result<Unit>? = null
+        val result = pushDeliveryTracker.trackMetric("token", "OPENED", "deliveryId")
 
-        pushDeliveryTracker.trackMetric("token", "OPENED", "deliveryId") { result ->
-            callbackResult = result
-            Unit
-        }
-
-        callbackResult!!.isFailure.shouldBeEqualTo(true)
+        result.isFailure.shouldBeEqualTo(true)
     }
 }

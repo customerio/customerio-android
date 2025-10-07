@@ -147,7 +147,7 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
             }
 
             android {
-                compileSdk 34
+                compileSdk 35
                 namespace "com.apkscale.mock"
                 
                 defaultConfig {

@@ -2,15 +2,12 @@ package io.customer.messagingpush.network
 
 import android.util.Base64
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 internal data class HttpRequestParams(
     val path: String,
@@ -20,14 +17,14 @@ internal data class HttpRequestParams(
 
 internal interface HttpClient {
     /**
-     * Performs a POST request to [params.url] with [params.headers] and [params.body].
+     * Performs a POST request to [params.path] with [params.headers] and [params.body].
      *
-     * @param params The request parameters (URL, headers, body).
-     * @param onComplete Callback invoked with a `Result<String>`:
+     * @param params The request parameters (path, headers, body).
+     * @return A `Result<String>`:
      *   - `Result.success(responseBody)` for 2xx response codes
      *   - `Result.failure(exception)` for network errors or non-2xx codes
      */
-    fun request(params: HttpRequestParams, onComplete: (Result<String>) -> Unit)
+    suspend fun request(params: HttpRequestParams): Result<String>
 }
 
 internal class HttpClientImpl : HttpClient {
@@ -38,18 +35,9 @@ internal class HttpClientImpl : HttpClient {
         get() = SDKComponent.android().globalPreferenceStore
     private val client: Client
         get() = SDKComponent.android().client
-    private val dispatcher: DispatchersProvider
-        get() = SDKComponent.dispatchersProvider
 
-    override fun request(params: HttpRequestParams, onComplete: (Result<String>) -> Unit) {
-        // Launch a coroutine on our IO dispatcher
-        CoroutineScope(dispatcher.background).launch {
-            val result = doNetworkRequest(params)
-            // If you want to call onComplete on the same IO thread, just invoke it here.
-            // If you prefer to call it on the main thread, do:
-            // withContext(Dispatchers.Main) { onComplete(result) }
-            onComplete(result)
-        }
+    override suspend fun request(params: HttpRequestParams): Result<String> {
+        return doNetworkRequest(params)
     }
 
     private fun doNetworkRequest(params: HttpRequestParams): Result<String> {

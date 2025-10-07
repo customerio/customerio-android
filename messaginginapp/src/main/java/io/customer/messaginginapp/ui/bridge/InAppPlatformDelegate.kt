@@ -34,7 +34,7 @@ interface InAppPlatformDelegate {
      * The view should be destroyed if the activity is finishing or not changing configurations.
      * This is useful for managing resources and preventing memory leaks.
      */
-    fun shouldDestroyViewOnDetach(): Boolean
+    fun shouldDestroyWithOwner(): Boolean
 
     /**
      * Converts the given size from dp to pixels based on the device's screen density.
@@ -106,10 +106,10 @@ open class AndroidInAppPlatformDelegate(
         context.startActivity(intent)
     }
 
-    override fun shouldDestroyViewOnDetach(): Boolean {
+    override fun shouldDestroyWithOwner(): Boolean {
         val activity = view.context?.findActivity()
-        return activity?.let {
-            it.isFinishing || !it.isChangingConfigurations
+        return activity?.let { act ->
+            !act.isChangingConfigurations
         } ?: true
     }
 

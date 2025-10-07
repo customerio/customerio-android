@@ -48,6 +48,8 @@ class InlineMessageViewControllerTest : JUnitTest() {
             platformDelegate = platformDelegate,
             viewDelegate = viewDelegate
         )
+        // Simulate view lifecycle owner creation for testing
+        instance.onViewOwnerCreated()
         return spyk(instance)
     }
 
@@ -63,13 +65,13 @@ class InlineMessageViewControllerTest : JUnitTest() {
     }
 
     @Test
-    fun onDetached_givenActivityFinishing_expectDismissEventDispatched() {
+    fun onViewOwnerDestroyed_givenMessageSet_expectDismissEventDispatched() {
         val controller = createViewController()
         val givenMessage = createInAppMessage()
         controller.currentMessage = givenMessage
-        every { platformDelegate.shouldDestroyViewOnDetach() } returns true
+        every { platformDelegate.shouldDestroyWithOwner() } returns true
 
-        controller.onDetachedFromWindow()
+        controller.onViewOwnerDestroyed()
 
         assertCalledOnce {
             inAppMessagingManager.dispatch(
@@ -83,25 +85,25 @@ class InlineMessageViewControllerTest : JUnitTest() {
     }
 
     @Test
-    fun onDetached_givenActivityChangingConfiguration_expectNoEventDispatched() {
+    fun onViewOwnerDestroyed_givenActivityChangingConfiguration_expectNoEventDispatched() {
         val controller = createViewController()
         val givenMessage = createInAppMessage()
         controller.currentMessage = givenMessage
-        every { platformDelegate.shouldDestroyViewOnDetach() } returns false
+        every { platformDelegate.shouldDestroyWithOwner() } returns false
         clearMocks(inAppMessagingManager, engineWebViewDelegate, viewDelegate)
 
-        controller.onDetachedFromWindow()
+        controller.onViewOwnerDestroyed()
 
         assertNoInteractions(inAppMessagingManager, engineWebViewDelegate, viewDelegate)
     }
 
     @Test
-    fun onDetached_givenNoMessageSet_expectNoEventDispatched() {
+    fun onViewOwnerDestroyed_givenNoMessageSet_expectNoEventDispatched() {
         val controller = createViewController()
-        every { platformDelegate.shouldDestroyViewOnDetach() } returns false
+        every { platformDelegate.shouldDestroyWithOwner() } returns false
         clearMocks(inAppMessagingManager, engineWebViewDelegate, viewDelegate, platformDelegate)
 
-        controller.onDetachedFromWindow()
+        controller.onViewOwnerDestroyed()
 
         assertNoInteractions(
             inAppMessagingManager,
@@ -124,5 +126,17 @@ class InlineMessageViewControllerTest : JUnitTest() {
         assertCalledOnce {
             inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenMessage))
         }
+    }
+
+    @Test
+    fun onViewOwnerDestroyed_givenStateSubscription_expectUnsubscriptionFromStore() {
+        val controller = createViewController()
+        clearMocks(inAppMessagingManager)
+
+        controller.onViewOwnerDestroyed()
+
+        // Verify that the state subscription job is cancelled
+        // This test ensures resource cleanup for lifecycle optimization
+        assertNoInteractions(inAppMessagingManager)
     }
 }

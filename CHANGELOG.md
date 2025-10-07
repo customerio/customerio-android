@@ -1,3 +1,15 @@
+## [4.11.0](https://github.com/customerio/customerio-android/compare/4.10.2...4.11.0) (2025-10-07)
+
+### Features
+
+* Improve push notificaiton delivery receipts delay ([#618](https://github.com/customerio/customerio-android/issues/618)) ([ce5cdf3](https://github.com/customerio/customerio-android/commit/ce5cdf370d97825f83843bf163767e02e871c292))
+
+## [4.10.2](https://github.com/customerio/customerio-android/compare/4.10.1...4.10.2) (2025-10-03)
+
+### Bug Fixes
+
+* optimize inline in-app reloading ([#611](https://github.com/customerio/customerio-android/issues/611)) ([a201c86](https://github.com/customerio/customerio-android/commit/a201c86fe78b75f84b8796f8b367de24a65566f9))
+
 ## [4.10.1](https://github.com/customerio/customerio-android/compare/4.10.0...4.10.1) (2025-08-29)
 
 ### Bug Fixes

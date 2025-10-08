@@ -1,3 +1,9 @@
+## [4.12.0](https://github.com/customerio/customerio-android/compare/4.11.0...4.12.0) (2025-10-08)
+
+### Features
+
+* in-app anonymous support ([#614](https://github.com/customerio/customerio-android/issues/614)) ([bfcbb80](https://github.com/customerio/customerio-android/commit/bfcbb806a8af61e7e8f8f1c2998aba85ec154dc0))
+
 ## [4.11.0](https://github.com/customerio/customerio-android/compare/4.10.2...4.11.0) (2025-10-07)
 
 ### Features

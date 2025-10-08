@@ -80,7 +80,8 @@ class GistSDKTest : JUnitTest() {
         gistSdk.setUserId(givenUserId)
 
         assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
-        assertCalledOnce { mockGistQueue.fetchUserMessages() }
+        // fetchUserMessages() is called in a timer with initialDelay=0, so we use timeout
+        verify(timeout = 1000, exactly = 1) { mockGistQueue.fetchUserMessages() }
     }
 
     @Test
@@ -121,9 +122,9 @@ class GistSDKTest : JUnitTest() {
 
         gistSdk.setUserId(givenUserId)
 
-        // verify first call actions
+        // verify first call actions (use timeout for async timer)
         verify(exactly = 1) { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
-        verify(exactly = 1) { mockGistQueue.fetchUserMessages() }
+        verify(timeout = 1000, exactly = 1) { mockGistQueue.fetchUserMessages() }
 
         // clear invocations to start fresh for the second call
         clearMocks(mockInAppMessagingManager, mockGistQueue)

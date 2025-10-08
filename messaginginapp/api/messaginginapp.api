@@ -94,17 +94,46 @@ public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/cus
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
+public final class io/customer/messaginginapp/gist/data/model/BroadcastFrequency {
+	public fun <init> (IIZ)V
+	public synthetic fun <init> (IIZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun copy (IIZ)Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;IIZILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCount ()I
+	public final fun getDelay ()I
+	public final fun getIgnoreDismiss ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messaginginapp/gist/data/model/BroadcastProperties {
+	public fun <init> (Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;)V
+	public final fun component1 ()Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public final fun copy (Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;)Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrequency ()Lio/customer/messaginginapp/gist/data/model/BroadcastFrequency;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/messaginginapp/gist/data/model/GistProperties {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public final fun component5 ()Z
 	public final fun component6 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/GistProperties;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
+	public final fun component7 ()Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/gist/data/model/GistProperties;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/data/model/MessagePosition;ZLjava/lang/String;Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;ILjava/lang/Object;)Lio/customer/messaginginapp/gist/data/model/GistProperties;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBroadcast ()Lio/customer/messaginginapp/gist/data/model/BroadcastProperties;
 	public final fun getCampaignId ()Ljava/lang/String;
 	public final fun getElementId ()Ljava/lang/String;
 	public final fun getOverlayColor ()Ljava/lang/String;
@@ -138,6 +167,11 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/customer/messaginginapp/gist/data/model/MessageKt {
+	public static final fun isMessageAnonymous (Lio/customer/messaginginapp/gist/data/model/Message;)Z
+	public static final fun isShowAlwaysAnonymous (Lio/customer/messaginginapp/gist/data/model/Message;)Z
+}
+
 public final class io/customer/messaginginapp/gist/data/model/MessagePosition : java/lang/Enum {
 	public static final field BOTTOM Lio/customer/messaginginapp/gist/data/model/MessagePosition;
 	public static final field CENTER Lio/customer/messaginginapp/gist/data/model/MessagePosition;
@@ -167,6 +201,7 @@ public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/cus
 	public fun dismissMessage ()V
 	public fun fetchInAppMessages ()V
 	public fun reset ()V
+	public fun setAnonymousId (Ljava/lang/String;)V
 	public fun setCurrentRoute (Ljava/lang/String;)V
 	public fun setUserId (Ljava/lang/String;)V
 }
@@ -323,6 +358,17 @@ public final class io/customer/messaginginapp/state/InAppMessagingAction$Reset :
 	public static final field INSTANCE Lio/customer/messaginginapp/state/InAppMessagingAction$Reset;
 }
 
+public final class io/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier : io/customer/messaginginapp/state/InAppMessagingAction {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/state/InAppMessagingAction$SetAnonymousIdentifier;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnonymousId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/messaginginapp/state/InAppMessagingAction$SetPageRoute : io/customer/messaginginapp/state/InAppMessagingAction {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -362,8 +408,20 @@ public final class io/customer/messaginginapp/state/InAppMessagingActionKt {
 
 public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {
 	public abstract fun clearAll ()V
+	public abstract fun clearAllAnonymousData ()V
+	public abstract fun clearAnonymousTracking (Ljava/lang/String;)V
+	public abstract fun getAnonymousMessages ()Ljava/lang/String;
+	public abstract fun getAnonymousNextShowTime (Ljava/lang/String;)J
+	public abstract fun getAnonymousTimesShown (Ljava/lang/String;)I
 	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun incrementAnonymousTimesShown (Ljava/lang/String;)V
+	public abstract fun isAnonymousDismissed (Ljava/lang/String;)Z
+	public abstract fun isAnonymousInDelayPeriod (Ljava/lang/String;)Z
+	public abstract fun isAnonymousMessagesExpired ()Z
+	public abstract fun saveAnonymousMessages (Ljava/lang/String;J)V
 	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun setAnonymousDismissed (Ljava/lang/String;Z)V
+	public abstract fun setAnonymousNextShowTime (Ljava/lang/String;J)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

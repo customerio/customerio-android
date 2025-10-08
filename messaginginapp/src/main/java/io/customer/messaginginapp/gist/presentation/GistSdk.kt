@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.filter
 internal interface GistProvider {
     fun setCurrentRoute(route: String)
     fun setUserId(userId: String)
+    fun setAnonymousId(anonymousId: String)
     fun dismissMessage()
     fun reset()
     fun fetchInAppMessages()
@@ -116,6 +117,16 @@ class GistSdk(
             return
         }
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
+        fetchInAppMessages(state.pollInterval)
+    }
+
+    override fun setAnonymousId(anonymousId: String) {
+        if (state.anonymousId == anonymousId) {
+            logger.debug("Current anonymous id is already set to: ${state.anonymousId}, ignoring new anonymous id")
+            return
+        }
+        logger.debug("Setting anonymous id to: $anonymousId")
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetAnonymousIdentifier(anonymousId))
         fetchInAppMessages(state.pollInterval)
     }
 

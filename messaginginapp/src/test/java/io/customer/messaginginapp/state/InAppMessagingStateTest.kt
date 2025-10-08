@@ -86,6 +86,26 @@ class InAppMessagingStateTest : JUnitTest() {
     }
 
     @Test
+    fun diff_withDifferentAnonymousId_shouldIncludeAnonymousIdInDifferences() {
+        val anonymousId1 = String.random
+        val anonymousId2 = String.random
+
+        val state1 = InAppMessagingState(
+            siteId = String.random,
+            anonymousId = anonymousId1
+        )
+        val state2 = InAppMessagingState(
+            siteId = state1.siteId,
+            anonymousId = anonymousId2
+        )
+
+        val result = state1.diff(state2)
+
+        assertEquals(1, result.size)
+        assertEquals(Pair(anonymousId1, anonymousId2), result["anonymousId"])
+    }
+
+    @Test
     fun withUpdatedEmbeddedMessage_shouldUpdateInlineMessageState() {
         val elementId = String.random
         val message = createMessage(elementId = elementId)

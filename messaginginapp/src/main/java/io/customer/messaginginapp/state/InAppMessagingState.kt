@@ -9,6 +9,7 @@ internal data class InAppMessagingState(
     val environment: GistEnvironment = GistEnvironment.PROD,
     val pollInterval: Long = 600_000L,
     val userId: String? = null,
+    val anonymousId: String? = null,
     val currentRoute: String? = null,
     val sessionId: String = "",
     val modalMessageState: ModalMessageState = ModalMessageState.Initial,
@@ -23,6 +24,7 @@ internal data class InAppMessagingState(
         append("environment=$environment,\n")
         append("pollInterval=$pollInterval,\n")
         append("userId=$userId,\n")
+        append("anonymousId=$anonymousId,\n")
         append("currentRoute=$currentRoute,\n")
         append("sessionId='$sessionId',\n")
         append("modalMessageState=$modalMessageState,\n")
@@ -38,6 +40,7 @@ internal data class InAppMessagingState(
             if (environment != other.environment) put("environment", environment to other.environment)
             if (pollInterval != other.pollInterval) put("pollInterval", pollInterval to other.pollInterval)
             if (userId != other.userId) put("userId", userId to other.userId)
+            if (anonymousId != other.anonymousId) put("anonymousId", anonymousId to other.anonymousId)
             if (currentRoute != other.currentRoute) put("currentRoute", currentRoute to other.currentRoute)
             if (sessionId != other.sessionId) put("sessionId", sessionId to other.sessionId)
             if (modalMessageState != other.modalMessageState) put("modalMessageState", modalMessageState to other.modalMessageState)

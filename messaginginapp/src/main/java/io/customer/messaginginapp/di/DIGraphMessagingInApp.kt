@@ -6,6 +6,7 @@ import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.AnonymousMessageManagerImpl
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
+import io.customer.messaginginapp.gist.data.listeners.GistSSEClient
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
@@ -20,6 +21,9 @@ import io.customer.sdk.core.di.SDKComponent
 
 internal val SDKComponent.gistQueue: GistQueue
     get() = singleton<GistQueue> { Queue() }
+
+internal val SDKComponent.gistSSEClient: GistSSEClient
+    get() = singleton<GistSSEClient> { GistSSEClient(logger, inAppMessagingManager) }
 
 val SDKComponent.inAppModuleConfig: MessagingInAppModuleConfig
     get() = inAppMessaging.moduleConfig

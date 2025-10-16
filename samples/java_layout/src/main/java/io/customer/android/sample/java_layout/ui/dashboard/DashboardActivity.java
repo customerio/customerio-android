@@ -40,7 +40,10 @@ import io.customer.android.sample.java_layout.ui.tracking.TrackingFragmentActivi
 import io.customer.android.sample.java_layout.ui.user.AuthViewModel;
 import io.customer.android.sample.java_layout.utils.Randoms;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
+import io.customer.messaginginapp.di.DIGraphMessagingInAppKt;
+import io.customer.messaginginapp.gist.data.listeners.GistSSEClient;
 import io.customer.sdk.CustomerIO;
+import io.customer.sdk.core.di.SDKComponent;
 
 public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
@@ -141,10 +144,14 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
             startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_CUSTOM_TRACKING_EVENT);
         });
         binding.setDeviceAttributesButton.setOnClickListener(view -> {
-            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_DEVICE_ATTRIBUTES);
+//            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_DEVICE_ATTRIBUTES);
+            GistSSEClient sse = DIGraphMessagingInAppKt.getGistSSEClient(SDKComponent.INSTANCE);
+            sse.startListening();
         });
         binding.setProfileAttributesButton.setOnClickListener(view -> {
-            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
+//            startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_PROFILE_ATTRIBUTES);
+            GistSSEClient sse = DIGraphMessagingInAppKt.getGistSSEClient(SDKComponent.INSTANCE);
+            sse.stopListening();
         });
         binding.showPushPromptButton.setOnClickListener(view -> {
             requestNotificationPermission();

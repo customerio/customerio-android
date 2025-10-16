@@ -74,9 +74,10 @@ class GistSdk(
         logger.debug("Starting polling with duration: $duration and initial delay: $initialDelay")
         timer?.cancel()
         // create a timer to run the task after the initial run
-        timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
-            gistQueue.fetchUserMessages()
-        }
+//        timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
+//            gistQueue.fetchUserMessages()
+//            SDKComponent.gistSSEClient.startListening()
+//        }
     }
 
     private fun subscribeToEvents() {

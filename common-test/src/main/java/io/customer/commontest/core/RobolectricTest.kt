@@ -24,10 +24,14 @@ import org.robolectric.annotation.Config
  * Tests extending this class should make sure to import JUnit5 imports for test annotations.
  * e.g. import org.junit.Test
  *
- * Note: Robolectric SDK is capped at 34 (Android 14) as Robolectric doesn't yet support SDK 36.
- * This is acceptable since we're testing SDK logic, not Android framework behavior.
+ * Note: Robolectric SDK is capped at 35 (Android 15) because SDK 36 (Android 16) requires Java 21,
+ * but this project uses Java 17. This is acceptable since we're testing SDK logic, not Android
+ * framework behavior. To support SDK 36 tests, we would need to:
+ * 1. Upgrade project to Java 21
+ * 2. Update Robolectric to a version that supports SDK 36
+ * 3. Update this config to sdk = [36]
  */
-@Config(sdk = [34])
+@Config(sdk = [35])
 abstract class RobolectricTest : UnitTest() {
     final override val applicationMock: Application = spyk(ApplicationProvider.getApplicationContext())
     final override val contextMock: Context = spyk(InstrumentationRegistry.getInstrumentation().targetContext)

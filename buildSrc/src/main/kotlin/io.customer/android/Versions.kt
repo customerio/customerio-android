@@ -32,7 +32,7 @@ object Versions {
     internal const val MOCKK = "1.13.13"
     internal const val SEGMENT = "1.19.2"
     internal const val REDUX_KOTLIN = "0.6.0"
-    internal const val ROBOLECTRIC = "4.13"
+    internal const val ROBOLECTRIC = "4.16"
     internal const val OKHTTP = "4.12.0"
     internal const val RETROFIT = "2.11.0"
 

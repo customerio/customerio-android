@@ -14,12 +14,12 @@ apply {
 
 android {
     namespace = "io.customer.android.sample.kotlin_compose"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.customer.android.sample.kotlin_compose"
         minSdk = 24
-        targetSdk = 33
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 

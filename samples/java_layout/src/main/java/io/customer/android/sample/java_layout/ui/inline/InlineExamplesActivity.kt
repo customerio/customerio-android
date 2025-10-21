@@ -1,25 +1,20 @@
 package io.customer.android.sample.java_layout.ui.inline
 
-import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.tabs.TabLayoutMediator
 import io.customer.android.sample.java_layout.R
 import io.customer.android.sample.java_layout.databinding.ActivityInlineMessagesTabbedBinding
+import io.customer.android.sample.java_layout.ui.core.BaseActivity
 import io.customer.sdk.tracking.TrackableScreen
 
-class InlineExamplesActivity : AppCompatActivity(), TrackableScreen {
-    private lateinit var binding: ActivityInlineMessagesTabbedBinding
+class InlineExamplesActivity : BaseActivity<ActivityInlineMessagesTabbedBinding>(), TrackableScreen {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityInlineMessagesTabbedBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        setupContent()
+    override fun inflateViewBinding(): ActivityInlineMessagesTabbedBinding {
+        return ActivityInlineMessagesTabbedBinding.inflate(layoutInflater)
     }
 
     override fun getScreenName(): String = getString(R.string.label_inline_examples_activity)
 
-    private fun setupContent() {
+    override fun setupContent() {
         // Setup toolbar
         setSupportActionBar(binding.topAppBar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

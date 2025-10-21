@@ -1,3 +1,5 @@
+import io.customer.android.Dependencies
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,12 +16,12 @@ apply {
 
 android {
     namespace = "io.customer.android.sample.kotlin_compose"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.customer.android.sample.kotlin_compose"
         minSdk = 24
-        targetSdk = 33
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -52,41 +54,46 @@ kotlin {
     jvmToolchain(17)
 }
 
-
-val roomVersion = "2.7.0"
+// Dependencies versions
+val datastoreVersion = "1.1.7"
+val leakCanaryVersion = "2.14"
+val lifecycleVersion = "2.9.4"
+val navigationVersion = "2.9.5"
+val roomVersion = "2.8.2"
 
 dependencies {
     // Compose dependencies are included from sample-app.gradle
-    implementation("androidx.activity:activity-compose:1.7.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    implementation("androidx.activity:activity-compose:1.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycleVersion")
     implementation("androidx.compose.material3:material3")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.3.1")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("androidx.navigation:navigation-fragment-ktx:2.5.3")
-    implementation("androidx.navigation:navigation-ui-ktx:2.5.3")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.1")
+    implementation(Dependencies.androidxAppCompat)
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.6.0-rc01")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
+    implementation("androidx.navigation:navigation-fragment-ktx:$navigationVersion")
+    implementation("androidx.navigation:navigation-ui-ktx:$navigationVersion")
+    implementation("androidx.navigation:navigation-compose:$navigationVersion")
 
     // Persistence - using KAPT since we removed KSP
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    implementation("androidx.datastore:datastore-core:1.0.0")
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    // DataStore
+    implementation("androidx.datastore:datastore-core:$datastoreVersion")
+    implementation("androidx.datastore:datastore-preferences:$datastoreVersion")
 
     // Leak detection
-    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.11")
-    androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:2.11")
-
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:$leakCanaryVersion")
+    androidTestImplementation("com.squareup.leakcanary:leakcanary-android-instrumentation:$leakCanaryVersion")
 
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation(Dependencies.androidxTestJunit)
+    androidTestImplementation(Dependencies.espressoCore)
+    androidTestImplementation(Dependencies.androidxTestRunner)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:${project.ext["COMPOSE_VERSION"]}")
     debugImplementation("androidx.compose.ui:ui-test-manifest:${project.ext["COMPOSE_VERSION"]}")
 }

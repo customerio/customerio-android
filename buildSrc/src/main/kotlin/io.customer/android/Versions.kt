@@ -20,7 +20,7 @@ object Versions {
     internal const val COROUTINES = "1.10.2"
     internal const val DOKKA = "1.9.20"
     internal const val JUNIT_BOM = "5.9.3"
-    internal const val ESPRESSO = "3.4.0"
+    internal const val ESPRESSO = "3.7.0"
     internal const val FIREBASE_MESSAGING = "24.1.2"
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "2.0.0"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "18.7.2"

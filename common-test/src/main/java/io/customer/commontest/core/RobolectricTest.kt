@@ -12,6 +12,7 @@ import io.mockk.mockk
 import io.mockk.spyk
 import org.junit.After
 import org.junit.Before
+import org.robolectric.annotation.Config
 
 /**
  * Robolectric test base class for all Robolectric tests in the project.
@@ -22,7 +23,11 @@ import org.junit.Before
  *
  * Tests extending this class should make sure to import JUnit5 imports for test annotations.
  * e.g. import org.junit.Test
+ *
+ * Note: Robolectric SDK is capped at 34 (Android 14) as Robolectric doesn't yet support SDK 36.
+ * This is acceptable since we're testing SDK logic, not Android framework behavior.
  */
+@Config(sdk = [34])
 abstract class RobolectricTest : UnitTest() {
     final override val applicationMock: Application = spyk(ApplicationProvider.getApplicationContext())
     final override val contextMock: Context = spyk(InstrumentationRegistry.getInstrumentation().targetContext)

@@ -31,7 +31,8 @@ internal data class InAppMessagingState(
         append("modalMessageState=$modalMessageState,\n")
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
-        append("shownMessageQueueIds=$shownMessageQueueIds)")
+        append("shownMessageQueueIds=$shownMessageQueueIds,\n")
+        append("sseEnabled=$sseEnabled)")
     }
 
     fun diff(other: InAppMessagingState): Map<String, Pair<Any?, Any?>> {
@@ -48,6 +49,7 @@ internal data class InAppMessagingState(
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
+            if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
         }
     }
 }

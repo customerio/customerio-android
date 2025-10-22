@@ -42,4 +42,23 @@ class InAppMessagingStateSseTest : JUnitTest() {
         assertEquals(300_000L, newState.pollInterval)
         assertTrue(newState.sseEnabled)
     }
+
+    @Test
+    fun `test diff includes sseEnabled changes`() {
+        val state1 = InAppMessagingState(sseEnabled = false)
+        val state2 = InAppMessagingState(sseEnabled = true)
+
+        val result = state1.diff(state2)
+
+        assertEquals(1, result.size)
+        assertEquals(Pair(false, true), result["sseEnabled"])
+    }
+
+    @Test
+    fun `test toString includes sseEnabled field`() {
+        val state = InAppMessagingState(sseEnabled = true)
+        val result = state.toString()
+
+        assertTrue(result.contains("sseEnabled=true"))
+    }
 }

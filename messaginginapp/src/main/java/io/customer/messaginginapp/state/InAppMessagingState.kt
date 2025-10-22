@@ -15,7 +15,8 @@ internal data class InAppMessagingState(
     val modalMessageState: ModalMessageState = ModalMessageState.Initial,
     val queuedInlineMessagesState: QueuedInlineMessagesState = QueuedInlineMessagesState(),
     val messagesInQueue: Set<Message> = emptySet(),
-    val shownMessageQueueIds: Set<String> = emptySet()
+    val shownMessageQueueIds: Set<String> = emptySet(),
+    val sseEnabled: Boolean = false
 ) {
     override fun toString(): String = buildString {
         append("InAppMessagingState(")

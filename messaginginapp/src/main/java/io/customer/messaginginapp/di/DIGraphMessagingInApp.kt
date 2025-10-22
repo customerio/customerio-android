@@ -7,6 +7,7 @@ import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.AnonymousMessageManagerImpl
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.listeners.Queue
+import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
@@ -55,6 +56,11 @@ internal val SDKComponent.modalMessageParser: ModalMessageParser
 internal val SDKComponent.anonymousMessageManager: AnonymousMessageManager
     get() = singleton<AnonymousMessageManager> {
         AnonymousMessageManagerImpl()
+    }
+
+internal val SDKComponent.sseConnectionManager: SseConnectionManager
+    get() = singleton<SseConnectionManager> {
+        SseConnectionManager(logger)
     }
 
 /**

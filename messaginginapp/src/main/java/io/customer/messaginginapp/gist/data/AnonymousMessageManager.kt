@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.gist.data
 
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.gist.data.model.BroadcastFrequency
@@ -20,6 +19,10 @@ internal interface AnonymousMessageManager {
     fun markAnonymousAsDismissed(anonymousId: String)
 }
 
+// Wrapper class for type-safe Gson deserialization
+// Avoids ProGuard/R8 issues with TypeToken in release builds
+private data class MessageListWrapper(val messages: List<Message>)
+
 internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -32,7 +35,6 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
     companion object {
         private const val ANONYMOUS_MESSAGES_EXPIRY_MINUTES = 60L
-        private val ANONYMOUS_MESSAGE_LIST_TYPE = object : TypeToken<List<Message>>() {}.type
     }
 
     override fun updateAnonymousMessagesLocalStore(messages: List<Message>) {
@@ -45,7 +47,7 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
             // Server has anonymous messages - update local storage
             val expiryTimeMillis = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(ANONYMOUS_MESSAGES_EXPIRY_MINUTES)
-            val messagesJson = gson.toJson(messagesWithAnonymous)
+            val messagesJson = gson.toJson(MessageListWrapper(messagesWithAnonymous))
             inAppPreferenceStore.saveAnonymousMessages(messagesJson, expiryTimeMillis)
 
             // Clean up tracking data for anonymous messages no longer in server response
@@ -117,11 +119,13 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
                 inAppPreferenceStore.setAnonymousDismissed(anonymousId, true)
                 logger.debug("Marked anonymous message $anonymousId as permanently dismissed (count=1)")
             }
+
             anonymousDetails.delay > 0 -> {
                 val nextShowTimeMillis = System.currentTimeMillis() + (anonymousDetails.delay * 1000L)
                 inAppPreferenceStore.setAnonymousNextShowTime(anonymousId, nextShowTimeMillis)
                 logger.debug("Marked anonymous message $anonymousId as seen, shown $numberOfTimesShown times, next show time: ${java.util.Date(nextShowTimeMillis)}")
             }
+
             else -> {
                 logger.debug("Marked anonymous message $anonymousId as seen, shown $numberOfTimesShown times, no delay restriction")
             }
@@ -152,7 +156,7 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
         val anonymousMessagesJson = inAppPreferenceStore.getAnonymousMessages() ?: return emptyList()
 
         return try {
-            gson.fromJson<List<Message>>(anonymousMessagesJson, ANONYMOUS_MESSAGE_LIST_TYPE) ?: emptyList()
+            gson.fromJson(anonymousMessagesJson, MessageListWrapper::class.java)?.messages ?: emptyList()
         } catch (e: Exception) {
             logger.debug("Error parsing stored anonymous messages: ${e.message}")
             emptyList()

@@ -8,6 +8,8 @@ import io.customer.messaginginapp.gist.data.AnonymousMessageManagerImpl
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
+import io.customer.messaginginapp.gist.data.sse.SseEventParser
+import io.customer.messaginginapp.gist.data.sse.SseService
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
@@ -58,9 +60,29 @@ internal val SDKComponent.anonymousMessageManager: AnonymousMessageManager
         AnonymousMessageManagerImpl()
     }
 
+internal val SDKComponent.sseEventParser: SseEventParser
+    get() = singleton<SseEventParser> {
+        SseEventParser(logger, Gson())
+    }
+
+internal val SDKComponent.sseService: SseService
+    get() = singleton<SseService> {
+        SseService(
+            logger = logger,
+            environment = inAppMessagingManager.getCurrentState().environment,
+            state = inAppMessagingManager.getCurrentState()
+        )
+    }
+
 internal val SDKComponent.sseConnectionManager: SseConnectionManager
     get() = singleton<SseConnectionManager> {
-        SseConnectionManager(logger)
+        SseConnectionManager(
+            logger = logger,
+            sseService = sseService,
+            sseEventParser = sseEventParser,
+            inAppMessagingManager = inAppMessagingManager,
+            scope = scopeProvider.inAppLifecycleScope
+        )
     }
 
 /**

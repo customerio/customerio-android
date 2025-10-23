@@ -73,24 +73,11 @@ class Queue : GistQueue {
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
                 val networkRequest = originalRequest.newBuilder()
-                    .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId)
-                    .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter)
-                    .addHeader(NetworkUtilities.CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase() + "-android")
-                    .addHeader(NetworkUtilities.CIO_CLIENT_VERSION, SDKComponent.android().client.sdkVersion)
-                    .addHeader(NetworkUtilities.GIST_USER_ANONYMOUS_HEADER, (state.userId == null).toString())
-                    .apply {
-                        val userToken = state.userId ?: state.anonymousId
-                        userToken?.let { token ->
-                            addHeader(
-                                NetworkUtilities.USER_TOKEN_HEADER,
-                                Base64.encodeToString(token.toByteArray(), Base64.NO_WRAP)
-                            )
-                        }
-                    }
-                    .header("Cache-Control", "no-cache")
-                    .build()
+                NetworkUtilities.addCommonHeaders(networkRequest, state)
+                networkRequest.header("Cache-Control", "no-cache")
+                val finalRequest = networkRequest.build()
 
-                interceptResponse(chain.proceed(networkRequest), originalRequest)
+                interceptResponse(chain.proceed(finalRequest), originalRequest)
             }
             .build()
 

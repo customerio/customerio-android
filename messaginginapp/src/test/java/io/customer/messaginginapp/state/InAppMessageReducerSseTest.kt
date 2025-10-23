@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 class InAppMessageReducerSseTest : JUnitTest() {
 
     @Test
-    fun `test SetSseEnabled action sets sseEnabled to true`() {
+    fun testSetSseEnabled_givenFalseState_thenSetsSseEnabledToTrue() {
         val initialState = InAppMessagingState(sseEnabled = false)
         val action = InAppMessagingAction.SetSseEnabled(true)
 
@@ -19,7 +19,7 @@ class InAppMessageReducerSseTest : JUnitTest() {
     }
 
     @Test
-    fun `test SetSseEnabled action sets sseEnabled to false`() {
+    fun testSetSseEnabled_givenTrueState_thenSetsSseEnabledToFalse() {
         val initialState = InAppMessagingState(sseEnabled = true)
         val action = InAppMessagingAction.SetSseEnabled(false)
 
@@ -29,7 +29,7 @@ class InAppMessageReducerSseTest : JUnitTest() {
     }
 
     @Test
-    fun `test SetSseEnabled action preserves other state properties`() {
+    fun testSetSseEnabled_givenStateWithOtherProperties_thenPreservesOtherStateProperties() {
         val initialState = InAppMessagingState(
             siteId = "test-site",
             userId = "test-user",
@@ -47,7 +47,7 @@ class InAppMessageReducerSseTest : JUnitTest() {
     }
 
     @Test
-    fun `test Reset action resets sseEnabled to false`() {
+    fun testReset_givenSseEnabledTrue_thenResetsSseEnabledToFalse() {
         val initialState = InAppMessagingState(sseEnabled = true)
         val action = InAppMessagingAction.Reset
 

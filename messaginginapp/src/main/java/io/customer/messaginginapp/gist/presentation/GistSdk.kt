@@ -47,25 +47,13 @@ class GistSdk(
     }
 
     private fun onActivityResumed() {
-        logger.debug("Activity resumed")
-        if (state.sseEnabled) {
-            logger.info("SSE is enabled, starting SSE connection")
-            sseConnectionManager.startConnection()
-        } else {
-            logger.debug("SSE is disabled, starting polling")
-            fetchInAppMessages(state.pollInterval)
-        }
+        logger.debug("Activity resumed, starting polling")
+        fetchInAppMessages(state.pollInterval)
     }
 
     private fun onActivityPaused() {
-        logger.debug("Activity paused")
-        if (state.sseEnabled) {
-            logger.info("SSE is enabled, stopping SSE connection")
-            sseConnectionManager.stopConnection()
-        } else {
-            logger.debug("SSE is disabled, stopping polling")
-            resetTimer()
-        }
+        logger.debug("Activity paused, stopping polling")
+        resetTimer()
     }
 
     init {
@@ -119,15 +107,12 @@ class GistSdk(
 
         // Subscribe to SSE flag changes for dynamic switching
         inAppMessagingManager.subscribeToAttribute({ it.sseEnabled }) { sseEnabled ->
+            // TODO ensure this respects lifecycle foreground/background
             logger.info("SSE flag changed to: $sseEnabled")
             if (sseEnabled) {
                 logger.info("Switching from polling to SSE")
                 resetTimer()
                 sseConnectionManager.startConnection()
-            } else {
-                logger.info("Switching from SSE to polling")
-                sseConnectionManager.stopConnection()
-                fetchInAppMessages(state.pollInterval)
             }
         }
     }

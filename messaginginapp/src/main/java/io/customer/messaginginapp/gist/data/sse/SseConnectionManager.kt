@@ -31,9 +31,7 @@ internal class SseConnectionManager(
     private var connectionState = SseConnectionState.DISCONNECTED
 
     /**
-     * Start SSE connection.
-     *
-     * This method is thread-safe and will cancel any existing connection before starting a new one.
+     * Start SSE connection (Phase 0: only logs)
      */
     internal fun startConnection() {
         scope.launch {

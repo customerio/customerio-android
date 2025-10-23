@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.gist.data.sse
 
 import android.util.Base64
+import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.util.Logger
@@ -17,6 +18,7 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
+import java.util.concurrent.TimeUnit
 
 /**
  * SSE service for establishing Server-Sent Events connections.

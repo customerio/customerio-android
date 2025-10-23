@@ -30,10 +30,10 @@ class SseConnectionManagerTest : JUnitTest() {
     private val sseService = mockk<SseService>(relaxed = true)
     private val sseEventParser = mockk<SseEventParser>(relaxed = true)
     private val inAppMessagingManager = mockk<InAppMessagingManager>(relaxed = true)
-    
+
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
-    
+
     private lateinit var connectionManager: SseConnectionManager
 
     @BeforeEach
@@ -86,7 +86,7 @@ class SseConnectionManagerTest : JUnitTest() {
         // When - Start first connection
         connectionManager.startConnection()
         testScope.advanceUntilIdle()
-        
+
         // Start second connection while first is still connecting
         connectionManager.startConnection()
         testScope.advanceUntilIdle()
@@ -210,7 +210,7 @@ class SseConnectionManagerTest : JUnitTest() {
         )
         val mockMessages = listOf(mockk<Message>(), mockk<Message>())
         val messagesJson = """[{"messageId": "msg1"}, {"messageId": "msg2"}]"""
-        
+
         every { inAppMessagingManager.getCurrentState() } returns mockState
         every { sseEventParser.parseMessages(messagesJson) } returns mockMessages
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(

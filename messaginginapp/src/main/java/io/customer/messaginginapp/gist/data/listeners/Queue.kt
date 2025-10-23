@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.gist.data.listeners
 
 import android.content.Context
-import android.util.Base64
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore

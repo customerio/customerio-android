@@ -30,7 +30,7 @@ class NetworkUtilities {
 
         /**
          * Creates common headers for Customer.io API requests.
-         * 
+         *
          * @param builder Request.Builder to add headers to
          * @param state Current in-app messaging state
          * @param includeUserToken Whether to include user token header (default: true)

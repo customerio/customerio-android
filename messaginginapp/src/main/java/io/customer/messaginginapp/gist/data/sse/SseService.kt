@@ -5,6 +5,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.util.Logger
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -17,14 +18,13 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
-import java.util.concurrent.TimeUnit
 
 /**
  * SSE service for establishing Server-Sent Events connections.
- * 
+ *
  * This service handles the actual HTTP connection to the SSE endpoint and provides
  * a flow of SSE events for processing by the connection manager.
- * 
+ *
  * Thread Safety: This service is designed to be called from thread-safe methods
  * (like SseConnectionManager methods) to avoid unnecessary synchronization overhead.
  * The SseConnectionManager ensures single-threaded access through its mutex.
@@ -40,7 +40,7 @@ internal class SseService(
 
     /**
      * Connect to SSE endpoint and return a flow of events.
-     * 
+     *
      * This method is NOT thread-safe. It should only be called from thread-safe methods
      * (like SseConnectionManager methods) to avoid unnecessary synchronization overhead.
      */
@@ -54,46 +54,49 @@ internal class SseService(
         val request = createSseRequest(sessionId, userToken, siteId)
 
         eventSource = EventSources.createFactory(httpClient)
-            .newEventSource(request, object : EventSourceListener() {
+            .newEventSource(
+                request,
+                object : EventSourceListener() {
 
-                override fun onOpen(eventSource: EventSource, response: Response) {
-                    logger.info("SSE: Connection opened successfully")
-                }
-
-                override fun onEvent(
-                    eventSource: EventSource,
-                    id: String?,
-                    type: String?,
-                    data: String
-                ) {
-                    logger.debug("SSE: Received event - id: $id type: $type, data: $data")
-
-                    if (type.isNullOrBlank() || data.isBlank()) {
-                        logger.debug("SSE: Received event with no type or data")
-                        return
+                    override fun onOpen(eventSource: EventSource, response: Response) {
+                        logger.info("SSE: Connection opened successfully")
                     }
 
-                    try {
-                        trySend(SseEvent(type, data))
-                    } catch (e: Exception) {
-                        logger.debug("SSE: Error sending event: ${e.message}")
+                    override fun onEvent(
+                        eventSource: EventSource,
+                        id: String?,
+                        type: String?,
+                        data: String
+                    ) {
+                        logger.debug("SSE: Received event - id: $id type: $type, data: $data")
+
+                        if (type.isNullOrBlank() || data.isBlank()) {
+                            logger.debug("SSE: Received event with no type or data")
+                            return
+                        }
+
+                        try {
+                            trySend(SseEvent(type, data))
+                        } catch (e: Exception) {
+                            logger.debug("SSE: Error sending event: ${e.message}")
+                        }
+                    }
+
+                    override fun onFailure(
+                        eventSource: EventSource,
+                        t: Throwable?,
+                        response: Response?
+                    ) {
+                        logger.error("SSE: Connection failed: ${t?.message}, response code: ${response?.code}")
+                        close(t ?: IllegalStateException("SSE failed: HTTP ${response?.code}"))
+                    }
+
+                    override fun onClosed(eventSource: EventSource) {
+                        logger.info("SSE: Connection closed")
+                        close()
                     }
                 }
-
-                override fun onFailure(
-                    eventSource: EventSource,
-                    t: Throwable?,
-                    response: Response?
-                ) {
-                    logger.error("SSE: Connection failed: ${t?.message}, response code: ${response?.code}")
-                    close(t ?: IllegalStateException("SSE failed: HTTP ${response?.code}"))
-                }
-
-                override fun onClosed(eventSource: EventSource) {
-                    logger.info("SSE: Connection closed")
-                    close()
-                }
-            })
+            )
 
         awaitClose {
             logger.debug("SSE: Flow cancelled, cleaning up")
@@ -104,7 +107,7 @@ internal class SseService(
 
     /**
      * Disconnect from SSE endpoint and clean up resources.
-     * 
+     *
      * This method is NOT thread-safe. It should only be called from thread-safe methods
      * (like SseConnectionManager.stopConnection) to avoid unnecessary synchronization overhead.
      */

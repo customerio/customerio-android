@@ -1,13 +1,13 @@
 package io.customer.messaginginapp.gist
 
-interface GistEnvironmentEndpoints {
+internal interface GistEnvironmentEndpoints {
     fun getGistQueueApiUrl(): String
     fun getEngineApiUrl(): String
     fun getGistRendererUrl(): String
     fun getSseApiUrl(): String
 }
 
-enum class GistEnvironment : GistEnvironmentEndpoints {
+internal enum class GistEnvironment : GistEnvironmentEndpoints {
     DEV {
         override fun getGistQueueApiUrl() = "https://consumer.dev.inapp.customer.io"
         override fun getEngineApiUrl() = "https://engine.api.dev.gist.build"

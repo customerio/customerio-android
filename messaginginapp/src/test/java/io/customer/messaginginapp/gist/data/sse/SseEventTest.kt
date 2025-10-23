@@ -2,8 +2,8 @@ package io.customer.messaginginapp.gist.data.sse
 
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldContain
+import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.jupiter.api.Test
 
 class SseEventTest : JUnitTest() {

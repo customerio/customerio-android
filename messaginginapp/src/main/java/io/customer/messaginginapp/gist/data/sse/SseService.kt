@@ -18,7 +18,6 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
-import java.util.concurrent.TimeUnit
 
 /**
  * SSE service for establishing Server-Sent Events connections.

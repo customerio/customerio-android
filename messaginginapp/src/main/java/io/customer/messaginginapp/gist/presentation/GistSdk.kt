@@ -25,7 +25,7 @@ internal interface GistProvider {
     fun fetchInAppMessages()
 }
 
-class GistSdk(
+internal class GistSdk(
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD

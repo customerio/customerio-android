@@ -19,7 +19,7 @@ internal enum class GistEnvironment : GistEnvironmentEndpoints {
         override fun getGistQueueApiUrl() = "http://queue.api.local.gist.build:86"
         override fun getEngineApiUrl() = "http://engine.api.local.gist.build:82"
         override fun getGistRendererUrl() = "https://renderer.gist.build/3.0"
-        override fun getSseApiUrl() = "http://realtime.local.gist.build:86/api/v3/sse"
+        override fun getSseApiUrl() = "https://realtime.cloud.dev.gist.build/api/v3/sse"
     },
 
     PROD {

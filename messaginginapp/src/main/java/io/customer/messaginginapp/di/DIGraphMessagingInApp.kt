@@ -70,7 +70,7 @@ internal val SDKComponent.sseService: SseService
         SseService(
             logger = logger,
             environment = inAppMessagingManager.getCurrentState().environment,
-            state = inAppMessagingManager.getCurrentState()
+            inAppMessagingManager = inAppMessagingManager
         )
     }
 

@@ -3,7 +3,7 @@ package io.customer.messaginginapp.gist.data.sse
 import android.util.Base64
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
-import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.Channel
@@ -32,7 +32,7 @@ import okhttp3.sse.EventSources
 internal class SseService(
     private val logger: Logger,
     private val environment: GistEnvironment,
-    private val state: InAppMessagingState
+    private val inAppMessagingManager: InAppMessagingManager
 ) {
 
     private var eventSource: EventSource? = null
@@ -123,7 +123,8 @@ internal class SseService(
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
                 val networkRequest = originalRequest.newBuilder()
-                NetworkUtilities.addCommonHeaders(networkRequest, state, includeUserToken = false) // SSE uses userToken in URL, not header
+                val currentState = inAppMessagingManager.getCurrentState()
+                NetworkUtilities.addCommonHeaders(networkRequest, currentState, includeUserToken = false) // SSE uses userToken in URL, not header
                 networkRequest.addHeader(NetworkUtilities.SSE_ACCEPT_HEADER, NetworkUtilities.SSE_ACCEPT_VALUE)
                 networkRequest.addHeader(NetworkUtilities.SSE_CACHE_CONTROL_HEADER, NetworkUtilities.SSE_CACHE_CONTROL_VALUE)
                 val finalRequest = networkRequest.build()

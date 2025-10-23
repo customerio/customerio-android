@@ -8,6 +8,7 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.commontest.module.CustomerIOGenericModule
 import io.customer.datapipelines.config.ScreenView
+import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
@@ -276,11 +277,13 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     }
 
     @Test
-    fun initialize_givenModuleInitialized_expectScreenFilterPluginPluginAdded() {
+    fun initialize_givenModuleInitialized_expectRequiredPluginsAdded() {
         val config = createCustomerIOConfigBuilder().build()
         CustomerIO.initialize(config)
 
-        CustomerIO.instance().analytics.find(ScreenFilterPlugin::class) shouldNotBe null
+        val analytics = CustomerIO.instance().analytics
+        analytics.find(ScreenFilterPlugin::class) shouldNotBe null
+        analytics.find(ApplicationLifecyclePlugin::class) shouldNotBe null
     }
 
     @Test

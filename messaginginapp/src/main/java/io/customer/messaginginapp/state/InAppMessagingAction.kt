@@ -4,9 +4,10 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 
-sealed class InAppMessagingAction {
+internal sealed class InAppMessagingAction {
     data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment) : InAppMessagingAction()
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
+    data class SetSseEnabled(val enabled: Boolean) : InAppMessagingAction()
     data class SetPageRoute(val route: String) : InAppMessagingAction()
     data class LoadMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()
     data class EmbedMessages(val messages: List<Message>) : InAppMessagingAction()
@@ -26,7 +27,7 @@ sealed class InAppMessagingAction {
     object Reset : InAppMessagingAction()
 }
 
-fun InAppMessagingAction.shouldMarkMessageAsShown(): Boolean {
+internal fun InAppMessagingAction.shouldMarkMessageAsShown(): Boolean {
     return when (this) {
         is InAppMessagingAction.DisplayMessage -> {
             // Mark the message as shown if it's not persistent

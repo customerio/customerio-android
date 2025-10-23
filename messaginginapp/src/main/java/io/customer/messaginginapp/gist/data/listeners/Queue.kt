@@ -145,6 +145,7 @@ class Queue : GistQueue {
                 }
 
                 updatePollingInterval(latestMessagesResponse.headers())
+                updateSseFlag(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 logger.debug("Error fetching messages: ${e.message}")
             }
@@ -192,6 +193,17 @@ class Queue : GistQueue {
                     inAppMessagingManager.dispatch(InAppMessagingAction.SetPollingInterval(newPollingIntervalMilliseconds))
                 }
             }
+        }
+    }
+
+    private fun updateSseFlag(headers: Headers) {
+        val sseHeaderValue = headers["X-CIO-Use-SSE"]
+        val sseEnabled = sseHeaderValue?.lowercase()?.toBooleanStrictOrNull() ?: false
+
+        if (sseEnabled != state.sseEnabled) {
+            logger.info("SSE flag changed from ${state.sseEnabled} to $sseEnabled")
+            logger.debug("Phase 0: SSE flag detected in response headers - switching from polling to SSE")
+            inAppMessagingManager.dispatch(InAppMessagingAction.SetSseEnabled(sseEnabled))
         }
     }
 

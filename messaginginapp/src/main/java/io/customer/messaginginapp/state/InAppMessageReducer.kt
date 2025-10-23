@@ -32,6 +32,9 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.SetPollingInterval ->
             state.copy(pollInterval = action.interval)
 
+        is InAppMessagingAction.SetSseEnabled ->
+            state.copy(sseEnabled = action.enabled)
+
         is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.withMessageDismissed(
             message = action.message,
             shouldMarkAsShown = false
@@ -48,7 +51,8 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             modalMessageState = ModalMessageState.Initial,
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),
-            shownMessageQueueIds = emptySet()
+            shownMessageQueueIds = emptySet(),
+            sseEnabled = false
         )
 
         is InAppMessagingAction.EmbedMessages -> {

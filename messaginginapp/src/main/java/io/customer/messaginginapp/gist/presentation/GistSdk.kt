@@ -4,6 +4,7 @@ import androidx.lifecycle.Lifecycle
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
+import io.customer.messaginginapp.di.sseConnectionManager
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -38,6 +39,7 @@ class GistSdk(
 
     private var timer: Timer? = null
     private val gistQueue = SDKComponent.gistQueue
+    private val sseConnectionManager = SDKComponent.sseConnectionManager
 
     private fun resetTimer() {
         timer?.cancel()
@@ -64,6 +66,7 @@ class GistSdk(
         // Remove user token from preferences
         inAppPreferenceStore.clearAll()
         resetTimer()
+        sseConnectionManager.stopConnection()
     }
 
     override fun fetchInAppMessages() {
@@ -100,6 +103,17 @@ class GistSdk(
 
         inAppMessagingManager.subscribeToAttribute({ it.pollInterval }) { interval ->
             fetchInAppMessages(duration = interval, initialDelay = interval)
+        }
+
+        // Subscribe to SSE flag changes for dynamic switching
+        inAppMessagingManager.subscribeToAttribute({ it.sseEnabled }) { sseEnabled ->
+            // TODO ensure this respects lifecycle foreground/background
+            logger.info("SSE flag changed to: $sseEnabled")
+            if (sseEnabled) {
+                logger.info("Switching from polling to SSE")
+                resetTimer()
+                sseConnectionManager.startConnection()
+            }
         }
     }
 

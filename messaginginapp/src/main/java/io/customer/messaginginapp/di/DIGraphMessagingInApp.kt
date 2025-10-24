@@ -7,6 +7,7 @@ import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.AnonymousMessageManagerImpl
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.listeners.Queue
+import io.customer.messaginginapp.gist.data.sse.HeartbeatTimer
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.gist.data.sse.SseDataParser
 import io.customer.messaginginapp.gist.data.sse.SseService
@@ -65,6 +66,11 @@ internal val SDKComponent.sseDataParser: SseDataParser
         SseDataParser(logger, Gson())
     }
 
+internal val SDKComponent.heartbeatTimer: HeartbeatTimer
+    get() = singleton<HeartbeatTimer> {
+        HeartbeatTimer(logger, scopeProvider.inAppLifecycleScope)
+    }
+
 internal val SDKComponent.sseService: SseService
     get() = singleton<SseService> {
         SseService(
@@ -80,6 +86,7 @@ internal val SDKComponent.sseConnectionManager: SseConnectionManager
             sseService = sseService,
             sseDataParser = sseDataParser,
             inAppMessagingManager = inAppMessagingManager,
+            heartbeatTimer = heartbeatTimer,
             scope = scopeProvider.inAppLifecycleScope
         )
     }

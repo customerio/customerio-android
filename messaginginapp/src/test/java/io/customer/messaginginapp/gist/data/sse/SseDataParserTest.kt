@@ -122,4 +122,81 @@ class SseDataParserTest : JUnitTest() {
         result[0].messageId.shouldBeEqualTo("single-msg")
         result[0].queueId.shouldBeEqualTo("single-queue")
     }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenValidJson_thenReturnsTimeoutInMs() {
+        val json = """{"heartbeat": 30}"""
+
+        val result = parser.parseHeartbeatTimeout(json)
+
+        result.shouldBeEqualTo(30000L) // 30 seconds * 1000 = 30000ms
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenZeroHeartbeat_thenReturnsZero() {
+        val json = """{"heartbeat": 0}"""
+
+        val result = parser.parseHeartbeatTimeout(json)
+
+        result.shouldBeEqualTo(0L)
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenBlankData_thenReturnsDefault() {
+        val result = parser.parseHeartbeatTimeout("")
+
+        result.shouldBeEqualTo(30000L) // DEFAULT_HEARTBEAT_TIMEOUT_MS
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenWhitespaceOnly_thenReturnsDefault() {
+        val result = parser.parseHeartbeatTimeout("   ")
+
+        result.shouldBeEqualTo(30000L) // DEFAULT_HEARTBEAT_TIMEOUT_MS
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenInvalidJson_thenReturnsDefault() {
+        val invalidJson = "{ invalid json }"
+
+        val result = parser.parseHeartbeatTimeout(invalidJson)
+
+        result.shouldBeEqualTo(30000L) // DEFAULT_HEARTBEAT_TIMEOUT_MS
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenMissingHeartbeatField_thenReturnsDefault() {
+        val json = """{"other": "value"}"""
+
+        val result = parser.parseHeartbeatTimeout(json)
+
+        result.shouldBeEqualTo(30000L) // DEFAULT_HEARTBEAT_TIMEOUT_MS
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenNullHeartbeat_thenReturnsDefault() {
+        val json = """{"heartbeat": null}"""
+
+        val result = parser.parseHeartbeatTimeout(json)
+
+        result.shouldBeEqualTo(30000L) // DEFAULT_HEARTBEAT_TIMEOUT_MS
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenNonNumericHeartbeat_thenReturnsDefault() {
+        val json = """{"heartbeat": "not-a-number"}"""
+
+        val result = parser.parseHeartbeatTimeout(json)
+
+        result.shouldBeEqualTo(30000L) // DEFAULT_HEARTBEAT_TIMEOUT_MS
+    }
+
+    @Test
+    fun testParseHeartbeatTimeout_givenLargeHeartbeat_thenReturnsCorrectValue() {
+        val json = """{"heartbeat": 300}"""
+
+        val result = parser.parseHeartbeatTimeout(json)
+
+        result.shouldBeEqualTo(300000L) // 300 seconds * 1000 = 300000ms
+    }
 }

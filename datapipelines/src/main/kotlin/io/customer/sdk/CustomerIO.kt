@@ -19,6 +19,7 @@ import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
+import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
@@ -126,6 +127,7 @@ class CustomerIO private constructor(
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
+        analytics.add(ApplicationLifecyclePlugin())
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()

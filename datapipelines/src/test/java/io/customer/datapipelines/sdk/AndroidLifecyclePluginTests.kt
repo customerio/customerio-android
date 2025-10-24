@@ -11,6 +11,7 @@ import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.TestRunPlugin
+import io.customer.sdk.util.EventNames
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -106,7 +107,7 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
         val track = slot<TrackEvent>()
         verify { mockPlugin.track(capture(track)) }
         with(track.captured) {
-            assertEquals("Application Backgrounded", event)
+            assertEquals(EventNames.APPLICATION_BACKGROUNDED, event)
         }
     }
 

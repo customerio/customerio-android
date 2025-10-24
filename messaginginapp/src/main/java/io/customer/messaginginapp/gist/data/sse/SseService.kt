@@ -60,6 +60,11 @@ internal class SseService(
 
                     override fun onOpen(eventSource: EventSource, response: Response) {
                         logger.info("SSE: Connection opened successfully")
+                        try {
+                            trySend(ConnectionOpenEvent)
+                        } catch (e: Exception) {
+                            logger.debug("SSE: Error sending connection opened event: ${e.message}")
+                        }
                     }
 
                     override fun onEvent(
@@ -76,7 +81,7 @@ internal class SseService(
                         }
 
                         try {
-                            trySend(SseEvent(type, data))
+                            trySend(ServerEvent(type, data))
                         } catch (e: Exception) {
                             logger.debug("SSE: Error sending event: ${e.message}")
                         }

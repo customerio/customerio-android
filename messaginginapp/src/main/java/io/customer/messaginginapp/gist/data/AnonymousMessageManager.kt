@@ -19,10 +19,6 @@ internal interface AnonymousMessageManager {
     fun markAnonymousAsDismissed(anonymousId: String)
 }
 
-// Wrapper class for type-safe Gson deserialization
-// Avoids ProGuard/R8 issues with TypeToken in release builds
-private data class MessageListWrapper(val messages: List<Message>)
-
 internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
@@ -47,7 +43,7 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
 
             // Server has anonymous messages - update local storage
             val expiryTimeMillis = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(ANONYMOUS_MESSAGES_EXPIRY_MINUTES)
-            val messagesJson = gson.toJson(MessageListWrapper(messagesWithAnonymous))
+            val messagesJson = gson.toJson(messagesWithAnonymous)
             inAppPreferenceStore.saveAnonymousMessages(messagesJson, expiryTimeMillis)
 
             // Clean up tracking data for anonymous messages no longer in server response
@@ -156,7 +152,9 @@ internal class AnonymousMessageManagerImpl() : AnonymousMessageManager {
         val anonymousMessagesJson = inAppPreferenceStore.getAnonymousMessages() ?: return emptyList()
 
         return try {
-            gson.fromJson(anonymousMessagesJson, MessageListWrapper::class.java)?.messages ?: emptyList()
+            // Use Array<Message> to avoid R8/ProGuard issues with generic TypeToken
+            val messagesArray = gson.fromJson(anonymousMessagesJson, Array<Message>::class.java)
+            messagesArray?.toList() ?: emptyList()
         } catch (e: Exception) {
             logger.debug("Error parsing stored anonymous messages: ${e.message}")
             emptyList()

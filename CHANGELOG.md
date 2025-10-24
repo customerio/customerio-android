@@ -1,3 +1,9 @@
+## [4.12.1](https://github.com/customerio/customerio-android/compare/4.12.0...4.12.1) (2025-10-24)
+
+### Bug Fixes
+
+* prevent message type crash in release builds ([#623](https://github.com/customerio/customerio-android/issues/623)) ([4fef7a8](https://github.com/customerio/customerio-android/commit/4fef7a8a5f382091d0213a00e2ec1892ba439185))
+
 ## [4.12.0](https://github.com/customerio/customerio-android/compare/4.11.0...4.12.0) (2025-10-08)
 
 ### Features

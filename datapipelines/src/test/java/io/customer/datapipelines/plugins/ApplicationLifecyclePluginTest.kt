@@ -6,6 +6,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.platform.Plugin
 import io.customer.commontest.config.TestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
+import io.customer.sdk.util.EventNames
 import io.mockk.mockk
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
@@ -33,7 +34,7 @@ class ApplicationLifecyclePluginTest : JUnitTest() {
     @Test
     fun track_givenApplicationBackgroundedEvent_expectAnalyticsFlushed() {
         val event = TrackEvent(
-            event = "Application Backgrounded",
+            event = EventNames.APPLICATION_BACKGROUNDED,
             properties = emptyJsonObject
         )
 
@@ -60,11 +61,11 @@ class ApplicationLifecyclePluginTest : JUnitTest() {
     @Test
     fun track_givenMultipleBackgroundEvents_expectFlushCalledEachTime() {
         val event1 = TrackEvent(
-            event = "Application Backgrounded",
+            event = EventNames.APPLICATION_BACKGROUNDED,
             properties = emptyJsonObject
         )
         val event2 = TrackEvent(
-            event = "Application Backgrounded",
+            event = EventNames.APPLICATION_BACKGROUNDED,
             properties = emptyJsonObject
         )
 

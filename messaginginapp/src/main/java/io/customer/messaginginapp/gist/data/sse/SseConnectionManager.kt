@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
+import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.util.Logger
@@ -21,11 +22,13 @@ internal class SseConnectionManager(
     private val sseService: SseService,
     private val sseEventParser: SseEventParser,
     private val inAppMessagingManager: InAppMessagingManager,
+    private val heartbeatTimer: HeartbeatTimer,
     private val scope: CoroutineScope
 ) {
 
     private val connectionMutex = Mutex()
     private var connectionJob: Job? = null
+    private var timeoutJob: Job? = null
     private var connectionState = SseConnectionState.DISCONNECTED
 
     /**
@@ -78,6 +81,9 @@ internal class SseConnectionManager(
                 connectionJob?.cancel()
                 connectionJob = null
 
+                timeoutJob?.cancel()
+                timeoutJob = null
+
                 sseService.disconnect()
 
                 connectionState = SseConnectionState.DISCONNECTED
@@ -107,22 +113,50 @@ internal class SseConnectionManager(
         updateConnectionState(SseConnectionState.CONNECTED)
         logger.info("SSE: Connection established successfully")
 
+        // Start monitoring heartbeat timer timeout events
+        timeoutJob = scope.launch {
+            heartbeatTimer.timeoutFlow.collect { event ->
+                if (event is HeartbeatTimerEvent.Timeout) {
+                    logger.error("SSE: Heartbeat timer expired, closing connection")
+                    stopConnection()
+                }
+            }
+        }
+
         eventFlow.collect { event ->
             handleSseEvent(event)
         }
     }
 
-    private fun handleSseEvent(event: SseEvent) {
+    private suspend fun handleSseEvent(event: SseEvent) {
+        when (event) {
+            is ConnectionOpenEvent -> {
+                logger.info("SSE: Connection opened, starting heartbeat timer")
+                // Start heartbeat timer with default timeout when connection is opened
+                heartbeatTimer.startTimer(NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS)
+            }
+            is ServerEvent -> {
+                handleServerEvent(event)
+            }
+        }
+    }
+
+    private suspend fun handleServerEvent(event: ServerEvent) {
         when (event.eventType) {
-            "connected" -> {
+            ServerEvent.CONNECTED -> {
                 logger.info("SSE: Connection confirmed")
+                // Reset heartbeat timer with default timeout
+                heartbeatTimer.startTimer(NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS)
             }
 
-            "heartbeat" -> {
+            ServerEvent.HEARTBEAT -> {
                 logger.debug("SSE: Received heartbeat")
+                // Reset heartbeat timer with server timeout + buffer
+                val serverTimeout = sseEventParser.parseHeartbeatTimeout(event.data)
+                heartbeatTimer.startTimer(serverTimeout + NetworkUtilities.HEARTBEAT_BUFFER_MS)
             }
 
-            "messages" -> {
+            ServerEvent.MESSAGES -> {
                 try {
                     val messages = sseEventParser.parseMessages(event.data)
                     if (messages.isNotEmpty()) {
@@ -140,7 +174,7 @@ internal class SseConnectionManager(
                 }
             }
 
-            "ttl_exceeded" -> {
+            ServerEvent.TTL_EXCEEDED -> {
                 logger.error("SSE: TTL exceeded, connection will be closed")
                 // Note: Retry logic will be implemented in Phase 4
             }

@@ -28,6 +28,10 @@ class NetworkUtilities {
         // SSE configuration
         internal const val SSE_READ_TIMEOUT_SECONDS = 300L
 
+        // Heartbeat timer configuration
+        internal const val DEFAULT_HEARTBEAT_TIMEOUT_MS = 30000L // 30 seconds default
+        internal const val HEARTBEAT_BUFFER_MS = 5000L // 5 additional seconds to account for network latency
+
         /**
          * Creates common headers for Customer.io API requests.
          *

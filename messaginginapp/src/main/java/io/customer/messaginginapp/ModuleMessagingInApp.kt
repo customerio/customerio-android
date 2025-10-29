@@ -1,6 +1,8 @@
 package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.gistQueue
+import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
@@ -20,10 +22,22 @@ class ModuleMessagingInApp(
     private val eventBus = SDKComponent.eventBus
     private val gistProvider: GistProvider
         get() = SDKComponent.gistProvider
+    private val gistQueue: GistQueue
+        get() = SDKComponent.gistQueue
     private val logger = SDKComponent.logger
 
     fun dismissMessage() {
         gistProvider.dismissMessage()
+    }
+
+    fun setupPreviewMode(sessionId: String?) {
+        if (sessionId.isNullOrBlank()) {
+            logger.debug("Preview mode disabled: sessionId is null or blank")
+            return
+        }
+
+        logger.debug("Setting up preview mode with sessionId: $sessionId")
+        gistQueue.fetchPreviewMessages(sessionId)
     }
 
     override fun initialize() {

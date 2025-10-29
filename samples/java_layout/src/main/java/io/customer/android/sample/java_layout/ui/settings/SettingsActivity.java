@@ -18,6 +18,7 @@ import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.datapipelines.config.ScreenView;
+import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -82,6 +83,8 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
             if (siteId != null) {
                 ViewUtils.setTextWithSelectionIfFocused(binding.settingsSiteIdKeyLabel, siteId);
             }
+            String sessionId = deepLinkUri.getQueryParameter("cioSessionId");
+            ModuleMessagingInApp.instance().setupPreviewMode(sessionId);
         }
         isLinkParamsPopulated = true;
     }

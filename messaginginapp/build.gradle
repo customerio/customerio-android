@@ -47,4 +47,6 @@ dependencies {
     implementation Dependencies.androidxAppCompat
     implementation Dependencies.retrofit
     implementation Dependencies.okhttpLoggingInterceptor
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'com.github.skydoves:colorpickerview:2.3.0'
 }

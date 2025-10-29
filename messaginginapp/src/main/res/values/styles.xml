@@ -1,6 +1,6 @@
 <resources>
 
-    <style name="GistActivityTheme" parent="Theme.AppCompat.NoActionBar">
+    <style name="GistActivityTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackgroundCacheHint">@null</item>
         <item name="android:windowIsTranslucent">true</item>
@@ -8,6 +8,22 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="RoundedBottomSheetDialog" parent="Theme.Design.Light.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/RoundedBottomSheet</item>
+    </style>
+
+    <style name="RoundedBottomSheet" parent="Widget.Design.BottomSheet.Modal">
+        <item name="shapeAppearanceOverlay">@style/RoundedShapeAppearance</item>
+    </style>
+
+    <style name="RoundedShapeAppearance" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">16dp</item>
+        <item name="cornerSizeTopRight">16dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
     </style>
 
 </resources>

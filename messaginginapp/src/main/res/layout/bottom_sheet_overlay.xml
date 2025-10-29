@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bottom_sheet_background"
+    android:paddingStart="24dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="24dp">
+
+    <View
+        android:id="@+id/dragHandle"
+        android:layout_width="32dp"
+        android:layout_height="4dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bottom_sheet_drag_handle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/overlayTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Overlay"
+        android:textColor="@android:color/black"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/dragHandle"
+        tools:ignore="HardcodedText" />
+
+    <!-- Row 1: Color and Opacity text inputs (read-only) -->
+    <LinearLayout
+        android:id="@+id/overlayInputsContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/overlayTitle">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/colorInputLayout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="0.6"
+            android:hint="Color"
+            app:prefixText="#"
+            app:suffixText="HEX"
+            app:suffixTextColor="@android:color/darker_gray"
+            tools:ignore="HardcodedText">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/overlayColorInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:digits="0123456789ABCDEFabcdef"
+                android:imeOptions="actionDone"
+                android:inputType="textCapCharacters|textNoSuggestions"
+                android:maxLength="6"
+                android:maxLines="1"
+                android:singleLine="true" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/opacityInputLayout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.4"
+            android:hint="Opacity"
+            app:suffixText="%"
+            app:suffixTextColor="@android:color/darker_gray"
+            tools:ignore="HardcodedText">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/overlayOpacityInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionDone"
+                android:inputType="number"
+                android:maxLength="3"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
+
+    <!-- Row 2: Color palette circles -->
+    <LinearLayout
+        android:id="@+id/colorPaletteContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/overlayInputsContainer">
+
+        <!-- Current color (dynamic) -->
+        <FrameLayout
+            android:id="@+id/colorCircle1Frame"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1">
+
+            <View
+                android:id="@+id/colorCircle1"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:background="@drawable/color_circle_selector" />
+        </FrameLayout>
+
+        <!-- Preset color 1 -->
+        <FrameLayout
+            android:id="@+id/colorCircle2Frame"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1">
+
+            <View
+                android:id="@+id/colorCircle2"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:background="@drawable/color_circle_selector" />
+        </FrameLayout>
+
+        <!-- Preset color 2 -->
+        <FrameLayout
+            android:id="@+id/colorCircle3Frame"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1">
+
+            <View
+                android:id="@+id/colorCircle3"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:background="@drawable/color_circle_selector" />
+        </FrameLayout>
+
+        <!-- Preset color 3 -->
+        <FrameLayout
+            android:id="@+id/colorCircle4Frame"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1">
+
+            <View
+                android:id="@+id/colorCircle4"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:background="@drawable/color_circle_selector" />
+        </FrameLayout>
+
+        <!-- Add custom color button -->
+        <FrameLayout
+            android:id="@+id/colorCircleAddFrame"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/colorCircleAdd"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:background="@drawable/color_circle_border"
+                android:contentDescription="Pick custom color"
+                android:padding="12dp"
+                android:src="@drawable/ic_colorize_24dp"
+                tools:ignore="HardcodedText" />
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <!-- Row 3: Opacity slider -->
+    <com.google.android.material.slider.Slider
+        android:id="@+id/opacitySlider"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:stepSize="1"
+        android:valueFrom="0"
+        android:valueTo="100"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/colorPaletteContainer" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

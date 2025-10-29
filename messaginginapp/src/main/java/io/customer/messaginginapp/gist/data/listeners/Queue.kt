@@ -33,6 +33,9 @@ interface GistQueueService {
     @POST("/api/v3/users")
     suspend fun fetchMessagesForUser(@Body body: Any = Object(), @Query("sessionId") sessionId: String): Response<List<Message>>
 
+    @POST("/api/v1/preview")
+    suspend fun fetchPreviewMessages(@Body body: Any = Object(), @Query("sessionId") sessionId: String): Response<List<Message>>
+
     @POST("/api/v1/logs/message/{messageId}")
     suspend fun logMessageView(@Path("messageId") messageId: String, @Query("sessionId") sessionId: String)
 
@@ -42,6 +45,7 @@ interface GistQueueService {
 
 interface GistQueue {
     fun fetchUserMessages()
+    fun fetchPreviewMessages(sessionId: String)
     fun logView(message: Message)
 }
 
@@ -147,6 +151,31 @@ class Queue : GistQueue {
                 updatePollingInterval(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 logger.debug("Error fetching messages: ${e.message}")
+            }
+        }
+    }
+
+    override fun fetchPreviewMessages(sessionId: String) {
+        scope.launch {
+            try {
+                logger.debug("Fetching preview messages with sessionId: $sessionId")
+                val previewMessagesResponse = gistQueueService.fetchPreviewMessages(sessionId = sessionId)
+
+                val code = previewMessagesResponse.code()
+                when {
+                    (code == 204 || code == 304) -> handleNoContent(code)
+                    previewMessagesResponse.isSuccessful -> {
+                        // Force preview mode for all preview messages
+                        previewMessagesResponse.body()?.forEach { it.previewMode = true }
+                        handleSuccessfulFetch(previewMessagesResponse.body())
+                    }
+
+                    else -> handleFailedFetch(code)
+                }
+
+                updatePollingInterval(previewMessagesResponse.headers())
+            } catch (e: Exception) {
+                logger.debug("Error fetching preview messages: ${e.message}")
             }
         }
     }

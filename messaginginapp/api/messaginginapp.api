@@ -28,6 +28,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public final fun setupPreviewMode (Ljava/lang/String;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
@@ -35,13 +36,70 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
 }
 
 public final class io/customer/messaginginapp/databinding/ActivityGistBinding : androidx/viewbinding/ViewBinding {
+	public final field editButton Lcom/google/android/material/floatingactionbutton/FloatingActionButton;
+	public final field fabApply Lcom/google/android/material/floatingactionbutton/FloatingActionButton;
+	public final field fabMenuContainer Landroid/widget/LinearLayout;
+	public final field fabOverlay Lcom/google/android/material/floatingactionbutton/FloatingActionButton;
+	public final field fabPosition Lcom/google/android/material/floatingactionbutton/FloatingActionButton;
+	public final field fabReset Lcom/google/android/material/floatingactionbutton/FloatingActionButton;
 	public final field gistView Lio/customer/messaginginapp/ui/ModalInAppMessageView;
+	public final field modalGistViewContainer Landroid/widget/FrameLayout;
 	public final field modalGistViewLayout Landroid/widget/RelativeLayout;
+	public final field speedDialMenu Landroid/widget/LinearLayout;
 	public static fun bind (Landroid/view/View;)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
 	public synthetic fun getRoot ()Landroid/view/View;
-	public fun getRoot ()Landroid/widget/RelativeLayout;
+	public fun getRoot ()Landroid/widget/FrameLayout;
 	public static fun inflate (Landroid/view/LayoutInflater;)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
 	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/ActivityGistBinding;
+}
+
+public final class io/customer/messaginginapp/databinding/BottomSheetOverlayBinding : androidx/viewbinding/ViewBinding {
+	public final field colorCircle1 Landroid/view/View;
+	public final field colorCircle1Frame Landroid/widget/FrameLayout;
+	public final field colorCircle2 Landroid/view/View;
+	public final field colorCircle2Frame Landroid/widget/FrameLayout;
+	public final field colorCircle3 Landroid/view/View;
+	public final field colorCircle3Frame Landroid/widget/FrameLayout;
+	public final field colorCircle4 Landroid/view/View;
+	public final field colorCircle4Frame Landroid/widget/FrameLayout;
+	public final field colorCircleAdd Landroid/widget/ImageView;
+	public final field colorCircleAddFrame Landroid/widget/FrameLayout;
+	public final field colorInputLayout Lcom/google/android/material/textfield/TextInputLayout;
+	public final field colorPaletteContainer Landroid/widget/LinearLayout;
+	public final field dragHandle Landroid/view/View;
+	public final field opacityInputLayout Lcom/google/android/material/textfield/TextInputLayout;
+	public final field opacitySlider Lcom/google/android/material/slider/Slider;
+	public final field overlayColorInput Lcom/google/android/material/textfield/TextInputEditText;
+	public final field overlayInputsContainer Landroid/widget/LinearLayout;
+	public final field overlayOpacityInput Lcom/google/android/material/textfield/TextInputEditText;
+	public final field overlayTitle Landroid/widget/TextView;
+	public static fun bind (Landroid/view/View;)Lio/customer/messaginginapp/databinding/BottomSheetOverlayBinding;
+	public synthetic fun getRoot ()Landroid/view/View;
+	public fun getRoot ()Landroidx/constraintlayout/widget/ConstraintLayout;
+	public static fun inflate (Landroid/view/LayoutInflater;)Lio/customer/messaginginapp/databinding/BottomSheetOverlayBinding;
+	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/BottomSheetOverlayBinding;
+}
+
+public final class io/customer/messaginginapp/databinding/BottomSheetPositionBinding : androidx/viewbinding/ViewBinding {
+	public final field buttonBottom Landroid/widget/LinearLayout;
+	public final field buttonCenter Landroid/widget/LinearLayout;
+	public final field buttonTop Landroid/widget/LinearLayout;
+	public final field dragHandle Landroid/view/View;
+	public static fun bind (Landroid/view/View;)Lio/customer/messaginginapp/databinding/BottomSheetPositionBinding;
+	public synthetic fun getRoot ()Landroid/view/View;
+	public fun getRoot ()Landroid/widget/LinearLayout;
+	public static fun inflate (Landroid/view/LayoutInflater;)Lio/customer/messaginginapp/databinding/BottomSheetPositionBinding;
+	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/BottomSheetPositionBinding;
+}
+
+public final class io/customer/messaginginapp/databinding/DialogColorPickerBinding : androidx/viewbinding/ViewBinding {
+	public final field colorPickerContainer Landroid/widget/FrameLayout;
+	public final field dimmingOverlay Landroid/view/View;
+	public static fun bind (Landroid/view/View;)Lio/customer/messaginginapp/databinding/DialogColorPickerBinding;
+	public synthetic fun getRoot ()Landroid/view/View;
+	public fun getRoot ()Landroid/widget/FrameLayout;
+	public static fun inflate (Landroid/view/LayoutInflater;)Lio/customer/messaginginapp/databinding/DialogColorPickerBinding;
+	public static fun inflate (Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Z)Lio/customer/messaginginapp/databinding/DialogColorPickerBinding;
 }
 
 public final class io/customer/messaginginapp/di/DIGraphMessagingInAppKt {
@@ -74,22 +132,26 @@ public final class io/customer/messaginginapp/gist/data/NetworkUtilities$Compani
 }
 
 public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueue {
+	public abstract fun fetchPreviewMessages (Ljava/lang/String;)V
 	public abstract fun fetchUserMessages ()V
 	public abstract fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
 public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueueService {
 	public abstract fun fetchMessagesForUser (Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun fetchPreviewMessages (Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun logMessageView (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun logUserMessageView (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class io/customer/messaginginapp/gist/data/listeners/GistQueueService$DefaultImpls {
 	public static synthetic fun fetchMessagesForUser$default (Lio/customer/messaginginapp/gist/data/listeners/GistQueueService;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun fetchPreviewMessages$default (Lio/customer/messaginginapp/gist/data/listeners/GistQueueService;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/customer/messaginginapp/gist/data/listeners/GistQueue {
 	public fun <init> ()V
+	public fun fetchPreviewMessages (Ljava/lang/String;)V
 	public fun fetchUserMessages ()V
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -159,11 +221,13 @@ public final class io/customer/messaginginapp/gist/data/model/Message {
 	public final fun getGistProperties ()Lio/customer/messaginginapp/gist/data/model/GistProperties;
 	public final fun getInstanceId ()Ljava/lang/String;
 	public final fun getMessageId ()Ljava/lang/String;
+	public final fun getPreviewMode ()Z
 	public final fun getPriority ()Ljava/lang/Integer;
 	public final fun getProperties ()Ljava/util/Map;
 	public final fun getQueueId ()Ljava/lang/String;
 	public fun hashCode ()I
 	public final fun isEmbedded ()Z
+	public final fun setPreviewMode (Z)V
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -204,6 +268,16 @@ public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/cus
 	public fun setAnonymousId (Ljava/lang/String;)V
 	public fun setCurrentRoute (Ljava/lang/String;)V
 	public fun setUserId (Ljava/lang/String;)V
+}
+
+public final class io/customer/messaginginapp/gist/presentation/OverlayBottomSheet {
+	public fun <init> (Landroid/content/Context;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+	public final fun show ()V
+}
+
+public final class io/customer/messaginginapp/gist/presentation/PositionBottomSheet {
+	public fun <init> (Landroid/content/Context;Lio/customer/messaginginapp/gist/data/model/MessagePosition;Lkotlin/jvm/functions/Function1;)V
+	public final fun show ()V
 }
 
 public final class io/customer/messaginginapp/gist/presentation/engine/EngineWebViewInterface {

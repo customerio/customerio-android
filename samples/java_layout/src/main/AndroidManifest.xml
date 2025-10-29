@@ -120,8 +120,19 @@
         </activity>
         <activity
             android:name=".ui.tracking.TrackingFragmentActivity"
-            android:exported="false"
-            android:label="@string/label_tracking_fragment_activity" />
+            android:exported="true"
+            android:label="@string/label_tracking_fragment_activity">
+            <intent-filter android:label="@string/filter_view_app_link">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Accepts URIs beginning with "java-sample://custom-event" -->
+                <data
+                    android:host="custom-event"
+                    android:scheme="java-sample" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".ui.settings.InternalSettingsActivity"
             android:exported="false"

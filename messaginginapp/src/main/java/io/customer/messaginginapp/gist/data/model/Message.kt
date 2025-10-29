@@ -36,6 +36,8 @@ data class Message(
     val queueId: String? = null,
     val properties: Map<String, Any?>? = null
 ) {
+    var previewMode: Boolean = false
+
     // Should be property and not constructor parameter so it isn't used in equals
     // As messages are identified uniquely by their queueId and not instanceId
     val instanceId: String = UUID.randomUUID().toString()
@@ -109,6 +111,11 @@ data class Message(
                             }
                         }
                     }
+                }
+            }
+            gistProperties["previewMode"]?.let { id ->
+                (id as? Boolean)?.let { value ->
+                    previewMode = value
                 }
             }
         }

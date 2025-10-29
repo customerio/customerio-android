@@ -1,12 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/modalGistViewLayout"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/modalGistViewContainer"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:visibility="gone"
-    android:alpha="0">
-    <io.customer.messaginginapp.ui.ModalInAppMessageView
-        android:id="@+id/gistView"
+    android:layout_height="match_parent">
+
+    <RelativeLayout
+        android:id="@+id/modalGistViewLayout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-</RelativeLayout>
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:visibility="gone">
+
+        <io.customer.messaginginapp.ui.ModalInAppMessageView
+            android:id="@+id/gistView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </RelativeLayout>
+
+    <!-- FAB Menu Container -->
+    <LinearLayout
+        android:id="@+id/fabMenuContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Edit/Close Button (always visible first) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/editButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:contentDescription="Edit message"
+            android:src="@drawable/ic_edit_24dp"
+            app:fabSize="mini"
+            tools:ignore="HardcodedText" />
+
+        <!-- Speed Dial Menu Items (initially hidden) -->
+        <LinearLayout
+            android:id="@+id/speedDialMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabPosition"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="Position"
+                android:src="@drawable/ic_align_center_24dp"
+                app:fabSize="mini"
+                tools:ignore="HardcodedText" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabOverlay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="Overlay"
+                android:src="@drawable/ic_palette_24dp"
+                app:fabSize="mini"
+                tools:ignore="HardcodedText" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabApply"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="Save"
+                android:src="@drawable/ic_save_24dp"
+                app:fabSize="mini"
+                tools:ignore="HardcodedText" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabReset"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="Reset"
+                android:src="@drawable/ic_reset_24dp"
+                app:fabSize="mini"
+                tools:ignore="HardcodedText" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>

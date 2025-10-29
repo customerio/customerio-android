@@ -13,7 +13,8 @@ import kotlinx.coroutines.withContext
  */
 internal data class ModalMessageExtras(
     val message: Message,
-    val messagePosition: MessagePosition
+    val messagePosition: MessagePosition,
+    val isPreviewMode: Boolean = false
 )
 
 /**
@@ -76,7 +77,8 @@ internal class ModalMessageParserDefault(
 
                 return@withContext ModalMessageExtras(
                     message = message,
-                    messagePosition = position
+                    messagePosition = position,
+                    isPreviewMode = message.previewMode
                 )
             } catch (ex: Exception) {
                 logger.error("ModalMessageParser: Failed to parse modal message with error: ${ex.message}")

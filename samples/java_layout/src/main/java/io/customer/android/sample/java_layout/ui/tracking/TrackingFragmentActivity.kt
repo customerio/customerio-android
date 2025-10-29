@@ -27,6 +27,24 @@ class TrackingFragmentActivity : BaseFragmentContainerActivity<ActivitySimpleFra
         setupWithAuthViewModel(authViewModel)
     }
 
+    override fun readExtras() {
+        // Handle deep link: java-sample://custom-event?cioSessionId=123
+        val data = intent?.data
+        fragmentName = if (data != null && data.scheme == "java-sample" && data.host == "custom-event") {
+            // Extract sessionId from URL and setup preview mode
+            val sessionId = data.getQueryParameter("cioSessionId")
+            io.customer.messaginginapp.ModuleMessagingInApp.instance().setupPreviewMode(sessionId)
+
+            // Deep link opened - load custom event fragment
+            FRAGMENT_CUSTOM_TRACKING_EVENT
+        } else {
+            // Normal intent with extras
+            intent?.extras?.getString("fragment_name")?.takeIf {
+                it.isNotBlank()
+            } ?: throw IllegalArgumentException("Fragment name cannot be null")
+        }
+    }
+
     override fun findFragmentByName(fragmentName: String): Fragment? = when (fragmentName) {
         FRAGMENT_CUSTOM_TRACKING_EVENT -> CustomEventTrackingFragment.newInstance()
         FRAGMENT_DEVICE_ATTRIBUTES -> AttributesTrackingFragment.newInstance(AttributesTrackingFragment.ATTRIBUTE_TYPE_DEVICE)

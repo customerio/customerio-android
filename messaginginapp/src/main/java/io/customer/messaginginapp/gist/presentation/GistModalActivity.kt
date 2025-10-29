@@ -9,6 +9,7 @@ import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.databinding.ActivityGistBinding
@@ -34,6 +35,10 @@ import kotlinx.coroutines.launch
 class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, TrackableScreen {
     private lateinit var binding: ActivityGistBinding
     private var messagePosition: MessagePosition = MessagePosition.CENTER
+    private var originalMessagePosition: MessagePosition = MessagePosition.CENTER
+    private var overlayColor: String? = null // Stores combined #RRGGBBAA format
+    private var originalOverlayColor: String? = null
+    private var isPreviewMode: Boolean = false
 
     private val attributesListenerJob: MutableList<Job> = mutableListOf()
     private val elapsedTimer: ElapsedTimer = ElapsedTimer()
@@ -77,11 +82,14 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
             return@launch
         }
 
-        val (message, modalPosition) = result
+        val (message, modalPosition, previewMode) = result
         messagePosition = modalPosition
+        originalMessagePosition = modalPosition
+        isPreviewMode = previewMode
 
         initializeActivity()
         setupMessage(message)
+        setupEditButton()
         subscribeToAttributes()
         setupBackPressedCallback(message)
     }
@@ -115,6 +123,154 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
             MessagePosition.CENTER -> binding.modalGistViewLayout.setVerticalGravity(Gravity.CENTER_VERTICAL)
             MessagePosition.BOTTOM -> binding.modalGistViewLayout.setVerticalGravity(Gravity.BOTTOM)
             MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
+        }
+    }
+
+    private var isMenuOpen = false
+
+    private fun setupEditButton() {
+        if (isPreviewMode) {
+            binding.fabMenuContainer.visibility = View.VISIBLE
+            binding.editButton.setOnClickListener { toggleSpeedDialMenu() }
+            setupSpeedDialMenuActions()
+        } else {
+            binding.fabMenuContainer.visibility = View.GONE
+        }
+    }
+
+    private fun toggleSpeedDialMenu() {
+        isMenuOpen = !isMenuOpen
+
+        if (isMenuOpen) {
+            // Change to close icon and rotate 180 degrees
+            binding.editButton.setImageResource(io.customer.messaginginapp.R.drawable.ic_close_24dp)
+            binding.editButton.animate()
+                .rotation(180f)
+                .setDuration(300)
+                .start()
+
+            // Open menu with animation
+            binding.speedDialMenu.visibility = View.VISIBLE
+
+            // Animate menu items
+            val fabCount = binding.speedDialMenu.childCount
+            for (i in 0 until fabCount) {
+                val fab = binding.speedDialMenu.getChildAt(i)
+                fab.alpha = 0f
+                fab.scaleX = 0f
+                fab.scaleY = 0f
+                fab.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(200)
+                    .setStartDelay((i * 50).toLong())
+                    .start()
+            }
+        } else {
+            // Change back to edit icon and rotate back to 0
+            binding.editButton.setImageResource(io.customer.messaginginapp.R.drawable.ic_edit_24dp)
+            binding.editButton.animate()
+                .rotation(0f)
+                .setDuration(300)
+                .start()
+
+            // Close menu with animation
+            val fabCount = binding.speedDialMenu.childCount
+            for (i in 0 until fabCount) {
+                val fab = binding.speedDialMenu.getChildAt(fabCount - 1 - i)
+                fab.animate()
+                    .alpha(0f)
+                    .scaleX(0f)
+                    .scaleY(0f)
+                    .setDuration(200)
+                    .setStartDelay((i * 50).toLong())
+                    .withEndAction {
+                        if (i == fabCount - 1) {
+                            binding.speedDialMenu.visibility = View.GONE
+                        }
+                    }
+                    .start()
+            }
+        }
+    }
+
+    private fun setupSpeedDialMenuActions() {
+        binding.fabPosition.setOnClickListener {
+            showPositionBottomSheet()
+        }
+
+        binding.fabOverlay.setOnClickListener {
+            showOverlayBottomSheet()
+        }
+
+        binding.fabApply.setOnClickListener {
+            applyChanges()
+        }
+
+        binding.fabReset.setOnClickListener {
+            resetChanges()
+        }
+    }
+
+    private fun showPositionBottomSheet() {
+        PositionBottomSheet(
+            context = this,
+            currentPosition = messagePosition,
+            onPositionChanged = { position ->
+                messagePosition = position
+                updateMessagePosition(position)
+            }
+        ).show()
+    }
+
+    private fun showOverlayBottomSheet() {
+        OverlayBottomSheet(
+            context = this,
+            currentOverlayColor = overlayColor,
+            onOverlayChanged = { combinedColor ->
+                overlayColor = combinedColor
+                updateOverlayColor()
+            }
+        ).show()
+    }
+
+    private fun applyChanges() {
+        // TODO: API call placeholder - make API call to save position and overlay changes
+        logger.debug("Apply changes - API call placeholder")
+
+        // Show success message
+        android.widget.Toast.makeText(this, "Changes Saved", android.widget.Toast.LENGTH_SHORT).show()
+
+        // Close the menu
+        if (isMenuOpen) {
+            toggleSpeedDialMenu()
+        }
+    }
+
+    private fun resetChanges() {
+        messagePosition = originalMessagePosition
+        overlayColor = originalOverlayColor
+        updateMessagePosition(originalMessagePosition)
+        updateOverlayColor()
+    }
+
+    private fun updateOverlayColor() {
+        runOnUiThread {
+            val parsedColor = MessageOverlayColorParser.parseColor(overlayColor)
+                ?: ModalAnimationUtil.FALLBACK_COLOR_STRING
+            binding.modalGistViewLayout.setBackgroundColor(parsedColor.toColorInt())
+        }
+    }
+
+    private fun updateMessagePosition(newPosition: MessagePosition) {
+        messagePosition = newPosition
+        runOnUiThread {
+            when (messagePosition) {
+                MessagePosition.CENTER -> binding.modalGistViewLayout.setVerticalGravity(Gravity.CENTER_VERTICAL)
+                MessagePosition.BOTTOM -> binding.modalGistViewLayout.setVerticalGravity(Gravity.BOTTOM)
+                MessagePosition.TOP -> binding.modalGistViewLayout.setVerticalGravity(Gravity.TOP)
+            }
         }
     }
 
@@ -217,12 +373,20 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
             binding.modalGistViewLayout.visibility = View.VISIBLE
 
-            val overlayColor = MessageOverlayColorParser.parseColor(message.gistProperties.overlayColor)
+            // Store original overlay color if not already set
+            if (originalOverlayColor == null) {
+                val serverColor = message.gistProperties.overlayColor
+                originalOverlayColor = serverColor
+                overlayColor = serverColor
+            }
+
+            // Use the overlay color for animation
+            val parsedColor = MessageOverlayColorParser.parseColor(overlayColor)
                 ?: ModalAnimationUtil.FALLBACK_COLOR_STRING
             val animatorSet = if (messagePosition == MessagePosition.TOP) {
-                ModalAnimationUtil.createAnimationSetInFromTop(binding.modalGistViewLayout, overlayColor)
+                ModalAnimationUtil.createAnimationSetInFromTop(binding.modalGistViewLayout, parsedColor)
             } else {
-                ModalAnimationUtil.createAnimationSetInFromBottom(binding.modalGistViewLayout, overlayColor)
+                ModalAnimationUtil.createAnimationSetInFromBottom(binding.modalGistViewLayout, parsedColor)
             }
             animatorSet.start()
             animatorSet.doOnEnd {

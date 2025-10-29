@@ -1,3 +1,9 @@
+## [4.13.0](https://github.com/customerio/customerio-android/compare/4.12.1...4.13.0) (2025-10-29)
+
+### Features
+
+* support for Android 16 ([#626](https://github.com/customerio/customerio-android/issues/626)) ([2e36d0b](https://github.com/customerio/customerio-android/commit/2e36d0bc6edd5ad89af3891821a82b9cee8d0383))
+
 ## [4.12.1](https://github.com/customerio/customerio-android/compare/4.12.0...4.12.1) (2025-10-24)
 
 ### Bug Fixes

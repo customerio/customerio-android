@@ -9,11 +9,11 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldHaveSize
 import org.junit.jupiter.api.Test
 
-class SseEventParserTest : JUnitTest() {
+class SseDataParserTest : JUnitTest() {
 
     private val logger = mockk<Logger>(relaxed = true)
     private val gson = Gson()
-    private val parser = SseEventParser(logger, gson)
+    private val parser = SseDataParser(logger, gson)
 
     @Test
     fun testParseMessages_givenValidJson_thenReturnsMessages() {

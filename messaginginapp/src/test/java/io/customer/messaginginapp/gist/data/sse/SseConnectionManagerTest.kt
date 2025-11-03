@@ -28,7 +28,7 @@ class SseConnectionManagerTest : JUnitTest() {
 
     private val logger = mockk<Logger>(relaxed = true)
     private val sseService = mockk<SseService>(relaxed = true)
-    private val sseEventParser = mockk<SseEventParser>(relaxed = true)
+    private val sseDataParser = mockk<SseDataParser>(relaxed = true)
     private val inAppMessagingManager = mockk<InAppMessagingManager>(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
@@ -41,7 +41,7 @@ class SseConnectionManagerTest : JUnitTest() {
         connectionManager = SseConnectionManager(
             logger = logger,
             sseService = sseService,
-            sseEventParser = sseEventParser,
+            sseDataParser = sseDataParser,
             inAppMessagingManager = inAppMessagingManager,
             scope = testScope
         )
@@ -212,7 +212,7 @@ class SseConnectionManagerTest : JUnitTest() {
         val messagesJson = """[{"messageId": "msg1"}, {"messageId": "msg2"}]"""
 
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseEventParser.parseMessages(messagesJson) } returns mockMessages
+        every { sseDataParser.parseMessages(messagesJson) } returns mockMessages
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             SseEvent("messages", messagesJson)
         )
@@ -224,7 +224,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { sseEventParser.parseMessages(messagesJson) }
+        verify { sseDataParser.parseMessages(messagesJson) }
         verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
         actionSlot.captured.messages.shouldBeEqualTo(mockMessages)
     }
@@ -238,7 +238,7 @@ class SseConnectionManagerTest : JUnitTest() {
             siteId = "test-site"
         )
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseEventParser.parseMessages(any()) } returns emptyList()
+        every { sseDataParser.parseMessages(any()) } returns emptyList()
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             SseEvent("messages", "[]")
         )
@@ -303,7 +303,7 @@ class SseConnectionManagerTest : JUnitTest() {
             siteId = "test-site"
         )
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseEventParser.parseMessages(any()) } throws RuntimeException("Parse error")
+        every { sseDataParser.parseMessages(any()) } throws RuntimeException("Parse error")
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             SseEvent("messages", "invalid-json")
         )

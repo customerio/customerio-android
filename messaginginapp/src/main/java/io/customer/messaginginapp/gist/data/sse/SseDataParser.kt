@@ -5,7 +5,7 @@ import com.google.gson.JsonSyntaxException
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.sdk.core.util.Logger
 
-internal class SseEventParser(
+internal class SseDataParser(
     private val logger: Logger,
     private val gson: Gson
 ) {
@@ -36,14 +36,3 @@ internal class SseEventParser(
         }
     }
 }
-
-/**
- * Represents a parsed SSE event.
- *
- * @property eventType The type of event (connected, heartbeat, messages, ttl_exceeded)
- * @property data The JSON data associated with the event
- */
-internal data class SseEvent(
-    val eventType: String,
-    val data: String
-)

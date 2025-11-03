@@ -3,9 +3,11 @@ package io.customer.messaginginapp.gist.data.sse
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.util.Logger
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,7 +21,7 @@ import kotlinx.coroutines.sync.withLock
 internal class SseConnectionManager(
     private val logger: Logger,
     private val sseService: SseService,
-    private val sseEventParser: SseEventParser,
+    private val sseDataParser: SseDataParser,
     private val inAppMessagingManager: InAppMessagingManager,
     private val scope: CoroutineScope
 ) {
@@ -96,14 +98,17 @@ internal class SseConnectionManager(
             throw IllegalStateException("Cannot establish connection: no user token available")
         }
 
+        // Prevent making connection if the coroutine has been cancelled
+        coroutineContext.ensureActive()
         logger.debug("SSE: Establishing connection for user: $userToken, session: ${currentState.sessionId}")
-
         val eventFlow = sseService.connectSse(
             sessionId = currentState.sessionId,
             userToken = userToken,
             siteId = currentState.siteId
         )
 
+        // Prevent state update and flow collection if the coroutine has been cancelled
+        coroutineContext.ensureActive()
         updateConnectionState(SseConnectionState.CONNECTED)
         logger.info("SSE: Connection established successfully")
 
@@ -124,7 +129,7 @@ internal class SseConnectionManager(
 
             "messages" -> {
                 try {
-                    val messages = sseEventParser.parseMessages(event.data)
+                    val messages = sseDataParser.parseMessages(event.data)
                     if (messages.isNotEmpty()) {
                         logger.info("SSE: Received ${messages.size} messages")
                         inAppMessagingManager.dispatch(

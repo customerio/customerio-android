@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
 import android.util.Base64
-import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.util.Logger
@@ -31,7 +30,6 @@ import okhttp3.sse.EventSources
  */
 internal class SseService(
     private val logger: Logger,
-    private val environment: GistEnvironment,
     private val inAppMessagingManager: InAppMessagingManager
 ) {
 
@@ -49,8 +47,6 @@ internal class SseService(
         userToken: String,
         siteId: String
     ): Flow<SseEvent> = callbackFlow {
-        logger.debug("SSE: Connecting to SSE endpoint: ${environment.getSseApiUrl()}")
-
         val request = createSseRequest(sessionId, userToken, siteId)
 
         eventSource = EventSources.createFactory(httpClient)
@@ -140,6 +136,7 @@ internal class SseService(
         siteId: String
     ): Request {
         val encodedUserToken = Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
+        val environment = inAppMessagingManager.getCurrentState().environment
 
         val url = environment.getSseApiUrl().toHttpUrl().newBuilder()
             .addQueryParameter(NetworkUtilities.SSE_SESSION_ID_PARAM, sessionId)
@@ -155,3 +152,14 @@ internal class SseService(
             .build()
     }
 }
+
+/**
+ * Represents an SSE event used to communicate events from connection with server
+ *
+ * @property eventType The type of event (connected, heartbeat, messages, ttl_exceeded)
+ * @property data The JSON data associated with the event
+ */
+internal data class SseEvent(
+    val eventType: String,
+    val data: String
+)

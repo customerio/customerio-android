@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
 import android.util.Base64
-import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.util.Logger

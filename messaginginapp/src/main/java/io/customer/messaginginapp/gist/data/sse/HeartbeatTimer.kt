@@ -21,8 +21,8 @@ internal class HeartbeatTimer(
     private val scope: CoroutineScope
 ) {
 
-    private val _timeoutFlow = MutableStateFlow<HeartbeatTimerEvent?>(null)
-    val timeoutFlow: StateFlow<HeartbeatTimerEvent?> = _timeoutFlow.asStateFlow()
+    private val _timeoutFlow = MutableStateFlow<HeartbeatTimeoutEvent?>(null)
+    val timeoutFlow: StateFlow<HeartbeatTimeoutEvent?> = _timeoutFlow.asStateFlow()
 
     private var currentTimerJob: Job? = null
     private val timerMutex = Mutex()
@@ -51,7 +51,7 @@ internal class HeartbeatTimer(
                     delay(timeoutMs)
                     logger.error("HeartbeatTimer: Timer expired after ${timeoutMs}ms")
                     timerMutex.withLock {
-                        _timeoutFlow.value = HeartbeatTimerEvent.Timeout
+                        _timeoutFlow.value = HeartbeatTimeoutEvent
                     }
                 } catch (_: CancellationException) {
                     logger.debug("HeartbeatTimer: Timer cancelled gracefully")
@@ -61,3 +61,5 @@ internal class HeartbeatTimer(
         }
     }
 }
+
+internal object HeartbeatTimeoutEvent

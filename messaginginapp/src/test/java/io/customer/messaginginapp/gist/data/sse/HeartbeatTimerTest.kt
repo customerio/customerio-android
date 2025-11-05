@@ -42,7 +42,7 @@ class HeartbeatTimerTest : JUnitTest() {
 
         // Then
         val event = heartbeatTimer.timeoutFlow.value
-        event shouldBeEqualTo HeartbeatTimerEvent.Timeout
+        event shouldBeEqualTo HeartbeatTimeoutEvent
     }
 
     @Test
@@ -66,7 +66,7 @@ class HeartbeatTimerTest : JUnitTest() {
 
         // Then
         val event = heartbeatTimer.timeoutFlow.value
-        event shouldBeEqualTo HeartbeatTimerEvent.Timeout
+        event shouldBeEqualTo HeartbeatTimeoutEvent
     }
 
     @Test
@@ -89,7 +89,7 @@ class HeartbeatTimerTest : JUnitTest() {
 
         // Then - should emit timeout from second timer
         val event = heartbeatTimer.timeoutFlow.value
-        event shouldBeEqualTo HeartbeatTimerEvent.Timeout
+        event shouldBeEqualTo HeartbeatTimeoutEvent
     }
 
     @Test
@@ -116,7 +116,7 @@ class HeartbeatTimerTest : JUnitTest() {
 
         // Then
         val event = heartbeatTimer.timeoutFlow.value
-        event shouldBeEqualTo HeartbeatTimerEvent.Timeout
+        event shouldBeEqualTo HeartbeatTimeoutEvent
     }
 
     @Test
@@ -131,7 +131,7 @@ class HeartbeatTimerTest : JUnitTest() {
 
         // Then
         val event = heartbeatTimer.timeoutFlow.value
-        event shouldBeEqualTo HeartbeatTimerEvent.Timeout
+        event shouldBeEqualTo HeartbeatTimeoutEvent
     }
 
     @Test
@@ -146,6 +146,6 @@ class HeartbeatTimerTest : JUnitTest() {
 
         // Then
         val event = heartbeatTimer.timeoutFlow.value
-        event shouldBeEqualTo HeartbeatTimerEvent.Timeout
+        event shouldBeEqualTo HeartbeatTimeoutEvent
     }
 }

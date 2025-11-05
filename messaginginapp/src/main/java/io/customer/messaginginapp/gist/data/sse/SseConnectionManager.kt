@@ -122,7 +122,7 @@ internal class SseConnectionManager(
         // Start monitoring heartbeat timer timeout events
         timeoutJob = scope.launch {
             heartbeatTimer.timeoutFlow.collect { event ->
-                if (event is HeartbeatTimerEvent.Timeout) {
+                if (event is HeartbeatTimeoutEvent) {
                     logger.error("SSE: Heartbeat timer expired, closing connection")
                     stopConnection()
                 }

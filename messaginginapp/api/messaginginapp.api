@@ -49,22 +49,6 @@ public final class io/customer/messaginginapp/di/DIGraphMessagingInAppKt {
 	public static final fun inAppMessaging (Lio/customer/sdk/CustomerIOInstance;)Lio/customer/messaginginapp/ModuleMessagingInApp;
 }
 
-public abstract class io/customer/messaginginapp/gist/GistEnvironment : java/lang/Enum, io/customer/messaginginapp/gist/GistEnvironmentEndpoints {
-	public static final field DEV Lio/customer/messaginginapp/gist/GistEnvironment;
-	public static final field LOCAL Lio/customer/messaginginapp/gist/GistEnvironment;
-	public static final field PROD Lio/customer/messaginginapp/gist/GistEnvironment;
-	public synthetic fun <init> (Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/gist/GistEnvironment;
-	public static fun values ()[Lio/customer/messaginginapp/gist/GistEnvironment;
-}
-
-public abstract interface class io/customer/messaginginapp/gist/GistEnvironmentEndpoints {
-	public abstract fun getEngineApiUrl ()Ljava/lang/String;
-	public abstract fun getGistQueueApiUrl ()Ljava/lang/String;
-	public abstract fun getGistRendererUrl ()Ljava/lang/String;
-}
-
 public final class io/customer/messaginginapp/gist/data/NetworkUtilities {
 	public static final field Companion Lio/customer/messaginginapp/gist/data/NetworkUtilities$Companion;
 	public fun <init> ()V
@@ -193,17 +177,6 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 
 public final class io/customer/messaginginapp/gist/presentation/GistModalActivity$Companion {
 	public final fun newIntent (Landroid/content/Context;)Landroid/content/Intent;
-}
-
-public final class io/customer/messaginginapp/gist/presentation/GistSdk : io/customer/messaginginapp/gist/presentation/GistProvider {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/customer/messaginginapp/gist/GistEnvironment;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun dismissMessage ()V
-	public fun fetchInAppMessages ()V
-	public fun reset ()V
-	public fun setAnonymousId (Ljava/lang/String;)V
-	public fun setCurrentRoute (Ljava/lang/String;)V
-	public fun setUserId (Ljava/lang/String;)V
 }
 
 public final class io/customer/messaginginapp/gist/presentation/engine/EngineWebViewInterface {

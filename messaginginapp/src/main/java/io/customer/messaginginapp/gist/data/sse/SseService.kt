@@ -56,6 +56,10 @@ internal class SseService(
 
                     override fun onOpen(eventSource: EventSource, response: Response) {
                         logger.info("SSE: Connection opened successfully")
+                        val result = trySend(ConnectionOpenEvent)
+                        if (!result.isSuccess) {
+                            logger.debug("SSE: Failed to send connection opened event: ${result.exceptionOrNull()?.message}")
+                        }
                     }
 
                     override fun onEvent(
@@ -71,10 +75,9 @@ internal class SseService(
                             return
                         }
 
-                        try {
-                            trySend(SseEvent(type, data))
-                        } catch (e: Exception) {
-                            logger.debug("SSE: Error sending event: ${e.message}")
+                        val result = trySend(ServerEvent(type, data))
+                        if (!result.isSuccess) {
+                            logger.debug("SSE: Failed to send event: ${result.exceptionOrNull()?.message}")
                         }
                     }
 
@@ -154,12 +157,30 @@ internal class SseService(
 }
 
 /**
- * Represents an SSE event used to communicate events from connection with server
+ * Represents an SSE event from the server connection
+ */
+internal sealed interface SseEvent
+
+/**
+ * Represents a connection opened event (emitted by SseService.onOpen).
+ */
+internal object ConnectionOpenEvent : SseEvent
+
+/**
+ * Represents a server event with type and data.
  *
  * @property eventType The type of event (connected, heartbeat, messages, ttl_exceeded)
  * @property data The JSON data associated with the event
  */
-internal data class SseEvent(
+internal data class ServerEvent(
     val eventType: String,
     val data: String
-)
+) : SseEvent {
+    companion object {
+        // Server event types
+        const val CONNECTED = "connected"
+        const val HEARTBEAT = "heartbeat"
+        const val MESSAGES = "messages"
+        const val TTL_EXCEEDED = "ttl_exceeded"
+    }
+}

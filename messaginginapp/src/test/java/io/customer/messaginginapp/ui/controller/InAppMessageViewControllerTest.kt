@@ -7,6 +7,7 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.commontest.extensions.filterNotNullValues
 import io.customer.commontest.extensions.random
+import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -24,6 +25,7 @@ import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppMessageViewCallback
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
+import io.customer.sdk.core.di.SDKComponent
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
@@ -444,7 +446,8 @@ class InAppMessageViewControllerTest : JUnitTest() {
             messageId = givenMessage.messageId,
             instanceId = givenMessage.instanceId,
             endpoint = givenStoreState.environment.getEngineApiUrl(),
-            properties = givenMessage.properties
+            properties = givenMessage.properties,
+            customAttributes = SDKComponent.gistCustomAttributes.toMap()
         )
         assertCalledOnce { engineWebViewDelegate.setup(expectedConfig) }
     }

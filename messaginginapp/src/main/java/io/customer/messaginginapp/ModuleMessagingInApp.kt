@@ -1,5 +1,6 @@
 package io.customer.messaginginapp
 
+import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
@@ -26,6 +27,18 @@ class ModuleMessagingInApp(
         gistProvider.dismissMessage()
     }
 
+    fun setCustomAttribute(key: String, value: Any) {
+        SDKComponent.gistCustomAttributes[key] = value
+    }
+
+    fun removeCustomAttribute(key: String) {
+        SDKComponent.gistCustomAttributes.remove(key)
+    }
+
+    fun clearCustomAttributes() {
+        SDKComponent.gistCustomAttributes.clear()
+    }
+
     override fun initialize() {
         setupHooks()
     }
@@ -41,6 +54,7 @@ class ModuleMessagingInApp(
 
         eventBus.subscribe<Event.AnonymousIdGeneratedEvent> {
             gistProvider.setAnonymousId(it.anonymousId)
+            setCustomAttribute("cio_anonymous_id", it.anonymousId)
         }
 
         eventBus.subscribe<Event.ResetEvent> {

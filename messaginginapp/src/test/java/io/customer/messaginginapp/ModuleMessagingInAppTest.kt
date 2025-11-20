@@ -8,6 +8,7 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
+import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
@@ -66,6 +67,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
     override fun teardown() {
         eventBus.removeAllSubscriptions()
+        SDKComponent.gistCustomAttributes.clear()
 
         super.teardown()
     }
@@ -98,6 +100,20 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         // verify gist doesn't userToken
         assertCalledNever { inAppMessagesProviderMock.setUserId(any()) }
+    }
+
+    @Test
+    fun initialize_givenAnonymousIdGenerated_expectGistToSetAnonymousIdAndCustomAttribute() {
+        val givenAnonymousId = String.random
+        module.initialize()
+
+        // publish anonymous id generated event
+        eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = givenAnonymousId))
+
+        // verify gist sets anonymousId
+        assertCalledOnce { inAppMessagesProviderMock.setAnonymousId(givenAnonymousId) }
+        // verify custom attribute is set
+        assert(SDKComponent.gistCustomAttributes["cio_anonymous_id"] == givenAnonymousId)
     }
 
     @Test
@@ -236,5 +252,38 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         verify(exactly = 0) {
             eventBus.publish(any<Event.TrackInAppMetricEvent>())
         }
+    }
+
+    @Test
+    fun setCustomAttribute_givenKeyAndValue_expectAttributeSet() {
+        val givenKey = "test_key"
+        val givenValue = "test_value"
+
+        module.setCustomAttribute(givenKey, givenValue)
+
+        assert(SDKComponent.gistCustomAttributes[givenKey] == givenValue)
+    }
+
+    @Test
+    fun removeCustomAttribute_givenExistingKey_expectAttributeRemoved() {
+        val givenKey = "test_key"
+        val givenValue = "test_value"
+
+        module.setCustomAttribute(givenKey, givenValue)
+        module.removeCustomAttribute(givenKey)
+
+        assert(SDKComponent.gistCustomAttributes[givenKey] == null)
+        assert(SDKComponent.gistCustomAttributes.isEmpty())
+    }
+
+    @Test
+    fun clearCustomAttributes_givenMultipleAttributes_expectAllAttributesCleared() {
+        module.setCustomAttribute("key1", "value1")
+        module.setCustomAttribute("key2", "value2")
+        module.setCustomAttribute("key3", 123)
+
+        module.clearCustomAttributes()
+
+        assert(SDKComponent.gistCustomAttributes.isEmpty())
     }
 }

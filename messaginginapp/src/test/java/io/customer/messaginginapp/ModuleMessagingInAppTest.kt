@@ -147,6 +147,17 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
+    fun whenResetEventOccurs_expectCustomAttributesCleared() {
+        module.initialize()
+        val givenAnonymousId = String.random
+        eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = givenAnonymousId))
+
+        eventBus.publish(Event.ResetEvent)
+
+        assert(SDKComponent.gistCustomAttributes.isEmpty())
+    }
+
+    @Test
     fun initialize_givenMessageShownWithValidPosition_expectEventListenerNotifiedAndMetricEventPublished() {
         val message = createInAppMessage(position = "top")
         val inAppMessage = InAppMessage(
@@ -252,38 +263,5 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         verify(exactly = 0) {
             eventBus.publish(any<Event.TrackInAppMetricEvent>())
         }
-    }
-
-    @Test
-    fun setCustomAttribute_givenKeyAndValue_expectAttributeSet() {
-        val givenKey = "test_key"
-        val givenValue = "test_value"
-
-        module.setCustomAttribute(givenKey, givenValue)
-
-        assert(SDKComponent.gistCustomAttributes[givenKey] == givenValue)
-    }
-
-    @Test
-    fun removeCustomAttribute_givenExistingKey_expectAttributeRemoved() {
-        val givenKey = "test_key"
-        val givenValue = "test_value"
-
-        module.setCustomAttribute(givenKey, givenValue)
-        module.removeCustomAttribute(givenKey)
-
-        assert(SDKComponent.gistCustomAttributes[givenKey] == null)
-        assert(SDKComponent.gistCustomAttributes.isEmpty())
-    }
-
-    @Test
-    fun clearCustomAttributes_givenMultipleAttributes_expectAllAttributesCleared() {
-        module.setCustomAttribute("key1", "value1")
-        module.setCustomAttribute("key2", "value2")
-        module.setCustomAttribute("key3", 123)
-
-        module.clearCustomAttributes()
-
-        assert(SDKComponent.gistCustomAttributes.isEmpty())
     }
 }

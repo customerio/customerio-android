@@ -27,15 +27,15 @@ class ModuleMessagingInApp(
         gistProvider.dismissMessage()
     }
 
-    fun setCustomAttribute(key: String, value: Any) {
+    private fun setCustomAttribute(key: String, value: Any) {
         SDKComponent.gistCustomAttributes[key] = value
     }
 
-    fun removeCustomAttribute(key: String) {
+    private fun removeCustomAttribute(key: String) {
         SDKComponent.gistCustomAttributes.remove(key)
     }
 
-    fun clearCustomAttributes() {
+    private fun clearCustomAttributes() {
         SDKComponent.gistCustomAttributes.clear()
     }
 
@@ -60,6 +60,7 @@ class ModuleMessagingInApp(
         eventBus.subscribe<Event.ResetEvent> {
             logger.debug("Resetting user token")
             gistProvider.reset()
+            clearCustomAttributes()
         }
     }
 

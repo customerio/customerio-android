@@ -16,7 +16,6 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public static final field Companion Lio/customer/messaginginapp/ModuleMessagingInApp$Companion;
 	public static final field MODULE_NAME Ljava/lang/String;
 	public fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
-	public final fun clearCustomAttributes ()V
 	public final fun dismissMessage ()V
 	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
@@ -29,8 +28,6 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
-	public final fun removeCustomAttribute (Ljava/lang/String;)V
-	public final fun setCustomAttribute (Ljava/lang/String;Ljava/lang/Object;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {

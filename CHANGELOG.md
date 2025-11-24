@@ -1,3 +1,9 @@
+## [4.14.0](https://github.com/customerio/customerio-android/compare/4.13.0...4.14.0) (2025-11-24)
+
+### Features
+
+* lead capture for anonymous messages ([#634](https://github.com/customerio/customerio-android/issues/634)) ([8342099](https://github.com/customerio/customerio-android/commit/834209952352d3deb26a8dcee9cd12d1a8413f40))
+
 ## [4.13.0](https://github.com/customerio/customerio-android/compare/4.12.1...4.13.0) (2025-10-29)
 
 ### Features

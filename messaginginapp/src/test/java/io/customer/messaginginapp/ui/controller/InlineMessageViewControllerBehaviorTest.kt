@@ -11,6 +11,7 @@ import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
+import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
@@ -461,7 +462,8 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             messageId = expectedMessage.messageId,
             instanceId = expectedMessage.instanceId,
             endpoint = gistEnvironment.getEngineApiUrl(),
-            properties = expectedMessage.properties
+            properties = expectedMessage.properties,
+            customAttributes = SDKComponent.gistCustomAttributes.toMap()
         )
 
         elapsedTimer.start(any())

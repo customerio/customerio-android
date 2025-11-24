@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
+import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
@@ -105,7 +106,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             messageId = message.messageId,
             instanceId = message.instanceId,
             endpoint = store.environment.getEngineApiUrl(),
-            properties = message.properties
+            properties = message.properties,
+            customAttributes = SDKComponent.gistCustomAttributes.toMap()
         )
 
         currentMessage = message

@@ -8,6 +8,7 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
+import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
@@ -66,6 +67,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
     override fun teardown() {
         eventBus.removeAllSubscriptions()
+        SDKComponent.gistCustomAttributes.clear()
 
         super.teardown()
     }
@@ -101,6 +103,20 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
+    fun initialize_givenAnonymousIdGenerated_expectGistToSetAnonymousIdAndCustomAttribute() {
+        val givenAnonymousId = String.random
+        module.initialize()
+
+        // publish anonymous id generated event
+        eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = givenAnonymousId))
+
+        // verify gist sets anonymousId
+        assertCalledOnce { inAppMessagesProviderMock.setAnonymousId(givenAnonymousId) }
+        // verify custom attribute is set
+        assert(SDKComponent.gistCustomAttributes["cio_anonymous_id"] == givenAnonymousId)
+    }
+
+    @Test
     fun whenDismissMessageCalledOnCustomerIO_thenDismissMessageIsCalledOnGist() {
         module.initialize()
 
@@ -128,6 +144,17 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         eventBus.publish(Event.ResetEvent)
 
         assertCalledOnce { inAppMessagesProviderMock.reset() }
+    }
+
+    @Test
+    fun whenResetEventOccurs_expectCustomAttributesCleared() {
+        module.initialize()
+        val givenAnonymousId = String.random
+        eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = givenAnonymousId))
+
+        eventBus.publish(Event.ResetEvent)
+
+        assert(SDKComponent.gistCustomAttributes.isEmpty())
     }
 
     @Test

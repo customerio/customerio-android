@@ -17,6 +17,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.SDKComponent
+import java.util.concurrent.ConcurrentHashMap
 
 internal val SDKComponent.gistQueue: GistQueue
     get() = singleton<GistQueue> { Queue() }
@@ -56,6 +57,13 @@ internal val SDKComponent.anonymousMessageManager: AnonymousMessageManager
     get() = singleton<AnonymousMessageManager> {
         AnonymousMessageManagerImpl()
     }
+
+/**
+ * Stores custom attributes that will be injected into the Gist renderer.
+ * These attributes are passed to the Gist WebView via the configuration.
+ */
+internal val SDKComponent.gistCustomAttributes: ConcurrentHashMap<String, Any>
+    get() = singleton { ConcurrentHashMap<String, Any>() }
 
 /**
  * Get the [ModuleMessagingInApp] instance from the [CustomerIOInstance]

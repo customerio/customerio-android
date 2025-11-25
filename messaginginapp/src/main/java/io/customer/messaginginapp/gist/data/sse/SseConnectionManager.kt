@@ -115,10 +115,13 @@ internal class SseConnectionManager(
                 timeoutJob?.cancel()
                 timeoutJob = null
 
+                retryHelper.resetRetryState()
                 retryJob?.cancel()
                 retryJob = null
 
                 sseService.disconnect()
+
+                connectionState = SseConnectionState.DISCONNECTED
             }
 
             logger.debug("SSE: Connection stopped")
@@ -134,7 +137,7 @@ internal class SseConnectionManager(
             establishConnection()
         } catch (e: CancellationException) {
             logger.debug("SSE: Connection cancelled")
-            updateConnectionState(SseConnectionState.DISCONNECTED)
+            // Don't update state - the code that cancelled this job has already updated it.
             throw e
         } catch (e: Exception) {
             logger.error("SSE Retry: Connection attempt failed - ${e::class.simpleName}: ${e.message}")
@@ -269,6 +272,7 @@ internal class SseConnectionManager(
         // Cleanup on complete failure
         updateConnectionState(SseConnectionState.DISCONNECTED)
         heartbeatTimer.reset()
+        retryHelper.resetRetryState()
 
         // Fallback to polling
         inAppMessagingManager.dispatch(InAppMessagingAction.SetSseEnabled(false))
@@ -304,6 +308,10 @@ internal class SseConnectionManager(
      * This method handles mutex locking internally.
      */
     private suspend fun updateConnectionState(newState: SseConnectionState) {
+        // Check if coroutine is cancelled before updating state
+        // This prevents race conditions where a cancelled job tries to update state
+        currentCoroutineContext().ensureActive()
+
         connectionMutex.withLock {
             connectionState = newState
         }
@@ -312,11 +320,18 @@ internal class SseConnectionManager(
     private fun subscribeToFlows() {
         if (timeoutJob == null) {
             timeoutJob = scope.launch {
-                heartbeatTimer.timeoutFlow.collect { event ->
-                    if (event is HeartbeatTimeoutEvent) {
-                        logger.error("SSE Retry: Heartbeat timer expired - triggering retry logic")
-                        handleConnectionFailure(SseError.TimeoutError)
+                try {
+                    heartbeatTimer.timeoutFlow.collect { event ->
+                        if (event is HeartbeatTimeoutEvent) {
+                            logger.error("SSE Retry: Heartbeat timer expired - triggering retry logic")
+                            handleConnectionFailure(SseError.TimeoutError)
+                        }
                     }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.error("SSE: Timeout flow collector error: ${e::class.simpleName} - ${e.message}", throwable = e)
+                    timeoutJob = null
                 }
             }
         }
@@ -345,8 +360,11 @@ internal class SseConnectionManager(
                             }
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logger.error("SSE Retry: Collector error: ${e::class.simpleName} - ${e.message}", throwable = e)
+                    retryJob = null
                 }
             }
         }

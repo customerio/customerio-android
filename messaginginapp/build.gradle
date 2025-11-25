@@ -37,8 +37,8 @@ dependencies {
     api project(":base")
     api project(":core")
 
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.10.0"
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
 
     implementation Dependencies.reduxKotlin

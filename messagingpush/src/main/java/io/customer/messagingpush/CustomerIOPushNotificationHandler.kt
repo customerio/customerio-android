@@ -19,13 +19,20 @@ import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.extensions.*
+import io.customer.messagingpush.diagnostics.PushDiagnosticErrorTypes
+import io.customer.messagingpush.diagnostics.PushDiagnosticEvents
+import io.customer.messagingpush.extensions.getColorOrNull
+import io.customer.messagingpush.extensions.getDrawableByName
+import io.customer.messagingpush.extensions.getMetaDataResource
+import io.customer.messagingpush.extensions.getMetaDataString
+import io.customer.messagingpush.extensions.toColorOrNull
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
+import io.customer.sdk.insights.Diagnostics
 import java.net.URL
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +85,13 @@ internal class CustomerIOPushNotificationHandler(
         // Check if message contains a data payload.
         if (bundle.isEmpty) {
             pushLogger.logReceivedEmptyPushMessage()
+            // Record diagnostics for empty push message
+            Diagnostics.record(PushDiagnosticEvents.PUSH_RECEIVE_ERROR) {
+                withData {
+                    put("error_type", PushDiagnosticErrorTypes.EMPTY_BUNDLE)
+                    put("error_message", "Received push message with empty data bundle")
+                }
+            }
             return false
         }
 
@@ -97,6 +111,15 @@ internal class CustomerIOPushNotificationHandler(
             )
         } else {
             pushLogger.logReceivedNonCioPushMessage()
+            // Record diagnostics for non-CIO push
+            Diagnostics.record(PushDiagnosticEvents.PUSH_RECEIVE_ERROR) {
+                withData {
+                    put("error_type", PushDiagnosticErrorTypes.NON_CIO_PUSH)
+                    put("error_message", "Received push without Customer.io delivery credentials")
+                    put("has_delivery_id", deliveryId != null)
+                    put("has_delivery_token", deliveryToken != null)
+                }
+            }
             // not a CIO push notification
             return false
         }
@@ -115,6 +138,13 @@ internal class CustomerIOPushNotificationHandler(
         deliveryToken: String
     ) {
         pushLogger.logShowingPushNotification(remoteMessage)
+
+        // Track notification rendering start for crash debugging
+        Diagnostics.record(PushDiagnosticEvents.PUSH_NOTIFICATION_RENDER_STARTED) {
+            withData {
+                put("delivery_id", deliveryId)
+            }
+        }
 
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
         val requestCode = abs(System.currentTimeMillis().toInt())
@@ -197,6 +227,13 @@ internal class CustomerIOPushNotificationHandler(
 
         val notification = notificationBuilder.build()
         notificationManager.notify(requestCode, notification)
+
+        // Track notification rendering completed
+        Diagnostics.record(PushDiagnosticEvents.PUSH_NOTIFICATION_RENDER_COMPLETED) {
+            withData {
+                put("delivery_id", deliveryId)
+            }
+        }
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -236,6 +273,15 @@ internal class CustomerIOPushNotificationHandler(
                 val input = url.openStream()
                 BitmapFactory.decodeStream(input)
             } catch (e: Exception) {
+                // Record diagnostics for image loading failure
+                Diagnostics.record(PushDiagnosticEvents.PUSH_IMAGE_LOAD_ERROR) {
+                    withData {
+                        put("error_type", PushDiagnosticErrorTypes.IMAGE_DOWNLOAD_FAILED)
+                        put("image_url", imageUrl)
+                        put("error_message", e.message ?: "Failed to load image")
+                        put("exception_type", e::class.simpleName)
+                    }
+                }
                 null
             }
         }?.let { bitmap ->

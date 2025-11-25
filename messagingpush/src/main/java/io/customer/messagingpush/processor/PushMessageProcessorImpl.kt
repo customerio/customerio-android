@@ -8,6 +8,8 @@ import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.diagnostics.PushDiagnosticErrorTypes
+import io.customer.messagingpush.diagnostics.PushDiagnosticEvents
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.util.DeepLinkUtil
@@ -15,6 +17,7 @@ import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.events.Metric
+import io.customer.sdk.insights.Diagnostics
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
@@ -40,12 +43,27 @@ internal class PushMessageProcessorImpl(
             deliveryId.isNullOrBlank() -> {
                 // Ignore messages with empty/invalid deliveryId
                 pushLogger.logReceivedPushMessageWithEmptyDeliveryId()
+                // Record diagnostics for invalid delivery ID
+                Diagnostics.record(PushDiagnosticEvents.PUSH_DELIVERY_ERROR) {
+                    withData {
+                        put("error_type", PushDiagnosticErrorTypes.EMPTY_DELIVERY_ID)
+                        put("error_message", "Received push with empty or null deliveryId")
+                    }
+                }
                 return true
             }
 
             PushMessageProcessor.recentMessagesQueue.contains(deliveryId) -> {
                 // Ignore messages that were processed already
                 pushLogger.logReceivedDuplicatePushMessageDeliveryId(deliveryId)
+                // Record diagnostics for duplicate delivery
+                Diagnostics.record(PushDiagnosticEvents.PUSH_DELIVERY_ERROR) {
+                    withData {
+                        put("error_type", PushDiagnosticErrorTypes.DUPLICATE_DELIVERY_ID)
+                        put("delivery_id", deliveryId)
+                        put("error_message", "Received duplicate push with same deliveryId")
+                    }
+                }
                 return true
             }
 
@@ -99,6 +117,14 @@ internal class PushMessageProcessorImpl(
                     deviceToken = deliveryToken
                 )
             )
+
+            // Record diagnostics for successful delivery
+            Diagnostics.record(PushDiagnosticEvents.PUSH_DELIVERED) {
+                withData {
+                    put("delivery_id", deliveryId)
+                    put("device_token", deliveryToken)
+                }
+            }
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()
         }
@@ -110,11 +136,26 @@ internal class PushMessageProcessorImpl(
                 intent.extras?.parcelable(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA)
             if (payload == null) {
                 pushLogger.logFailedToHandlePushClick(IllegalArgumentException("Payload is null, cannot handle notification intent"))
+                // Record diagnostics for missing payload
+                Diagnostics.record(PushDiagnosticEvents.PUSH_CLICK_ERROR) {
+                    withData {
+                        put("error_type", PushDiagnosticErrorTypes.MISSING_PAYLOAD)
+                        put("error_message", "Payload is null, cannot handle notification intent")
+                    }
+                }
             } else {
                 handleNotificationClickIntent(activityContext, payload)
             }
         }.onFailure { ex ->
             pushLogger.logFailedToHandlePushClick(ex)
+            // Record diagnostics for click handling failure
+            Diagnostics.record(PushDiagnosticEvents.PUSH_CLICK_ERROR) {
+                withData {
+                    put("error_type", PushDiagnosticErrorTypes.EXCEPTION)
+                    put("error_message", ex.message ?: "Unknown error")
+                    put("exception_type", ex::class.simpleName)
+                }
+            }
         }
     }
 
@@ -136,6 +177,15 @@ internal class PushMessageProcessorImpl(
                     deviceToken = payload.cioDeliveryToken
                 )
             )
+
+            // Record diagnostics for push opened
+            Diagnostics.record(PushDiagnosticEvents.PUSH_OPENED) {
+                withData {
+                    put("delivery_id", payload.cioDeliveryId)
+                    put("device_token", payload.cioDeliveryToken)
+                    put("has_deep_link", payload.deepLink?.isNotBlank() == true)
+                }
+            }
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()
         }
@@ -146,6 +196,15 @@ internal class PushMessageProcessorImpl(
         payload: CustomerIOParsedPushPayload
     ) {
         pushLogger.logHandlingNotificationDeepLink(payload, moduleConfig.pushClickBehavior)
+
+        // Track deep link handling started for crash debugging
+        Diagnostics.record(PushDiagnosticEvents.PUSH_DEEP_LINK_HANDLING_STARTED) {
+            withData {
+                put("delivery_id", payload.cioDeliveryId)
+                put("has_deep_link", payload.deepLink?.isNotBlank() == true)
+            }
+        }
+
         val deepLink = payload.deepLink?.takeIf { link -> link.isNotBlank() }
 
         // check if host app overrides the handling of deeplink
@@ -193,6 +252,13 @@ internal class PushMessageProcessorImpl(
                 startActivityForIntent(activityContext, defaultHostAppIntent, payload)
             }
             else -> pushLogger.logDeepLinkWasNotHandled()
+        }
+
+        // Track deep link handling completed
+        Diagnostics.record(PushDiagnosticEvents.PUSH_DEEP_LINK_HANDLING_COMPLETED) {
+            withData {
+                put("delivery_id", payload.cioDeliveryId)
+            }
         }
     }
 

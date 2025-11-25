@@ -46,6 +46,7 @@ class CustomerIOConfigBuilder(
         val autoTrackActivityScreens: Boolean = false
         val migrationSiteId: String? = null
         val screenViewUse: ScreenView = ScreenView.All
+        val diagnosticsEnabled: Boolean = false
         val modules: List<CustomerIOModule<out CustomerIOModuleConfig>> = emptyList()
     }
 
@@ -83,6 +84,9 @@ class CustomerIOConfigBuilder(
 
     // Determines how SDK should handle screen view events
     private var screenViewUse: ScreenView = Defaults.screenViewUse
+
+    // Enable diagnostics for production debugging
+    private var diagnosticsEnabled: Boolean = Defaults.diagnosticsEnabled
 
     // List of modules to be initialized with the SDK
     private val modules: MutableList<CustomerIOModule<out CustomerIOModuleConfig>> = mutableListOf()
@@ -201,6 +205,17 @@ class CustomerIOConfigBuilder(
     }
 
     /**
+     * Enable diagnostics for production debugging.
+     * When enabled, SDK will collect diagnostic events and send them to the server
+     * based on server-side sampleRate configuration.
+     * Default value is `false`.
+     */
+    fun diagnosticsEnabled(enabled: Boolean): CustomerIOConfigBuilder {
+        this.diagnosticsEnabled = enabled
+        return this
+    }
+
+    /**
      * Add a CustomerIO module to be initialized with the SDK.
      */
     fun <Config : CustomerIOModuleConfig> addCustomerIOModule(module: CustomerIOModule<Config>): CustomerIOConfigBuilder {
@@ -228,6 +243,7 @@ class CustomerIOConfigBuilder(
             autoTrackActivityScreens = autoTrackActivityScreens,
             migrationSiteId = migrationSiteId,
             screenViewUse = screenViewUse,
+            diagnosticsEnabled = diagnosticsEnabled,
             modules = modules.toList()
         )
     }

@@ -12,6 +12,8 @@ import io.customer.sdk.core.util.LoggerImpl
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.core.util.SdkDispatchers
 import io.customer.sdk.core.util.SdkScopeProvider
+import io.customer.sdk.insights.DiagnosticsRecorder
+import io.customer.sdk.insights.NoOpDiagnostics
 import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
 
 /**
@@ -53,6 +55,13 @@ object SDKComponent : DiGraph() {
         get() = newInstance<DispatchersProvider> { SdkDispatchers() }
     val scopeProvider: ScopeProvider
         get() = newInstance<ScopeProvider> { SdkScopeProvider(dispatchersProvider) }
+
+    /**
+     * Get the diagnostics instance. Returns a no-op implementation if diagnostics is not initialized.
+     * Diagnostics is initialized when enabled in SDK config and server allows it via sampleRate.
+     */
+    val diagnostics: DiagnosticsRecorder
+        get() = getOrNull<DiagnosticsRecorder>() ?: NoOpDiagnostics
 
     override fun reset() {
         androidSDKComponent?.reset()

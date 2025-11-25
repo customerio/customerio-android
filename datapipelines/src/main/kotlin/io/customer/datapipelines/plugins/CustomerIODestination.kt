@@ -18,6 +18,8 @@ import com.segment.analytics.kotlin.core.platform.plugins.DestinationMetadataPlu
 import com.segment.analytics.kotlin.core.platform.policies.CountBasedFlushPolicy
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import com.segment.analytics.kotlin.core.platform.policies.FrequencyFlushPolicy
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import sovran.kotlin.Subscriber
@@ -123,6 +125,8 @@ class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
 
     override fun flush() {
         pipeline?.flush()
+        // Trigger diagnostics flush alongside Analytics flush
+        SDKComponent.eventBus.publish(Event.FlushEvent)
     }
 
     override fun version(): String {

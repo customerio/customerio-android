@@ -26,6 +26,7 @@ import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPl
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
+import io.customer.insights.DiagnosticsBridge
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -112,6 +113,13 @@ class CustomerIO private constructor(
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
         Analytics.setLogger(segmentLogger)
+
+        // Setup diagnostics bridge if enabled
+        val diagnosticsBridge = DiagnosticsBridge(
+            context = androidSDKComponent.applicationContext,
+            diagnosticsEnabled = moduleConfig.diagnosticsEnabled
+        )
+        diagnosticsBridge.setup(analytics)
 
         // Add required plugins to analytics instance
         analytics.add(contextPlugin)
@@ -463,7 +471,8 @@ class CustomerIO private constructor(
                 autoTrackDeviceAttributes = config.autoTrackDeviceAttributes,
                 autoTrackActivityScreens = config.autoTrackActivityScreens,
                 migrationSiteId = config.migrationSiteId,
-                screenViewUse = config.screenViewUse
+                screenViewUse = config.screenViewUse,
+                diagnosticsEnabled = config.diagnosticsEnabled
             )
 
             // Initialize CustomerIO instance before initializing the modules

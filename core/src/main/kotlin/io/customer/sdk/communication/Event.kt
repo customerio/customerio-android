@@ -48,4 +48,10 @@ sealed class Event {
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()
+
+    /**
+     * Event published when Analytics/SDK performs a flush operation.
+     * Diagnostics can subscribe to this event to flush diagnostic data alongside analytics data.
+     */
+    object FlushEvent : Event()
 }

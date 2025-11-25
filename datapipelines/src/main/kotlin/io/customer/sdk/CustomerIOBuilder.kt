@@ -220,6 +220,7 @@ class CustomerIOBuilder(
             autoTrackActivityScreens = autoTrackActivityScreens,
             migrationSiteId = migrationSiteId,
             screenViewUse = screenViewUse,
+            diagnosticsEnabled = CustomerIOConfigBuilder.Defaults.diagnosticsEnabled,
             modules = registeredModules.toList()
         )
 

@@ -1,11 +1,14 @@
 package io.customer.sdk.core.util
 
+import kotlinx.serialization.Serializable
+
 /**
  * Log levels for Customer.io SDK logs
  *
  * @property priority Priority of the log level. The higher the value, the more verbose
  * the log level.
  */
+@Serializable
 enum class CioLogLevel(val priority: Int) {
     NONE(priority = 0),
     ERROR(priority = 1),

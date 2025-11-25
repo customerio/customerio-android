@@ -154,6 +154,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 	public final fun android ()Lio/customer/sdk/core/di/AndroidSDKComponent;
 	public final fun getActivityLifecycleCallbacks ()Lio/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks;
 	public final fun getBuildEnvironment ()Lio/customer/sdk/core/environment/BuildEnvironment;
+	public final fun getDiagnostics ()Lio/customer/sdk/insights/DiagnosticsRecorder;
 	public final fun getDispatchersProvider ()Lio/customer/sdk/core/util/DispatchersProvider;
 	public final fun getEventBus ()Lio/customer/sdk/communication/EventBus;
 	public final fun getLogger ()Lio/customer/sdk/core/util/Logger;
@@ -163,6 +164,7 @@ public final class io/customer/sdk/core/di/SDKComponent : io/customer/sdk/core/d
 }
 
 public final class io/customer/sdk/core/di/SDKComponentExtKt {
+	public static final fun registerDiagnostics (Lio/customer/sdk/core/di/SDKComponent;Lio/customer/sdk/insights/DiagnosticsRecorder;)Lio/customer/sdk/insights/DiagnosticsRecorder;
 	public static final fun setupAndroidComponent (Lio/customer/sdk/core/di/SDKComponent;Landroid/content/Context;)Lio/customer/sdk/core/di/AndroidSDKComponent;
 }
 
@@ -208,6 +210,7 @@ public final class io/customer/sdk/core/util/CioLogLevel$Companion {
 	public final fun getDEFAULT ()Lio/customer/sdk/core/util/CioLogLevel;
 	public final fun getLogLevel (Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;)Lio/customer/sdk/core/util/CioLogLevel;
 	public static synthetic fun getLogLevel$default (Lio/customer/sdk/core/util/CioLogLevel$Companion;Ljava/lang/String;Lio/customer/sdk/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface class io/customer/sdk/core/util/DispatchersProvider {
@@ -347,6 +350,111 @@ public final class io/customer/sdk/events/TrackMetric$Push : io/customer/sdk/eve
 	public fun getMetric ()Lio/customer/sdk/events/Metric;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/insights/DiagnosticBuilder {
+	public fun <init> (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lkotlin/jvm/functions/Function1;
+	public final fun copy (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lio/customer/sdk/insights/DiagnosticBuilder;
+	public static synthetic fun copy$default (Lio/customer/sdk/insights/DiagnosticBuilder;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/customer/sdk/insights/DiagnosticBuilder;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMetadataBuilder ()Lkotlin/jvm/functions/Function1;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/insights/DiagnosticBuilderKt {
+	public static final fun record (Lio/customer/sdk/insights/Diagnostics;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun record$default (Lio/customer/sdk/insights/Diagnostics;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+}
+
+public final class io/customer/sdk/insights/DiagnosticBuilderScope {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun build ()Lio/customer/sdk/insights/DiagnosticBuilder;
+	public final fun metadata (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class io/customer/sdk/insights/DiagnosticEvent {
+	public static final field Companion Lio/customer/sdk/insights/DiagnosticEvent$Companion;
+	public fun <init> (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;JLio/customer/sdk/core/util/CioLogLevel;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;JLio/customer/sdk/core/util/CioLogLevel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lkotlinx/serialization/json/JsonObject;
+	public final fun component3 ()J
+	public final fun component4 ()Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun copy (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;JLio/customer/sdk/core/util/CioLogLevel;)Lio/customer/sdk/insights/DiagnosticEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/insights/DiagnosticEvent;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;JLio/customer/sdk/core/util/CioLogLevel;ILjava/lang/Object;)Lio/customer/sdk/insights/DiagnosticEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Lkotlinx/serialization/json/JsonObject;
+	public final fun getLevel ()Lio/customer/sdk/core/util/CioLogLevel;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getTimestamp ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public synthetic class io/customer/sdk/insights/DiagnosticEvent$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lio/customer/sdk/insights/DiagnosticEvent$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lio/customer/sdk/insights/DiagnosticEvent;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lio/customer/sdk/insights/DiagnosticEvent;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+}
+
+public final class io/customer/sdk/insights/DiagnosticEvent$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class io/customer/sdk/insights/Diagnostics : io/customer/sdk/insights/DiagnosticsRecorder {
+	public static final field INSTANCE Lio/customer/sdk/insights/Diagnostics;
+	public fun clear ()V
+	public fun flush ()V
+	public final fun getInstance ()Lio/customer/sdk/insights/DiagnosticsRecorder;
+	public fun isEnabled ()Z
+	public fun isEnabledForEvent (Ljava/lang/String;)Z
+	public fun record (Lio/customer/sdk/insights/DiagnosticEvent;)V
+	public fun setEnabled (Z)V
+}
+
+public final class io/customer/sdk/insights/DiagnosticsImpl : io/customer/sdk/insights/DiagnosticsRecorder {
+	public fun <init> (Lio/customer/sdk/insights/DiagnosticsStore;Lio/customer/sdk/insights/DiagnosticsUploader;Lio/customer/sdk/core/util/Logger;Lio/customer/sdk/core/util/ScopeProvider;Lio/customer/sdk/data/store/DeviceStore;)V
+	public fun clear ()V
+	public fun flush ()V
+	public fun isEnabled ()Z
+	public fun isEnabledForEvent (Ljava/lang/String;)Z
+	public fun record (Lio/customer/sdk/insights/DiagnosticEvent;)V
+	public fun setEnabled (Z)V
+}
+
+public abstract interface class io/customer/sdk/insights/DiagnosticsRecorder {
+	public abstract fun clear ()V
+	public abstract fun flush ()V
+	public abstract fun isEnabled ()Z
+	public abstract fun isEnabledForEvent (Ljava/lang/String;)Z
+	public abstract fun record (Lio/customer/sdk/insights/DiagnosticEvent;)V
+	public abstract fun setEnabled (Z)V
+}
+
+public abstract interface class io/customer/sdk/insights/DiagnosticsStore {
+	public abstract fun clear (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getAll (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun save (Lio/customer/sdk/insights/DiagnosticEvent;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/customer/sdk/insights/DiagnosticsUploader {
+	public abstract fun upload (Ljava/util/List;)V
+}
+
+public final class io/customer/sdk/insights/FileDiagnosticsStore : io/customer/sdk/insights/DiagnosticsStore {
+	public fun <init> (Landroid/content/Context;Lio/customer/sdk/core/util/DispatchersProvider;Ljava/lang/String;IJJ)V
+	public synthetic fun <init> (Landroid/content/Context;Lio/customer/sdk/core/util/DispatchersProvider;Ljava/lang/String;IJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun clear (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAll (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun save (Lio/customer/sdk/insights/DiagnosticEvent;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class io/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks : android/app/Application$ActivityLifecycleCallbacks {

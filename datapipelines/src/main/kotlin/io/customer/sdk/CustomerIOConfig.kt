@@ -28,5 +28,6 @@ data class CustomerIOConfig internal constructor(
     internal val autoTrackActivityScreens: Boolean,
     internal val migrationSiteId: String?,
     internal val screenViewUse: ScreenView,
+    internal val diagnosticsEnabled: Boolean,
     internal val modules: List<CustomerIOModule<out CustomerIOModuleConfig>>
 )

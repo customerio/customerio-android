@@ -29,12 +29,14 @@ class DataPipelinesModuleConfig(
     // Configuration options required for migration from earlier versions
     val migrationSiteId: String? = null,
     // Determines how SDK should handle screen view events
-    val screenViewUse: ScreenView
+    val screenViewUse: ScreenView,
+    // Enable diagnostics for production debugging
+    val diagnosticsEnabled: Boolean = false
 ) : CustomerIOModuleConfig {
     val apiHost: String = apiHostOverride ?: region.apiHost()
     val cdnHost: String = cdnHostOverride ?: region.cdnHost()
 
     override fun toString(): String {
-        return "DataPipelinesModuleConfig(cdpApiKey='[Redacted]', flushAt=$flushAt, flushInterval=$flushInterval, flushPolicies=$flushPolicies, autoAddCustomerIODestination=$autoAddCustomerIODestination, trackApplicationLifecycleEvents=$trackApplicationLifecycleEvents, autoTrackDeviceAttributes=$autoTrackDeviceAttributes, autoTrackActivityScreens=$autoTrackActivityScreens, migrationSiteId=[Redacted], screenViewUse=$screenViewUse, apiHost='$apiHost', cdnHost='$cdnHost')"
+        return "DataPipelinesModuleConfig(cdpApiKey='[Redacted]', flushAt=$flushAt, flushInterval=$flushInterval, flushPolicies=$flushPolicies, autoAddCustomerIODestination=$autoAddCustomerIODestination, trackApplicationLifecycleEvents=$trackApplicationLifecycleEvents, autoTrackDeviceAttributes=$autoTrackDeviceAttributes, autoTrackActivityScreens=$autoTrackActivityScreens, migrationSiteId=[Redacted], screenViewUse=$screenViewUse, diagnosticsEnabled=$diagnosticsEnabled, apiHost='$apiHost', cdnHost='$cdnHost')"
     }
 }

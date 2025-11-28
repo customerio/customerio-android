@@ -57,4 +57,5 @@ dependencies {
     implementation Dependencies.retrofit
     implementation Dependencies.okhttpLoggingInterceptor
     implementation Dependencies.okhttpSse
+    implementation Dependencies.androidxProcessLifecycle
 }

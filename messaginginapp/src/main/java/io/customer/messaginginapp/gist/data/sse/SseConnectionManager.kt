@@ -120,6 +120,7 @@ internal class SseConnectionManager(
                 retryJob = null
 
                 sseService.disconnect()
+                connectionState = SseConnectionState.DISCONNECTED
             }
 
             logger.debug("SSE: Connection stopped")

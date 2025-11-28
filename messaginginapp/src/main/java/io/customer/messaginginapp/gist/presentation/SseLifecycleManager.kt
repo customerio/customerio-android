@@ -16,7 +16,7 @@ internal class SseLifecycleManager(
     processLifecycleOwner: LifecycleOwner,
     private val sseConnectionManager: SseConnectionManager,
     private val logger: Logger,
-    mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
+    private val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
 ) {
 
     private val isForegrounded = AtomicBoolean(false)
@@ -45,12 +45,14 @@ internal class SseLifecycleManager(
     }
 
     fun reset() {
-        // If app is foregrounded, restart connection if SSE is enabled
-        if (isForegrounded.get()) {
-            val state = inAppMessagingManager.getCurrentState()
-            if (state.sseEnabled) {
-                logger.info("SSE Lifecycle: App still foregrounded after reset, restarting SSE connection")
-                sseConnectionManager.startConnection()
+        mainThreadPoster.post {
+            // If app is foregrounded, restart connection if SSE is enabled
+            if (isForegrounded.get()) {
+                val state = inAppMessagingManager.getCurrentState()
+                if (state.sseEnabled) {
+                    logger.info("SSE Lifecycle: App still foregrounded after reset, restarting SSE connection")
+                    sseConnectionManager.startConnection()
+                }
             }
         }
     }

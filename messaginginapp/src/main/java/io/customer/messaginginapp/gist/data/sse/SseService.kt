@@ -49,7 +49,7 @@ internal class SseService(
     ): Flow<SseEvent> = callbackFlow {
         val request = createSseRequest(sessionId, userToken, siteId)
 
-        eventSource = EventSources.createFactory(httpClient)
+        val currentEventSource = EventSources.createFactory(httpClient)
             .newEventSource(
                 request,
                 object : EventSourceListener() {
@@ -112,10 +112,15 @@ internal class SseService(
                 }
             )
 
+        // Update the shared field for disconnect() method, but capture locally for awaitClose
+        eventSource = currentEventSource
+
         awaitClose {
             logger.debug("SSE: Flow cancelled, cleaning up")
-            eventSource?.cancel()
-            eventSource = null
+            currentEventSource.cancel()
+            if (eventSource == currentEventSource) {
+                eventSource = null
+            }
         }
     }.buffer(Channel.BUFFERED)
 

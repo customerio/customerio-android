@@ -55,7 +55,7 @@ internal class SseService(
                 object : EventSourceListener() {
 
                     override fun onOpen(eventSource: EventSource, response: Response) {
-                        logger.info("SSE: Connection opened successfully")
+                        logger.info("SSE: Connection opened")
                         val result = trySend(ConnectionOpenEvent)
                         if (!result.isSuccess) {
                             logger.debug("SSE: Failed to send connection opened event: ${result.exceptionOrNull()?.message}")
@@ -68,7 +68,7 @@ internal class SseService(
                         type: String?,
                         data: String
                     ) {
-                        logger.debug("SSE: Received event - id: $id type: $type, data: $data")
+                        logger.debug("SSE: Received event - type: $type")
 
                         if (type.isNullOrBlank() || data.isBlank()) {
                             logger.debug("SSE: Received event with no type or data")
@@ -86,12 +86,27 @@ internal class SseService(
                         t: Throwable?,
                         response: Response?
                     ) {
-                        logger.error("SSE: Connection failed: ${t?.message}, response code: ${response?.code}")
-                        close(t ?: IllegalStateException("SSE failed: HTTP ${response?.code}"))
+                        logger.error("SSE: Connection failed - ${t?.message ?: "unknown error"}, code: ${response?.code}")
+
+                        val sseError = classifySseError(t, response)
+                        val result = trySend(ConnectionFailedEvent(sseError))
+                        if (!result.isSuccess) {
+                            logger.debug("SSE: Failed to send error event: ${result.exceptionOrNull()?.message}")
+                        }
+
+                        // Close normally - we've already emitted ConnectionFailedEvent, so the collector will handle it
+                        // Closing with exception would cause the flow collection to throw, leading to duplicate error handling
+                        close()
                     }
 
                     override fun onClosed(eventSource: EventSource) {
                         logger.info("SSE: Connection closed")
+
+                        val result = trySend(ConnectionClosedEvent)
+                        if (!result.isSuccess) {
+                            logger.debug("SSE: Failed to send connection closed event")
+                        }
+
                         close()
                     }
                 }
@@ -184,3 +199,10 @@ internal data class ServerEvent(
         const val TTL_EXCEEDED = "ttl_exceeded"
     }
 }
+
+/**
+ * Represents error events that occur during SSE connection or communication.
+ */
+internal class ConnectionFailedEvent(val error: SseError) : SseEvent
+
+internal object ConnectionClosedEvent : SseEvent

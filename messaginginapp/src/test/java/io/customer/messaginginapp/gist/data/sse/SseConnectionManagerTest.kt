@@ -14,6 +14,8 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -32,7 +34,15 @@ class SseConnectionManagerTest : JUnitTest() {
     private val sseDataParser = mockk<SseDataParser>(relaxed = true)
     private val inAppMessagingManager = mockk<InAppMessagingManager>(relaxed = true)
     private val heartbeatTimer = mockk<HeartbeatTimer>(relaxed = true) {
+        every { timeoutFlow } returns MutableStateFlow<HeartbeatTimeoutEvent?>(null).asStateFlow()
         coEvery { startTimer(any()) } returns Unit
+        coEvery { reset() } returns Unit
+    }
+    private val retryDecisionFlow = MutableStateFlow<RetryDecision?>(null)
+    private val retryHelper = mockk<SseRetryHelper>(relaxed = true) {
+        every { retryDecisionFlow } returns this@SseConnectionManagerTest.retryDecisionFlow.asStateFlow()
+        coEvery { scheduleRetry(any()) } returns Unit
+        coEvery { resetRetryState() } returns Unit
     }
 
     private val testDispatcher = StandardTestDispatcher()
@@ -48,6 +58,7 @@ class SseConnectionManagerTest : JUnitTest() {
             sseDataParser = sseDataParser,
             inAppMessagingManager = inAppMessagingManager,
             heartbeatTimer = heartbeatTimer,
+            retryHelper = retryHelper,
             scope = testScope
         )
     }
@@ -259,7 +270,7 @@ class SseConnectionManagerTest : JUnitTest() {
     }
 
     @Test
-    fun testHandleSseEvent_whenTtlExceededEvent_thenLogsError() = runTest {
+    fun testHandleSseEvent_whenTtlExceededEvent_thenReconnects() = runTest(testDispatcher) {
         // Given
         val mockState = InAppMessagingState(
             userId = "test-user",
@@ -267,16 +278,23 @@ class SseConnectionManagerTest : JUnitTest() {
             siteId = "test-site"
         )
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
-            ServerEvent(ServerEvent.TTL_EXCEEDED, "")
-        )
+
+        // First connection returns TTL_EXCEEDED, subsequent connections return empty flow to prevent infinite loop
+        coEvery { sseService.connectSse(any(), any(), any()) } returnsMany (
+            listOf(
+                flowOf(ServerEvent(ServerEvent.TTL_EXCEEDED, "")),
+                flowOf()
+            )
+            )
 
         // When
         connectionManager.startConnection()
-        testScope.advanceUntilIdle()
+        advanceUntilIdle()
 
         // Then
-        verify { logger.error("SSE: TTL exceeded, connection will be closed") }
+        coVerify { retryHelper.resetRetryState() }
+        // Verify that startConnection was called (for reconnection) - should have at least 2 connection attempts
+        coVerify(atLeast = 2) { sseService.connectSse(any(), any(), any()) }
     }
 
     @Test
@@ -323,7 +341,7 @@ class SseConnectionManagerTest : JUnitTest() {
     }
 
     @Test
-    fun testStartConnection_whenConnectionFails_thenLogsErrorAndSetsDisconnected() = runTest {
+    fun testStartConnection_whenConnectionFails_thenLogsErrorAndSchedulesRetry() = runTest {
         // Given
         val mockState = InAppMessagingState(
             userId = "test-user",
@@ -338,7 +356,8 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.error("SSE: Connection failed: Connection failed") }
+        verify { logger.error(any<String>()) }
+        coVerify { retryHelper.scheduleRetry(any()) }
     }
 
     @Test
@@ -360,7 +379,7 @@ class SseConnectionManagerTest : JUnitTest() {
 
         // Then
         verify { logger.info("SSE: Connection confirmed") }
-        coVerify { heartbeatTimer.startTimer(NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS) }
+        coVerify { heartbeatTimer.startTimer(NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS + NetworkUtilities.HEARTBEAT_BUFFER_MS) }
     }
 
     @Test
@@ -408,5 +427,177 @@ class SseConnectionManagerTest : JUnitTest() {
         // Then
         verify { logger.debug("SSE: Received empty messages event") }
         coVerify(exactly = 0) { heartbeatTimer.startTimer(any()) }
+    }
+
+    @Test
+    fun testRetryDecisionFlow_whenRetryNow_thenCallsStartConnection() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(ConnectionClosedEvent)
+
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        // When
+        retryDecisionFlow.value = RetryDecision.RetryNow(attemptCount = 1)
+        advanceUntilIdle()
+
+        // Then
+        coVerify(atLeast = 2) { sseService.connectSse(any(), any(), any()) }
+    }
+
+    @Test
+    fun testRetryDecisionFlow_whenMaxRetriesReached_thenFallsBackToPolling() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf()
+
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        val actionSlot = slot<InAppMessagingAction.SetSseEnabled>()
+
+        // When
+        retryDecisionFlow.value = RetryDecision.MaxRetriesReached
+        advanceUntilIdle()
+
+        // Then
+        verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
+        actionSlot.captured.enabled.shouldBeEqualTo(false)
+    }
+
+    @Test
+    fun testRetryDecisionFlow_whenRetryNotPossible_thenFallsBackToPolling() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf()
+
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        val actionSlot = slot<InAppMessagingAction.SetSseEnabled>()
+
+        // When
+        retryDecisionFlow.value = RetryDecision.RetryNotPossible
+        advanceUntilIdle()
+
+        // Then
+        verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
+        actionSlot.captured.enabled.shouldBeEqualTo(false)
+    }
+
+    @Test
+    fun testRetryDecisionFlow_whenNullDecision_thenIgnores() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf()
+
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        // When
+        retryDecisionFlow.value = null
+        advanceUntilIdle()
+
+        // Then
+        coVerify(exactly = 1) { sseService.connectSse(any(), any(), any()) }
+        verify(exactly = 0) { inAppMessagingManager.dispatch(any<InAppMessagingAction.SetSseEnabled>()) }
+    }
+
+    @Test
+    fun testHandleSseEvent_whenConnectionFailedEvent_thenSchedulesRetry() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        val networkError = SseError.NetworkError(java.io.IOException("Network error"))
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ConnectionFailedEvent(networkError)
+        )
+
+        // When
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        // Then
+        coVerify { retryHelper.scheduleRetry(networkError) }
+        coVerify { heartbeatTimer.reset() }
+    }
+
+    @Test
+    fun testHandleSseEvent_whenConnectionFailedEventWithNonRetryableError_thenSchedulesRetry() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        val serverError = SseError.ServerError(
+            throwable = Exception("Bad request"),
+            responseCode = 400,
+            shouldRetry = false
+        )
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ConnectionFailedEvent(serverError)
+        )
+
+        // When
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        // Then
+        coVerify { retryHelper.scheduleRetry(serverError) }
+    }
+
+    @Test
+    fun testHeartbeatTimeout_whenTimerExpires_thenTriggersRetry() = runTest(testDispatcher) {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        val timeoutFlow = MutableStateFlow<HeartbeatTimeoutEvent?>(null)
+        every { heartbeatTimer.timeoutFlow } returns timeoutFlow.asStateFlow()
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent(ServerEvent.CONNECTED, "")
+        )
+
+        // Start connection to initialize timeout flow collector
+        connectionManager.startConnection()
+        advanceUntilIdle()
+
+        // When - Emit heartbeat timeout event
+        timeoutFlow.value = HeartbeatTimeoutEvent
+        advanceUntilIdle()
+
+        // Then
+        coVerify { retryHelper.scheduleRetry(SseError.TimeoutError) }
+        coVerify { heartbeatTimer.reset() }
     }
 }

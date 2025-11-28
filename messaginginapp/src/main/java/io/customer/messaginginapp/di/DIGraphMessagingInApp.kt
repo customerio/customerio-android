@@ -10,6 +10,7 @@ import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.sse.HeartbeatTimer
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.gist.data.sse.SseDataParser
+import io.customer.messaginginapp.gist.data.sse.SseRetryHelper
 import io.customer.messaginginapp.gist.data.sse.SseService
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
@@ -80,6 +81,14 @@ internal val SDKComponent.sseService: SseService
         )
     }
 
+internal val SDKComponent.sseRetryHelper: SseRetryHelper
+    get() = singleton<SseRetryHelper> {
+        SseRetryHelper(
+            logger = logger,
+            scope = scopeProvider.inAppLifecycleScope
+        )
+    }
+
 internal val SDKComponent.sseConnectionManager: SseConnectionManager
     get() = singleton<SseConnectionManager> {
         SseConnectionManager(
@@ -88,6 +97,7 @@ internal val SDKComponent.sseConnectionManager: SseConnectionManager
             sseDataParser = sseDataParser,
             inAppMessagingManager = inAppMessagingManager,
             heartbeatTimer = heartbeatTimer,
+            retryHelper = sseRetryHelper,
             scope = scopeProvider.inAppLifecycleScope
         )
     }

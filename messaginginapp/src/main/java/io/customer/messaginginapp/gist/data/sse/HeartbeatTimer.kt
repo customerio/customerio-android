@@ -41,11 +41,9 @@ internal class HeartbeatTimer(
 
             // Cancel existing timer if running
             currentTimerJob?.cancel()
-
             // Reset timeout flow when starting new timer
             _timeoutFlow.value = null
 
-            // Start new timer
             val timerJob = scope.launch {
                 try {
                     delay(timeoutMs)
@@ -58,6 +56,20 @@ internal class HeartbeatTimer(
                 }
             }
             currentTimerJob = timerJob
+        }
+    }
+
+    /**
+     * Reset the heartbeat timer.
+     * Cancels any running timer and clears the timeout flow.
+     * Should be called when connection failures occur.
+     */
+    suspend fun reset() {
+        timerMutex.withLock {
+            logger.debug("HeartbeatTimer: Resetting timer")
+            currentTimerJob?.cancel()
+            currentTimerJob = null
+            _timeoutFlow.value = null
         }
     }
 }

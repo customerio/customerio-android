@@ -42,16 +42,16 @@ internal fun errorLoggerMiddleware() = middleware<InAppMessagingState> { _, next
 /**
  * Middleware to handle gist logging for message.
  */
-internal fun gistLoggingMessageMiddleware() = middleware<InAppMessagingState> { _, next, action ->
+internal fun gistLoggingMessageMiddleware() = middleware<InAppMessagingState> { store, next, action ->
     val logger = SDKComponent.logger
     when (action) {
-        is InAppMessagingAction.DismissMessage -> handleMessageDismissal(logger, action, next)
+        is InAppMessagingAction.DismissMessage -> handleMessageDismissal(logger, store, action, next)
         is InAppMessagingAction.DisplayMessage -> handleMessageDisplay(logger, action, next)
         else -> next(action)
     }
 }
 
-private fun handleMessageDismissal(logger: Logger, action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
+private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingState>, action: InAppMessagingAction.DismissMessage, next: (Any) -> Any) {
     // Handle anonymous message dismissal
     if (action.message.isMessageAnonymous() && action.message.queueId != null) {
         logger.debug("Anonymous message dismissed: ${action.message.queueId}")
@@ -66,12 +66,23 @@ private fun handleMessageDismissal(logger: Logger, action: InAppMessagingAction.
         logger.debug("Persistent message dismissed, logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
         SDKComponent.gistQueue.logView(action.message)
         logger.debug("Fetching in-app messages after message dismissal")
+
+        // When SSE is enabled, this won't fetch messages
         SDKComponent.gistSdk.fetchInAppMessages()
     } else {
         logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
     }
 
+    // Process the DismissMessage action first so the reducer can update shownMessageQueueIds
+    // This ensures the dismissed message is properly marked as shown before processing the queue
     next(action)
+
+    // After the dismissal is processed, dispatch ProcessMessageQueue to show the next message
+    // The dismissed message will be filtered out by processMessages() since its queueId is now in shownMessageQueueIds
+    if (store.state.sseEnabled) {
+        SDKComponent.logger.debug("SSE: Middleware handleMessageDismissal try display next message")
+        store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
+    }
 }
 
 private fun handleMessageDisplay(logger: Logger, action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {

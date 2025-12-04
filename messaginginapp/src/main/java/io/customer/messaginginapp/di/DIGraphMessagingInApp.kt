@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.di
 
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.gson.Gson
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
@@ -14,6 +15,7 @@ import io.customer.messaginginapp.gist.data.sse.SseRetryHelper
 import io.customer.messaginginapp.gist.data.sse.SseService
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParserDefault
@@ -98,6 +100,16 @@ internal val SDKComponent.sseConnectionManager: SseConnectionManager
             heartbeatTimer = heartbeatTimer,
             retryHelper = sseRetryHelper,
             scope = scopeProvider.inAppLifecycleScope
+        )
+    }
+
+internal val SDKComponent.sseLifecycleManager: SseLifecycleManager
+    get() = singleton<SseLifecycleManager> {
+        SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = ProcessLifecycleOwner.get(),
+            sseConnectionManager = sseConnectionManager,
+            logger = logger
         )
     }
 

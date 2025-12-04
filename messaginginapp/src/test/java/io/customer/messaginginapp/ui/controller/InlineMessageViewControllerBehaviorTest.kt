@@ -18,6 +18,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -30,8 +31,11 @@ import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
+import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verifyOrder
@@ -66,6 +70,12 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
                     sdk {
                         overrideDependency<GistQueue>(mockk(relaxed = true))
                         overrideDependency<ScopeProvider>(scopeProviderStub)
+                        overrideDependency(
+                            mockk<CustomerIOActivityLifecycleCallbacks>(relaxed = true) {
+                                every { subscribe(any()) } just Runs
+                            }
+                        )
+                        overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
                     }
                 }
             }

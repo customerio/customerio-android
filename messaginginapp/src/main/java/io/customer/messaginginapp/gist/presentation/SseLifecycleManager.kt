@@ -3,9 +3,9 @@ package io.customer.messaginginapp.gist.presentation
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import io.customer.messaginginapp.gist.data.sse.InAppSseLogger
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.state.InAppMessagingManager
-import io.customer.sdk.core.util.Logger
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -15,7 +15,7 @@ internal class SseLifecycleManager(
     private val inAppMessagingManager: InAppMessagingManager,
     processLifecycleOwner: LifecycleOwner,
     private val sseConnectionManager: SseConnectionManager,
-    private val logger: Logger,
+    private val sseLogger: InAppSseLogger,
     private val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
 ) {
 
@@ -50,7 +50,7 @@ internal class SseLifecycleManager(
             if (isForegrounded.get()) {
                 val state = inAppMessagingManager.getCurrentState()
                 if (state.sseEnabled) {
-                    logger.info("SSE Lifecycle: App still foregrounded after reset, restarting SSE connection")
+                    sseLogger.logRestartingAfterReset()
                     sseConnectionManager.startConnection()
                 }
             }
@@ -64,7 +64,7 @@ internal class SseLifecycleManager(
 
         val state = inAppMessagingManager.getCurrentState()
         if (state.sseEnabled) {
-            logger.info("SSE Lifecycle: App foregrounded with SSE enabled, starting SSE connection")
+            sseLogger.logAppForegrounded()
             sseConnectionManager.startConnection()
         }
     }
@@ -74,23 +74,23 @@ internal class SseLifecycleManager(
             return
         }
 
-        logger.info("SSE Lifecycle: App backgrounded, stopping SSE connection")
+        sseLogger.logAppBackgrounded()
         sseConnectionManager.stopConnection()
     }
 
     private fun subscribeToSseFlagChanges() {
         inAppMessagingManager.subscribeToAttribute({ it.sseEnabled }) { sseEnabled ->
-            logger.info("SSE Lifecycle: SSE flag changed to: $sseEnabled")
+            sseLogger.logSseFlagChanged(sseEnabled)
 
             if (!isForegrounded.get()) {
                 return@subscribeToAttribute
             }
 
             if (sseEnabled) {
-                logger.info("SSE Lifecycle: SSE enabled while foregrounded, starting SSE connection")
+                sseLogger.logSseEnabledWhileForegrounded()
                 sseConnectionManager.startConnection()
             } else {
-                logger.info("SSE Lifecycle: SSE disabled while foregrounded, stopping SSE connection")
+                sseLogger.logSseDisabledWhileForegrounded()
                 sseConnectionManager.stopConnection()
             }
         }

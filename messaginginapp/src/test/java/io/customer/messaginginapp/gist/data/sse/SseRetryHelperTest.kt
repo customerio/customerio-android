@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
 import io.customer.messaginginapp.testutils.core.JUnitTest
-import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -18,7 +17,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SseRetryHelperTest : JUnitTest() {
 
-    private val logger = mockk<Logger>(relaxed = true)
+    private val sseLogger = mockk<InAppSseLogger>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
 
@@ -26,7 +25,7 @@ class SseRetryHelperTest : JUnitTest() {
 
     @BeforeEach
     fun setup() {
-        retryHelper = SseRetryHelper(logger, testScope)
+        retryHelper = SseRetryHelper(sseLogger, testScope)
     }
 
     @Test

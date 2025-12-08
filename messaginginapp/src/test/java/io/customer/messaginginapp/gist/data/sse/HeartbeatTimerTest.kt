@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
 import io.customer.messaginginapp.testutils.core.JUnitTest
-import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -18,13 +17,13 @@ class HeartbeatTimerTest : JUnitTest() {
 
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
-    private val logger = mockk<Logger>(relaxed = true)
+    private val sseLogger = mockk<InAppSseLogger>(relaxed = true)
 
     private lateinit var heartbeatTimer: HeartbeatTimer
 
     @BeforeEach
     fun setup() {
-        heartbeatTimer = HeartbeatTimer(logger, testScope)
+        heartbeatTimer = HeartbeatTimer(sseLogger, testScope)
     }
 
     @Test

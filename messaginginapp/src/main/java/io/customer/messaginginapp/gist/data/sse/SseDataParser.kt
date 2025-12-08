@@ -5,10 +5,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.sdk.core.util.Logger
 
 internal class SseDataParser(
-    private val logger: Logger,
+    private val sseLogger: InAppSseLogger,
     private val gson: Gson
 ) {
     /**
@@ -22,7 +21,7 @@ internal class SseDataParser(
      */
     fun parseMessages(data: String): List<Message> {
         if (data.isBlank()) {
-            logger.debug("SSE: Received empty or blank message data")
+            sseLogger.logReceivedEmptyMessageData()
             return emptyList()
         }
 
@@ -30,10 +29,10 @@ internal class SseDataParser(
             val messages = gson.fromJson(data, Array<Message>::class.java)
             messages.toList()
         } catch (e: JsonSyntaxException) {
-            logger.debug("SSE: Failed to parse messages - invalid JSON: ${e.message}, data: $data")
+            sseLogger.logMessageParsingFailedInvalidJson(e.message, data)
             emptyList()
         } catch (e: Exception) {
-            logger.debug("SSE: Error parsing messages: ${e.message}, data: $data")
+            sseLogger.logMessageParsingError(e.message, data)
             emptyList()
         }
     }
@@ -46,7 +45,7 @@ internal class SseDataParser(
      */
     fun parseHeartbeatTimeout(data: String): Long {
         if (data.isBlank()) {
-            logger.debug("SSE: Heartbeat event has no data, using default timeout")
+            sseLogger.logHeartbeatTimeoutNoData()
             return NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS
         }
 
@@ -60,10 +59,10 @@ internal class SseDataParser(
             }
             result
         } catch (e: JsonSyntaxException) {
-            logger.debug("SSE: Failed to parse heartbeat timeout - invalid JSON: ${e.message}, data: $data")
+            sseLogger.logHeartbeatTimeoutParsingFailed(e.message, data)
             NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS
         } catch (e: Exception) {
-            logger.debug("SSE: Error parsing heartbeat timeout: ${e.message}, data: $data")
+            sseLogger.logHeartbeatTimeoutParsingError(e.message, data)
             NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS
         }
     }

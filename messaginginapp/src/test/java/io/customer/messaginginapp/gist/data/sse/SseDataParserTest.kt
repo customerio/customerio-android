@@ -2,7 +2,6 @@ package io.customer.messaginginapp.gist.data.sse
 
 import com.google.gson.Gson
 import io.customer.messaginginapp.testutils.core.JUnitTest
-import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
@@ -11,9 +10,9 @@ import org.junit.jupiter.api.Test
 
 class SseDataParserTest : JUnitTest() {
 
-    private val logger = mockk<Logger>(relaxed = true)
+    private val sseLogger = mockk<InAppSseLogger>(relaxed = true)
     private val gson = Gson()
-    private val parser = SseDataParser(logger, gson)
+    private val parser = SseDataParser(sseLogger, gson)
 
     @Test
     fun testParseMessages_givenValidJson_thenReturnsMessages() {

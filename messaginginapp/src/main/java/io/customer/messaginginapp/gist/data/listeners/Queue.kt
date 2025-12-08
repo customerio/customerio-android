@@ -4,6 +4,7 @@ import android.content.Context
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
+import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
@@ -187,8 +188,7 @@ class Queue : GistQueue {
         val sseEnabled = sseHeaderValue?.lowercase()?.toBooleanStrictOrNull() ?: false
 
         if (sseEnabled != state.sseEnabled) {
-            logger.info("SSE flag changed from ${state.sseEnabled} to $sseEnabled")
-            logger.debug("Phase 0: SSE flag detected in response headers - switching from polling to SSE")
+            SDKComponent.inAppSseLogger.logSseFlagChangedFromTo(state.sseEnabled, sseEnabled)
             inAppMessagingManager.dispatch(InAppMessagingAction.SetSseEnabled(sseEnabled))
         }
     }

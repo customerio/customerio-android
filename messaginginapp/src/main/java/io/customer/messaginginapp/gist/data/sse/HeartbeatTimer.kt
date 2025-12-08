@@ -1,6 +1,5 @@
 package io.customer.messaginginapp.gist.data.sse
 
-import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -17,7 +16,7 @@ import kotlinx.coroutines.sync.withLock
  * when the server stops sending heartbeats within the expected timeframe.
  */
 internal class HeartbeatTimer(
-    private val logger: Logger,
+    private val sseLogger: InAppSseLogger,
     private val scope: CoroutineScope
 ) {
 
@@ -37,7 +36,7 @@ internal class HeartbeatTimer(
      */
     suspend fun startTimer(timeoutMs: Long) {
         timerMutex.withLock {
-            logger.debug("HeartbeatTimer: Starting timer with ${timeoutMs}ms timeout")
+            sseLogger.logHeartbeatTimerStarting(timeoutMs)
 
             // Cancel existing timer if running
             currentTimerJob?.cancel()
@@ -47,12 +46,12 @@ internal class HeartbeatTimer(
             val timerJob = scope.launch {
                 try {
                     delay(timeoutMs)
-                    logger.error("HeartbeatTimer: Timer expired after ${timeoutMs}ms")
+                    sseLogger.logHeartbeatTimerExpired(timeoutMs)
                     timerMutex.withLock {
                         _timeoutFlow.value = HeartbeatTimeoutEvent
                     }
                 } catch (_: CancellationException) {
-                    logger.debug("HeartbeatTimer: Timer cancelled gracefully")
+                    sseLogger.logHeartbeatTimerCancelled()
                 }
             }
             currentTimerJob = timerJob
@@ -66,7 +65,7 @@ internal class HeartbeatTimer(
      */
     suspend fun reset() {
         timerMutex.withLock {
-            logger.debug("HeartbeatTimer: Resetting timer")
+            sseLogger.logHeartbeatTimerResetting()
             currentTimerJob?.cancel()
             currentTimerJob = null
             _timeoutFlow.value = null

@@ -3,7 +3,6 @@ package io.customer.messaginginapp.gist.data.sse
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
-import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -47,7 +46,7 @@ import kotlinx.coroutines.sync.withLock
  * - Purpose: Monitors server heartbeats and triggers timeout if no heartbeat received within the timeout period
  */
 internal class SseConnectionManager(
-    private val logger: Logger,
+    private val sseLogger: InAppSseLogger,
     private val sseService: SseService,
     private val sseDataParser: SseDataParser,
     private val inAppMessagingManager: InAppMessagingManager,
@@ -74,12 +73,12 @@ internal class SseConnectionManager(
      */
     internal fun startConnection() {
         scope.launch {
-            logger.info("SSE: Starting connection")
+            sseLogger.logStartingConnection()
 
             connectionMutex.withLock {
                 val currentState = connectionState
                 if (currentState == SseConnectionState.CONNECTING || currentState == SseConnectionState.CONNECTED) {
-                    logger.debug("SSE: Connection already active (state: $currentState)")
+                    sseLogger.logConnectionAlreadyActive(currentState)
                     return@launch
                 }
 
@@ -104,7 +103,7 @@ internal class SseConnectionManager(
      */
     internal fun stopConnection() {
         scope.launch {
-            logger.info("SSE: Stopping connection")
+            sseLogger.logConnectionStopping()
 
             connectionMutex.withLock {
                 connectionState = SseConnectionState.DISCONNECTING
@@ -123,7 +122,7 @@ internal class SseConnectionManager(
                 connectionState = SseConnectionState.DISCONNECTED
             }
 
-            logger.debug("SSE: Connection stopped")
+            sseLogger.logConnectionStopped()
         }
     }
 
@@ -135,11 +134,11 @@ internal class SseConnectionManager(
         try {
             establishConnection()
         } catch (e: CancellationException) {
-            logger.debug("SSE: Connection cancelled")
+            sseLogger.logConnectionCancelled()
             // Don't update state - the code that cancelled this job has already updated it.
             throw e
         } catch (e: Exception) {
-            logger.error("SSE Retry: Connection attempt failed - ${e::class.simpleName}: ${e.message}")
+            sseLogger.logConnectionAttemptFailed(e::class.simpleName, e.message)
             val sseError = classifySseError(e, null)
             handleConnectionFailure(sseError)
         }
@@ -150,7 +149,7 @@ internal class SseConnectionManager(
         val userToken = currentState.userId ?: currentState.anonymousId
 
         if (userToken == null) {
-            logger.error("SSE: Cannot establish connection: no user token available")
+            sseLogger.logNoUserTokenAvailable()
             // This is a configuration issue, not a network issue - use non-retryable ServerError
             val error = SseError.ServerError(
                 throwable = IllegalStateException("Cannot establish connection: no user token available"),
@@ -163,7 +162,7 @@ internal class SseConnectionManager(
 
         // Prevent making connection if the coroutine has been cancelled
         currentCoroutineContext().ensureActive()
-        logger.debug("SSE: Establishing connection for user: $userToken, session: ${currentState.sessionId}")
+        sseLogger.logEstablishingConnection(userToken, currentState.sessionId)
         val eventFlow = sseService.connectSse(
             sessionId = currentState.sessionId,
             userToken = userToken,
@@ -173,7 +172,7 @@ internal class SseConnectionManager(
         // Prevent state update and flow collection if the coroutine has been cancelled
         currentCoroutineContext().ensureActive()
         // State will be set to CONNECTED when we receive ConnectionOpenEvent or CONNECTED event
-        logger.info("SSE: Connection established successfully")
+        sseLogger.logConnectionEstablished()
 
         eventFlow.collect { event ->
             handleSseEvent(event)
@@ -183,7 +182,7 @@ internal class SseConnectionManager(
     private suspend fun handleSseEvent(event: SseEvent) {
         when (event) {
             is ConnectionOpenEvent -> {
-                logger.info("SSE: Connection opened")
+                sseLogger.logConnectionOpened()
                 setupSuccessfulConnection()
             }
 
@@ -196,7 +195,7 @@ internal class SseConnectionManager(
             }
 
             ConnectionClosedEvent -> {
-                logger.info("SSE: Connection closed")
+                sseLogger.logConnectionClosed()
                 updateConnectionState(SseConnectionState.DISCONNECTED)
                 heartbeatTimer.reset()
             }
@@ -206,12 +205,12 @@ internal class SseConnectionManager(
     private suspend fun handleServerEvent(event: ServerEvent) {
         when (event.eventType) {
             ServerEvent.CONNECTED -> {
-                logger.info("SSE: Connection confirmed")
+                sseLogger.logConnectionConfirmed()
                 setupSuccessfulConnection()
             }
 
             ServerEvent.HEARTBEAT -> {
-                logger.debug("SSE: Received heartbeat")
+                sseLogger.logReceivedHeartbeat()
                 val serverTimeout = sseDataParser.parseHeartbeatTimeout(event.data)
                 heartbeatTimer.startTimer(serverTimeout + NetworkUtilities.HEARTBEAT_BUFFER_MS)
             }
@@ -220,28 +219,28 @@ internal class SseConnectionManager(
                 try {
                     val messages = sseDataParser.parseMessages(event.data)
                     if (messages.isNotEmpty()) {
-                        logger.info("SSE: Received ${messages.size} messages")
+                        sseLogger.logReceivedMessages(messages.size)
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.ProcessMessageQueue(
                                 messages
                             )
                         )
                     } else {
-                        logger.debug("SSE: Received empty messages event")
+                        sseLogger.logReceivedEmptyMessagesEvent()
                     }
                 } catch (e: Exception) {
-                    logger.error("SSE: Failed to parse messages: ${e.message}")
+                    sseLogger.logFailedToParseMessages(e.message)
                 }
             }
 
             ServerEvent.TTL_EXCEEDED -> {
-                logger.info("SSE: TTL exceeded - reconnecting")
+                sseLogger.logTtlExceeded()
                 cleanupForReconnect()
                 startConnection()
             }
 
             else -> {
-                logger.error("SSE: Unknown event type: ${event.eventType}")
+                sseLogger.logUnknownEventType(event.eventType)
             }
         }
     }
@@ -251,7 +250,7 @@ internal class SseConnectionManager(
      * This is the common cleanup that happens between retry attempts.
      */
     private suspend fun handleConnectionFailure(error: SseError) {
-        logger.error("SSE Retry: Connection failed - ${error::class.simpleName}, retryable: ${error.shouldRetry}")
+        sseLogger.logConnectionFailure(error::class.simpleName, error.shouldRetry)
 
         // Cleanup between retries
         updateConnectionState(SseConnectionState.DISCONNECTED)
@@ -266,7 +265,7 @@ internal class SseConnectionManager(
      * This is called when max retries are reached or error is non-retryable.
      */
     private suspend fun handleCompleteFailure() {
-        logger.error("SSE Retry: Max retries reached - falling back to polling")
+        sseLogger.logFallingBackToPolling()
 
         // Cleanup on complete failure
         updateConnectionState(SseConnectionState.DISCONNECTED)
@@ -322,14 +321,14 @@ internal class SseConnectionManager(
                 try {
                     heartbeatTimer.timeoutFlow.collect { event ->
                         if (event is HeartbeatTimeoutEvent) {
-                            logger.error("SSE Retry: Heartbeat timer expired - triggering retry logic")
+                            sseLogger.logHeartbeatTimerExpiredTriggeringRetry()
                             handleConnectionFailure(SseError.TimeoutError)
                         }
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    logger.error("SSE: Timeout flow collector error: ${e::class.simpleName} - ${e.message}", throwable = e)
+                    sseLogger.logTimeoutFlowCollectorError(e::class.simpleName, e.message, e)
                     timeoutJob = null
                 }
             }
@@ -346,15 +345,15 @@ internal class SseConnectionManager(
 
                         when (decision) {
                             is RetryDecision.RetryNow -> {
-                                logger.info("SSE Retry: Retrying connection (attempt ${decision.attemptCount}/3)")
+                                sseLogger.logRetryingConnection(decision.attemptCount, MAX_RETRY_COUNT)
                                 startConnection()
                             }
                             is RetryDecision.MaxRetriesReached -> {
-                                logger.error("SSE Retry: Max retries reached - falling back to polling")
+                                sseLogger.logFallingBackToPolling()
                                 handleCompleteFailure()
                             }
                             is RetryDecision.RetryNotPossible -> {
-                                logger.error("SSE Retry: Non-retryable error - falling back to polling")
+                                sseLogger.logNonRetryableError()
                                 handleCompleteFailure()
                             }
                         }
@@ -362,10 +361,14 @@ internal class SseConnectionManager(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    logger.error("SSE Retry: Collector error: ${e::class.simpleName} - ${e.message}", throwable = e)
+                    sseLogger.logRetryCollectorError(e::class.simpleName, e.message, e)
                     retryJob = null
                 }
             }
         }
+    }
+
+    companion object {
+        private const val MAX_RETRY_COUNT = 3
     }
 }

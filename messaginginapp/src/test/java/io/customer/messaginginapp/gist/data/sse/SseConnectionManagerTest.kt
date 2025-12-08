@@ -6,7 +6,6 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.JUnitTest
-import io.customer.sdk.core.util.Logger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -29,7 +28,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SseConnectionManagerTest : JUnitTest() {
 
-    private val logger = mockk<Logger>(relaxed = true)
+    private val sseLogger = mockk<InAppSseLogger>(relaxed = true)
     private val sseService = mockk<SseService>(relaxed = true)
     private val sseDataParser = mockk<SseDataParser>(relaxed = true)
     private val inAppMessagingManager = mockk<InAppMessagingManager>(relaxed = true)
@@ -53,7 +52,7 @@ class SseConnectionManagerTest : JUnitTest() {
     @BeforeEach
     fun setup() {
         connectionManager = SseConnectionManager(
-            logger = logger,
+            sseLogger = sseLogger,
             sseService = sseService,
             sseDataParser = sseDataParser,
             inAppMessagingManager = inAppMessagingManager,
@@ -128,7 +127,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.error("SSE: Cannot establish connection: no user token available") }
+        verify { sseLogger.logNoUserTokenAvailable() }
         coVerify(exactly = 0) { sseService.connectSse(any(), any(), any()) }
     }
 
@@ -193,7 +192,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.info("SSE: Connection confirmed") }
+        verify { sseLogger.logConnectionConfirmed() }
     }
 
     @Test
@@ -214,7 +213,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.debug("SSE: Received heartbeat") }
+        verify { sseLogger.logReceivedHeartbeat() }
     }
 
     @Test
@@ -265,7 +264,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.debug("SSE: Received empty messages event") }
+        verify { sseLogger.logReceivedEmptyMessagesEvent() }
         verify(exactly = 0) { inAppMessagingManager.dispatch(any()) }
     }
 
@@ -315,7 +314,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.error("SSE: Unknown event type: unknown_event") }
+        verify { sseLogger.logUnknownEventType("unknown_event") }
     }
 
     @Test
@@ -356,7 +355,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.error(any<String>()) }
+        verify { sseLogger.logConnectionAttemptFailed(any(), any()) }
         coVerify { retryHelper.scheduleRetry(any()) }
     }
 
@@ -378,7 +377,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.info("SSE: Connection confirmed") }
+        verify { sseLogger.logConnectionConfirmed() }
         coVerify { heartbeatTimer.startTimer(NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS + NetworkUtilities.HEARTBEAT_BUFFER_MS) }
     }
 
@@ -425,7 +424,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { logger.debug("SSE: Received empty messages event") }
+        verify { sseLogger.logReceivedEmptyMessagesEvent() }
         coVerify(exactly = 0) { heartbeatTimer.startTimer(any()) }
     }
 

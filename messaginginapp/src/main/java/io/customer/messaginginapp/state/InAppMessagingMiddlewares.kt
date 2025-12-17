@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.gistSdk
+import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.gist.data.model.matchesRoute
@@ -80,7 +81,7 @@ private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingSt
     // After the dismissal is processed, dispatch ProcessMessageQueue to show the next message
     // The dismissed message will be filtered out by processMessages() since its queueId is now in shownMessageQueueIds
     if (store.state.sseEnabled) {
-        SDKComponent.logger.debug("SSE: Middleware handleMessageDismissal try display next message")
+        SDKComponent.inAppSseLogger.logTryDisplayNextMessageAfterDismissal()
         store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
     }
 }

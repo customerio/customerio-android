@@ -9,6 +9,7 @@ import io.customer.messaginginapp.gist.data.AnonymousMessageManagerImpl
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.listeners.Queue
 import io.customer.messaginginapp.gist.data.sse.HeartbeatTimer
+import io.customer.messaginginapp.gist.data.sse.InAppSseLogger
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.gist.data.sse.SseDataParser
 import io.customer.messaginginapp.gist.data.sse.SseRetryHelper
@@ -65,20 +66,23 @@ internal val SDKComponent.anonymousMessageManager: AnonymousMessageManager
         AnonymousMessageManagerImpl()
     }
 
+internal val SDKComponent.inAppSseLogger: InAppSseLogger
+    get() = singleton<InAppSseLogger> { InAppSseLogger(logger) }
+
 internal val SDKComponent.sseDataParser: SseDataParser
     get() = singleton<SseDataParser> {
-        SseDataParser(logger, Gson())
+        SseDataParser(inAppSseLogger, Gson())
     }
 
 internal val SDKComponent.heartbeatTimer: HeartbeatTimer
     get() = singleton<HeartbeatTimer> {
-        HeartbeatTimer(logger, scopeProvider.inAppLifecycleScope)
+        HeartbeatTimer(inAppSseLogger, scopeProvider.inAppLifecycleScope)
     }
 
 internal val SDKComponent.sseService: SseService
     get() = singleton<SseService> {
         SseService(
-            logger = logger,
+            sseLogger = inAppSseLogger,
             inAppMessagingManager = inAppMessagingManager
         )
     }
@@ -86,7 +90,7 @@ internal val SDKComponent.sseService: SseService
 internal val SDKComponent.sseRetryHelper: SseRetryHelper
     get() = singleton<SseRetryHelper> {
         SseRetryHelper(
-            logger = logger,
+            sseLogger = inAppSseLogger,
             scope = scopeProvider.inAppLifecycleScope
         )
     }
@@ -94,7 +98,7 @@ internal val SDKComponent.sseRetryHelper: SseRetryHelper
 internal val SDKComponent.sseConnectionManager: SseConnectionManager
     get() = singleton<SseConnectionManager> {
         SseConnectionManager(
-            logger = logger,
+            sseLogger = inAppSseLogger,
             sseService = sseService,
             sseDataParser = sseDataParser,
             inAppMessagingManager = inAppMessagingManager,
@@ -110,7 +114,7 @@ internal val SDKComponent.sseLifecycleManager: SseLifecycleManager
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = ProcessLifecycleOwner.get(),
             sseConnectionManager = sseConnectionManager,
-            logger = logger
+            sseLogger = inAppSseLogger
         )
     }
 

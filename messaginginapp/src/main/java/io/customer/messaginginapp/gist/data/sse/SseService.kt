@@ -3,7 +3,6 @@ package io.customer.messaginginapp.gist.data.sse
 import android.util.Base64
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingManager
-import io.customer.sdk.core.util.Logger
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
@@ -29,7 +28,7 @@ import okhttp3.sse.EventSources
  * The SseConnectionManager ensures single-threaded access through its mutex.
  */
 internal class SseService(
-    private val logger: Logger,
+    private val sseLogger: InAppSseLogger,
     private val inAppMessagingManager: InAppMessagingManager
 ) {
 
@@ -55,10 +54,10 @@ internal class SseService(
                 object : EventSourceListener() {
 
                     override fun onOpen(eventSource: EventSource, response: Response) {
-                        logger.info("SSE: Connection opened")
+                        sseLogger.logConnectionOpened()
                         val result = trySend(ConnectionOpenEvent)
                         if (!result.isSuccess) {
-                            logger.debug("SSE: Failed to send connection opened event: ${result.exceptionOrNull()?.message}")
+                            sseLogger.logFailedToSendConnectionOpenedEvent(result.exceptionOrNull()?.message)
                         }
                     }
 
@@ -68,16 +67,16 @@ internal class SseService(
                         type: String?,
                         data: String
                     ) {
-                        logger.debug("SSE: Received event - type: $type")
+                        sseLogger.logReceivedEvent(type)
 
                         if (type.isNullOrBlank() || data.isBlank()) {
-                            logger.debug("SSE: Received event with no type or data")
+                            sseLogger.logReceivedEventWithNoTypeOrData()
                             return
                         }
 
                         val result = trySend(ServerEvent(type, data))
                         if (!result.isSuccess) {
-                            logger.debug("SSE: Failed to send event: ${result.exceptionOrNull()?.message}")
+                            sseLogger.logFailedToSendEvent(result.exceptionOrNull()?.message)
                         }
                     }
 
@@ -86,12 +85,12 @@ internal class SseService(
                         t: Throwable?,
                         response: Response?
                     ) {
-                        logger.error("SSE: Connection failed - ${t?.message ?: "unknown error"}, code: ${response?.code}")
+                        sseLogger.logConnectionFailed(t?.message, response?.code)
 
                         val sseError = classifySseError(t, response)
                         val result = trySend(ConnectionFailedEvent(sseError))
                         if (!result.isSuccess) {
-                            logger.debug("SSE: Failed to send error event: ${result.exceptionOrNull()?.message}")
+                            sseLogger.logFailedToSendErrorEvent(result.exceptionOrNull()?.message)
                         }
 
                         // Close normally - we've already emitted ConnectionFailedEvent, so the collector will handle it
@@ -100,11 +99,11 @@ internal class SseService(
                     }
 
                     override fun onClosed(eventSource: EventSource) {
-                        logger.info("SSE: Connection closed")
+                        sseLogger.logConnectionClosed()
 
                         val result = trySend(ConnectionClosedEvent)
                         if (!result.isSuccess) {
-                            logger.debug("SSE: Failed to send connection closed event")
+                            sseLogger.logFailedToSendConnectionClosedEvent()
                         }
 
                         close()
@@ -116,7 +115,7 @@ internal class SseService(
         eventSource = currentEventSource
 
         awaitClose {
-            logger.debug("SSE: Flow cancelled, cleaning up")
+            sseLogger.logFlowCancelled()
             currentEventSource.cancel()
             if (eventSource == currentEventSource) {
                 eventSource = null
@@ -131,7 +130,7 @@ internal class SseService(
      * (like SseConnectionManager.stopConnection) to avoid unnecessary synchronization overhead.
      */
     fun disconnect() {
-        logger.debug("SSE: Disconnecting service")
+        sseLogger.logDisconnectingService()
         eventSource?.cancel()
         eventSource = null
     }
@@ -167,7 +166,7 @@ internal class SseService(
             .addQueryParameter(NetworkUtilities.SSE_USER_TOKEN_PARAM, encodedUserToken)
             .build()
 
-        logger.debug("SSE: Creating request to: $url")
+        sseLogger.logCreatingRequest(url.toString())
 
         return Request.Builder()
             .url(url)

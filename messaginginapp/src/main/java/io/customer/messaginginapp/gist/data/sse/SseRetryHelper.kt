@@ -1,6 +1,5 @@
 package io.customer.messaginginapp.gist.data.sse
 
-import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -19,7 +18,7 @@ import kotlinx.coroutines.sync.withLock
  * All delays and waiting happen inside this helper.
  */
 internal class SseRetryHelper(
-    private val logger: Logger,
+    private val sseLogger: InAppSseLogger,
     private val scope: CoroutineScope
 ) {
 
@@ -43,14 +42,14 @@ internal class SseRetryHelper(
         if (error.shouldRetry) {
             attemptRetry()
         } else {
-            logger.info("SSE Retry: Non-retryable error - falling back to polling")
-            emitRetryDecision(RetryDecision.RetryNotPossible)
+            sseLogger.logNonRetryableError(error)
+            emitRetryDecision(RetryDecision.RetryNotPossible(error))
         }
     }
 
     private fun emitRetryDecision(decision: RetryDecision) {
         if (!_retryDecisionFlow.tryEmit(decision)) {
-            logger.error("SSE Retry: tryEmit failed")
+            sseLogger.logRetryEmitFailed()
         }
     }
 
@@ -70,7 +69,7 @@ internal class SseRetryHelper(
         }
 
         if (maxRetriesReached) {
-            logger.error("SSE Retry: Max retries exceeded ($newRetryCount/$MAX_RETRY_COUNT) - falling back to polling")
+            sseLogger.logMaxRetriesExceeded(newRetryCount, MAX_RETRY_COUNT)
             emitRetryDecision(RetryDecision.MaxRetriesReached)
             return
         }

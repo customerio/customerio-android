@@ -2,11 +2,11 @@ package io.customer.messaginginapp.gist.presentation
 
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import io.customer.messaginginapp.gist.data.sse.InAppSseLogger
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.JUnitTest
-import io.customer.sdk.core.util.Logger
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test
 
 class SseLifecycleManagerTest : JUnitTest() {
 
-    private val logger = mockk<Logger>(relaxed = true)
+    private val sseLogger = mockk<InAppSseLogger>(relaxed = true)
     private val inAppMessagingManager = mockk<InAppMessagingManager>(relaxed = true)
     private val sseConnectionManager = mockk<SseConnectionManager>(relaxed = true)
     private val processLifecycleOwner = mockk<LifecycleOwner>(relaxed = true)
@@ -74,7 +74,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -94,7 +94,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -111,7 +111,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -134,7 +134,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -157,7 +157,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -183,7 +183,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -208,7 +208,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -238,7 +238,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -264,7 +264,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -286,7 +286,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -312,7 +312,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -338,7 +338,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
-            logger = logger,
+            sseLogger = sseLogger,
             mainThreadPoster = mainThreadPoster
         )
 

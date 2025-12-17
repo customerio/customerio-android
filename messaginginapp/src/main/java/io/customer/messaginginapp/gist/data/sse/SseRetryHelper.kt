@@ -42,8 +42,8 @@ internal class SseRetryHelper(
         if (error.shouldRetry) {
             attemptRetry()
         } else {
-            sseLogger.logNonRetryableError()
-            emitRetryDecision(RetryDecision.RetryNotPossible)
+            sseLogger.logNonRetryableError(error)
+            emitRetryDecision(RetryDecision.RetryNotPossible(error))
         }
     }
 

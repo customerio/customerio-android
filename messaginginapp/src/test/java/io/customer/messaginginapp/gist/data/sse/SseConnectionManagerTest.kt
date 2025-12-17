@@ -492,7 +492,9 @@ class SseConnectionManagerTest : JUnitTest() {
         val actionSlot = slot<InAppMessagingAction.SetSseEnabled>()
 
         // When
-        retryDecisionFlow.value = RetryDecision.RetryNotPossible
+        retryDecisionFlow.value = RetryDecision.RetryNotPossible(
+            SseError.ServerError(Exception("Bad request"), 400, false)
+        )
         advanceUntilIdle()
 
         // Then

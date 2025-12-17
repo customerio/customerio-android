@@ -353,7 +353,7 @@ internal class SseConnectionManager(
                                 handleCompleteFailure()
                             }
                             is RetryDecision.RetryNotPossible -> {
-                                sseLogger.logNonRetryableError()
+                                sseLogger.logNonRetryableError(decision.error)
                                 handleCompleteFailure()
                             }
                         }

@@ -18,5 +18,9 @@ internal sealed class RetryDecision {
      */
     object MaxRetriesReached : RetryDecision()
 
-    object RetryNotPossible : RetryDecision()
+    /**
+     * Retry not possible due to non-retryable error
+     * @param error The error that caused the retry to be impossible
+     */
+    data class RetryNotPossible(val error: SseError) : RetryDecision()
 }

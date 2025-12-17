@@ -155,8 +155,8 @@ internal class InAppSseLogger(private val logger: Logger) {
         logger.debug(tag = TAG, message = "Max retries exceeded ($retryCount/$maxRetryCount) - falling back to polling")
     }
 
-    fun logNonRetryableError() {
-        logger.debug(tag = TAG, message = "Non-retryable error - falling back to polling")
+    fun logNonRetryableError(error: SseError) {
+        logger.debug(tag = TAG, message = "Non-retryable error - falling back to polling ($error)")
     }
 
     fun logFallingBackToPolling() {

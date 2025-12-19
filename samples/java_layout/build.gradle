@@ -36,6 +36,15 @@ android {
         viewBinding true
         // BuildConfig is now enabled in sample-app.gradle
     }
+    
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/versions/9/OSGI-INF/MANIFEST.MF',
+                'META-INF/OSGI-INF/MANIFEST.MF'
+            ]
+        }
+    }
 
     // No need for composeOptions reference as it's conditionally applied in sample-app.gradle
 }

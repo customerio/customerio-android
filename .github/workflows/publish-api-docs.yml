@@ -1,0 +1,172 @@
+name: Publish API Documentation
+
+# Publishes API reference documentation to GitHub Pages
+# Separate from main deployment to avoid disrupting SDK releases
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'  # Trigger on version tags (e.g., 3.0.0, 3.1.0-beta)
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      version:
+        description: 'Version label for docs (e.g., 3.0.0 or "latest")'
+        required: true
+        default: 'latest'
+      ref:
+        description: 'Git ref to generate docs from (branch, tag, or commit)'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: write  # Required to push to gh-pages branch
+
+jobs:
+  publish-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Extract version from tag (refs/tags/3.0.0 -> 3.0.0)
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Generating docs for version: $VERSION"
+      
+      - name: Generate documentation
+        run: |
+          echo "🔨 Building documentation..."
+          ./gradlew generateDocs
+      
+      - name: Verify documentation generated
+        run: |
+          if [ ! -f "build/dokka/htmlMultiModule/index.html" ]; then
+            echo "❌ Documentation was not generated!"
+            exit 1
+          fi
+          echo "✅ Documentation generated successfully"
+          
+      - name: Prepare docs for publishing
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Create directory structure
+          mkdir -p gh-pages-temp/$VERSION
+          
+          # Copy generated docs to versioned directory
+          cp -r build/dokka/htmlMultiModule/* gh-pages-temp/$VERSION/
+          
+          echo "✅ Documentation prepared for version: $VERSION"
+      
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-repo
+          fetch-depth: 0
+      
+      - name: Update gh-pages content
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Copy new version docs
+          mkdir -p gh-pages-repo
+          cp -r gh-pages-temp/$VERSION gh-pages-repo/
+          
+          # Update "latest" symlink for stable releases only
+          if [[ "$VERSION" != *"alpha"* && "$VERSION" != *"beta"* && "$VERSION" != *"rc"* ]]; then
+            echo "📍 Updating 'latest' to point to $VERSION"
+            rm -rf gh-pages-repo/latest
+            cp -r gh-pages-temp/$VERSION gh-pages-repo/latest
+          else
+            echo "⏭️  Skipping 'latest' update for pre-release version"
+          fi
+          
+          # Create simple README for the gh-pages branch
+          cat > gh-pages-repo/README.md << EOF
+          # Customer.io Android SDK - API Reference
+          
+          This branch contains the published API reference documentation.
+          
+          ## Available Versions
+          
+          - [Latest (Stable)](latest/)
+          - [Version $VERSION]($VERSION/)
+          
+          ## View Online
+          
+          https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/latest/
+          EOF
+      
+      - name: Commit and push to gh-pages
+        run: |
+          cd gh-pages-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          
+          VERSION="${{ steps.version.outputs.version }}"
+          if git diff --staged --quiet; then
+            echo "📝 No changes to commit"
+          else
+            git commit -m "docs: publish API reference for version $VERSION"
+            git push origin gh-pages
+            echo "✅ Documentation published to gh-pages branch"
+          fi
+      
+      - name: Create documentation archive (for release assets)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cd build/dokka/htmlMultiModule
+          tar -czf ../../../android-sdk-docs-$VERSION.tar.gz .
+          cd ../../..
+          zip -r android-sdk-docs-$VERSION.zip build/dokka/htmlMultiModule/
+      
+      - name: Upload documentation as release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            android-sdk-docs-${{ steps.version.outputs.version }}.tar.gz
+            android-sdk-docs-${{ steps.version.outputs.version }}.zip
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          OWNER="${{ github.repository_owner }}"
+          
+          echo "### 📚 API Documentation Published! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**📖 View Documentation:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌟 This version: https://$OWNER.github.io/${REPO#*/}/$VERSION/" >> $GITHUB_STEP_SUMMARY
+          echo "- 📚 Latest (stable): https://$OWNER.github.io/${REPO#*/}/latest/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**⏱️ Availability:** Documentation will be live in ~1-2 minutes" >> $GITHUB_STEP_SUMMARY

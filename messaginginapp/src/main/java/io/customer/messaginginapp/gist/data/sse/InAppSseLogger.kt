@@ -244,7 +244,11 @@ internal class InAppSseLogger(private val logger: Logger) {
     // =====================
 
     fun logAppForegrounded() {
-        logger.debug(tag = TAG, message = "App foregrounded with SSE enabled, starting connection")
+        logger.debug(tag = TAG, message = "App foregrounded with SSE enabled and user identified, starting connection")
+    }
+
+    fun logAppForegroundedSseNotUsed(sseEnabled: Boolean, isUserIdentified: Boolean) {
+        logger.debug(tag = TAG, message = "App foregrounded but SSE not used (sseEnabled=$sseEnabled, isUserIdentified=$isUserIdentified) - using polling")
     }
 
     fun logAppBackgrounded() {
@@ -255,8 +259,16 @@ internal class InAppSseLogger(private val logger: Logger) {
         logger.debug(tag = TAG, message = "SSE flag changed to: $sseEnabled")
     }
 
+    fun logSseFlagChangedWhileBackgrounded(sseEnabled: Boolean) {
+        logger.debug(tag = TAG, message = "SSE flag changed to $sseEnabled while backgrounded - will apply when foregrounded")
+    }
+
     fun logSseEnabledWhileForegrounded() {
-        logger.debug(tag = TAG, message = "SSE enabled while foregrounded, starting connection")
+        logger.debug(tag = TAG, message = "SSE enabled while foregrounded and user identified, starting connection")
+    }
+
+    fun logSseEnabledButUserAnonymous() {
+        logger.debug(tag = TAG, message = "SSE flag enabled but user is anonymous - using polling instead")
     }
 
     fun logSseDisabledWhileForegrounded() {
@@ -265,6 +277,18 @@ internal class InAppSseLogger(private val logger: Logger) {
 
     fun logRestartingAfterReset() {
         logger.debug(tag = TAG, message = "App still foregrounded after reset, restarting connection")
+    }
+
+    fun logUserIdentificationChanged(isIdentified: Boolean) {
+        logger.debug(tag = TAG, message = "User identification changed - isIdentified: $isIdentified")
+    }
+
+    fun logEnablingSseForIdentifiedUser() {
+        logger.debug(tag = TAG, message = "User became identified, enabling SSE connection")
+    }
+
+    fun logDisablingSseForAnonymousUser() {
+        logger.debug(tag = TAG, message = "User became anonymous, disabling SSE and falling back to polling")
     }
 
     // =====================

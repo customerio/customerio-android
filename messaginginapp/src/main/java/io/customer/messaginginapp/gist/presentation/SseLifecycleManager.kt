@@ -42,14 +42,15 @@ internal class SseLifecycleManager(
         }
 
         subscribeToSseFlagChanges()
+        subscribeToUserIdentificationChanges()
     }
 
     fun reset() {
         mainThreadPoster.post {
-            // If app is foregrounded, restart connection if SSE is enabled
+            // If app is foregrounded, restart connection if SSE should be used
             if (isForegrounded.get()) {
                 val state = inAppMessagingManager.getCurrentState()
-                if (state.sseEnabled) {
+                if (state.shouldUseSse) {
                     sseLogger.logRestartingAfterReset()
                     sseConnectionManager.startConnection()
                 }
@@ -63,9 +64,13 @@ internal class SseLifecycleManager(
         }
 
         val state = inAppMessagingManager.getCurrentState()
-        if (state.sseEnabled) {
+        // Only start SSE connection if SSE should be used (enabled AND user identified)
+        // Anonymous users should use polling instead of SSE
+        if (state.shouldUseSse) {
             sseLogger.logAppForegrounded()
             sseConnectionManager.startConnection()
+        } else {
+            sseLogger.logAppForegroundedSseNotUsed(state.sseEnabled, state.isUserIdentified)
         }
     }
 
@@ -83,14 +88,48 @@ internal class SseLifecycleManager(
             sseLogger.logSseFlagChanged(sseEnabled)
 
             if (!isForegrounded.get()) {
+                sseLogger.logSseFlagChangedWhileBackgrounded(sseEnabled)
                 return@subscribeToAttribute
             }
 
-            if (sseEnabled) {
+            val state = inAppMessagingManager.getCurrentState()
+
+            // Only start SSE connection if shouldUseSse (enabled AND user identified)
+            if (state.shouldUseSse) {
                 sseLogger.logSseEnabledWhileForegrounded()
                 sseConnectionManager.startConnection()
-            } else {
+            } else if (sseEnabled && !state.isUserIdentified) {
+                // SSE enabled but user is anonymous - don't start SSE
+                sseLogger.logSseEnabledButUserAnonymous()
+            } else if (!sseEnabled) {
                 sseLogger.logSseDisabledWhileForegrounded()
+                sseConnectionManager.stopConnection()
+            }
+        }
+    }
+
+    /**
+     * Subscribe to user identification changes.
+     * - When a user becomes identified and SSE is enabled, start SSE connection
+     * - When a user becomes anonymous, stop SSE and fall back to polling
+     */
+    private fun subscribeToUserIdentificationChanges() {
+        inAppMessagingManager.subscribeToAttribute({ it.isUserIdentified }) { isIdentified ->
+            sseLogger.logUserIdentificationChanged(isIdentified)
+
+            if (!isForegrounded.get()) {
+                return@subscribeToAttribute
+            }
+
+            val state = inAppMessagingManager.getCurrentState()
+
+            if (state.shouldUseSse) {
+                // User became identified and SSE is enabled - start SSE connection
+                sseLogger.logEnablingSseForIdentifiedUser()
+                sseConnectionManager.startConnection()
+            } else if (!isIdentified && state.sseEnabled) {
+                // User became anonymous and SSE flag is enabled - stop SSE, fall back to polling
+                sseLogger.logDisablingSseForAnonymousUser()
                 sseConnectionManager.stopConnection()
             }
         }

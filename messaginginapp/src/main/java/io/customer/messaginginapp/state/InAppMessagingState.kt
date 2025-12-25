@@ -18,6 +18,24 @@ internal data class InAppMessagingState(
     val shownMessageQueueIds: Set<String> = emptySet(),
     val sseEnabled: Boolean = false
 ) {
+    /**
+     * Returns true if the user is identified (has a non-empty userId set).
+     * Anonymous users (with only anonymousId or empty userId) are not considered identified.
+     * SSE should only be enabled for identified users.
+     */
+    val isUserIdentified: Boolean
+        get() = !userId.isNullOrEmpty()
+
+    /**
+     * Returns true if SSE should be used for fetching messages.
+     * SSE is only active when BOTH conditions are met:
+     * 1. SSE flag is enabled (from server header)
+     * 2. User is identified (has userId set)
+     *
+     * When this returns false, polling should be used instead.
+     */
+    val shouldUseSse: Boolean
+        get() = sseEnabled && isUserIdentified
     override fun toString(): String = buildString {
         append("InAppMessagingState(")
         append("siteId='$siteId',\n")

@@ -1,9 +1,11 @@
 package io.customer.messaginginapp.gist.presentation
 
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
+import io.customer.messaginginapp.di.sseLifecycleManager
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -24,7 +26,7 @@ internal interface GistProvider {
     fun fetchInAppMessages()
 }
 
-class GistSdk(
+internal class GistSdk(
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD
@@ -38,6 +40,10 @@ class GistSdk(
 
     private var timer: Timer? = null
     private val gistQueue = SDKComponent.gistQueue
+    private val sseLifecycleManager = SDKComponent.sseLifecycleManager
+
+    private val isAppForegrounded: Boolean
+        get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     private fun resetTimer() {
         timer?.cancel()
@@ -45,7 +51,7 @@ class GistSdk(
     }
 
     private fun onActivityResumed() {
-        logger.debug("Activity resumed, starting polling")
+        logger.debug("GistSdk Activity resumed")
         fetchInAppMessages(state.pollInterval)
     }
 
@@ -64,6 +70,7 @@ class GistSdk(
         // Remove user token from preferences
         inAppPreferenceStore.clearAll()
         resetTimer()
+        sseLifecycleManager.reset()
     }
 
     override fun fetchInAppMessages() {
@@ -71,7 +78,14 @@ class GistSdk(
     }
 
     private fun fetchInAppMessages(duration: Long, initialDelay: Long = 0) {
-        logger.debug("Starting polling with duration: $duration and initial delay: $initialDelay")
+        val currentState = state
+        // Only skip polling if SSE should be used (both flag enabled AND user identified)
+        if (currentState.shouldUseSse) {
+            logger.debug("GistSdk skipping polling - SSE is active (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified})")
+            return
+        }
+
+        logger.debug("GistSdk starting polling (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified}, interval=${duration}ms)")
         timer?.cancel()
         // create a timer to run the task after the initial run
         timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
@@ -99,7 +113,54 @@ class GistSdk(
         }
 
         inAppMessagingManager.subscribeToAttribute({ it.pollInterval }) { interval ->
+            // Only manage polling when app is foregrounded
+            if (!isAppForegrounded) {
+                return@subscribeToAttribute
+            }
+
+            val currentState = state
+            if (currentState.shouldUseSse) {
+                return@subscribeToAttribute
+            }
             fetchInAppMessages(duration = interval, initialDelay = interval)
+        }
+
+        // Subscribe to SSE flag changes
+        inAppMessagingManager.subscribeToAttribute({ it.sseEnabled }) { _ ->
+            // Only manage polling when app is foregrounded
+            if (!isAppForegrounded) {
+                return@subscribeToAttribute
+            }
+
+            val currentState = state
+            if (currentState.shouldUseSse) {
+                // SSE is now active - stop polling
+                logger.debug("SSE enabled for identified user, stopping polling")
+                resetTimer()
+            } else {
+                // SSE not active - start polling
+                logger.debug("SSE not active, starting polling")
+                fetchInAppMessages(state.pollInterval)
+            }
+        }
+
+        // Subscribe to user identification changes
+        inAppMessagingManager.subscribeToAttribute({ it.isUserIdentified }) { _ ->
+            // Only manage polling when app is foregrounded
+            if (!isAppForegrounded) {
+                return@subscribeToAttribute
+            }
+
+            val currentState = state
+            if (currentState.shouldUseSse) {
+                // SSE is now active - stop polling
+                logger.debug("User identified with SSE enabled, stopping polling")
+                resetTimer()
+            } else {
+                // SSE not active - start polling
+                logger.debug("SSE not active, starting polling")
+                fetchInAppMessages(state.pollInterval)
+            }
         }
     }
 

@@ -5,6 +5,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -227,5 +228,59 @@ class InAppMessagingStateTest : JUnitTest() {
 
         assertEquals(originalState, copiedState)
         assertTrue(originalState !== copiedState)
+    }
+
+    @Test
+    fun testInitialState_givenDefaultConstructor_thenHasSseEnabledFalse() {
+        val state = InAppMessagingState()
+        assertFalse(state.sseEnabled)
+    }
+
+    @Test
+    fun testCopy_givenSseEnabledFalse_thenCanSetSseEnabledToTrue() {
+        val initialState = InAppMessagingState()
+        val newState = initialState.copy(sseEnabled = true)
+        assertTrue(newState.sseEnabled)
+    }
+
+    @Test
+    fun testCopy_givenSseEnabledTrue_thenCanSetSseEnabledToFalse() {
+        val initialState = InAppMessagingState(sseEnabled = true)
+        val newState = initialState.copy(sseEnabled = false)
+        assertFalse(newState.sseEnabled)
+    }
+
+    @Test
+    fun testCopy_givenStateWithOtherProperties_thenOtherStatePropertiesRemainUnchangedWhenUpdatingSseEnabled() {
+        val initialState = InAppMessagingState(
+            siteId = "test-site",
+            userId = "test-user",
+            pollInterval = 300_000L
+        )
+        val newState = initialState.copy(sseEnabled = true)
+
+        assertEquals("test-site", newState.siteId)
+        assertEquals("test-user", newState.userId)
+        assertEquals(300_000L, newState.pollInterval)
+        assertTrue(newState.sseEnabled)
+    }
+
+    @Test
+    fun testDiff_givenStatesWithDifferentSseEnabledValues_thenIncludesSseEnabledChanges() {
+        val state1 = InAppMessagingState(sseEnabled = false)
+        val state2 = InAppMessagingState(sseEnabled = true)
+
+        val result = state1.diff(state2)
+
+        assertEquals(1, result.size)
+        assertEquals(Pair(false, true), result["sseEnabled"])
+    }
+
+    @Test
+    fun testToString_givenStateWithSseEnabledTrue_thenIncludesSseEnabledField() {
+        val state = InAppMessagingState(sseEnabled = true)
+        val result = state.toString()
+
+        assertTrue(result.contains("sseEnabled=true"))
     }
 }

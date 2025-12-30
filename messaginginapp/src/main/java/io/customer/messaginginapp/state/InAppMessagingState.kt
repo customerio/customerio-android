@@ -15,8 +15,27 @@ internal data class InAppMessagingState(
     val modalMessageState: ModalMessageState = ModalMessageState.Initial,
     val queuedInlineMessagesState: QueuedInlineMessagesState = QueuedInlineMessagesState(),
     val messagesInQueue: Set<Message> = emptySet(),
-    val shownMessageQueueIds: Set<String> = emptySet()
+    val shownMessageQueueIds: Set<String> = emptySet(),
+    val sseEnabled: Boolean = false
 ) {
+    /**
+     * Returns true if the user is identified (has a non-empty userId set).
+     * Anonymous users (with only anonymousId or empty userId) are not considered identified.
+     * SSE should only be enabled for identified users.
+     */
+    val isUserIdentified: Boolean
+        get() = !userId.isNullOrEmpty()
+
+    /**
+     * Returns true if SSE should be used for fetching messages.
+     * SSE is only active when BOTH conditions are met:
+     * 1. SSE flag is enabled (from server header)
+     * 2. User is identified (has userId set)
+     *
+     * When this returns false, polling should be used instead.
+     */
+    val shouldUseSse: Boolean
+        get() = sseEnabled && isUserIdentified
     override fun toString(): String = buildString {
         append("InAppMessagingState(")
         append("siteId='$siteId',\n")
@@ -30,7 +49,8 @@ internal data class InAppMessagingState(
         append("modalMessageState=$modalMessageState,\n")
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
-        append("shownMessageQueueIds=$shownMessageQueueIds)")
+        append("shownMessageQueueIds=$shownMessageQueueIds,\n")
+        append("sseEnabled=$sseEnabled)")
     }
 
     fun diff(other: InAppMessagingState): Map<String, Pair<Any?, Any?>> {
@@ -47,6 +67,7 @@ internal data class InAppMessagingState(
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
+            if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
         }
     }
 }

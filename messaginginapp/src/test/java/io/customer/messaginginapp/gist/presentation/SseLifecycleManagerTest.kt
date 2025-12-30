@@ -31,11 +31,17 @@ class SseLifecycleManagerTest : JUnitTest() {
         InAppMessagingState(sseEnabled = false)
     )
     private var sseFlagChangeCallback: ((Boolean) -> Unit)? = null
+    private var userIdentificationChangeCallback: ((Boolean) -> Unit)? = null
+    private var subscriptionCallCount = 0
 
     private lateinit var lifecycleManager: SseLifecycleManager
 
     @BeforeEach
     fun setup() {
+        subscriptionCallCount = 0
+        sseFlagChangeCallback = null
+        userIdentificationChangeCallback = null
+
         every { processLifecycleOwner.lifecycle } returns lifecycle
         every { lifecycle.currentState } returns Lifecycle.State.CREATED
         every { lifecycle.addObserver(any()) } just Runs
@@ -46,7 +52,8 @@ class SseLifecycleManagerTest : JUnitTest() {
             postSlot.captured.invoke()
         }
 
-        // Mock subscribeToAttribute to capture the callback
+        // Mock subscribeToAttribute to capture callbacks for both sseEnabled and isUserIdentified
+        // First subscription is for sseEnabled, second is for isUserIdentified
         every {
             inAppMessagingManager.subscribeToAttribute<Boolean>(
                 any(),
@@ -55,9 +62,19 @@ class SseLifecycleManagerTest : JUnitTest() {
             )
         } answers {
             val callback = thirdArg<(Boolean) -> Unit>()
-            sseFlagChangeCallback = callback
             val job = mockk<Job>(relaxed = true)
-            callback(stateFlow.value.sseEnabled)
+
+            if (subscriptionCallCount == 0) {
+                // First subscription is for sseEnabled
+                sseFlagChangeCallback = callback
+                callback(stateFlow.value.sseEnabled)
+            } else {
+                // Second subscription is for isUserIdentified
+                userIdentificationChangeCallback = callback
+                callback(stateFlow.value.isUserIdentified)
+            }
+            subscriptionCallCount++
+
             job
         }
 
@@ -87,7 +104,7 @@ class SseLifecycleManagerTest : JUnitTest() {
     fun testInit_whenAppIsStarted_thenHandlesForegrounded() {
         // Given
         every { lifecycle.currentState } returns Lifecycle.State.STARTED
-        stateFlow.value = InAppMessagingState(sseEnabled = true)
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
 
         // When
         lifecycleManager = SseLifecycleManager(
@@ -104,9 +121,9 @@ class SseLifecycleManagerTest : JUnitTest() {
     }
 
     @Test
-    fun testOnStart_whenSseEnabled_thenStartsConnection() {
-        // Given
-        stateFlow.value = InAppMessagingState(sseEnabled = true)
+    fun testOnStart_whenSseEnabledAndUserIdentified_thenStartsConnection() {
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
@@ -151,8 +168,8 @@ class SseLifecycleManagerTest : JUnitTest() {
 
     @Test
     fun testOnStart_whenAlreadyForegrounded_thenSkips() {
-        // Given
-        stateFlow.value = InAppMessagingState(sseEnabled = true)
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
@@ -231,9 +248,9 @@ class SseLifecycleManagerTest : JUnitTest() {
     }
 
     @Test
-    fun testSseFlagChange_whenForegroundedAndEnabled_thenStartsConnection() {
-        // Given
-        stateFlow.value = InAppMessagingState(sseEnabled = false)
+    fun testSseFlagChange_whenForegroundedAndEnabledAndUserIdentified_thenStartsConnection() {
+        // Given - User is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = false, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
@@ -249,7 +266,7 @@ class SseLifecycleManagerTest : JUnitTest() {
         observer.onStart(processLifecycleOwner)
 
         // When - SSE flag changes to true
-        stateFlow.value = InAppMessagingState(sseEnabled = true)
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         sseFlagChangeCallback?.invoke(true)
 
         // Then
@@ -280,8 +297,8 @@ class SseLifecycleManagerTest : JUnitTest() {
 
     @Test
     fun testSseFlagChange_whenForegroundedAndDisabled_thenStopsConnection() {
-        // Given
-        stateFlow.value = InAppMessagingState(sseEnabled = true)
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
@@ -297,7 +314,7 @@ class SseLifecycleManagerTest : JUnitTest() {
         observer.onStart(processLifecycleOwner)
 
         // When - SSE flag changes to false
-        stateFlow.value = InAppMessagingState(sseEnabled = false)
+        stateFlow.value = InAppMessagingState(sseEnabled = false, userId = "user-123")
         sseFlagChangeCallback?.invoke(false)
 
         // Then
@@ -305,9 +322,9 @@ class SseLifecycleManagerTest : JUnitTest() {
     }
 
     @Test
-    fun testReset_whenForegroundedAndSseEnabled_thenRestartsConnection() {
-        // Given
-        stateFlow.value = InAppMessagingState(sseEnabled = true)
+    fun testReset_whenForegroundedAndSseEnabledAndUserIdentified_thenRestartsConnection() {
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = processLifecycleOwner,
@@ -352,6 +369,238 @@ class SseLifecycleManagerTest : JUnitTest() {
         lifecycleManager.reset()
 
         // Then - should only stop connection, not restart
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
+    }
+
+    // =====================
+    // Anonymous vs Identified User Tests
+    // =====================
+
+    @Test
+    fun testOnStart_whenSseEnabledButUserAnonymous_thenDoesNotStartConnection() {
+        // Given - SSE enabled but user is anonymous (no userId, only anonymousId)
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+
+        // When
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // Then - should NOT start SSE for anonymous users
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
+    }
+
+    @Test
+    fun testSseFlagChange_whenForegroundedAndUserAnonymous_thenDoesNotStartConnection() {
+        // Given - User is anonymous
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = false,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // Simulate foreground
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // When - SSE flag changes to true but user is still anonymous
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        sseFlagChangeCallback?.invoke(true)
+
+        // Then - should NOT start connection for anonymous users
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
+    }
+
+    @Test
+    fun testReset_whenForegroundedAndSseEnabledButAnonymous_thenDoesNotRestartConnection() {
+        // Given - SSE enabled but user is anonymous
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // Simulate foreground
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // When - reset while app is still foregrounded
+        lifecycleManager.reset()
+
+        // Then - should NOT restart connection for anonymous users
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
+    }
+
+    @Test
+    fun testUserBecomesIdentified_whenForegroundedAndSseEnabled_thenStartsConnection() {
+        // Given - User starts as anonymous, SSE is enabled
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // Simulate foreground
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // SSE should NOT have started (user is anonymous)
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
+
+        // When - User becomes identified
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = "user-123",
+            anonymousId = "anonymous-123"
+        )
+        userIdentificationChangeCallback?.invoke(true)
+
+        // Then - SSE should now start
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
+    }
+
+    @Test
+    fun testUserBecomesAnonymous_whenForegroundedAndSseEnabled_thenStopsConnection() {
+        // Given - User starts as identified, SSE is enabled
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = "user-123",
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // Simulate foreground
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // SSE should have started (user is identified)
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
+
+        // When - User becomes anonymous
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        userIdentificationChangeCallback?.invoke(false)
+
+        // Then - SSE should be stopped
+        verify(exactly = 1) { sseConnectionManager.stopConnection() }
+    }
+
+    @Test
+    fun testUserBecomesIdentified_whenBackgrounded_thenDoesNotStartConnection() {
+        // Given - User starts as anonymous, SSE is enabled, app is backgrounded
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // App is NOT foregrounded (no onStart called)
+
+        // When - User becomes identified while backgrounded
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = "user-123",
+            anonymousId = "anonymous-123"
+        )
+        userIdentificationChangeCallback?.invoke(true)
+
+        // Then - SSE should NOT start (app is backgrounded)
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
+    }
+
+    @Test
+    fun testUserBecomesIdentified_whenSseDisabled_thenDoesNotStartConnection() {
+        // Given - User starts as anonymous, SSE is disabled
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = false,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // Simulate foreground
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // When - User becomes identified but SSE is disabled
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = false,
+            userId = "user-123",
+            anonymousId = "anonymous-123"
+        )
+        userIdentificationChangeCallback?.invoke(true)
+
+        // Then - SSE should NOT start (SSE flag is disabled)
         verify(exactly = 0) { sseConnectionManager.startConnection() }
     }
 }

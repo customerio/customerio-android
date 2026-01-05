@@ -35,6 +35,10 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
     private lateinit var binding: ActivityGistBinding
     private var messagePosition: MessagePosition = MessagePosition.CENTER
 
+    // Store the message that this activity is displaying to avoid dismissing wrong messages
+    // when multiple modal activities exist during transitions (race condition fix)
+    private var activityMessage: Message? = null
+
     private val attributesListenerJob: MutableList<Job> = mutableListOf()
     private val elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val logger = SDKComponent.logger
@@ -103,6 +107,9 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
     }
 
     private fun setupMessage(message: Message) {
+        // Store the message this activity is displaying
+        activityMessage = message
+
         logger.debug("GistModelActivity onCreate: $message")
         elapsedTimer.start("Displaying modal for message: ${message.messageId}")
 
@@ -190,25 +197,26 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         for (job in attributesListenerJob) {
             job.cancel()
         }
-        // if the message has been cancelled, do not perform any further actions
-        // to avoid sending any callbacks to the client app
-        // If the message is not persistent, dismiss it and inform the callback
 
-        val state = currentMessageState
+        // Only dispatch dismiss if THIS activity's message is still the currently displayed message.
+        // This prevents a race condition where Activity1 finishes while Activity2 is already showing,
+        // which would cause Activity1's onDestroy to incorrectly dismiss Activity2's message.
+        val ourMessage = activityMessage
+        val displayedMessage = currentMessageState?.message
         val inAppManager = inAppMessagingManager
-        if (state != null && inAppManager != null) {
-            if (!isPersistentMessage()) {
-                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message))
+
+        if (ourMessage != null && inAppManager != null && ourMessage.queueId == displayedMessage?.queueId) {
+            if (!isPersistentMessage(ourMessage)) {
+                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = ourMessage))
             } else {
-                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = state.message, shouldLog = false))
+                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = ourMessage, shouldLog = false))
             }
         }
         super.onDestroy()
     }
 
-    private fun isPersistentMessage(message: Message? = null): Boolean {
-        val currentMessage = message ?: currentMessageState?.message
-        return currentMessage?.gistProperties?.persistent ?: false
+    private fun isPersistentMessage(message: Message?): Boolean {
+        return message?.gistProperties?.persistent ?: false
     }
 
     private fun onMessageShown(message: Message) {

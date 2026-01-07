@@ -80,7 +80,7 @@ private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingSt
 
     // After the dismissal is processed, dispatch ProcessMessageQueue to show the next message
     // The dismissed message will be filtered out by processMessages() since its queueId is now in shownMessageQueueIds
-    if (store.state.sseEnabled) {
+    if (store.state.shouldUseSse) {
         SDKComponent.inAppSseLogger.logTryDisplayNextMessageAfterDismissal()
         store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
     }

@@ -84,3 +84,5 @@ lint/tmp/
 
 # Kotlin state files
 .kotlin/
+test-gh-pages/
+test-docs-output.sh

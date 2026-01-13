@@ -75,3 +75,74 @@ apiValidation {
 
 apply from: "${rootDir}/scripts/publish-root.gradle"
 apply from: "${rootDir}/scripts/sdk-binary-size.gradle"
+
+// Documentation generation
+tasks.register('generateDocs') {
+    dependsOn 'dokkaHtmlMultiModule'
+    group = 'documentation'
+    description = 'Generates aggregated HTML reference documentation for all SDK modules'
+    
+    doLast {
+        def docsDir = file("${rootDir}/build/dokka/htmlMultiModule")
+        if (docsDir.exists()) {
+            println "\n✅ Documentation generated successfully!"
+            println "📄 Location: ${docsDir.absolutePath}"
+            println "🌐 Open: file://${docsDir.absolutePath}/index.html"
+        }
+    }
+}
+
+// Configure Dokka for better output and to exclude internal APIs
+tasks.withType(org.jetbrains.dokka.gradle.DokkaMultiModuleTask).configureEach {
+    moduleName.set("Customer.io Android SDK")
+    
+    // Add custom documentation pages to navigation
+    includes.from("${rootDir}/ref-docs.md")
+    
+    // Add custom logo and styling
+    // Note: Paths must be absolute for Dokka to find them during generation
+    pluginsMapConfiguration.set([
+        "org.jetbrains.dokka.base.DokkaBase": """{ 
+            "customAssets": ["${file("${rootDir}/.dokka/logo.png").absolutePath.replace('\\', '/')}"],
+            "customStyleSheets": ["${file("${rootDir}/.dokka/custom-styles.css").absolutePath.replace('\\', '/')}"]
+        }"""
+    ])
+}
+
+// Configure each module's Dokka task to exclude internal APIs
+subprojects {
+    tasks.withType(org.jetbrains.dokka.gradle.DokkaTaskPartial).configureEach {
+        dokkaSourceSets.configureEach {
+            // Only document public APIs (excludes internal, private, protected)
+            includeNonPublic.set(false)
+            
+            // Skip deprecated APIs (set to false if you want to document them)
+            skipDeprecated.set(false)
+            
+            // Skip empty packages
+            skipEmptyPackages.set(true)
+            
+            // Suppress all packages named '*.internal.*'
+            perPackageOption {
+                matchingRegex.set(".*\\.internal.*")
+                suppress.set(true)
+            }
+            
+            // Add module-specific documentation if it exists
+            def moduleDocsFile = file("${projectDir}/MODULE.md")
+            if (moduleDocsFile.exists()) {
+                includes.from(moduleDocsFile)
+            }
+            
+            // Link to Android SDK documentation
+            externalDocumentationLink {
+                url.set(new URL("https://developer.android.com/reference/"))
+            }
+            
+            // Link to Kotlin stdlib
+            externalDocumentationLink {
+                url.set(new URL("https://kotlinlang.org/api/latest/jvm/stdlib/"))
+            }
+        }
+    }
+}

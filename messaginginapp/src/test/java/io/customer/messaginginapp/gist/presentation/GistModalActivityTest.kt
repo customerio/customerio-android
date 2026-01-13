@@ -20,9 +20,12 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.gist.utilities.ModalMessageExtras
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.state.MessageBuilderMock
+import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.DispatchersProvider
@@ -30,6 +33,7 @@ import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
@@ -171,7 +175,129 @@ class GistModalActivityTest : IntegrationTest() {
         scenario.close()
     }
 
-    private fun initializeModuleMessagingInApp() {
+    // region onDestroy race condition prevention tests
+
+    @Test
+    fun onDestroy_givenActivityMessageMatchesMessageInQueue_expectDismissDispatched() {
+        // Initialize ModuleMessagingInApp
+        val messagingManager = initializeModuleMessagingInApp()
+        val testMessage = MessageBuilderMock.createMessage(
+            queueId = "test-queue-id",
+            persistent = false
+        )
+
+        // Setup parser to return the test message
+        coEvery { mockMessageParser.parseExtras(any()) } returns ModalMessageExtras(
+            message = testMessage,
+            messagePosition = MessagePosition.CENTER
+        )
+
+        // Set the modal state to Displayed with the SAME message (matching queueId)
+        every { messagingManager.getCurrentState() } returns mockk(relaxed = true) {
+            every { modalMessageState } returns ModalMessageState.Displayed(testMessage)
+        }
+
+        val intent = createActivityIntent(testMessage)
+        val scenario = ActivityScenario.launch<GistModalActivity>(intent)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Destroy the activity
+        scenario.moveToState(Lifecycle.State.DESTROYED)
+
+        // Verify dismiss was dispatched since the activity's message matches the one in queue
+        assertCalledOnce {
+            messagingManager.dispatch(
+                match<InAppMessagingAction.DismissMessage> {
+                    it.message == testMessage && it.shouldLog
+                }
+            )
+        }
+
+        scenario.close()
+    }
+
+    @Test
+    fun onDestroy_givenActivityMessageDifferentFromMessageInQueue_expectDismissNotDispatched() {
+        // Initialize ModuleMessagingInApp
+        val messagingManager = initializeModuleMessagingInApp()
+        val activityMessage = MessageBuilderMock.createMessage(
+            queueId = "activity-queue-id",
+            persistent = false
+        )
+        val queueMessage = MessageBuilderMock.createMessage(
+            queueId = "different-queue-id",
+            persistent = false
+        )
+
+        // Setup parser to return the activity's message
+        coEvery { mockMessageParser.parseExtras(any()) } returns ModalMessageExtras(
+            message = activityMessage,
+            messagePosition = MessagePosition.CENTER
+        )
+
+        // Set the modal state to Displayed with a DIFFERENT message (different queueId)
+        // This simulates the race condition where Activity2 is already showing
+        every { messagingManager.getCurrentState() } returns mockk(relaxed = true) {
+            every { modalMessageState } returns ModalMessageState.Displayed(queueMessage)
+        }
+
+        val intent = createActivityIntent(activityMessage)
+        val scenario = ActivityScenario.launch<GistModalActivity>(intent)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Destroy the activity
+        scenario.moveToState(Lifecycle.State.DESTROYED)
+
+        // Verify dismiss was NOT dispatched since the messages don't match (race condition prevention)
+        verify(exactly = 0) {
+            messagingManager.dispatch(match<InAppMessagingAction.DismissMessage> { true })
+        }
+
+        scenario.close()
+    }
+
+    @Test
+    fun onDestroy_givenPersistentMessage_expectDismissDispatchedWithShouldLogFalse() {
+        // Initialize ModuleMessagingInApp
+        val messagingManager = initializeModuleMessagingInApp()
+        val testMessage = MessageBuilderMock.createMessage(
+            queueId = "test-queue-id",
+            persistent = true // Persistent message
+        )
+
+        // Setup parser to return the test message
+        coEvery { mockMessageParser.parseExtras(any()) } returns ModalMessageExtras(
+            message = testMessage,
+            messagePosition = MessagePosition.CENTER
+        )
+
+        // Set the modal state to Displayed with the SAME message
+        every { messagingManager.getCurrentState() } returns mockk(relaxed = true) {
+            every { modalMessageState } returns ModalMessageState.Displayed(testMessage)
+        }
+
+        val intent = createActivityIntent(testMessage)
+        val scenario = ActivityScenario.launch<GistModalActivity>(intent)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Destroy the activity
+        scenario.moveToState(Lifecycle.State.DESTROYED)
+
+        // Verify dismiss was dispatched with shouldLog = false for persistent message
+        assertCalledOnce {
+            messagingManager.dispatch(
+                match<InAppMessagingAction.DismissMessage> {
+                    it.message == testMessage && !it.shouldLog
+                }
+            )
+        }
+
+        scenario.close()
+    }
+
+    // endregion
+
+    private fun initializeModuleMessagingInApp(): InAppMessagingManager {
         val moduleConfig = MessagingInAppModuleConfig.Builder(
             siteId = "test-site-id",
             region = Region.US
@@ -188,6 +314,8 @@ class GistModalActivityTest : IntegrationTest() {
                 environment = GistEnvironment.LOCAL
             )
         ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        return messagingManager
     }
 
     private fun createTestMessage(): Message = Message(

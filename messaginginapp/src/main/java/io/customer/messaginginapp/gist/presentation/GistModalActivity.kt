@@ -201,15 +201,15 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         // Only dispatch dismiss if THIS activity's message is still the currently displayed message.
         // This prevents a race condition where Activity1 finishes while Activity2 is already showing,
         // which would cause Activity1's onDestroy to incorrectly dismiss Activity2's message.
-        val ourMessage = activityMessage
-        val displayedMessage = currentMessageState?.message
+        val displayedMessage = activityMessage
+        val messageInQueue = currentMessageState?.message
         val inAppManager = inAppMessagingManager
 
-        if (ourMessage != null && inAppManager != null && ourMessage.queueId == displayedMessage?.queueId) {
-            if (!isPersistentMessage(ourMessage)) {
-                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = ourMessage))
+        if (displayedMessage != null && inAppManager != null && displayedMessage.queueId == messageInQueue?.queueId) {
+            if (!isPersistentMessage(displayedMessage)) {
+                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = displayedMessage))
             } else {
-                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = ourMessage, shouldLog = false))
+                inAppManager.dispatch(InAppMessagingAction.DismissMessage(message = displayedMessage, shouldLog = false))
             }
         }
         super.onDestroy()

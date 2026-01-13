@@ -31,6 +31,15 @@ android {
     buildFeatures {
         viewBinding true
     }
+    
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/versions/9/OSGI-INF/MANIFEST.MF',
+                'META-INF/OSGI-INF/MANIFEST.MF'
+            ]
+        }
+    }
 }
 
 dependencies {
@@ -47,4 +56,6 @@ dependencies {
     implementation Dependencies.androidxAppCompat
     implementation Dependencies.retrofit
     implementation Dependencies.okhttpLoggingInterceptor
+    implementation Dependencies.okhttpSse
+    implementation Dependencies.androidxProcessLifecycle
 }

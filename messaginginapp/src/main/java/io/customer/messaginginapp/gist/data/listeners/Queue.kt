@@ -1,10 +1,10 @@
 package io.customer.messaginginapp.gist.data.listeners
 
 import android.content.Context
-import android.util.Base64
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
+import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
@@ -73,24 +73,11 @@ class Queue : GistQueue {
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
                 val networkRequest = originalRequest.newBuilder()
-                    .addHeader(NetworkUtilities.CIO_SITE_ID_HEADER, state.siteId)
-                    .addHeader(NetworkUtilities.CIO_DATACENTER_HEADER, state.dataCenter)
-                    .addHeader(NetworkUtilities.CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase() + "-android")
-                    .addHeader(NetworkUtilities.CIO_CLIENT_VERSION, SDKComponent.android().client.sdkVersion)
-                    .addHeader(NetworkUtilities.GIST_USER_ANONYMOUS_HEADER, (state.userId == null).toString())
-                    .apply {
-                        val userToken = state.userId ?: state.anonymousId
-                        userToken?.let { token ->
-                            addHeader(
-                                NetworkUtilities.USER_TOKEN_HEADER,
-                                Base64.encodeToString(token.toByteArray(), Base64.NO_WRAP)
-                            )
-                        }
-                    }
-                    .header("Cache-Control", "no-cache")
-                    .build()
+                NetworkUtilities.addCommonHeaders(networkRequest, state)
+                networkRequest.header("Cache-Control", "no-cache")
+                val finalRequest = networkRequest.build()
 
-                interceptResponse(chain.proceed(networkRequest), originalRequest)
+                interceptResponse(chain.proceed(finalRequest), originalRequest)
             }
             .build()
 
@@ -145,6 +132,7 @@ class Queue : GistQueue {
                 }
 
                 updatePollingInterval(latestMessagesResponse.headers())
+                updateSseFlag(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 logger.debug("Error fetching messages: ${e.message}")
             }
@@ -192,6 +180,16 @@ class Queue : GistQueue {
                     inAppMessagingManager.dispatch(InAppMessagingAction.SetPollingInterval(newPollingIntervalMilliseconds))
                 }
             }
+        }
+    }
+
+    private fun updateSseFlag(headers: Headers) {
+        val sseHeaderValue = headers["X-CIO-Use-SSE"]
+        val sseEnabled = sseHeaderValue?.lowercase()?.toBooleanStrictOrNull() ?: false
+
+        if (sseEnabled != state.sseEnabled) {
+            SDKComponent.inAppSseLogger.logSseFlagChangedFromTo(state.sseEnabled, sseEnabled)
+            inAppMessagingManager.dispatch(InAppMessagingAction.SetSseEnabled(sseEnabled))
         }
     }
 

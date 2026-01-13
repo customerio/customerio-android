@@ -48,6 +48,7 @@ object Dependencies {
     const val okhttpMockWebserver = "com.squareup.okhttp3:mockwebserver:${Versions.OKHTTP}"
     const val okhttpLoggingInterceptor =
         "com.squareup.okhttp3:logging-interceptor:${Versions.OKHTTP}"
+    const val okhttpSse = "com.squareup.okhttp3:okhttp-sse:${Versions.OKHTTP}"
     const val segment = "com.segment.analytics.kotlin:android:${Versions.SEGMENT}"
     const val workManager = "androidx.work:work-runtime-ktx:${Versions.WORK_MANAGER}"
     const val workManagerTesting = "androidx.work:work-testing:${Versions.WORK_MANAGER}"

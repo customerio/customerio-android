@@ -11,6 +11,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -18,8 +19,11 @@ import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
+import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,6 +47,12 @@ class GistSDKTest : JUnitTest() {
                         overrideDependency(mockk<InAppMessagingManager>(relaxed = true))
                         overrideDependency(mockk<InAppPreferenceStore>(relaxed = true))
                         overrideDependency(mockk<GistQueue>(relaxed = true))
+                        overrideDependency(
+                            mockk<CustomerIOActivityLifecycleCallbacks>(relaxed = true) {
+                                every { subscribe(any()) } just Runs
+                            }
+                        )
+                        overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
                     }
                 }
             }

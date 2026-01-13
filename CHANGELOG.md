@@ -1,3 +1,9 @@
+## [4.15.0](https://github.com/customerio/customerio-android/compare/4.14.0...4.15.0) (2026-01-13)
+
+### Features
+
+* In-App SSE ([#636](https://github.com/customerio/customerio-android/issues/636)) ([6cba369](https://github.com/customerio/customerio-android/commit/6cba369610d4fd8c5d4fc8454ff9b7abe6c28421))
+
 ## [4.14.0](https://github.com/customerio/customerio-android/compare/4.13.0...4.14.0) (2025-11-24)
 
 ### Features

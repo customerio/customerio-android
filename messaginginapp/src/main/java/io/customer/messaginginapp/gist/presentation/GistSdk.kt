@@ -125,7 +125,8 @@ internal class GistSdk(
             fetchInAppMessages(duration = interval, initialDelay = interval)
         }
 
-        // Subscribe to SSE flag changes
+        // Subscribe to SSE flag changes - only manage timer state, not triggering fetches
+        // Fetches are controlled by ModuleMessagingInApp event handlers and onActivityResumed()
         inAppMessagingManager.subscribeToAttribute({ it.sseEnabled }) { _ ->
             // Only manage polling when app is foregrounded
             if (!isAppForegrounded) {
@@ -137,14 +138,12 @@ internal class GistSdk(
                 // SSE is now active - stop polling
                 logger.debug("SSE enabled for identified user, stopping polling")
                 resetTimer()
-            } else {
-                // SSE not active - start polling
-                logger.debug("SSE not active, starting polling")
-                fetchInAppMessages(state.pollInterval)
             }
+            // Note: Starting polling is handled by onActivityResumed() or event handlers
         }
 
-        // Subscribe to user identification changes
+        // Subscribe to user identification changes - only manage timer state, not triggering fetches
+        // Fetches are controlled by ModuleMessagingInApp event handlers and onActivityResumed()
         inAppMessagingManager.subscribeToAttribute({ it.isUserIdentified }) { _ ->
             // Only manage polling when app is foregrounded
             if (!isAppForegrounded) {
@@ -156,11 +155,8 @@ internal class GistSdk(
                 // SSE is now active - stop polling
                 logger.debug("User identified with SSE enabled, stopping polling")
                 resetTimer()
-            } else {
-                // SSE not active - start polling
-                logger.debug("SSE not active, starting polling")
-                fetchInAppMessages(state.pollInterval)
             }
+            // Note: Starting polling is handled by onActivityResumed() or event handlers
         }
     }
 
@@ -178,7 +174,7 @@ internal class GistSdk(
             return
         }
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
-        fetchInAppMessages(state.pollInterval)
+        // Note: fetch is now controlled by the event handler, not here
     }
 
     override fun setAnonymousId(anonymousId: String) {
@@ -188,7 +184,7 @@ internal class GistSdk(
         }
         logger.debug("Setting anonymous id to: $anonymousId")
         inAppMessagingManager.dispatch(InAppMessagingAction.SetAnonymousIdentifier(anonymousId))
-        fetchInAppMessages(state.pollInterval)
+        // Note: fetch is now controlled by the event handler, not here
     }
 
     override fun dismissMessage() {

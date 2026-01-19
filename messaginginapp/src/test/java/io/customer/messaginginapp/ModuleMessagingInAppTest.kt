@@ -73,47 +73,59 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
-    fun initialize_givenProfileIdentified_expectGistToSetUserToken() {
-        val givenIdentifier = String.random
-        module.initialize()
-
-        // publish profile identified event
-        eventBus.publish(Event.ProfileIdentifiedEvent(identifier = givenIdentifier))
-        // verify gist sets userToken
-        assertCalledOnce { inAppMessagesProviderMock.setUserId(givenIdentifier) }
-    }
-
-    @Test
-    fun initialize_givenProfilePreviouslyIdentified_expectGistToSetUserToken() {
-        val givenIdentifier = String.random
-        eventBus.publish(Event.ProfileIdentifiedEvent(identifier = givenIdentifier))
-
-        module.initialize()
-
-        // verify gist sets userToken
-        assertCalledOnce { inAppMessagesProviderMock.setUserId(givenIdentifier) }
-    }
-
-    @Test
-    fun initialize_givenNoProfileIdentified_expectGistNoUserSet() {
-        module.initialize()
-
-        // verify gist doesn't userToken
-        assertCalledNever { inAppMessagesProviderMock.setUserId(any()) }
-    }
-
-    @Test
-    fun initialize_givenAnonymousIdGenerated_expectGistToSetAnonymousIdAndCustomAttribute() {
+    fun initialize_givenUserChangedWithUserId_expectGistSetsBothIdsAndFetches() {
+        val givenUserId = String.random
         val givenAnonymousId = String.random
         module.initialize()
 
-        // publish anonymous id generated event
-        eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = givenAnonymousId))
+        // publish user changed event with userId (identified user)
+        eventBus.publish(Event.UserChangedEvent(userId = givenUserId, anonymousId = givenAnonymousId))
 
-        // verify gist sets anonymousId
+        // verify gist sets both anonymousId and userId, then fetches
         assertCalledOnce { inAppMessagesProviderMock.setAnonymousId(givenAnonymousId) }
+        assertCalledOnce { inAppMessagesProviderMock.setUserId(givenUserId) }
+        assertCalledOnce { inAppMessagesProviderMock.fetchInAppMessages() }
         // verify custom attribute is set
         assert(SDKComponent.gistCustomAttributes["cio_anonymous_id"] == givenAnonymousId)
+    }
+
+    @Test
+    fun initialize_givenUserChangedWithoutUserId_expectGistSetsAnonymousIdAndFetches() {
+        val givenAnonymousId = String.random
+        module.initialize()
+
+        // publish user changed event without userId (anonymous user)
+        eventBus.publish(Event.UserChangedEvent(userId = null, anonymousId = givenAnonymousId))
+
+        // verify gist sets anonymousId and fetches
+        assertCalledOnce { inAppMessagesProviderMock.setAnonymousId(givenAnonymousId) }
+        assertCalledOnce { inAppMessagesProviderMock.fetchInAppMessages() }
+        // verify custom attribute is set
+        assert(SDKComponent.gistCustomAttributes["cio_anonymous_id"] == givenAnonymousId)
+    }
+
+    @Test
+    fun initialize_givenNoUserChangedEvent_expectGistNoUserSetAndNoFetch() {
+        module.initialize()
+
+        // verify gist doesn't set any user info or fetch
+        assertCalledNever { inAppMessagesProviderMock.setUserId(any()) }
+        assertCalledNever { inAppMessagesProviderMock.setAnonymousId(any()) }
+        assertCalledNever { inAppMessagesProviderMock.fetchInAppMessages() }
+    }
+
+    @Test
+    fun initialize_givenUserChangedEventPublishedBeforeInit_expectGistSetsBothIdsAndFetches() {
+        val givenUserId = String.random
+        val givenAnonymousId = String.random
+        eventBus.publish(Event.UserChangedEvent(userId = givenUserId, anonymousId = givenAnonymousId))
+
+        module.initialize()
+
+        // verify gist sets both ids and fetches (event should be replayed)
+        assertCalledOnce { inAppMessagesProviderMock.setAnonymousId(givenAnonymousId) }
+        assertCalledOnce { inAppMessagesProviderMock.setUserId(givenUserId) }
+        assertCalledOnce { inAppMessagesProviderMock.fetchInAppMessages() }
     }
 
     @Test
@@ -150,11 +162,35 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     fun whenResetEventOccurs_expectCustomAttributesCleared() {
         module.initialize()
         val givenAnonymousId = String.random
-        eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = givenAnonymousId))
+        eventBus.publish(Event.UserChangedEvent(userId = null, anonymousId = givenAnonymousId))
 
         eventBus.publish(Event.ResetEvent)
 
         assert(SDKComponent.gistCustomAttributes.isEmpty())
+    }
+
+    @Test
+    fun whenResetEventFollowedByUserChanged_expectSingleFetchAfterReset() {
+        module.initialize()
+        val givenUserId = String.random
+        val givenAnonymousId = String.random
+
+        // Set up identified user
+        eventBus.publish(Event.UserChangedEvent(userId = givenUserId, anonymousId = givenAnonymousId))
+
+        // Clear mock invocations
+        io.mockk.clearMocks(inAppMessagesProviderMock, answers = false)
+
+        // Simulate clearIdentify flow: ResetEvent followed by UserChangedEvent with new anonymous ID
+        val newAnonymousId = String.random
+        eventBus.publish(Event.ResetEvent)
+        eventBus.publish(Event.UserChangedEvent(userId = null, anonymousId = newAnonymousId))
+
+        // Verify reset was called
+        assertCalledOnce { inAppMessagesProviderMock.reset() }
+        // Verify anonymous ID was set and fetch was triggered (single fetch after user change)
+        assertCalledOnce { inAppMessagesProviderMock.setAnonymousId(newAnonymousId) }
+        assertCalledOnce { inAppMessagesProviderMock.fetchInAppMessages() }
     }
 
     @Test

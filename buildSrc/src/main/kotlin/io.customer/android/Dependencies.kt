@@ -25,6 +25,8 @@ object Dependencies {
         "com.google.firebase:firebase-messaging:${Versions.FIREBASE_MESSAGING}"
     const val googlePlayServicesBase =
         "com.google.android.gms:play-services-base:${Versions.GOOGLE_PLAY_SERVICES_BASE}"
+    const val googlePlayServicesLocation =
+        "com.google.android.gms:play-services-location:${Versions.GOOGLE_PLAY_SERVICES_LOCATION}"
     const val googleServicesPlugin =
         "com.google.gms:google-services:${Versions.GOOGLE_SERVICES_PLUGIN}"
     const val gradleNexusPublishPlugin =

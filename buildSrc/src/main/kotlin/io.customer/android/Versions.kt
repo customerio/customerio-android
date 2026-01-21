@@ -35,6 +35,7 @@ object Versions {
     internal const val ROBOLECTRIC = "4.16"
     internal const val OKHTTP = "5.2.1"
     internal const val RETROFIT = "2.11.0"
+    internal const val GOOGLE_PLAY_SERVICES_LOCATION = "21.3.0"
 
     // Compose (using latest stable BOM compatible with Kotlin 2.1.21)
     internal const val COMPOSE_BOM = "2025.10.00"

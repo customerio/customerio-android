@@ -22,7 +22,7 @@ import io.customer.sdk.core.module.CustomerIOModule
  * val location = ModuleLocation.instance()
  *
  * // Enable location tracking
- * location.setTrackingEnabled(enabled = true)
+ * location.setLocationTrackingEnabled(enabled = true)
  *
  * // Check permission status
  * when (location.permissionStatus()) {
@@ -88,7 +88,7 @@ class ModuleLocation(
      *
      * @param enabled true to enable tracking, false to disable
      */
-    fun setTrackingEnabled(enabled: Boolean) {
+    fun setLocationTrackingEnabled(enabled: Boolean) {
         trackingEligibilityChecker.isTrackingEnabled = enabled
         logger.debug("Location tracking enabled: $enabled")
     }
@@ -98,7 +98,7 @@ class ModuleLocation(
      *
      * @return true if tracking is enabled, false otherwise
      */
-    fun isTrackingEnabled(): Boolean {
+    fun isLocationTrackingEnabled(): Boolean {
         return trackingEligibilityChecker.isTrackingEnabled
     }
 
@@ -106,7 +106,7 @@ class ModuleLocation(
      * Checks if location tracking is currently allowed.
      *
      * Returns true only if:
-     * 1. Tracking has been enabled via [setTrackingEnabled]
+     * 1. Tracking has been enabled via [setLocationTrackingEnabled]
      * 2. Location permission is granted
      * 3. Device location services are enabled
      *

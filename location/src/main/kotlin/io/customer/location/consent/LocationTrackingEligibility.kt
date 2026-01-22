@@ -14,7 +14,7 @@ sealed class LocationTrackingEligibility {
     object Eligible : LocationTrackingEligibility()
 
     /**
-     * Location tracking has not been enabled via [ModuleLocation.setTrackingEnabled].
+     * Location tracking has not been enabled via [ModuleLocation.setLocationTrackingEnabled].
      * The app needs to call setTrackingEnabled(true) to enable tracking.
      */
     object NotEnabled : LocationTrackingEligibility()

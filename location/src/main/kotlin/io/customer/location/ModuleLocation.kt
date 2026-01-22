@@ -145,15 +145,26 @@ class ModuleLocation(
      * This is an Android-specific helper for requesting permissions.
      * Use with `ActivityCompat.requestPermissions()`.
      *
-     * Note: Calling this method marks that permissions are being requested,
-     * which helps the SDK distinguish between "not determined" and "denied" states.
-     *
      * @return Array of permission strings (ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION)
      */
     fun getRequiredPermissions(): Array<String> {
-        // Auto-mark as requested since the app is getting permissions to request them
-        permissionsHelper.markPermissionRequested()
         return permissionsHelper.getRequiredPermissions()
+    }
+
+    /**
+     * Call this after requesting location permissions from the user.
+     *
+     * This helps the SDK distinguish between [LocationPermissionStatus.NOT_DETERMINED]
+     * (never asked) and [LocationPermissionStatus.DENIED] (user explicitly denied).
+     *
+     * Example:
+     * ```kotlin
+     * ActivityCompat.requestPermissions(activity, location.getRequiredPermissions(), REQ_CODE)
+     * location.onPermissionResult() // Call after requesting
+     * ```
+     */
+    fun onPermissionResult() {
+        permissionsHelper.markPermissionRequested()
     }
 
     // endregion

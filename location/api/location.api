@@ -21,6 +21,7 @@ public final class io/customer/location/ModuleLocation : io/customer/sdk/core/mo
 	public static final fun instance ()Lio/customer/location/ModuleLocation;
 	public final fun isLocationServicesEnabled ()Z
 	public final fun isLocationTrackingEnabled ()Z
+	public final fun onPermissionResult ()V
 	public final fun permissionStatus ()Lio/customer/location/permission/LocationPermissionStatus;
 	public final fun setLocationTrackingEnabled (Z)V
 }

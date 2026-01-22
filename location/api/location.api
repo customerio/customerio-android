@@ -15,6 +15,7 @@ public final class io/customer/location/ModuleLocation : io/customer/sdk/core/mo
 	public fun getModuleConfig ()Lio/customer/location/LocationModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
+	public final fun getRequiredPermissions ()[Ljava/lang/String;
 	public final fun getTrackingEligibility ()Lio/customer/location/consent/LocationTrackingEligibility;
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/location/ModuleLocation;

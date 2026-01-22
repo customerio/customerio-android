@@ -3,6 +3,8 @@ package io.customer.location
 import io.customer.location.consent.LocationTrackingEligibility
 import io.customer.location.di.LocationComponent
 import io.customer.location.permission.LocationPermissionStatus
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 
@@ -45,11 +47,17 @@ class ModuleLocation(
     override val moduleConfig: LocationModuleConfig = config
 
     private val logger = SDKComponent.logger
+    private val eventBus = SDKComponent.eventBus
     private val trackingEligibilityChecker by lazy { LocationComponent.trackingEligibilityChecker }
     private val permissionsHelper by lazy { LocationComponent.permissionsHelper }
 
     override fun initialize() {
         logger.debug("Location module initialized")
+
+        eventBus.subscribe<Event.ResetEvent> {
+            logger.debug("Resetting location module state")
+            LocationComponent.reset()
+        }
     }
 
     // region Public API - Cross-Platform
@@ -129,7 +137,7 @@ class ModuleLocation(
 
     // endregion
 
-    // region Internal API - Android-Specific
+    // region Public API - Android-Specific
 
     /**
      * Gets the list of permissions required for location tracking.
@@ -137,21 +145,15 @@ class ModuleLocation(
      * This is an Android-specific helper for requesting permissions.
      * Use with `ActivityCompat.requestPermissions()`.
      *
+     * Note: Calling this method marks that permissions are being requested,
+     * which helps the SDK distinguish between "not determined" and "denied" states.
+     *
      * @return Array of permission strings (ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION)
      */
-    internal fun getRequiredPermissions(): Array<String> {
-        return permissionsHelper.getRequiredPermissions()
-    }
-
-    /**
-     * Marks that permission has been requested.
-     *
-     * This is an Android-specific helper to track permission request state.
-     * Call this after showing the permission dialog to help the SDK
-     * distinguish between "not determined" and "denied" states.
-     */
-    internal fun markPermissionRequested() {
+    fun getRequiredPermissions(): Array<String> {
+        // Auto-mark as requested since the app is getting permissions to request them
         permissionsHelper.markPermissionRequested()
+        return permissionsHelper.getRequiredPermissions()
     }
 
     // endregion

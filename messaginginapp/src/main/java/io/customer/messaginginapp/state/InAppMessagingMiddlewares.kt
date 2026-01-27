@@ -219,6 +219,20 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 }
 
 /**
+ * Middleware to process inbox messages.
+ * Deduplicates inbox messages by deliveryId before storing in state.
+ */
+internal fun processInboxMessages() = middleware<InAppMessagingState> { _, next, action ->
+    if (action is InAppMessagingAction.ProcessInboxMessages && action.messages.isNotEmpty()) {
+        // Deduplicate by deliveryId - keep first occurrence of each unique deliveryId
+        val uniqueMessages = action.messages.distinctBy { it.deliveryId }
+        next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
+    } else {
+        next(action)
+    }
+}
+
+/**
  * Middleware to handle Gist listener actions.
  *
  * @param gistListener The Gist listener.

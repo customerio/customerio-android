@@ -663,21 +663,28 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun givenDuplicateInboxMessages_whenProcessed_thenDuplicatesAreRemoved() = runTest {
+    fun givenDuplicateInboxMessages_whenProcessed_thenDuplicatesAreRemovedByDeliveryId() = runTest {
         initializeAndSetUser()
 
-        // Create duplicate inbox messages
+        // Create inbox messages with same deliveryId but different properties
+        // This simulates middleware receiving duplicate deliveryIds with different states
         val message1 = createInboxMessage(deliveryId = "inbox1", priority = 1, opened = false)
-        val message2 = createInboxMessage(deliveryId = "inbox1", priority = 1, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox1", priority = 2, opened = true) // Same deliveryId, different props
         val message3 = createInboxMessage(deliveryId = "inbox2", priority = 2, opened = true)
 
         // Process inbox messages with duplicates
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        // Verify messages are stored in state and duplicates are removed  (Set deduplication)
+        // Verify duplicates are removed by deliveryId (distinctBy)
+        // Only the first occurrence of each deliveryId is kept
         val state = manager.getCurrentState()
         state.inboxMessages.size shouldBeEqualTo 2
         state.inboxMessages.any { it.deliveryId == "inbox1" } shouldBe true
         state.inboxMessages.any { it.deliveryId == "inbox2" } shouldBe true
+
+        // Verify the first occurrence is kept (message1 with opened=false, not message2)
+        val inbox1Message = state.inboxMessages.first { it.deliveryId == "inbox1" }
+        inbox1Message.opened shouldBe false
+        inbox1Message.priority shouldBeEqualTo 1
     }
 }

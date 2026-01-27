@@ -56,15 +56,29 @@ internal class Iso8601DateAdapter : TypeAdapter<Date?>() {
     }
 
     /**
-     * Truncates fractional seconds to 3 digits (milliseconds) if longer.
-     * Handles microseconds (6 digits) or other precision levels from the server.
+     * Normalizes fractional seconds to exactly 3 digits (milliseconds).
+     * - Pads if fewer than 3 digits (e.g., ".1Z" -> ".100Z", ".12Z" -> ".120Z")
+     * - Truncates if more than 3 digits (e.g., ".123456Z" -> ".123Z")
+     * Per ISO 8601, ".1" represents 0.1 seconds = 100 milliseconds.
      */
     private fun normalizeFractionalSeconds(dateString: String): String {
-        // Pattern: digits after decimal point before 'Z'
-        val regex = """(\.\d{3})\d+Z""".toRegex()
-        return regex.replace(dateString) { matchResult ->
-            // Keep only first 3 digits (milliseconds) + Z
-            "${matchResult.groupValues[1]}Z"
+        return try {
+            // Pattern: decimal point followed by 1+ digits before 'Z'
+            val regex = """\.\d+Z""".toRegex()
+            return regex.replace(dateString) { matchResult ->
+                // Extract the digits after the decimal point (without '.' and 'Z')
+                val fractionalPart = matchResult.value.substring(1, matchResult.value.length - 1)
+
+                // Normalize to exactly 3 digits
+                val normalized = when {
+                    fractionalPart.length >= 3 -> fractionalPart.take(3) // Truncate
+                    else -> fractionalPart.padEnd(3, '0') // Pad with zeros
+                }
+
+                return@replace ".$normalized" + "Z"
+            }
+        } catch (_: Exception) {
+            return dateString // Return unchanged if normalization fails
         }
     }
 

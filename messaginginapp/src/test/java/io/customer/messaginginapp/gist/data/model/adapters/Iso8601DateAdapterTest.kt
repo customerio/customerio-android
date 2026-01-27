@@ -59,7 +59,8 @@ class Iso8601DateAdapterTest : JUnitTest() {
     }
 
     @Test
-    fun testRead_givenValidDateWithSingleDigitFractionalSecond_thenReturnsDate() {
+    fun testRead_givenValidDateWithSingleDigitFractionalSecond_thenPadsToMilliseconds() {
+        // Per ISO 8601, .1 = 0.1 seconds = 100 milliseconds
         val dateString = "2026-01-27T12:30:45.1Z"
         val jsonReader = createJsonReader("\"$dateString\"")
 
@@ -73,7 +74,28 @@ class Iso8601DateAdapterTest : JUnitTest() {
         calendar.get(Calendar.HOUR_OF_DAY).shouldBeEqualTo(12)
         calendar.get(Calendar.MINUTE).shouldBeEqualTo(30)
         calendar.get(Calendar.SECOND).shouldBeEqualTo(45)
-        calendar.get(Calendar.MILLISECOND).shouldBeEqualTo(1)
+        // .1 is padded to .100, representing 100 milliseconds
+        calendar.get(Calendar.MILLISECOND).shouldBeEqualTo(100)
+    }
+
+    @Test
+    fun testRead_givenValidDateWithTwoDigitFractionalSecond_thenPadsToMilliseconds() {
+        // Per ISO 8601, .12 = 0.12 seconds = 120 milliseconds
+        val dateString = "2026-01-27T12:30:45.12Z"
+        val jsonReader = createJsonReader("\"$dateString\"")
+
+        val result = adapter.read(jsonReader)
+
+        result.shouldNotBeNull()
+        val calendar = utcCalendar(result)
+        calendar.get(Calendar.YEAR).shouldBeEqualTo(2026)
+        calendar.get(Calendar.MONTH).shouldBeEqualTo(Calendar.JANUARY)
+        calendar.get(Calendar.DAY_OF_MONTH).shouldBeEqualTo(27)
+        calendar.get(Calendar.HOUR_OF_DAY).shouldBeEqualTo(12)
+        calendar.get(Calendar.MINUTE).shouldBeEqualTo(30)
+        calendar.get(Calendar.SECOND).shouldBeEqualTo(45)
+        // .12 is padded to .120, representing 120 milliseconds
+        calendar.get(Calendar.MILLISECOND).shouldBeEqualTo(120)
     }
 
     @Test

@@ -52,6 +52,7 @@ internal data class InAppMessagingState(
         append("modalMessageState=$modalMessageState,\n")
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
+        append("inboxMessages=${inboxMessages.map(InboxMessage::deliveryId)},\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
         append("sseEnabled=$sseEnabled)")
     }
@@ -69,6 +70,7 @@ internal data class InAppMessagingState(
             if (modalMessageState != other.modalMessageState) put("modalMessageState", modalMessageState to other.modalMessageState)
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
+            if (inboxMessages != other.inboxMessages) put("inboxMessages", inboxMessages to other.inboxMessages)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
             if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
         }

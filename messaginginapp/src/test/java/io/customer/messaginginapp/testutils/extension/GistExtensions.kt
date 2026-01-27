@@ -1,10 +1,12 @@
 package io.customer.messaginginapp.testutils.extension
 
 import io.customer.commontest.extensions.random
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.getMessage
 import io.customer.messaginginapp.ui.controller.InAppMessageViewController
+import java.util.Date
 import java.util.UUID
 
 fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random, String.random).getMessage()
@@ -40,6 +42,28 @@ fun createInAppMessage(
             }
         )
     }
+)
+
+fun createInboxMessage(
+    deliveryId: String = UUID.randomUUID().toString(),
+    expiry: Date? = null,
+    sentAt: Date? = null,
+    topics: List<String> = emptyList(),
+    type: String = "inbox",
+    opened: Boolean = false,
+    priority: Int = 0,
+    properties: Map<String, Any?>? = null,
+    queueId: String? = null
+): InboxMessage = InboxMessage(
+    deliveryId = deliveryId,
+    expiry = expiry,
+    sentAt = sentAt,
+    topics = topics,
+    type = type,
+    opened = opened,
+    priority = priority,
+    properties = properties,
+    queueId = queueId
 )
 
 fun createGistAction(action: String): String = "gist://$action"

@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.state
 
 import io.customer.messaginginapp.gist.GistEnvironment
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 
@@ -14,6 +15,7 @@ internal sealed class InAppMessagingAction {
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()
     data class SetAnonymousIdentifier(val anonymousId: String) : InAppMessagingAction()
     data class ProcessMessageQueue(val messages: List<Message>) : InAppMessagingAction()
+    data class ProcessInboxMessages(val messages: List<InboxMessage>) : InAppMessagingAction()
     data class DisplayMessage(val message: Message) : InAppMessagingAction()
     data class DismissMessage(val message: Message, val shouldLog: Boolean = true, val viaCloseAction: Boolean = true) : InAppMessagingAction()
     data class ReportError(val message: String) : InAppMessagingAction()

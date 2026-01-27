@@ -13,6 +13,7 @@ import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
+import io.customer.messaginginapp.testutils.extension.createInboxMessage
 import io.customer.messaginginapp.testutils.extension.pageRuleContains
 import io.customer.messaginginapp.testutils.extension.pageRuleEquals
 import io.customer.messaginginapp.type.InAppEventListener
@@ -41,11 +42,12 @@ class InAppMessagingStoreTest : IntegrationTest() {
 
     private var inAppEventListener = mockk<InAppEventListener>(relaxed = true)
 
+    private lateinit var module: ModuleMessagingInApp
     private lateinit var manager: InAppMessagingManager
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfig)
-        ModuleMessagingInApp(
+        module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
                 siteId = TestConstants.Keys.SITE_ID,
                 region = Region.US
@@ -639,5 +641,43 @@ class InAppMessagingStoreTest : IntegrationTest() {
         verify(exactly = 1) { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(nonPersistentMessage)) }
         verify(exactly = 1) { inAppEventListener.messageDismissed(InAppMessage.getFromGistMessage(persistentMessage)) }
         verify(exactly = 1) { inAppEventListener.messageDismissed(InAppMessage.getFromGistMessage(nonPersistentMessage)) }
+    }
+
+    @Test
+    fun givenInboxMessages_whenProcessed_thenMessagesAreAvailableViaMessageInbox() = runTest {
+        initializeAndSetUser()
+
+        // Create test inbox messages
+        val message1 = createInboxMessage(deliveryId = "inbox1", priority = 1, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox2", priority = 2, opened = true)
+        val message3 = createInboxMessage(deliveryId = "inbox3", priority = 3, opened = false)
+
+        // Process inbox messages via action
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        // Verify MessageInbox.getMessages() returns correct messages
+        val messageInbox = module.inbox()
+        val retrievedMessages = messageInbox.getMessages()
+        retrievedMessages.size shouldBeEqualTo 3
+        retrievedMessages shouldContainAll listOf(message1, message2, message3)
+    }
+
+    @Test
+    fun givenDuplicateInboxMessages_whenProcessed_thenDuplicatesAreRemoved() = runTest {
+        initializeAndSetUser()
+
+        // Create duplicate inbox messages
+        val message1 = createInboxMessage(deliveryId = "inbox1", priority = 1, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox1", priority = 1, opened = false)
+        val message3 = createInboxMessage(deliveryId = "inbox2", priority = 2, opened = true)
+
+        // Process inbox messages with duplicates
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        // Verify messages are stored in state and duplicates are removed  (Set deduplication)
+        val state = manager.getCurrentState()
+        state.inboxMessages.size shouldBeEqualTo 2
+        state.inboxMessages.any { it.deliveryId == "inbox1" } shouldBe true
+        state.inboxMessages.any { it.deliveryId == "inbox2" } shouldBe true
     }
 }

@@ -41,7 +41,7 @@ internal class SseDataParser(
      * @param arrayClass The class type of the array to parse
      * @return List of parsed objects or empty list if parsing fails
      */
-    private inline fun <reified T> parseMessageArray(data: String, arrayClass: Class<Array<T>>): List<T> {
+    private fun <T> parseMessageArray(data: String, arrayClass: Class<Array<T>>): List<T> {
         if (data.isBlank()) {
             sseLogger.logReceivedEmptyMessageData()
             return emptyList()

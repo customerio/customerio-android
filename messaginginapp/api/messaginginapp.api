@@ -63,16 +63,6 @@ public abstract interface class io/customer/messaginginapp/gist/data/listeners/G
 	public abstract fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
 
-public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueueService {
-	public abstract fun fetchMessagesForUser (Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun logMessageView (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun logUserMessageView (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
-public final class io/customer/messaginginapp/gist/data/listeners/GistQueueService$DefaultImpls {
-	public static synthetic fun fetchMessagesForUser$default (Lio/customer/messaginginapp/gist/data/listeners/GistQueueService;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-}
-
 public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/customer/messaginginapp/gist/data/listeners/GistQueue {
 	public fun <init> ()V
 	public fun fetchUserMessages ()V

@@ -24,10 +24,13 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(anonymousId = action.anonymousId)
 
         is InAppMessagingAction.ClearMessageQueue ->
-            state.copy(messagesInQueue = emptySet())
+            state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet())
 
         is InAppMessagingAction.ProcessMessageQueue ->
             state.copy(messagesInQueue = action.messages.toSet())
+
+        is InAppMessagingAction.ProcessInboxMessages ->
+            state.copy(inboxMessages = action.messages.toSet())
 
         is InAppMessagingAction.SetPollingInterval ->
             state.copy(pollInterval = action.interval)
@@ -51,6 +54,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             modalMessageState = ModalMessageState.Initial,
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),
+            inboxMessages = emptySet(),
             shownMessageQueueIds = emptySet(),
             sseEnabled = false
         )

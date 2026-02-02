@@ -217,13 +217,29 @@ internal class SseConnectionManager(
 
             ServerEvent.MESSAGES -> {
                 try {
-                    val messages = sseDataParser.parseMessages(event.data)
+                    val messages = sseDataParser.parseInAppMessages(event.data)
                     if (messages.isNotEmpty()) {
-                        sseLogger.logReceivedMessages(messages.size)
+                        sseLogger.logReceivedMessages(messages.size, "in-app")
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.ProcessMessageQueue(
                                 messages
                             )
+                        )
+                    } else {
+                        sseLogger.logReceivedEmptyMessagesEvent()
+                    }
+                } catch (e: Exception) {
+                    sseLogger.logFailedToParseMessages(e.message)
+                }
+            }
+
+            ServerEvent.INBOX_MESSAGES -> {
+                try {
+                    val inboxMessages = sseDataParser.parseInboxMessages(event.data)
+                    if (inboxMessages.isNotEmpty()) {
+                        sseLogger.logReceivedMessages(inboxMessages.size, "inbox")
+                        inAppMessagingManager.dispatch(
+                            InAppMessagingAction.ProcessInboxMessages(inboxMessages)
                         )
                     } else {
                         sseLogger.logReceivedEmptyMessagesEvent()

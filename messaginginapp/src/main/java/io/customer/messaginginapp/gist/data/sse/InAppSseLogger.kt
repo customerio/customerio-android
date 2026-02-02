@@ -83,8 +83,8 @@ internal class InAppSseLogger(private val logger: Logger) {
         logger.debug(tag = TAG, message = "Received heartbeat")
     }
 
-    fun logReceivedMessages(count: Int) {
-        logger.debug(tag = TAG, message = "Received $count messages")
+    fun logReceivedMessages(count: Int, type: String?) {
+        logger.debug(tag = TAG, message = "Received $count $type messages")
     }
 
     fun logReceivedEmptyMessagesEvent() {

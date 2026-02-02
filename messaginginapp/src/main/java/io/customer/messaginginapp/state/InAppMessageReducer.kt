@@ -24,7 +24,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(anonymousId = action.anonymousId)
 
         is InAppMessagingAction.ClearMessageQueue ->
-            state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet())
+            state.copy(messagesInQueue = emptySet())
 
         is InAppMessagingAction.ProcessMessageQueue ->
             state.copy(messagesInQueue = action.messages.toSet())

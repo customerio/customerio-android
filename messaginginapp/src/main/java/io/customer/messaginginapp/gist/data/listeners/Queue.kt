@@ -8,6 +8,7 @@ import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.QueueMessagesResponse
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -29,9 +30,9 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-interface GistQueueService {
-    @POST("/api/v3/users")
-    suspend fun fetchMessagesForUser(@Body body: Any = Object(), @Query("sessionId") sessionId: String): Response<List<Message>>
+internal interface GistQueueService {
+    @POST("/api/v4/users")
+    suspend fun fetchMessagesForUser(@Body body: Any = Object(), @Query("sessionId") sessionId: String): Response<QueueMessagesResponse>
 
     @POST("/api/v1/logs/message/{messageId}")
     suspend fun logMessageView(@Path("messageId") messageId: String, @Query("sessionId") sessionId: String)
@@ -144,25 +145,37 @@ class Queue : GistQueue {
         inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
     }
 
-    private fun handleSuccessfulFetch(responseBody: List<Message>?) {
-        logger.debug("Found ${responseBody?.count()} messages for user")
-        responseBody?.let { messages ->
+    private fun handleSuccessfulFetch(responseBody: QueueMessagesResponse?) {
+        if (responseBody == null) {
+            logger.error("Received null response body for successful fetch")
+            return
+        }
+
+        responseBody.let { response ->
+            // Process in-app messages first
+            val inAppMessages = response.inAppMessages
+            logger.debug("Found ${inAppMessages.count()} in-app messages for user")
             // Store anonymous messages locally for frequency management
-            anonymousMessageManager.updateAnonymousMessagesLocalStore(messages)
+            anonymousMessageManager.updateAnonymousMessagesLocalStore(inAppMessages)
 
             // Get eligible anonymous messages from local storage (respects frequency/dismissal rules)
             val eligibleAnonymousMessages = anonymousMessageManager.getEligibleAnonymousMessages()
 
             // Filter out anonymous messages from server response (we use local ones instead)
-            val regularMessages = messages.filter { !it.isMessageAnonymous() }
+            val regularMessages = inAppMessages.filter { !it.isMessageAnonymous() }
 
             // Combine regular messages with eligible anonymous messages
             val allMessages = regularMessages + eligibleAnonymousMessages
 
             logger.debug("Processing ${regularMessages.size} regular messages and ${eligibleAnonymousMessages.size} eligible anonymous messages")
 
-            // Process all messages through the normal queue
+            // Process all in-app messages through the normal queue
             inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(allMessages))
+
+            // Process inbox messages next
+            val inboxMessages = response.inboxMessages
+            logger.debug("Found ${inboxMessages.count()} inbox messages for user")
+            inAppMessagingManager.dispatch(InAppMessagingAction.ProcessInboxMessages(inboxMessages))
         }
     }
 

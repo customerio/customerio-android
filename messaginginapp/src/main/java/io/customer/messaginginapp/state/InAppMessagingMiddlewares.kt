@@ -269,6 +269,14 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
                         // Always pass action to reducer to update local state
                         next(action)
                     }
+
+                    is InAppMessagingAction.InboxAction.DeleteMessage -> {
+                        // Call API to delete message on server
+                        SDKComponent.logger.debug("Deleting inbox message with deliveryId: ${currentMessage.deliveryId}")
+                        SDKComponent.gistQueue.logDeleted(currentMessage)
+                        // Pass action to reducer to update local state
+                        next(action)
+                    }
                 }
             }
         }

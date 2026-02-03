@@ -86,4 +86,16 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
             )
         )
     }
+
+    /**
+     * Marks an inbox message as deleted.
+     * Removes the message from local state and syncs with the server.
+     *
+     * @param message The inbox message to mark as deleted
+     */
+    fun markMessageDeleted(message: InboxMessage) {
+        inAppMessagingManager.dispatch(
+            InAppMessagingAction.InboxAction.DeleteMessage(message)
+        )
+    }
 }

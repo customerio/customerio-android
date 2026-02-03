@@ -52,6 +52,20 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(inboxMessages = updatedMessages)
         }
 
+        is InAppMessagingAction.InboxAction.DeleteMessage -> {
+            // Remove deleted message from state
+            // Only remove if queueId is present (required for server sync)
+            val queueId = action.message.queueId
+            val messages = state.inboxMessages
+
+            val updatedMessages = if (queueId == null) {
+                messages
+            } else {
+                messages.filterNot { it.queueId == queueId }.toSet()
+            }
+            state.copy(inboxMessages = updatedMessages)
+        }
+
         is InAppMessagingAction.SetPollingInterval ->
             state.copy(pollInterval = action.interval)
 

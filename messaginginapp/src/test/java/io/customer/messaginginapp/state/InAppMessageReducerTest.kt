@@ -341,6 +341,46 @@ class InAppMessageReducerTest : JUnitTest() {
         assertTrue(unchangedMessage.opened)
     }
 
+    @Test
+    fun markInboxMessageDeleted_givenMatchingQueueId_expectMessageRemoved() {
+        val queueId = "queue-123"
+        val message1 = InboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+        val message3 = InboxMessage(deliveryId = "inbox3", queueId = "queue-789", opened = true)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2, message3)
+        )
+
+        val action = InAppMessagingAction.InboxAction.DeleteMessage(message1)
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        // Deleted message should be removed
+        assertEquals(2, resultState.inboxMessages.size)
+        assertFalse(resultState.inboxMessages.any { it.queueId == queueId })
+
+        // Other messages should remain unchanged
+        assertTrue(resultState.inboxMessages.any { it.queueId == "queue-456" })
+        assertTrue(resultState.inboxMessages.any { it.queueId == "queue-789" })
+    }
+
+    @Test
+    fun markInboxMessageDeleted_givenNullQueueId_expectStateUnchanged() {
+        val message1 = InboxMessage(deliveryId = "inbox1", queueId = null, opened = false)
+        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2)
+        )
+
+        val action = InAppMessagingAction.InboxAction.DeleteMessage(message1)
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        // State should remain unchanged when queueId is null
+        assertEquals(startingState.inboxMessages, resultState.inboxMessages)
+        assertEquals(2, resultState.inboxMessages.size)
+    }
+
     /**
      * Helper method to create a test message with customizable persistence
      */

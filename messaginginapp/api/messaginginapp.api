@@ -60,6 +60,7 @@ public final class io/customer/messaginginapp/gist/data/NetworkUtilities$Compani
 
 public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueue {
 	public abstract fun fetchUserMessages ()V
+	public abstract fun logDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public abstract fun logOpenedStatus (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Z)V
 	public abstract fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -67,6 +68,7 @@ public abstract interface class io/customer/messaginginapp/gist/data/listeners/G
 public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/customer/messaginginapp/gist/data/listeners/GistQueue {
 	public fun <init> ()V
 	public fun fetchUserMessages ()V
+	public fun logDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public fun logOpenedStatus (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Z)V
 	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
 }
@@ -226,6 +228,7 @@ public final class io/customer/messaginginapp/inbox/MessageInbox {
 	public fun <init> (Lkotlinx/coroutines/CoroutineScope;)V
 	public final fun getMessages (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getMessages (Lkotlin/jvm/functions/Function1;)V
+	public final fun markMessageDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun markMessageOpened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun markMessageUnopened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 }

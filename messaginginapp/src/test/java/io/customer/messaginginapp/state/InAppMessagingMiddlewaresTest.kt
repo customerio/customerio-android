@@ -4,12 +4,16 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -29,6 +33,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     private val mockGistListener: GistListener = mockk(relaxed = true)
     private val mockLogger: Logger = mockk(relaxed = true)
     private val mockGistSdk: GistSdk = mockk(relaxed = true)
+    private val mockEventBus: EventBus = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         // Configure store state
@@ -42,6 +47,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
                         overrideDependency<GistQueue>(mockGistQueue)
                         overrideDependency<Logger>(mockLogger)
                         overrideDependency<GistSdk>(mockGistSdk)
+                        overrideDependency<EventBus>(mockEventBus)
                     }
                 }
             }
@@ -469,5 +475,58 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         assert(dispatchedActions.any { it is InAppMessagingAction.EmbedMessages }) {
             "Expected EmbedMessages action to be dispatched"
         }
+    }
+
+    @Test
+    fun processInboxMessages_givenUpdateOpenedWithOpenedTrue_shouldPublishMetricEvent() {
+        // Given an inbox message being marked as opened
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(inboxMessage, opened = true)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should call the API to update opened status
+        verify { mockGistQueue.logOpenedStatus(inboxMessage, true) }
+
+        // And it should publish a TrackInAppMetricEvent with Metric.Opened
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Opened
+                )
+            )
+        }
+
+        // And it should pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun processInboxMessages_givenUpdateOpenedWithOpenedFalse_shouldNotPublishMetricEvent() {
+        // Given an inbox message being marked as unopened
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = true)
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(inboxMessage, opened = false)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should call the API to update opened status
+        verify { mockGistQueue.logOpenedStatus(inboxMessage, false) }
+
+        // But it should NOT publish a metric event
+        verify(exactly = 0) {
+            mockEventBus.publish(any<Event.TrackInAppMetricEvent>())
+        }
+
+        // And it should pass the action to the next middleware/reducer
+        verify { nextFn(action) }
     }
 }

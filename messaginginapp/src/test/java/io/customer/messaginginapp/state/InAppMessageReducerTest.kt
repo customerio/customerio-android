@@ -3,6 +3,7 @@ package io.customer.messaginginapp.state
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.GistProperties
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.testutils.core.JUnitTest
@@ -270,6 +271,74 @@ class InAppMessageReducerTest : JUnitTest() {
         assertNull(resultState.userId)
         assertNull(resultState.anonymousId)
         assertNull(resultState.currentRoute)
+    }
+
+    @Test
+    fun updateInboxMessageOpenedStatus_givenMatchingQueueId_expectMessageUpdated() {
+        val queueId = "queue-123"
+        val message1 = InboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2)
+        )
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(
+            message = message1,
+            opened = true
+        )
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        assertEquals(2, resultState.inboxMessages.size)
+        val updatedMessage = resultState.inboxMessages.first { it.queueId == queueId }
+        assertTrue(updatedMessage.opened)
+        val unchangedMessage = resultState.inboxMessages.first { it.queueId == "queue-456" }
+        assertFalse(unchangedMessage.opened)
+    }
+
+    @Test
+    fun updateInboxMessageOpenedStatus_givenNullQueueId_expectStateUnchanged() {
+        val message1 = InboxMessage(deliveryId = "inbox1", queueId = null, opened = false)
+        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2)
+        )
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(
+            message = message1,
+            opened = true
+        )
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        // State should remain unchanged when queueId is null
+        assertEquals(startingState.inboxMessages, resultState.inboxMessages)
+        resultState.inboxMessages.forEach { message ->
+            assertFalse(message.opened)
+        }
+    }
+
+    @Test
+    fun updateInboxMessageOpenedStatus_givenMarkAsUnopened_expectOpenedSetToFalse() {
+        val queueId = "queue-123"
+        val message1 = InboxMessage(deliveryId = "inbox1", queueId = queueId, opened = true)
+        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = true)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2)
+        )
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(
+            message = message1,
+            opened = false
+        )
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        assertEquals(2, resultState.inboxMessages.size)
+        val updatedMessage = resultState.inboxMessages.first { it.queueId == queueId }
+        assertFalse(updatedMessage.opened)
+        val unchangedMessage = resultState.inboxMessages.first { it.queueId == "queue-456" }
+        assertTrue(unchangedMessage.opened)
     }
 
     /**

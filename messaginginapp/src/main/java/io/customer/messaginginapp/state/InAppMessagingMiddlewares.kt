@@ -12,8 +12,10 @@ import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.events.Metric
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
 
@@ -219,16 +221,46 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 }
 
 /**
- * Middleware to process inbox messages.
- * Deduplicates inbox messages by deliveryId before storing in state.
+ * Middleware for processing inbox messages and inbox-related actions.
+ * Deduplicates messages by deliveryId and syncs InboxAction updates to the server.
  */
 internal fun processInboxMessages() = middleware<InAppMessagingState> { _, next, action ->
-    if (action is InAppMessagingAction.ProcessInboxMessages && action.messages.isNotEmpty()) {
-        // Deduplicate by deliveryId - keep first occurrence of each unique deliveryId
-        val uniqueMessages = action.messages.distinctBy { it.deliveryId }
-        next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
-    } else {
-        next(action)
+    when (action) {
+        is InAppMessagingAction.ProcessInboxMessages -> {
+            if (action.messages.isNotEmpty()) {
+                // Deduplicate by deliveryId - keep first occurrence of each unique deliveryId
+                val uniqueMessages = action.messages.distinctBy { it.deliveryId }
+                next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
+            } else {
+                next(action)
+            }
+        }
+
+        is InAppMessagingAction.InboxAction -> {
+            // Handle all inbox related actions
+            when (action) {
+                is InAppMessagingAction.InboxAction.UpdateOpened -> {
+                    // Call API to update opened status on server
+                    SDKComponent.gistQueue.logOpenedStatus(action.message, action.opened)
+
+                    // Track metric on data pipelines when message is marked as opened
+                    if (action.opened) {
+                        SDKComponent.logger.debug("Inbox message opened with deliveryId: ${action.message.deliveryId}")
+                        SDKComponent.eventBus.publish(
+                            Event.TrackInAppMetricEvent(
+                                deliveryID = action.message.deliveryId,
+                                event = Metric.Opened
+                            )
+                        )
+                    }
+
+                    // Pass action to reducer to update local state
+                    next(action)
+                }
+            }
+        }
+
+        else -> next(action)
     }
 }
 

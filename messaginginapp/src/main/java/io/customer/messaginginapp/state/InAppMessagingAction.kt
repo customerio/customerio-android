@@ -25,6 +25,10 @@ internal sealed class InAppMessagingAction {
         data class MessageLoadingFailed(val message: Message) : InAppMessagingAction()
     }
 
+    sealed class InboxAction : InAppMessagingAction() {
+        data class UpdateOpened(val message: InboxMessage, val opened: Boolean) : InboxAction()
+    }
+
     object ClearMessageQueue : InAppMessagingAction()
     object Reset : InAppMessagingAction()
 }

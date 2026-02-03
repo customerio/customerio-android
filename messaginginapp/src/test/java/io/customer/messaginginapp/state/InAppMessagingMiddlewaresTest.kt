@@ -479,10 +479,19 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
 
     @Test
     fun processInboxMessages_givenUpdateOpenedWithOpenedTrue_shouldPublishMetricEvent() {
-        // Given an inbox message being marked as opened
+        // Given an inbox message in state that is currently unopened
         val deliveryId = String.random
         val queueId = String.random
         val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        // Set up store state with the unopened message
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
         val action = InAppMessagingAction.InboxAction.UpdateOpened(inboxMessage, opened = true)
 
         // When the middleware processes the action
@@ -507,26 +516,103 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     }
 
     @Test
-    fun processInboxMessages_givenUpdateOpenedWithOpenedFalse_shouldNotPublishMetricEvent() {
-        // Given an inbox message being marked as unopened
+    fun processInboxMessages_givenUpdateOpenedWithOpenedFalse_shouldCallApiButNotPublishMetric() {
+        // Given an inbox message in state that is currently opened
         val deliveryId = String.random
         val queueId = String.random
         val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = true)
+
+        // Set up store state with the opened message
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
         val action = InAppMessagingAction.InboxAction.UpdateOpened(inboxMessage, opened = false)
 
         // When the middleware processes the action
         val middleware = processInboxMessages()
         middleware(store)(nextFn)(action)
 
-        // Then it should call the API to update opened status
+        // Then it should call the API to update opened status (state is changing)
         verify { mockGistQueue.logOpenedStatus(inboxMessage, false) }
 
-        // But it should NOT publish a metric event
+        // But it should NOT publish a metric event (only track when opening, not when unopening)
         verify(exactly = 0) {
             mockEventBus.publish(any<Event.TrackInAppMetricEvent>())
         }
 
         // And it should pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun processInboxMessages_givenMessageAlreadyOpened_shouldNotCallApiOrPublishMetric() {
+        // Given an inbox message that is already opened in state
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = true)
+
+        // Set up store state with the already opened message
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(inboxMessage, opened = true)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should NOT call the API since state is not changing
+        verify(exactly = 0) { mockGistQueue.logOpenedStatus(any(), any()) }
+
+        // And it should NOT publish a metric event
+        verify(exactly = 0) {
+            mockEventBus.publish(any<Event.TrackInAppMetricEvent>())
+        }
+
+        // But it should still pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun processInboxMessages_givenStaleMessageNotInState_shouldNotCallApiOrPublishMetric() {
+        // Given a stale message object that doesn't exist in current state
+        val deliveryId = String.random
+        val queueId = String.random
+        val staleMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        // Set up store state with different messages (stale message not present)
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(
+                InboxMessage(deliveryId = "other-1", queueId = "other-queue-1", opened = false)
+            )
+        )
+        every { store.state } returns state
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(staleMessage, opened = true)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should NOT call the API for stale/unknown message
+        verify(exactly = 0) { mockGistQueue.logOpenedStatus(any(), any()) }
+
+        // And it should NOT publish a metric event
+        verify(exactly = 0) {
+            mockEventBus.publish(any<Event.TrackInAppMetricEvent>())
+        }
+
+        // But it should still pass the action to the next middleware/reducer
         verify { nextFn(action) }
     }
 }

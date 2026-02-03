@@ -43,7 +43,7 @@ internal interface GistQueueService {
     suspend fun logUserMessageView(@Path("queueId") queueId: String, @Query("sessionId") sessionId: String)
 
     @PATCH("/api/v1/messages/{queueId}")
-    suspend fun logInboxMessageOpened(@Path("queueId") queueId: String, @Body body: Map<String, Boolean>)
+    suspend fun logInboxMessageOpened(@Path("queueId") queueId: String, @Query("sessionId") sessionId: String, @Body body: Map<String, Boolean>)
 }
 
 interface GistQueue {
@@ -238,6 +238,7 @@ class Queue : GistQueue {
                 logger.debug("Updating inbox message $queueId opened status to: $opened")
                 gistQueueService.logInboxMessageOpened(
                     queueId = queueId,
+                    sessionId = state.sessionId,
                     body = mapOf("opened" to opened)
                 )
             } catch (e: Exception) {

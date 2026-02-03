@@ -224,7 +224,7 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
  * Middleware for processing inbox messages and inbox-related actions.
  * Deduplicates messages by deliveryId and syncs InboxAction updates to the server.
  */
-internal fun processInboxMessages() = middleware<InAppMessagingState> { _, next, action ->
+internal fun processInboxMessages() = middleware<InAppMessagingState> { store, next, action ->
     when (action) {
         is InAppMessagingAction.ProcessInboxMessages -> {
             if (action.messages.isNotEmpty()) {
@@ -237,25 +237,38 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { _, next,
         }
 
         is InAppMessagingAction.InboxAction -> {
-            // Handle all inbox related actions
-            when (action) {
-                is InAppMessagingAction.InboxAction.UpdateOpened -> {
-                    // Call API to update opened status on server
-                    SDKComponent.gistQueue.logOpenedStatus(action.message, action.opened)
+            val queueId = action.message.queueId
+            val currentMessage = store.state.inboxMessages.find { it.queueId == queueId }
+            // Only proceed if message exists in state
+            if (currentMessage == null) {
+                SDKComponent.logger.debug("Skipping inbox message update for deliveryId: ${action.message.deliveryId} - message not found in state")
+                next(action)
+            } else {
+                // Handle all inbox related actions
+                when (action) {
+                    is InAppMessagingAction.InboxAction.UpdateOpened -> {
+                        // Only proceed if state is actually changing
+                        if (currentMessage.opened == action.opened) {
+                            SDKComponent.logger.debug("Skipping inbox message update for deliveryId: ${currentMessage.deliveryId} - already in desired state (opened=${action.opened})")
+                        } else {
+                            // Call API to update opened status on server using current message from state
+                            SDKComponent.gistQueue.logOpenedStatus(currentMessage, action.opened)
 
-                    // Track metric on data pipelines when message is marked as opened
-                    if (action.opened) {
-                        SDKComponent.logger.debug("Inbox message opened with deliveryId: ${action.message.deliveryId}")
-                        SDKComponent.eventBus.publish(
-                            Event.TrackInAppMetricEvent(
-                                deliveryID = action.message.deliveryId,
-                                event = Metric.Opened
-                            )
-                        )
+                            // Track metric when transitioning from unopened to opened
+                            if (action.opened) {
+                                SDKComponent.logger.debug("Inbox message opened with deliveryId: ${currentMessage.deliveryId}")
+                                SDKComponent.eventBus.publish(
+                                    Event.TrackInAppMetricEvent(
+                                        deliveryID = currentMessage.deliveryId,
+                                        event = Metric.Opened
+                                    )
+                                )
+                            }
+                        }
+
+                        // Always pass action to reducer to update local state
+                        next(action)
                     }
-
-                    // Pass action to reducer to update local state
-                    next(action)
                 }
             }
         }

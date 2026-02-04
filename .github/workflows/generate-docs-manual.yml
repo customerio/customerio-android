@@ -1,0 +1,60 @@
+name: Generate Documentation (Manual)
+
+# Allows technical writers to generate docs without local Android SDK setup
+on:
+  workflow_dispatch:  # Manual trigger from GitHub Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Generate documentation
+        run: ./gradlew generateDocs
+      
+      - name: Upload documentation as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-sdk-docs
+          path: build/dokka/htmlMultiModule/
+          retention-days: 30
+      
+      - name: Create downloadable archive
+        run: |
+          cd build/dokka/htmlMultiModule
+          zip -r ../../../android-sdk-docs.zip .
+      
+      - name: Upload zip archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-sdk-docs-zip
+          path: android-sdk-docs.zip
+          retention-days: 30
+      
+      - name: Summary
+        run: |
+          echo "### 📚 Documentation Generated!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the generated documentation from the artifacts section above." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Two formats available:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`android-sdk-docs\` - Uncompressed files" >> $GITHUB_STEP_SUMMARY
+          echo "- \`android-sdk-docs-zip\` - Single zip file" >> $GITHUB_STEP_SUMMARY
+
+

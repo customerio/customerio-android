@@ -231,6 +231,9 @@ public final class io/customer/messaginginapp/inbox/MessageInbox {
 	public final fun markMessageDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun markMessageOpened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun markMessageUnopened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public final fun trackMessageClicked (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public final fun trackMessageClicked (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;)V
+	public static synthetic fun trackMessageClicked$default (Lio/customer/messaginginapp/inbox/MessageInbox;Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;ILjava/lang/Object;)V
 }
 
 public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {

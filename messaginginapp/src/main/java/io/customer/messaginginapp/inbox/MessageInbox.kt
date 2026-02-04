@@ -98,4 +98,21 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
             InAppMessagingAction.InboxAction.DeleteMessage(message)
         )
     }
+
+    /**
+     * Tracks a click event for an inbox message.
+     * Sends metric event to data pipelines to track message interaction.
+     *
+     * @param message The inbox message that was clicked
+     * @param actionName Optional name of the action clicked (e.g., "view_details", "dismiss")
+     */
+    @JvmOverloads
+    fun trackMessageClicked(message: InboxMessage, actionName: String? = null) {
+        inAppMessagingManager.dispatch(
+            InAppMessagingAction.InboxAction.TrackClicked(
+                message = message,
+                actionName = actionName
+            )
+        )
+    }
 }

@@ -28,6 +28,7 @@ internal sealed class InAppMessagingAction {
     sealed class InboxAction(open val message: InboxMessage) : InAppMessagingAction() {
         data class UpdateOpened(override val message: InboxMessage, val opened: Boolean) : InboxAction(message)
         data class DeleteMessage(override val message: InboxMessage) : InboxAction(message)
+        data class TrackClicked(override val message: InboxMessage, val actionName: String?) : InboxAction(message)
     }
 
     object ClearMessageQueue : InAppMessagingAction()

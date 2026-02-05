@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.inbox
 
+import androidx.annotation.MainThread
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -85,8 +86,19 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      */
     @JvmOverloads
     fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
+        // Check if subscription already exists before adding listener
+        val subscriptionAlreadyExists = synchronized(subscriptionLock) {
+            stateSubscriptionJob != null
+        }
+
         listeners.add(ListenerRegistration(listener, topic))
         ensureSubscribed()
+
+        // Only notify manually if subscription already existed (subsequent listeners)
+        // First listener will be notified automatically when subscription emits current state
+        if (subscriptionAlreadyExists) {
+            notifyListenerWithCurrentState(listener, topic)
+        }
     }
 
     /**
@@ -112,33 +124,75 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
                     selector = { state -> state.inboxMessages },
                     areEquivalent = { old, new -> old == new }
                 ) { inboxMessages ->
-                    // Prepare all data on background thread to avoid blocking main thread
-                    val allMessages = inboxMessages.toList()
-                    val notificationsToSend = listeners.map { (listener, topic) ->
-                        // Filter messages by topic if specified (case insensitive)
-                        val filteredMessages = if (topic == null) {
-                            allMessages
-                        } else {
-                            allMessages.filter { message ->
-                                message.topics.any { it.equals(topic, ignoreCase = true) }
-                            }
-                        }
-                        return@map listener to filteredMessages
-                    }
-
-                    // Single switch to main thread, then notify all listeners
-                    coroutineScope.launch(dispatchersProvider.main) {
-                        notificationsToSend.forEach { (listener, messages) ->
-                            try {
-                                listener.onInboxChanged(messages)
-                            } catch (ex: Exception) {
-                                // Log and continue to prevent one bad listener from breaking others
-                                logger.error("Error notifying inbox listener: ${ex.message}")
-                            }
-                        }
-                    }
+                    notifyAllListeners(messages = inboxMessages.toList())
                 }
             }
+        }
+    }
+
+    /**
+     * Notifies a newly added listener with the current state immediately.
+     * This ensures all listeners receive the current messages upon registration.
+     */
+    private fun notifyListenerWithCurrentState(listener: InboxChangeListener, topic: String?) {
+        val messages = currentState.inboxMessages.toList()
+        val filteredMessages = filterMessagesByTopic(messages, topic)
+
+        coroutineScope.launch(dispatchersProvider.main) {
+            notifyListener(listener, filteredMessages)
+        }
+    }
+
+    /**
+     * Notifies all registered listeners with filtered messages.
+     * Prepares notifications on background thread, then switches to main thread for callbacks.
+     */
+    private fun notifyAllListeners(messages: List<InboxMessage>) {
+        // Prepare all data on background thread to avoid blocking main thread
+        val notificationsToSend = listeners.map { (listener, topic) ->
+            listener to filterMessagesByTopic(messages, topic)
+        }
+
+        // Single switch to main thread, then notify all listeners
+        coroutineScope.launch(dispatchersProvider.main) {
+            notificationsToSend.forEach { (listener, filteredMessages) ->
+                notifyListener(listener, filteredMessages)
+            }
+        }
+    }
+
+    /**
+     * Filters messages by topic if specified.
+     * Topic matching is case-insensitive.
+     *
+     * @param messages The messages to filter
+     * @param topic The topic filter, or null to return all messages
+     * @return Filtered list of messages
+     */
+    private fun filterMessagesByTopic(messages: List<InboxMessage>, topic: String?): List<InboxMessage> {
+        return if (topic == null) {
+            messages
+        } else {
+            messages.filter { message ->
+                message.topics.any { it.equals(topic, ignoreCase = true) }
+            }
+        }
+    }
+
+    /**
+     * Notifies a single listener with messages, handling errors gracefully.
+     * Must be called on main thread (callers are responsible for dispatching to main).
+     *
+     * @param listener The listener to notify
+     * @param messages The messages to send to the listener
+     */
+    @MainThread
+    private fun notifyListener(listener: InboxChangeListener, messages: List<InboxMessage>) {
+        try {
+            listener.onInboxChanged(messages)
+        } catch (ex: Exception) {
+            // Log and continue to prevent one bad listener from breaking others
+            logger.error("Error notifying inbox listener: ${ex.message}")
         }
     }
 

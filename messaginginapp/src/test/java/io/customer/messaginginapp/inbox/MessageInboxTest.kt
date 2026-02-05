@@ -489,6 +489,127 @@ class MessageInboxTest : IntegrationTest() {
     }
 
     @Test
+    fun addChangeListener_givenSubsequentListener_expectImmediateCallbackWithCurrentState() = runTest {
+        initializeAndSetUser()
+
+        // Set up initial state with messages
+        val initialMessages = listOf(
+            createInboxMessage(deliveryId = "msg1", topics = listOf("promotions")),
+            createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
+        )
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Add first listener
+        val firstListener = mockk<InboxChangeListener>(relaxed = true)
+        messageInbox.addChangeListener(firstListener)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify first listener received initial callback
+        verify(exactly = 1) {
+            firstListener.onInboxChanged(initialMessages)
+        }
+
+        // Clear invocations to focus on second listener
+        io.mockk.clearMocks(firstListener, answers = false, recordedCalls = true)
+
+        // Add second listener (this should also get immediate callback)
+        val secondListener = mockk<InboxChangeListener>(relaxed = true)
+        messageInbox.addChangeListener(secondListener)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify second listener received immediate callback with current state
+        verify(exactly = 1) {
+            secondListener.onInboxChanged(initialMessages)
+        }
+
+        // Verify first listener was NOT notified again when second listener was added
+        verify(exactly = 0) {
+            firstListener.onInboxChanged(any())
+        }
+    }
+
+    @Test
+    fun addChangeListener_givenListenerAdded_expectInitialCallbackAndFutureUpdates() = runTest {
+        initializeAndSetUser()
+
+        // Set up initial state
+        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1"))
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Add listener
+        val listener = mockk<InboxChangeListener>(relaxed = true)
+        messageInbox.addChangeListener(listener)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify listener received initial callback
+        verify(exactly = 1) {
+            listener.onInboxChanged(initialMessages)
+        }
+
+        // Update state with new messages
+        val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify listener received callback for updated state
+        verify(exactly = 1) {
+            listener.onInboxChanged(updatedMessages)
+        }
+
+        // Total should be 2 calls: initial + update
+        verify(exactly = 2) {
+            listener.onInboxChanged(any())
+        }
+    }
+
+    @Test
+    fun addChangeListener_givenStateUpdatedWithSameMessages_expectNoCallback() = runTest {
+        initializeAndSetUser()
+
+        // Set up initial state
+        val messages = listOf(
+            createInboxMessage(deliveryId = "msg1", queueId = "queue1"),
+            createInboxMessage(deliveryId = "msg2", queueId = "queue2")
+        )
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(messages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Add listener
+        val listener = mockk<InboxChangeListener>(relaxed = true)
+        messageInbox.addChangeListener(listener)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify initial callback
+        verify(exactly = 1) {
+            listener.onInboxChanged(messages)
+        }
+
+        // Clear invocations
+        io.mockk.clearMocks(listener, answers = false, recordedCalls = true)
+
+        // Dispatch the same messages again (state doesn't change)
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(messages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify listener was NOT called because state didn't change (distinctUntilChanged)
+        verify(exactly = 0) {
+            listener.onInboxChanged(any())
+        }
+
+        // Now dispatch different messages
+        val differentMessages = listOf(createInboxMessage(deliveryId = "msg3", queueId = "queue3"))
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(differentMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify listener WAS called for actual state change
+        verify(exactly = 1) {
+            listener.onInboxChanged(differentMessages)
+        }
+    }
+
+    @Test
     fun removeChangeListener_givenConcurrentNotifications_expectThreadSafeOperation() {
         initializeAndSetUser()
 

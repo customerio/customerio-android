@@ -50,6 +50,7 @@ interface GistQueue {
     fun fetchUserMessages()
     fun logView(message: Message)
     fun logOpenedStatus(message: InboxMessage, opened: Boolean)
+    fun logDeleted(message: InboxMessage)
 }
 
 class Queue : GistQueue {
@@ -243,6 +244,25 @@ class Queue : GistQueue {
                 )
             } catch (e: Exception) {
                 logger.error("Failed to update inbox message $queueId opened status: ${e.message}")
+            }
+        }
+    }
+
+    override fun logDeleted(message: InboxMessage) {
+        val queueId = message.queueId ?: run {
+            logger.error("Cannot delete inbox message ${message.deliveryId}: missing queueId")
+            return
+        }
+
+        scope.launch {
+            try {
+                logger.debug("Deleting inbox message $queueId")
+                gistQueueService.logUserMessageView(
+                    queueId = queueId,
+                    sessionId = state.sessionId
+                )
+            } catch (e: Exception) {
+                logger.error("Failed to delete inbox message: ${e.message}")
             }
         }
     }

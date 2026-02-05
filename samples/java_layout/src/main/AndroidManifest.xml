@@ -130,6 +130,10 @@
             android:name=".ui.inline.InlineExamplesActivity"
             android:exported="false"
             android:label="@string/label_inline_examples_activity" />
+        <activity
+            android:name=".ui.inbox.InboxMessagesActivity"
+            android:exported="false"
+            android:label="@string/label_inbox_messages_activity" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

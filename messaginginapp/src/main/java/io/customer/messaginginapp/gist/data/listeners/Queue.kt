@@ -242,7 +242,7 @@ class Queue : GistQueue {
                     body = mapOf("opened" to opened)
                 )
             } catch (e: Exception) {
-                logger.error("Failed to update inbox message opened status: ${e.message}")
+                logger.error("Failed to update inbox message $queueId opened status: ${e.message}")
             }
         }
     }

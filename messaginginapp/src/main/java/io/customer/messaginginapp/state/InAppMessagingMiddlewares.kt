@@ -277,6 +277,22 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
                         // Pass action to reducer to update local state
                         next(action)
                     }
+
+                    is InAppMessagingAction.InboxAction.TrackClicked -> {
+                        // Track click metric for analytics
+                        val params = action.actionName?.let { mapOf("actionName" to it) } ?: emptyMap()
+
+                        SDKComponent.logger.debug("Inbox message clicked with deliveryId: ${currentMessage.deliveryId}")
+                        SDKComponent.eventBus.publish(
+                            Event.TrackInAppMetricEvent(
+                                deliveryID = currentMessage.deliveryId,
+                                event = Metric.Clicked,
+                                params = params
+                            )
+                        )
+                        // Pass action to reducer (no state changes needed)
+                        next(action)
+                    }
                 }
             }
         }

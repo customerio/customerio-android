@@ -615,4 +615,109 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         // But it should still pass the action to the next middleware/reducer
         verify { nextFn(action) }
     }
+
+    @Test
+    fun processInboxMessages_givenTrackClickedWithActionName_shouldPublishMetricWithParams() {
+        // Given an inbox message in state
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        // Set up store state with the message
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
+        val actionName = "view_details"
+        val action = InAppMessagingAction.InboxAction.TrackClicked(inboxMessage, actionName)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should publish a TrackInAppMetricEvent with Metric.Clicked and actionName
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = mapOf("actionName" to actionName)
+                )
+            )
+        }
+
+        // And it should pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun processInboxMessages_givenTrackClickedWithoutActionName_shouldPublishMetricWithoutParams() {
+        // Given an inbox message in state
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        // Set up store state with the message
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
+        val action = InAppMessagingAction.InboxAction.TrackClicked(inboxMessage, actionName = null)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should publish a TrackInAppMetricEvent with Metric.Clicked and empty params
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = emptyMap()
+                )
+            )
+        }
+
+        // And it should pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun processInboxMessages_givenTrackClickedForStaleMessage_shouldNotPublishMetric() {
+        // Given a stale message object that doesn't exist in current state
+        val deliveryId = String.random
+        val queueId = String.random
+        val staleMessage = InboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        // Set up store state with different messages (stale message not present)
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(
+                InboxMessage(deliveryId = "other-1", queueId = "other-queue-1", opened = false)
+            )
+        )
+        every { store.state } returns state
+
+        val action = InAppMessagingAction.InboxAction.TrackClicked(staleMessage, actionName = "some_action")
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should NOT publish a metric event for stale message
+        verify(exactly = 0) {
+            mockEventBus.publish(any<Event.TrackInAppMetricEvent>())
+        }
+
+        // But it should still pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
 }

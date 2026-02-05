@@ -32,6 +32,26 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.ProcessInboxMessages ->
             state.copy(inboxMessages = action.messages.toSet())
 
+        is InAppMessagingAction.InboxAction.UpdateOpened -> {
+            // Update opened status for given message
+            // Only update if queueId is present (required for server sync)
+            val queueId = action.message.queueId
+            val messages = state.inboxMessages
+
+            val updatedMessages = if (queueId == null) {
+                messages
+            } else {
+                messages.map { message ->
+                    if (message.queueId == queueId) {
+                        message.copy(opened = action.opened)
+                    } else {
+                        message
+                    }
+                }.toSet()
+            }
+            state.copy(inboxMessages = updatedMessages)
+        }
+
         is InAppMessagingAction.SetPollingInterval ->
             state.copy(pollInterval = action.interval)
 

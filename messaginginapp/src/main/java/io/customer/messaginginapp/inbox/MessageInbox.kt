@@ -2,6 +2,7 @@ package io.customer.messaginginapp.inbox
 
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.InboxMessage
+import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
@@ -54,5 +55,35 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
                 callback(Result.failure(ex))
             }
         }
+    }
+
+    /**
+     * Marks an inbox message as opened/read.
+     * Updates local state immediately and syncs with the server.
+     *
+     * @param message The inbox message to mark as opened
+     */
+    fun markMessageOpened(message: InboxMessage) {
+        inAppMessagingManager.dispatch(
+            InAppMessagingAction.InboxAction.UpdateOpened(
+                message = message,
+                opened = true
+            )
+        )
+    }
+
+    /**
+     * Marks an inbox message as unopened/unread.
+     * Updates local state immediately and syncs with the server.
+     *
+     * @param message The inbox message to mark as unopened
+     */
+    fun markMessageUnopened(message: InboxMessage) {
+        inAppMessagingManager.dispatch(
+            InAppMessagingAction.InboxAction.UpdateOpened(
+                message = message,
+                opened = false
+            )
+        )
     }
 }

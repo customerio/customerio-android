@@ -12,8 +12,10 @@ import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.events.Metric
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
 
@@ -219,16 +221,59 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 }
 
 /**
- * Middleware to process inbox messages.
- * Deduplicates inbox messages by deliveryId before storing in state.
+ * Middleware for processing inbox messages and inbox-related actions.
+ * Deduplicates messages by deliveryId and syncs InboxAction updates to the server.
  */
-internal fun processInboxMessages() = middleware<InAppMessagingState> { _, next, action ->
-    if (action is InAppMessagingAction.ProcessInboxMessages && action.messages.isNotEmpty()) {
-        // Deduplicate by deliveryId - keep first occurrence of each unique deliveryId
-        val uniqueMessages = action.messages.distinctBy { it.deliveryId }
-        next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
-    } else {
-        next(action)
+internal fun processInboxMessages() = middleware<InAppMessagingState> { store, next, action ->
+    when (action) {
+        is InAppMessagingAction.ProcessInboxMessages -> {
+            if (action.messages.isNotEmpty()) {
+                // Deduplicate by deliveryId - keep first occurrence of each unique deliveryId
+                val uniqueMessages = action.messages.distinctBy { it.deliveryId }
+                next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
+            } else {
+                next(action)
+            }
+        }
+
+        is InAppMessagingAction.InboxAction -> {
+            val queueId = action.message.queueId
+            val currentMessage = store.state.inboxMessages.find { it.queueId == queueId }
+            // Only proceed if message exists in state
+            if (currentMessage == null) {
+                SDKComponent.logger.debug("Skipping inbox message update for deliveryId: ${action.message.deliveryId} - message not found in state")
+                next(action)
+            } else {
+                // Handle all inbox related actions
+                when (action) {
+                    is InAppMessagingAction.InboxAction.UpdateOpened -> {
+                        // Only proceed if state is actually changing
+                        if (currentMessage.opened == action.opened) {
+                            SDKComponent.logger.debug("Skipping inbox message update for deliveryId: ${currentMessage.deliveryId} - already in desired state (opened=${action.opened})")
+                        } else {
+                            // Call API to update opened status on server using current message from state
+                            SDKComponent.gistQueue.logOpenedStatus(currentMessage, action.opened)
+
+                            // Track metric when transitioning from unopened to opened
+                            if (action.opened) {
+                                SDKComponent.logger.debug("Inbox message opened with deliveryId: ${currentMessage.deliveryId}")
+                                SDKComponent.eventBus.publish(
+                                    Event.TrackInAppMetricEvent(
+                                        deliveryID = currentMessage.deliveryId,
+                                        event = Metric.Opened
+                                    )
+                                )
+                            }
+                        }
+
+                        // Always pass action to reducer to update local state
+                        next(action)
+                    }
+                }
+            }
+        }
+
+        else -> next(action)
     }
 }
 

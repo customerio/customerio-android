@@ -7,6 +7,7 @@ import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.QueueMessagesResponse
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
@@ -26,6 +27,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -39,11 +41,15 @@ internal interface GistQueueService {
 
     @POST("/api/v1/logs/queue/{queueId}")
     suspend fun logUserMessageView(@Path("queueId") queueId: String, @Query("sessionId") sessionId: String)
+
+    @PATCH("/api/v1/messages/{queueId}")
+    suspend fun logInboxMessageOpened(@Path("queueId") queueId: String, @Query("sessionId") sessionId: String, @Body body: Map<String, Boolean>)
 }
 
 interface GistQueue {
     fun fetchUserMessages()
     fun logView(message: Message)
+    fun logOpenedStatus(message: InboxMessage, opened: Boolean)
 }
 
 class Queue : GistQueue {
@@ -217,6 +223,26 @@ class Queue : GistQueue {
                 }
             } catch (e: Exception) {
                 logger.debug("Failed to log message view: ${e.message}")
+            }
+        }
+    }
+
+    override fun logOpenedStatus(message: InboxMessage, opened: Boolean) {
+        val queueId = message.queueId ?: run {
+            logger.error("Cannot update inbox message ${message.deliveryId}: missing queueId")
+            return
+        }
+
+        scope.launch {
+            try {
+                logger.debug("Updating inbox message $queueId opened status to: $opened")
+                gistQueueService.logInboxMessageOpened(
+                    queueId = queueId,
+                    sessionId = state.sessionId,
+                    body = mapOf("opened" to opened)
+                )
+            } catch (e: Exception) {
+                logger.error("Failed to update inbox message $queueId opened status: ${e.message}")
             }
         }
     }

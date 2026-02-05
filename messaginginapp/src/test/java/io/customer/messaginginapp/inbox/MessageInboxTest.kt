@@ -137,4 +137,39 @@ class MessageInboxTest : IntegrationTest() {
         val unchangedMessage = state.inboxMessages.first { it.queueId == queueId2 }
         unchangedMessage.opened shouldBeEqualTo true
     }
+
+    @Test
+    fun markMessageDeleted_givenMessage_expectMessageRemoved() = runTest {
+        val queueId = "queue-123"
+        val message = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+
+        initializeAndSetUser()
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
+
+        messageInbox.markMessageDeleted(message)
+
+        val state = manager.getCurrentState()
+        state.inboxMessages.size shouldBeEqualTo 0
+    }
+
+    @Test
+    fun markMessageDeleted_givenMultipleMessages_expectOnlyTargetMessageRemoved() = runTest {
+        val queueId1 = "queue-123"
+        val queueId2 = "queue-456"
+        val queueId3 = "queue-789"
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId1, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = queueId2, opened = false)
+        val message3 = createInboxMessage(deliveryId = "inbox3", queueId = queueId3, opened = true)
+
+        initializeAndSetUser()
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        messageInbox.markMessageDeleted(message1)
+
+        val state = manager.getCurrentState()
+        state.inboxMessages.size shouldBeEqualTo 2
+        state.inboxMessages.any { it.queueId == queueId1 } shouldBeEqualTo false
+        state.inboxMessages.any { it.queueId == queueId2 } shouldBeEqualTo true
+        state.inboxMessages.any { it.queueId == queueId3 } shouldBeEqualTo true
+    }
 }

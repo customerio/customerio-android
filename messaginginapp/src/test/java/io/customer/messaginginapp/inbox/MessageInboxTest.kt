@@ -14,9 +14,14 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.extension.createInboxMessage
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
+import io.customer.sdk.events.Metric
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
@@ -33,6 +38,7 @@ class MessageInboxTest : IntegrationTest() {
     private lateinit var module: ModuleMessagingInApp
     private lateinit var manager: InAppMessagingManager
     private lateinit var messageInbox: MessageInbox
+    private val mockEventBus: EventBus = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -40,6 +46,7 @@ class MessageInboxTest : IntegrationTest() {
                 diGraph {
                     sdk {
                         overrideDependency<ScopeProvider>(scopeProviderStub)
+                        overrideDependency<EventBus>(mockEventBus)
                     }
                 }
             } + testConfig
@@ -171,5 +178,49 @@ class MessageInboxTest : IntegrationTest() {
         state.inboxMessages.any { it.queueId == queueId1 } shouldBeEqualTo false
         state.inboxMessages.any { it.queueId == queueId2 } shouldBeEqualTo true
         state.inboxMessages.any { it.queueId == queueId3 } shouldBeEqualTo true
+    }
+
+    @Test
+    fun trackMessageClicked_givenMessageWithActionName_expectMetricEventPublished() = runTest {
+        val deliveryId = "inbox1"
+        val message = createInboxMessage(deliveryId = deliveryId, queueId = "queue-123", opened = false)
+
+        initializeAndSetUser()
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
+
+        messageInbox.trackMessageClicked(message, "view_details")
+
+        // Verify TrackInAppMetricEvent with Metric.Clicked was published with actionName param
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = mapOf("actionName" to "view_details")
+                )
+            )
+        }
+    }
+
+    @Test
+    fun trackMessageClicked_givenMessageWithoutActionName_expectMetricEventPublished() = runTest {
+        val deliveryId = "inbox1"
+        val message = createInboxMessage(deliveryId = deliveryId, queueId = "queue-123", opened = false)
+
+        initializeAndSetUser()
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
+
+        messageInbox.trackMessageClicked(message)
+
+        // Verify TrackInAppMetricEvent with Metric.Clicked was published without params
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = emptyMap()
+                )
+            )
+        }
     }
 }

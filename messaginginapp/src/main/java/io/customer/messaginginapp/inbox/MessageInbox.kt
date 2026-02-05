@@ -6,7 +6,11 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.core.util.Logger
+import java.util.concurrent.CopyOnWriteArraySet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -24,10 +28,22 @@ import kotlinx.coroutines.launch
  * ```
  */
 class MessageInbox(private val coroutineScope: CoroutineScope) {
+    private val logger: Logger
+        get() = SDKComponent.logger
+    private val dispatchersProvider: DispatchersProvider
+        get() = SDKComponent.dispatchersProvider
     private val inAppMessagingManager: InAppMessagingManager
         get() = SDKComponent.inAppMessagingManager
     private val currentState: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
+
+    // CopyOnWriteArraySet provides thread safe iteration without blocking
+    // Ideal for this use case where iteration (on state changes) is more frequent than add/remove
+    private val listeners = CopyOnWriteArraySet<ListenerRegistration>()
+    private var stateSubscriptionJob: Job? = null
+
+    // Lock only needed for atomic subscription management, not for listener access
+    private val subscriptionLock = Any()
 
     /**
      * Retrieves the current list of inbox messages synchronously.
@@ -53,6 +69,87 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
                 callback(Result.success(messages))
             } catch (ex: Exception) {
                 callback(Result.failure(ex))
+            }
+        }
+    }
+
+    /**
+     * Registers a listener for inbox changes.
+     *
+     * IMPORTANT: Call [removeChangeListener] when done (e.g., in Activity.onDestroy or Fragment.onDestroyView)
+     * to prevent memory leaks.
+     *
+     * @param listener The listener to receive inbox updates
+     * @param topic Optional topic filter. If provided, listener only receives messages
+     *              that have this topic in their topics list. If null, all messages are delivered.
+     */
+    @JvmOverloads
+    fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
+        listeners.add(ListenerRegistration(listener, topic))
+        ensureSubscribed()
+    }
+
+    /**
+     * Unregisters a listener for inbox changes.
+     * Removes all registrations of this listener, regardless of topic filters.
+     */
+    fun removeChangeListener(listener: InboxChangeListener) {
+        listeners.forEach { entry ->
+            if (entry.listener == listener) {
+                listeners.remove(entry)
+            }
+        }
+        unsubscribeIfNeeded()
+    }
+
+    /**
+     * Ensures state subscription is active when first listener is added.
+     */
+    private fun ensureSubscribed() {
+        synchronized(subscriptionLock) {
+            if (stateSubscriptionJob == null && listeners.isNotEmpty()) {
+                stateSubscriptionJob = inAppMessagingManager.subscribeToAttribute(
+                    selector = { state -> state.inboxMessages },
+                    areEquivalent = { old, new -> old == new }
+                ) { inboxMessages ->
+                    // Prepare all data on background thread to avoid blocking main thread
+                    val allMessages = inboxMessages.toList()
+                    val notificationsToSend = listeners.map { (listener, topic) ->
+                        // Filter messages by topic if specified (case insensitive)
+                        val filteredMessages = if (topic == null) {
+                            allMessages
+                        } else {
+                            allMessages.filter { message ->
+                                message.topics.any { it.equals(topic, ignoreCase = true) }
+                            }
+                        }
+                        return@map listener to filteredMessages
+                    }
+
+                    // Single switch to main thread, then notify all listeners
+                    coroutineScope.launch(dispatchersProvider.main) {
+                        notificationsToSend.forEach { (listener, messages) ->
+                            try {
+                                listener.onInboxChanged(messages)
+                            } catch (ex: Exception) {
+                                // Log and continue to prevent one bad listener from breaking others
+                                logger.error("Error notifying inbox listener: ${ex.message}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Cancels state subscription when last listener is removed.
+     */
+    private fun unsubscribeIfNeeded() {
+        synchronized(subscriptionLock) {
+            if (listeners.isEmpty() && stateSubscriptionJob != null) {
+                stateSubscriptionJob?.cancel()
+                stateSubscriptionJob = null
             }
         }
     }
@@ -115,4 +212,12 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
             )
         )
     }
+
+    /**
+     * Wrapper class to store listener with optional topic filter.
+     */
+    private data class ListenerRegistration(
+        val listener: InboxChangeListener,
+        val topic: String? = null
+    )
 }

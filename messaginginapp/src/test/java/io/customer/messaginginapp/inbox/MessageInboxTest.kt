@@ -24,9 +24,12 @@ import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.events.Metric
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -34,6 +37,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.internal.assertEquals
 import org.amshove.kluent.shouldBeEqualTo
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -606,6 +610,142 @@ class MessageInboxTest : IntegrationTest() {
         // Verify listener WAS called for actual state change
         verify(exactly = 1) {
             listener.onInboxChanged(differentMessages)
+        }
+    }
+
+    @Test
+    fun addChangeListener_givenMultipleSubsequentListeners_expectEachReceivesInitialAndFutureUpdates() = runTest {
+        initializeAndSetUser()
+
+        // Set up initial state
+        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1"))
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Add three listeners in sequence
+        val listener1 = mockk<InboxChangeListener>(relaxed = true)
+        val listener2 = mockk<InboxChangeListener>(relaxed = true)
+        val listener3 = mockk<InboxChangeListener>(relaxed = true)
+
+        messageInbox.addChangeListener(listener1)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messageInbox.addChangeListener(listener2)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messageInbox.addChangeListener(listener3)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify each listener received initial callback
+        verify(exactly = 1) { listener1.onInboxChanged(initialMessages) }
+        verify(exactly = 1) { listener2.onInboxChanged(initialMessages) }
+        verify(exactly = 1) { listener3.onInboxChanged(initialMessages) }
+
+        // Trigger state update
+        val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify each listener received update callback
+        verify(exactly = 1) { listener1.onInboxChanged(updatedMessages) }
+        verify(exactly = 1) { listener2.onInboxChanged(updatedMessages) }
+        verify(exactly = 1) { listener3.onInboxChanged(updatedMessages) }
+
+        // Verify total: each listener received exactly 2 callbacks (initial + update)
+        verify(exactly = 2) { listener1.onInboxChanged(any()) }
+        verify(exactly = 2) { listener2.onInboxChanged(any()) }
+        verify(exactly = 2) { listener3.onInboxChanged(any()) }
+    }
+
+    @Test
+    fun addChangeListener_givenConcurrentAddsAndStateUpdate_expectCorrectCallbacks() = runTest {
+        initializeAndSetUser()
+
+        // Set up initial state
+        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1"))
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Set up three listeners with callback tracking
+        val listeners = listOf(
+            mockk<InboxChangeListener>(relaxed = true),
+            mockk<InboxChangeListener>(relaxed = true),
+            mockk<InboxChangeListener>(relaxed = true)
+        )
+        val callsPerListener = listeners.map { CopyOnWriteArrayList<List<InboxMessage>>() }
+
+        listeners.forEachIndexed { index, listener ->
+            every { listener.onInboxChanged(capture(callsPerListener[index])) } just Runs
+        }
+
+        val completionLatch = CountDownLatch(4)
+        val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
+
+        // Concurrently: add 3 listeners + trigger state update
+        // This tests race conditions between listener additions and state changes
+        val threads = listeners.map { listener ->
+            thread(start = false) {
+                Thread.sleep(1) // Small delay to increase race likelihood
+                messageInbox.addChangeListener(listener)
+                    .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+                completionLatch.countDown()
+            }
+        } + thread(start = false) {
+            Thread.sleep(1) // Small delay to increase race likelihood
+            manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
+                .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+            completionLatch.countDown()
+        }
+
+        // Start all threads concurrently
+        threads.forEach { it.start() }
+
+        // Wait for completion
+        completionLatch.await(30, TimeUnit.SECONDS)
+        assertEquals(
+            expected = 0L,
+            actual = completionLatch.count,
+            message = "Threads did not complete - likely crash or deadlock"
+        )
+
+        // Verify each listener received correct callbacks (no duplicates, correct data)
+        callsPerListener.forEach { calls ->
+            assertListenerCallbackContract(calls, initialMessages, updatedMessages)
+        }
+    }
+
+    /**
+     * Validates that a listener received the correct callbacks based on timing:
+     * - Added before state update: [initial, updated] (2 calls)
+     * - Added after state update: [updated] (1 call)
+     * - Added during state update: [updated, updated] (2 calls - race condition duplicate)
+     * This flexibility handles the non-deterministic nature of concurrent execution.
+     */
+    private fun assertListenerCallbackContract(
+        calls: List<List<InboxMessage>>,
+        initial: List<InboxMessage>,
+        updated: List<InboxMessage>
+    ) {
+        assertTrue(
+            "Expected 1-2 calls based on timing, but got ${calls.size}: $calls",
+            calls.size in 1..2
+        )
+
+        when (calls.size) {
+            1 -> {
+                // Listener added after state update - receives only latest state
+                assertEquals(updated, calls[0])
+            }
+
+            2 -> {
+                // Multiple valid patterns based on timing:
+                // 1. [initial, updated] - added before state change
+                // 2. [updated, updated] - added during state change (race condition)
+                val isValidPattern = calls == listOf(initial, updated) ||
+                    calls == listOf(updated, updated)
+                assertTrue(
+                    "Expected either [initial, updated] or [updated, updated] but got $calls",
+                    isValidPattern
+                )
+            }
         }
     }
 

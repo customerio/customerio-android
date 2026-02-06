@@ -86,7 +86,7 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      */
     @JvmOverloads
     fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
-        // Check if subscription already exists before adding listener
+        // Check if this is the first listener (subscription doesn't exist yet)
         val subscriptionAlreadyExists = synchronized(subscriptionLock) {
             stateSubscriptionJob != null
         }
@@ -94,8 +94,8 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
         listeners.add(ListenerRegistration(listener, topic))
         ensureSubscribed()
 
-        // Only notify manually if subscription already existed (subsequent listeners)
-        // First listener will be notified automatically when subscription emits current state
+        // First listener: subscription's initial StateFlow emission will notify it
+        // Subsequent listeners: manually notify to prevent waiting for next state change
         if (subscriptionAlreadyExists) {
             notifyListenerWithCurrentState(listener, topic)
         }

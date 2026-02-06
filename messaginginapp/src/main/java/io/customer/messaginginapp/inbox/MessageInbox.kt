@@ -109,12 +109,8 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
     }
 
     /**
-     * Notifies a newly added listener with the current state immediately.
-     * This ensures all listeners receive the current messages upon registration.
-     *
-     * State is read synchronously BEFORE adding the listener to the set, creating a snapshot.
-     * This prevents duplicate notifications when state changes concurrently - the manual notification
-     * uses the snapshot, while subscription notifications only trigger for changes after listener addition.
+     * Notifies a listener with the current inbox state.
+     * Reads current state, applies topic filter, and schedules notification on main thread.
      */
     private fun notifyListenerWithCurrentState(registration: ListenerRegistration) {
         val (listener, topic) = registration

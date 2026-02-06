@@ -11,7 +11,6 @@ import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.CopyOnWriteArraySet
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -41,10 +40,17 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
     // CopyOnWriteArraySet provides thread safe iteration without blocking
     // Ideal for this use case where iteration (on state changes) is more frequent than add/remove
     private val listeners = CopyOnWriteArraySet<ListenerRegistration>()
-    private var stateSubscriptionJob: Job? = null
 
-    // Lock only needed for atomic subscription management, not for listener access
-    private val subscriptionLock = Any()
+    init {
+        // Subscribe to inbox messages on initialization to simplify listener management
+        // and eliminate race conditions from conditional subscription
+        inAppMessagingManager.subscribeToAttribute(
+            selector = { state -> state.inboxMessages },
+            areEquivalent = { old, new -> old == new }
+        ) { inboxMessages ->
+            notifyAllListeners(messages = inboxMessages.toList())
+        }
+    }
 
     /**
      * Retrieves the current list of inbox messages synchronously.
@@ -86,19 +92,12 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      */
     @JvmOverloads
     fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
-        // Check if this is the first listener (subscription doesn't exist yet)
-        val subscriptionAlreadyExists = synchronized(subscriptionLock) {
-            stateSubscriptionJob != null
-        }
-
-        listeners.add(ListenerRegistration(listener, topic))
-        ensureSubscribed()
-
-        // First listener: subscription's initial StateFlow emission will notify it
-        // Subsequent listeners: manually notify to prevent waiting for next state change
-        if (subscriptionAlreadyExists) {
-            notifyListenerWithCurrentState(listener, topic)
-        }
+        val registration = ListenerRegistration(listener, topic)
+        // IMPORTANT: Notify BEFORE adding to listeners set
+        // This ensures manual notification uses state snapshot from before listener was active,
+        // preventing duplicates when state changes concurrently
+        notifyListenerWithCurrentState(registration)
+        listeners.add(registration)
     }
 
     /**
@@ -106,35 +105,19 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      * Removes all registrations of this listener, regardless of topic filters.
      */
     fun removeChangeListener(listener: InboxChangeListener) {
-        listeners.forEach { entry ->
-            if (entry.listener == listener) {
-                listeners.remove(entry)
-            }
-        }
-        unsubscribeIfNeeded()
-    }
-
-    /**
-     * Ensures state subscription is active when first listener is added.
-     */
-    private fun ensureSubscribed() {
-        synchronized(subscriptionLock) {
-            if (stateSubscriptionJob == null && listeners.isNotEmpty()) {
-                stateSubscriptionJob = inAppMessagingManager.subscribeToAttribute(
-                    selector = { state -> state.inboxMessages },
-                    areEquivalent = { old, new -> old == new }
-                ) { inboxMessages ->
-                    notifyAllListeners(messages = inboxMessages.toList())
-                }
-            }
-        }
+        listeners.removeIf { it.listener == listener }
     }
 
     /**
      * Notifies a newly added listener with the current state immediately.
      * This ensures all listeners receive the current messages upon registration.
+     *
+     * State is read synchronously BEFORE adding the listener to the set, creating a snapshot.
+     * This prevents duplicate notifications when state changes concurrently - the manual notification
+     * uses the snapshot, while subscription notifications only trigger for changes after listener addition.
      */
-    private fun notifyListenerWithCurrentState(listener: InboxChangeListener, topic: String?) {
+    private fun notifyListenerWithCurrentState(registration: ListenerRegistration) {
+        val (listener, topic) = registration
         val messages = currentState.inboxMessages.toList()
         val filteredMessages = filterMessagesByTopic(messages, topic)
 
@@ -193,18 +176,6 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
         } catch (ex: Exception) {
             // Log and continue to prevent one bad listener from breaking others
             logger.error("Error notifying inbox listener: ${ex.message}")
-        }
-    }
-
-    /**
-     * Cancels state subscription when last listener is removed.
-     */
-    private fun unsubscribeIfNeeded() {
-        synchronized(subscriptionLock) {
-            if (listeners.isEmpty() && stateSubscriptionJob != null) {
-                stateSubscriptionJob?.cancel()
-                stateSubscriptionJob = null
-            }
         }
     }
 

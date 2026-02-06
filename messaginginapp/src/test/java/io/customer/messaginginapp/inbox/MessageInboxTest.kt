@@ -493,7 +493,7 @@ class MessageInboxTest : IntegrationTest() {
     }
 
     @Test
-    fun addChangeListener_givenSubsequentListener_expectImmediateCallbackWithCurrentState() = runTest {
+    fun addChangeListener_givenMultipleListeners_expectEachReceivesImmediateCallbackIndependently() = runTest {
         initializeAndSetUser()
 
         // Set up initial state with messages
@@ -517,12 +517,12 @@ class MessageInboxTest : IntegrationTest() {
         // Clear invocations to focus on second listener
         io.mockk.clearMocks(firstListener, answers = false, recordedCalls = true)
 
-        // Add second listener (this should also get immediate callback)
+        // Add second listener (each listener gets independent immediate callback)
         val secondListener = mockk<InboxChangeListener>(relaxed = true)
         messageInbox.addChangeListener(secondListener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        // Verify second listener received immediate callback with current state
+        // Verify second listener also received immediate callback with current state
         verify(exactly = 1) {
             secondListener.onInboxChanged(initialMessages)
         }
@@ -614,7 +614,7 @@ class MessageInboxTest : IntegrationTest() {
     }
 
     @Test
-    fun addChangeListener_givenMultipleSubsequentListeners_expectEachReceivesInitialAndFutureUpdates() = runTest {
+    fun addChangeListener_givenMultipleListeners_expectEachReceivesInitialAndFutureUpdates() = runTest {
         initializeAndSetUser()
 
         // Set up initial state
@@ -622,7 +622,7 @@ class MessageInboxTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        // Add three listeners in sequence
+        // Add three listeners sequentially
         val listener1 = mockk<InboxChangeListener>(relaxed = true)
         val listener2 = mockk<InboxChangeListener>(relaxed = true)
         val listener3 = mockk<InboxChangeListener>(relaxed = true)
@@ -680,7 +680,7 @@ class MessageInboxTest : IntegrationTest() {
         val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
 
         // Concurrently: add 3 listeners + trigger state update
-        // This tests race conditions between listener additions and state changes
+        // Tests thread safety - listeners should receive correct callbacks without crashes or duplicates
         val threads = listeners.map { listener ->
             thread(start = false) {
                 Thread.sleep(1) // Small delay to increase race likelihood
@@ -706,18 +706,23 @@ class MessageInboxTest : IntegrationTest() {
             message = "Threads did not complete - likely crash or deadlock"
         )
 
-        // Verify each listener received correct callbacks (no duplicates, correct data)
+        // Verify each listener received correct callbacks without duplicates
         callsPerListener.forEach { calls ->
             assertListenerCallbackContract(calls, initialMessages, updatedMessages)
         }
     }
 
     /**
-     * Validates that a listener received the correct callbacks based on timing:
-     * - Added before state update: [initial, updated] (2 calls)
-     * - Added after state update: [updated] (1 call)
-     * - Added during state update: [updated, updated] (2 calls - race condition duplicate)
-     * This flexibility handles the non-deterministic nature of concurrent execution.
+     * Validates that a listener received the correct callbacks based on timing.
+     *
+     * Expected behavior:
+     * - Listener receives current state immediately upon registration
+     * - Listener receives notifications for all future state changes
+     * - No duplicate notifications (same state delivered multiple times)
+     *
+     * Valid patterns based on when listener was added:
+     * - Added before state update: receives [initial, updated] (2 calls)
+     * - Added after state update: receives [updated] (1 call)
      */
     private fun assertListenerCallbackContract(
         calls: List<List<InboxMessage>>,
@@ -736,13 +741,10 @@ class MessageInboxTest : IntegrationTest() {
             }
 
             2 -> {
-                // Multiple valid patterns based on timing:
-                // 1. [initial, updated] - added before state change
-                // 2. [updated, updated] - added during state change (race condition)
-                val isValidPattern = calls == listOf(initial, updated) ||
-                    calls == listOf(updated, updated)
+                // Listener added before state update - receives initial state then update
+                val isValidPattern = calls == listOf(initial, updated)
                 assertTrue(
-                    "Expected either [initial, updated] or [updated, updated] but got $calls",
+                    "Expected [initial, updated] but got $calls",
                     isValidPattern
                 )
             }

@@ -105,7 +105,11 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      * Removes all registrations of this listener, regardless of topic filters.
      */
     fun removeChangeListener(listener: InboxChangeListener) {
-        listeners.removeIf { it.listener == listener }
+        listeners.forEach { registration ->
+            if (registration.listener == listener) {
+                listeners.remove(registration)
+            }
+        }
     }
 
     /**

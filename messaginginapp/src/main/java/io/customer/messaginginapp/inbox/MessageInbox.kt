@@ -1,11 +1,15 @@
 package io.customer.messaginginapp.inbox
 
+import androidx.annotation.MainThread
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.core.util.Logger
+import java.util.concurrent.CopyOnWriteArraySet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -24,10 +28,29 @@ import kotlinx.coroutines.launch
  * ```
  */
 class MessageInbox(private val coroutineScope: CoroutineScope) {
+    private val logger: Logger
+        get() = SDKComponent.logger
+    private val dispatchersProvider: DispatchersProvider
+        get() = SDKComponent.dispatchersProvider
     private val inAppMessagingManager: InAppMessagingManager
         get() = SDKComponent.inAppMessagingManager
     private val currentState: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
+
+    // CopyOnWriteArraySet provides thread safe iteration without blocking
+    // Ideal for this use case where iteration (on state changes) is more frequent than add/remove
+    private val listeners = CopyOnWriteArraySet<ListenerRegistration>()
+
+    init {
+        // Subscribe to inbox messages on initialization to simplify listener management
+        // and eliminate race conditions from conditional subscription
+        inAppMessagingManager.subscribeToAttribute(
+            selector = { state -> state.inboxMessages },
+            areEquivalent = { old, new -> old == new }
+        ) { inboxMessages ->
+            notifyAllListeners(messages = inboxMessages.toList())
+        }
+    }
 
     /**
      * Retrieves the current list of inbox messages synchronously.
@@ -54,6 +77,105 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
             } catch (ex: Exception) {
                 callback(Result.failure(ex))
             }
+        }
+    }
+
+    /**
+     * Registers a listener for inbox changes.
+     *
+     * IMPORTANT: Call [removeChangeListener] when done (e.g., in Activity.onDestroy or Fragment.onDestroyView)
+     * to prevent memory leaks.
+     *
+     * @param listener The listener to receive inbox updates
+     * @param topic Optional topic filter. If provided, listener only receives messages
+     *              that have this topic in their topics list. If null, all messages are delivered.
+     */
+    @JvmOverloads
+    fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
+        val registration = ListenerRegistration(listener, topic)
+        // IMPORTANT: Notify BEFORE adding to listeners set
+        // This ensures manual notification uses state snapshot from before listener was active,
+        // preventing duplicates when state changes concurrently
+        notifyListenerWithCurrentState(registration)
+        listeners.add(registration)
+    }
+
+    /**
+     * Unregisters a listener for inbox changes.
+     * Removes all registrations of this listener, regardless of topic filters.
+     */
+    fun removeChangeListener(listener: InboxChangeListener) {
+        listeners.forEach { registration ->
+            if (registration.listener == listener) {
+                listeners.remove(registration)
+            }
+        }
+    }
+
+    /**
+     * Notifies a listener with the current inbox state.
+     * Reads current state, applies topic filter, and schedules notification on main thread.
+     */
+    private fun notifyListenerWithCurrentState(registration: ListenerRegistration) {
+        val (listener, topic) = registration
+        val messages = currentState.inboxMessages.toList()
+        val filteredMessages = filterMessagesByTopic(messages, topic)
+
+        coroutineScope.launch(dispatchersProvider.main) {
+            notifyListener(listener, filteredMessages)
+        }
+    }
+
+    /**
+     * Notifies all registered listeners with filtered messages.
+     * Prepares notifications on background thread, then switches to main thread for callbacks.
+     */
+    private fun notifyAllListeners(messages: List<InboxMessage>) {
+        // Prepare all data on background thread to avoid blocking main thread
+        val notificationsToSend = listeners.map { (listener, topic) ->
+            listener to filterMessagesByTopic(messages, topic)
+        }
+
+        // Single switch to main thread, then notify all listeners
+        coroutineScope.launch(dispatchersProvider.main) {
+            notificationsToSend.forEach { (listener, filteredMessages) ->
+                notifyListener(listener, filteredMessages)
+            }
+        }
+    }
+
+    /**
+     * Filters messages by topic if specified.
+     * Topic matching is case-insensitive.
+     *
+     * @param messages The messages to filter
+     * @param topic The topic filter, or null to return all messages
+     * @return Filtered list of messages
+     */
+    private fun filterMessagesByTopic(messages: List<InboxMessage>, topic: String?): List<InboxMessage> {
+        return if (topic == null) {
+            messages
+        } else {
+            messages.filter { message ->
+                message.topics.any { it.equals(topic, ignoreCase = true) }
+            }
+        }
+    }
+
+    /**
+     * Notifies a single listener with messages, handling errors gracefully.
+     * Must be called on main thread (callers are responsible for dispatching to main).
+     *
+     * @param listener The listener to notify
+     * @param messages The messages to send to the listener
+     */
+    @MainThread
+    private fun notifyListener(listener: InboxChangeListener, messages: List<InboxMessage>) {
+        try {
+            listener.onInboxChanged(messages)
+        } catch (ex: Exception) {
+            // Log and continue to prevent one bad listener from breaking others
+            logger.error("Error notifying inbox listener: ${ex.message}")
         }
     }
 
@@ -115,4 +237,12 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
             )
         )
     }
+
+    /**
+     * Wrapper class to store listener with optional topic filter.
+     */
+    private data class ListenerRegistration(
+        val listener: InboxChangeListener,
+        val topic: String? = null
+    )
 }

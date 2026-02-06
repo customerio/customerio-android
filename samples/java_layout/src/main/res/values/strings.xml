@@ -93,4 +93,23 @@
     <string name="title_inline_recycler">RecyclerView</string>
     <string name="inline_examples_tabbed">Inline Examples</string>
 
+    <!-- Inbox Messages -->
+    <string name="inbox_messages">Inbox Messages</string>
+    <string name="label_inbox_messages_activity">InboxMessagesActivity</string>
+    <string name="inbox_empty_state">No inbox messages</string>
+    <string name="inbox_fetch_error">Failed to fetch inbox messages</string>
+    <string name="inbox_mark_as_read">Mark as Read</string>
+    <string name="inbox_mark_as_unread">Mark as Unread</string>
+    <string name="inbox_track_click">Track Click</string>
+    <string name="inbox_track_click_dialog_title">Track Click Event</string>
+    <string name="inbox_track_click_dialog_message">Enter an action name (optional):</string>
+    <string name="inbox_track_click_dialog_hint">Action name</string>
+    <string name="inbox_track_click_success">Click tracked successfully</string>
+    <string name="inbox_delete">Delete</string>
+    <string name="inbox_delete_dialog_title">Delete Message</string>
+    <string name="inbox_delete_dialog_message">Are you sure you want to delete this message?</string>
+    <string name="inbox_delete_confirm">Delete</string>
+    <string name="inbox_delete_cancel">Cancel</string>
+    <string name="inbox_message_deleted">Message deleted</string>
+
 </resources>

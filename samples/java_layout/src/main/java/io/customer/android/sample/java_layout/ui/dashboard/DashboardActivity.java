@@ -32,6 +32,7 @@ import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityDashboardBinding;
 import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
+import io.customer.android.sample.java_layout.ui.inbox.InboxMessagesActivity;
 import io.customer.android.sample.java_layout.ui.inline.InlineExamplesActivity;
 import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.settings.InternalSettingsActivity;
@@ -152,6 +153,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.inlineExamplesButton.setOnClickListener(view -> {
             startInlineExamplesActivity();
         });
+        binding.inboxMessagesButton.setOnClickListener(view -> {
+            startInboxMessagesActivity();
+        });
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
         });
@@ -202,6 +206,11 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
 
     private void startInlineExamplesActivity() {
         Intent intent = new Intent(DashboardActivity.this, InlineExamplesActivity.class);
+        startActivity(intent);
+    }
+
+    private void startInboxMessagesActivity() {
+        Intent intent = new Intent(DashboardActivity.this, InboxMessagesActivity.class);
         startActivity(intent);
     }
 

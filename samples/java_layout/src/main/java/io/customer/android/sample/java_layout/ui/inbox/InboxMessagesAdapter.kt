@@ -72,6 +72,9 @@ class InboxMessagesAdapter(
         private val onTrackClickClick: (InboxMessage) -> Unit,
         private val onDeleteClick: (InboxMessage) -> Unit
     ) : RecyclerView.ViewHolder(binding.root) {
+
+        private val dateFormatter = SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault())
+
         fun bind(message: InboxMessage) {
             val context = binding.root.context
 
@@ -117,6 +120,7 @@ class InboxMessagesAdapter(
                 }
             } ?: run {
                 binding.propertiesTextView.visibility = android.view.View.GONE
+                binding.propertiesTextView.text = ""
             }
 
             // Show only the relevant button based on message state
@@ -199,7 +203,7 @@ class InboxMessagesAdapter(
                 ).toString()
             } else {
                 // Otherwise show formatted date
-                SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(date)
+                dateFormatter.format(date)
             }
         }
 

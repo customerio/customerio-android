@@ -3,7 +3,6 @@ package io.customer.android.sample.java_layout.ui.inbox
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.customer.android.sample.java_layout.R
 import io.customer.android.sample.java_layout.databinding.ActivityInboxMessagesBinding
@@ -50,7 +49,6 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
                 showDeleteConfirmationDialog(message)
             }
         )
-        binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
     }
 
@@ -157,7 +155,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         inboxChangeListener?.let { messageInbox.removeChangeListener(it) }
+        super.onDestroy()
     }
 }

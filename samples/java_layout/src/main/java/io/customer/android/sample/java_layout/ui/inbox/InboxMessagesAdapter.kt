@@ -41,13 +41,9 @@ class InboxMessagesAdapter(
         }
 
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-            val oldItem = oldList[oldItemPosition]
-            val newItem = newList[newItemPosition]
-            return oldItem.deliveryId == newItem.deliveryId &&
-                oldItem.opened == newItem.opened &&
-                oldItem.priority == newItem.priority &&
-                oldItem.topics == newItem.topics &&
-                oldItem.properties == newItem.properties
+            // InboxMessage is a data class with generated equals() that compares all fields
+            // This ensures all displayed fields are checked for changes
+            return oldList[oldItemPosition] == newList[newItemPosition]
         }
     }
 

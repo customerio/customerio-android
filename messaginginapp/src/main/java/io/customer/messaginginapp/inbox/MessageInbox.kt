@@ -83,6 +83,9 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
     /**
      * Registers a listener for inbox changes.
      *
+     * Must be called from main thread. The listener is immediately notified with current state,
+     * then receives all future updates.
+     *
      * IMPORTANT: Call [removeChangeListener] when done (e.g., in Activity.onDestroy or Fragment.onDestroyView)
      * to prevent memory leaks.
      *
@@ -91,13 +94,17 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      *              that have this topic in their topics list. If null, all messages are delivered.
      */
     @JvmOverloads
+    @MainThread
     fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
         val registration = ListenerRegistration(listener, topic)
-        // IMPORTANT: Notify BEFORE adding to listeners set
-        // This ensures manual notification uses state snapshot from before listener was active,
-        // preventing duplicates when state changes concurrently
-        notifyListenerWithCurrentState(registration)
         listeners.add(registration)
+
+        // Notify immediately with current state
+        // Since we're on main thread and subscription coroutines are queued on main dispatcher,
+        // this should be completed atomically before any queued subscription notifications can execute
+        val messages = currentState.inboxMessages.toList()
+        val filteredMessages = filterMessagesByTopic(messages, topic)
+        notifyListener(listener, filteredMessages)
     }
 
     /**
@@ -113,20 +120,6 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
     }
 
     /**
-     * Notifies a listener with the current inbox state.
-     * Reads current state, applies topic filter, and schedules notification on main thread.
-     */
-    private fun notifyListenerWithCurrentState(registration: ListenerRegistration) {
-        val (listener, topic) = registration
-        val messages = currentState.inboxMessages.toList()
-        val filteredMessages = filterMessagesByTopic(messages, topic)
-
-        coroutineScope.launch(dispatchersProvider.main) {
-            notifyListener(listener, filteredMessages)
-        }
-    }
-
-    /**
      * Notifies all registered listeners with filtered messages.
      * Prepares notifications on background thread, then switches to main thread for callbacks.
      */
@@ -136,7 +129,7 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
             listener to filterMessagesByTopic(messages, topic)
         }
 
-        // Single switch to main thread, then notify all listeners
+        // Switch to main thread for notifications
         coroutineScope.launch(dispatchersProvider.main) {
             notificationsToSend.forEach { (listener, filteredMessages) ->
                 notifyListener(listener, filteredMessages)

@@ -117,6 +117,7 @@ class InboxMessagesAdapter(
                     binding.propertiesTextView.visibility = android.view.View.VISIBLE
                 } else {
                     binding.propertiesTextView.visibility = android.view.View.GONE
+                    binding.propertiesTextView.text = ""
                 }
             } ?: run {
                 binding.propertiesTextView.visibility = android.view.View.GONE

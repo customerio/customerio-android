@@ -9,6 +9,7 @@ import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.gist.data.model.matchesRoute
+import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
@@ -237,64 +238,65 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
         }
 
         is InAppMessagingAction.InboxAction -> {
+            val logger = SDKComponent.logger
             val queueId = action.message.queueId
             val currentMessage = store.state.inboxMessages.find { it.queueId == queueId }
+
             // Only proceed if message exists in state
             if (currentMessage == null) {
-                SDKComponent.logger.debug("Skipping inbox message update for deliveryId: ${action.message.deliveryId} - message not found in state")
-                next(action)
+                logger.debug("Skipping inbox message update for ${action.message.toLogString()} - message not found in state")
             } else {
                 // Handle all inbox related actions
                 when (action) {
                     is InAppMessagingAction.InboxAction.UpdateOpened -> {
                         // Only proceed if state is actually changing
                         if (currentMessage.opened == action.opened) {
-                            SDKComponent.logger.debug("Skipping inbox message update for deliveryId: ${currentMessage.deliveryId} - already in desired state (opened=${action.opened})")
+                            logger.debug("Skipping inbox message update for ${currentMessage.toLogString()} - already in desired state (opened=${action.opened})")
                         } else {
                             // Call API to update opened status on server using current message from state
                             SDKComponent.gistQueue.logOpenedStatus(currentMessage, action.opened)
 
                             // Track metric when transitioning from unopened to opened
                             if (action.opened) {
-                                SDKComponent.logger.debug("Inbox message opened with deliveryId: ${currentMessage.deliveryId}")
-                                SDKComponent.eventBus.publish(
-                                    Event.TrackInAppMetricEvent(
-                                        deliveryID = currentMessage.deliveryId,
-                                        event = Metric.Opened
+                                logger.debug("Inbox message opened: ${currentMessage.toLogString()}")
+                                currentMessage.deliveryId?.let { deliveryId ->
+                                    SDKComponent.eventBus.publish(
+                                        Event.TrackInAppMetricEvent(
+                                            deliveryID = deliveryId,
+                                            event = Metric.Opened
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
-
-                        // Always pass action to reducer to update local state
-                        next(action)
                     }
 
                     is InAppMessagingAction.InboxAction.DeleteMessage -> {
                         // Call API to delete message on server
-                        SDKComponent.logger.debug("Deleting inbox message with deliveryId: ${currentMessage.deliveryId}")
+                        logger.debug("Deleting inbox message: ${currentMessage.toLogString()}")
                         SDKComponent.gistQueue.logDeleted(currentMessage)
-                        // Pass action to reducer to update local state
-                        next(action)
                     }
 
                     is InAppMessagingAction.InboxAction.TrackClicked -> {
                         // Track click metric for analytics
                         val params = action.actionName?.let { mapOf("actionName" to it) } ?: emptyMap()
 
-                        SDKComponent.logger.debug("Inbox message clicked with deliveryId: ${currentMessage.deliveryId}")
-                        SDKComponent.eventBus.publish(
-                            Event.TrackInAppMetricEvent(
-                                deliveryID = currentMessage.deliveryId,
-                                event = Metric.Clicked,
-                                params = params
+                        logger.debug("Inbox message clicked: ${currentMessage.toLogString()}")
+                        currentMessage.deliveryId?.let { deliveryId ->
+                            SDKComponent.eventBus.publish(
+                                Event.TrackInAppMetricEvent(
+                                    deliveryID = deliveryId,
+                                    event = Metric.Clicked,
+                                    params = params
+                                )
                             )
-                        )
-                        // Pass action to reducer (no state changes needed)
-                        next(action)
+                        }
                     }
                 }
             }
+
+            // Always pass action to reducer to update local state
+            next(action)
         }
 
         else -> next(action)

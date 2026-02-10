@@ -17,6 +17,9 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.extension.createInboxMessage
+import io.customer.messaginginapp.testutils.extension.dateDaysAgo
+import io.customer.messaginginapp.testutils.extension.dateHoursAgo
+import io.customer.messaginginapp.testutils.extension.dateNow
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
@@ -296,35 +299,6 @@ class MessageInboxTest : IntegrationTest() {
     }
 
     @Test
-    fun addChangeListener_givenTopicFilterWithDifferentCase_expectCaseInsensitiveMatch() = runTest {
-        initializeAndSetUser()
-
-        // Create test messages with topics in different cases
-        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("Promotions"))
-        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("UPDATES"))
-        val message3 = createInboxMessage(deliveryId = "msg3", topics = listOf("special"))
-        val allMessages = listOf(message1, message2, message3)
-
-        // Add listener with lowercase topic filter
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener, "promotions")
-            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-
-        // Dispatch action to update inbox messages
-        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(allMessages))
-            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-
-        // Verify listener received message with "Promotions" (case-insensitive match)
-        verify(exactly = 1) {
-            listener.onInboxChanged(
-                match { messages ->
-                    messages.size == 1 && messages[0].deliveryId == "msg1"
-                }
-            )
-        }
-    }
-
-    @Test
     fun addChangeListener_givenMultipleListenersWithDifferentTopics_expectEachReceivesFilteredMessages() = runTest {
         initializeAndSetUser()
 
@@ -369,31 +343,6 @@ class MessageInboxTest : IntegrationTest() {
         // Verify listener3 received all messages
         verify(exactly = 1) {
             listener3.onInboxChanged(match { it.size == 3 })
-        }
-    }
-
-    @Test
-    fun addChangeListener_givenTopicWithNoMatches_expectListenerReceivesEmptyList() = runTest {
-        initializeAndSetUser()
-
-        // Create test messages without "sales" topic
-        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"))
-        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
-        val allMessages = listOf(message1, message2)
-
-        // Add listener with topic that doesn't match any messages
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener, "sales")
-            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-
-        // Dispatch action to update inbox messages
-        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(allMessages))
-            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-
-        // Verify listener received empty list twice (once for initial state, once after state change)
-        // Both calls have empty list because no messages match "sales" topic
-        verify(atLeast = 2) {
-            listener.onInboxChanged(emptyList())
         }
     }
 
@@ -498,8 +447,8 @@ class MessageInboxTest : IntegrationTest() {
 
         // Set up initial state with messages
         val initialMessages = listOf(
-            createInboxMessage(deliveryId = "msg1", topics = listOf("promotions")),
-            createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
+            createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"), sentAt = dateNow()),
+            createInboxMessage(deliveryId = "msg2", topics = listOf("updates"), sentAt = dateHoursAgo(1))
         )
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
@@ -538,7 +487,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
 
         // Set up initial state
-        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1"))
+        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1", sentAt = dateHoursAgo(1)))
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
@@ -553,7 +502,7 @@ class MessageInboxTest : IntegrationTest() {
         }
 
         // Update state with new messages
-        val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
+        val updatedMessages = listOf(createInboxMessage(deliveryId = "msg2", sentAt = dateNow())) + initialMessages
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
@@ -618,7 +567,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
 
         // Set up initial state
-        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1"))
+        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1", sentAt = dateHoursAgo(1)))
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
@@ -640,7 +589,7 @@ class MessageInboxTest : IntegrationTest() {
         verify(exactly = 1) { listener3.onInboxChanged(initialMessages) }
 
         // Trigger state update
-        val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
+        val updatedMessages = listOf(createInboxMessage(deliveryId = "msg2", sentAt = dateNow())) + initialMessages
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
@@ -660,7 +609,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
 
         // Set up initial state
-        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1"))
+        val initialMessages = listOf(createInboxMessage(deliveryId = "msg1", sentAt = dateHoursAgo(1)))
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(initialMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
@@ -677,7 +626,7 @@ class MessageInboxTest : IntegrationTest() {
         }
 
         val completionLatch = CountDownLatch(4)
-        val updatedMessages = initialMessages + createInboxMessage(deliveryId = "msg2")
+        val updatedMessages = listOf(createInboxMessage(deliveryId = "msg2", sentAt = dateNow())) + initialMessages
 
         // Concurrently: add 3 listeners + trigger state update
         // Tests thread safety - listeners should receive correct callbacks without crashes or duplicates
@@ -720,6 +669,7 @@ class MessageInboxTest : IntegrationTest() {
      * - Listener receives notifications for all future state changes
      * - No stale state (out-of-order) notifications (guaranteed by @MainThread serialization)
      * - Duplicate notifications may occur when listener added during state transition (rare, harmless)
+     * - Messages are sorted by sentAt (newest first) before delivery
      *
      * Valid patterns based on when listener was added:
      * - Added before state update: receives [initial, updated] (2 calls)
@@ -805,6 +755,153 @@ class MessageInboxTest : IntegrationTest() {
             actual = threadsCompletionLatch.count,
             message = "Threads did not complete within the timeout"
         )
+    }
+
+    @Test
+    fun getMessages_givenNoTopic_expectAllMessages() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"))
+        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
+        val message3 = createInboxMessage(deliveryId = "msg3", topics = listOf("promotions", "alerts"))
+
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        val messages = messageInbox.getMessages()
+
+        assertEquals(3, messages.size)
+    }
+
+    @Test
+    fun getMessages_givenTopicFilter_expectOnlyMatchingMessages() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"))
+        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
+        val message3 = createInboxMessage(deliveryId = "msg3", topics = listOf("promotions", "alerts"))
+
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        val messages = messageInbox.getMessages("promotions")
+
+        assertEquals(2, messages.size)
+        assertTrue(messages.all { it.topics.contains("promotions") })
+    }
+
+    @Test
+    fun getMessages_givenTopicFilterCaseInsensitive_expectMatchingMessages() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("Promotions"))
+        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
+
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
+
+        val messages = messageInbox.getMessages("promotions")
+
+        assertEquals(1, messages.size)
+        assertEquals("msg1", messages[0].deliveryId)
+    }
+
+    @Test
+    fun getMessages_givenTopicFilterNoMatches_expectEmptyList() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"))
+        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
+
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
+
+        val messages = messageInbox.getMessages("nonexistent")
+
+        assertEquals(0, messages.size)
+    }
+
+    @Test
+    fun getMessages_givenMultipleMessages_expectSortedByNewestFirst() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", sentAt = dateDaysAgo(2))
+        val message2 = createInboxMessage(deliveryId = "msg2", sentAt = dateNow())
+        val message3 = createInboxMessage(deliveryId = "msg3", sentAt = dateHoursAgo(1))
+
+        // Dispatch in random order
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        val messages = messageInbox.getMessages()
+
+        assertEquals(3, messages.size)
+        // Verify sorted newest to oldest
+        assertEquals("msg2", messages[0].deliveryId) // now
+        assertEquals("msg3", messages[1].deliveryId) // 1 hour ago
+        assertEquals("msg1", messages[2].deliveryId) // 2 days ago
+    }
+
+    @Test
+    fun getMessages_givenTopicFilter_expectSortedByNewestFirst() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", sentAt = dateDaysAgo(2), topics = listOf("promotions"))
+        val message2 = createInboxMessage(deliveryId = "msg2", sentAt = dateNow(), topics = listOf("updates"))
+        val message3 = createInboxMessage(deliveryId = "msg3", sentAt = dateHoursAgo(1), topics = listOf("promotions"))
+
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+
+        val messages = messageInbox.getMessages("promotions")
+
+        assertEquals(2, messages.size)
+        // Verify sorted newest to oldest
+        assertEquals("msg3", messages[0].deliveryId) // 1 hour ago
+        assertEquals("msg1", messages[1].deliveryId) // 2 days ago
+    }
+
+    @Test
+    fun addChangeListener_givenMultipleMessages_expectSortedByNewestFirst() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", sentAt = dateDaysAgo(2))
+        val message2 = createInboxMessage(deliveryId = "msg2", sentAt = dateNow())
+        val message3 = createInboxMessage(deliveryId = "msg3", sentAt = dateHoursAgo(1))
+
+        // Set up initial state in random order
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Add listener and verify it receives sorted messages (newest first)
+        val listener = mockk<InboxChangeListener>(relaxed = true)
+        messageInbox.addChangeListener(listener)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        verify(exactly = 1) {
+            listener.onInboxChanged(listOf(message2, message3, message1))
+        }
+    }
+
+    @Test
+    fun addChangeListener_givenStateUpdate_expectSortedByNewestFirst() = runTest {
+        initializeAndSetUser()
+
+        val message1 = createInboxMessage(deliveryId = "msg1", sentAt = dateHoursAgo(1))
+
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        val listener = mockk<InboxChangeListener>(relaxed = true)
+        messageInbox.addChangeListener(listener)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Clear initial callback
+        io.mockk.clearMocks(listener, answers = false, recordedCalls = true)
+
+        // Add newer message
+        val message2 = createInboxMessage(deliveryId = "msg2", sentAt = dateNow())
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        // Verify listener receives sorted messages (newest first)
+        verify(exactly = 1) {
+            listener.onInboxChanged(listOf(message2, message1))
+        }
     }
 
     private fun emptyInboxChangeListener() = object : InboxChangeListener {

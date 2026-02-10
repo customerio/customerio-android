@@ -1,12 +1,10 @@
 package io.customer.messaginginapp.inbox
 
 import androidx.annotation.MainThread
-import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
-import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.CopyOnWriteArraySet
@@ -27,13 +25,12 @@ import kotlinx.coroutines.launch
  * inbox.getMessages()
  * ```
  */
-class MessageInbox(private val coroutineScope: CoroutineScope) {
-    private val logger: Logger
-        get() = SDKComponent.logger
-    private val dispatchersProvider: DispatchersProvider
-        get() = SDKComponent.dispatchersProvider
+class MessageInbox internal constructor(
+    private val logger: Logger,
+    private val coroutineScope: CoroutineScope,
+    private val dispatchersProvider: DispatchersProvider,
     private val inAppMessagingManager: InAppMessagingManager
-        get() = SDKComponent.inAppMessagingManager
+) {
     private val currentState: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
 
@@ -55,12 +52,16 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
     /**
      * Retrieves the current list of inbox messages synchronously.
      *
+     * @param topic Optional topic filter. If provided, listener only receives messages
+     *              that have this topic in their topics list. If null, all messages are delivered.
      * @return List of inbox messages for the current user
      */
+    @JvmOverloads
     @Suppress("RedundantSuspendModifier")
-    suspend fun getMessages(): List<InboxMessage> {
+    suspend fun getMessages(topic: String? = null): List<InboxMessage> {
         // Intentionally suspend for API stability
-        return currentState.inboxMessages.toList()
+        val messages = currentState.inboxMessages.toList()
+        return filterMessagesByTopic(messages, topic)
     }
 
     /**
@@ -68,11 +69,14 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
      *
      * @param callback Called with [Result] containing the list of messages or an error
      * if failed to retrieve
+     * @param topic Optional topic filter. If provided, listener only receives messages
+     *              that have this topic in their topics list. If null, all messages are delivered.
      */
-    fun getMessages(callback: (Result<List<InboxMessage>>) -> Unit) {
+    @JvmOverloads
+    fun getMessages(callback: (Result<List<InboxMessage>>) -> Unit, topic: String? = null) {
         coroutineScope.launch {
             try {
-                val messages = getMessages()
+                val messages = getMessages(topic)
                 callback(Result.success(messages))
             } catch (ex: Exception) {
                 callback(Result.failure(ex))
@@ -138,21 +142,22 @@ class MessageInbox(private val coroutineScope: CoroutineScope) {
     }
 
     /**
-     * Filters messages by topic if specified.
+     * Filters messages by topic if specified and sorts by sentAt (newest first).
      * Topic matching is case-insensitive.
      *
      * @param messages The messages to filter
      * @param topic The topic filter, or null to return all messages
-     * @return Filtered list of messages
+     * @return Filtered and sorted list of messages
      */
     private fun filterMessagesByTopic(messages: List<InboxMessage>, topic: String?): List<InboxMessage> {
-        return if (topic == null) {
+        val filteredMessages = if (topic == null) {
             messages
         } else {
             messages.filter { message ->
                 message.topics.any { it.equals(topic, ignoreCase = true) }
             }
         }
+        return filteredMessages.sortedByDescending { it.sentAt }
     }
 
     /**

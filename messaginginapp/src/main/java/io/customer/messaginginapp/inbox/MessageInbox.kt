@@ -65,15 +65,23 @@ class MessageInbox internal constructor(
     }
 
     /**
-     * Retrieves inbox messages asynchronously via callback.
+     * Retrieves all inbox messages asynchronously via callback.
      *
-     * @param topic Optional topic filter. If provided, listener only receives messages
-     *              that have this topic in their topics list. If null, all messages are delivered.
      * @param callback Called with [Result] containing the list of messages or an error
      * if failed to retrieve
      */
-    @JvmOverloads
-    fun getMessages(topic: String? = null, callback: (Result<List<InboxMessage>>) -> Unit) {
+    fun getMessages(callback: (Result<List<InboxMessage>>) -> Unit) {
+        getMessages(null, callback)
+    }
+
+    /**
+     * Retrieves inbox messages for a specific topic asynchronously via callback.
+     *
+     * @param topic Topic filter. Only messages with this topic in their topics list are returned.
+     * @param callback Called with [Result] containing the list of messages or an error
+     * if failed to retrieve
+     */
+    fun getMessages(topic: String?, callback: (Result<List<InboxMessage>>) -> Unit) {
         coroutineScope.launch {
             try {
                 val messages = getMessages(topic)

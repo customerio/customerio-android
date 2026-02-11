@@ -65,28 +65,28 @@ class MessageInbox internal constructor(
     }
 
     /**
-     * Retrieves all inbox messages asynchronously via callback.
+     * Fetches all inbox messages asynchronously via callback.
      *
      * @param callback Called with [Result] containing the list of messages or an error
      * if failed to retrieve
      */
-    fun getMessages(callback: (Result<List<InboxMessage>>) -> Unit) {
-        getMessagesWithCallback(null, callback)
+    fun fetchMessages(callback: (Result<List<InboxMessage>>) -> Unit) {
+        fetchMessagesWithCallback(null, callback)
     }
 
     /**
-     * Retrieves inbox messages for a specific topic asynchronously via callback.
+     * Fetches inbox messages for a specific topic asynchronously via callback.
      *
      * @param topic Topic filter. Only messages with this topic in their topics list are returned.
      * @param callback Called with [Result] containing the list of messages or an error
      * if failed to retrieve
      */
-    fun getMessages(topic: String, callback: (Result<List<InboxMessage>>) -> Unit) {
-        getMessagesWithCallback(topic, callback)
+    fun fetchMessages(topic: String, callback: (Result<List<InboxMessage>>) -> Unit) {
+        fetchMessagesWithCallback(topic, callback)
     }
 
     // Internal helper to avoid code duplication between callback-based overloads
-    private fun getMessagesWithCallback(topic: String?, callback: (Result<List<InboxMessage>>) -> Unit) {
+    private fun fetchMessagesWithCallback(topic: String?, callback: (Result<List<InboxMessage>>) -> Unit) {
         coroutineScope.launch {
             try {
                 val messages = getMessages(topic)

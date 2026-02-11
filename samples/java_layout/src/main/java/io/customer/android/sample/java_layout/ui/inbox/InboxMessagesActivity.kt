@@ -69,7 +69,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
 
     private fun fetchMessages() {
         showLoading()
-        messageInbox.getMessages { result ->
+        messageInbox.fetchMessages { result ->
             runOnUiThread {
                 result.onSuccess { messages ->
                     updateMessages(messages)

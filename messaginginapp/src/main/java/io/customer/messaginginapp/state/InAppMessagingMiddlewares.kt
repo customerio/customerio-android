@@ -6,6 +6,7 @@ import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.gistSdk
 import io.customer.messaginginapp.di.inAppSseLogger
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.gist.data.model.matchesRoute
@@ -223,14 +224,14 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 
 /**
  * Middleware for processing inbox messages and inbox-related actions.
- * Deduplicates messages by deliveryId and syncs InboxAction updates to the server.
+ * Deduplicates messages by queueId and syncs InboxAction updates to the server.
  */
 internal fun processInboxMessages() = middleware<InAppMessagingState> { store, next, action ->
     when (action) {
         is InAppMessagingAction.ProcessInboxMessages -> {
             if (action.messages.isNotEmpty()) {
-                // Deduplicate by deliveryId - keep first occurrence of each unique deliveryId
-                val uniqueMessages = action.messages.distinctBy { it.deliveryId }
+                // Deduplicate by queueId - keep first occurrence of each unique queueId
+                val uniqueMessages = action.messages.distinctBy(InboxMessage::queueId)
                 next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
             } else {
                 next(action)

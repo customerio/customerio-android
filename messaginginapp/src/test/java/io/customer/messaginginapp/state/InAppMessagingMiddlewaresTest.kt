@@ -478,6 +478,32 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     }
 
     @Test
+    fun processInboxMessages_givenDuplicateQueueIds_shouldDeduplicateByQueueId() {
+        // Given multiple messages with duplicate queueIds
+        val message1 = createInboxMessage(queueId = "queue-1", deliveryId = "delivery-1", opened = false)
+        val message2 = createInboxMessage(queueId = "queue-1", deliveryId = "delivery-2", opened = true) // Duplicate queueId
+        val message3 = createInboxMessage(queueId = "queue-2", deliveryId = "delivery-3", opened = false)
+
+        val action = InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3))
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should deduplicate by queueId, keeping only the first occurrence
+        verify {
+            nextFn(
+                match<InAppMessagingAction.ProcessInboxMessages> {
+                    it.messages.size == 2 &&
+                        it.messages[0].queueId == "queue-1" &&
+                        it.messages[0].deliveryId == "delivery-1" && // First occurrence kept
+                        it.messages[1].queueId == "queue-2"
+                }
+            )
+        }
+    }
+
+    @Test
     fun processInboxMessages_givenUpdateOpenedWithOpenedTrue_shouldPublishMetricEvent() {
         // Given an inbox message in state that is currently unopened
         val deliveryId = String.random

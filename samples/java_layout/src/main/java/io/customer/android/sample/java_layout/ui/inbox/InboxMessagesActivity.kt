@@ -69,7 +69,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
 
     private fun fetchMessages() {
         showLoading()
-        messageInbox.getMessages({ result ->
+        messageInbox.getMessages { result ->
             runOnUiThread {
                 result.onSuccess { messages ->
                     updateMessages(messages)
@@ -85,7 +85,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
                 }
                 binding.swipeRefreshLayout.isRefreshing = false
             }
-        })
+        }
     }
 
     private fun updateMessages(messages: List<InboxMessage>) {

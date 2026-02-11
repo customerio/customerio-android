@@ -71,7 +71,7 @@ class MessageInbox internal constructor(
      * if failed to retrieve
      */
     fun getMessages(callback: (Result<List<InboxMessage>>) -> Unit) {
-        getMessages(null, callback)
+        getMessagesWithCallback(null, callback)
     }
 
     /**
@@ -81,7 +81,12 @@ class MessageInbox internal constructor(
      * @param callback Called with [Result] containing the list of messages or an error
      * if failed to retrieve
      */
-    fun getMessages(topic: String?, callback: (Result<List<InboxMessage>>) -> Unit) {
+    fun getMessages(topic: String, callback: (Result<List<InboxMessage>>) -> Unit) {
+        getMessagesWithCallback(topic, callback)
+    }
+
+    // Internal helper to avoid code duplication between callback-based overloads
+    private fun getMessagesWithCallback(topic: String?, callback: (Result<List<InboxMessage>>) -> Unit) {
         coroutineScope.launch {
             try {
                 val messages = getMessages(topic)

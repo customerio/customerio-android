@@ -37,7 +37,8 @@ class InboxMessagesAdapter(
         override fun getNewListSize(): Int = newList.size
 
         override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-            return oldList[oldItemPosition].deliveryId == newList[newItemPosition].deliveryId
+            // Use queueId for identity since it's the guaranteed unique, non-nullable identifier
+            return oldList[oldItemPosition].queueId == newList[newItemPosition].queueId
         }
 
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
@@ -74,7 +75,7 @@ class InboxMessagesAdapter(
         fun bind(message: InboxMessage) {
             val context = binding.root.context
 
-            binding.deliveryIdTextView.text = message.deliveryId
+            binding.deliveryIdTextView.text = message.deliveryId ?: "N/A - (${message.queueId})"
 
             val backgroundColorAttr = if (message.opened) {
                 com.google.android.material.R.attr.colorSurfaceContainerLowest
@@ -92,12 +93,10 @@ class InboxMessagesAdapter(
             val metadataParts = mutableListOf<String>()
 
             // Add sent date
-            message.sentAt?.let { metadataParts.add(formatDate(it)) }
+            metadataParts.add(formatDate(message.sentAt))
 
-            // Add priority if non-zero
-            if (message.priority != 0) {
-                metadataParts.add("Priority ${message.priority}")
-            }
+            // Add priority if present
+            message.priority?.let { metadataParts.add("Priority $it") }
 
             // Add topics
             if (message.topics.isNotEmpty()) {
@@ -107,15 +106,11 @@ class InboxMessagesAdapter(
             binding.metadataTextView.text = metadataParts.joinToString(" • ")
 
             // Properties (show only if present)
-            message.properties?.let {
-                if (it.isNotEmpty()) {
-                    binding.propertiesTextView.text = formatProperties(it)
-                    binding.propertiesTextView.visibility = android.view.View.VISIBLE
-                } else {
-                    binding.propertiesTextView.visibility = android.view.View.GONE
-                    binding.propertiesTextView.text = ""
-                }
-            } ?: run {
+            val properties = message.properties
+            if (properties.isNotEmpty()) {
+                binding.propertiesTextView.text = formatProperties(properties)
+                binding.propertiesTextView.visibility = android.view.View.VISIBLE
+            } else {
                 binding.propertiesTextView.visibility = android.view.View.GONE
                 binding.propertiesTextView.text = ""
             }

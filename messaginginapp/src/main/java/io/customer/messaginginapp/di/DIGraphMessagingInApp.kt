@@ -140,4 +140,11 @@ internal val SDKComponent.inAppMessaging: ModuleMessagingInApp
  * Provides singleton instance of [MessageInbox] for managing inbox messages.
  */
 internal val SDKComponent.messageInbox: MessageInbox
-    get() = singleton { MessageInbox(coroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope) }
+    get() = singleton {
+        MessageInbox(
+            logger = logger,
+            coroutineScope = scopeProvider.inAppLifecycleScope,
+            dispatchersProvider = dispatchersProvider,
+            inAppMessagingManager = inAppMessagingManager
+        )
+    }

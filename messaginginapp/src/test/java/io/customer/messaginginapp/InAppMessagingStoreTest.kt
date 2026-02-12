@@ -663,28 +663,29 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun givenDuplicateInboxMessages_whenProcessed_thenDuplicatesAreRemovedByDeliveryId() = runTest {
+    fun givenDuplicateInboxMessages_whenProcessed_thenDuplicatesAreRemovedByQueueId() = runTest {
         initializeAndSetUser()
 
-        // Create inbox messages with same deliveryId but different properties
-        // This simulates middleware receiving duplicate deliveryIds with different states
-        val message1 = createInboxMessage(deliveryId = "inbox1", priority = 1, opened = false)
-        val message2 = createInboxMessage(deliveryId = "inbox1", priority = 2, opened = true) // Same deliveryId, different props
-        val message3 = createInboxMessage(deliveryId = "inbox2", priority = 2, opened = true)
+        // Create inbox messages with same queueId but different properties
+        // This simulates middleware receiving duplicate queueIds with different states
+        val message1 = createInboxMessage(queueId = "queue1", deliveryId = "delivery1", priority = 1, opened = false)
+        val message2 = createInboxMessage(queueId = "queue1", deliveryId = "delivery2", priority = 2, opened = true) // Same queueId, different props
+        val message3 = createInboxMessage(queueId = "queue2", deliveryId = "delivery3", priority = 2, opened = true)
 
         // Process inbox messages with duplicates
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        // Verify duplicates are removed by deliveryId (distinctBy)
-        // Only the first occurrence of each deliveryId is kept
+        // Verify duplicates are removed by queueId (distinctBy)
+        // Only the first occurrence of each queueId is kept
         val state = manager.getCurrentState()
         state.inboxMessages.size shouldBeEqualTo 2
-        state.inboxMessages.any { it.deliveryId == "inbox1" } shouldBe true
-        state.inboxMessages.any { it.deliveryId == "inbox2" } shouldBe true
+        state.inboxMessages.any { it.queueId == "queue1" } shouldBe true
+        state.inboxMessages.any { it.queueId == "queue2" } shouldBe true
 
         // Verify the first occurrence is kept (message1 with opened=false, not message2)
-        val inbox1Message = state.inboxMessages.first { it.deliveryId == "inbox1" }
-        inbox1Message.opened shouldBe false
-        inbox1Message.priority shouldBeEqualTo 1
+        val queue1Message = state.inboxMessages.first { it.queueId == "queue1" }
+        queue1Message.opened shouldBe false
+        queue1Message.priority shouldBeEqualTo 1
+        queue1Message.deliveryId shouldBeEqualTo "delivery1"
     }
 }

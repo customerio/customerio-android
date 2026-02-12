@@ -9,8 +9,10 @@ import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
-import io.customer.messaginginapp.gist.data.model.QueueMessagesResponse
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
+import io.customer.messaginginapp.gist.data.model.response.QueueMessagesResponse
+import io.customer.messaginginapp.gist.data.model.response.toDomain
+import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.store.InAppPreferenceStore
@@ -182,7 +184,11 @@ class Queue : GistQueue {
             // Process inbox messages next
             val inboxMessages = response.inboxMessages
             logger.debug("Found ${inboxMessages.count()} inbox messages for user")
-            inAppMessagingManager.dispatch(InAppMessagingAction.ProcessInboxMessages(inboxMessages))
+            val inboxMessagesMapped = inboxMessages.mapNotNull { it.toDomain() }
+            if (inboxMessagesMapped.size < inboxMessages.size) {
+                logger.debug("Filtered out ${inboxMessages.size - inboxMessagesMapped.size} invalid inbox message(s)")
+            }
+            inAppMessagingManager.dispatch(InAppMessagingAction.ProcessInboxMessages(inboxMessagesMapped))
         }
     }
 
@@ -229,40 +235,30 @@ class Queue : GistQueue {
     }
 
     override fun logOpenedStatus(message: InboxMessage, opened: Boolean) {
-        val queueId = message.queueId ?: run {
-            logger.error("Cannot update inbox message ${message.deliveryId}: missing queueId")
-            return
-        }
-
         scope.launch {
             try {
-                logger.debug("Updating inbox message $queueId opened status to: $opened")
+                logger.debug("Updating inbox message ${message.toLogString()} opened status to: $opened")
                 gistQueueService.logInboxMessageOpened(
-                    queueId = queueId,
+                    queueId = message.queueId,
                     sessionId = state.sessionId,
                     body = mapOf("opened" to opened)
                 )
             } catch (e: Exception) {
-                logger.error("Failed to update inbox message $queueId opened status: ${e.message}")
+                logger.error("Failed to update inbox message ${message.toLogString()} opened status: ${e.message}")
             }
         }
     }
 
     override fun logDeleted(message: InboxMessage) {
-        val queueId = message.queueId ?: run {
-            logger.error("Cannot delete inbox message ${message.deliveryId}: missing queueId")
-            return
-        }
-
         scope.launch {
             try {
-                logger.debug("Deleting inbox message $queueId")
+                logger.debug("Deleting inbox message: ${message.toLogString()}")
                 gistQueueService.logUserMessageView(
-                    queueId = queueId,
+                    queueId = message.queueId,
                     sessionId = state.sessionId
                 )
             } catch (e: Exception) {
-                logger.error("Failed to delete inbox message: ${e.message}")
+                logger.error("Failed to delete inbox message ${message.toLogString()}: ${e.message}")
             }
         }
     }

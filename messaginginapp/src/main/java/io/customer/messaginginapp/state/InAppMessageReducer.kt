@@ -34,35 +34,23 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
 
         is InAppMessagingAction.InboxAction.UpdateOpened -> {
             // Update opened status for given message
-            // Only update if queueId is present (required for server sync)
             val queueId = action.message.queueId
-            val messages = state.inboxMessages
-
-            val updatedMessages = if (queueId == null) {
-                messages
-            } else {
-                messages.map { message ->
-                    if (message.queueId == queueId) {
-                        message.copy(opened = action.opened)
-                    } else {
-                        message
-                    }
-                }.toSet()
-            }
+            val updatedMessages = state.inboxMessages.map { message ->
+                if (message.queueId == queueId) {
+                    message.copy(opened = action.opened)
+                } else {
+                    message
+                }
+            }.toSet()
             state.copy(inboxMessages = updatedMessages)
         }
 
         is InAppMessagingAction.InboxAction.DeleteMessage -> {
             // Remove deleted message from state
-            // Only remove if queueId is present (required for server sync)
             val queueId = action.message.queueId
-            val messages = state.inboxMessages
-
-            val updatedMessages = if (queueId == null) {
-                messages
-            } else {
-                messages.filterNot { it.queueId == queueId }.toSet()
-            }
+            val updatedMessages = state.inboxMessages.filterNot {
+                it.queueId == queueId
+            }.toSet()
             state.copy(inboxMessages = updatedMessages)
         }
 

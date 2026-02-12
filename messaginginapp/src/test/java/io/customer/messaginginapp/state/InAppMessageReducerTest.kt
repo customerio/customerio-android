@@ -3,10 +3,10 @@ package io.customer.messaginginapp.state
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.GistProperties
-import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.testutils.core.JUnitTest
+import io.customer.messaginginapp.testutils.extension.createInboxMessage
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -83,7 +83,7 @@ class InAppMessageReducerTest : JUnitTest() {
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
         assertEquals(1, resultState.shownMessageQueueIds.size)
-        assertTrue(resultState.shownMessageQueueIds.contains(testMessage.queueId!!))
+        assertTrue(resultState.shownMessageQueueIds.contains(testMessage.queueId))
 
         val modalState = resultState.modalMessageState as ModalMessageState.Dismissed
         assertEquals(testMessage, modalState.message)
@@ -276,8 +276,8 @@ class InAppMessageReducerTest : JUnitTest() {
     @Test
     fun updateInboxMessageOpenedStatus_givenMatchingQueueId_expectMessageUpdated() {
         val queueId = "queue-123"
-        val message1 = InboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
-        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
 
         val startingState = initialState.copy(
             inboxMessages = setOf(message1, message2)
@@ -297,32 +297,10 @@ class InAppMessageReducerTest : JUnitTest() {
     }
 
     @Test
-    fun updateInboxMessageOpenedStatus_givenNullQueueId_expectStateUnchanged() {
-        val message1 = InboxMessage(deliveryId = "inbox1", queueId = null, opened = false)
-        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
-
-        val startingState = initialState.copy(
-            inboxMessages = setOf(message1, message2)
-        )
-
-        val action = InAppMessagingAction.InboxAction.UpdateOpened(
-            message = message1,
-            opened = true
-        )
-        val resultState = inAppMessagingReducer(startingState, action)
-
-        // State should remain unchanged when queueId is null
-        assertEquals(startingState.inboxMessages, resultState.inboxMessages)
-        resultState.inboxMessages.forEach { message ->
-            assertFalse(message.opened)
-        }
-    }
-
-    @Test
     fun updateInboxMessageOpenedStatus_givenMarkAsUnopened_expectOpenedSetToFalse() {
         val queueId = "queue-123"
-        val message1 = InboxMessage(deliveryId = "inbox1", queueId = queueId, opened = true)
-        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = true)
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = true)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = true)
 
         val startingState = initialState.copy(
             inboxMessages = setOf(message1, message2)
@@ -344,9 +322,9 @@ class InAppMessageReducerTest : JUnitTest() {
     @Test
     fun markInboxMessageDeleted_givenMatchingQueueId_expectMessageRemoved() {
         val queueId = "queue-123"
-        val message1 = InboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
-        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
-        val message3 = InboxMessage(deliveryId = "inbox3", queueId = "queue-789", opened = true)
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+        val message3 = createInboxMessage(deliveryId = "inbox3", queueId = "queue-789", opened = true)
 
         val startingState = initialState.copy(
             inboxMessages = setOf(message1, message2, message3)
@@ -362,23 +340,6 @@ class InAppMessageReducerTest : JUnitTest() {
         // Other messages should remain unchanged
         assertTrue(resultState.inboxMessages.any { it.queueId == "queue-456" })
         assertTrue(resultState.inboxMessages.any { it.queueId == "queue-789" })
-    }
-
-    @Test
-    fun markInboxMessageDeleted_givenNullQueueId_expectStateUnchanged() {
-        val message1 = InboxMessage(deliveryId = "inbox1", queueId = null, opened = false)
-        val message2 = InboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
-
-        val startingState = initialState.copy(
-            inboxMessages = setOf(message1, message2)
-        )
-
-        val action = InAppMessagingAction.InboxAction.DeleteMessage(message1)
-        val resultState = inAppMessagingReducer(startingState, action)
-
-        // State should remain unchanged when queueId is null
-        assertEquals(startingState.inboxMessages, resultState.inboxMessages)
-        assertEquals(2, resultState.inboxMessages.size)
     }
 
     /**

@@ -26,7 +26,6 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
         setupRecyclerView()
         setupSwipeRefresh()
         setupInbox()
-        fetchMessages()
     }
 
     private fun setupToolbar() {
@@ -59,10 +58,9 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
     private fun setupInbox() {
         inboxChangeListener = object : InboxChangeListener {
             override fun onInboxChanged(messages: List<InboxMessage>) {
-                runOnUiThread {
-                    updateMessages(messages)
-                    binding.swipeRefreshLayout.isRefreshing = false
-                }
+                updateMessages(messages)
+                hideLoading()
+                binding.swipeRefreshLayout.isRefreshing = false
             }
         }
 
@@ -71,7 +69,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
 
     private fun fetchMessages() {
         showLoading()
-        messageInbox.getMessages { result ->
+        messageInbox.fetchMessages { result ->
             runOnUiThread {
                 result.onSuccess { messages ->
                     updateMessages(messages)

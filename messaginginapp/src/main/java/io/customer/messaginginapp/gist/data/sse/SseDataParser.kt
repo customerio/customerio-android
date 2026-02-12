@@ -6,6 +6,8 @@ import com.google.gson.JsonSyntaxException
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageResponse
+import io.customer.messaginginapp.gist.data.model.response.toDomain
 
 internal class SseDataParser(
     private val sseLogger: InAppSseLogger,
@@ -28,7 +30,8 @@ internal class SseDataParser(
      * @return List of InboxMessage objects or empty list if parsing fails
      */
     fun parseInboxMessages(data: String): List<InboxMessage> {
-        return parseMessageArray(data, Array<InboxMessage>::class.java)
+        val response = parseMessageArray(data, Array<InboxMessageResponse>::class.java)
+        return response.map { it.toDomain() }
     }
 
     /**

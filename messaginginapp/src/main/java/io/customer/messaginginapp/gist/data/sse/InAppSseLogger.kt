@@ -219,6 +219,10 @@ internal class InAppSseLogger(private val logger: Logger) {
         logger.debug(tag = TAG, message = "Error parsing heartbeat timeout: $errorMessage, data: $data")
     }
 
+    fun logFilteredInvalidInboxMessages(count: Int) {
+        logger.debug(tag = TAG, message = "Filtered out $count invalid inbox message(s) from SSE")
+    }
+
     // =====================
     // Flow Collector Errors
     // =====================

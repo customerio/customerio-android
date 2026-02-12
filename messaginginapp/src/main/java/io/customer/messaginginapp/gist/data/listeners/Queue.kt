@@ -184,7 +184,10 @@ class Queue : GistQueue {
             // Process inbox messages next
             val inboxMessages = response.inboxMessages
             logger.debug("Found ${inboxMessages.count()} inbox messages for user")
-            val inboxMessagesMapped = inboxMessages.map { it.toDomain() }
+            val inboxMessagesMapped = inboxMessages.mapNotNull { it.toDomain() }
+            if (inboxMessagesMapped.size < inboxMessages.size) {
+                logger.debug("Filtered out ${inboxMessages.size - inboxMessagesMapped.size} invalid inbox message(s)")
+            }
             inAppMessagingManager.dispatch(InAppMessagingAction.ProcessInboxMessages(inboxMessagesMapped))
         }
     }

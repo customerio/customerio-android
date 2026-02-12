@@ -30,8 +30,14 @@ internal class SseDataParser(
      * @return List of InboxMessage objects or empty list if parsing fails
      */
     fun parseInboxMessages(data: String): List<InboxMessage> {
-        val response = parseMessageArray(data, Array<InboxMessageResponse>::class.java)
-        return response.map { it.toDomain() }
+        val responses = parseMessageArray(data, Array<InboxMessageResponse>::class.java)
+        val messages = responses.mapNotNull { it.toDomain() }
+
+        if (messages.size < responses.size) {
+            sseLogger.logFilteredInvalidInboxMessages(responses.size - messages.size)
+        }
+
+        return messages
     }
 
     /**

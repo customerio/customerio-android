@@ -62,17 +62,19 @@ fun createInboxMessage(
     opened: Boolean? = null,
     priority: Int? = null,
     properties: Map<String, Any?>? = null
-): InboxMessage = InboxMessageResponse(
-    queueId = queueId,
-    deliveryId = deliveryId,
-    expiry = expiry,
-    sentAt = sentAt,
-    topics = topics,
-    type = type,
-    opened = opened,
-    priority = priority,
-    properties = properties
-).toDomain()
+): InboxMessage = requireNotNull(
+    InboxMessageResponse(
+        queueId = queueId,
+        deliveryId = deliveryId,
+        expiry = expiry,
+        sentAt = sentAt,
+        topics = topics,
+        type = type,
+        opened = opened,
+        priority = priority,
+        properties = properties
+    ).toDomain()
+) { "Failed to create test InboxMessage - invalid queueId or sentAt" }
 
 fun createGistAction(action: String): String = "gist://$action"
 

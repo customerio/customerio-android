@@ -7,15 +7,28 @@ import io.customer.sdk.core.module.CustomerIOModule
  * Location module for Customer.io SDK.
  *
  * This module provides location tracking capabilities including:
- * - Permission and consent management
- * - One-shot location capture
- * - Continuous location tracking
+ * - Manual location setting from host app's existing location system
+ * - One-shot SDK-managed location capture
+ *
+ * Usage:
+ * ```
+ * val config = CustomerIOConfigBuilder(appContext, "your-api-key")
+ *     .addCustomerIOModule(
+ *         ModuleLocation(
+ *             LocationModuleConfig.Builder()
+ *                 .setEnableLocationTracking(true)
+ *                 .build()
+ *         )
+ *     )
+ *     .build()
+ *
+ * CustomerIO.initialize(config)
+ * ```
  */
-class ModuleLocation(
-    config: LocationModuleConfig
+class ModuleLocation @JvmOverloads constructor(
+    override val moduleConfig: LocationModuleConfig = LocationModuleConfig.Builder().build()
 ) : CustomerIOModule<LocationModuleConfig> {
     override val moduleName: String = MODULE_NAME
-    override val moduleConfig: LocationModuleConfig = config
 
     override fun initialize() {
         // Module initialization will be implemented in future PRs

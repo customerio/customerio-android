@@ -69,6 +69,12 @@ internal class EngineWebView @JvmOverloads constructor(
     fun onLifecycleResumed() {
         logger.info("EngineWebView onLifecycleResumed")
         webView?.let { engineWebViewInterface.attach(webView = it) }
+        // If timerTask exists but timer doesn't, we were paused mid-load
+        // Restart the timer with a fresh timeout duration
+        if (timerTask != null && timer == null) {
+            logger.debug("Resuming timeout timer after lifecycle resume")
+            setupTimeout()
+        }
     }
 
     override fun onPause(owner: LifecycleOwner) {
@@ -79,6 +85,7 @@ internal class EngineWebView @JvmOverloads constructor(
     fun onLifecyclePaused() {
         logger.info("EngineWebView onLifecyclePaused")
         webView?.let { engineWebViewInterface.detach(webView = it) }
+        pauseTimer()
     }
 
     /**
@@ -217,16 +224,33 @@ internal class EngineWebView @JvmOverloads constructor(
                 if (timer != null) {
                     logger.debug("Message global timeout, cancelling display.")
                     listener?.error()
-                    stopTimer()
+                    cleanupTimer()
                 }
             }
         }
         timer = Timer()
-        timer?.schedule(timerTask, 5000)
+        timer?.schedule(timerTask, TIMEOUT_DURATION)
+    }
+
+    /**
+     * Pauses the timeout timer when the app goes to background.
+     * Cancels the timer but keeps timerTask as a signal that we need to restart on resume.
+     */
+    private fun pauseTimer() {
+        if (timer == null) return
+        logger.debug("Pausing timeout timer")
+        timer?.cancel()
+        timer?.purge()
+        timer = null
+        // Note: timerTask remains non-null as signal that we need to restart on resume
+    }
+
+    companion object {
+        private const val TIMEOUT_DURATION = 5000L
     }
 
     override fun bootstrapped() {
-        stopTimer()
+        cleanupTimer()
         listener?.bootstrapped()
     }
 
@@ -256,8 +280,14 @@ internal class EngineWebView @JvmOverloads constructor(
         listener?.error()
     }
 
-    private fun stopTimer() {
+    /**
+     * Fully cleans up the timeout timer.
+     * Called when loading completes (success or timeout).
+     * Nulls out both timer and timerTask to indicate we're no longer waiting for load.
+     */
+    private fun cleanupTimer() {
         timerTask?.cancel()
+        timerTask = null
         timer?.cancel()
         timer?.purge()
         timer = null

@@ -17,11 +17,14 @@ sealed class Event {
     // Timestamp of the event
     open val timestamp: Date = Date()
 
-    data class ProfileIdentifiedEvent(
-        val identifier: String
-    ) : Event()
-
-    data class AnonymousIdGeneratedEvent(
+    /**
+     * Event published when user identity changes (identify or clearIdentify).
+     *
+     * @param userId The user ID if identified, null if anonymous
+     * @param anonymousId The anonymous ID (always present)
+     */
+    data class UserChangedEvent(
+        val userId: String?,
         val anonymousId: String
     ) : Event()
 

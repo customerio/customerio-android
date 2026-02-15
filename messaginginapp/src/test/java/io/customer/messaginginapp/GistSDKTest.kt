@@ -84,14 +84,14 @@ class GistSDKTest : JUnitTest() {
     }
 
     @Test
-    fun setUserId_givenNewUserId_expectSetUserIdentifierActionDispatchedAndMessagesFetched() = runTest {
+    fun setUserId_givenNewUserId_expectSetUserIdentifierActionDispatchedWithoutFetch() = runTest {
         val givenUserId = String.random
 
         gistSdk.setUserId(givenUserId)
 
         assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
-        // fetchUserMessages() is called in a timer with initialDelay=0, so we use timeout
-        verify(timeout = 1000, exactly = 1) { mockGistQueue.fetchUserMessages() }
+        // fetch is now controlled by event handler, not setUserId
+        verify(exactly = 0) { mockGistQueue.fetchUserMessages() }
     }
 
     @Test
@@ -132,9 +132,8 @@ class GistSDKTest : JUnitTest() {
 
         gistSdk.setUserId(givenUserId)
 
-        // verify first call actions (use timeout for async timer)
+        // verify first call dispatches the action
         verify(exactly = 1) { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
-        verify(timeout = 1000, exactly = 1) { mockGistQueue.fetchUserMessages() }
 
         // clear invocations to start fresh for the second call
         clearMocks(mockInAppMessagingManager, mockGistQueue)
@@ -145,12 +144,9 @@ class GistSDKTest : JUnitTest() {
         // second call with the same user ID
         gistSdk.setUserId(givenUserId)
 
-        // verify no additional actions on second call
+        // verify no additional actions on second call (state unchanged)
         verify(exactly = 0) {
             mockInAppMessagingManager.dispatch(any<InAppMessagingAction.SetUserIdentifier>())
-        }
-        verify(exactly = 0) {
-            mockGistQueue.fetchUserMessages()
         }
     }
 

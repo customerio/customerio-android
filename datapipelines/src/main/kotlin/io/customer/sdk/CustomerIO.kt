@@ -137,14 +137,8 @@ class CustomerIO private constructor(
 
     private fun postUserIdentificationEvents() {
         val userId = analytics.userId()
-        if (userId != null) {
-            eventBus.publish(Event.ProfileIdentifiedEvent(identifier = userId))
-        } else {
-            val anonymousId = analytics.anonymousId()
-            if (anonymousId.isNotBlank()) {
-                eventBus.publish(Event.AnonymousIdGeneratedEvent(anonymousId = anonymousId))
-            }
-        }
+        val anonymousId = analytics.anonymousId()
+        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId))
     }
 
     private fun subscribeToJourneyEvents() {
@@ -249,7 +243,7 @@ class CustomerIO private constructor(
 
         logger.info("identify profile with identifier $userId and traits $traits")
         // publish event to EventBus for other modules to consume
-        eventBus.publish(Event.ProfileIdentifiedEvent(identifier = userId))
+        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
         analytics.identify(
             userId = userId,
             traits = traits,
@@ -307,6 +301,9 @@ class CustomerIO private constructor(
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
         analytics.reset()
+
+        val newAnonymousId = analytics.anonymousId()
+        eventBus.publish(Event.UserChangedEvent(userId = null, anonymousId = newAnonymousId))
     }
 
     override val registeredDeviceToken: String?

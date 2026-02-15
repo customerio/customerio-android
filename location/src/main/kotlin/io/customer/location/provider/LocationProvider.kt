@@ -22,12 +22,6 @@ internal interface LocationProvider {
     suspend fun requestLocation(granularity: LocationGranularity): LocationSnapshot
 
     /**
-     * Cancels any in-flight location request. Idempotent - safe to call
-     * even when no request is in progress.
-     */
-    suspend fun cancelRequestLocation()
-
-    /**
      * Current authorization state for location access.
      * Used for pre-checks before requesting location.
      */

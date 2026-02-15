@@ -93,4 +93,52 @@
     <string name="title_inline_recycler">RecyclerView</string>
     <string name="inline_examples_tabbed">Inline Examples</string>
 
+    <!-- Location -->
+    <string name="location_test">Location Test</string>
+    <string name="location_test_title">Location Test</string>
+    <string name="or_separator">OR</string>
+
+    <!-- Location Test - Section Titles -->
+    <string name="location_option_presets">OPTION 1: QUICK PRESETS</string>
+    <string name="location_option_sdk">OPTION 2: SDK LOCATION</string>
+    <string name="location_option_device">OPTION 3: MANUALLY SET FROM DEVICE</string>
+    <string name="location_option_manual">OPTION 4: MANUAL ENTRY</string>
+
+    <!-- Location Test - Descriptions -->
+    <string name="location_presets_description">Tap a city to set its coordinates</string>
+    <string name="location_sdk_description">Ask for permission if needed, then SDK fetches location once. Use \"Stop updates\" to cancel.</string>
+    <string name="location_device_description">Fetches coordinates from device (GPS, Wi-Fi, or cell) and sends them to the SDK via setLastKnownLocation.</string>
+    <string name="location_manual_description">Enter custom coordinates</string>
+
+    <!-- Location Test - Preset Cities -->
+    <string name="preset_new_york">New York</string>
+    <string name="preset_london">London</string>
+    <string name="preset_tokyo">Tokyo</string>
+    <string name="preset_sydney">Sydney</string>
+    <string name="preset_sao_paulo">São Paulo</string>
+    <string name="preset_zero">0, 0</string>
+
+    <!-- Location Test - Buttons -->
+    <string name="request_location_once_sdk">Request location once (SDK)</string>
+    <string name="stop_location_updates">Stop location updates</string>
+    <string name="use_current_location">Use Current Location</string>
+    <string name="latitude">Latitude</string>
+    <string name="longitude">Longitude</string>
+    <string name="set_location">Set Location</string>
+
+    <!-- Location Test - Messages -->
+    <string name="location_permission_required">Location Permission Required</string>
+    <string name="location_permission_failure">Please enable location access in Settings to use this feature.</string>
+    <string name="no_location_set">No location set yet</string>
+    <string name="last_set_format">Last set: %1$.4f, %2$.4f%3$s</string>
+    <string name="location_set_success">Location set successfully%1$s</string>
+    <string name="enter_valid_coordinates">Please enter valid coordinates</string>
+    <string name="requesting_location_sdk">Requesting location once (SDK)…</string>
+    <string name="sdk_requested_location">SDK requested location update</string>
+    <string name="location_updates_stopped">Location updates stopped</string>
+    <string name="stopped_location_updates">Stopped location updates</string>
+    <string name="fetching_location">Fetching…</string>
+    <string name="location_not_available">Could not get device location</string>
+    <string name="label_location_test_activity">LocationTestActivity</string>
+
 </resources>

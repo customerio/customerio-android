@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.location.provider.FusedLocationProvider
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.Logger
@@ -26,8 +27,11 @@ import io.customer.sdk.core.util.Logger
  *
  * CustomerIO.initialize(config)
  *
- * // Then use the location services
+ * // Manual location from host app
  * ModuleLocation.instance().locationServices.setLastKnownLocation(37.7749, -122.4194)
+ *
+ * // SDK-managed one-shot location
+ * ModuleLocation.instance().locationServices.requestLocationUpdate()
  * ```
  */
 class ModuleLocation @JvmOverloads constructor(
@@ -52,10 +56,24 @@ class ModuleLocation @JvmOverloads constructor(
         get() = _locationServices ?: UninitializedLocationServices(SDKComponent.logger)
 
     override fun initialize() {
+        val logger = SDKComponent.logger
+        val eventBus = SDKComponent.eventBus
+        val context = SDKComponent.android().applicationContext
+
+        val locationProvider = FusedLocationProvider(context)
+        val orchestrator = LocationOrchestrator(
+            config = moduleConfig,
+            logger = logger,
+            eventBus = eventBus,
+            locationProvider = locationProvider
+        )
+
         _locationServices = LocationServicesImpl(
             config = moduleConfig,
-            logger = SDKComponent.logger,
-            eventBus = SDKComponent.eventBus
+            logger = logger,
+            eventBus = eventBus,
+            orchestrator = orchestrator,
+            scope = SDKComponent.scopeProvider.locationScope
         )
     }
 
@@ -92,7 +110,7 @@ private class UninitializedLocationServices(
 
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
-    override fun requestLocationUpdateOnce() = logNotInitialized()
+    override fun requestLocationUpdate() = logNotInitialized()
 
     override fun stopLocationUpdates() = logNotInitialized()
 }

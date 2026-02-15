@@ -250,6 +250,7 @@ public abstract interface class io/customer/sdk/core/util/ScopeProvider {
 	public abstract fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getInAppLifecycleScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
+	public abstract fun getLocationScope ()Lkotlinx/coroutines/CoroutineScope;
 }
 
 public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/core/util/DispatchersProvider {
@@ -264,6 +265,7 @@ public final class io/customer/sdk/core/util/SdkScopeProvider : io/customer/sdk/
 	public fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getInAppLifecycleScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
+	public fun getLocationScope ()Lkotlinx/coroutines/CoroutineScope;
 }
 
 public abstract class io/customer/sdk/data/model/Region {

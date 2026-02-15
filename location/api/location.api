@@ -10,12 +10,20 @@ public final class io/customer/location/LocationModuleConfig$Builder : io/custom
 	public final fun setEnableLocationTracking (Z)Lio/customer/location/LocationModuleConfig$Builder;
 }
 
+public abstract interface class io/customer/location/LocationServices {
+	public abstract fun requestLocationUpdateOnce ()V
+	public abstract fun setLastKnownLocation (DD)V
+	public abstract fun setLastKnownLocation (Landroid/location/Location;)V
+	public abstract fun stopLocationUpdates ()V
+}
+
 public final class io/customer/location/ModuleLocation : io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/location/ModuleLocation$Companion;
 	public static final field MODULE_NAME Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (Lio/customer/location/LocationModuleConfig;)V
 	public synthetic fun <init> (Lio/customer/location/LocationModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getLocationServices ()Lio/customer/location/LocationServices;
 	public fun getModuleConfig ()Lio/customer/location/LocationModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;

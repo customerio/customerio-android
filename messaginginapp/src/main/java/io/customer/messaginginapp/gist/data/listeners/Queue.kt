@@ -118,12 +118,16 @@ internal class Queue : GistQueue {
         return response
     }
 
-    // Populates 304 response body with cached data while keeping the 304 status code
+    // Populates 304 response body with cached data and converts to 200 for Retrofit compatibility.
+    // Retrofit only populates body() for 2xx responses, so we must convert 304->200.
+    // Adds custom header to track that this was originally a 304 response.
     private fun interceptNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         val cachedResponse = inAppPreferenceStore.getNetworkResponse(originalRequest.url.toString())
         return cachedResponse?.let {
             response.newBuilder()
                 .body(it.toResponseBody(null))
+                .code(200)
+                .header(HEADER_FROM_CACHE, "true")
                 .build()
         } ?: response
     }
@@ -134,20 +138,11 @@ internal class Queue : GistQueue {
                 logger.debug("Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
-                when (val code = latestMessagesResponse.code()) {
-                    200 -> handleSuccessfulFetch(latestMessagesResponse.body(), fromCache = false)
-                    304 -> {
-                        val responseBody = latestMessagesResponse.body()
-                        // 304 requires cached data - if cache is empty, clear messages
-                        if (responseBody == null) {
-                            handleNoContent(code)
-                        } else {
-                            handleSuccessfulFetch(responseBody, fromCache = true)
-                        }
-                    }
-
-                    204 -> handleNoContent(code)
-                    else -> handleFailedFetch(code)
+                val fromCache = latestMessagesResponse.headers()[HEADER_FROM_CACHE] == "true"
+                when (latestMessagesResponse.code()) {
+                    200 -> handleSuccessfulFetch(latestMessagesResponse.body(), fromCache)
+                    204, 304 -> handleNoContent(latestMessagesResponse.code())
+                    else -> handleFailedFetch(latestMessagesResponse.code())
                 }
 
                 updatePollingInterval(latestMessagesResponse.headers())
@@ -290,5 +285,10 @@ internal class Queue : GistQueue {
                 logger.error("Failed to delete inbox message ${message.toLogString()}: ${e.message}")
             }
         }
+    }
+
+    companion object {
+        // Custom header to distinguish 304 responses (converted to 200) from genuine 200 responses
+        private const val HEADER_FROM_CACHE = "X-CIO-MOBILE-SDK-Cache"
     }
 }

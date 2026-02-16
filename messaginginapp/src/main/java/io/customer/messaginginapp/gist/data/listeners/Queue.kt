@@ -138,11 +138,16 @@ internal class Queue : GistQueue {
                 logger.debug("Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
+                val code = latestMessagesResponse.code()
                 val fromCache = latestMessagesResponse.headers()[HEADER_FROM_CACHE] == "true"
-                when (latestMessagesResponse.code()) {
-                    200 -> handleSuccessfulFetch(latestMessagesResponse.body(), fromCache)
-                    204, 304 -> handleNoContent(latestMessagesResponse.code())
-                    else -> handleFailedFetch(latestMessagesResponse.code())
+                when {
+                    (code == 204 || code == 304) -> handleNoContent(code)
+                    latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(
+                        responseBody = latestMessagesResponse.body(),
+                        fromCache = fromCache
+                    )
+
+                    else -> handleFailedFetch(code)
                 }
 
                 updatePollingInterval(latestMessagesResponse.headers())
@@ -276,7 +281,7 @@ internal class Queue : GistQueue {
                 logger.debug("Deleting inbox message: ${message.toLogString()}")
                 // Clear any cached opened status for deleted message
                 inAppPreferenceStore.clearInboxMessageOpenedStatus(message.queueId)
-                // Log deletion as a view event to server
+                // Log deletion event to server
                 gistQueueService.logUserMessageView(
                     queueId = message.queueId,
                     sessionId = state.sessionId

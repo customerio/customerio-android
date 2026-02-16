@@ -58,21 +58,6 @@ public final class io/customer/messaginginapp/gist/data/NetworkUtilities {
 public final class io/customer/messaginginapp/gist/data/NetworkUtilities$Companion {
 }
 
-public abstract interface class io/customer/messaginginapp/gist/data/listeners/GistQueue {
-	public abstract fun fetchUserMessages ()V
-	public abstract fun logDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
-	public abstract fun logOpenedStatus (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Z)V
-	public abstract fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
-}
-
-public final class io/customer/messaginginapp/gist/data/listeners/Queue : io/customer/messaginginapp/gist/data/listeners/GistQueue {
-	public fun <init> ()V
-	public fun fetchUserMessages ()V
-	public fun logDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
-	public fun logOpenedStatus (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Z)V
-	public fun logView (Lio/customer/messaginginapp/gist/data/model/Message;)V
-}
-
 public final class io/customer/messaginginapp/gist/data/model/BroadcastFrequency {
 	public fun <init> (IIZ)V
 	public synthetic fun <init> (IIZILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -242,24 +227,6 @@ public final class io/customer/messaginginapp/inbox/MessageInbox {
 	public final fun trackMessageClicked (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun trackMessageClicked (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;)V
 	public static synthetic fun trackMessageClicked$default (Lio/customer/messaginginapp/inbox/MessageInbox;Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;ILjava/lang/Object;)V
-}
-
-public abstract interface class io/customer/messaginginapp/store/InAppPreferenceStore {
-	public abstract fun clearAll ()V
-	public abstract fun clearAllAnonymousData ()V
-	public abstract fun clearAnonymousTracking (Ljava/lang/String;)V
-	public abstract fun getAnonymousMessages ()Ljava/lang/String;
-	public abstract fun getAnonymousNextShowTime (Ljava/lang/String;)J
-	public abstract fun getAnonymousTimesShown (Ljava/lang/String;)I
-	public abstract fun getNetworkResponse (Ljava/lang/String;)Ljava/lang/String;
-	public abstract fun incrementAnonymousTimesShown (Ljava/lang/String;)V
-	public abstract fun isAnonymousDismissed (Ljava/lang/String;)Z
-	public abstract fun isAnonymousInDelayPeriod (Ljava/lang/String;)Z
-	public abstract fun isAnonymousMessagesExpired ()Z
-	public abstract fun saveAnonymousMessages (Ljava/lang/String;J)V
-	public abstract fun saveNetworkResponse (Ljava/lang/String;Ljava/lang/String;)V
-	public abstract fun setAnonymousDismissed (Ljava/lang/String;Z)V
-	public abstract fun setAnonymousNextShowTime (Ljava/lang/String;J)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

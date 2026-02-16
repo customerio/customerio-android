@@ -48,14 +48,14 @@ internal interface GistQueueService {
     suspend fun logInboxMessageOpened(@Path("queueId") queueId: String, @Query("sessionId") sessionId: String, @Body body: Map<String, Boolean>)
 }
 
-interface GistQueue {
+internal interface GistQueue {
     fun fetchUserMessages()
     fun logView(message: Message)
     fun logOpenedStatus(message: InboxMessage, opened: Boolean)
     fun logDeleted(message: InboxMessage)
 }
 
-class Queue : GistQueue {
+internal class Queue : GistQueue {
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
@@ -118,12 +118,12 @@ class Queue : GistQueue {
         return response
     }
 
+    // Populates 304 response body with cached data while keeping the 304 status code
     private fun interceptNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         val cachedResponse = inAppPreferenceStore.getNetworkResponse(originalRequest.url.toString())
         return cachedResponse?.let {
             response.newBuilder()
                 .body(it.toResponseBody(null))
-                .code(200)
                 .build()
         } ?: response
     }
@@ -134,10 +134,19 @@ class Queue : GistQueue {
                 logger.debug("Fetching user messages")
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
-                val code = latestMessagesResponse.code()
-                when {
-                    (code == 204 || code == 304) -> handleNoContent(code)
-                    latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(latestMessagesResponse.body())
+                when (val code = latestMessagesResponse.code()) {
+                    200 -> handleSuccessfulFetch(latestMessagesResponse.body(), fromCache = false)
+                    304 -> {
+                        val responseBody = latestMessagesResponse.body()
+                        // 304 requires cached data - if cache is empty, clear messages
+                        if (responseBody == null) {
+                            handleNoContent(code)
+                        } else {
+                            handleSuccessfulFetch(responseBody, fromCache = true)
+                        }
+                    }
+
+                    204 -> handleNoContent(code)
                     else -> handleFailedFetch(code)
                 }
 
@@ -154,7 +163,9 @@ class Queue : GistQueue {
         inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
     }
 
-    private fun handleSuccessfulFetch(responseBody: QueueMessagesResponse?) {
+    // For cached responses (304), apply locally cached opened status to preserve user's changes.
+    // For fresh responses (200), clear cached status and use server's data.
+    private fun handleSuccessfulFetch(responseBody: QueueMessagesResponse?, fromCache: Boolean) {
         if (responseBody == null) {
             logger.error("Received null response body for successful fetch")
             return
@@ -184,7 +195,19 @@ class Queue : GistQueue {
             // Process inbox messages next
             val inboxMessages = response.inboxMessages
             logger.debug("Found ${inboxMessages.count()} inbox messages for user")
-            val inboxMessagesMapped = inboxMessages.mapNotNull { it.toDomain() }
+            val inboxMessagesMapped = inboxMessages.mapNotNull { item ->
+                item.toDomain()?.let { message ->
+                    if (fromCache) {
+                        // 304: apply cached opened status if available
+                        val cachedOpenedStatus = inAppPreferenceStore.getInboxMessageOpenedStatus(message.queueId)
+                        return@let cachedOpenedStatus?.let { message.copy(opened = it) } ?: message
+                    } else {
+                        // 200: clear cached status and use server's data
+                        inAppPreferenceStore.clearInboxMessageOpenedStatus(message.queueId)
+                        return@let message
+                    }
+                }
+            }
             if (inboxMessagesMapped.size < inboxMessages.size) {
                 logger.debug("Filtered out ${inboxMessages.size - inboxMessagesMapped.size} invalid inbox message(s)")
             }
@@ -238,6 +261,9 @@ class Queue : GistQueue {
         scope.launch {
             try {
                 logger.debug("Updating inbox message ${message.toLogString()} opened status to: $opened")
+                // Cache the opened status locally for 304 responses
+                inAppPreferenceStore.saveInboxMessageOpenedStatus(message.queueId, opened)
+                // Log updated opened status to server
                 gistQueueService.logInboxMessageOpened(
                     queueId = message.queueId,
                     sessionId = state.sessionId,
@@ -253,6 +279,9 @@ class Queue : GistQueue {
         scope.launch {
             try {
                 logger.debug("Deleting inbox message: ${message.toLogString()}")
+                // Clear any cached opened status for deleted message
+                inAppPreferenceStore.clearInboxMessageOpenedStatus(message.queueId)
+                // Log deletion as a view event to server
                 gistQueueService.logUserMessageView(
                     queueId = message.queueId,
                     sessionId = state.sessionId

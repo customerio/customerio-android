@@ -1,3 +1,9 @@
+## [4.15.2](https://github.com/customerio/customerio-android/compare/4.15.1...4.15.2) (2026-02-16)
+
+### Bug Fixes
+
+* Downgrade OkHttp to v4 ([#653](https://github.com/customerio/customerio-android/issues/653)) ([8d97548](https://github.com/customerio/customerio-android/commit/8d975488d6baac398ae6a6353fc50e1f53e305a0))
+
 ## [4.15.1](https://github.com/customerio/customerio-android/compare/4.15.0...4.15.1) (2026-02-04)
 
 ### Bug Fixes

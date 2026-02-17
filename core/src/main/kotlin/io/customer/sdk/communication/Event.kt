@@ -51,4 +51,23 @@ sealed class Event {
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()
+
+    /**
+     * Event emitted when a location update should be tracked.
+     * Published by the Location module and consumed by DataPipeline
+     * to send location data to Customer.io servers.
+     */
+    data class TrackLocationEvent(
+        val location: LocationData
+    ) : Event()
+
+    /**
+     * Location data in a framework-agnostic format.
+     * Used to pass location information between modules without
+     * requiring Android location framework imports.
+     */
+    data class LocationData(
+        val latitude: Double,
+        val longitude: Double
+    )
 }

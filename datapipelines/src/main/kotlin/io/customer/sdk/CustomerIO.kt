@@ -151,6 +151,21 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
         }
+        eventBus.subscribe<Event.TrackLocationEvent> {
+            trackLocation(it)
+        }
+    }
+
+    private fun trackLocation(event: Event.TrackLocationEvent) {
+        val location = event.location
+        logger.debug("tracking location update: lat=${location.latitude}, lng=${location.longitude}")
+        track(
+            name = EventNames.LOCATION_UPDATE,
+            properties = mapOf(
+                "lat" to location.latitude,
+                "lng" to location.longitude
+            )
+        )
     }
 
     private fun migrateTrackingEvents() {

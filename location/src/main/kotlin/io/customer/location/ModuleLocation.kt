@@ -1,7 +1,9 @@
 package io.customer.location
 
+import android.location.Location
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.util.Logger
 
 /**
  * Location module for Customer.io SDK.
@@ -23,6 +25,9 @@ import io.customer.sdk.core.module.CustomerIOModule
  *     .build()
  *
  * CustomerIO.initialize(config)
+ *
+ * // Then use the location services
+ * ModuleLocation.instance().locationServices.setLastKnownLocation(37.7749, -122.4194)
  * ```
  */
 class ModuleLocation @JvmOverloads constructor(
@@ -30,17 +35,64 @@ class ModuleLocation @JvmOverloads constructor(
 ) : CustomerIOModule<LocationModuleConfig> {
     override val moduleName: String = MODULE_NAME
 
+    private var _locationServices: LocationServices? = null
+
+    /**
+     * Access the location services API.
+     *
+     * This property is only usable after [CustomerIO.initialize] has been called with
+     * [ModuleLocation] registered. The SDK calls [initialize] on all registered modules
+     * during startup, which wires up the real implementation.
+     *
+     * If accessed before initialization (e.g. calling location APIs before
+     * [CustomerIO.initialize]), calls will no-op and log an error instead of crashing.
+     * This guards against race conditions during app startup or incorrect call order.
+     */
+    val locationServices: LocationServices
+        get() = _locationServices ?: UninitializedLocationServices(SDKComponent.logger)
+
     override fun initialize() {
-        // Module initialization will be implemented in future PRs
+        _locationServices = LocationServicesImpl(
+            config = moduleConfig,
+            logger = SDKComponent.logger,
+            eventBus = SDKComponent.eventBus
+        )
     }
 
     companion object {
         const val MODULE_NAME: String = "Location"
 
+        /**
+         * Returns the initialized [ModuleLocation] instance.
+         *
+         * @throws IllegalStateException if the module hasn't been registered with the SDK
+         */
         @JvmStatic
         fun instance(): ModuleLocation {
             return SDKComponent.modules[MODULE_NAME] as? ModuleLocation
-                ?: throw IllegalStateException("ModuleLocation not initialized")
+                ?: throw IllegalStateException("ModuleLocation not initialized. Add ModuleLocation to CustomerIOConfigBuilder before calling CustomerIO.initialize().")
         }
     }
+}
+
+/**
+ * No-op fallback returned when [ModuleLocation.locationServices] is accessed
+ * before the SDK has been initialized. Logs an error for each call to help
+ * developers diagnose incorrect call order during development.
+ */
+private class UninitializedLocationServices(
+    private val logger: Logger
+) : LocationServices {
+
+    private fun logNotInitialized() {
+        logger.error("Location module is not initialized. Call CustomerIO.initialize() with ModuleLocation before using location APIs.")
+    }
+
+    override fun setLastKnownLocation(latitude: Double, longitude: Double) = logNotInitialized()
+
+    override fun setLastKnownLocation(location: Location) = logNotInitialized()
+
+    override fun requestLocationUpdateOnce() = logNotInitialized()
+
+    override fun stopLocationUpdates() = logNotInitialized()
 }

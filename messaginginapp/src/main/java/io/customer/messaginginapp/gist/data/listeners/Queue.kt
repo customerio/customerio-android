@@ -261,14 +261,14 @@ internal class Queue : GistQueue {
         scope.launch {
             try {
                 logger.debug("Updating inbox message ${message.toLogString()} opened status to: $opened")
-                // Cache the opened status locally for 304 responses
-                inAppPreferenceStore.saveInboxMessageOpenedStatus(message.queueId, opened)
                 // Log updated opened status to server
                 gistQueueService.logInboxMessageOpened(
                     queueId = message.queueId,
                     sessionId = state.sessionId,
                     body = mapOf("opened" to opened)
                 )
+                // Cache the opened status locally for 304 responses
+                inAppPreferenceStore.saveInboxMessageOpenedStatus(message.queueId, opened)
             } catch (e: Exception) {
                 logger.error("Failed to update inbox message ${message.toLogString()} opened status: ${e.message}")
             }
@@ -279,13 +279,13 @@ internal class Queue : GistQueue {
         scope.launch {
             try {
                 logger.debug("Deleting inbox message: ${message.toLogString()}")
-                // Clear any cached opened status for deleted message
-                inAppPreferenceStore.clearInboxMessageOpenedStatus(message.queueId)
                 // Log deletion event to server
                 gistQueueService.logUserMessageView(
                     queueId = message.queueId,
                     sessionId = state.sessionId
                 )
+                // Clear any cached opened status for deleted message
+                inAppPreferenceStore.clearInboxMessageOpenedStatus(message.queueId)
             } catch (e: Exception) {
                 logger.error("Failed to delete inbox message ${message.toLogString()}: ${e.message}")
             }

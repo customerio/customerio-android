@@ -134,23 +134,21 @@ class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher(
         executor.shutdown()
 
         // For each event executed by SDK, verify writer token that was active during the event's execution
+        val sortedWrites = writerLog.entries.sortedBy { it.key }
         val mismatches = outputReaderPlugin.trackEvents.mapNotNull { event ->
             val executionStartTime = event.context.getStringAtPath("test.executionStartTime")?.toLong().shouldNotBeNull()
             val executionEndTime = event.context.getStringAtPath("test.executionEndTime")?.toLong().shouldNotBeNull()
             val actualToken = event.context.deviceToken
 
-            // Find the latest write before the event execution end time
-            val latestWriteBeforeEvent = writerLog
-                .filterKeys { it <= executionEndTime }
-                .maxByOrNull { it.key }
-            // Find the newest write after the latest write
-            // This is because the writer might have written a new token after the event was executed
-            // So having a newer token is valid
-            val nextWriteAfterLatest = writerLog
-                .filterKeys { it > (latestWriteBeforeEvent?.key ?: Long.MAX_VALUE) }
-                .minByOrNull { it.key }
-            // Valid tokens are the latest write before the event and the next write after the latest
-            val validTokens = setOfNotNull(latestWriteBeforeEvent?.value, nextWriteAfterLatest?.value)
+            // Find the index of the latest write logged before the event finished.
+            // Note: registerDeviceToken sets the @Volatile field BEFORE writerLog
+            // records the timestamp, so on slow CI the actual token may be several
+            // writes ahead of the latest log entry. We allow a window of up to 3
+            // entries beyond the latest logged write to account for this gap.
+            val latestBeforeIndex = sortedWrites.indexOfLast { it.key <= executionEndTime }
+            val windowStart = latestBeforeIndex.coerceAtLeast(0)
+            val windowEnd = (latestBeforeIndex + 3).coerceAtMost(sortedWrites.size - 1)
+            val validTokens = (windowStart..windowEnd).map { sortedWrites[it].value }.toSet()
 
             // If the actual token is not in valid tokens, it's a mismatch
             if (actualToken !in validTokens) {

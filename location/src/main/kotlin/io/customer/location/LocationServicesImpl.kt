@@ -4,18 +4,27 @@ import android.location.Location
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.util.Logger
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Real implementation of [LocationServices].
- * Handles manual location setting with validation and config checks.
- *
- * SDK-managed location (requestLocationUpdateOnce) will be implemented in a future PR.
+ * Handles manual location setting with validation and config checks,
+ * and SDK-managed one-shot location via [LocationOrchestrator].
  */
 internal class LocationServicesImpl(
     private val config: LocationModuleConfig,
     private val logger: Logger,
-    private val eventBus: EventBus
+    private val eventBus: EventBus,
+    private val orchestrator: LocationOrchestrator,
+    private val scope: CoroutineScope
 ) : LocationServices {
+
+    private val lock = ReentrantLock()
+    private var currentLocationJob: Job? = null
 
     override fun setLastKnownLocation(latitude: Double, longitude: Double) {
         if (!config.enableLocationTracking) {
@@ -41,14 +50,35 @@ internal class LocationServicesImpl(
         setLastKnownLocation(location.latitude, location.longitude)
     }
 
-    override fun requestLocationUpdateOnce() {
-        // Will be implemented in the SDK-managed location PR
-        logger.debug("requestLocationUpdateOnce is not yet implemented.")
+    override fun requestLocationUpdate() {
+        lock.withLock {
+            // Cancel any previous in-flight request
+            currentLocationJob?.cancel()
+
+            currentLocationJob = scope.launch {
+                val thisJob = coroutineContext[Job]
+                try {
+                    orchestrator.requestLocationUpdate()
+                } finally {
+                    lock.withLock {
+                        if (currentLocationJob === thisJob) {
+                            currentLocationJob = null
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun stopLocationUpdates() {
-        // Will be implemented in the SDK-managed location PR
-        logger.debug("stopLocationUpdates is not yet implemented.")
+        val job: Job?
+        lock.withLock {
+            job = currentLocationJob
+            currentLocationJob = null
+        }
+        // Cancelling the job triggers invokeOnCancellation in FusedLocationProvider's
+        // suspendCancellableCoroutine, which cancels the CancellationTokenSource.
+        job?.cancel()
     }
 
     companion object {

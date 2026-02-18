@@ -50,7 +50,7 @@ interface LocationServices {
      * The SDK does not request location permission. The host app must request
      * runtime permissions and only call this when permission is granted.
      */
-    fun requestLocationUpdateOnce()
+    fun requestLocationUpdate()
 
     /**
      * Cancels any in-flight location request.

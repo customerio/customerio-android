@@ -25,6 +25,7 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
+import io.customer.datapipelines.plugins.LocationPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -107,6 +108,7 @@ class CustomerIO private constructor(
     )
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+    private val locationPlugin: LocationPlugin = LocationPlugin(logger)
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -127,6 +129,7 @@ class CustomerIO private constructor(
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
+        analytics.add(locationPlugin)
         analytics.add(ApplicationLifecyclePlugin())
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
@@ -159,11 +162,16 @@ class CustomerIO private constructor(
     private fun trackLocation(event: Event.TrackLocationEvent) {
         val location = event.location
         logger.debug("tracking location update: lat=${location.latitude}, lng=${location.longitude}")
+
+        // Cache location for enriching future identify events
+        locationPlugin.lastLocation = location
+
         track(
             name = EventNames.LOCATION_UPDATE,
             properties = mapOf(
                 "lat" to location.latitude,
-                "lng" to location.longitude
+                "lng" to location.longitude,
+                LocationPlugin.INTERNAL_LOCATION_KEY to true
             )
         )
     }

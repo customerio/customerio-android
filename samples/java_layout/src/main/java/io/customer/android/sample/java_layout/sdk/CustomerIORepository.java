@@ -13,6 +13,7 @@ import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
+import io.customer.location.ModuleLocation;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOConfig;
@@ -37,6 +38,9 @@ public class CustomerIORepository {
         // Enable optional features of the SDK by adding desired modules.
         // Enables push notification
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+
+        // Enables location tracking
+        builder.addCustomerIOModule(new ModuleLocation());
 
         // Enables in-app messages
         if (sdkConfig.isInAppMessagingEnabled()) {

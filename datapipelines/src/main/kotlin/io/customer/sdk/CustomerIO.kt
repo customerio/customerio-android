@@ -111,7 +111,7 @@ class CustomerIO private constructor(
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
     private val locationPlugin: LocationPlugin = LocationPlugin(logger)
-    private val locationTracker: LocationTracker = LocationTracker(locationPlugin, SDKComponent.locationPreferenceStore, logger)
+    private val locationTracker: LocationTracker = LocationTracker(locationPlugin, SDKComponent.locationPreferenceStore, logger) { analytics.userId() }
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -163,6 +163,7 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.TrackLocationEvent> {
             locationTracker.onLocationReceived(it)?.let { location ->
                 sendLocationTrack(location)
+                locationTracker.confirmSync(location.latitude, location.longitude)
             }
         }
     }
@@ -213,9 +214,10 @@ class CustomerIO private constructor(
             analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
         }
 
-        // Re-send location if >24h since last "Location Update" track
-        locationTracker.getStaleLocationForResend()?.let { location ->
+        // Re-evaluate cached location on cold start (e.g. >24h + >1km since last sync)
+        locationTracker.syncCachedLocationIfNeeded()?.let { location ->
             sendLocationTrack(location)
+            locationTracker.confirmSync(location.latitude, location.longitude)
         }
     }
 
@@ -272,10 +274,6 @@ class CustomerIO private constructor(
 
         logger.info("identify profile with identifier $userId and traits $traits")
 
-        if (!locationTracker.hasLocationContext()) {
-            locationTracker.onIdentifySentWithoutLocation()
-        }
-
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
         analytics.identify(
@@ -283,6 +281,13 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+
+        // Re-evaluate cached location now that the user is identified.
+        // Must come after analytics.identify() so userIdProvider returns the correct userId.
+        locationTracker.syncCachedLocationIfNeeded()?.let { location ->
+            sendLocationTrack(location)
+            locationTracker.confirmSync(location.latitude, location.longitude)
+        }
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")

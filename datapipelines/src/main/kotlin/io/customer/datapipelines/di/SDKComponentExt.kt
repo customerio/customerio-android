@@ -17,5 +17,5 @@ internal val SDKComponent.dataPipelinesLogger: DataPipelinesLogger
 
 internal val SDKComponent.locationPreferenceStore: LocationPreferenceStore
     get() = singleton<LocationPreferenceStore> {
-        LocationPreferenceStoreImpl(android().applicationContext)
+        LocationPreferenceStoreImpl(android().applicationContext, logger)
     }

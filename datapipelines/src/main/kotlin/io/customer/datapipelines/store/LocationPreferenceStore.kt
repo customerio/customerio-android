@@ -2,6 +2,7 @@ package io.customer.datapipelines.store
 
 import android.content.Context
 import androidx.core.content.edit
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 
@@ -20,17 +21,19 @@ internal interface LocationPreferenceStore {
 }
 
 internal class LocationPreferenceStoreImpl(
-    context: Context
+    context: Context,
+    logger: Logger
 ) : PreferenceStore(context), LocationPreferenceStore {
+
+    private val crypto = PreferenceCrypto(KEY_ALIAS, logger)
 
     override val prefsName: String by lazy {
         "io.customer.sdk.location.${context.packageName}"
     }
 
     override fun saveLocation(latitude: Double, longitude: Double) = prefs.edit {
-        // Store as String to preserve Double precision (putFloat truncates)
-        putString(KEY_LATITUDE, latitude.toString())
-        putString(KEY_LONGITUDE, longitude.toString())
+        putString(KEY_LATITUDE, crypto.encrypt(latitude.toString()))
+        putString(KEY_LONGITUDE, crypto.encrypt(longitude.toString()))
     }
 
     override fun saveLastSentTimestamp(timestamp: Long) = prefs.edit {
@@ -38,11 +41,11 @@ internal class LocationPreferenceStoreImpl(
     }
 
     override fun getLatitude(): Double? = prefs.read {
-        getString(KEY_LATITUDE, null)?.toDoubleOrNull()
+        getString(KEY_LATITUDE, null)?.let { crypto.decrypt(it).toDoubleOrNull() }
     }
 
     override fun getLongitude(): Double? = prefs.read {
-        getString(KEY_LONGITUDE, null)?.toDoubleOrNull()
+        getString(KEY_LONGITUDE, null)?.let { crypto.decrypt(it).toDoubleOrNull() }
     }
 
     override fun getLastSentTimestamp(): Long? = prefs.read {
@@ -50,6 +53,7 @@ internal class LocationPreferenceStoreImpl(
     }
 
     companion object {
+        private const val KEY_ALIAS = "cio_location_key"
         private const val KEY_LATITUDE = "latitude"
         private const val KEY_LONGITUDE = "longitude"
         private const val KEY_LAST_SENT_TIMESTAMP = "last_sent_timestamp"

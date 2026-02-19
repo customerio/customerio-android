@@ -644,7 +644,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun givenInboxMessages_whenProcessed_thenMessagesAreAvailableViaMessageInbox() = runTest {
+    fun givenInboxMessages_whenProcessed_thenMessagesAreAvailableViaNotificationInbox() = runTest {
         initializeAndSetUser()
 
         // Create test inbox messages
@@ -655,9 +655,9 @@ class InAppMessagingStoreTest : IntegrationTest() {
         // Process inbox messages via action
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        // Verify MessageInbox.getMessages() returns correct messages
-        val messageInbox = module.inbox()
-        val retrievedMessages = messageInbox.getMessages()
+        // Verify NotificationInbox.getMessages() returns correct messages
+        val notificationInbox = module.inbox()
+        val retrievedMessages = notificationInbox.getMessages()
         retrievedMessages.size shouldBeEqualTo 3
         retrievedMessages shouldContainAll listOf(message1, message2, message3)
     }

@@ -20,7 +20,7 @@ import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParserDefault
-import io.customer.messaginginapp.inbox.MessageInbox
+import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
@@ -137,11 +137,11 @@ internal val SDKComponent.inAppMessaging: ModuleMessagingInApp
     get() = ModuleMessagingInApp.instance()
 
 /**
- * Provides singleton instance of [MessageInbox] for managing inbox messages.
+ * Provides singleton instance of [NotificationInbox] for managing inbox messages.
  */
-internal val SDKComponent.messageInbox: MessageInbox
+internal val SDKComponent.notificationInbox: NotificationInbox
     get() = singleton {
-        MessageInbox(
+        NotificationInbox(
             logger = logger,
             coroutineScope = scopeProvider.inAppLifecycleScope,
             dispatchersProvider = dispatchersProvider,

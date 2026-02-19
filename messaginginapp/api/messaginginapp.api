@@ -21,7 +21,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
-	public final fun inbox ()Lio/customer/messaginginapp/inbox/MessageInbox;
+	public final fun inbox ()Lio/customer/messaginginapp/inbox/NotificationInbox;
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
 	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
@@ -207,26 +207,26 @@ public final class io/customer/messaginginapp/gist/utilities/ElapsedTimer {
 	public final fun start (Ljava/lang/String;)V
 }
 
-public abstract interface class io/customer/messaginginapp/inbox/InboxChangeListener {
-	public abstract fun onInboxChanged (Ljava/util/List;)V
-}
-
-public final class io/customer/messaginginapp/inbox/MessageInbox {
-	public final fun addChangeListener (Lio/customer/messaginginapp/inbox/InboxChangeListener;)V
-	public final fun addChangeListener (Lio/customer/messaginginapp/inbox/InboxChangeListener;Ljava/lang/String;)V
-	public static synthetic fun addChangeListener$default (Lio/customer/messaginginapp/inbox/MessageInbox;Lio/customer/messaginginapp/inbox/InboxChangeListener;Ljava/lang/String;ILjava/lang/Object;)V
+public final class io/customer/messaginginapp/inbox/NotificationInbox {
+	public final fun addChangeListener (Lio/customer/messaginginapp/inbox/NotificationInboxChangeListener;)V
+	public final fun addChangeListener (Lio/customer/messaginginapp/inbox/NotificationInboxChangeListener;Ljava/lang/String;)V
+	public static synthetic fun addChangeListener$default (Lio/customer/messaginginapp/inbox/NotificationInbox;Lio/customer/messaginginapp/inbox/NotificationInboxChangeListener;Ljava/lang/String;ILjava/lang/Object;)V
 	public final fun fetchMessages (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 	public final fun fetchMessages (Lkotlin/jvm/functions/Function1;)V
 	public final fun getMessages (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getMessages (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun getMessages$default (Lio/customer/messaginginapp/inbox/MessageInbox;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getMessages$default (Lio/customer/messaginginapp/inbox/NotificationInbox;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun markMessageDeleted (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun markMessageOpened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun markMessageUnopened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
-	public final fun removeChangeListener (Lio/customer/messaginginapp/inbox/InboxChangeListener;)V
+	public final fun removeChangeListener (Lio/customer/messaginginapp/inbox/NotificationInboxChangeListener;)V
 	public final fun trackMessageClicked (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 	public final fun trackMessageClicked (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;)V
-	public static synthetic fun trackMessageClicked$default (Lio/customer/messaginginapp/inbox/MessageInbox;Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;ILjava/lang/Object;)V
+	public static synthetic fun trackMessageClicked$default (Lio/customer/messaginginapp/inbox/NotificationInbox;Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;ILjava/lang/Object;)V
+}
+
+public abstract interface class io/customer/messaginginapp/inbox/NotificationInboxChangeListener {
+	public abstract fun onMessagesChanged (Ljava/util/List;)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

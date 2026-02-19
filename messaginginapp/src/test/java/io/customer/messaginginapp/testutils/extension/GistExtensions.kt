@@ -3,8 +3,8 @@ package io.customer.messaginginapp.testutils.extension
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageFactory
 import io.customer.messaginginapp.gist.data.model.response.InboxMessageResponse
-import io.customer.messaginginapp.gist.data.model.response.toDomain
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.getMessage
 import io.customer.messaginginapp.ui.controller.InAppMessageViewController
@@ -51,7 +51,7 @@ fun createInAppMessage(
     }
 )
 
-// Creates an InboxMessage using InboxMessageResponse to leverage the toDomain() mapping logic
+// Creates an InboxMessage using InboxMessageResponse to leverage the factory mapping logic
 fun createInboxMessage(
     queueId: String = UUID.randomUUID().toString(),
     deliveryId: String? = UUID.randomUUID().toString(),
@@ -63,17 +63,19 @@ fun createInboxMessage(
     priority: Int? = null,
     properties: Map<String, Any?>? = null
 ): InboxMessage = requireNotNull(
-    InboxMessageResponse(
-        queueId = queueId,
-        deliveryId = deliveryId,
-        expiry = expiry,
-        sentAt = sentAt,
-        topics = topics,
-        type = type,
-        opened = opened,
-        priority = priority,
-        properties = properties
-    ).toDomain()
+    InboxMessageFactory.fromResponse(
+        InboxMessageResponse(
+            queueId = queueId,
+            deliveryId = deliveryId,
+            expiry = expiry,
+            sentAt = sentAt,
+            topics = topics,
+            type = type,
+            opened = opened,
+            priority = priority,
+            properties = properties
+        )
+    )
 ) { "Failed to create test InboxMessage - invalid queueId or sentAt" }
 
 fun createGistAction(action: String): String = "gist://$action"

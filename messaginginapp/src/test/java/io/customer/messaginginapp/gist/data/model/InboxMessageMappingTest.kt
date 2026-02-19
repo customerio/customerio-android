@@ -1,7 +1,7 @@
 package io.customer.messaginginapp.gist.data.model
 
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageFactory
 import io.customer.messaginginapp.gist.data.model.response.InboxMessageResponse
-import io.customer.messaginginapp.gist.data.model.response.toDomain
 import java.util.Date
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
@@ -10,7 +10,7 @@ import org.junit.Test
 class InboxMessageMappingTest {
 
     @Test
-    fun toDomain_givenValidResponse_expectDomainModel() {
+    fun fromResponse_givenValidResponse_expectDomainModel() {
         val response = InboxMessageResponse(
             queueId = "queue-123",
             deliveryId = "delivery-456",
@@ -20,7 +20,7 @@ class InboxMessageMappingTest {
             priority = 5
         )
 
-        val result = requireNotNull(response.toDomain())
+        val result = requireNotNull(InboxMessageFactory.fromResponse(response))
 
         result.queueId shouldBeEqualTo "queue-123"
         result.deliveryId shouldBeEqualTo "delivery-456"
@@ -30,7 +30,7 @@ class InboxMessageMappingTest {
     }
 
     @Test
-    fun toDomain_givenMinimalResponse_expectDefaults() {
+    fun fromResponse_givenMinimalResponse_expectDefaults() {
         val response = InboxMessageResponse(
             queueId = "queue-123",
             deliveryId = "delivery-456",
@@ -40,7 +40,7 @@ class InboxMessageMappingTest {
             priority = null
         )
 
-        val result = requireNotNull(response.toDomain())
+        val result = requireNotNull(InboxMessageFactory.fromResponse(response))
 
         // Verify default values for nullable fields
         result.queueId shouldBeEqualTo "queue-123"
@@ -53,32 +53,32 @@ class InboxMessageMappingTest {
     }
 
     @Test
-    fun toDomain_givenNullQueueId_expectNull() {
+    fun fromResponse_givenNullQueueId_expectNull() {
         val response = InboxMessageResponse(
             queueId = null,
             deliveryId = "delivery-456",
             sentAt = Date()
         )
 
-        val result = response.toDomain()
+        val result = InboxMessageFactory.fromResponse(response)
 
         result shouldBeEqualTo null
     }
 
     @Test
-    fun toDomain_givenNullSentAt_expectNull() {
+    fun fromResponse_givenNullSentAt_expectNull() {
         val response = InboxMessageResponse(
             queueId = "queue-123",
             sentAt = null
         )
 
-        val result = response.toDomain()
+        val result = InboxMessageFactory.fromResponse(response)
 
         result shouldBeEqualTo null
     }
 
     @Test
-    fun toDomain_givenValidProperties_expectPropertiesMapped() {
+    fun fromResponse_givenValidProperties_expectPropertiesMapped() {
         val response = InboxMessageResponse(
             queueId = "queue-123",
             sentAt = Date(),
@@ -89,11 +89,59 @@ class InboxMessageMappingTest {
             )
         )
 
-        val result = requireNotNull(response.toDomain())
+        val result = requireNotNull(InboxMessageFactory.fromResponse(response))
 
         result.properties.shouldNotBeNull()
         result.properties["title"] shouldBeEqualTo "Welcome"
         result.properties["count"] shouldBeEqualTo 42.0
         result.properties["enabled"] shouldBeEqualTo true
+    }
+
+    @Test
+    fun fromMap_givenValidMap_expectDomainModel() {
+        val map = mapOf(
+            "queueId" to "queue-123",
+            "deliveryId" to "delivery-456",
+            "sentAt" to System.currentTimeMillis(),
+            "topics" to listOf("promotions", "updates"),
+            "type" to "notification",
+            "opened" to true,
+            "priority" to 5,
+            "properties" to mapOf("key" to "value")
+        )
+
+        val result = requireNotNull(InboxMessageFactory.fromMap(map))
+
+        result.queueId shouldBeEqualTo "queue-123"
+        result.deliveryId shouldBeEqualTo "delivery-456"
+        result.topics shouldBeEqualTo listOf("promotions", "updates")
+        result.type shouldBeEqualTo "notification"
+        result.opened shouldBeEqualTo true
+        result.priority shouldBeEqualTo 5
+        result.properties shouldBeEqualTo mapOf("key" to "value")
+    }
+
+    @Test
+    fun fromMap_givenMissingQueueId_expectNull() {
+        val map = mapOf(
+            "deliveryId" to "delivery-456",
+            "sentAt" to System.currentTimeMillis()
+        )
+
+        val result = InboxMessageFactory.fromMap(map)
+
+        result shouldBeEqualTo null
+    }
+
+    @Test
+    fun fromMap_givenMissingSentAt_expectNull() {
+        val map = mapOf(
+            "queueId" to "queue-123",
+            "deliveryId" to "delivery-456"
+        )
+
+        val result = InboxMessageFactory.fromMap(map)
+
+        result shouldBeEqualTo null
     }
 }

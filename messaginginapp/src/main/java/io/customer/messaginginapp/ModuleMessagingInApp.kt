@@ -2,11 +2,11 @@ package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
-import io.customer.messaginginapp.di.messageInbox
+import io.customer.messaginginapp.di.notificationInbox
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
-import io.customer.messaginginapp.inbox.MessageInbox
+import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -28,10 +28,10 @@ class ModuleMessagingInApp(
     /**
      * Access the inbox messages instance for managing user inbox messages.
      *
-     * @return [MessageInbox] instance for inbox operations
+     * @return [NotificationInbox] instance for inbox operations
      */
-    fun inbox(): MessageInbox {
-        return SDKComponent.messageInbox
+    fun inbox(): NotificationInbox {
+        return SDKComponent.notificationInbox
     }
 
     fun dismissMessage() {

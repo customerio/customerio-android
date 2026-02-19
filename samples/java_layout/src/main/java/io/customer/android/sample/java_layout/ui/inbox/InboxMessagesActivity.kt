@@ -9,13 +9,13 @@ import io.customer.android.sample.java_layout.databinding.ActivityInboxMessagesB
 import io.customer.android.sample.java_layout.ui.core.BaseActivity
 import io.customer.messaginginapp.di.inAppMessaging
 import io.customer.messaginginapp.gist.data.model.InboxMessage
-import io.customer.messaginginapp.inbox.InboxChangeListener
+import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
 import io.customer.sdk.CustomerIO
 
 class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
     private lateinit var adapter: InboxMessagesAdapter
-    private val messageInbox by lazy { CustomerIO.instance().inAppMessaging().inbox() }
-    private var inboxChangeListener: InboxChangeListener? = null
+    private val notificationInbox by lazy { CustomerIO.instance().inAppMessaging().inbox() }
+    private var notificationInboxChangeListener: NotificationInboxChangeListener? = null
 
     override fun inflateViewBinding(): ActivityInboxMessagesBinding {
         return ActivityInboxMessagesBinding.inflate(layoutInflater)
@@ -36,9 +36,9 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
         adapter = InboxMessagesAdapter(
             onToggleReadClick = { message ->
                 if (message.opened) {
-                    messageInbox.markMessageUnopened(message)
+                    notificationInbox.markMessageUnopened(message)
                 } else {
-                    messageInbox.markMessageOpened(message)
+                    notificationInbox.markMessageOpened(message)
                 }
             },
             onTrackClickClick = { message ->
@@ -56,20 +56,20 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
     }
 
     private fun setupInbox() {
-        inboxChangeListener = object : InboxChangeListener {
-            override fun onInboxChanged(messages: List<InboxMessage>) {
+        notificationInboxChangeListener = object : NotificationInboxChangeListener {
+            override fun onMessagesChanged(messages: List<InboxMessage>) {
                 updateMessages(messages)
                 hideLoading()
                 binding.swipeRefreshLayout.isRefreshing = false
             }
         }
 
-        inboxChangeListener?.let { messageInbox.addChangeListener(it) }
+        notificationInboxChangeListener?.let { notificationInbox.addChangeListener(it) }
     }
 
     private fun fetchMessages() {
         showLoading()
-        messageInbox.fetchMessages { result ->
+        notificationInbox.fetchMessages { result ->
             runOnUiThread {
                 result.onSuccess { messages ->
                     updateMessages(messages)
@@ -122,9 +122,9 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val actionName = input.text.toString().trim()
                 if (actionName.isEmpty()) {
-                    messageInbox.trackMessageClicked(message)
+                    notificationInbox.trackMessageClicked(message)
                 } else {
-                    messageInbox.trackMessageClicked(message, actionName)
+                    notificationInbox.trackMessageClicked(message, actionName)
                 }
                 Toast.makeText(
                     this,
@@ -141,7 +141,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
             .setTitle(R.string.inbox_delete_dialog_title)
             .setMessage(R.string.inbox_delete_dialog_message)
             .setPositiveButton(R.string.inbox_delete_confirm) { _, _ ->
-                messageInbox.markMessageDeleted(message)
+                notificationInbox.markMessageDeleted(message)
                 Toast.makeText(
                     this,
                     getString(R.string.inbox_message_deleted),
@@ -153,7 +153,7 @@ class InboxMessagesActivity : BaseActivity<ActivityInboxMessagesBinding>() {
     }
 
     override fun onDestroy() {
-        inboxChangeListener?.let { messageInbox.removeChangeListener(it) }
+        notificationInboxChangeListener?.let { notificationInbox.removeChangeListener(it) }
         super.onDestroy()
     }
 }

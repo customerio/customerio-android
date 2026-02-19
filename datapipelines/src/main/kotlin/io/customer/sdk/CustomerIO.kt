@@ -14,10 +14,12 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.di.dataPipelinesLogger
+import io.customer.datapipelines.di.locationPreferenceStore
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.location.LocationTracker
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -109,6 +111,7 @@ class CustomerIO private constructor(
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
     private val locationPlugin: LocationPlugin = LocationPlugin(logger)
+    private val locationTracker: LocationTracker = LocationTracker(locationPlugin, SDKComponent.locationPreferenceStore, logger)
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -131,6 +134,9 @@ class CustomerIO private constructor(
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
         analytics.add(locationPlugin)
         analytics.add(ApplicationLifecyclePlugin())
+
+        // Restore persisted location so identify events have context immediately
+        locationTracker.restorePersistedLocation()
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
@@ -155,23 +161,18 @@ class CustomerIO private constructor(
             registerDeviceToken(deviceToken = it.token)
         }
         eventBus.subscribe<Event.TrackLocationEvent> {
-            trackLocation(it)
+            locationTracker.onLocationReceived(it)?.let { location ->
+                sendLocationTrack(location)
+            }
         }
     }
 
-    private fun trackLocation(event: Event.TrackLocationEvent) {
-        val location = event.location
-        logger.debug("tracking location update: lat=${location.latitude}, lng=${location.longitude}")
-
-        // Cache location for enriching future identify events
-        locationPlugin.lastLocation = location
-
+    private fun sendLocationTrack(location: Event.LocationData) {
         track(
             name = EventNames.LOCATION_UPDATE,
             properties = mapOf(
-                "lat" to location.latitude,
-                "lng" to location.longitude,
-                LocationPlugin.INTERNAL_LOCATION_KEY to true
+                "latitude" to location.latitude,
+                "longitude" to location.longitude
             )
         )
     }
@@ -210,6 +211,11 @@ class CustomerIO private constructor(
 
         if (moduleConfig.trackApplicationLifecycleEvents) {
             analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
+        }
+
+        // Re-send location if >24h since last "Location Update" track
+        locationTracker.getStaleLocationForResend()?.let { location ->
+            sendLocationTrack(location)
         }
     }
 
@@ -265,6 +271,11 @@ class CustomerIO private constructor(
         }
 
         logger.info("identify profile with identifier $userId and traits $traits")
+
+        if (!locationTracker.hasLocationContext()) {
+            locationTracker.onIdentifySentWithoutLocation()
+        }
+
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
         analytics.identify(
@@ -321,6 +332,7 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
+        locationTracker.onUserReset()
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
         analytics.reset()
@@ -416,6 +428,7 @@ class CustomerIO private constructor(
     }
 
     companion object {
+
         /**
          * Module identifier for DataPipelines module.
          */

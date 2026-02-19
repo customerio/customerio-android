@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  * inbox.getMessages()
  * ```
  */
-class MessageInbox internal constructor(
+class NotificationInbox internal constructor(
     private val logger: Logger,
     private val coroutineScope: CoroutineScope,
     private val dispatchersProvider: DispatchersProvider,
@@ -77,11 +77,12 @@ class MessageInbox internal constructor(
     /**
      * Fetches inbox messages for a specific topic asynchronously via callback.
      *
-     * @param topic Topic filter. Only messages with this topic in their topics list are returned.
+     * @param topic Optional topic filter. If provided, listener only receives messages
+     *              that have this topic in their topics list. If null, all messages are delivered.
      * @param callback Called with [Result] containing the list of messages or an error
      * if failed to retrieve
      */
-    fun fetchMessages(topic: String, callback: (Result<List<InboxMessage>>) -> Unit) {
+    fun fetchMessages(topic: String?, callback: (Result<List<InboxMessage>>) -> Unit) {
         fetchMessagesWithCallback(topic, callback)
     }
 
@@ -112,7 +113,7 @@ class MessageInbox internal constructor(
      */
     @JvmOverloads
     @MainThread
-    fun addChangeListener(listener: InboxChangeListener, topic: String? = null) {
+    fun addChangeListener(listener: NotificationInboxChangeListener, topic: String? = null) {
         val registration = ListenerRegistration(listener, topic)
         listeners.add(registration)
 
@@ -128,7 +129,7 @@ class MessageInbox internal constructor(
      * Unregisters a listener for inbox changes.
      * Removes all registrations of this listener, regardless of topic filters.
      */
-    fun removeChangeListener(listener: InboxChangeListener) {
+    fun removeChangeListener(listener: NotificationInboxChangeListener) {
         listeners.forEach { registration ->
             if (registration.listener == listener) {
                 listeners.remove(registration)
@@ -181,9 +182,9 @@ class MessageInbox internal constructor(
      * @param messages The messages to send to the listener
      */
     @MainThread
-    private fun notifyListener(listener: InboxChangeListener, messages: List<InboxMessage>) {
+    private fun notifyListener(listener: NotificationInboxChangeListener, messages: List<InboxMessage>) {
         try {
-            listener.onInboxChanged(messages)
+            listener.onMessagesChanged(messages)
         } catch (ex: Exception) {
             // Log and continue to prevent one bad listener from breaking others
             logger.error("Error notifying inbox listener: ${ex.message}")
@@ -253,7 +254,7 @@ class MessageInbox internal constructor(
      * Wrapper class to store listener with optional topic filter.
      */
     private data class ListenerRegistration(
-        val listener: InboxChangeListener,
+        val listener: NotificationInboxChangeListener,
         val topic: String? = null
     )
 }

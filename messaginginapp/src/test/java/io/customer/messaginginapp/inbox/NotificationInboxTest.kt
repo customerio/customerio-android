@@ -47,7 +47,7 @@ import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-class MessageInboxTest : IntegrationTest() {
+class NotificationInboxTest : IntegrationTest() {
 
     private val scopeProviderStub = ScopeProviderStub.Standard()
     private val dispatchersProviderStub = DispatchersProviderStub()
@@ -55,7 +55,7 @@ class MessageInboxTest : IntegrationTest() {
 
     private lateinit var module: ModuleMessagingInApp
     private lateinit var manager: InAppMessagingManager
-    private lateinit var messageInbox: MessageInbox
+    private lateinit var notificationInbox: NotificationInbox
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -76,7 +76,7 @@ class MessageInboxTest : IntegrationTest() {
             ).build()
         ).attachToSDKComponent()
         manager = SDKComponent.inAppMessagingManager
-        messageInbox = module.inbox()
+        notificationInbox = module.inbox()
     }
 
     private fun initializeAndSetUser() {
@@ -103,7 +103,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
 
-        messageInbox.markMessageOpened(message)
+        notificationInbox.markMessageOpened(message)
 
         val state = manager.getCurrentState()
         val updatedMessage = state.inboxMessages.first { it.queueId == queueId }
@@ -118,7 +118,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
 
-        messageInbox.markMessageUnopened(message)
+        notificationInbox.markMessageUnopened(message)
 
         val state = manager.getCurrentState()
         val updatedMessage = state.inboxMessages.first { it.queueId == queueId }
@@ -135,7 +135,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
 
-        messageInbox.markMessageOpened(message1)
+        notificationInbox.markMessageOpened(message1)
 
         val state = manager.getCurrentState()
         val updatedMessage = state.inboxMessages.first { it.queueId == queueId1 }
@@ -154,7 +154,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
 
-        messageInbox.markMessageUnopened(message1)
+        notificationInbox.markMessageUnopened(message1)
 
         val state = manager.getCurrentState()
         val updatedMessage = state.inboxMessages.first { it.queueId == queueId1 }
@@ -171,7 +171,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
 
-        messageInbox.markMessageDeleted(message)
+        notificationInbox.markMessageDeleted(message)
 
         val state = manager.getCurrentState()
         state.inboxMessages.size shouldBeEqualTo 0
@@ -189,7 +189,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        messageInbox.markMessageDeleted(message1)
+        notificationInbox.markMessageDeleted(message1)
 
         val state = manager.getCurrentState()
         state.inboxMessages.size shouldBeEqualTo 2
@@ -206,7 +206,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
 
-        messageInbox.trackMessageClicked(message, "view_details")
+        notificationInbox.trackMessageClicked(message, "view_details")
 
         // Verify TrackInAppMetricEvent with Metric.Clicked was published with actionName param
         verify {
@@ -228,7 +228,7 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
 
-        messageInbox.trackMessageClicked(message)
+        notificationInbox.trackMessageClicked(message)
 
         // Verify TrackInAppMetricEvent with Metric.Clicked was published without params
         verify {
@@ -253,8 +253,8 @@ class MessageInboxTest : IntegrationTest() {
         val allMessages = listOf(message1, message2, message3)
 
         // Create and add listener
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener)
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Dispatch action to update inbox messages
@@ -263,7 +263,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener received all messages
         verify(exactly = 1) {
-            listener.onInboxChanged(allMessages)
+            listener.onMessagesChanged(allMessages)
         }
     }
 
@@ -278,8 +278,8 @@ class MessageInboxTest : IntegrationTest() {
         val allMessages = listOf(message1, message2, message3)
 
         // Create and add listener with topic filter
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener, "promotions")
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener, "promotions")
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Dispatch action to update inbox messages
@@ -288,7 +288,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener received only messages with "promotions" topic
         verify(exactly = 1) {
-            listener.onInboxChanged(
+            listener.onMessagesChanged(
                 match { messages ->
                     messages.size == 2 &&
                         messages.any { it.deliveryId == "msg1" } &&
@@ -309,13 +309,13 @@ class MessageInboxTest : IntegrationTest() {
         val allMessages = listOf(message1, message2, message3)
 
         // Add listeners with different filters
-        val listener1 = mockk<InboxChangeListener>(relaxed = true)
-        val listener2 = mockk<InboxChangeListener>(relaxed = true)
-        val listener3 = mockk<InboxChangeListener>(relaxed = true)
+        val listener1 = mockk<NotificationInboxChangeListener>(relaxed = true)
+        val listener2 = mockk<NotificationInboxChangeListener>(relaxed = true)
+        val listener3 = mockk<NotificationInboxChangeListener>(relaxed = true)
 
-        messageInbox.addChangeListener(listener1, "promotions")
-        messageInbox.addChangeListener(listener2, "updates")
-        messageInbox.addChangeListener(listener3)
+        notificationInbox.addChangeListener(listener1, "promotions")
+        notificationInbox.addChangeListener(listener2, "updates")
+        notificationInbox.addChangeListener(listener3)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Dispatch action to update inbox messages
@@ -324,7 +324,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener1 received only "promotions" messages
         verify(exactly = 1) {
-            listener1.onInboxChanged(
+            listener1.onMessagesChanged(
                 match { messages ->
                     messages.size == 2 && messages.all { it.topics.contains("promotions") }
                 }
@@ -333,7 +333,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener2 received only "updates" messages
         verify(exactly = 1) {
-            listener2.onInboxChanged(
+            listener2.onMessagesChanged(
                 match { messages ->
                     messages.size == 1 && messages[0].deliveryId == "msg2"
                 }
@@ -342,7 +342,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener3 received all messages
         verify(exactly = 1) {
-            listener3.onInboxChanged(match { it.size == 3 })
+            listener3.onMessagesChanged(match { it.size == 3 })
         }
     }
 
@@ -355,12 +355,12 @@ class MessageInboxTest : IntegrationTest() {
         val allMessages = listOf(message1)
 
         // Add listener
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener)
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Remove listener
-        messageInbox.removeChangeListener(listener)
+        notificationInbox.removeChangeListener(listener)
 
         // Clear previous invocations (initial state notification)
         io.mockk.clearMocks(listener, answers = false, recordedCalls = true)
@@ -371,7 +371,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener was not called after removal
         verify(exactly = 0) {
-            listener.onInboxChanged(any())
+            listener.onMessagesChanged(any())
         }
     }
 
@@ -380,9 +380,9 @@ class MessageInboxTest : IntegrationTest() {
         initializeAndSetUser()
 
         // Add same listener with different topics
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener, "promotions")
-        messageInbox.addChangeListener(listener, "updates")
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener, "promotions")
+        notificationInbox.addChangeListener(listener, "updates")
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Clear previous invocations (initial empty state notifications)
@@ -398,11 +398,11 @@ class MessageInboxTest : IntegrationTest() {
 
         // Listener should be called twice (once for each registration with filtered messages)
         verify(exactly = 2) {
-            listener.onInboxChanged(any())
+            listener.onMessagesChanged(any())
         }
 
         // Remove listener (should remove all registrations)
-        messageInbox.removeChangeListener(listener)
+        notificationInbox.removeChangeListener(listener)
 
         // Dispatch another state change with a new message
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(messages + createInboxMessage(deliveryId = "msg3", topics = listOf("promotions"))))
@@ -410,7 +410,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener was not called again (still 2 total calls since clearing)
         verify(exactly = 2) {
-            listener.onInboxChanged(any())
+            listener.onMessagesChanged(any())
         }
     }
 
@@ -418,16 +418,16 @@ class MessageInboxTest : IntegrationTest() {
     fun listenerCallback_givenException_expectOtherListenersStillNotified() = runTest {
         initializeAndSetUser()
 
-        val badListener = mockk<InboxChangeListener>(relaxed = true)
-        val goodListener = mockk<InboxChangeListener>(relaxed = true)
+        val badListener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        val goodListener = mockk<NotificationInboxChangeListener>(relaxed = true)
         val testException = RuntimeException("Test exception")
 
         // Make badListener throw an exception
-        every { badListener.onInboxChanged(any()) } throws testException
+        every { badListener.onMessagesChanged(any()) } throws testException
 
         // Add both listeners
-        messageInbox.addChangeListener(badListener)
-        messageInbox.addChangeListener(goodListener)
+        notificationInbox.addChangeListener(badListener)
+        notificationInbox.addChangeListener(goodListener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Dispatch state change
@@ -437,7 +437,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify good listener still received notifications despite bad listener throwing
         verify(atLeast = 1) {
-            goodListener.onInboxChanged(any())
+            goodListener.onMessagesChanged(any())
         }
     }
 
@@ -454,31 +454,31 @@ class MessageInboxTest : IntegrationTest() {
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Add first listener
-        val firstListener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(firstListener)
+        val firstListener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(firstListener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Verify first listener received initial callback
         verify(exactly = 1) {
-            firstListener.onInboxChanged(initialMessages)
+            firstListener.onMessagesChanged(initialMessages)
         }
 
         // Clear invocations to focus on second listener
         io.mockk.clearMocks(firstListener, answers = false, recordedCalls = true)
 
         // Add second listener (each listener gets independent immediate callback)
-        val secondListener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(secondListener)
+        val secondListener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(secondListener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Verify second listener also received immediate callback with current state
         verify(exactly = 1) {
-            secondListener.onInboxChanged(initialMessages)
+            secondListener.onMessagesChanged(initialMessages)
         }
 
         // Verify first listener was NOT notified again when second listener was added
         verify(exactly = 0) {
-            firstListener.onInboxChanged(any())
+            firstListener.onMessagesChanged(any())
         }
     }
 
@@ -492,13 +492,13 @@ class MessageInboxTest : IntegrationTest() {
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Add listener
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener)
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Verify listener received initial callback
         verify(exactly = 1) {
-            listener.onInboxChanged(initialMessages)
+            listener.onMessagesChanged(initialMessages)
         }
 
         // Update state with new messages
@@ -508,12 +508,12 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener received callback for updated state
         verify(exactly = 1) {
-            listener.onInboxChanged(updatedMessages)
+            listener.onMessagesChanged(updatedMessages)
         }
 
         // Total should be 2 calls: initial + update
         verify(exactly = 2) {
-            listener.onInboxChanged(any())
+            listener.onMessagesChanged(any())
         }
     }
 
@@ -521,22 +521,22 @@ class MessageInboxTest : IntegrationTest() {
     fun addChangeListener_givenStateUpdatedWithSameMessages_expectNoCallback() = runTest {
         initializeAndSetUser()
 
-        // Set up initial state
-        val messages = listOf(
-            createInboxMessage(deliveryId = "msg1", queueId = "queue1"),
-            createInboxMessage(deliveryId = "msg2", queueId = "queue2")
-        )
+        // Set up initial state with different sentAt times for deterministic sorting
+        val message1 = createInboxMessage(deliveryId = "msg1", queueId = "queue1", sentAt = dateHoursAgo(2))
+        val message2 = createInboxMessage(deliveryId = "msg2", queueId = "queue2", sentAt = dateHoursAgo(1))
+        val messages = listOf(message1, message2)
+
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(messages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Add listener
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener)
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        // Verify initial callback
+        // Verify initial callback (sorted by sentAt descending - message2 first)
         verify(exactly = 1) {
-            listener.onInboxChanged(messages)
+            listener.onMessagesChanged(listOf(message2, message1))
         }
 
         // Clear invocations
@@ -548,7 +548,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener was NOT called because state didn't change (distinctUntilChanged)
         verify(exactly = 0) {
-            listener.onInboxChanged(any())
+            listener.onMessagesChanged(any())
         }
 
         // Now dispatch different messages
@@ -558,7 +558,7 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener WAS called for actual state change
         verify(exactly = 1) {
-            listener.onInboxChanged(differentMessages)
+            listener.onMessagesChanged(differentMessages)
         }
     }
 
@@ -572,21 +572,21 @@ class MessageInboxTest : IntegrationTest() {
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Add three listeners sequentially
-        val listener1 = mockk<InboxChangeListener>(relaxed = true)
-        val listener2 = mockk<InboxChangeListener>(relaxed = true)
-        val listener3 = mockk<InboxChangeListener>(relaxed = true)
+        val listener1 = mockk<NotificationInboxChangeListener>(relaxed = true)
+        val listener2 = mockk<NotificationInboxChangeListener>(relaxed = true)
+        val listener3 = mockk<NotificationInboxChangeListener>(relaxed = true)
 
-        messageInbox.addChangeListener(listener1)
+        notificationInbox.addChangeListener(listener1)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-        messageInbox.addChangeListener(listener2)
+        notificationInbox.addChangeListener(listener2)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
-        messageInbox.addChangeListener(listener3)
+        notificationInbox.addChangeListener(listener3)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Verify each listener received initial callback
-        verify(exactly = 1) { listener1.onInboxChanged(initialMessages) }
-        verify(exactly = 1) { listener2.onInboxChanged(initialMessages) }
-        verify(exactly = 1) { listener3.onInboxChanged(initialMessages) }
+        verify(exactly = 1) { listener1.onMessagesChanged(initialMessages) }
+        verify(exactly = 1) { listener2.onMessagesChanged(initialMessages) }
+        verify(exactly = 1) { listener3.onMessagesChanged(initialMessages) }
 
         // Trigger state update
         val updatedMessages = listOf(createInboxMessage(deliveryId = "msg2", sentAt = dateNow())) + initialMessages
@@ -594,14 +594,14 @@ class MessageInboxTest : IntegrationTest() {
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Verify each listener received update callback
-        verify(exactly = 1) { listener1.onInboxChanged(updatedMessages) }
-        verify(exactly = 1) { listener2.onInboxChanged(updatedMessages) }
-        verify(exactly = 1) { listener3.onInboxChanged(updatedMessages) }
+        verify(exactly = 1) { listener1.onMessagesChanged(updatedMessages) }
+        verify(exactly = 1) { listener2.onMessagesChanged(updatedMessages) }
+        verify(exactly = 1) { listener3.onMessagesChanged(updatedMessages) }
 
         // Verify total: each listener received exactly 2 callbacks (initial + update)
-        verify(exactly = 2) { listener1.onInboxChanged(any()) }
-        verify(exactly = 2) { listener2.onInboxChanged(any()) }
-        verify(exactly = 2) { listener3.onInboxChanged(any()) }
+        verify(exactly = 2) { listener1.onMessagesChanged(any()) }
+        verify(exactly = 2) { listener2.onMessagesChanged(any()) }
+        verify(exactly = 2) { listener3.onMessagesChanged(any()) }
     }
 
     @Test
@@ -615,14 +615,14 @@ class MessageInboxTest : IntegrationTest() {
 
         // Set up three listeners with callback tracking
         val listeners = listOf(
-            mockk<InboxChangeListener>(relaxed = true),
-            mockk<InboxChangeListener>(relaxed = true),
-            mockk<InboxChangeListener>(relaxed = true)
+            mockk<NotificationInboxChangeListener>(relaxed = true),
+            mockk<NotificationInboxChangeListener>(relaxed = true),
+            mockk<NotificationInboxChangeListener>(relaxed = true)
         )
         val callsPerListener = listeners.map { CopyOnWriteArrayList<List<InboxMessage>>() }
 
         listeners.forEachIndexed { index, listener ->
-            every { listener.onInboxChanged(capture(callsPerListener[index])) } just Runs
+            every { listener.onMessagesChanged(capture(callsPerListener[index])) } just Runs
         }
 
         val completionLatch = CountDownLatch(4)
@@ -633,7 +633,7 @@ class MessageInboxTest : IntegrationTest() {
         val threads = listeners.map { listener ->
             thread(start = false) {
                 Thread.sleep(1) // Small delay to increase race likelihood
-                messageInbox.addChangeListener(listener)
+                notificationInbox.addChangeListener(listener)
                     .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
                 completionLatch.countDown()
             }
@@ -712,19 +712,19 @@ class MessageInboxTest : IntegrationTest() {
 
         val listenersCount = 100
         val emitEventsCount = listenersCount / 5
-        val listeners = ArrayList<InboxChangeListener>(listenersCount)
+        val listeners = ArrayList<NotificationInboxChangeListener>(listenersCount)
         val threadsCompletionLatch = CountDownLatch(2)
 
         // Add listeners
         repeat(listenersCount) {
-            listeners.add(emptyInboxChangeListener())
-            messageInbox.addChangeListener(listeners.last())
+            listeners.add(emptyNotificationInboxChangeListener())
+            notificationInbox.addChangeListener(listeners.last())
         }
 
         // Create a thread to remove listeners one by one
         val removeListenersThread = thread(start = false) {
             repeat(listenersCount) { index ->
-                messageInbox.removeChangeListener(listeners[index])
+                notificationInbox.removeChangeListener(listeners[index])
             }
             threadsCompletionLatch.countDown()
         }
@@ -767,7 +767,7 @@ class MessageInboxTest : IntegrationTest() {
 
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        val messages = messageInbox.getMessages()
+        val messages = notificationInbox.getMessages()
 
         assertEquals(3, messages.size)
     }
@@ -782,7 +782,7 @@ class MessageInboxTest : IntegrationTest() {
 
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        val messages = messageInbox.getMessages("promotions")
+        val messages = notificationInbox.getMessages("promotions")
 
         assertEquals(2, messages.size)
         assertTrue(messages.all { it.topics.contains("promotions") })
@@ -797,7 +797,7 @@ class MessageInboxTest : IntegrationTest() {
 
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
 
-        val messages = messageInbox.getMessages("promotions")
+        val messages = notificationInbox.getMessages("promotions")
 
         assertEquals(1, messages.size)
         assertEquals("msg1", messages[0].deliveryId)
@@ -812,7 +812,7 @@ class MessageInboxTest : IntegrationTest() {
 
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2)))
 
-        val messages = messageInbox.getMessages("nonexistent")
+        val messages = notificationInbox.getMessages("nonexistent")
 
         assertEquals(0, messages.size)
     }
@@ -828,7 +828,7 @@ class MessageInboxTest : IntegrationTest() {
         // Dispatch in random order
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        val messages = messageInbox.getMessages()
+        val messages = notificationInbox.getMessages()
 
         assertEquals(3, messages.size)
         // Verify sorted newest to oldest
@@ -847,7 +847,7 @@ class MessageInboxTest : IntegrationTest() {
 
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1, message2, message3)))
 
-        val messages = messageInbox.getMessages("promotions")
+        val messages = notificationInbox.getMessages("promotions")
 
         assertEquals(2, messages.size)
         // Verify sorted newest to oldest
@@ -868,12 +868,12 @@ class MessageInboxTest : IntegrationTest() {
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Add listener and verify it receives sorted messages (newest first)
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener)
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         verify(exactly = 1) {
-            listener.onInboxChanged(listOf(message2, message3, message1))
+            listener.onMessagesChanged(listOf(message2, message3, message1))
         }
     }
 
@@ -886,8 +886,8 @@ class MessageInboxTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message1)))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        val listener = mockk<InboxChangeListener>(relaxed = true)
-        messageInbox.addChangeListener(listener)
+        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // Clear initial callback
@@ -900,12 +900,12 @@ class MessageInboxTest : IntegrationTest() {
 
         // Verify listener receives sorted messages (newest first)
         verify(exactly = 1) {
-            listener.onInboxChanged(listOf(message2, message1))
+            listener.onMessagesChanged(listOf(message2, message1))
         }
     }
 
-    private fun emptyInboxChangeListener() = object : InboxChangeListener {
-        override fun onInboxChanged(messages: List<InboxMessage>) {
+    private fun emptyNotificationInboxChangeListener() = object : NotificationInboxChangeListener {
+        override fun onMessagesChanged(messages: List<InboxMessage>) {
         }
     }
 }

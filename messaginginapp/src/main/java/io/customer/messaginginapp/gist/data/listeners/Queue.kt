@@ -10,8 +10,8 @@ import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageFactory
 import io.customer.messaginginapp.gist.data.model.response.QueueMessagesResponse
-import io.customer.messaginginapp.gist.data.model.response.toDomain
 import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
@@ -196,7 +196,7 @@ internal class Queue : GistQueue {
             val inboxMessages = response.inboxMessages
             logger.debug("Found ${inboxMessages.count()} inbox messages for user")
             val inboxMessagesMapped = inboxMessages.mapNotNull { item ->
-                item.toDomain()?.let { message ->
+                InboxMessageFactory.fromResponse(item)?.let { message ->
                     if (fromCache) {
                         // 304: apply cached opened status if available
                         val cachedOpenedStatus = inAppPreferenceStore.getInboxMessageOpenedStatus(message.queueId)

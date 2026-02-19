@@ -59,13 +59,18 @@ class ModuleMessagingInApp(
             gistProvider.setCurrentRoute(it.name)
         }
 
-        eventBus.subscribe<Event.ProfileIdentifiedEvent> {
-            gistProvider.setUserId(it.identifier)
-        }
+        eventBus.subscribe<Event.UserChangedEvent> { event ->
+            val userId = event.userId
+            logger.debug("User changed: userId=$userId, anonymousId=${event.anonymousId}")
 
-        eventBus.subscribe<Event.AnonymousIdGeneratedEvent> {
-            gistProvider.setAnonymousId(it.anonymousId)
-            setCustomAttribute("cio_anonymous_id", it.anonymousId)
+            gistProvider.setAnonymousId(event.anonymousId)
+            setCustomAttribute("cio_anonymous_id", event.anonymousId)
+
+            if (userId != null) {
+                gistProvider.setUserId(userId)
+            }
+
+            gistProvider.fetchInAppMessages()
         }
 
         eventBus.subscribe<Event.ResetEvent> {

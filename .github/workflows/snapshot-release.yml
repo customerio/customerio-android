@@ -52,7 +52,7 @@ jobs:
           body: |
             Build available to test
             Version: `${{ steps.set-snapshot-version.outputs.VERSION }}`
-            Repository: `https://s01.oss.sonatype.org/content/repositories/snapshots/`
+            Repository: `https://central.sonatype.com/repository/maven-snapshots/`
           edit-mode: replace
           token: ${{ secrets.GITHUB_TOKEN }}
 

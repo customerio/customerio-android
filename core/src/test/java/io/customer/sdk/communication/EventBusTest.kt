@@ -44,19 +44,22 @@ class EventBusTest : JUnit5Test() {
     @Test
     fun givenPublishEventVerifySubscribe() = runBlocking {
         val events = mutableListOf<Event>()
-        val job = eventBus.subscribe<Event.ProfileIdentifiedEvent> { event ->
+        val job = eventBus.subscribe<Event.UserChangedEvent> { event ->
             events.add(event)
         }
 
-        val testEvent = Event.ProfileIdentifiedEvent("Test Message")
+        val testEvent = Event.UserChangedEvent(userId = "testUserId", anonymousId = "testAnonymousId")
         println("Publishing event: $testEvent")
         eventBus.publish(testEvent)
 
         yield() // Allow event processing
 
         events.shouldHaveSingleItem()
-            .shouldBeInstanceOf<Event.ProfileIdentifiedEvent>()
-            .identifier shouldBeEqualTo testEvent.identifier
+            .shouldBeInstanceOf<Event.UserChangedEvent>()
+            .also {
+                it.userId shouldBeEqualTo testEvent.userId
+                it.anonymousId shouldBeEqualTo testEvent.anonymousId
+            }
 
         job.cancel()
     }

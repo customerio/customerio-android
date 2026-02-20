@@ -6,6 +6,7 @@ import io.customer.messaginginapp.gist.data.model.GistProperties
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.testutils.core.JUnitTest
+import io.customer.messaginginapp.testutils.extension.createInboxMessage
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -82,7 +83,7 @@ class InAppMessageReducerTest : JUnitTest() {
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
         assertEquals(1, resultState.shownMessageQueueIds.size)
-        assertTrue(resultState.shownMessageQueueIds.contains(testMessage.queueId!!))
+        assertTrue(resultState.shownMessageQueueIds.contains(testMessage.queueId))
 
         val modalState = resultState.modalMessageState as ModalMessageState.Dismissed
         assertEquals(testMessage, modalState.message)
@@ -270,6 +271,75 @@ class InAppMessageReducerTest : JUnitTest() {
         assertNull(resultState.userId)
         assertNull(resultState.anonymousId)
         assertNull(resultState.currentRoute)
+    }
+
+    @Test
+    fun updateInboxMessageOpenedStatus_givenMatchingQueueId_expectMessageUpdated() {
+        val queueId = "queue-123"
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2)
+        )
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(
+            message = message1,
+            opened = true
+        )
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        assertEquals(2, resultState.inboxMessages.size)
+        val updatedMessage = resultState.inboxMessages.first { it.queueId == queueId }
+        assertTrue(updatedMessage.opened)
+        val unchangedMessage = resultState.inboxMessages.first { it.queueId == "queue-456" }
+        assertFalse(unchangedMessage.opened)
+    }
+
+    @Test
+    fun updateInboxMessageOpenedStatus_givenMarkAsUnopened_expectOpenedSetToFalse() {
+        val queueId = "queue-123"
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = true)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = true)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2)
+        )
+
+        val action = InAppMessagingAction.InboxAction.UpdateOpened(
+            message = message1,
+            opened = false
+        )
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        assertEquals(2, resultState.inboxMessages.size)
+        val updatedMessage = resultState.inboxMessages.first { it.queueId == queueId }
+        assertFalse(updatedMessage.opened)
+        val unchangedMessage = resultState.inboxMessages.first { it.queueId == "queue-456" }
+        assertTrue(unchangedMessage.opened)
+    }
+
+    @Test
+    fun markInboxMessageDeleted_givenMatchingQueueId_expectMessageRemoved() {
+        val queueId = "queue-123"
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+        val message2 = createInboxMessage(deliveryId = "inbox2", queueId = "queue-456", opened = false)
+        val message3 = createInboxMessage(deliveryId = "inbox3", queueId = "queue-789", opened = true)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(message1, message2, message3)
+        )
+
+        val action = InAppMessagingAction.InboxAction.DeleteMessage(message1)
+        val resultState = inAppMessagingReducer(startingState, action)
+
+        // Deleted message should be removed
+        assertEquals(2, resultState.inboxMessages.size)
+        assertFalse(resultState.inboxMessages.any { it.queueId == queueId })
+
+        // Other messages should remain unchanged
+        assertTrue(resultState.inboxMessages.any { it.queueId == "queue-456" })
+        assertTrue(resultState.inboxMessages.any { it.queueId == "queue-789" })
     }
 
     /**

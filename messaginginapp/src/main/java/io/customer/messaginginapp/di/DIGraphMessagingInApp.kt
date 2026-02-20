@@ -20,6 +20,7 @@ import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParserDefault
+import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
@@ -134,3 +135,16 @@ fun CustomerIOInstance.inAppMessaging(): ModuleMessagingInApp = SDKComponent.inA
 
 internal val SDKComponent.inAppMessaging: ModuleMessagingInApp
     get() = ModuleMessagingInApp.instance()
+
+/**
+ * Provides singleton instance of [NotificationInbox] for managing inbox messages.
+ */
+internal val SDKComponent.notificationInbox: NotificationInbox
+    get() = singleton {
+        NotificationInbox(
+            logger = logger,
+            coroutineScope = scopeProvider.inAppLifecycleScope,
+            dispatchersProvider = dispatchersProvider,
+            inAppMessagingManager = inAppMessagingManager
+        )
+    }

@@ -24,10 +24,43 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(anonymousId = action.anonymousId)
 
         is InAppMessagingAction.ClearMessageQueue ->
-            state.copy(messagesInQueue = emptySet())
+            if (action.isContentEmpty) {
+                state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet())
+            } else {
+                // Only clear the message queue, keep inbox messages until explicitly cleared to show cached content if needed
+                state.copy(messagesInQueue = emptySet())
+            }
 
         is InAppMessagingAction.ProcessMessageQueue ->
             state.copy(messagesInQueue = action.messages.toSet())
+
+        is InAppMessagingAction.ProcessInboxMessages ->
+            state.copy(inboxMessages = action.messages.toSet())
+
+        is InAppMessagingAction.InboxAction.UpdateOpened -> {
+            // Update opened status for given message
+            val queueId = action.message.queueId
+            val updatedMessages = state.inboxMessages.map { message ->
+                if (message.queueId == queueId) {
+                    message.copy(opened = action.opened)
+                } else {
+                    message
+                }
+            }.toSet()
+            state.copy(inboxMessages = updatedMessages)
+        }
+
+        is InAppMessagingAction.InboxAction.DeleteMessage -> {
+            // Remove deleted message from state
+            val queueId = action.message.queueId
+            val updatedMessages = state.inboxMessages.filterNot {
+                it.queueId == queueId
+            }.toSet()
+            state.copy(inboxMessages = updatedMessages)
+        }
+
+        is InAppMessagingAction.InboxAction.TrackClicked ->
+            state // No state changes for tap action
 
         is InAppMessagingAction.SetPollingInterval ->
             state.copy(pollInterval = action.interval)
@@ -51,6 +84,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             modalMessageState = ModalMessageState.Initial,
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),
+            inboxMessages = emptySet(),
             shownMessageQueueIds = emptySet(),
             sseEnabled = false
         )

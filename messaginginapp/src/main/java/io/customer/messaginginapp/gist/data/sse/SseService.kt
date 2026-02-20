@@ -200,6 +200,7 @@ internal data class ServerEvent(
         const val CONNECTED = "connected"
         const val HEARTBEAT = "heartbeat"
         const val MESSAGES = "messages"
+        const val INBOX_MESSAGES = "inbox_messages"
         const val TTL_EXCEEDED = "ttl_exceeded"
     }
 }

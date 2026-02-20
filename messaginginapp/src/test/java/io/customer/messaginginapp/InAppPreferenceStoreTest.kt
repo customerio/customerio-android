@@ -228,4 +228,59 @@ class InAppPreferenceStoreTest : IntegrationTest() {
         inAppPreferenceStore.isAnonymousInDelayPeriod(messageId) shouldBe false
         inAppPreferenceStore.getAnonymousNextShowTime(messageId) shouldBeEqualTo 0
     }
+
+    // Inbox Message Opened Status Tests
+    @Test
+    fun saveInboxMessageOpenedStatus_givenQueueIdAndStatus_expectSavedAndRetrieved() {
+        val queueId = "queue-123"
+
+        // Initially should return null (not cached)
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId) shouldBe null
+
+        // Save as opened
+        inAppPreferenceStore.saveInboxMessageOpenedStatus(queueId, true)
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId) shouldBeEqualTo true
+
+        // Save as unopened
+        inAppPreferenceStore.saveInboxMessageOpenedStatus(queueId, false)
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId) shouldBeEqualTo false
+    }
+
+    @Test
+    fun getInboxMessageOpenedStatus_givenNonexistentQueueId_expectNull() {
+        val queueId = "nonexistent-queue"
+
+        val status = inAppPreferenceStore.getInboxMessageOpenedStatus(queueId)
+        status shouldBe null
+    }
+
+    @Test
+    fun clearInboxMessageOpenedStatus_givenCachedStatus_expectCleared() {
+        val queueId = "queue-456"
+
+        // Save status
+        inAppPreferenceStore.saveInboxMessageOpenedStatus(queueId, true)
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId) shouldBeEqualTo true
+
+        // Clear status
+        inAppPreferenceStore.clearInboxMessageOpenedStatus(queueId)
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId) shouldBe null
+    }
+
+    @Test
+    fun saveInboxMessageOpenedStatus_givenMultipleMessages_expectEachTrackedIndependently() {
+        val queueId1 = "queue-1"
+        val queueId2 = "queue-2"
+        val queueId3 = "queue-3"
+
+        // Save different statuses for different messages
+        inAppPreferenceStore.saveInboxMessageOpenedStatus(queueId1, true)
+        inAppPreferenceStore.saveInboxMessageOpenedStatus(queueId2, false)
+        // Don't save anything for queueId3
+
+        // Verify each is tracked correctly
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId1) shouldBeEqualTo true
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId2) shouldBeEqualTo false
+        inAppPreferenceStore.getInboxMessageOpenedStatus(queueId3) shouldBe null
+    }
 }

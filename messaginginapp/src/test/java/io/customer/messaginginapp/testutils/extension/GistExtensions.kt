@@ -1,11 +1,20 @@
 package io.customer.messaginginapp.testutils.extension
 
 import io.customer.commontest.extensions.random
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageFactory
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageResponse
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.getMessage
 import io.customer.messaginginapp.ui.controller.InAppMessageViewController
+import java.util.Date
 import java.util.UUID
+
+// Date helper functions for testing
+internal fun dateNow(): Date = Date()
+internal fun dateHoursAgo(hours: Int): Date = Date(Date().time - hours * 3600_000L)
+internal fun dateDaysAgo(days: Int): Date = Date(Date().time - days * 86400_000L)
 
 fun getNewRandomMessage(): Message = InAppMessage(String.random, String.random, String.random).getMessage()
 
@@ -41,6 +50,33 @@ fun createInAppMessage(
         )
     }
 )
+
+// Creates an InboxMessage using InboxMessageResponse to leverage the factory mapping logic
+fun createInboxMessage(
+    queueId: String = UUID.randomUUID().toString(),
+    deliveryId: String? = UUID.randomUUID().toString(),
+    expiry: Date? = null,
+    sentAt: Date = Date(),
+    topics: List<String> = emptyList(),
+    type: String? = null,
+    opened: Boolean? = null,
+    priority: Int? = null,
+    properties: Map<String, Any?>? = null
+): InboxMessage = requireNotNull(
+    InboxMessageFactory.fromResponse(
+        InboxMessageResponse(
+            queueId = queueId,
+            deliveryId = deliveryId,
+            expiry = expiry,
+            sentAt = sentAt,
+            topics = topics,
+            type = type,
+            opened = opened,
+            priority = priority,
+            properties = properties
+        )
+    )
+) { "Failed to create test InboxMessage - invalid queueId or sentAt" }
 
 fun createGistAction(action: String): String = "gist://$action"
 

@@ -160,7 +160,7 @@ internal class Queue : GistQueue {
 
     private fun handleNoContent(responseCode: Int) {
         logger.debug("No messages found for user with response code: $responseCode")
-        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
+        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue(isContentEmpty = true))
     }
 
     // For cached responses (304), apply locally cached opened status to preserve user's changes.
@@ -217,7 +217,7 @@ internal class Queue : GistQueue {
 
     private fun handleFailedFetch(responseCode: Int) {
         logger.error("Failed to fetch messages: $responseCode")
-        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue)
+        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue(isContentEmpty = false))
     }
 
     private fun updatePollingInterval(headers: Headers) {

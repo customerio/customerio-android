@@ -155,4 +155,4 @@ jobs:
           gradle-version: ${{ matrix.gradle-version }}
 
       - name: Building ${{ matrix.sample-app }} with AGP version ${{ matrix.agp-version }}
-        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease" --refresh-dependencies
+        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"

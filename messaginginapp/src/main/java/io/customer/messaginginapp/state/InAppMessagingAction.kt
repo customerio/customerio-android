@@ -31,7 +31,7 @@ internal sealed class InAppMessagingAction {
         data class TrackClicked(override val message: InboxMessage, val actionName: String?) : InboxAction(message)
     }
 
-    object ClearMessageQueue : InAppMessagingAction()
+    data class ClearMessageQueue(val isContentEmpty: Boolean) : InAppMessagingAction()
     object Reset : InAppMessagingAction()
 }
 

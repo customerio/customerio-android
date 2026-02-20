@@ -1,5 +1,6 @@
 package io.customer.datapipelines.store
 
+import android.annotation.SuppressLint
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -28,6 +29,7 @@ internal class PreferenceCrypto(
     @Volatile
     private var cachedKey: SecretKey? = null
 
+    @SuppressLint("NewApi", "InlinedApi")
     private fun getOrCreateKey(): SecretKey {
         cachedKey?.let { return it }
 
@@ -59,6 +61,7 @@ internal class PreferenceCrypto(
      * containing the 12-byte IV prepended to the ciphertext. Falls back
      * to returning [plaintext] unchanged if encryption is unavailable.
      */
+    @SuppressLint("NewApi")
     fun encrypt(plaintext: String): String {
         if (!isKeystoreAvailable) return plaintext
 
@@ -80,6 +83,7 @@ internal class PreferenceCrypto(
      * encryption was enabled, or the Keystore is unavailable), returns
      * [encoded] as-is, which handles migration from plaintext transparently.
      */
+    @SuppressLint("NewApi")
     fun decrypt(encoded: String): String {
         if (!isKeystoreAvailable) return encoded
 

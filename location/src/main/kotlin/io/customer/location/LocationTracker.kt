@@ -1,9 +1,10 @@
-package io.customer.datapipelines.location
+package io.customer.location
 
 import android.location.Location
-import io.customer.datapipelines.plugins.LocationPlugin
-import io.customer.datapipelines.store.LocationPreferenceStore
+import io.customer.location.store.LocationPreferenceStore
 import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
+import io.customer.sdk.communication.LocationCache
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -20,90 +21,85 @@ import io.customer.sdk.core.util.Logger
  * 2. >= 1 km distance from the last synced location.
  *
  * If no synced location exists yet (first time), the filter passes automatically.
+ *
+ * Unlike the datapipelines version, this tracker does NOT gate on userId.
+ * The userId gate is handled by datapipelines when it subscribes to
+ * [Event.TrackLocationEvent].
  */
 internal class LocationTracker(
-    private val locationPlugin: LocationPlugin,
+    private val locationCache: LocationCache?,
     private val locationPreferenceStore: LocationPreferenceStore,
     private val logger: Logger,
-    private val userIdProvider: () -> String?
+    private val eventBus: EventBus
 ) {
     /**
      * Reads persisted cached location from the preference store and sets it on
-     * the [LocationPlugin] so that identify events have location context
+     * the [LocationCache] so that identify events have location context
      * immediately after SDK restart.
      */
     fun restorePersistedLocation() {
         val lat = locationPreferenceStore.getCachedLatitude() ?: return
         val lng = locationPreferenceStore.getCachedLongitude() ?: return
-        locationPlugin.lastLocation = Event.LocationData(latitude = lat, longitude = lng)
+        locationCache?.lastLocation = Event.LocationData(latitude = lat, longitude = lng)
         logger.debug("Restored persisted location: lat=$lat, lng=$lng")
     }
 
     /**
-     * Processes an incoming location event: always caches in the plugin and
-     * persists coordinates for identify enrichment. Only returns non-null
-     * (signalling the caller to send a "Location Update" track) when the
-     * [shouldSync] filter passes.
-     *
-     * @return the [Event.LocationData] to send as a track, or null if suppressed.
+     * Processes an incoming location: always caches in the plugin and
+     * persists coordinates for identify enrichment. Publishes a
+     * [Event.TrackLocationEvent] when the [shouldSync] filter passes.
      */
-    fun onLocationReceived(event: Event.TrackLocationEvent): Event.LocationData? {
-        val location = event.location
+    fun onLocationReceived(location: Event.LocationData) {
         logger.debug("Location update received: lat=${location.latitude}, lng=${location.longitude}")
 
         // Always cache and persist so identifies have context and location
         // survives app restarts — regardless of whether we send a track
-        locationPlugin.lastLocation = location
+        locationCache?.lastLocation = location
         locationPreferenceStore.saveCachedLocation(location.latitude, location.longitude)
-
-        // Only send location tracks for identified users
-        if (userIdProvider().isNullOrEmpty()) {
-            logger.debug("Location cached but track skipped: no identified user")
-            return null
-        }
 
         if (!shouldSync(location.latitude, location.longitude)) {
             logger.debug("Location cached but track suppressed: filter not met")
-            return null
+            return
         }
 
-        logger.debug("Location filter passed, sending Location Update track")
-        return location
+        logger.debug("Location filter passed, publishing TrackLocationEvent")
+        eventBus.publish(Event.TrackLocationEvent(location = location))
     }
 
     /**
      * Re-evaluates whether the cached location should be synced. Called on
-     * identify and on cold start to handle cases where:
+     * identify (via [Event.UserChangedEvent]) and on cold start to handle
+     * cases where:
      * - An identify was sent without location context in a previous session,
      *   and location has since arrived.
      * - The app was restarted after >24h and the cached location should be
      *   re-sent.
-     *
-     * @return the [Event.LocationData] to send as a track, or null if
-     *   the filter does not pass or no cached location exists.
      */
-    fun syncCachedLocationIfNeeded(): Event.LocationData? {
-        if (userIdProvider().isNullOrEmpty()) return null
+    fun syncCachedLocationIfNeeded() {
+        val lat = locationPreferenceStore.getCachedLatitude() ?: return
+        val lng = locationPreferenceStore.getCachedLongitude() ?: return
 
-        val lat = locationPreferenceStore.getCachedLatitude() ?: return null
-        val lng = locationPreferenceStore.getCachedLongitude() ?: return null
-
-        if (!shouldSync(lat, lng)) return null
+        if (!shouldSync(lat, lng)) return
 
         logger.debug("Syncing cached location: lat=$lat, lng=$lng")
-        return Event.LocationData(latitude = lat, longitude = lng)
+        eventBus.publish(Event.TrackLocationEvent(location = Event.LocationData(latitude = lat, longitude = lng)))
     }
 
     /**
-     * Returns true if the [LocationPlugin] has a cached location.
+     * Records that a location was successfully queued for delivery.
+     * Called when [Event.LocationTrackedEvent] is received, confirming
+     * that datapipelines sent the track.
      */
-    fun hasLocationContext(): Boolean = locationPlugin.lastLocation != null
+    fun confirmSync(latitude: Double, longitude: Double) {
+        locationPreferenceStore.saveSyncedLocation(latitude, longitude, System.currentTimeMillis())
+    }
 
     /**
-     * Resets user-level location state on logout. Clears synced data
-     * (timestamp and synced coordinates) so the next user gets their own
-     * location track — not gated by the previous user's 24h window.
-     * Cached coordinates are kept as they are device-level, not user-level.
+     * Resets user-level location state on logout or profile switch.
+     * Clears synced data (timestamp and synced coordinates) so the next
+     * user gets their own location track — not gated by the previous
+     * user's 24h window. Cached coordinates are kept as they are
+     * device-level, not user-level.
      */
     fun onUserReset() {
         locationPreferenceStore.clearSyncedData()
@@ -131,17 +127,6 @@ internal class LocationTracker(
 
         val distance = distanceBetween(syncedLat, syncedLng, latitude, longitude)
         return distance >= MINIMUM_DISTANCE_METERS
-    }
-
-    /**
-     * Records that a location was successfully queued for delivery.
-     * Must be called AFTER the "Location Update" track has been enqueued
-     * via [analytics.track], so that if the process is killed between
-     * the track and the record, the worst case is a harmless duplicate
-     * rather than a missed send.
-     */
-    fun confirmSync(latitude: Double, longitude: Double) {
-        locationPreferenceStore.saveSyncedLocation(latitude, longitude, System.currentTimeMillis())
     }
 
     /**

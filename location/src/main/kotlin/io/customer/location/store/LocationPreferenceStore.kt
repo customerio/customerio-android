@@ -1,4 +1,4 @@
-package io.customer.datapipelines.store
+package io.customer.location.store
 
 import android.content.Context
 import androidx.core.content.edit

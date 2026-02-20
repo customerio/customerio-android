@@ -29,6 +29,17 @@ public final class io/customer/sdk/communication/Event$LocationData {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/customer/sdk/communication/Event$LocationTrackedEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Lio/customer/sdk/communication/Event$LocationData;)V
+	public final fun component1 ()Lio/customer/sdk/communication/Event$LocationData;
+	public final fun copy (Lio/customer/sdk/communication/Event$LocationData;)Lio/customer/sdk/communication/Event$LocationTrackedEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$LocationTrackedEvent;Lio/customer/sdk/communication/Event$LocationData;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$LocationTrackedEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLocation ()Lio/customer/sdk/communication/Event$LocationData;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -126,6 +137,11 @@ public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/
 	public fun publish (Lio/customer/sdk/communication/Event;)V
 	public fun removeAllSubscriptions ()V
 	public fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
+}
+
+public abstract interface class io/customer/sdk/communication/LocationCache {
+	public abstract fun getLastLocation ()Lio/customer/sdk/communication/Event$LocationData;
+	public abstract fun setLastLocation (Lio/customer/sdk/communication/Event$LocationData;)V
 }
 
 public final class io/customer/sdk/core/BuildConfig {

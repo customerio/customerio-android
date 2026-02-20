@@ -61,6 +61,10 @@ sealed class Event {
         val location: LocationData
     ) : Event()
 
+    data class LocationTrackedEvent(
+        val location: LocationData
+    ) : Event()
+
     /**
      * Location data in a framework-agnostic format.
      * Used to pass location information between modules without

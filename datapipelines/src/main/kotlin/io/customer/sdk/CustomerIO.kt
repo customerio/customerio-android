@@ -14,12 +14,10 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.di.dataPipelinesLogger
-import io.customer.datapipelines.di.locationPreferenceStore
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
-import io.customer.datapipelines.location.LocationTracker
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -30,6 +28,7 @@ import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.LocationPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.LocationCache
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
@@ -111,7 +110,6 @@ class CustomerIO private constructor(
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
     private val locationPlugin: LocationPlugin = LocationPlugin(logger)
-    private val locationTracker: LocationTracker = LocationTracker(locationPlugin, SDKComponent.locationPreferenceStore, logger) { analytics.userId() }
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -135,8 +133,8 @@ class CustomerIO private constructor(
         analytics.add(locationPlugin)
         analytics.add(ApplicationLifecyclePlugin())
 
-        // Restore persisted location so identify events have context immediately
-        locationTracker.restorePersistedLocation()
+        // Register LocationPlugin as LocationCache so the location module can update it
+        SDKComponent.registerDependency<LocationCache> { locationPlugin }
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
@@ -161,10 +159,10 @@ class CustomerIO private constructor(
             registerDeviceToken(deviceToken = it.token)
         }
         eventBus.subscribe<Event.TrackLocationEvent> {
-            locationTracker.onLocationReceived(it)?.let { location ->
-                sendLocationTrack(location)
-                locationTracker.confirmSync(location.latitude, location.longitude)
-            }
+            val userId = analytics.userId()
+            if (userId.isNullOrEmpty()) return@subscribe
+            sendLocationTrack(it.location)
+            eventBus.publish(Event.LocationTrackedEvent(location = it.location))
         }
     }
 
@@ -212,12 +210,6 @@ class CustomerIO private constructor(
 
         if (moduleConfig.trackApplicationLifecycleEvents) {
             analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
-        }
-
-        // Re-evaluate cached location on cold start (e.g. >24h + >1km since last sync)
-        locationTracker.syncCachedLocationIfNeeded()?.let { location ->
-            sendLocationTrack(location)
-            locationTracker.confirmSync(location.latitude, location.longitude)
         }
     }
 
@@ -274,20 +266,15 @@ class CustomerIO private constructor(
 
         logger.info("identify profile with identifier $userId and traits $traits")
 
-        // publish event to EventBus for other modules to consume
-        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
         analytics.identify(
             userId = userId,
             traits = traits,
             serializationStrategy = serializationStrategy
         )
-
-        // Re-evaluate cached location now that the user is identified.
-        // Must come after analytics.identify() so userIdProvider returns the correct userId.
-        locationTracker.syncCachedLocationIfNeeded()?.let { location ->
-            sendLocationTrack(location)
-            locationTracker.confirmSync(location.latitude, location.longitude)
-        }
+        // publish event to EventBus for other modules to consume
+        // Must come after analytics.identify() so that analytics.userId() returns the
+        // new userId when downstream subscribers (e.g. location resync) gate on it.
+        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")
@@ -337,7 +324,6 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
-        locationTracker.onUserReset()
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
         analytics.reset()

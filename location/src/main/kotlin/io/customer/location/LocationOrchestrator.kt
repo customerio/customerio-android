@@ -4,7 +4,6 @@ import io.customer.location.provider.LocationProvider
 import io.customer.location.provider.LocationRequestException
 import io.customer.location.type.LocationGranularity
 import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CancellationException
 
@@ -15,7 +14,7 @@ import kotlinx.coroutines.CancellationException
 internal class LocationOrchestrator(
     private val config: LocationModuleConfig,
     private val logger: Logger,
-    private val eventBus: EventBus,
+    private val locationTracker: LocationTracker,
     private val locationProvider: LocationProvider
 ) {
 
@@ -52,6 +51,6 @@ internal class LocationOrchestrator(
             latitude = latitude,
             longitude = longitude
         )
-        eventBus.publish(Event.TrackLocationEvent(location = locationData))
+        locationTracker.onLocationReceived(locationData)
     }
 }

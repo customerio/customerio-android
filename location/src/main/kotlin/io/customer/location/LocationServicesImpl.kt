@@ -2,7 +2,6 @@ package io.customer.location
 
 import android.location.Location
 import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -18,7 +17,7 @@ import kotlinx.coroutines.launch
 internal class LocationServicesImpl(
     private val config: LocationModuleConfig,
     private val logger: Logger,
-    private val eventBus: EventBus,
+    private val locationTracker: LocationTracker,
     private val orchestrator: LocationOrchestrator,
     private val scope: CoroutineScope
 ) : LocationServices {
@@ -43,7 +42,7 @@ internal class LocationServicesImpl(
             latitude = latitude,
             longitude = longitude
         )
-        eventBus.publish(Event.TrackLocationEvent(location = locationData))
+        locationTracker.onLocationReceived(locationData)
     }
 
     override fun setLastKnownLocation(location: Location) {

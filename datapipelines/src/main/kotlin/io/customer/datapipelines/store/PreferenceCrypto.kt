@@ -29,6 +29,7 @@ internal class PreferenceCrypto(
     @Volatile
     private var cachedKey: SecretKey? = null
 
+    @Synchronized
     @SuppressLint("NewApi", "InlinedApi")
     private fun getOrCreateKey(): SecretKey {
         cachedKey?.let { return it }

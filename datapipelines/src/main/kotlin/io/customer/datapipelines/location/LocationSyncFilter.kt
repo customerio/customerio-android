@@ -24,7 +24,11 @@ internal class LocationSyncFilter(
      * Checks whether the given location passes the sync filter (24h + 1km).
      * If the filter passes, atomically saves the location as the new synced
      * reference point and returns `true`. Otherwise returns `false`.
+     *
+     * Synchronized with [clearSyncedData] to prevent a late write from
+     * reintroducing stale synced state after a profile switch or logout.
      */
+    @Synchronized
     fun filterAndRecord(latitude: Double, longitude: Double): Boolean {
         val lastTimestamp = store.getSyncedTimestamp()
         // Never synced before — always pass
@@ -57,7 +61,11 @@ internal class LocationSyncFilter(
     /**
      * Resets filter state on user switch or logout so the next user is not
      * suppressed by the previous user's 24h/1km window.
+     *
+     * Synchronized with [filterAndRecord] to prevent a concurrent
+     * filter-and-write from restoring stale synced state after the clear.
      */
+    @Synchronized
     fun clearSyncedData() {
         store.clearSyncedData()
     }

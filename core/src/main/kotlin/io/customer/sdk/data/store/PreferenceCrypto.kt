@@ -1,4 +1,4 @@
-package io.customer.location.store
+package io.customer.sdk.data.store
 
 import android.annotation.SuppressLint
 import android.os.Build
@@ -20,7 +20,7 @@ import javax.crypto.spec.GCMParameterSpec
  * The [MODE_PRIVATE][android.content.Context.MODE_PRIVATE] SharedPreferences
  * sandbox remains the baseline protection in all cases.
  */
-internal class PreferenceCrypto(
+class PreferenceCrypto(
     private val keyAlias: String,
     private val logger: Logger
 ) {

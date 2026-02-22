@@ -2,6 +2,8 @@ package io.customer.datapipelines.store
 
 import android.content.Context
 import androidx.core.content.edit
+import io.customer.sdk.core.util.Logger
+import io.customer.sdk.data.store.PreferenceCrypto
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 
@@ -12,9 +14,8 @@ import io.customer.sdk.data.store.read
  * sent to the server, used by [io.customer.datapipelines.location.LocationSyncFilter]
  * to decide whether a new location update should be sent.
  *
- * Coordinates are stored as raw [Long] bits via [Double.toBits] for lossless
- * storage without encryption — this is the same data already sent to the server
- * via analytics.track().
+ * Coordinates are encrypted at rest using [PreferenceCrypto] (AES-256-GCM
+ * via Android Keystore) to protect location PII on the device.
  */
 internal interface LocationSyncStore {
     fun saveSyncedLocation(latitude: Double, longitude: Double, timestamp: Long)
@@ -25,25 +26,28 @@ internal interface LocationSyncStore {
 }
 
 internal class LocationSyncStoreImpl(
-    context: Context
+    context: Context,
+    logger: Logger
 ) : PreferenceStore(context), LocationSyncStore {
+
+    private val crypto = PreferenceCrypto(KEY_ALIAS, logger)
 
     override val prefsName: String by lazy {
         "io.customer.sdk.location_sync.${context.packageName}"
     }
 
     override fun saveSyncedLocation(latitude: Double, longitude: Double, timestamp: Long) = prefs.edit {
-        putLong(KEY_SYNCED_LATITUDE, latitude.toBits())
-        putLong(KEY_SYNCED_LONGITUDE, longitude.toBits())
+        putString(KEY_SYNCED_LATITUDE, crypto.encrypt(latitude.toString()))
+        putString(KEY_SYNCED_LONGITUDE, crypto.encrypt(longitude.toString()))
         putLong(KEY_SYNCED_TIMESTAMP, timestamp)
     }
 
     override fun getSyncedLatitude(): Double? = prefs.read {
-        if (contains(KEY_SYNCED_LATITUDE)) Double.fromBits(getLong(KEY_SYNCED_LATITUDE, 0L)) else null
+        getString(KEY_SYNCED_LATITUDE, null)?.let { crypto.decrypt(it).toDoubleOrNull() }
     }
 
     override fun getSyncedLongitude(): Double? = prefs.read {
-        if (contains(KEY_SYNCED_LONGITUDE)) Double.fromBits(getLong(KEY_SYNCED_LONGITUDE, 0L)) else null
+        getString(KEY_SYNCED_LONGITUDE, null)?.let { crypto.decrypt(it).toDoubleOrNull() }
     }
 
     override fun getSyncedTimestamp(): Long? = prefs.read {
@@ -57,6 +61,7 @@ internal class LocationSyncStoreImpl(
     }
 
     companion object {
+        private const val KEY_ALIAS = "cio_location_sync_key"
         private const val KEY_SYNCED_LATITUDE = "cio_synced_latitude"
         private const val KEY_SYNCED_LONGITUDE = "cio_synced_longitude"
         private const val KEY_SYNCED_TIMESTAMP = "cio_synced_timestamp"

@@ -76,7 +76,7 @@ class CustomerIO private constructor(
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
     private val locationSyncFilter = LocationSyncFilter(
-        LocationSyncStoreImpl(androidSDKComponent.applicationContext)
+        LocationSyncStoreImpl(androidSDKComponent.applicationContext, logger)
     )
 
     // Display logs under the CIO tag for easier filtering in logcat

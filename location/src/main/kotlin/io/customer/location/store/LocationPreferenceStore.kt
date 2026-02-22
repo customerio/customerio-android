@@ -3,6 +3,7 @@ package io.customer.location.store
 import android.content.Context
 import androidx.core.content.edit
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.data.store.PreferenceCrypto
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 

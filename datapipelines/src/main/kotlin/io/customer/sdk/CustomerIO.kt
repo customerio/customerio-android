@@ -18,6 +18,7 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.location.LocationSyncFilter
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -27,6 +28,7 @@ import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.LocationPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
+import io.customer.datapipelines.store.LocationSyncStoreImpl
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.LocationCache
 import io.customer.sdk.communication.subscribe
@@ -73,6 +75,9 @@ class CustomerIO private constructor(
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
+    private val locationSyncFilter = LocationSyncFilter(
+        LocationSyncStoreImpl(androidSDKComponent.applicationContext)
+    )
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
@@ -161,8 +166,8 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.TrackLocationEvent> {
             val userId = analytics.userId()
             if (userId.isNullOrEmpty()) return@subscribe
+            if (!locationSyncFilter.filterAndRecord(it.location.latitude, it.location.longitude)) return@subscribe
             sendLocationTrack(it.location)
-            eventBus.publish(Event.LocationTrackedEvent(location = it.location))
         }
     }
 
@@ -254,6 +259,7 @@ class CustomerIO private constructor(
 
         if (isChangingIdentifiedProfile) {
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
+            locationSyncFilter.clearSyncedData()
             if (registeredDeviceToken != null) {
                 dataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification()
                 deleteDeviceToken { event ->
@@ -324,6 +330,7 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
+        locationSyncFilter.clearSyncedData()
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
         analytics.reset()

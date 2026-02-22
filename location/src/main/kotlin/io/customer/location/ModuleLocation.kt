@@ -70,34 +70,10 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
-        var lastKnownUserId: String? = null
         eventBus.subscribe<Event.UserChangedEvent> {
-            val previousUserId = lastKnownUserId
-            lastKnownUserId = it.userId
-
-            if (it.userId.isNullOrEmpty()) {
-                // User logged out — clear synced data so the next user is not
-                // suppressed by the previous user's 24h/1km window. Handled here
-                // (not only in the ResetEvent subscriber) because both subscribers
-                // run in separate coroutines and the UserChangedEvent for the new
-                // user could arrive before the ResetEvent subscriber clears state.
-                if (!previousUserId.isNullOrEmpty()) {
-                    locationTracker.onUserReset()
-                }
-            } else {
-                // Clear synced data when switching between identified users so the
-                // new user is not suppressed by the previous user's 24h/1km window.
-                if (!previousUserId.isNullOrEmpty() && previousUserId != it.userId) {
-                    locationTracker.onUserReset()
-                }
+            if (!it.userId.isNullOrEmpty()) {
                 locationTracker.syncCachedLocationIfNeeded()
             }
-        }
-        eventBus.subscribe<Event.LocationTrackedEvent> {
-            locationTracker.confirmSync(it.location.latitude, it.location.longitude)
-        }
-        eventBus.subscribe<Event.ResetEvent> {
-            locationTracker.onUserReset()
         }
 
         val locationProvider = FusedLocationProvider(context)

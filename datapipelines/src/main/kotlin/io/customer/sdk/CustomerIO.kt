@@ -18,7 +18,6 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
-import io.customer.datapipelines.location.LocationSyncFilter
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -26,15 +25,15 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
-import io.customer.datapipelines.plugins.LocationPlugin
+import io.customer.datapipelines.plugins.ProfileEnrichmentPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
-import io.customer.datapipelines.store.LocationSyncStoreImpl
 import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.LocationCache
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.pipeline.DataPipeline
+import io.customer.sdk.core.pipeline.profileEnrichmentRegistry
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
@@ -66,7 +65,7 @@ class CustomerIO private constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig,
     overrideAnalytics: Analytics? = null
-) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
+) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance(), DataPipeline {
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
@@ -75,9 +74,6 @@ class CustomerIO private constructor(
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
-    private val locationSyncFilter = LocationSyncFilter(
-        LocationSyncStoreImpl(androidSDKComponent.applicationContext, logger)
-    )
 
     // Display logs under the CIO tag for easier filtering in logcat
     private val errorLogger = object : ErrorHandler {
@@ -114,7 +110,6 @@ class CustomerIO private constructor(
     )
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
-    private val locationPlugin: LocationPlugin = LocationPlugin(logger)
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -135,11 +130,11 @@ class CustomerIO private constructor(
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
-        analytics.add(locationPlugin)
+        analytics.add(ProfileEnrichmentPlugin(SDKComponent.profileEnrichmentRegistry, logger))
         analytics.add(ApplicationLifecyclePlugin())
 
-        // Register LocationPlugin as LocationCache so the location module can update it
-        SDKComponent.registerDependency<LocationCache> { locationPlugin }
+        // Register this instance as DataPipeline so modules can send track events directly
+        SDKComponent.registerDependency<DataPipeline> { this }
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
@@ -163,21 +158,6 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
         }
-        eventBus.subscribe<Event.TrackLocationEvent> {
-            if (userId.isNullOrEmpty()) return@subscribe
-            if (!locationSyncFilter.filterAndRecord(it.location.latitude, it.location.longitude)) return@subscribe
-            sendLocationTrack(it.location)
-        }
-    }
-
-    private fun sendLocationTrack(location: Event.LocationData) {
-        track(
-            name = EventNames.LOCATION_UPDATE,
-            properties = mapOf(
-                "latitude" to location.latitude,
-                "longitude" to location.longitude
-            )
-        )
     }
 
     private fun migrateTrackingEvents() {
@@ -258,7 +238,6 @@ class CustomerIO private constructor(
 
         if (isChangingIdentifiedProfile) {
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
-            locationSyncFilter.clearSyncedData()
             if (registeredDeviceToken != null) {
                 dataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification()
                 deleteDeviceToken { event ->
@@ -329,7 +308,6 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
-        locationSyncFilter.clearSyncedData()
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
         analytics.reset()

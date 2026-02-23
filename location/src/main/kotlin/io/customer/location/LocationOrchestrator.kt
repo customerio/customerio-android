@@ -3,7 +3,6 @@ package io.customer.location
 import io.customer.location.provider.LocationProvider
 import io.customer.location.provider.LocationRequestException
 import io.customer.location.type.LocationGranularity
-import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CancellationException
 
@@ -34,7 +33,8 @@ internal class LocationOrchestrator(
             val snapshot = locationProvider.requestLocation(
                 granularity = LocationGranularity.DEFAULT
             )
-            postLocation(snapshot.latitude, snapshot.longitude)
+            logger.debug("Tracking location: lat=${snapshot.latitude}, lng=${snapshot.longitude}")
+            locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude)
         } catch (e: CancellationException) {
             logger.debug("Location request was cancelled.")
             throw e
@@ -43,14 +43,5 @@ internal class LocationOrchestrator(
         } catch (e: Exception) {
             logger.error("Location request failed with unexpected error: ${e.message}")
         }
-    }
-
-    private fun postLocation(latitude: Double, longitude: Double) {
-        logger.debug("Tracking location: lat=$latitude, lng=$longitude")
-        val locationData = Event.LocationData(
-            latitude = latitude,
-            longitude = longitude
-        )
-        locationTracker.onLocationReceived(locationData)
     }
 }

@@ -1,7 +1,6 @@
 package io.customer.location
 
 import android.location.Location
-import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -38,11 +37,7 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        val locationData = Event.LocationData(
-            latitude = latitude,
-            longitude = longitude
-        )
-        locationTracker.onLocationReceived(locationData)
+        locationTracker.onLocationReceived(latitude, longitude)
     }
 
     override fun setLastKnownLocation(location: Location) {

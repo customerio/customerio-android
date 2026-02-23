@@ -1,7 +1,6 @@
-package io.customer.datapipelines.location
+package io.customer.location.sync
 
 import android.location.Location
-import io.customer.datapipelines.store.LocationSyncStore
 
 /**
  * Determines whether a location update should be sent to the server and
@@ -13,9 +12,6 @@ import io.customer.datapipelines.store.LocationSyncStore
  *
  * If no synced location exists yet (first time or after reset), the filter
  * passes automatically.
- *
- * This filter lives in datapipelines (same module as the userId gate) so the
- * entire flow is synchronous — no round-trip confirmation events needed.
  */
 internal class LocationSyncFilter(
     private val store: LocationSyncStore

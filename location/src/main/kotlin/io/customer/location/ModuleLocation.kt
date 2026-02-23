@@ -1,13 +1,16 @@
 package io.customer.location
 
 import android.location.Location
-import io.customer.location.di.locationCache
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
+import io.customer.location.sync.LocationSyncFilter
+import io.customer.location.sync.LocationSyncStoreImpl
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.pipeline.DataPipeline
+import io.customer.sdk.core.pipeline.profileEnrichmentRegistry
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -64,20 +67,24 @@ class ModuleLocation @JvmOverloads constructor(
         val eventBus = SDKComponent.eventBus
         val context = SDKComponent.android().applicationContext
 
-        val locationCache = SDKComponent.locationCache
+        val dataPipeline = SDKComponent.getOrNull<DataPipeline>()
         val store = LocationPreferenceStoreImpl(context, logger)
-        val locationTracker = LocationTracker(locationCache, store, logger, eventBus)
+        val locationSyncFilter = LocationSyncFilter(
+            LocationSyncStoreImpl(context, logger)
+        )
+        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
 
         locationTracker.restorePersistedLocation()
 
+        // Register as ProfileEnrichmentProvider for identify enrichment
+        SDKComponent.profileEnrichmentRegistry.register(locationTracker)
+
         eventBus.subscribe<Event.ResetEvent> {
-            locationTracker.clearCachedLocation()
+            locationTracker.onReset()
         }
 
         eventBus.subscribe<Event.UserChangedEvent> {
-            if (!it.userId.isNullOrEmpty()) {
-                locationTracker.syncCachedLocationIfNeeded()
-            }
+            locationTracker.onUserChanged(it.userId, it.anonymousId)
         }
 
         val locationProvider = FusedLocationProvider(context)

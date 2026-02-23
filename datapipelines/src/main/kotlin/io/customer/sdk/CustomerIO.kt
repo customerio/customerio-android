@@ -164,7 +164,6 @@ class CustomerIO private constructor(
             registerDeviceToken(deviceToken = it.token)
         }
         eventBus.subscribe<Event.TrackLocationEvent> {
-            val userId = analytics.userId()
             if (userId.isNullOrEmpty()) return@subscribe
             if (!locationSyncFilter.filterAndRecord(it.location.latitude, it.location.longitude)) return@subscribe
             sendLocationTrack(it.location)

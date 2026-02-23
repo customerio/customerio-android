@@ -1,10 +1,10 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.location.di.locationCache
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.LocationCache
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
@@ -64,7 +64,7 @@ class ModuleLocation @JvmOverloads constructor(
         val eventBus = SDKComponent.eventBus
         val context = SDKComponent.android().applicationContext
 
-        val locationCache = SDKComponent.getOrNull<LocationCache>()
+        val locationCache = SDKComponent.locationCache
         val store = LocationPreferenceStoreImpl(context, logger)
         val locationTracker = LocationTracker(locationCache, store, logger, eventBus)
 

@@ -52,7 +52,7 @@ internal class GistSdk(
 
     private fun onActivityResumed() {
         logger.debug("GistSdk Activity resumed")
-        fetchInAppMessages(state.pollInterval, forceFetch = true)
+        fetchInAppMessages(state.pollInterval)
     }
 
     private fun onActivityPaused() {
@@ -77,17 +77,10 @@ internal class GistSdk(
         fetchInAppMessages(duration = state.pollInterval)
     }
 
-    private fun fetchInAppMessages(duration: Long, initialDelay: Long = 0, forceFetch: Boolean = false) {
+    private fun fetchInAppMessages(duration: Long, initialDelay: Long = 0) {
         val currentState = state
         // Only skip polling if SSE should be used (both flag enabled AND user identified)
         if (currentState.shouldUseSse) {
-            if (forceFetch) {
-                // When the app returns from background, the SSE connection was disconnected
-                // and any messages sent during that period were missed. Perform a one-time
-                // catch-up fetch to retrieve those messages before SSE reconnects.
-                logger.debug("SSE is active, performing catch-up fetch for messages missed while backgrounded")
-                gistQueue.fetchUserMessages()
-            }
             logger.debug("GistSdk skipping polling - SSE is active (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified})")
             return
         }

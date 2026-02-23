@@ -3,6 +3,7 @@ package io.customer.messaginginapp.gist.presentation
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.sse.InAppSseLogger
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -16,6 +17,7 @@ internal class SseLifecycleManager(
     processLifecycleOwner: LifecycleOwner,
     private val sseConnectionManager: SseConnectionManager,
     private val sseLogger: InAppSseLogger,
+    private val gistQueue: GistQueue,
     private val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
 ) {
 
@@ -68,6 +70,11 @@ internal class SseLifecycleManager(
         // Anonymous users should use polling instead of SSE
         if (state.shouldUseSse) {
             sseLogger.logAppForegrounded()
+            // The SSE endpoint does not send pending messages on connect — it only delivers
+            // new messages that arrive after the connection is established. Perform a one-time
+            // HTTP fetch to retrieve any messages sent while the app was backgrounded and the
+            // SSE connection was disconnected.
+            gistQueue.fetchUserMessages()
             sseConnectionManager.startConnection()
         } else {
             sseLogger.logAppForegroundedSseNotUsed(state.sseEnabled, state.isUserIdentified)

@@ -2,6 +2,7 @@ package io.customer.messaginginapp.gist.presentation
 
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.sse.InAppSseLogger
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -26,6 +27,7 @@ class SseLifecycleManagerTest : JUnitTest() {
     private val processLifecycleOwner = mockk<LifecycleOwner>(relaxed = true)
     private val lifecycle = mockk<Lifecycle>(relaxed = true)
     private val mainThreadPoster = mockk<MainThreadPoster>(relaxed = true)
+    private val gistQueue = mockk<GistQueue>(relaxed = true)
 
     private val stateFlow = MutableStateFlow<InAppMessagingState>(
         InAppMessagingState(sseEnabled = false)
@@ -92,6 +94,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -112,6 +115,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -129,6 +133,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -152,6 +157,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -175,6 +181,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -201,6 +208,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -226,6 +234,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -256,6 +265,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -282,6 +292,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -304,6 +315,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -330,6 +342,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -356,6 +369,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -389,6 +403,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -416,6 +431,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -450,6 +466,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -479,6 +496,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -516,6 +534,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -553,6 +572,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 
@@ -583,6 +603,7 @@ class SseLifecycleManagerTest : JUnitTest() {
             processLifecycleOwner = processLifecycleOwner,
             sseConnectionManager = sseConnectionManager,
             sseLogger = sseLogger,
+            gistQueue = gistQueue,
             mainThreadPoster = mainThreadPoster
         )
 

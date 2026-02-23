@@ -70,6 +70,10 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
+        eventBus.subscribe<Event.ResetEvent> {
+            locationTracker.clearCachedLocation()
+        }
+
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
                 locationTracker.syncCachedLocationIfNeeded()

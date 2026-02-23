@@ -147,6 +147,15 @@ class LocationTrackerTest {
         trackerWithNullCache.restorePersistedLocation()
     }
 
+    // -- clearCachedLocation --
+
+    @Test
+    fun clearCachedLocation_expectClearsStore() {
+        tracker.clearCachedLocation()
+
+        verify { store.clearCachedLocation() }
+    }
+
     @Test
     fun givenNullLocationCache_onLocationReceived_expectStillPersistsAndPublishes() {
         val trackerWithNullCache = LocationTracker(null, store, logger, eventBus)

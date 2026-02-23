@@ -70,4 +70,14 @@ internal class LocationTracker(
         logger.debug("Re-publishing cached location: lat=$lat, lng=$lng")
         eventBus.publish(Event.TrackLocationEvent(location = Event.LocationData(latitude = lat, longitude = lng)))
     }
+
+    /**
+     * Clears all persisted location data from the preference store.
+     * Called on [Event.ResetEvent] (clearIdentify) to ensure no stale
+     * location survives a full identity reset.
+     */
+    fun clearCachedLocation() {
+        locationPreferenceStore.clearCachedLocation()
+        logger.debug("Cleared cached location from preference store")
+    }
 }

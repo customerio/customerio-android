@@ -28,4 +28,9 @@ internal class LocationPlugin(private val logger: Logger) : EventPlugin, Locatio
         payload.putInContext("location_longitude", JsonPrimitive(location.longitude))
         return payload
     }
+
+    override fun reset() {
+        super.reset()
+        lastLocation = null
+    }
 }

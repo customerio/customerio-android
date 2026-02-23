@@ -128,6 +128,11 @@ public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/
 	public fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
 }
 
+public abstract interface class io/customer/sdk/communication/LocationCache {
+	public abstract fun getLastLocation ()Lio/customer/sdk/communication/Event$LocationData;
+	public abstract fun setLastLocation (Lio/customer/sdk/communication/Event$LocationData;)V
+}
+
 public final class io/customer/sdk/core/BuildConfig {
 	public static final field BUILD_TYPE Ljava/lang/String;
 	public static final field DEBUG Z

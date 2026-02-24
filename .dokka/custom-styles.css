@@ -1,0 +1,11 @@
+/* Custom styles for Customer.io Android SDK documentation */
+
+:root {
+    /* Use custom Customer.io logo instead of default Dokka logo */
+    --dokka-logo-image-url: url('../images/logo.png');
+}
+
+/* Adjust library name alignment */
+.library-name a {
+    vertical-align: middle;
+}

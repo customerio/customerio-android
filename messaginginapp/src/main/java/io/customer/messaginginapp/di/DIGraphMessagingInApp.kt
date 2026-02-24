@@ -115,7 +115,8 @@ internal val SDKComponent.sseLifecycleManager: SseLifecycleManager
             inAppMessagingManager = inAppMessagingManager,
             processLifecycleOwner = ProcessLifecycleOwner.get(),
             sseConnectionManager = sseConnectionManager,
-            sseLogger = inAppSseLogger
+            sseLogger = inAppSseLogger,
+            gistQueue = gistQueue
         )
     }
 

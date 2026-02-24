@@ -1,5 +1,6 @@
 import io.customer.android.Configurations
 import io.customer.android.Dependencies
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id 'com.android.library'
@@ -27,6 +28,14 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+tasks.withType(KotlinCompile).all {
+    kotlinOptions {
+        freeCompilerArgs += [
+                '-opt-in=io.customer.base.internal.InternalCustomerIOApi',
+        ]
     }
 }
 

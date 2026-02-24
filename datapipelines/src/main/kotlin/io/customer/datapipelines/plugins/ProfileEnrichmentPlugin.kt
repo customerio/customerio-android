@@ -27,18 +27,22 @@ internal class ProfileEnrichmentPlugin(
 
     override fun identify(payload: IdentifyEvent): BaseEvent {
         for (provider in registry.getAll()) {
-            val attributes = provider.getProfileEnrichmentAttributes() ?: continue
-            for ((key, value) in attributes) {
-                val jsonValue = when (value) {
-                    is String -> JsonPrimitive(value)
-                    is Number -> JsonPrimitive(value)
-                    is Boolean -> JsonPrimitive(value)
-                    else -> {
-                        logger.debug("Skipping non-primitive enrichment attribute: $key")
-                        continue
+            try {
+                val attributes = provider.getProfileEnrichmentAttributes() ?: continue
+                for ((key, value) in attributes) {
+                    val jsonValue = when (value) {
+                        is String -> JsonPrimitive(value)
+                        is Number -> JsonPrimitive(value)
+                        is Boolean -> JsonPrimitive(value)
+                        else -> {
+                            logger.debug("Skipping non-primitive enrichment attribute: $key")
+                            continue
+                        }
                     }
+                    payload.putInContext(key, jsonValue)
                 }
-                payload.putInContext(key, jsonValue)
+            } catch (e: Exception) {
+                logger.error("ProfileEnrichmentProvider failed: ${e.message}")
             }
         }
         return payload

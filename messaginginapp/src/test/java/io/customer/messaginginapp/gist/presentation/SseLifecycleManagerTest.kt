@@ -387,6 +387,145 @@ class SseLifecycleManagerTest : JUnitTest() {
     }
 
     // =====================
+    // Catch-up fetch tests (fetchUserMessages on foreground)
+    // =====================
+
+    @Test
+    fun testOnStart_whenSseEnabledAndUserIdentified_thenFetchesUserMessages() {
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+
+        // When
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // Then - should fetch user messages to catch up on missed messages
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun testOnStart_whenSseDisabled_thenDoesNotFetchUserMessages() {
+        // Given - SSE disabled
+        stateFlow.value = InAppMessagingState(sseEnabled = false)
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+
+        // When
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // Then - should NOT fetch (polling handles its own fetching)
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun testOnStart_whenSseEnabledButUserAnonymous_thenDoesNotFetchUserMessages() {
+        // Given - SSE enabled but user is anonymous
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+
+        // When
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+
+        // Then - should NOT fetch for anonymous users (they use polling)
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun testBackgroundToForeground_whenSseEnabled_thenFetchesUserMessages() {
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+
+        // First foreground
+        observer.onStart(processLifecycleOwner)
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+
+        // Background the app
+        observer.onStop(processLifecycleOwner)
+
+        // When - Return to foreground
+        observer.onStart(processLifecycleOwner)
+
+        // Then - should fetch again to catch up on messages missed while backgrounded
+        verify(exactly = 2) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun testOnStart_whenAlreadyForegrounded_thenDoesNotFetchAgain() {
+        // Given - SSE enabled and user is identified
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+
+        // First call
+        observer.onStart(processLifecycleOwner)
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+
+        // When - duplicate onStart without onStop
+        observer.onStart(processLifecycleOwner)
+
+        // Then - should NOT fetch again (AtomicBoolean guard prevents duplicate)
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+    }
+
+    // =====================
     // Anonymous vs Identified User Tests
     // =====================
 

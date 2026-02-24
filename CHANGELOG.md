@@ -1,3 +1,9 @@
+## [4.16.1](https://github.com/customerio/customerio-android/compare/4.16.0...4.16.1) (2026-02-24)
+
+### Bug Fixes
+
+* in-app messages not displaying when app returns from background with SSE enabled  ([#663](https://github.com/customerio/customerio-android/issues/663)) ([9fb8156](https://github.com/customerio/customerio-android/commit/9fb81565dfdc458cf8bcc1baa89a6d1ebdc2272e))
+
 ## [4.16.0](https://github.com/customerio/customerio-android/compare/4.15.2...4.16.0) (2026-02-20)
 
 ### Features

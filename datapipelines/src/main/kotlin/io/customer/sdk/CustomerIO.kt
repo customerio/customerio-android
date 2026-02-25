@@ -33,7 +33,7 @@ import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
-import io.customer.sdk.core.pipeline.identifyContextRegistry
+import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
@@ -130,7 +130,7 @@ class CustomerIO private constructor(
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
-        analytics.add(IdentifyContextPlugin(SDKComponent.identifyContextRegistry, logger))
+        analytics.add(IdentifyContextPlugin(SDKComponent.identifyHookRegistry, logger))
         analytics.add(ApplicationLifecyclePlugin())
 
         // Register this instance as DataPipeline so modules can send track events directly

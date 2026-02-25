@@ -6,29 +6,50 @@ import com.segment.analytics.kotlin.core.IdentifyEvent
 import com.segment.analytics.kotlin.core.platform.EventPlugin
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.utilities.putInContext
-import io.customer.sdk.core.pipeline.IdentifyContextRegistry
+import io.customer.sdk.core.pipeline.IdentifyHookRegistry
 import io.customer.sdk.core.util.Logger
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Generic Segment enrichment plugin that queries all registered
- * [IdentifyContextProvider][io.customer.sdk.core.pipeline.IdentifyContextProvider]
- * instances and adds their entries to the identify event context.
+ * Segment enrichment plugin that delegates to registered [IdentifyHook]
+ * instances for both identify enrichment and reset lifecycle.
  *
- * This plugin has zero knowledge of specific modules — providers
+ * On identify: queries all hooks for context entries and adds them
+ * to the event context via `putInContext()`.
+ *
+ * On reset: propagates synchronously to all hooks so they clear
+ * cached state before a subsequent identify() picks up stale values.
+ *
+ * This plugin has zero knowledge of specific modules — hooks
  * manage their own state and return primitive-valued maps.
  */
 internal class IdentifyContextPlugin(
-    private val registry: IdentifyContextRegistry,
+    private val registry: IdentifyHookRegistry,
     private val logger: Logger
 ) : EventPlugin {
     override val type: Plugin.Type = Plugin.Type.Enrichment
     override lateinit var analytics: Analytics
 
-    override fun identify(payload: IdentifyEvent): BaseEvent {
-        for (provider in registry.getAll()) {
+    /**
+     * Called synchronously by analytics.reset() during clearIdentify().
+     * Propagates to all hooks so they clear cached data before a subsequent
+     * identify() can pick up stale values.
+     */
+    override fun reset() {
+        super.reset()
+        for (hook in registry.getAll()) {
             try {
-                val context = provider.getIdentifyContext()
+                hook.resetContext()
+            } catch (e: Exception) {
+                logger.error("IdentifyHook reset failed: ${e.message}")
+            }
+        }
+    }
+
+    override fun identify(payload: IdentifyEvent): BaseEvent {
+        for (hook in registry.getAll()) {
+            try {
+                val context = hook.getIdentifyContext()
                 if (context.isEmpty()) continue
                 for ((key, value) in context) {
                     val jsonValue = when (value) {
@@ -43,7 +64,7 @@ internal class IdentifyContextPlugin(
                     payload.putInContext(key, jsonValue)
                 }
             } catch (e: Exception) {
-                logger.error("IdentifyContextProvider failed: ${e.message}")
+                logger.error("IdentifyHook failed: ${e.message}")
             }
         }
         return payload

@@ -3,7 +3,7 @@ package io.customer.location
 import io.customer.location.store.LocationPreferenceStore
 import io.customer.location.sync.LocationSyncFilter
 import io.customer.sdk.core.pipeline.DataPipeline
-import io.customer.sdk.core.pipeline.IdentifyContextProvider
+import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 
@@ -13,7 +13,7 @@ import io.customer.sdk.util.EventNames
  *
  * Location reaches the backend through two independent paths:
  *
- * 1. **Identify context enrichment** — implements [IdentifyContextProvider].
+ * 1. **Identify context enrichment** — implements [IdentifyHook].
  *    Every identify() call enriches the event context with the latest
  *    location coordinates. This is unfiltered — a new user always gets
  *    the device's current location on their profile immediately.
@@ -24,16 +24,17 @@ import io.customer.sdk.util.EventNames
  *    user's activity timeline for journey/segment triggers.
  *
  * Profile switch handling is intentionally not tracked here.
- * On clearIdentify(), [onReset] clears all state (cache, persistence,
- * sync filter). On identify(), the new user's profile receives the
- * location via path 1 regardless of the sync filter's state.
+ * On clearIdentify(), [resetContext] clears all state (cache, persistence,
+ * sync filter) synchronously during analytics.reset(). On identify(), the
+ * new user's profile receives the location via path 1 regardless of the
+ * sync filter's state.
  */
 internal class LocationTracker(
     private val dataPipeline: DataPipeline?,
     private val locationPreferenceStore: LocationPreferenceStore,
     private val locationSyncFilter: LocationSyncFilter,
     private val logger: Logger
-) : IdentifyContextProvider {
+) : IdentifyHook {
 
     @Volatile
     private var lastLocation: LocationCoordinates? = null
@@ -44,6 +45,20 @@ internal class LocationTracker(
             "location_latitude" to location.latitude,
             "location_longitude" to location.longitude
         )
+    }
+
+    /**
+     * Called synchronously by analytics.reset() during clearIdentify.
+     * Clears all location state: in-memory cache, persisted coordinates,
+     * and sync filter — similar to how device tokens and other per-user
+     * state are cleared on reset. This runs before ResetEvent is published,
+     * guaranteeing no stale data is available for a subsequent identify().
+     */
+    override fun resetContext() {
+        lastLocation = null
+        locationPreferenceStore.clearCachedLocation()
+        locationSyncFilter.clearSyncedData()
+        logger.debug("Location state reset")
     }
 
     /**
@@ -81,19 +96,6 @@ internal class LocationTracker(
      */
     fun onUserIdentified() {
         syncCachedLocationIfNeeded()
-    }
-
-    /**
-     * Clears all location state on identity reset (clearIdentify).
-     * Resets in-memory cache, persisted location, and sync filter —
-     * similar to how device tokens and other per-user state are
-     * cleared on reset.
-     */
-    fun onReset() {
-        lastLocation = null
-        locationPreferenceStore.clearCachedLocation()
-        locationSyncFilter.clearSyncedData()
-        logger.debug("Location state reset")
     }
 
     /**

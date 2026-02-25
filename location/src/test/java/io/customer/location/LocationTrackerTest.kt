@@ -214,16 +214,18 @@ class LocationTrackerTest {
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
-    // -- onReset --
+    // -- resetContext (synchronous, called by analytics.reset during clearIdentify) --
 
     @Test
-    fun givenReset_expectClearsEverything() {
+    fun givenResetContext_expectClearsEverything() {
         tracker.onLocationReceived(37.7749, -122.4194)
 
-        tracker.onReset()
+        tracker.resetContext()
 
+        // In-memory location cleared — no stale data for next identify
+        tracker.getIdentifyContext().shouldBeEmpty()
+        // Persistence and sync filter also cleared synchronously
         verify { store.clearCachedLocation() }
         verify { syncFilter.clearSyncedData() }
-        tracker.getIdentifyContext().shouldBeEmpty()
     }
 }

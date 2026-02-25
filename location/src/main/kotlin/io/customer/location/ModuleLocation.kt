@@ -10,7 +10,7 @@ import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
-import io.customer.sdk.core.pipeline.identifyContextRegistry
+import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -77,14 +77,11 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
-        // Register as IdentifyContextProvider so location is added to identify event context.
-        // This ensures every identify() call carries the device's current location
-        // in the event context — the primary way location reaches a user's profile.
-        SDKComponent.identifyContextRegistry.register(locationTracker)
-
-        eventBus.subscribe<Event.ResetEvent> {
-            locationTracker.onReset()
-        }
+        // Register as IdentifyHook so location is added to identify event context
+        // and cleared synchronously during analytics.reset(). This ensures every
+        // identify() call carries the device's current location in the event context —
+        // the primary way location reaches a user's profile.
+        SDKComponent.identifyHookRegistry.register(locationTracker)
 
         // On identify, attempt to send a supplementary "Location Update" track event.
         // The identify event itself already carries location via context enrichment —

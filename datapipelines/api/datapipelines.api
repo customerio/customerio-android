@@ -144,6 +144,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun initialize ()V
 	public static final fun initialize (Lio/customer/sdk/CustomerIOConfig;)V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+	public fun isUserIdentified ()Z
 	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setDeviceAttributesDeprecated (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V

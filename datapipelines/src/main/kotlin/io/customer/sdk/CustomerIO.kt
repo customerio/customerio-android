@@ -25,7 +25,7 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
-import io.customer.datapipelines.plugins.ProfileEnrichmentPlugin
+import io.customer.datapipelines.plugins.IdentifyContextPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -33,7 +33,7 @@ import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
-import io.customer.sdk.core.pipeline.profileEnrichmentRegistry
+import io.customer.sdk.core.pipeline.identifyContextRegistry
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
@@ -130,7 +130,7 @@ class CustomerIO private constructor(
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
-        analytics.add(ProfileEnrichmentPlugin(SDKComponent.profileEnrichmentRegistry, logger))
+        analytics.add(IdentifyContextPlugin(SDKComponent.identifyContextRegistry, logger))
         analytics.add(ApplicationLifecyclePlugin())
 
         // Register this instance as DataPipeline so modules can send track events directly
@@ -324,6 +324,9 @@ class CustomerIO private constructor(
 
     override val userId: String?
         get() = analytics.userId()
+
+    override val isUserIdentified: Boolean
+        get() = !analytics.userId().isNullOrEmpty()
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")

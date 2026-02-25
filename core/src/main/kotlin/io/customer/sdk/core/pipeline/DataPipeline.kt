@@ -12,6 +12,6 @@ import io.customer.base.internal.InternalCustomerIOApi
  */
 @InternalCustomerIOApi
 interface DataPipeline {
-    val userId: String?
+    val isUserIdentified: Boolean
     fun track(name: String, properties: Map<String, Any?>)
 }

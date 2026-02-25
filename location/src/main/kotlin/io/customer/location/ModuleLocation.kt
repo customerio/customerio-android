@@ -10,7 +10,7 @@ import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
-import io.customer.sdk.core.pipeline.profileEnrichmentRegistry
+import io.customer.sdk.core.pipeline.identifyContextRegistry
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -46,6 +46,7 @@ class ModuleLocation @JvmOverloads constructor(
 ) : CustomerIOModule<LocationModuleConfig> {
     override val moduleName: String = MODULE_NAME
 
+    @Volatile
     private var _locationServices: LocationServices? = null
 
     /**
@@ -76,8 +77,8 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
-        // Register as ProfileEnrichmentProvider for identify enrichment
-        SDKComponent.profileEnrichmentRegistry.register(locationTracker)
+        // Register as IdentifyContextProvider so location is added to identify event context
+        SDKComponent.identifyContextRegistry.register(locationTracker)
 
         eventBus.subscribe<Event.ResetEvent> {
             locationTracker.onReset()

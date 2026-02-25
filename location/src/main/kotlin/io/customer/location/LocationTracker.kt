@@ -3,7 +3,7 @@ package io.customer.location
 import io.customer.location.store.LocationPreferenceStore
 import io.customer.location.sync.LocationSyncFilter
 import io.customer.sdk.core.pipeline.DataPipeline
-import io.customer.sdk.core.pipeline.ProfileEnrichmentProvider
+import io.customer.sdk.core.pipeline.IdentifyContextProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 
@@ -11,8 +11,8 @@ import io.customer.sdk.util.EventNames
  * Coordinates all location state management: persistence, restoration,
  * profile enrichment, and sending location track events.
  *
- * Implements [ProfileEnrichmentProvider] to enrich identify events with
- * the latest location. Sends location track events directly via
+ * Implements [IdentifyContextProvider] to enrich identify event context
+ * with the latest location. Sends location track events directly via
  * [DataPipeline], applying the userId gate and sync filter locally.
  *
  * Tracks the last known userId to detect profile switches and reset
@@ -23,7 +23,7 @@ internal class LocationTracker(
     private val locationPreferenceStore: LocationPreferenceStore,
     private val locationSyncFilter: LocationSyncFilter,
     private val logger: Logger
-) : ProfileEnrichmentProvider {
+) : IdentifyContextProvider {
 
     @Volatile
     private var lastLocation: LocationCoordinates? = null
@@ -31,8 +31,8 @@ internal class LocationTracker(
     @Volatile
     private var lastKnownUserId: String? = null
 
-    override fun getProfileEnrichmentAttributes(): Map<String, Any>? {
-        val location = lastLocation ?: return null
+    override fun getIdentifyContext(): Map<String, Any> {
+        val location = lastLocation ?: return emptyMap()
         return mapOf(
             "location_latitude" to location.latitude,
             "location_longitude" to location.longitude
@@ -115,7 +115,7 @@ internal class LocationTracker(
      */
     private fun trySendLocationTrack(latitude: Double, longitude: Double) {
         val pipeline = dataPipeline ?: return
-        if (pipeline.userId.isNullOrEmpty()) return
+        if (!pipeline.isUserIdentified) return
         if (!locationSyncFilter.filterAndRecord(latitude, longitude)) return
 
         logger.debug("Sending location track: lat=$latitude, lng=$longitude")

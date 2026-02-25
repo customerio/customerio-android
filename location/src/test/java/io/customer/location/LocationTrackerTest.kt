@@ -8,9 +8,9 @@ import io.customer.sdk.util.EventNames
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeNull
-import org.amshove.kluent.shouldNotBeNull
+import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -25,7 +25,7 @@ class LocationTrackerTest {
 
     @BeforeEach
     fun setup() {
-        every { dataPipeline.userId } returns "user-123"
+        every { dataPipeline.isUserIdentified } returns true
         every { syncFilter.filterAndRecord(any(), any()) } returns true
         tracker = LocationTracker(dataPipeline, store, syncFilter, logger)
     }
@@ -52,17 +52,8 @@ class LocationTrackerTest {
     }
 
     @Test
-    fun givenLocationReceived_noUserId_expectTrackNotCalled() {
-        every { dataPipeline.userId } returns null
-
-        tracker.onLocationReceived(37.7749, -122.4194)
-
-        verify(exactly = 0) { dataPipeline.track(any(), any()) }
-    }
-
-    @Test
-    fun givenLocationReceived_emptyUserId_expectTrackNotCalled() {
-        every { dataPipeline.userId } returns ""
+    fun givenLocationReceived_noUserIdentified_expectTrackNotCalled() {
+        every { dataPipeline.isUserIdentified } returns false
 
         tracker.onLocationReceived(37.7749, -122.4194)
 
@@ -134,46 +125,46 @@ class LocationTrackerTest {
 
         tracker.restorePersistedLocation()
 
-        val attrs = tracker.getProfileEnrichmentAttributes()
-        attrs.shouldNotBeNull()
-        attrs["location_latitude"] shouldBeEqualTo 37.7749
-        attrs["location_longitude"] shouldBeEqualTo -122.4194
+        val context = tracker.getIdentifyContext()
+        context.shouldNotBeEmpty()
+        context["location_latitude"] shouldBeEqualTo 37.7749
+        context["location_longitude"] shouldBeEqualTo -122.4194
     }
 
     @Test
-    fun givenNoPersistedLatitude_expectNoEnrichment() {
+    fun givenNoPersistedLatitude_expectNoContext() {
         every { store.getCachedLatitude() } returns null
 
         tracker.restorePersistedLocation()
 
-        tracker.getProfileEnrichmentAttributes().shouldBeNull()
+        tracker.getIdentifyContext().shouldBeEmpty()
     }
 
     @Test
-    fun givenNoPersistedLongitude_expectNoEnrichment() {
+    fun givenNoPersistedLongitude_expectNoContext() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns null
 
         tracker.restorePersistedLocation()
 
-        tracker.getProfileEnrichmentAttributes().shouldBeNull()
+        tracker.getIdentifyContext().shouldBeEmpty()
     }
 
-    // -- getProfileEnrichmentAttributes --
+    // -- getIdentifyContext --
 
     @Test
-    fun givenNoLocation_expectReturnsNull() {
-        tracker.getProfileEnrichmentAttributes().shouldBeNull()
+    fun givenNoLocation_expectReturnsEmptyMap() {
+        tracker.getIdentifyContext().shouldBeEmpty()
     }
 
     @Test
-    fun givenLocationReceived_expectReturnsLocationMap() {
+    fun givenLocationReceived_expectReturnsLocationContext() {
         tracker.onLocationReceived(37.7749, -122.4194)
 
-        val attrs = tracker.getProfileEnrichmentAttributes()
-        attrs.shouldNotBeNull()
-        attrs["location_latitude"] shouldBeEqualTo 37.7749
-        attrs["location_longitude"] shouldBeEqualTo -122.4194
+        val context = tracker.getIdentifyContext()
+        context.shouldNotBeEmpty()
+        context["location_latitude"] shouldBeEqualTo 37.7749
+        context["location_longitude"] shouldBeEqualTo -122.4194
     }
 
     // -- onUserChanged --
@@ -227,6 +218,27 @@ class LocationTrackerTest {
     }
 
     @Test
+    fun givenUserChangedWithUserId_expectSyncFilterConsulted() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.onUserChanged("user-a", "anon-1")
+
+        verify { syncFilter.filterAndRecord(37.7749, -122.4194) }
+    }
+
+    @Test
+    fun givenUserChangedWithUserId_filterRejects_expectNoTrack() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+        every { syncFilter.filterAndRecord(any(), any()) } returns false
+
+        tracker.onUserChanged("user-a", "anon-1")
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    @Test
     fun givenUserChangedWithNullUserId_expectNoSync() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
@@ -246,6 +258,6 @@ class LocationTrackerTest {
 
         verify { store.clearCachedLocation() }
         verify { syncFilter.clearSyncedData() }
-        tracker.getProfileEnrichmentAttributes().shouldBeNull()
+        tracker.getIdentifyContext().shouldBeEmpty()
     }
 }

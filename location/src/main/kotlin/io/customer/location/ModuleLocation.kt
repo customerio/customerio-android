@@ -77,15 +77,22 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
-        // Register as IdentifyContextProvider so location is added to identify event context
+        // Register as IdentifyContextProvider so location is added to identify event context.
+        // This ensures every identify() call carries the device's current location
+        // in the event context — the primary way location reaches a user's profile.
         SDKComponent.identifyContextRegistry.register(locationTracker)
 
         eventBus.subscribe<Event.ResetEvent> {
             locationTracker.onReset()
         }
 
+        // On identify, attempt to send a supplementary "Location Update" track event.
+        // The identify event itself already carries location via context enrichment —
+        // this track event is for journey/segment triggers in the user's timeline.
         eventBus.subscribe<Event.UserChangedEvent> {
-            locationTracker.onUserChanged(it.userId, it.anonymousId)
+            if (!it.userId.isNullOrEmpty()) {
+                locationTracker.onUserIdentified()
+            }
         }
 
         val locationProvider = FusedLocationProvider(context)

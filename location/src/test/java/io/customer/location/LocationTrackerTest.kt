@@ -52,7 +52,7 @@ class LocationTrackerTest {
     }
 
     @Test
-    fun givenLocationReceived_noUserIdentified_expectTrackNotCalled() {
+    fun givenLocationReceived_noUserId_expectTrackNotCalled() {
         every { dataPipeline.isUserIdentified } returns false
 
         tracker.onLocationReceived(37.7749, -122.4194)
@@ -167,47 +167,14 @@ class LocationTrackerTest {
         context["location_longitude"] shouldBeEqualTo -122.4194
     }
 
-    // -- onUserChanged --
+    // -- onUserIdentified --
 
     @Test
-    fun givenProfileSwitch_expectClearsSyncFilter() {
-        every { store.getCachedLatitude() } returns null
-
-        // First call sets lastKnownUserId
-        tracker.onUserChanged("user-a", "anon-1")
-
-        // Switch to different user
-        tracker.onUserChanged("user-b", "anon-1")
-
-        verify { syncFilter.clearSyncedData() }
-    }
-
-    @Test
-    fun givenFirstIdentify_expectNoClearSyncFilter() {
-        every { store.getCachedLatitude() } returns null
-
-        tracker.onUserChanged("user-a", "anon-1")
-
-        // First identify should not clear (no previous user)
-        verify(exactly = 0) { syncFilter.clearSyncedData() }
-    }
-
-    @Test
-    fun givenSameUserIdentify_expectNoClearSyncFilter() {
-        every { store.getCachedLatitude() } returns null
-
-        tracker.onUserChanged("user-a", "anon-1")
-        tracker.onUserChanged("user-a", "anon-1")
-
-        verify(exactly = 0) { syncFilter.clearSyncedData() }
-    }
-
-    @Test
-    fun givenUserChangedWithUserId_expectSyncsCachedLocation() {
+    fun givenUserIdentified_withCachedLocation_expectSyncsCachedLocation() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
-        tracker.onUserChanged("user-a", "anon-1")
+        tracker.onUserIdentified()
 
         verify {
             dataPipeline.track(
@@ -218,32 +185,31 @@ class LocationTrackerTest {
     }
 
     @Test
-    fun givenUserChangedWithUserId_expectSyncFilterConsulted() {
+    fun givenUserIdentified_withCachedLocation_expectSyncFilterConsulted() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
-        tracker.onUserChanged("user-a", "anon-1")
+        tracker.onUserIdentified()
 
         verify { syncFilter.filterAndRecord(37.7749, -122.4194) }
     }
 
     @Test
-    fun givenUserChangedWithUserId_filterRejects_expectNoTrack() {
+    fun givenUserIdentified_filterRejects_expectNoTrack() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
         every { syncFilter.filterAndRecord(any(), any()) } returns false
 
-        tracker.onUserChanged("user-a", "anon-1")
+        tracker.onUserIdentified()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
     @Test
-    fun givenUserChangedWithNullUserId_expectNoSync() {
-        every { store.getCachedLatitude() } returns 37.7749
-        every { store.getCachedLongitude() } returns -122.4194
+    fun givenUserIdentified_noCachedLocation_expectNoTrack() {
+        every { store.getCachedLatitude() } returns null
 
-        tracker.onUserChanged(null, "anon-1")
+        tracker.onUserIdentified()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }

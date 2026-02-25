@@ -9,14 +9,24 @@ import io.customer.sdk.util.EventNames
 
 /**
  * Coordinates all location state management: persistence, restoration,
- * profile enrichment, and sending location track events.
+ * identify context enrichment, and sending location track events.
  *
- * Implements [IdentifyContextProvider] to enrich identify event context
- * with the latest location. Sends location track events directly via
- * [DataPipeline], applying the userId gate and sync filter locally.
+ * Location reaches the backend through two independent paths:
  *
- * Tracks the last known userId to detect profile switches and reset
- * the sync filter accordingly.
+ * 1. **Identify context enrichment** — implements [IdentifyContextProvider].
+ *    Every identify() call enriches the event context with the latest
+ *    location coordinates. This is unfiltered — a new user always gets
+ *    the device's current location on their profile immediately.
+ *
+ * 2. **"Location Update" track event** — sent via [DataPipeline.track].
+ *    Gated by a userId check and a sync filter (24h / 1km threshold)
+ *    to avoid redundant events. This creates a discrete event in the
+ *    user's activity timeline for journey/segment triggers.
+ *
+ * Profile switch handling is intentionally not tracked here.
+ * On clearIdentify(), [onReset] clears all state (cache, persistence,
+ * sync filter). On identify(), the new user's profile receives the
+ * location via path 1 regardless of the sync filter's state.
  */
 internal class LocationTracker(
     private val dataPipeline: DataPipeline?,
@@ -27,9 +37,6 @@ internal class LocationTracker(
 
     @Volatile
     private var lastLocation: LocationCoordinates? = null
-
-    @Volatile
-    private var lastKnownUserId: String? = null
 
     override fun getIdentifyContext(): Map<String, Any> {
         val location = lastLocation ?: return emptyMap()
@@ -65,32 +72,25 @@ internal class LocationTracker(
     }
 
     /**
-     * Called when the user identity changes (identify or clearIdentify).
-     * Detects profile switches to reset the sync filter, then attempts
-     * to sync the cached location for the new user.
+     * Called when a user is identified. Attempts to sync the cached
+     * location as a track event for the newly identified user.
+     *
+     * The identify event itself already carries location via
+     * [getIdentifyContext] — this method handles the supplementary
+     * "Location Update" track event, subject to the sync filter.
      */
-    fun onUserChanged(userId: String?, anonymousId: String) {
-        val previousUserId = lastKnownUserId
-        lastKnownUserId = userId
-
-        // Detect profile switch: previous user existed and differs from new user
-        if (previousUserId != null && previousUserId != userId) {
-            logger.debug("Profile switch detected ($previousUserId -> $userId), clearing sync filter")
-            locationSyncFilter.clearSyncedData()
-        }
-
-        if (!userId.isNullOrEmpty()) {
-            syncCachedLocationIfNeeded()
-        }
+    fun onUserIdentified() {
+        syncCachedLocationIfNeeded()
     }
 
     /**
      * Clears all location state on identity reset (clearIdentify).
-     * Resets in-memory cache, persisted location, and sync filter.
+     * Resets in-memory cache, persisted location, and sync filter —
+     * similar to how device tokens and other per-user state are
+     * cleared on reset.
      */
     fun onReset() {
         lastLocation = null
-        lastKnownUserId = null
         locationPreferenceStore.clearCachedLocation()
         locationSyncFilter.clearSyncedData()
         logger.debug("Location state reset")
@@ -98,8 +98,9 @@ internal class LocationTracker(
 
     /**
      * Re-evaluates the cached location for sending.
-     * Called on identify (via [onUserChanged]) and on cold start to handle
-     * cases where a location was cached but not yet sent for the current user.
+     * Called on identify (via [onUserIdentified]) and on cold start
+     * (via replayed UserChangedEvent) to handle cases where a location
+     * was cached but not yet sent for the current user.
      */
     internal fun syncCachedLocationIfNeeded() {
         val lat = locationPreferenceStore.getCachedLatitude() ?: return

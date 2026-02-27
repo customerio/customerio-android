@@ -1,13 +1,16 @@
 package io.customer.location
 
 import android.location.Location
-import io.customer.location.di.locationCache
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
+import io.customer.location.sync.LocationSyncFilter
+import io.customer.location.sync.LocationSyncStoreImpl
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.pipeline.DataPipeline
+import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -43,6 +46,7 @@ class ModuleLocation @JvmOverloads constructor(
 ) : CustomerIOModule<LocationModuleConfig> {
     override val moduleName: String = MODULE_NAME
 
+    @Volatile
     private var _locationServices: LocationServices? = null
 
     /**
@@ -64,19 +68,27 @@ class ModuleLocation @JvmOverloads constructor(
         val eventBus = SDKComponent.eventBus
         val context = SDKComponent.android().applicationContext
 
-        val locationCache = SDKComponent.locationCache
+        val dataPipeline = SDKComponent.getOrNull<DataPipeline>()
         val store = LocationPreferenceStoreImpl(context, logger)
-        val locationTracker = LocationTracker(locationCache, store, logger, eventBus)
+        val locationSyncFilter = LocationSyncFilter(
+            LocationSyncStoreImpl(context, logger)
+        )
+        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
 
         locationTracker.restorePersistedLocation()
 
-        eventBus.subscribe<Event.ResetEvent> {
-            locationTracker.clearCachedLocation()
-        }
+        // Register as IdentifyHook so location is added to identify event context
+        // and cleared synchronously during analytics.reset(). This ensures every
+        // identify() call carries the device's current location in the event context —
+        // the primary way location reaches a user's profile.
+        SDKComponent.identifyHookRegistry.register(locationTracker)
 
+        // On identify, attempt to send a supplementary "Location Update" track event.
+        // The identify event itself already carries location via context enrichment —
+        // this track event is for journey/segment triggers in the user's timeline.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                locationTracker.syncCachedLocationIfNeeded()
+                locationTracker.onUserIdentified()
             }
         }
 

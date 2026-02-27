@@ -51,24 +51,4 @@ sealed class Event {
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()
-
-    /**
-     * Event emitted when a new location is available.
-     * Published by the Location module on every location update.
-     * DataPipelines applies the userId gate and sync filter (24h + 1km)
-     * before sending to the server.
-     */
-    data class TrackLocationEvent(
-        val location: LocationData
-    ) : Event()
-
-    /**
-     * Location data in a framework-agnostic format.
-     * Used to pass location information between modules without
-     * requiring Android location framework imports.
-     */
-    data class LocationData(
-        val latitude: Double,
-        val longitude: Double
-    )
 }

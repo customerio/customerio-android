@@ -1,6 +1,5 @@
-package io.customer.datapipelines.location
+package io.customer.location.sync
 
-import io.customer.datapipelines.store.LocationSyncStore
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue

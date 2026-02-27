@@ -1,172 +1,231 @@
 package io.customer.location
 
 import io.customer.location.store.LocationPreferenceStore
-import io.customer.sdk.communication.Event
-import io.customer.sdk.communication.EventBus
-import io.customer.sdk.communication.LocationCache
+import io.customer.location.sync.LocationSyncFilter
+import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.util.EventNames
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class LocationTrackerTest {
 
-    private val locationCache: LocationCache = mockk(relaxUnitFun = true)
+    private val dataPipeline: DataPipeline = mockk(relaxUnitFun = true)
     private val store: LocationPreferenceStore = mockk(relaxUnitFun = true)
+    private val syncFilter: LocationSyncFilter = mockk(relaxUnitFun = true)
     private val logger: Logger = mockk(relaxUnitFun = true)
-    private val eventBus: EventBus = mockk(relaxUnitFun = true)
 
     private lateinit var tracker: LocationTracker
 
     @BeforeEach
     fun setup() {
-        tracker = LocationTracker(locationCache, store, logger, eventBus)
+        every { dataPipeline.isUserIdentified } returns true
+        every { syncFilter.filterAndRecord(any(), any()) } returns true
+        tracker = LocationTracker(dataPipeline, store, syncFilter, logger)
     }
 
     // -- onLocationReceived --
 
     @Test
-    fun givenLocationReceived_expectCachesInPlugin() {
-        val location = Event.LocationData(37.7749, -122.4194)
-
-        tracker.onLocationReceived(location)
-
-        verify { locationCache.lastLocation = location }
-    }
-
-    @Test
     fun givenLocationReceived_expectPersistsToStore() {
-        val location = Event.LocationData(37.7749, -122.4194)
-
-        tracker.onLocationReceived(location)
+        tracker.onLocationReceived(37.7749, -122.4194)
 
         verify { store.saveCachedLocation(37.7749, -122.4194) }
     }
 
     @Test
-    fun givenLocationReceived_expectPublishesTrackLocationEvent() {
-        val location = Event.LocationData(37.7749, -122.4194)
+    fun givenLocationReceived_userIdentified_filterPasses_expectTrackCalled() {
+        tracker.onLocationReceived(37.7749, -122.4194)
 
-        tracker.onLocationReceived(location)
-
-        val eventSlot = slot<Event.TrackLocationEvent>()
-        verify { eventBus.publish(capture(eventSlot)) }
-        eventSlot.captured.location shouldBeEqualTo location
+        verify {
+            dataPipeline.track(
+                name = EventNames.LOCATION_UPDATE,
+                properties = mapOf("latitude" to 37.7749, "longitude" to -122.4194)
+            )
+        }
     }
 
     @Test
-    fun givenLocationReceived_expectAlwaysPublishes() {
-        // Every call should publish, no filtering
-        tracker.onLocationReceived(Event.LocationData(37.7749, -122.4194))
-        tracker.onLocationReceived(Event.LocationData(37.7750, -122.4195))
-        tracker.onLocationReceived(Event.LocationData(37.7751, -122.4196))
+    fun givenLocationReceived_noUserId_expectTrackNotCalled() {
+        every { dataPipeline.isUserIdentified } returns false
 
-        verify(exactly = 3) { eventBus.publish(any<Event.TrackLocationEvent>()) }
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    @Test
+    fun givenLocationReceived_filterRejects_expectTrackNotCalled() {
+        every { syncFilter.filterAndRecord(any(), any()) } returns false
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    @Test
+    fun givenNullDataPipeline_expectNoException() {
+        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, logger)
+
+        trackerWithNullPipeline.onLocationReceived(37.7749, -122.4194)
+
+        // Persist still happens, but no track call
+        verify { store.saveCachedLocation(37.7749, -122.4194) }
     }
 
     // -- syncCachedLocationIfNeeded --
 
     @Test
-    fun givenCachedLocationExists_expectPublishesTrackLocationEvent() {
+    fun givenCachedLocationExists_expectTriesSendLocationTrack() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
         tracker.syncCachedLocationIfNeeded()
 
-        val eventSlot = slot<Event.TrackLocationEvent>()
-        verify { eventBus.publish(capture(eventSlot)) }
-        eventSlot.captured.location.latitude shouldBeEqualTo 37.7749
-        eventSlot.captured.location.longitude shouldBeEqualTo -122.4194
+        verify {
+            dataPipeline.track(
+                name = EventNames.LOCATION_UPDATE,
+                properties = mapOf("latitude" to 37.7749, "longitude" to -122.4194)
+            )
+        }
     }
 
     @Test
-    fun givenNoCachedLatitude_expectNoEvent() {
+    fun givenNoCachedLatitude_expectNoTrack() {
         every { store.getCachedLatitude() } returns null
         every { store.getCachedLongitude() } returns -122.4194
 
         tracker.syncCachedLocationIfNeeded()
 
-        verify(exactly = 0) { eventBus.publish(any()) }
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
     @Test
-    fun givenNoCachedLongitude_expectNoEvent() {
+    fun givenNoCachedLongitude_expectNoTrack() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns null
 
         tracker.syncCachedLocationIfNeeded()
 
-        verify(exactly = 0) { eventBus.publish(any()) }
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
     // -- restorePersistedLocation --
 
     @Test
-    fun givenPersistedLocation_expectSetsLocationCache() {
+    fun givenPersistedLocation_expectSetsInMemoryCache() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
         tracker.restorePersistedLocation()
 
-        val locationSlot = slot<Event.LocationData>()
-        verify { locationCache.lastLocation = capture(locationSlot) }
-        locationSlot.captured.latitude shouldBeEqualTo 37.7749
-        locationSlot.captured.longitude shouldBeEqualTo -122.4194
+        val context = tracker.getIdentifyContext()
+        context.shouldNotBeEmpty()
+        context["location_latitude"] shouldBeEqualTo 37.7749
+        context["location_longitude"] shouldBeEqualTo -122.4194
     }
 
     @Test
-    fun givenNoPersistedLatitude_expectNoOp() {
+    fun givenNoPersistedLatitude_expectNoContext() {
         every { store.getCachedLatitude() } returns null
 
         tracker.restorePersistedLocation()
 
-        verify(exactly = 0) { locationCache.lastLocation = any() }
+        tracker.getIdentifyContext().shouldBeEmpty()
     }
 
     @Test
-    fun givenNoPersistedLongitude_expectNoOp() {
+    fun givenNoPersistedLongitude_expectNoContext() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns null
 
         tracker.restorePersistedLocation()
 
-        verify(exactly = 0) { locationCache.lastLocation = any() }
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    // -- getIdentifyContext --
+
+    @Test
+    fun givenNoLocation_expectReturnsEmptyMap() {
+        tracker.getIdentifyContext().shouldBeEmpty()
     }
 
     @Test
-    fun givenNullLocationCache_expectNoException() {
-        val trackerWithNullCache = LocationTracker(null, store, logger, eventBus)
+    fun givenLocationReceived_expectReturnsLocationContext() {
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        val context = tracker.getIdentifyContext()
+        context.shouldNotBeEmpty()
+        context["location_latitude"] shouldBeEqualTo 37.7749
+        context["location_longitude"] shouldBeEqualTo -122.4194
+    }
+
+    // -- onUserIdentified --
+
+    @Test
+    fun givenUserIdentified_withCachedLocation_expectSyncsCachedLocation() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
-        // Should not throw
-        trackerWithNullCache.restorePersistedLocation()
+        tracker.onUserIdentified()
+
+        verify {
+            dataPipeline.track(
+                name = EventNames.LOCATION_UPDATE,
+                properties = mapOf("latitude" to 37.7749, "longitude" to -122.4194)
+            )
+        }
     }
 
-    // -- clearCachedLocation --
+    @Test
+    fun givenUserIdentified_withCachedLocation_expectSyncFilterConsulted() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.onUserIdentified()
+
+        verify { syncFilter.filterAndRecord(37.7749, -122.4194) }
+    }
 
     @Test
-    fun clearCachedLocation_expectClearsStore() {
-        tracker.clearCachedLocation()
+    fun givenUserIdentified_filterRejects_expectNoTrack() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+        every { syncFilter.filterAndRecord(any(), any()) } returns false
 
+        tracker.onUserIdentified()
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    @Test
+    fun givenUserIdentified_noCachedLocation_expectNoTrack() {
+        every { store.getCachedLatitude() } returns null
+
+        tracker.onUserIdentified()
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    // -- resetContext (synchronous, called by analytics.reset during clearIdentify) --
+
+    @Test
+    fun givenResetContext_expectClearsEverything() {
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        tracker.resetContext()
+
+        // In-memory location cleared — no stale data for next identify
+        tracker.getIdentifyContext().shouldBeEmpty()
+        // Persistence and sync filter also cleared synchronously
         verify { store.clearCachedLocation() }
-    }
-
-    @Test
-    fun givenNullLocationCache_onLocationReceived_expectStillPersistsAndPublishes() {
-        val trackerWithNullCache = LocationTracker(null, store, logger, eventBus)
-        val location = Event.LocationData(37.7749, -122.4194)
-
-        trackerWithNullCache.onLocationReceived(location)
-
-        // Cache update is skipped (null), but persist and publish must still happen
-        verify { store.saveCachedLocation(37.7749, -122.4194) }
-        val eventSlot = slot<Event.TrackLocationEvent>()
-        verify { eventBus.publish(capture(eventSlot)) }
-        eventSlot.captured.location shouldBeEqualTo location
+        verify { syncFilter.clearSyncedData() }
     }
 }

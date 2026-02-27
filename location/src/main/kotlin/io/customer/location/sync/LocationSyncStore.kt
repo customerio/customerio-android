@@ -1,4 +1,4 @@
-package io.customer.datapipelines.store
+package io.customer.location.sync
 
 import android.content.Context
 import androidx.core.content.edit
@@ -11,7 +11,7 @@ import io.customer.sdk.data.store.read
  * Store for persisting the last synced location data.
  *
  * Tracks the coordinates and timestamp of the last location successfully
- * sent to the server, used by [io.customer.datapipelines.location.LocationSyncFilter]
+ * sent to the server, used by [LocationSyncFilter]
  * to decide whether a new location update should be sent.
  *
  * Coordinates are encrypted at rest using [PreferenceCrypto] (AES-256-GCM

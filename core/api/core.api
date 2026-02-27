@@ -16,19 +16,6 @@ public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : 
 	public fun <init> ()V
 }
 
-public final class io/customer/sdk/communication/Event$LocationData {
-	public fun <init> (DD)V
-	public final fun component1 ()D
-	public final fun component2 ()D
-	public final fun copy (DD)Lio/customer/sdk/communication/Event$LocationData;
-	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$LocationData;DDILjava/lang/Object;)Lio/customer/sdk/communication/Event$LocationData;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getLatitude ()D
-	public final fun getLongitude ()D
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -67,17 +54,6 @@ public final class io/customer/sdk/communication/Event$TrackInAppMetricEvent : i
 	public final fun getDeliveryID ()Ljava/lang/String;
 	public final fun getEvent ()Lio/customer/sdk/events/Metric;
 	public fun getParams ()Ljava/util/Map;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/customer/sdk/communication/Event$TrackLocationEvent : io/customer/sdk/communication/Event {
-	public fun <init> (Lio/customer/sdk/communication/Event$LocationData;)V
-	public final fun component1 ()Lio/customer/sdk/communication/Event$LocationData;
-	public final fun copy (Lio/customer/sdk/communication/Event$LocationData;)Lio/customer/sdk/communication/Event$TrackLocationEvent;
-	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$TrackLocationEvent;Lio/customer/sdk/communication/Event$LocationData;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$TrackLocationEvent;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getLocation ()Lio/customer/sdk/communication/Event$LocationData;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -126,11 +102,6 @@ public final class io/customer/sdk/communication/EventBusImpl : io/customer/sdk/
 	public fun publish (Lio/customer/sdk/communication/Event;)V
 	public fun removeAllSubscriptions ()V
 	public fun subscribe (Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function2;)Lkotlinx/coroutines/Job;
-}
-
-public abstract interface class io/customer/sdk/communication/LocationCache {
-	public abstract fun getLastLocation ()Lio/customer/sdk/communication/Event$LocationData;
-	public abstract fun setLastLocation (Lio/customer/sdk/communication/Event$LocationData;)V
 }
 
 public final class io/customer/sdk/core/BuildConfig {

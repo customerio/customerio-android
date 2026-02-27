@@ -130,7 +130,7 @@ public final class io/customer/datapipelines/plugins/StringExtensionsKt {
 	public static final fun getScreenNameFromActivity (Ljava/lang/String;)Ljava/lang/String;
 }
 
-public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule {
+public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInstance, io/customer/sdk/core/module/CustomerIOModule, io/customer/sdk/core/pipeline/DataPipeline {
 	public static final field Companion Lio/customer/sdk/CustomerIO$Companion;
 	public synthetic fun <init> (Lio/customer/sdk/core/di/AndroidSDKComponent;Lio/customer/datapipelines/config/DataPipelinesModuleConfig;Lcom/segment/analytics/kotlin/core/Analytics;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun getAnonymousId ()Ljava/lang/String;
@@ -144,6 +144,7 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun initialize ()V
 	public static final fun initialize (Lio/customer/sdk/CustomerIOConfig;)V
 	public static final fun instance ()Lio/customer/sdk/CustomerIO;
+	public fun isUserIdentified ()Z
 	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setDeviceAttributesDeprecated (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V

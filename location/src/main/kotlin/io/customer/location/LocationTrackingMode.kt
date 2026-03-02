@@ -20,10 +20,9 @@ enum class LocationTrackingMode {
     /**
      * SDK automatically captures location on cold start.
      *
-     * The auto-captured location is cached for identify context enrichment
-     * without immediately sending a track event. Manual location APIs
-     * ([LocationServices.setLastKnownLocation], [LocationServices.requestLocationUpdate])
-     * remain fully functional and will send track events as usual.
+     * The captured location goes through the normal sync path
+     * (cache + 24h/1km filter + track event if filter passes).
+     * Manual location APIs remain fully functional.
      */
     ON_APP_START
 }

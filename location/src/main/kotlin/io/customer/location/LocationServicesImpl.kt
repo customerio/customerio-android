@@ -54,6 +54,15 @@ internal class LocationServicesImpl(
         }
     }
 
+    /**
+     * Cancels any in-flight location request.
+     * Called when the app enters background to avoid unnecessary GPS work.
+     */
+    internal fun cancelInFlightRequest() {
+        currentLocationJob?.cancel()
+        currentLocationJob = null
+    }
+
     companion object {
         /**
          * Validates that latitude is within [-90, 90] and longitude is within [-180, 180].

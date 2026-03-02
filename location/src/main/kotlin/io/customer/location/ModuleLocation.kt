@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -12,7 +13,6 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.Logger
-import kotlinx.coroutines.launch
 
 /**
  * Location module for Customer.io SDK.
@@ -49,7 +49,7 @@ class ModuleLocation @JvmOverloads constructor(
     override val moduleName: String = MODULE_NAME
 
     @Volatile
-    private var _locationServices: LocationServices? = null
+    private var _locationServices: LocationServicesImpl? = null
 
     /**
      * Access the location services API.
@@ -99,6 +99,8 @@ class ModuleLocation @JvmOverloads constructor(
         // for the public API, so callers get silent no-ops with helpful log messages.
         if (!moduleConfig.isEnabled) return
 
+        val services = _locationServices ?: return
+
         locationTracker.restorePersistedLocation()
 
         // Register as IdentifyHook so location is added to identify event context
@@ -116,14 +118,19 @@ class ModuleLocation @JvmOverloads constructor(
             }
         }
 
+        // Cancel in-flight location requests when the app enters background.
+        // initialize() runs on the main thread (from Application.onCreate),
+        // so ProcessLifecycleOwner registration is safe here.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            LocationLifecycleObserver(services)
+        )
+
         // ON_APP_START: auto-capture location on cold start.
-        // Fire-and-forget — captures location and sends through the normal path
-        // (cache + sync filter + track event if filter passes).
+        // Routed through LocationServicesImpl so it shares the same job tracking
+        // and first-wins dedup as user-initiated requests.
         // If permissions are denied or services disabled, orchestrator silently no-ops.
         if (moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
-            locationScope.launch {
-                orchestrator.requestLocationUpdate()
-            }
+            services.requestLocationUpdate()
         }
     }
 

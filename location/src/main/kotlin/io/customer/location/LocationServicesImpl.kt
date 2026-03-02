@@ -42,8 +42,9 @@ internal class LocationServicesImpl(
     }
 
     override fun requestLocationUpdate() {
-        // Cancel any previous in-flight request to avoid concurrent GPS calls
-        currentLocationJob?.cancel()
+        // If a request is already in flight, ignore the new call
+        if (currentLocationJob?.isActive == true) return
+
         currentLocationJob = scope.launch {
             try {
                 orchestrator.requestLocationUpdate()

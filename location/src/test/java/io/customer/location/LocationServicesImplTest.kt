@@ -27,7 +27,7 @@ class LocationServicesImplTest {
         val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
         services.setLastKnownLocation(37.7749, -122.4194)
 
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any()) }
     }
 
     @Test

@@ -117,12 +117,12 @@ class ModuleLocation @JvmOverloads constructor(
         }
 
         // ON_APP_START: auto-capture location on cold start.
-        // Fire-and-forget — refreshes cached location so subsequent identify() calls
-        // carry fresh data. If permissions are denied or services disabled, orchestrator
-        // silently no-ops.
+        // Fire-and-forget — captures location and sends through the normal path
+        // (cache + sync filter + track event if filter passes).
+        // If permissions are denied or services disabled, orchestrator silently no-ops.
         if (moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
             locationScope.launch {
-                orchestrator.requestLocationUpdate(cacheOnly = true)
+                orchestrator.requestLocationUpdate()
             }
         }
     }

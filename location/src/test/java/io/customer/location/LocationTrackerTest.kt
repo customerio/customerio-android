@@ -214,44 +214,6 @@ class LocationTrackerTest {
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
-    // -- onLocationReceived with cacheOnly --
-
-    @Test
-    fun givenCacheOnly_expectPersistsToStore() {
-        tracker.onLocationReceived(37.7749, -122.4194, cacheOnly = true)
-
-        verify { store.saveCachedLocation(37.7749, -122.4194) }
-    }
-
-    @Test
-    fun givenCacheOnly_expectUpdatesIdentifyContext() {
-        tracker.onLocationReceived(37.7749, -122.4194, cacheOnly = true)
-
-        val context = tracker.getIdentifyContext()
-        context.shouldNotBeEmpty()
-        context["location_latitude"] shouldBeEqualTo 37.7749
-        context["location_longitude"] shouldBeEqualTo -122.4194
-    }
-
-    @Test
-    fun givenCacheOnly_expectTrackNotCalled() {
-        tracker.onLocationReceived(37.7749, -122.4194, cacheOnly = true)
-
-        verify(exactly = 0) { dataPipeline.track(any(), any()) }
-    }
-
-    @Test
-    fun givenCacheOnlyFalse_expectTrackCalled() {
-        tracker.onLocationReceived(37.7749, -122.4194, cacheOnly = false)
-
-        verify {
-            dataPipeline.track(
-                name = EventNames.LOCATION_UPDATE,
-                properties = mapOf("latitude" to 37.7749, "longitude" to -122.4194)
-            )
-        }
-    }
-
     // -- resetContext (synchronous, called by analytics.reset during clearIdentify) --
 
     @Test

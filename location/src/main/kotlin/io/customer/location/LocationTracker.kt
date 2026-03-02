@@ -74,23 +74,16 @@ internal class LocationTracker(
     }
 
     /**
-     * Processes an incoming location: caches in memory, persists coordinates,
-     * and optionally attempts to send a location track event.
-     *
-     * @param cacheOnly when true, updates the in-memory cache and persists
-     *   coordinates but does NOT send a "Location Update" track event.
-     *   Used by ON_APP_START auto-requests to refresh cached location for
-     *   identify context enrichment without generating a discrete event.
+     * Processes an incoming location: caches in memory, persists
+     * coordinates, and attempts to send a location track event.
      */
-    fun onLocationReceived(latitude: Double, longitude: Double, cacheOnly: Boolean = false) {
-        logger.debug("Location update received: lat=$latitude, lng=$longitude, cacheOnly=$cacheOnly")
+    fun onLocationReceived(latitude: Double, longitude: Double) {
+        logger.debug("Location update received: lat=$latitude, lng=$longitude")
 
         lastLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
-        if (!cacheOnly) {
-            trySendLocationTrack(latitude, longitude)
-        }
+        trySendLocationTrack(latitude, longitude)
     }
 
     /**

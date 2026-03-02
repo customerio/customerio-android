@@ -19,6 +19,7 @@ internal class LocationServicesImpl(
     private val scope: CoroutineScope
 ) : LocationServices {
 
+    @Volatile
     private var currentLocationJob: Job? = null
 
     override fun setLastKnownLocation(latitude: Double, longitude: Double) {
@@ -49,7 +50,11 @@ internal class LocationServicesImpl(
             try {
                 orchestrator.requestLocationUpdate()
             } finally {
-                currentLocationJob = null
+                // Only clear if this is still the current job — prevents
+                // a cancelled job's finally from nulling a newer job's reference
+                if (currentLocationJob === coroutineContext[Job]) {
+                    currentLocationJob = null
+                }
             }
         }
     }

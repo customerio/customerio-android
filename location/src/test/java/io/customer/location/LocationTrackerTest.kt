@@ -8,45 +8,40 @@ import io.customer.sdk.util.EventNames
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEmpty
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class LocationSyncCoordinatorTest {
+class LocationTrackerTest {
 
     private val dataPipeline: DataPipeline = mockk(relaxUnitFun = true)
     private val store: LocationPreferenceStore = mockk(relaxUnitFun = true)
     private val syncFilter: LocationSyncFilter = mockk(relaxUnitFun = true)
-    private val enrichmentProvider: LocationEnrichmentProvider = mockk(relaxUnitFun = true)
     private val logger: Logger = mockk(relaxUnitFun = true)
 
-    private lateinit var coordinator: LocationSyncCoordinator
+    private lateinit var tracker: LocationTracker
 
     @BeforeEach
     fun setup() {
         every { dataPipeline.isUserIdentified } returns true
         every { syncFilter.filterAndRecord(any(), any()) } returns true
-        coordinator = LocationSyncCoordinator(dataPipeline, store, syncFilter, enrichmentProvider, logger)
+        tracker = LocationTracker(dataPipeline, store, syncFilter, logger)
     }
 
     // -- onLocationReceived --
 
     @Test
     fun givenLocationReceived_expectPersistsToStore() {
-        coordinator.onLocationReceived(37.7749, -122.4194)
+        tracker.onLocationReceived(37.7749, -122.4194)
 
         verify { store.saveCachedLocation(37.7749, -122.4194) }
     }
 
     @Test
-    fun givenLocationReceived_expectUpdatesEnrichmentProvider() {
-        coordinator.onLocationReceived(37.7749, -122.4194)
-
-        verify { enrichmentProvider.updateLocation(LocationCoordinates(37.7749, -122.4194)) }
-    }
-
-    @Test
     fun givenLocationReceived_userIdentified_filterPasses_expectTrackCalled() {
-        coordinator.onLocationReceived(37.7749, -122.4194)
+        tracker.onLocationReceived(37.7749, -122.4194)
 
         verify {
             dataPipeline.track(
@@ -60,7 +55,7 @@ class LocationSyncCoordinatorTest {
     fun givenLocationReceived_noUserId_expectTrackNotCalled() {
         every { dataPipeline.isUserIdentified } returns false
 
-        coordinator.onLocationReceived(37.7749, -122.4194)
+        tracker.onLocationReceived(37.7749, -122.4194)
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
@@ -69,20 +64,19 @@ class LocationSyncCoordinatorTest {
     fun givenLocationReceived_filterRejects_expectTrackNotCalled() {
         every { syncFilter.filterAndRecord(any(), any()) } returns false
 
-        coordinator.onLocationReceived(37.7749, -122.4194)
+        tracker.onLocationReceived(37.7749, -122.4194)
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
     @Test
     fun givenNullDataPipeline_expectNoException() {
-        val coordinatorWithNullPipeline = LocationSyncCoordinator(null, store, syncFilter, enrichmentProvider, logger)
+        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, logger)
 
-        coordinatorWithNullPipeline.onLocationReceived(37.7749, -122.4194)
+        trackerWithNullPipeline.onLocationReceived(37.7749, -122.4194)
 
-        // Persist and enrichment still happen, but no track call
+        // Persist still happens, but no track call
         verify { store.saveCachedLocation(37.7749, -122.4194) }
-        verify { enrichmentProvider.updateLocation(LocationCoordinates(37.7749, -122.4194)) }
     }
 
     // -- syncCachedLocationIfNeeded --
@@ -92,7 +86,7 @@ class LocationSyncCoordinatorTest {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
-        coordinator.syncCachedLocationIfNeeded()
+        tracker.syncCachedLocationIfNeeded()
 
         verify {
             dataPipeline.track(
@@ -107,7 +101,7 @@ class LocationSyncCoordinatorTest {
         every { store.getCachedLatitude() } returns null
         every { store.getCachedLongitude() } returns -122.4194
 
-        coordinator.syncCachedLocationIfNeeded()
+        tracker.syncCachedLocationIfNeeded()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
@@ -117,9 +111,60 @@ class LocationSyncCoordinatorTest {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns null
 
-        coordinator.syncCachedLocationIfNeeded()
+        tracker.syncCachedLocationIfNeeded()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    // -- restorePersistedLocation --
+
+    @Test
+    fun givenPersistedLocation_expectSetsInMemoryCache() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        val context = tracker.getIdentifyContext()
+        context.shouldNotBeEmpty()
+        context["location_latitude"] shouldBeEqualTo 37.7749
+        context["location_longitude"] shouldBeEqualTo -122.4194
+    }
+
+    @Test
+    fun givenNoPersistedLatitude_expectNoContext() {
+        every { store.getCachedLatitude() } returns null
+
+        tracker.restorePersistedLocation()
+
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    @Test
+    fun givenNoPersistedLongitude_expectNoContext() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns null
+
+        tracker.restorePersistedLocation()
+
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    // -- getIdentifyContext --
+
+    @Test
+    fun givenNoLocation_expectReturnsEmptyMap() {
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    @Test
+    fun givenLocationReceived_expectReturnsLocationContext() {
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        val context = tracker.getIdentifyContext()
+        context.shouldNotBeEmpty()
+        context["location_latitude"] shouldBeEqualTo 37.7749
+        context["location_longitude"] shouldBeEqualTo -122.4194
     }
 
     // -- onUserIdentified --
@@ -129,7 +174,7 @@ class LocationSyncCoordinatorTest {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
-        coordinator.onUserIdentified()
+        tracker.onUserIdentified()
 
         verify {
             dataPipeline.track(
@@ -144,7 +189,7 @@ class LocationSyncCoordinatorTest {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
 
-        coordinator.onUserIdentified()
+        tracker.onUserIdentified()
 
         verify { syncFilter.filterAndRecord(37.7749, -122.4194) }
     }
@@ -155,7 +200,7 @@ class LocationSyncCoordinatorTest {
         every { store.getCachedLongitude() } returns -122.4194
         every { syncFilter.filterAndRecord(any(), any()) } returns false
 
-        coordinator.onUserIdentified()
+        tracker.onUserIdentified()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
@@ -164,17 +209,23 @@ class LocationSyncCoordinatorTest {
     fun givenUserIdentified_noCachedLocation_expectNoTrack() {
         every { store.getCachedLatitude() } returns null
 
-        coordinator.onUserIdentified()
+        tracker.onUserIdentified()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
     }
 
-    // -- resetContext --
+    // -- resetContext (synchronous, called by analytics.reset during clearIdentify) --
 
     @Test
-    fun givenResetContext_expectClearsSyncFilter() {
-        coordinator.resetContext()
+    fun givenResetContext_expectClearsEverything() {
+        tracker.onLocationReceived(37.7749, -122.4194)
 
+        tracker.resetContext()
+
+        // In-memory location cleared — no stale data for next identify
+        tracker.getIdentifyContext().shouldBeEmpty()
+        // Persistence and sync filter also cleared synchronously
+        verify { store.clearCachedLocation() }
         verify { syncFilter.clearSyncedData() }
     }
 }

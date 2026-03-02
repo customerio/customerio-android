@@ -4,19 +4,13 @@ package io.customer.location.type
  * Authorization status for location access.
  * Maps Android runtime permission states to SDK-level values
  * without depending on Android framework classes.
+ *
+ * Note: On Android, [DENIED] covers both "never asked" and "explicitly denied"
+ * because [android.content.pm.PackageManager.checkPermission] cannot distinguish
+ * between the two without an Activity context.
  */
 internal enum class AuthorizationStatus {
-    /**
-     * Permission has not been requested yet.
-     *
-     * Note: On Android, [checkSelfPermission] cannot distinguish between
-     * "never asked" and "explicitly denied" without an Activity context.
-     * This value exists for API completeness but is not currently returned
-     * by [FusedLocationProvider].
-     */
-    NOT_DETERMINED,
-
-    /** Permission explicitly denied by the user. */
+    /** Permission not granted (either never asked or explicitly denied). */
     DENIED,
 
     /** Foreground-only location access granted. */

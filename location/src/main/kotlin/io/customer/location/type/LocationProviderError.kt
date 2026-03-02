@@ -4,10 +4,7 @@ package io.customer.location.type
  * Reason location was not delivered. Returned from a location request on failure.
  */
 internal enum class LocationProviderError {
-    /** Location permission has not been requested yet. */
-    PERMISSION_NOT_DETERMINED,
-
-    /** Location permission explicitly denied by the user. */
+    /** Location permission not granted (denied or never requested). */
     PERMISSION_DENIED,
 
     /** Location services are disabled in device settings. */

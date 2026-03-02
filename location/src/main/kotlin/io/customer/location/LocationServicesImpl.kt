@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 internal class LocationServicesImpl(
     private val config: LocationModuleConfig,
     private val logger: Logger,
-    private val syncCoordinator: LocationSyncCoordinator,
+    private val locationTracker: LocationTracker,
     private val orchestrator: LocationOrchestrator,
     private val scope: CoroutineScope
 ) : LocationServices {
@@ -34,7 +34,7 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        syncCoordinator.onLocationReceived(latitude, longitude)
+        locationTracker.onLocationReceived(latitude, longitude)
     }
 
     override fun setLastKnownLocation(location: Location) {

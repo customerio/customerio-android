@@ -76,27 +76,20 @@ class ModuleLocation @JvmOverloads constructor(
         val locationSyncFilter = LocationSyncFilter(
             LocationSyncStoreImpl(context, logger)
         )
-        val enrichmentProvider = LocationEnrichmentProvider(store, logger)
-        val syncCoordinator = LocationSyncCoordinator(
-            dataPipeline,
-            store,
-            locationSyncFilter,
-            enrichmentProvider,
-            logger
-        )
+        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
 
         val locationProvider = FusedLocationProvider(context)
         val orchestrator = LocationOrchestrator(
             config = moduleConfig,
             logger = logger,
-            syncCoordinator = syncCoordinator,
+            locationTracker = locationTracker,
             locationProvider = locationProvider
         )
 
         _locationServices = LocationServicesImpl(
             config = moduleConfig,
             logger = logger,
-            syncCoordinator = syncCoordinator,
+            locationTracker = locationTracker,
             orchestrator = orchestrator,
             scope = locationScope
         )
@@ -106,19 +99,20 @@ class ModuleLocation @JvmOverloads constructor(
         // for the public API, so callers get silent no-ops with helpful log messages.
         if (!moduleConfig.isEnabled) return
 
-        enrichmentProvider.restorePersistedLocation()
+        locationTracker.restorePersistedLocation()
 
-        // Register both as IdentifyHooks — enrichment provider adds location to
-        // identify context, sync coordinator clears sync filter state on reset.
-        SDKComponent.identifyHookRegistry.register(enrichmentProvider)
-        SDKComponent.identifyHookRegistry.register(syncCoordinator)
+        // Register as IdentifyHook so location is added to identify event context
+        // and cleared synchronously during analytics.reset(). This ensures every
+        // identify() call carries the device's current location in the event context —
+        // the primary way location reaches a user's profile.
+        SDKComponent.identifyHookRegistry.register(locationTracker)
 
         // On identify, attempt to send a supplementary "Location Update" track event.
         // The identify event itself already carries location via context enrichment —
         // this track event is for journey/segment triggers in the user's timeline.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                syncCoordinator.onUserIdentified()
+                locationTracker.onUserIdentified()
             }
         }
 

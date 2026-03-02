@@ -19,47 +19,47 @@ class LocationServicesImplTest {
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.OFF)
             .build()
-        val syncCoordinator: LocationSyncCoordinator = mockk(relaxUnitFun = true)
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
         val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
         val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
         val scope = TestScope(UnconfinedTestDispatcher())
 
-        val services = LocationServicesImpl(config, logger, syncCoordinator, orchestrator, scope)
+        val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
         services.setLastKnownLocation(37.7749, -122.4194)
 
-        verify(exactly = 0) { syncCoordinator.onLocationReceived(any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any()) }
     }
 
     @Test
-    fun givenModeManual_setLastKnownLocation_expectSyncCoordinatorCalled() {
+    fun givenModeManual_setLastKnownLocation_expectTrackerCalled() {
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.MANUAL)
             .build()
-        val syncCoordinator: LocationSyncCoordinator = mockk(relaxUnitFun = true)
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
         val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
         val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
         val scope = TestScope(UnconfinedTestDispatcher())
 
-        val services = LocationServicesImpl(config, logger, syncCoordinator, orchestrator, scope)
+        val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
         services.setLastKnownLocation(37.7749, -122.4194)
 
-        verify { syncCoordinator.onLocationReceived(37.7749, -122.4194) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194) }
     }
 
     @Test
-    fun givenModeOnAppStart_setLastKnownLocation_expectSyncCoordinatorCalled() {
+    fun givenModeOnAppStart_setLastKnownLocation_expectTrackerCalled() {
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.ON_APP_START)
             .build()
-        val syncCoordinator: LocationSyncCoordinator = mockk(relaxUnitFun = true)
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
         val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
         val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
         val scope = TestScope(UnconfinedTestDispatcher())
 
-        val services = LocationServicesImpl(config, logger, syncCoordinator, orchestrator, scope)
+        val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
         services.setLastKnownLocation(37.7749, -122.4194)
 
-        verify { syncCoordinator.onLocationReceived(37.7749, -122.4194) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194) }
     }
 
     // -- Coordinate validation tests --

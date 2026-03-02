@@ -13,7 +13,7 @@ import kotlinx.coroutines.CancellationException
 internal class LocationOrchestrator(
     private val config: LocationModuleConfig,
     private val logger: Logger,
-    private val syncCoordinator: LocationSyncCoordinator,
+    private val locationTracker: LocationTracker,
     private val locationProvider: LocationProvider
 ) {
 
@@ -34,7 +34,7 @@ internal class LocationOrchestrator(
                 granularity = LocationGranularity.DEFAULT
             )
             logger.debug("Tracking location: lat=${snapshot.latitude}, lng=${snapshot.longitude}")
-            syncCoordinator.onLocationReceived(snapshot.latitude, snapshot.longitude)
+            locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude)
         } catch (e: CancellationException) {
             logger.debug("Location request was cancelled.")
             throw e

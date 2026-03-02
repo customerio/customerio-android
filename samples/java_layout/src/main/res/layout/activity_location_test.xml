@@ -148,14 +148,6 @@
                 android:layout_marginTop="12dp"
                 android:text="@string/request_location_once_sdk" />
 
-            <Button
-                android:id="@+id/stop_location_updates"
-                style="?attr/materialButtonStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/stop_location_updates" />
-
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

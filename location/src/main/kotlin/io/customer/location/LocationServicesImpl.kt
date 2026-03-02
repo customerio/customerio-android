@@ -2,8 +2,6 @@ package io.customer.location
 
 import android.location.Location
 import io.customer.sdk.core.util.Logger
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -21,11 +19,10 @@ internal class LocationServicesImpl(
     private val scope: CoroutineScope
 ) : LocationServices {
 
-    private val lock = ReentrantLock()
     private var currentLocationJob: Job? = null
 
     override fun setLastKnownLocation(latitude: Double, longitude: Double) {
-        if (!config.enableLocationTracking) {
+        if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
             return
         }
@@ -45,34 +42,15 @@ internal class LocationServicesImpl(
     }
 
     override fun requestLocationUpdate() {
-        lock.withLock {
-            // Cancel any previous in-flight request
-            currentLocationJob?.cancel()
-
-            currentLocationJob = scope.launch {
-                val thisJob = coroutineContext[Job]
-                try {
-                    orchestrator.requestLocationUpdate()
-                } finally {
-                    lock.withLock {
-                        if (currentLocationJob === thisJob) {
-                            currentLocationJob = null
-                        }
-                    }
-                }
+        // Cancel any previous in-flight request to avoid concurrent GPS calls
+        currentLocationJob?.cancel()
+        currentLocationJob = scope.launch {
+            try {
+                orchestrator.requestLocationUpdate()
+            } finally {
+                currentLocationJob = null
             }
         }
-    }
-
-    override fun stopLocationUpdates() {
-        val job: Job?
-        lock.withLock {
-            job = currentLocationJob
-            currentLocationJob = null
-        }
-        // Cancelling the job triggers invokeOnCancellation in FusedLocationProvider's
-        // suspendCancellableCoroutine, which cancels the CancellationTokenSource.
-        job?.cancel()
     }
 
     companion object {

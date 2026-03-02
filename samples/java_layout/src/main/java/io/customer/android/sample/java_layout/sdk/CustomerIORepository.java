@@ -13,6 +13,8 @@ import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
+import io.customer.location.LocationModuleConfig;
+import io.customer.location.LocationTrackingMode;
 import io.customer.location.ModuleLocation;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.sdk.CustomerIO;
@@ -40,7 +42,11 @@ public class CustomerIORepository {
         builder.addCustomerIOModule(new ModuleMessagingPushFCM());
 
         // Enables location tracking
-        builder.addCustomerIOModule(new ModuleLocation());
+        builder.addCustomerIOModule(new ModuleLocation(
+                new LocationModuleConfig.Builder()
+                        .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+                        .build()
+        ));
 
         // Enables in-app messages
         if (sdkConfig.isInAppMessagingEnabled()) {

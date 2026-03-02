@@ -12,6 +12,7 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.Logger
+import kotlinx.coroutines.launch
 
 /**
  * Location module for Customer.io SDK.
@@ -19,6 +20,7 @@ import io.customer.sdk.core.util.Logger
  * This module provides location tracking capabilities including:
  * - Manual location setting from host app's existing location system
  * - One-shot SDK-managed location capture
+ * - Automatic location capture on app start (ON_APP_START mode)
  *
  * Usage:
  * ```
@@ -26,7 +28,7 @@ import io.customer.sdk.core.util.Logger
  *     .addCustomerIOModule(
  *         ModuleLocation(
  *             LocationModuleConfig.Builder()
- *                 .setEnableLocationTracking(true)
+ *                 .setLocationTrackingMode(LocationTrackingMode.MANUAL)
  *                 .build()
  *         )
  *     )
@@ -67,6 +69,7 @@ class ModuleLocation @JvmOverloads constructor(
         val logger = SDKComponent.logger
         val eventBus = SDKComponent.eventBus
         val context = SDKComponent.android().applicationContext
+        val locationScope = SDKComponent.scopeProvider.locationScope
 
         val dataPipeline = SDKComponent.getOrNull<DataPipeline>()
         val store = LocationPreferenceStoreImpl(context, logger)
@@ -74,6 +77,27 @@ class ModuleLocation @JvmOverloads constructor(
             LocationSyncStoreImpl(context, logger)
         )
         val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
+
+        val locationProvider = FusedLocationProvider(context)
+        val orchestrator = LocationOrchestrator(
+            config = moduleConfig,
+            logger = logger,
+            locationTracker = locationTracker,
+            locationProvider = locationProvider
+        )
+
+        _locationServices = LocationServicesImpl(
+            config = moduleConfig,
+            logger = logger,
+            locationTracker = locationTracker,
+            orchestrator = orchestrator,
+            scope = locationScope
+        )
+
+        // When OFF, skip all background machinery — no restoration, no enrichment,
+        // no event subscriptions. LocationServicesImpl has its own isEnabled guards
+        // for the public API, so callers get silent no-ops with helpful log messages.
+        if (!moduleConfig.isEnabled) return
 
         locationTracker.restorePersistedLocation()
 
@@ -92,21 +116,15 @@ class ModuleLocation @JvmOverloads constructor(
             }
         }
 
-        val locationProvider = FusedLocationProvider(context)
-        val orchestrator = LocationOrchestrator(
-            config = moduleConfig,
-            logger = logger,
-            locationTracker = locationTracker,
-            locationProvider = locationProvider
-        )
-
-        _locationServices = LocationServicesImpl(
-            config = moduleConfig,
-            logger = logger,
-            locationTracker = locationTracker,
-            orchestrator = orchestrator,
-            scope = SDKComponent.scopeProvider.locationScope
-        )
+        // ON_APP_START: auto-capture location on cold start.
+        // Fire-and-forget — refreshes cached location so subsequent identify() calls
+        // carry fresh data. If permissions are denied or services disabled, orchestrator
+        // silently no-ops.
+        if (moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
+            locationScope.launch {
+                orchestrator.requestLocationUpdate(cacheOnly = true)
+            }
+        }
     }
 
     companion object {
@@ -143,6 +161,4 @@ private class UninitializedLocationServices(
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
     override fun requestLocationUpdate() = logNotInitialized()
-
-    override fun stopLocationUpdates() = logNotInitialized()
 }

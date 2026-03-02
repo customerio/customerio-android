@@ -17,8 +17,8 @@ internal class LocationOrchestrator(
     private val locationProvider: LocationProvider
 ) {
 
-    suspend fun requestLocationUpdate() {
-        if (!config.enableLocationTracking) {
+    suspend fun requestLocationUpdate(cacheOnly: Boolean = false) {
+        if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring requestLocationUpdate.")
             return
         }
@@ -34,7 +34,7 @@ internal class LocationOrchestrator(
                 granularity = LocationGranularity.DEFAULT
             )
             logger.debug("Tracking location: lat=${snapshot.latitude}, lng=${snapshot.longitude}")
-            locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude)
+            locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude, cacheOnly)
         } catch (e: CancellationException) {
             logger.debug("Location request was cancelled.")
             throw e

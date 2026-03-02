@@ -12,7 +12,9 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
+import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.core.util.MainThreadPoster
 
 /**
  * Location module for Customer.io SDK.
@@ -119,11 +121,13 @@ class ModuleLocation @JvmOverloads constructor(
         }
 
         // Cancel in-flight location requests when the app enters background.
-        // initialize() runs on the main thread (from Application.onCreate),
-        // so ProcessLifecycleOwner registration is safe here.
-        ProcessLifecycleOwner.get().lifecycle.addObserver(
-            LocationLifecycleObserver(services)
-        )
+        // Lifecycle observer registration must happen on the main thread.
+        val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
+        mainThreadPoster.post {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(
+                LocationLifecycleObserver(services)
+            )
+        }
 
         // ON_APP_START: auto-capture location on cold start.
         // Routed through LocationServicesImpl so it shares the same job tracking

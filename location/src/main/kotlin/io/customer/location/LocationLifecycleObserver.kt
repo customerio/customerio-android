@@ -4,17 +4,29 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
 /**
- * Cancels in-flight location requests when the app enters background.
+ * Manages location lifecycle tied to app foreground/background transitions.
  *
  * Registered with [ProcessLifecycleOwner] during module initialization.
- * [onStop] fires when the app transitions to background — any active
- * GPS request is cancelled to avoid unnecessary work while backgrounded.
+ * - [onStart]: triggers a one-shot location request on the first foreground entry
+ *   when [trackingMode] is [LocationTrackingMode.ON_APP_START].
+ * - [onStop]: cancels any in-flight GPS request when the app enters background.
  *
- * No mutable state — thread safety is inherent.
+ * Thread safety: all lifecycle callbacks are delivered on the main thread
+ * by [ProcessLifecycleOwner], so no synchronization is needed.
  */
 internal class LocationLifecycleObserver(
-    private val locationServices: LocationServicesImpl
+    private val locationServices: LocationServicesImpl,
+    private val trackingMode: LocationTrackingMode
 ) : DefaultLifecycleObserver {
+
+    private var hasRequestedOnStart = false
+
+    override fun onStart(owner: LifecycleOwner) {
+        if (trackingMode == LocationTrackingMode.ON_APP_START && !hasRequestedOnStart) {
+            hasRequestedOnStart = true
+            locationServices.requestLocationUpdate()
+        }
+    }
 
     override fun onStop(owner: LifecycleOwner) {
         locationServices.cancelInFlightRequest()

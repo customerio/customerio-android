@@ -120,21 +120,16 @@ class ModuleLocation @JvmOverloads constructor(
             }
         }
 
-        // Cancel in-flight location requests when the app enters background.
-        // Lifecycle observer registration must happen on the main thread.
+        // Register lifecycle observer for background cancellation and ON_APP_START.
+        // - onStop: cancels in-flight GPS requests when the app enters background.
+        // - onStart: triggers a one-shot location request on first foreground entry
+        //   when trackingMode is ON_APP_START (guaranteed foreground execution).
+        // Registration must happen on the main thread.
         val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
         mainThreadPoster.post {
             ProcessLifecycleOwner.get().lifecycle.addObserver(
-                LocationLifecycleObserver(services)
+                LocationLifecycleObserver(services, moduleConfig.trackingMode)
             )
-        }
-
-        // ON_APP_START: auto-capture location on cold start.
-        // Routed through LocationServicesImpl so it shares the same job tracking
-        // and first-wins dedup as user-initiated requests.
-        // If permissions are denied or services disabled, orchestrator silently no-ops.
-        if (moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
-            services.requestLocationUpdate()
         }
     }
 

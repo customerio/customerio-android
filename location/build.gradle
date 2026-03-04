@@ -44,6 +44,7 @@ dependencies {
     api project(":core")
 
     implementation Dependencies.googlePlayServicesLocation
+    implementation Dependencies.androidxProcessLifecycle
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
 }

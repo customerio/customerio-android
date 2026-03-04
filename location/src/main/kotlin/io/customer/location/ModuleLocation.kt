@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -11,7 +12,9 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
+import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.core.util.MainThreadPoster
 
 /**
  * Location module for Customer.io SDK.
@@ -19,6 +22,7 @@ import io.customer.sdk.core.util.Logger
  * This module provides location tracking capabilities including:
  * - Manual location setting from host app's existing location system
  * - One-shot SDK-managed location capture
+ * - Automatic location capture on app start (ON_APP_START mode)
  *
  * Usage:
  * ```
@@ -26,7 +30,7 @@ import io.customer.sdk.core.util.Logger
  *     .addCustomerIOModule(
  *         ModuleLocation(
  *             LocationModuleConfig.Builder()
- *                 .setEnableLocationTracking(true)
+ *                 .setLocationTrackingMode(LocationTrackingMode.MANUAL)
  *                 .build()
  *         )
  *     )
@@ -47,7 +51,7 @@ class ModuleLocation @JvmOverloads constructor(
     override val moduleName: String = MODULE_NAME
 
     @Volatile
-    private var _locationServices: LocationServices? = null
+    private var _locationServices: LocationServicesImpl? = null
 
     /**
      * Access the location services API.
@@ -67,6 +71,7 @@ class ModuleLocation @JvmOverloads constructor(
         val logger = SDKComponent.logger
         val eventBus = SDKComponent.eventBus
         val context = SDKComponent.android().applicationContext
+        val locationScope = SDKComponent.scopeProvider.locationScope
 
         val dataPipeline = SDKComponent.getOrNull<DataPipeline>()
         val store = LocationPreferenceStoreImpl(context, logger)
@@ -74,6 +79,29 @@ class ModuleLocation @JvmOverloads constructor(
             LocationSyncStoreImpl(context, logger)
         )
         val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
+
+        val locationProvider = FusedLocationProvider(context)
+        val orchestrator = LocationOrchestrator(
+            config = moduleConfig,
+            logger = logger,
+            locationTracker = locationTracker,
+            locationProvider = locationProvider
+        )
+
+        _locationServices = LocationServicesImpl(
+            config = moduleConfig,
+            logger = logger,
+            locationTracker = locationTracker,
+            orchestrator = orchestrator,
+            scope = locationScope
+        )
+
+        // When OFF, skip all background machinery — no restoration, no enrichment,
+        // no event subscriptions. LocationServicesImpl has its own isEnabled guards
+        // for the public API, so callers get silent no-ops with helpful log messages.
+        if (!moduleConfig.isEnabled) return
+
+        val services = _locationServices ?: return
 
         locationTracker.restorePersistedLocation()
 
@@ -92,21 +120,17 @@ class ModuleLocation @JvmOverloads constructor(
             }
         }
 
-        val locationProvider = FusedLocationProvider(context)
-        val orchestrator = LocationOrchestrator(
-            config = moduleConfig,
-            logger = logger,
-            locationTracker = locationTracker,
-            locationProvider = locationProvider
-        )
-
-        _locationServices = LocationServicesImpl(
-            config = moduleConfig,
-            logger = logger,
-            locationTracker = locationTracker,
-            orchestrator = orchestrator,
-            scope = SDKComponent.scopeProvider.locationScope
-        )
+        // Register lifecycle observer for background cancellation and ON_APP_START.
+        // - onStop: cancels in-flight GPS requests when the app enters background.
+        // - onStart: triggers a one-shot location request on first foreground entry
+        //   when trackingMode is ON_APP_START (guaranteed foreground execution).
+        // Registration must happen on the main thread.
+        val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
+        mainThreadPoster.post {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(
+                LocationLifecycleObserver(services, moduleConfig.trackingMode)
+            )
+        }
     }
 
     companion object {
@@ -143,6 +167,4 @@ private class UninitializedLocationServices(
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
     override fun requestLocationUpdate() = logNotInitialized()
-
-    override fun stopLocationUpdates() = logNotInitialized()
 }

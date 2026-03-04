@@ -93,7 +93,6 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
 
     private void setupSdkLocationButtons() {
         binding.requestSdkLocationOnce.setOnClickListener(v -> requestSdkLocationOnce());
-        binding.stopLocationUpdates.setOnClickListener(v -> stopSdkLocationUpdates());
     }
 
     private void setupDeviceLocationButton() {
@@ -151,12 +150,6 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         binding.lastSetLocationLabel.setText(R.string.requesting_location_sdk);
         ModuleLocation.instance().getLocationServices().requestLocationUpdate();
         showSnackbar(getString(R.string.sdk_requested_location));
-    }
-
-    private void stopSdkLocationUpdates() {
-        ModuleLocation.instance().getLocationServices().stopLocationUpdates();
-        binding.lastSetLocationLabel.setText(R.string.location_updates_stopped);
-        showSnackbar(getString(R.string.stopped_location_updates));
     }
 
     private void requestCurrentLocation() {

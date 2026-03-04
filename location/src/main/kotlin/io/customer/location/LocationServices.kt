@@ -41,20 +41,12 @@ interface LocationServices {
     fun setLastKnownLocation(location: Location)
 
     /**
-     * Starts a single location update and sends the result to Customer.io.
+     * Requests a single location update and sends the result to Customer.io.
      *
      * No-ops if location tracking is disabled or permission is not granted.
-     * Only one request at a time; calling again cancels any in-flight request
-     * and starts a new one.
      *
      * The SDK does not request location permission. The host app must request
      * runtime permissions and only call this when permission is granted.
      */
     fun requestLocationUpdate()
-
-    /**
-     * Cancels any in-flight location request.
-     * No-op if nothing is in progress.
-     */
-    fun stopLocationUpdates()
 }

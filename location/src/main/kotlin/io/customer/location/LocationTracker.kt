@@ -6,6 +6,7 @@ import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
+import java.lang.ref.WeakReference
 
 /**
  * Coordinates all location state management: persistence, restoration,
@@ -30,11 +31,17 @@ import io.customer.sdk.util.EventNames
  * sync filter's state.
  */
 internal class LocationTracker(
-    private val dataPipeline: DataPipeline?,
+    dataPipeline: DataPipeline?,
     private val locationPreferenceStore: LocationPreferenceStore,
     private val locationSyncFilter: LocationSyncFilter,
     private val logger: Logger
 ) : IdentifyHook {
+
+    // WeakReference prevents this hook (retained by IdentifyHookRegistry
+    // inside a Segment plugin) from keeping CustomerIO alive after SDK
+    // cleanup. The strong reference lives in CustomerIO.instance — as long
+    // as the SDK is initialized, the weak ref is valid.
+    private val dataPipelineRef = WeakReference(dataPipeline)
 
     @Volatile
     private var lastLocation: LocationCoordinates? = null
@@ -117,7 +124,7 @@ internal class LocationTracker(
      * track event via [DataPipeline] if both pass.
      */
     private fun trySendLocationTrack(latitude: Double, longitude: Double) {
-        val pipeline = dataPipeline ?: return
+        val pipeline = dataPipelineRef.get() ?: return
         if (!pipeline.isUserIdentified) return
         if (!locationSyncFilter.filterAndRecord(latitude, longitude)) return
 

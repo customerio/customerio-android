@@ -18,7 +18,7 @@ internal class LocationOrchestrator(
 ) {
 
     suspend fun requestLocationUpdate() {
-        if (!config.enableLocationTracking) {
+        if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring requestLocationUpdate.")
             return
         }

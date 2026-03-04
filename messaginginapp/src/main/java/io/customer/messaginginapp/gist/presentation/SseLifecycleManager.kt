@@ -6,6 +6,8 @@ import androidx.lifecycle.LifecycleOwner
 import io.customer.messaginginapp.gist.data.sse.InAppSseLogger
 import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.sdk.core.util.HandlerMainThreadPoster
+import io.customer.sdk.core.util.MainThreadPoster
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

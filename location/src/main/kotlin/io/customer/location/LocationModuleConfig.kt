@@ -8,30 +8,37 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
  */
 class LocationModuleConfig private constructor(
     /**
-     * Whether location tracking is enabled.
+     * The tracking mode for the location module.
      *
-     * When false, the location module is effectively disabled and all location
-     * tracking operations will no-op silently.
+     * - [LocationTrackingMode.OFF]: Location tracking is disabled; all operations no-op.
+     * - [LocationTrackingMode.MANUAL]: Host app controls when location is captured (default).
+     * - [LocationTrackingMode.ON_APP_START]: SDK auto-captures location on cold start,
+     *   caching it for identify context enrichment.
      */
-    val enableLocationTracking: Boolean
+    val trackingMode: LocationTrackingMode
 ) : CustomerIOModuleConfig {
 
+    /**
+     * Whether location tracking is enabled (any mode other than [LocationTrackingMode.OFF]).
+     */
+    internal val isEnabled: Boolean
+        get() = trackingMode != LocationTrackingMode.OFF
+
     class Builder : CustomerIOModuleConfig.Builder<LocationModuleConfig> {
-        private var enableLocationTracking: Boolean = true
+        private var trackingMode: LocationTrackingMode = LocationTrackingMode.MANUAL
 
         /**
-         * Sets whether location tracking is enabled.
-         * When disabled, all location operations will no-op silently.
-         * Default is true.
+         * Sets the location tracking mode.
+         * Default is [LocationTrackingMode.MANUAL].
          */
-        fun setEnableLocationTracking(enable: Boolean): Builder {
-            this.enableLocationTracking = enable
+        fun setLocationTrackingMode(mode: LocationTrackingMode): Builder {
+            this.trackingMode = mode
             return this
         }
 
         override fun build(): LocationModuleConfig {
             return LocationModuleConfig(
-                enableLocationTracking = enableLocationTracking
+                trackingMode = trackingMode
             )
         }
     }

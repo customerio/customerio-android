@@ -2,8 +2,6 @@ package io.customer.location
 
 import android.location.Location
 import io.customer.sdk.core.util.Logger
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -21,11 +19,11 @@ internal class LocationServicesImpl(
     private val scope: CoroutineScope
 ) : LocationServices {
 
-    private val lock = ReentrantLock()
+    @Volatile
     private var currentLocationJob: Job? = null
 
     override fun setLastKnownLocation(latitude: Double, longitude: Double) {
-        if (!config.enableLocationTracking) {
+        if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
             return
         }
@@ -45,34 +43,33 @@ internal class LocationServicesImpl(
     }
 
     override fun requestLocationUpdate() {
-        lock.withLock {
-            // Cancel any previous in-flight request
-            currentLocationJob?.cancel()
+        // If a request is already in flight, ignore the new call
+        if (currentLocationJob?.isActive == true) return
 
-            currentLocationJob = scope.launch {
-                val thisJob = coroutineContext[Job]
-                try {
-                    orchestrator.requestLocationUpdate()
-                } finally {
-                    lock.withLock {
-                        if (currentLocationJob === thisJob) {
-                            currentLocationJob = null
-                        }
-                    }
+        currentLocationJob = scope.launch {
+            try {
+                orchestrator.requestLocationUpdate()
+            } finally {
+                // Only clear if this is still the current job — prevents
+                // a cancelled job's finally from nulling a newer job's reference
+                if (currentLocationJob === coroutineContext[Job]) {
+                    currentLocationJob = null
                 }
             }
         }
     }
 
-    override fun stopLocationUpdates() {
-        val job: Job?
-        lock.withLock {
-            job = currentLocationJob
-            currentLocationJob = null
-        }
-        // Cancelling the job triggers invokeOnCancellation in FusedLocationProvider's
-        // suspendCancellableCoroutine, which cancels the CancellationTokenSource.
-        job?.cancel()
+    /**
+     * Cancels any in-flight location request.
+     * Called when the app enters background to avoid unnecessary GPS work.
+     *
+     * @return true if an active request was cancelled, false if nothing was in flight.
+     */
+    internal fun cancelInFlightRequest(): Boolean {
+        val job = currentLocationJob ?: return false
+        currentLocationJob = null
+        job.cancel()
+        return true
     }
 
     companion object {

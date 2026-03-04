@@ -62,10 +62,14 @@ internal class LocationServicesImpl(
     /**
      * Cancels any in-flight location request.
      * Called when the app enters background to avoid unnecessary GPS work.
+     *
+     * @return true if an active request was cancelled, false if nothing was in flight.
      */
-    internal fun cancelInFlightRequest() {
-        currentLocationJob?.cancel()
+    internal fun cancelInFlightRequest(): Boolean {
+        val job = currentLocationJob ?: return false
         currentLocationJob = null
+        job.cancel()
+        return true
     }
 
     companion object {

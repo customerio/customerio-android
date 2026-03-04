@@ -29,6 +29,11 @@ internal class LocationLifecycleObserver(
     }
 
     override fun onStop(owner: LifecycleOwner) {
-        locationServices.cancelInFlightRequest()
+        val wasCancelled = locationServices.cancelInFlightRequest()
+        // If the GPS request was still in flight when we backgrounded,
+        // allow onStart to retry on the next foreground entry.
+        if (wasCancelled) {
+            hasRequestedOnStart = false
+        }
     }
 }

@@ -111,7 +111,7 @@ class ModuleLocation @JvmOverloads constructor(
         // the primary way location reaches a user's profile.
         SDKComponent.identifyHookRegistry.register(locationTracker)
 
-        // On identify, attempt to send a supplementary "Location Update" track event.
+        // On identify, attempt to send a supplementary "CIO Location Update" track event.
         // The identify event itself already carries location via context enrichment —
         // this track event is for journey/segment triggers in the user's timeline.
         eventBus.subscribe<Event.UserChangedEvent> {

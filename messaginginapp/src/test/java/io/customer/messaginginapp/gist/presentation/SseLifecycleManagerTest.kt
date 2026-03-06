@@ -8,6 +8,7 @@ import io.customer.messaginginapp.gist.data.sse.SseConnectionManager
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.JUnitTest
+import io.customer.sdk.core.util.MainThreadPoster
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just

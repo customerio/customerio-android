@@ -25,12 +25,15 @@ import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.AutomaticApplicationLifecycleTrackingPlugin
 import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
+import io.customer.datapipelines.plugins.IdentifyContextPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.pipeline.DataPipeline
+import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
@@ -62,7 +65,7 @@ class CustomerIO private constructor(
     androidSDKComponent: AndroidSDKComponent,
     override val moduleConfig: DataPipelinesModuleConfig,
     overrideAnalytics: Analytics? = null
-) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance() {
+) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance(), DataPipeline {
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
@@ -127,7 +130,11 @@ class CustomerIO private constructor(
 
         // Add plugin to filter events based on SDK configuration
         analytics.add(ScreenFilterPlugin(moduleConfig.screenViewUse))
+        analytics.add(IdentifyContextPlugin(SDKComponent.identifyHookRegistry, logger))
         analytics.add(ApplicationLifecyclePlugin())
+
+        // Register this instance as DataPipeline so modules can send track events directly
+        SDKComponent.registerDependency<DataPipeline> { this }
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
@@ -242,13 +249,16 @@ class CustomerIO private constructor(
         }
 
         logger.info("identify profile with identifier $userId and traits $traits")
-        // publish event to EventBus for other modules to consume
-        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
+
         analytics.identify(
             userId = userId,
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+        // publish event to EventBus for other modules to consume
+        // Must come after analytics.identify() so that analytics.userId() returns the
+        // new userId when downstream subscribers (e.g. location resync) gate on it.
+        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")
@@ -314,6 +324,9 @@ class CustomerIO private constructor(
 
     override val userId: String?
         get() = analytics.userId()
+
+    override val isUserIdentified: Boolean
+        get() = !analytics.userId().isNullOrEmpty()
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")
@@ -393,6 +406,7 @@ class CustomerIO private constructor(
     }
 
     companion object {
+
         /**
          * Module identifier for DataPipelines module.
          */

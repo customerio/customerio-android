@@ -11,4 +11,7 @@ object EventNames {
 
     // Event name fired by AndroidLifecyclePlugin when app enters background
     const val APPLICATION_BACKGROUNDED = "Application Backgrounded"
+
+    // Event name for location updates tracked by the Location module
+    const val LOCATION_UPDATE = "Location Update"
 }

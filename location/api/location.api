@@ -1,0 +1,45 @@
+public final class io/customer/location/LocationModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
+	public synthetic fun <init> (Lio/customer/location/LocationTrackingMode;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getTrackingMode ()Lio/customer/location/LocationTrackingMode;
+}
+
+public final class io/customer/location/LocationModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
+	public fun <init> ()V
+	public fun build ()Lio/customer/location/LocationModuleConfig;
+	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public final fun setLocationTrackingMode (Lio/customer/location/LocationTrackingMode;)Lio/customer/location/LocationModuleConfig$Builder;
+}
+
+public abstract interface class io/customer/location/LocationServices {
+	public abstract fun requestLocationUpdate ()V
+	public abstract fun setLastKnownLocation (DD)V
+	public abstract fun setLastKnownLocation (Landroid/location/Location;)V
+}
+
+public final class io/customer/location/LocationTrackingMode : java/lang/Enum {
+	public static final field MANUAL Lio/customer/location/LocationTrackingMode;
+	public static final field OFF Lio/customer/location/LocationTrackingMode;
+	public static final field ON_APP_START Lio/customer/location/LocationTrackingMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/location/LocationTrackingMode;
+	public static fun values ()[Lio/customer/location/LocationTrackingMode;
+}
+
+public final class io/customer/location/ModuleLocation : io/customer/sdk/core/module/CustomerIOModule {
+	public static final field Companion Lio/customer/location/ModuleLocation$Companion;
+	public static final field MODULE_NAME Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (Lio/customer/location/LocationModuleConfig;)V
+	public synthetic fun <init> (Lio/customer/location/LocationModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getLocationServices ()Lio/customer/location/LocationServices;
+	public fun getModuleConfig ()Lio/customer/location/LocationModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public fun initialize ()V
+	public static final fun instance ()Lio/customer/location/ModuleLocation;
+}
+
+public final class io/customer/location/ModuleLocation$Companion {
+	public final fun instance ()Lio/customer/location/ModuleLocation;
+}
+

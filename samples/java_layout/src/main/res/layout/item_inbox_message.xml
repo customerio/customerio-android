@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/card_view"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    app:cardElevation="2dp"
+    app:contentPadding="12dp"
+    tools:layout_margin="12dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/card_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/delivery_icon"
+            android:layout_width="0dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_delivery_24dp"
+            app:layout_constraintDimensionRatio="1:1"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="?attr/colorOnSurfaceVariant" />
+
+        <TextView
+            android:id="@+id/delivery_id_text_view"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@id/delivery_icon"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/delivery_icon"
+            app:layout_constraintTop_toTopOf="@id/delivery_icon"
+            tools:text="RMqvBAUIAZvqyJ25ZC7unX0xvhfyiA==" />
+
+        <TextView
+            android:id="@+id/metadata_text_view"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/delivery_icon"
+            tools:text="2 days ago • Priority 5 • topic1, topic2" />
+
+        <TextView
+            android:id="@+id/properties_text_view"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:maxLines="5"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/metadata_text_view"
+            tools:text="{&quot;title&quot;: &quot;Testing Title&quot;, &quot;body&quot;: &quot;Testing Body&quot;}"
+            tools:visibility="visible" />
+
+        <androidx.constraintlayout.widget.Barrier
+            android:id="@+id/content_barrier"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:barrierDirection="bottom"
+            app:constraint_referenced_ids="metadata_text_view,properties_text_view" />
+
+        <ImageView
+            android:id="@+id/mark_read_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/inbox_mark_as_read"
+            android:focusable="true"
+            android:padding="4dp"
+            android:src="@drawable/ic_mark_chat_read_24dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/mark_unread_button"
+            app:layout_constraintHorizontal_bias="1"
+            app:layout_constraintHorizontal_chainStyle="packed"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/content_barrier"
+            app:tint="?attr/colorPrimary"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/mark_unread_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/inbox_mark_as_unread"
+            android:focusable="true"
+            android:padding="4dp"
+            android:src="@drawable/ic_mark_chat_unread_24dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/mark_read_button"
+            app:layout_constraintEnd_toStartOf="@id/track_click_button"
+            app:layout_constraintStart_toEndOf="@id/mark_read_button"
+            app:layout_constraintTop_toTopOf="@id/mark_read_button"
+            app:tint="?attr/colorPrimary"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/track_click_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/inbox_track_click"
+            android:focusable="true"
+            android:padding="4dp"
+            android:src="@drawable/ic_track_changes_24dp"
+            app:layout_constraintBottom_toBottomOf="@id/mark_read_button"
+            app:layout_constraintEnd_toStartOf="@id/delete_button"
+            app:layout_constraintStart_toEndOf="@id/mark_unread_button"
+            app:layout_constraintTop_toTopOf="@id/mark_read_button"
+            app:tint="?attr/colorPrimary" />
+
+        <ImageView
+            android:id="@+id/delete_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/inbox_delete"
+            android:focusable="true"
+            android:padding="4dp"
+            android:src="@drawable/ic_delete_forever_24dp"
+            app:layout_constraintBottom_toBottomOf="@id/mark_read_button"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/track_click_button"
+            app:layout_constraintTop_toTopOf="@id/mark_read_button"
+            app:tint="?attr/colorError" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>

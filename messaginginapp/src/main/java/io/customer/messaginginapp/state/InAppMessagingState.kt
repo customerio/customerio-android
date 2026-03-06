@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.state
 
 import io.customer.messaginginapp.gist.GistEnvironment
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 
 internal data class InAppMessagingState(
@@ -15,6 +16,7 @@ internal data class InAppMessagingState(
     val modalMessageState: ModalMessageState = ModalMessageState.Initial,
     val queuedInlineMessagesState: QueuedInlineMessagesState = QueuedInlineMessagesState(),
     val messagesInQueue: Set<Message> = emptySet(),
+    val inboxMessages: Set<InboxMessage> = emptySet(),
     val shownMessageQueueIds: Set<String> = emptySet(),
     val sseEnabled: Boolean = false
 ) {
@@ -36,6 +38,7 @@ internal data class InAppMessagingState(
      */
     val shouldUseSse: Boolean
         get() = sseEnabled && isUserIdentified
+
     override fun toString(): String = buildString {
         append("InAppMessagingState(")
         append("siteId='$siteId',\n")
@@ -49,6 +52,7 @@ internal data class InAppMessagingState(
         append("modalMessageState=$modalMessageState,\n")
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
+        append("inboxMessages=${inboxMessages.map(InboxMessage::deliveryId)},\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
         append("sseEnabled=$sseEnabled)")
     }
@@ -66,6 +70,7 @@ internal data class InAppMessagingState(
             if (modalMessageState != other.modalMessageState) put("modalMessageState", modalMessageState to other.modalMessageState)
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
+            if (inboxMessages != other.inboxMessages) put("inboxMessages", inboxMessages to other.inboxMessages)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
             if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
         }

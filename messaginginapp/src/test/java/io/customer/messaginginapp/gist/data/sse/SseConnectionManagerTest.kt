@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.gist.data.sse
 
 import io.customer.messaginginapp.gist.data.NetworkUtilities
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -228,7 +229,7 @@ class SseConnectionManagerTest : JUnitTest() {
         val messagesJson = """[{"messageId": "msg1"}, {"messageId": "msg2"}]"""
 
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseDataParser.parseMessages(messagesJson) } returns mockMessages
+        every { sseDataParser.parseInAppMessages(messagesJson) } returns mockMessages
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             ServerEvent(ServerEvent.MESSAGES, messagesJson)
         )
@@ -240,7 +241,7 @@ class SseConnectionManagerTest : JUnitTest() {
         testScope.advanceUntilIdle()
 
         // Then
-        verify { sseDataParser.parseMessages(messagesJson) }
+        verify { sseDataParser.parseInAppMessages(messagesJson) }
         verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
         actionSlot.captured.messages.shouldBeEqualTo(mockMessages)
     }
@@ -254,7 +255,7 @@ class SseConnectionManagerTest : JUnitTest() {
             siteId = "test-site"
         )
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseDataParser.parseMessages(any()) } returns emptyList()
+        every { sseDataParser.parseInAppMessages(any()) } returns emptyList()
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             ServerEvent(ServerEvent.MESSAGES, "[]")
         )
@@ -326,9 +327,83 @@ class SseConnectionManagerTest : JUnitTest() {
             siteId = "test-site"
         )
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseDataParser.parseMessages(any()) } throws RuntimeException("Parse error")
+        every { sseDataParser.parseInAppMessages(any()) } throws RuntimeException("Parse error")
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             ServerEvent(ServerEvent.MESSAGES, "invalid-json")
+        )
+
+        // When
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        // Then
+        verify(exactly = 0) { inAppMessagingManager.dispatch(any()) }
+    }
+
+    @Test
+    fun testHandleSseEvent_whenInboxMessagesEvent_thenProcessesInboxMessages() = runTest {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        val mockInboxMessages = listOf(mockk<InboxMessage>(), mockk<InboxMessage>())
+        val inboxMessagesJson = """[{"deliveryId": "inbox1"}, {"deliveryId": "inbox2"}]"""
+
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        every { sseDataParser.parseInboxMessages(inboxMessagesJson) } returns mockInboxMessages
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent("inbox_messages", inboxMessagesJson)
+        )
+
+        val actionSlot = slot<InAppMessagingAction.ProcessInboxMessages>()
+
+        // When
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        // Then
+        verify { sseDataParser.parseInboxMessages(inboxMessagesJson) }
+        verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
+        actionSlot.captured.messages.shouldBeEqualTo(mockInboxMessages)
+    }
+
+    @Test
+    fun testHandleSseEvent_whenEmptyInboxMessagesEvent_thenLogsDebug() = runTest {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        every { sseDataParser.parseInboxMessages(any()) } returns emptyList()
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent("inbox_messages", "[]")
+        )
+
+        // When
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        // Then
+        verify { sseLogger.logReceivedEmptyMessagesEvent() }
+        verify(exactly = 0) { inAppMessagingManager.dispatch(any()) }
+    }
+
+    @Test
+    fun testHandleSseEvent_whenInboxMessageParsingFails_thenLogsError() = runTest {
+        // Given
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        every { sseDataParser.parseInboxMessages(any()) } throws RuntimeException("Parse error")
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent("inbox_messages", "invalid-json")
         )
 
         // When
@@ -414,7 +489,7 @@ class SseConnectionManagerTest : JUnitTest() {
             siteId = "test-site"
         )
         every { inAppMessagingManager.getCurrentState() } returns mockState
-        every { sseDataParser.parseMessages(any()) } returns emptyList()
+        every { sseDataParser.parseInAppMessages(any()) } returns emptyList()
         coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
             ServerEvent(ServerEvent.MESSAGES, "[]")
         )

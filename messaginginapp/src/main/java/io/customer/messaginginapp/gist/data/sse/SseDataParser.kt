@@ -4,29 +4,60 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import io.customer.messaginginapp.gist.data.NetworkUtilities
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageFactory
+import io.customer.messaginginapp.gist.data.model.response.InboxMessageResponse
 
 internal class SseDataParser(
     private val sseLogger: InAppSseLogger,
     private val gson: Gson
 ) {
     /**
-     * Parse messages from SSE event data.
-     *
-     * This method is resilient and will never throw exceptions.
-     * Invalid or malformed data will result in an empty list being returned.
+     * Parse in-app messages from SSE event data.
      *
      * @param data The JSON data string from the messages event
      * @return List of Message objects or empty list if parsing fails
      */
-    fun parseMessages(data: String): List<Message> {
+    fun parseInAppMessages(data: String): List<Message> {
+        return parseMessageArray(data, Array<Message>::class.java)
+    }
+
+    /**
+     * Parse inbox messages from SSE event data.
+     *
+     * @param data The JSON data string from the inbox_messages event
+     * @return List of InboxMessage objects or empty list if parsing fails
+     */
+    fun parseInboxMessages(data: String): List<InboxMessage> {
+        val responses = parseMessageArray(data, Array<InboxMessageResponse>::class.java)
+        val messages = responses.mapNotNull(InboxMessageFactory::fromResponse)
+
+        if (messages.size < responses.size) {
+            sseLogger.logFilteredInvalidInboxMessages(responses.size - messages.size)
+        }
+
+        return messages
+    }
+
+    /**
+     * Generic method to parse message arrays from SSE event data.
+     *
+     * This method is resilient and will never throw exceptions.
+     * Invalid or malformed data will result in an empty list being returned.
+     *
+     * @param data The JSON data string from the SSE event
+     * @param arrayClass The class type of the array to parse
+     * @return List of parsed objects or empty list if parsing fails
+     */
+    private fun <T> parseMessageArray(data: String, arrayClass: Class<Array<T>>): List<T> {
         if (data.isBlank()) {
             sseLogger.logReceivedEmptyMessageData()
             return emptyList()
         }
 
         return try {
-            val messages = gson.fromJson(data, Array<Message>::class.java)
+            val messages = gson.fromJson(data, arrayClass)
             messages.toList()
         } catch (e: JsonSyntaxException) {
             sseLogger.logMessageParsingFailedInvalidJson(e.message, data)

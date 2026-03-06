@@ -33,7 +33,7 @@ object Versions {
     internal const val SEGMENT = "1.19.2"
     internal const val REDUX_KOTLIN = "0.6.0"
     internal const val ROBOLECTRIC = "4.16"
-    internal const val OKHTTP = "5.2.1"
+    internal const val OKHTTP = "4.12.0"
     internal const val RETROFIT = "2.11.0"
     internal const val GOOGLE_PLAY_SERVICES_LOCATION = "21.3.0"
 

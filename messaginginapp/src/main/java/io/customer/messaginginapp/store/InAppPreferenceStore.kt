@@ -5,7 +5,7 @@ import androidx.core.content.edit
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 
-interface InAppPreferenceStore {
+internal interface InAppPreferenceStore {
     fun saveNetworkResponse(url: String, response: String)
     fun getNetworkResponse(url: String): String?
     fun clearAll()
@@ -27,6 +27,11 @@ interface InAppPreferenceStore {
     fun setAnonymousNextShowTime(messageId: String, nextShowTimeMillis: Long)
     fun getAnonymousNextShowTime(messageId: String): Long
     fun isAnonymousInDelayPeriod(messageId: String): Boolean
+
+    // Inbox message opened status caching
+    fun saveInboxMessageOpenedStatus(queueId: String, opened: Boolean)
+    fun getInboxMessageOpenedStatus(queueId: String): Boolean?
+    fun clearInboxMessageOpenedStatus(queueId: String)
 }
 
 internal class InAppPreferenceStoreImpl(
@@ -44,6 +49,7 @@ internal class InAppPreferenceStoreImpl(
         private const val ANONYMOUS_TIMES_SHOWN_PREFIX = "broadcast_times_shown_"
         private const val ANONYMOUS_DISMISSED_PREFIX = "broadcast_dismissed_"
         private const val ANONYMOUS_NEXT_SHOW_TIME_PREFIX = "broadcast_next_show_time_"
+        private const val INBOX_MESSAGE_OPENED_PREFIX = "inbox_message_opened_"
     }
 
     override fun saveNetworkResponse(url: String, response: String) = prefs.edit {
@@ -130,5 +136,21 @@ internal class InAppPreferenceStoreImpl(
     override fun isAnonymousInDelayPeriod(messageId: String): Boolean {
         val nextShowTime = getAnonymousNextShowTime(messageId)
         return nextShowTime > 0 && System.currentTimeMillis() < nextShowTime
+    }
+
+    override fun saveInboxMessageOpenedStatus(queueId: String, opened: Boolean) = prefs.edit {
+        putBoolean("$INBOX_MESSAGE_OPENED_PREFIX$queueId", opened)
+    }
+
+    override fun getInboxMessageOpenedStatus(queueId: String): Boolean? = prefs.read {
+        if (contains("$INBOX_MESSAGE_OPENED_PREFIX$queueId")) {
+            getBoolean("$INBOX_MESSAGE_OPENED_PREFIX$queueId", false)
+        } else {
+            null
+        }
+    }
+
+    override fun clearInboxMessageOpenedStatus(queueId: String) = prefs.edit {
+        remove("$INBOX_MESSAGE_OPENED_PREFIX$queueId")
     }
 }

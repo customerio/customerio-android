@@ -38,6 +38,7 @@ internal data class InAppMessagingManager(val listener: GistListener? = null) {
                 displayModalMessageMiddleware(),
                 gistLoggingMessageMiddleware(),
                 processMessages(),
+                processInboxMessages(),
                 errorLoggerMiddleware(),
                 gistListenerMiddleware(listener)
             )

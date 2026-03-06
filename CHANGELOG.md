@@ -1,3 +1,21 @@
+## [4.16.1](https://github.com/customerio/customerio-android/compare/4.16.0...4.16.1) (2026-02-24)
+
+### Bug Fixes
+
+* in-app messages not displaying when app returns from background with SSE enabled  ([#663](https://github.com/customerio/customerio-android/issues/663)) ([9fb8156](https://github.com/customerio/customerio-android/commit/9fb81565dfdc458cf8bcc1baa89a6d1ebdc2272e))
+
+## [4.16.0](https://github.com/customerio/customerio-android/compare/4.15.2...4.16.0) (2026-02-20)
+
+### Features
+
+* support for notification inbox ([#660](https://github.com/customerio/customerio-android/issues/660)) ([7bc46da](https://github.com/customerio/customerio-android/commit/7bc46daa84bd909f58fe99ce7d70855f6086292a))
+
+## [4.15.2](https://github.com/customerio/customerio-android/compare/4.15.1...4.15.2) (2026-02-16)
+
+### Bug Fixes
+
+* Downgrade OkHttp to v4 ([#653](https://github.com/customerio/customerio-android/issues/653)) ([8d97548](https://github.com/customerio/customerio-android/commit/8d975488d6baac398ae6a6353fc50e1f53e305a0))
+
 ## [4.15.1](https://github.com/customerio/customerio-android/compare/4.15.0...4.15.1) (2026-02-04)
 
 ### Bug Fixes

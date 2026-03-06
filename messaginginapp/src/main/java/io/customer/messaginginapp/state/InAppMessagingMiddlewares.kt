@@ -6,14 +6,18 @@ import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.gistSdk
 import io.customer.messaginginapp.di.inAppSseLogger
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.gist.data.model.matchesRoute
+import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.events.Metric
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
 
@@ -215,6 +219,88 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
     } else {
         // Continue passing the original action down the middleware chain
         next(action)
+    }
+}
+
+/**
+ * Middleware for processing inbox messages and inbox-related actions.
+ * Deduplicates messages by queueId and syncs InboxAction updates to the server.
+ */
+internal fun processInboxMessages() = middleware<InAppMessagingState> { store, next, action ->
+    when (action) {
+        is InAppMessagingAction.ProcessInboxMessages -> {
+            if (action.messages.isNotEmpty()) {
+                // Deduplicate by queueId - keep first occurrence of each unique queueId
+                val uniqueMessages = action.messages.distinctBy(InboxMessage::queueId)
+                next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
+            } else {
+                next(action)
+            }
+        }
+
+        is InAppMessagingAction.InboxAction -> {
+            val logger = SDKComponent.logger
+            val queueId = action.message.queueId
+            val currentMessage = store.state.inboxMessages.find { it.queueId == queueId }
+
+            // Only proceed if message exists in state
+            if (currentMessage == null) {
+                logger.debug("Skipping inbox message update for ${action.message.toLogString()} - message not found in state")
+            } else {
+                // Handle all inbox related actions
+                when (action) {
+                    is InAppMessagingAction.InboxAction.UpdateOpened -> {
+                        // Only proceed if state is actually changing
+                        if (currentMessage.opened == action.opened) {
+                            logger.debug("Skipping inbox message update for ${currentMessage.toLogString()} - already in desired state (opened=${action.opened})")
+                        } else {
+                            // Call API to update opened status on server using current message from state
+                            SDKComponent.gistQueue.logOpenedStatus(currentMessage, action.opened)
+
+                            // Track metric when transitioning from unopened to opened
+                            if (action.opened) {
+                                logger.debug("Inbox message opened: ${currentMessage.toLogString()}")
+                                currentMessage.deliveryId?.let { deliveryId ->
+                                    SDKComponent.eventBus.publish(
+                                        Event.TrackInAppMetricEvent(
+                                            deliveryID = deliveryId,
+                                            event = Metric.Opened
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    is InAppMessagingAction.InboxAction.DeleteMessage -> {
+                        // Call API to delete message on server
+                        logger.debug("Deleting inbox message: ${currentMessage.toLogString()}")
+                        SDKComponent.gistQueue.logDeleted(currentMessage)
+                    }
+
+                    is InAppMessagingAction.InboxAction.TrackClicked -> {
+                        // Track click metric for analytics
+                        val params = action.actionName?.let { mapOf("actionName" to it) } ?: emptyMap()
+
+                        logger.debug("Inbox message clicked: ${currentMessage.toLogString()}")
+                        currentMessage.deliveryId?.let { deliveryId ->
+                            SDKComponent.eventBus.publish(
+                                Event.TrackInAppMetricEvent(
+                                    deliveryID = deliveryId,
+                                    event = Metric.Clicked,
+                                    params = params
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Always pass action to reducer to update local state
+            next(action)
+        }
+
+        else -> next(action)
     }
 }
 

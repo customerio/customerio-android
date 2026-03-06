@@ -37,15 +37,6 @@ android {
         // BuildConfig is now enabled in sample-app.gradle
     }
     
-    packaging {
-        resources {
-            excludes += [
-                'META-INF/versions/9/OSGI-INF/MANIFEST.MF',
-                'META-INF/OSGI-INF/MANIFEST.MF'
-            ]
-        }
-    }
-
     // No need for composeOptions reference as it's conditionally applied in sample-app.gradle
 }
 
@@ -64,6 +55,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-reactivestreams:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.2.0"
     implementation "com.google.android.material:material:1.9.0"
     implementation "io.reactivex.rxjava3:rxandroid:3.0.2"
     // Because RxAndroid releases are few and far between, it is recommended to

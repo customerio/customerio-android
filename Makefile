@@ -1,5 +1,7 @@
 SHELL = /bin/sh
 
+.PHONY: lint-error-message lint-no-format format lint lint-install generate-public-api validate-public-api docs docs-clean
+
 lint-error-message:
 	echo "\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nLooks like there are lint errors to fix.\nRead the LINT.md document in this project to learn how to fix these problems.\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 
@@ -35,3 +37,12 @@ generate-public-api:
 # Run kotlin binary validator
 validate-public-api:
 	./scripts/binary-validation.sh
+
+# Generate API reference documentation
+docs:
+	./gradlew generateDocs
+	@echo "\n📚 Documentation ready! Open build/dokka/htmlMultiModule/index.html in your browser"
+
+# Clean generated documentation
+docs-clean:
+	rm -rf build/dokka/

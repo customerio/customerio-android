@@ -7,13 +7,13 @@ jobs:
     name: Generate Comparison Report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Android SDK
         uses: ./.github/actions/setup-android
 
       - name: Checkout base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.base_ref }}
 
@@ -26,16 +26,16 @@ jobs:
           IS_DEVELOPMENT: 'true'
 
       - name: Upload report for base branch
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: generated-report-base-sdk-binary-size.json
           path: build/sdk-binary-size.json
 
       - name: Checkout to head branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download report for base branch
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: generated-report-base-sdk-binary-size.json
           path: gh-artifacts/base
@@ -49,7 +49,7 @@ jobs:
           IS_DEVELOPMENT: 'true'
 
       - name: Find old comment to update comment for
-        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         id: find-previous-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -57,7 +57,7 @@ jobs:
           body-includes: SDK Binary Size Comparison
 
       - name: Add or Update PR Comment with SDK Size Comparison Report
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}

@@ -1,3 +1,9 @@
+## [4.17.0](https://github.com/customerio/customerio-android/compare/4.16.1...4.17.0) (2026-03-09)
+
+### Features
+
+* Location enrichment ([#666](https://github.com/customerio/customerio-android/issues/666)) ([8d856bc](https://github.com/customerio/customerio-android/commit/8d856bcd811c9d8872041a4baf541272a69edd83))
+
 ## [4.16.1](https://github.com/customerio/customerio-android/compare/4.16.0...4.16.1) (2026-02-24)
 
 ### Bug Fixes

@@ -34,6 +34,7 @@ import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.inbox.InboxMessagesActivity;
 import io.customer.android.sample.java_layout.ui.inline.InlineExamplesActivity;
+import io.customer.android.sample.java_layout.ui.location.LocationTestActivity;
 import io.customer.android.sample.java_layout.ui.login.LoginActivity;
 import io.customer.android.sample.java_layout.ui.settings.InternalSettingsActivity;
 import io.customer.android.sample.java_layout.ui.settings.SettingsActivity;
@@ -149,6 +150,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         });
         binding.showPushPromptButton.setOnClickListener(view -> {
             requestNotificationPermission();
+        });
+        binding.locationTestButton.setOnClickListener(view -> {
+            startActivity(new Intent(DashboardActivity.this, LocationTestActivity.class));
         });
         binding.inlineExamplesButton.setOnClickListener(view -> {
             startInlineExamplesActivity();

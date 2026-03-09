@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- network security config set to allow proxy tools to view HTTP communication for app debugging.
     tools:replace is needed because SDK declares a network security config as well for automated tests.
@@ -126,6 +127,10 @@
             android:name=".ui.settings.InternalSettingsActivity"
             android:exported="false"
             android:label="@string/label_internal_settings_activity" />
+        <activity
+            android:name=".ui.location.LocationTestActivity"
+            android:exported="false"
+            android:label="@string/label_location_test_activity" />
         <activity
             android:name=".ui.inline.InlineExamplesActivity"
             android:exported="false"

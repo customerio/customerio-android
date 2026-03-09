@@ -19,7 +19,7 @@ import java.lang.ref.WeakReference
  *    location coordinates. This is unfiltered — a new user always gets
  *    the device's current location on their profile immediately.
  *
- * 2. **"Location Update" track event** — sent via [DataPipeline.track].
+ * 2. **"CIO Location Update" track event** — sent via [DataPipeline.track].
  *    Gated by a userId check and a sync filter (24h / 1km threshold)
  *    to avoid redundant events. This creates a discrete event in the
  *    user's activity timeline for journey/segment triggers.
@@ -99,7 +99,7 @@ internal class LocationTracker(
      *
      * The identify event itself already carries location via
      * [getIdentifyContext] — this method handles the supplementary
-     * "Location Update" track event, subject to the sync filter.
+     * "CIO Location Update" track event, subject to the sync filter.
      */
     fun onUserIdentified() {
         syncCachedLocationIfNeeded()

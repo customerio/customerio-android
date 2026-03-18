@@ -4,4 +4,16 @@
     <!-- Coarse location is sufficient for city/timezone level tracking -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <application>
+        <!-- BroadcastReceiver for geofence transitions -->
+        <receiver
+            android:name="io.customer.location.geofence.GeofenceBroadcastReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="io.customer.location.GEOFENCE_TRANSITION" />
+            </intent-filter>
+        </receiver>
+    </application>
+
 </manifest>

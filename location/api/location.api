@@ -11,6 +11,7 @@ public final class io/customer/location/LocationModuleConfig$Builder : io/custom
 }
 
 public abstract interface class io/customer/location/LocationServices {
+	public abstract fun getGeofenceServices ()Lio/customer/location/geofence/GeofenceServices;
 	public abstract fun requestLocationUpdate ()V
 	public abstract fun setLastKnownLocation (DD)V
 	public abstract fun setLastKnownLocation (Landroid/location/Location;)V
@@ -41,5 +42,41 @@ public final class io/customer/location/ModuleLocation : io/customer/sdk/core/mo
 
 public final class io/customer/location/ModuleLocation$Companion {
 	public final fun instance ()Lio/customer/location/ModuleLocation;
+}
+
+public final class io/customer/location/geofence/GeofenceBroadcastReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
+public final class io/customer/location/geofence/GeofenceRegion {
+	public fun <init> (Ljava/lang/String;DDDLjava/lang/String;Ljava/util/Map;J)V
+	public synthetic fun <init> (Ljava/lang/String;DDDLjava/lang/String;Ljava/util/Map;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()D
+	public final fun component3 ()D
+	public final fun component4 ()D
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/util/Map;
+	public final fun component7 ()J
+	public final fun copy (Ljava/lang/String;DDDLjava/lang/String;Ljava/util/Map;J)Lio/customer/location/geofence/GeofenceRegion;
+	public static synthetic fun copy$default (Lio/customer/location/geofence/GeofenceRegion;Ljava/lang/String;DDDLjava/lang/String;Ljava/util/Map;JILjava/lang/Object;)Lio/customer/location/geofence/GeofenceRegion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCustomData ()Ljava/util/Map;
+	public final fun getDwellTimeMs ()J
+	public final fun getId ()Ljava/lang/String;
+	public final fun getLatitude ()D
+	public final fun getLongitude ()D
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRadius ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/location/geofence/GeofenceServices {
+	public abstract fun addGeofences (Ljava/util/List;)V
+	public abstract fun getActiveGeofences ()Ljava/util/List;
+	public abstract fun removeAllGeofences ()V
+	public abstract fun removeGeofences (Ljava/util/List;)V
 }
 

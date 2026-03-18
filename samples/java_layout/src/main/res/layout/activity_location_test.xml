@@ -255,6 +255,61 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- OR separator -->
+        <include layout="@layout/or_separator" />
+
+        <!-- OPTION 5: GEOFENCING -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/section_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/location_option_geofence"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/add_sample_geofences"
+                style="?attr/materialButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/add_sample_geofences" />
+
+            <Button
+                android:id="@+id/remove_all_geofences"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/remove_all_geofences" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/geofence_description"
+                android:textColor="?android:attr/textColorTertiary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/geofence_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/active_geofences_format"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
         <!-- Status section -->
         <TextView
             android:id="@+id/last_set_location_label"

@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.location.geofence.GeofenceServices
 import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -16,7 +17,8 @@ internal class LocationServicesImpl(
     private val logger: Logger,
     private val locationTracker: LocationTracker,
     private val orchestrator: LocationOrchestrator,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    override val geofenceServices: GeofenceServices
 ) : LocationServices {
 
     @Volatile

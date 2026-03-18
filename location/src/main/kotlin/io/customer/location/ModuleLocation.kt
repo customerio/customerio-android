@@ -2,6 +2,10 @@ package io.customer.location
 
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.customer.location.geofence.GeofenceManager
+import io.customer.location.geofence.GeofencePreferenceStore
+import io.customer.location.geofence.GeofenceServices
+import io.customer.location.geofence.GeofenceServicesImpl
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -23,6 +27,7 @@ import io.customer.sdk.core.util.MainThreadPoster
  * - Manual location setting from host app's existing location system
  * - One-shot SDK-managed location capture
  * - Automatic location capture on app start (ON_APP_START mode)
+ * - Geofencing for monitoring geographic regions
  *
  * Usage:
  * ```
@@ -43,6 +48,9 @@ import io.customer.sdk.core.util.MainThreadPoster
  *
  * // SDK-managed one-shot location
  * ModuleLocation.instance().locationServices.requestLocationUpdate()
+ *
+ * // Geofencing
+ * ModuleLocation.instance().locationServices.geofenceServices.addGeofences(regions)
  * ```
  */
 class ModuleLocation @JvmOverloads constructor(
@@ -88,12 +96,23 @@ class ModuleLocation @JvmOverloads constructor(
             locationProvider = locationProvider
         )
 
+        // Initialize geofencing components
+        val geofenceManager = GeofenceManager(context, logger)
+        val geofencePreferenceStore = GeofencePreferenceStore(context, logger)
+        val geofenceServices = GeofenceServicesImpl(
+            isEnabled = moduleConfig.isEnabled,
+            geofenceManager = geofenceManager,
+            preferenceStore = geofencePreferenceStore,
+            logger = logger
+        )
+
         _locationServices = LocationServicesImpl(
             config = moduleConfig,
             logger = logger,
             locationTracker = locationTracker,
             orchestrator = orchestrator,
-            scope = locationScope
+            scope = locationScope,
+            geofenceServices = geofenceServices
         )
 
         // When OFF, skip all background machinery — no restoration, no enrichment,
@@ -162,9 +181,34 @@ private class UninitializedLocationServices(
         logger.error("Location module is not initialized. Call CustomerIO.initialize() with ModuleLocation before using location APIs.")
     }
 
+    override val geofenceServices: GeofenceServices = UninitializedGeofenceServices(logger)
+
     override fun setLastKnownLocation(latitude: Double, longitude: Double) = logNotInitialized()
 
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
     override fun requestLocationUpdate() = logNotInitialized()
+}
+
+/**
+ * No-op fallback for geofence services when module is not initialized.
+ */
+private class UninitializedGeofenceServices(
+    private val logger: Logger
+) : GeofenceServices {
+
+    private fun logNotInitialized() {
+        logger.error("Location module is not initialized. Call CustomerIO.initialize() with ModuleLocation before using geofence APIs.")
+    }
+
+    override fun addGeofences(regions: List<io.customer.location.geofence.GeofenceRegion>) = logNotInitialized()
+
+    override fun removeGeofences(ids: List<String>) = logNotInitialized()
+
+    override fun removeAllGeofences() = logNotInitialized()
+
+    override fun getActiveGeofences(): List<io.customer.location.geofence.GeofenceRegion> {
+        logNotInitialized()
+        return emptyList()
+    }
 }

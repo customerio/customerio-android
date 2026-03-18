@@ -138,6 +138,15 @@
     <string name="location_not_available">Could not get device location</string>
     <string name="label_location_test_activity">LocationTestActivity</string>
 
+    <!-- Geofencing -->
+    <string name="location_option_geofence">OPTION 5: GEOFENCING</string>
+    <string name="geofence_description">Monitor geographic regions for entry, exit, and dwell events</string>
+    <string name="add_sample_geofences">Add Sample Geofences</string>
+    <string name="remove_all_geofences">Remove All Geofences</string>
+    <string name="geofences_added">%1$d geofence(s) added</string>
+    <string name="geofences_removed">All geofences removed</string>
+    <string name="active_geofences_format">Active geofences: %1$d</string>
+
     <!-- Inbox Messages -->
     <string name="inbox_messages">Inbox Messages</string>
     <string name="label_inbox_messages_activity">InboxMessagesActivity</string>

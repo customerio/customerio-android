@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.location.geofence.GeofenceServices
 
 /**
  * Public API for the Location module.
@@ -15,9 +16,20 @@ import android.location.Location
  *
  * // Or pass an Android Location object
  * ModuleLocation.instance().locationServices.setLastKnownLocation(androidLocation)
+ *
+ * // Access geofencing services
+ * val geofenceServices = ModuleLocation.instance().locationServices.geofenceServices
  * ```
  */
 interface LocationServices {
+    /**
+     * Access to geofencing services.
+     *
+     * Requires location tracking to be enabled (trackingMode != OFF).
+     * The host app must request and obtain location permissions before using geofencing.
+     */
+    val geofenceServices: GeofenceServices
+
     /**
      * Sets the last known location from the host app's existing location system.
      *

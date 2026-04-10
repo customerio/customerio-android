@@ -233,10 +233,23 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/margin_default"
                 android:text="@string/inbox_messages"
-                app:layout_constraintBottom_toTopOf="@id/logout_button"
+                app:layout_constraintBottom_toTopOf="@id/live_notification_demo_button"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/inline_examples_button"
+                app:layout_constraintWidth_max="@dimen/material_button_max_width" />
+
+            <Button
+                android:id="@+id/live_notification_demo_button"
+                style="?attr/materialButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/margin_default"
+                android:text="@string/live_notification_demo"
+                app:layout_constraintBottom_toTopOf="@id/logout_button"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/inbox_messages_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <Button
@@ -249,7 +262,7 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/inbox_messages_button"
+                app:layout_constraintTop_toBottomOf="@id/live_notification_demo_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <TextView

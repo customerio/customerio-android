@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- network security config set to allow proxy tools to view HTTP communication for app debugging.
@@ -139,6 +140,10 @@
             android:name=".ui.inbox.InboxMessagesActivity"
             android:exported="false"
             android:label="@string/label_inbox_messages_activity" />
+        <activity
+            android:name=".ui.livenotification.LiveNotificationDemoActivity"
+            android:exported="false"
+            android:label="@string/label_live_notification_demo_activity" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

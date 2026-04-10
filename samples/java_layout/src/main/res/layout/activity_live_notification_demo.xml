@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/top_app_bar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorSurface"
+            app:navigationIcon="@drawable/ic_arrow_back_24"
+            app:title="@string/live_notification_demo" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="@dimen/margin_default"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <TextView
+            android:id="@+id/status_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="@string/live_notification_status_idle"
+            android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+
+        <!-- Notification type selector -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/live_notification_section_type"
+            android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+        <RadioGroup
+            android:id="@+id/type_radio_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/radio_delivery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/live_notification_type_delivery" />
+
+            <RadioButton
+                android:id="@+id/radio_timer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/live_notification_type_timer" />
+
+            <RadioButton
+                android:id="@+id/radio_sports"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/live_notification_type_sports" />
+
+            <RadioButton
+                android:id="@+id/radio_delivery_actions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/live_notification_type_delivery_actions" />
+
+        </RadioGroup>
+
+        <!-- Manual controls -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/live_notification_section_manual"
+            android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+        <Button
+            android:id="@+id/start_button"
+            style="?attr/materialButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_start" />
+
+        <Button
+            android:id="@+id/update_button"
+            style="?attr/materialButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:enabled="false"
+            android:text="@string/live_notification_update" />
+
+        <Button
+            android:id="@+id/end_button"
+            style="?attr/materialButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:enabled="false"
+            android:text="@string/live_notification_end" />
+
+        <!-- Auto controls -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/live_notification_section_auto"
+            android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+        <Button
+            android:id="@+id/auto_button"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_auto" />
+
+    </LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

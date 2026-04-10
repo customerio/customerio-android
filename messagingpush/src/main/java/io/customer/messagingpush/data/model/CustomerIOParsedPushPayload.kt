@@ -20,7 +20,8 @@ data class CustomerIOParsedPushPayload(
     val cioDeliveryId: String,
     val cioDeliveryToken: String,
     val title: String,
-    val body: String
+    val body: String,
+    val liveNotificationId: String? = null
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
         extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle(),
@@ -28,7 +29,8 @@ data class CustomerIOParsedPushPayload(
         cioDeliveryId = parcel.readString().orEmpty(),
         cioDeliveryToken = parcel.readString().orEmpty(),
         title = parcel.readString().orEmpty(),
-        body = parcel.readString().orEmpty()
+        body = parcel.readString().orEmpty(),
+        liveNotificationId = parcel.readString()
     )
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
@@ -38,6 +40,7 @@ data class CustomerIOParsedPushPayload(
         parcel.writeString(cioDeliveryToken)
         parcel.writeString(title)
         parcel.writeString(body)
+        parcel.writeString(liveNotificationId)
     }
 
     override fun describeContents(): Int {

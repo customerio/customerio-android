@@ -10,20 +10,19 @@ import androidx.annotation.DrawableRes
 import androidx.core.app.NotificationCompat
 
 /**
- * Parameters for building a live notification on API 21-23 using a standard
- * [NotificationCompat] progress bar.
+ * Parameters for building a live notification on pre-API 36 devices using
+ * standard [NotificationCompat] styles.
  *
- * This tier supports:
+ * Supports:
  * - Standard linear progress bar (determinate)
  * - Tint color and background color for notification chrome
  * - Colorized mode (tints the entire notification background)
  * - Title, body, and subtext via standard notification fields
+ * - Countdown timer (countdown direction requires API 24+)
  *
- * Not supported on this tier (use higher API levels):
- * - Segmented progress bar
- * - Progress points
- * - Start, end, or tracker icons
- * - Custom view layout
+ * Not supported on this tier (use [Api36LiveNotificationParams] on API 36+):
+ * - Segmented progress bar with custom segment colors
+ * - Progress points, start/end/tracker icons
  * - Promoted live update status
  */
 internal data class BasicNotificationParams(
@@ -46,11 +45,8 @@ internal data class BasicNotificationParams(
 )
 
 /**
- * Builds live notifications using a standard [NotificationCompat] progress bar
- * for API 21-23.
- *
- * This is the most basic tier with no custom views or segmented progress.
- * It provides a simple linear progress bar with colorized background support.
+ * Builds live notifications for pre-API 36 devices using standard
+ * [NotificationCompat] styles with a native progress bar.
  */
 internal object BasicNotificationBuilder {
 
@@ -68,6 +64,7 @@ internal object BasicNotificationBuilder {
             .setContentTitle(params.title)
             .setContentText(params.body)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setCategory(category)
             .setStyle(NotificationCompat.BigTextStyle().bigText(params.body))
 

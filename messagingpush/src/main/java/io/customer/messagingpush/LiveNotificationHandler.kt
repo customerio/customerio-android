@@ -37,23 +37,37 @@ internal class LiveNotificationHandler(
 ) {
 
     companion object {
+        // Required — every live notification payload must include these
         const val LIVE_NOTIFICATION_ID_KEY = "cio_live_notification_id"
         const val LIVE_NOTIFICATION_STATUS_KEY = "cio_live_notification_status"
-        const val LIVE_NOTIFICATION_SEGMENTS_KEY = "cio_live_notification_segments"
-        const val LIVE_NOTIFICATION_POINTS_KEY = "cio_live_notification_points"
+        // title and body come from standard push keys, not live-specific keys
+
+        // Required per type — minimum fields for the notification to be meaningful
+        // Progress: type + progress + progress_max (renders a progress bar)
+        // Countdown: type + countdown_until (renders a countdown timer)
+        // Text: type alone is sufficient (title/body carry the content)
+        const val LIVE_NOTIFICATION_TYPE_KEY = "cio_live_notification_type"
         const val LIVE_NOTIFICATION_PROGRESS_KEY = "cio_live_notification_progress"
         const val LIVE_NOTIFICATION_PROGRESS_MAX_KEY = "cio_live_notification_progress_max"
+        const val LIVE_NOTIFICATION_COUNTDOWN_UNTIL_KEY = "cio_live_notification_countdown_until"
+
+        // Optional — visual customization (notification works without these)
         const val LIVE_NOTIFICATION_SUBTEXT_KEY = "cio_live_notification_subtext"
         const val LIVE_NOTIFICATION_COLOR_KEY = "cio_live_notification_color"
         const val LIVE_NOTIFICATION_COLORIZED_KEY = "cio_live_notification_colorized"
+        const val LIVE_NOTIFICATION_LARGE_ICON_KEY = "cio_live_notification_large_icon"
+        const val LIVE_NOTIFICATION_ACTIONS_KEY = "cio_live_notification_actions"
+        const val LIVE_NOTIFICATION_DISMISS_DELAY_KEY = "cio_live_notification_dismiss_delay"
+        const val LIVE_NOTIFICATION_SEGMENTS_KEY = "cio_live_notification_segments"
+        const val LIVE_NOTIFICATION_POINTS_KEY = "cio_live_notification_points"
         const val LIVE_NOTIFICATION_START_ICON_KEY = "cio_live_notification_start_icon"
         const val LIVE_NOTIFICATION_END_ICON_KEY = "cio_live_notification_end_icon"
         const val LIVE_NOTIFICATION_TRACKER_ICON_KEY = "cio_live_notification_tracker_icon"
-        const val LIVE_NOTIFICATION_COUNTDOWN_UNTIL_KEY = "cio_live_notification_countdown_until"
-        const val LIVE_NOTIFICATION_LARGE_ICON_KEY = "cio_live_notification_large_icon"
-        const val LIVE_NOTIFICATION_DISMISS_DELAY_KEY = "cio_live_notification_dismiss_delay"
-        const val LIVE_NOTIFICATION_ACTIONS_KEY = "cio_live_notification_actions"
-        const val LIVE_NOTIFICATION_TYPE_KEY = "cio_live_notification_type"
+
+        // Optional — channel configuration (only needed on first push, ignored after channel exists)
+        const val LIVE_NOTIFICATION_CHANNEL_ID_KEY = "cio_live_notification_channel_id"
+        const val LIVE_NOTIFICATION_CHANNEL_NAME_KEY = "cio_live_notification_channel_name"
+        const val LIVE_NOTIFICATION_CHANNEL_IMPORTANCE_KEY = "cio_live_notification_channel_importance"
 
         private const val TYPE_PROGRESS = "progress"
         private const val TYPE_COUNTDOWN = "countdown"
@@ -136,6 +150,7 @@ internal class LiveNotificationHandler(
                     segmentsJson = segmentsJson,
                     pointsJson = pointsJson,
                     progress = progress,
+                    progressMax = progressMax,
                     startIconRes = startIconRes,
                     endIconRes = endIconRes,
                     trackerIconRes = trackerIconRes,
@@ -146,28 +161,6 @@ internal class LiveNotificationHandler(
                     showProgress = showProgress
                 )
                 Api36LiveNotificationBuilder.build(params)
-            }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.N -> {
-                val params = CustomViewNotificationParams(
-                    context = context,
-                    channelId = channelId,
-                    title = title,
-                    body = body,
-                    subText = subText,
-                    smallIcon = smallIcon,
-                    accentColor = backgroundColor ?: tintColor,
-                    segmentsJson = segmentsJson,
-                    progress = progress,
-                    progressMax = progressMax,
-                    startIconRes = startIconRes,
-                    endIconRes = endIconRes,
-                    pendingIntent = pendingIntent,
-                    countdownUntil = countdownUntil,
-                    largeIcon = largeIcon,
-                    actions = actions,
-                    showProgress = showProgress
-                )
-                CustomViewNotificationBuilder.build(params)
             }
             else -> {
                 val params = BasicNotificationParams(

@@ -74,6 +74,14 @@
 
         </RadioGroup>
 
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/full_payload_checkbox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:checked="true"
+            android:text="@string/live_notification_full_payload" />
+
         <!-- Manual controls -->
         <TextView
             android:layout_width="match_parent"

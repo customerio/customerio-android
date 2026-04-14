@@ -35,6 +35,7 @@ internal data class Api36LiveNotificationParams(
     val segmentsJson: String?,
     val pointsJson: String?,
     val progress: Int,
+    val progressMax: Int,
     @DrawableRes val startIconRes: Int?,
     @DrawableRes val endIconRes: Int?,
     @DrawableRes val trackerIconRes: Int?,
@@ -73,6 +74,7 @@ internal object Api36LiveNotificationBuilder {
             .setContentTitle(params.title)
             .setContentText(params.body)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
 
         // Request promoted ongoing status for live update treatment.
         // Requires android.permission.POST_PROMOTED_NOTIFICATIONS in the app manifest.
@@ -84,19 +86,18 @@ internal object Api36LiveNotificationBuilder {
             builder.setCategory(Notification.CATEGORY_PROGRESS)
 
             val segments = params.segmentsJson?.let { parseSegments(it) } ?: emptyList()
-            val maxProgress = if (segments.isNotEmpty()) {
-                segments.sumOf { it.length }
-            } else {
-                100
+            // When no segments are provided, create a single segment sized to progressMax
+            // so ProgressStyle knows the total range for the bar.
+            val effectiveSegments = segments.ifEmpty {
+                listOf(Notification.ProgressStyle.Segment(params.progressMax))
             }
+            val maxProgress = effectiveSegments.sumOf { it.length }
             val safeProgress = params.progress.coerceIn(0, maxProgress)
 
             val progressStyle = Notification.ProgressStyle()
                 .setProgress(safeProgress)
 
-            if (segments.isNotEmpty()) {
-                progressStyle.progressSegments = segments
-            }
+            progressStyle.progressSegments = effectiveSegments
 
             params.pointsJson?.let { json ->
                 val points = parsePoints(json, maxProgress)

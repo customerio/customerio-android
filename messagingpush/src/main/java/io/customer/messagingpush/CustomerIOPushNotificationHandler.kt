@@ -151,6 +151,14 @@ internal class CustomerIOPushNotificationHandler(
         // Check if this is a live notification
         val liveNotificationId = bundle.getString(LiveNotificationHandler.LIVE_NOTIFICATION_ID_KEY)
         if (liveNotificationId != null) {
+            val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
+                context = context,
+                applicationName = applicationName,
+                notificationManager = notificationManager,
+                payloadChannelId = bundle.getString(LiveNotificationHandler.LIVE_NOTIFICATION_CHANNEL_ID_KEY),
+                payloadChannelName = bundle.getString(LiveNotificationHandler.LIVE_NOTIFICATION_CHANNEL_NAME_KEY),
+                payloadImportance = bundle.getString(LiveNotificationHandler.LIVE_NOTIFICATION_CHANNEL_IMPORTANCE_KEY)
+            )
             LiveNotificationHandler(bundle).handle(
                 context = context,
                 deliveryId = deliveryId,
@@ -160,7 +168,7 @@ internal class CustomerIOPushNotificationHandler(
                 body = body,
                 smallIcon = smallIcon,
                 tintColor = tintColor,
-                channelId = channelId,
+                channelId = liveChannelId,
                 notificationManager = notificationManager
             )
             return

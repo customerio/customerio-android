@@ -174,5 +174,6 @@
     <string name="live_notification_type_timer">Parking Timer (countdown)</string>
     <string name="live_notification_type_sports">Sports Score (no progress bar)</string>
     <string name="live_notification_type_delivery_actions">Delivery with Actions</string>
+    <string name="live_notification_full_payload">Send full payload (include optional fields)</string>
 
 </resources>

@@ -190,70 +190,83 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         }
     }
 
+    private boolean isFullPayload() {
+        return binding.fullPayloadCheckbox.isChecked();
+    }
+
     private void sendDeliveryPush(String status, int step) {
         Bundle bundle = baseBundle(DELIVERY_ID, status, DELIVERY_TITLES[step], DELIVERY_BODIES[step]);
-        bundle.putString("cio_live_notification_segments", DELIVERY_SEGMENTS);
+        // Required for progress type
         bundle.putString("cio_live_notification_progress", String.valueOf(step + 1));
         bundle.putString("cio_live_notification_progress_max", String.valueOf(DELIVERY_TITLES.length));
-        bundle.putString("cio_live_notification_subtext", DELIVERY_SUBTEXTS[step]);
-        bundle.putString("cio_live_notification_color", DELIVERY_COLOR);
-        bundle.putString("cio_live_notification_colorized", "true");
-        bundle.putString("cio_live_notification_start_icon", DEMO_ICON);
-        bundle.putString("cio_live_notification_end_icon", DEMO_ICON);
-        bundle.putString("cio_live_notification_tracker_icon", DEMO_ICON);
-        bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-        bundle.putString("cio_live_notification_dismiss_delay", "5000");
+        if (isFullPayload()) {
+            bundle.putString("cio_live_notification_segments", DELIVERY_SEGMENTS);
+            bundle.putString("cio_live_notification_subtext", DELIVERY_SUBTEXTS[step]);
+            bundle.putString("cio_live_notification_color", DELIVERY_COLOR);
+            bundle.putString("cio_live_notification_colorized", "true");
+            bundle.putString("cio_live_notification_start_icon", DEMO_ICON);
+            bundle.putString("cio_live_notification_end_icon", DEMO_ICON);
+            bundle.putString("cio_live_notification_tracker_icon", DEMO_ICON);
+            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
+            bundle.putString("cio_live_notification_dismiss_delay", "5000");
+        }
         fire(bundle);
     }
 
     private void sendTimerPush(String status, int step) {
         Bundle bundle = baseBundle(TIMER_ID, status, TIMER_TITLES[step], TIMER_BODIES[step]);
-        bundle.putString("cio_live_notification_subtext", TIMER_SUBTEXTS[step]);
-        bundle.putString("cio_live_notification_color", TIMER_COLORS[step]);
-        bundle.putString("cio_live_notification_colorized", "true");
+        // Required for countdown type
         bundle.putString("cio_live_notification_type", "countdown");
-        bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-        bundle.putString("cio_live_notification_dismiss_delay", "5000");
-
-        // Countdown: 5 seconds from now (shortened for demo)
         if (!status.equals("ended")) {
             long countdownUntil = System.currentTimeMillis() + 5 * 1000;
             bundle.putString("cio_live_notification_countdown_until", String.valueOf(countdownUntil));
         }
-
-        bundle.putString("cio_live_notification_actions",
-                "[{\"label\":\"Extend Parking\",\"link\":\"sample://parking/extend\"}]");
+        if (isFullPayload()) {
+            bundle.putString("cio_live_notification_subtext", TIMER_SUBTEXTS[step]);
+            bundle.putString("cio_live_notification_color", TIMER_COLORS[step]);
+            bundle.putString("cio_live_notification_colorized", "true");
+            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
+            bundle.putString("cio_live_notification_dismiss_delay", "5000");
+            bundle.putString("cio_live_notification_actions",
+                    "[{\"label\":\"Extend Parking\",\"link\":\"sample://parking/extend\"}]");
+        }
         fire(bundle);
     }
 
     private void sendSportsPush(String status, int step) {
         Bundle bundle = baseBundle(SPORTS_ID, status, SPORTS_TITLES[step], SPORTS_BODIES[step]);
-        bundle.putString("cio_live_notification_subtext", SPORTS_SUBTEXTS[step]);
-        bundle.putString("cio_live_notification_color", SPORTS_COLOR);
-        bundle.putString("cio_live_notification_colorized", "true");
+        // Required for text type
         bundle.putString("cio_live_notification_type", "text");
-        bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-        bundle.putString("cio_live_notification_dismiss_delay", "5000");
-        bundle.putString("cio_live_notification_actions",
-                "[{\"label\":\"Open Scorecard\",\"link\":\"sample://sports/game/123\"}]");
+        if (isFullPayload()) {
+            bundle.putString("cio_live_notification_subtext", SPORTS_SUBTEXTS[step]);
+            bundle.putString("cio_live_notification_color", SPORTS_COLOR);
+            bundle.putString("cio_live_notification_colorized", "true");
+            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
+            bundle.putString("cio_live_notification_dismiss_delay", "5000");
+            bundle.putString("cio_live_notification_actions",
+                    "[{\"label\":\"Open Scorecard\",\"link\":\"sample://sports/game/123\"}]");
+        }
         fire(bundle);
     }
 
     private void sendDeliveryActionsPush(String status, int step) {
         Bundle bundle = baseBundle(ACTIONS_ID, status, ACTIONS_TITLES[step], ACTIONS_BODIES[step]);
-        bundle.putString("cio_live_notification_segments", ACTIONS_SEGMENTS);
+        // Required for progress type
         bundle.putString("cio_live_notification_progress", String.valueOf(step + 1));
         bundle.putString("cio_live_notification_progress_max", String.valueOf(ACTIONS_TITLES.length));
-        bundle.putString("cio_live_notification_subtext", "ETA: " + Math.max(1, (ACTIONS_TITLES.length - step) * 3) + " min");
-        bundle.putString("cio_live_notification_color", ACTIONS_COLOR);
-        bundle.putString("cio_live_notification_colorized", "true");
-        bundle.putString("cio_live_notification_start_icon", DEMO_ICON);
-        bundle.putString("cio_live_notification_end_icon", DEMO_ICON);
-        bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-        bundle.putString("cio_live_notification_dismiss_delay", "5000");
-        bundle.putString("link", "sample://order/456/details");
-        bundle.putString("cio_live_notification_actions",
-                "[{\"label\":\"View Order\",\"link\":\"sample://order/456\"},{\"label\":\"Get Directions\",\"link\":\"sample://directions\"}]");
+        if (isFullPayload()) {
+            bundle.putString("cio_live_notification_segments", ACTIONS_SEGMENTS);
+            bundle.putString("cio_live_notification_subtext", "ETA: " + Math.max(1, (ACTIONS_TITLES.length - step) * 3) + " min");
+            bundle.putString("cio_live_notification_color", ACTIONS_COLOR);
+            bundle.putString("cio_live_notification_colorized", "true");
+            bundle.putString("cio_live_notification_start_icon", DEMO_ICON);
+            bundle.putString("cio_live_notification_end_icon", DEMO_ICON);
+            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
+            bundle.putString("cio_live_notification_dismiss_delay", "5000");
+            bundle.putString("link", "sample://order/456/details");
+            bundle.putString("cio_live_notification_actions",
+                    "[{\"label\":\"View Order\",\"link\":\"sample://order/456\"},{\"label\":\"Get Directions\",\"link\":\"sample://directions\"}]");
+        }
         fire(bundle);
     }
 
@@ -265,6 +278,9 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         bundle.putString("body", body);
         bundle.putString("cio_live_notification_id", liveId);
         bundle.putString("cio_live_notification_status", status);
+        // Use a dedicated live notification channel with high importance
+        bundle.putString("cio_live_notification_channel_name", "Live Updates");
+        bundle.putString("cio_live_notification_channel_importance", "high");
         return bundle;
     }
 

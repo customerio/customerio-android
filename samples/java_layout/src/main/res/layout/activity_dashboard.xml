@@ -126,7 +126,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/margin_default"
                 android:text="@string/send_random_event"
-                app:layout_constraintBottom_toTopOf="@id/send_custom_event_button"
+                app:layout_constraintBottom_toTopOf="@id/custom_event_button"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/settings_button"
@@ -134,7 +134,7 @@
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <Button
-                android:id="@+id/send_custom_event_button"
+                android:id="@+id/custom_event_button"
                 style="?attr/materialButtonStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -156,7 +156,7 @@
                 app:layout_constraintBottom_toTopOf="@id/set_profile_attributes_button"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/send_custom_event_button"
+                app:layout_constraintTop_toBottomOf="@id/custom_event_button"
                 app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
             <Button

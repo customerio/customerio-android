@@ -108,7 +108,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         ViewUtils.prepareForAutomatedTests(binding.userEmailTextView, R.string.acd_email_id_text);
         ViewUtils.prepareForAutomatedTests(binding.deviceIdTextView, R.string.acd_device_id_text);
         ViewUtils.prepareForAutomatedTests(binding.sendRandomEventButton, R.string.acd_random_event_button);
-        ViewUtils.prepareForAutomatedTests(binding.sendCustomEventButton, R.string.acd_custom_event_button);
+        ViewUtils.prepareForAutomatedTests(binding.customEventButton, R.string.acd_custom_event_button);
         ViewUtils.prepareForAutomatedTests(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);
         ViewUtils.prepareForAutomatedTests(binding.setProfileAttributesButton, R.string.acd_profile_attribute_button);
         ViewUtils.prepareForAutomatedTests(binding.showPushPromptButton, R.string.acd_push_prompt_button);
@@ -139,7 +139,7 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.sendRandomEventButton.setOnClickListener(view -> {
             sendRandomEvent();
         });
-        binding.sendCustomEventButton.setOnClickListener(view -> {
+        binding.customEventButton.setOnClickListener(view -> {
             startTrackingFragmentActivity(TrackingFragmentActivity.FRAGMENT_CUSTOM_TRACKING_EVENT);
         });
         binding.setDeviceAttributesButton.setOnClickListener(view -> {

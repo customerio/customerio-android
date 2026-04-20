@@ -1,0 +1,95 @@
+appId: io.customer.android.sample.kotlin_compose
+tags:
+  - smoke
+name: Smoke — login → in-app delivered → custom event (kotlin_compose)
+---
+# --- Test run marker: unique run id + unique email so every run is isolated ---
+- runScript:
+    file: harness/scripts/setup_run.js
+
+- launchApp:
+    clearState: true
+
+# --- Login ---
+# Compose testTag isn't exposed as resource-id in this sample (no
+# `testTagsAsResourceId = true` at the root), so we target visible text.
+- assertVisible: "Login"
+- assertVisible: "Generate Random Login"
+
+- tapOn:
+    text: "Name"
+- inputText: "Maestro Tester"
+- hideKeyboard
+
+- tapOn:
+    text: "Email"
+- inputText: ${output.email}
+- hideKeyboard
+
+- tapOn: "Login"
+
+# --- Back-end assertion #1 (runs first — the poll naturally waits for
+# the SDK identify → CDP → campaign → in-app pipeline to complete, which
+# means by the time this passes, the in-app modal has been delivered and
+# the SDK is about to render it on the dashboard) ---
+- runScript:
+    file: harness/scripts/assert_message_delivered.js
+    env:
+      MAESTRO_EXT_API_KEY: ${MAESTRO_EXT_API_KEY}
+      RUN_EMAIL: ${output.email}
+      EXPECTED_TYPE: "in_app"
+      MIN_METRIC: "sent"
+      MAX_WAIT_MS: "60000"
+- assertTrue: ${output.assert_ok === "true"}
+
+# --- Visual proof: the welcome in-app modal actually rendered on screen.
+# Native text in the modal is `"👋 Hey there!"`; target the body + Continue
+# button which match without any emoji prefix pitfalls. ---
+- extendedWaitUntil:
+    visible: "Continue"
+    timeout: 20000
+- assertVisible: ".*Thank you for choosing.*"
+- takeScreenshot: artifacts/android_modal_inapp
+- tapOn: "Continue"
+- assertNotVisible: ".*Thank you for choosing.*"
+
+- assertVisible: "Send Random Event"
+- assertVisible: "Send Custom Event"
+
+# --- Back-end assertion #2: a push was queued for this customer ---
+# The Android emulator has no real FCM token, so the backend drafts
+# the push but can't finalize delivery. Assert on metrics.drafted — that
+# proves SDK identify → campaign evaluation → push action dispatch fired.
+- runScript:
+    file: harness/scripts/assert_message_delivered.js
+    env:
+      MAESTRO_EXT_API_KEY: ${MAESTRO_EXT_API_KEY}
+      RUN_EMAIL: ${output.email}
+      EXPECTED_TYPE: "push"
+      MIN_METRIC: "drafted"
+      MAX_WAIT_MS: "30000"
+- assertTrue: ${output.assert_ok === "true"}
+
+# --- Send a random (predefined) event ---
+- tapOn: "Send Random Event"
+
+# --- Send a custom event with run_id as property for server-side traceability ---
+- tapOn: "Send Custom Event"
+- assertVisible: "Event Name"
+- tapOn:
+    text: "Event Name"
+- inputText: "maestro_test_event"
+- hideKeyboard
+- tapOn:
+    text: "Property Name"
+- inputText: "run_id"
+- hideKeyboard
+- tapOn:
+    text: "Property Value"
+- inputText: ${output.run_id}
+- hideKeyboard
+- tapOn: "Send Event"
+
+# Back to dashboard (Android hardware back).
+- back
+- assertVisible: "Send Custom Event"

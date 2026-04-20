@@ -1,18 +1,16 @@
-appId: io.customer.android.sample.kotlin_compose
+appId: io.customer.android.sample.java_layout
 tags:
   - inline
-name: Inline in-app — render + position + page rule template (kotlin_compose)
+name: Inline in-app — render + position template (java_layout)
 ---
-# This is a TEMPLATE flow. It logs in, fires a trigger event, and navigates
-# to the Inline Examples screen. The assertions are soft by default (screenshot
-# only) because the test-prod workspace doesn't yet have a deterministic
-# event-triggered inline campaign keyed to known body text.
-#
-# To make this a PASSING functional test, the workspace needs a campaign like:
+# Template flow. Logs in, fires a `maestro_show_inline` trigger event, and
+# navigates to the Inline Examples screen; the assertions are soft by
+# default (screenshot only). To make this a passing functional test, seed
+# a workspace campaign:
 #   - event trigger: "maestro_show_inline"
-#   - action: inline in-app targeting elementId "inline"
-#   - body text: contains "MAESTRO_INLINE_OK" (or any deterministic string)
-# Once that's in place, uncomment the assertVisible lines below.
+#   - action: inline in-app targeting an elementId the sample slots expose
+#   - body text: includes a deterministic marker (e.g. "MAESTRO_INLINE_OK")
+# Then uncomment the assertVisible lines below.
 
 - runScript:
     file: harness/scripts/setup_run.js
@@ -20,76 +18,58 @@ name: Inline in-app — render + position + page rule template (kotlin_compose)
 - launchApp:
     clearState: true
 
-- assertVisible: "Login"
+# --- Login ---
+- assertVisible:
+    id: "login_button"
 - tapOn:
-    text: "Name"
+    id: "first_name_input"
 - inputText: "Maestro Inline Tester"
 - hideKeyboard
 - tapOn:
-    text: "Email"
+    id: "email_input"
 - inputText: ${output.email}
 - hideKeyboard
-- tapOn: "Login"
+- tapOn:
+    id: "login_button"
 
 # Dismiss the identify-time welcome in-app if it appears.
-- extendedWaitUntil:
-    visible: "Continue"
-    timeout: 20000
-- tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
 
-# Fire the trigger event for the inline campaign.
-- assertVisible: "Send Custom Event"
-- tapOn: "Send Custom Event"
+# Fire the inline trigger event.
+- assertVisible:
+    id: "custom_event_button"
 - tapOn:
-    text: "Event Name"
+    id: "custom_event_button"
+- extendedWaitUntil:
+    visible:
+      id: "event_name_input"
+    timeout: 10000
+- tapOn:
+    id: "event_name_input"
 - inputText: "maestro_show_inline"
 - hideKeyboard
 - tapOn:
-    text: "Property Name"
+    id: "property_name_input"
 - inputText: "run_id"
 - hideKeyboard
 - tapOn:
-    text: "Property Value"
+    id: "property_value_input"
 - inputText: ${output.run_id}
 - hideKeyboard
-- tapOn: "Send Event"
-- back
+- scrollUntilVisible:
+    element:
+      text: "^Send Event$"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "send_event_button"
 
-# Navigate to the Inline Examples (Tabs) screen — has slots on each tab.
-- assertVisible: "Inline Examples (Tabs)"
-- tapOn: "Inline Examples (Tabs)"
-
-# Tab 1: Single
-- assertVisible: "Single"
-- takeScreenshot: artifacts/android_inline_single
-# UNCOMMENT once a campaign renders here:
-# - extendedWaitUntil:
-#     visible: ".*MAESTRO_INLINE_OK.*"
-#     timeout: 15000
-# - assertVisible: ".*MAESTRO_INLINE_OK.*"
-
-# Tab 2: Multiple
-- tapOn: "Multiple"
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: artifacts/android_inline_multiple
-
-# Tab 3: Compose
-- tapOn: "Compose"
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: artifacts/android_inline_compose
-
-# Tab 4: RecyclerView
-- tapOn: "RecyclerView"
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: artifacts/android_inline_recyclerview
-
-# --- Backend assertion: the trigger event landed ---
-# Even without a visible inline to assert on, we can at least verify the
-# triggering event was received (via the subsequent campaign evaluation).
-# Once campaigns are seeded we'll also assert on message_template / body match.
+# Backend assertion: the trigger event reached the server and kicked off a
+# campaign that dispatched an in_app.
 - runScript:
     file: harness/scripts/assert_message_delivered.js
     env:

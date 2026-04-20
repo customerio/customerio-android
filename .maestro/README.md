@@ -1,71 +1,87 @@
-# Maestro E2E — Android (kotlin_compose)
+# Maestro E2E — Android (java_layout)
 
-End-to-end smoke test that drives the `kotlin_compose` sample app through login
-and a custom event, and asserts against the Customer.io Ext API that the
-backend received the identify and dispatched the expected in-app + push.
+End-to-end Maestro flows that drive the `java_layout` sample app through
+identify + event tracking and assert against the Customer.io Ext API that
+the backend received the events and dispatched the expected in-app + push.
 
-## Current coverage
-
-Each run generates a fresh email `maestro+android-<uuid>@cio.test` for isolation.
-
-Steps (all currently passing — 36/36 commands COMPLETED):
-
-1. Launch app, log in with the unique email.
-2. **Back-end assertion #1** — poll Ext API until an `in_app` for this email has `metrics.sent` populated. Proves SDK identify → CDP → services → campaign fire → in-app dispatched.
-3. Dismiss the welcome "Hey there!" in-app modal once it renders.
-4. Assert dashboard buttons (`Send Random Event`, `Send Custom Event`).
-5. **Back-end assertion #2** — poll for a `push` with `metrics.drafted`. The emulator has no real FCM token so delivery can't finalize, but `drafted` proves the backend tried to send.
-6. Tap `Send Random Event`, then `Send Custom Event`, fill `event=maestro_test_event / run_id=<uuid>`, tap Send Event.
-7. Back to dashboard.
+The main cross-platform flow (Campaign 141) lives in the shared harness at
+[customerio/mobile-e2e](https://github.com/customerio/mobile-e2e). It's
+pulled into `.maestro/harness/` automatically on the first `./run.sh`. This
+directory holds only the platform-specific wrapper: `run.sh`, workspace
+config, and a couple of optional smoke/inline flows that exercise features
+unique to the Android sample.
 
 ## Prereqs
 
 1. `maestro` CLI (tested with 2.0.9).
-2. Android SDK + running Pixel emulator.
-3. Ext API bearer token for a test-prod Customer.io workspace.
-4. `cdpApiKey` in `samples/local.properties` must map to the same workspace the Ext API key queries. In this repo that's `a898c13577974eabf608`.
+2. Android SDK + a booted Pixel emulator.
+3. `ffmpeg`, Python 3 with Pillow (`pip3 install pillow`).
+4. An Ext API bearer token for the test-prod Customer.io workspace.
+5. `cdpApiKey` + `siteId` in `samples/local.properties` set to the same
+   workspace the Ext API key targets (currently
+   `cdpApiKey=a898c13577974eabf608`, `siteId=38eda114ab3f4593e11f`).
 
 ## Setup
 
 ```bash
-# 1) Create local env file (gitignored) with your Ext API key:
 cp .maestro/.env.example .maestro/.env
-# then edit .maestro/.env and paste your key
+# paste MAESTRO_EXT_API_KEY into .maestro/.env
 
-# 2) Build + install the sample on a booted emulator:
-./gradlew :samples:kotlin_compose:installDebug
+./gradlew :samples:java_layout:installDebug
 ```
 
 ## Run
 
-From the Android repo root:
-
 ```bash
-export $(grep -v '^#' .maestro/.env | xargs)
-maestro -p android test .maestro/smoke_login_event_logout.yaml
+./.maestro/run.sh                             # default: campaign_141 (shared)
+./.maestro/run.sh smoke_login_event_logout.yaml
 ```
 
-## Files
+Outputs land in `artifacts/<flow>/` (gitignored):
+
+| File | What it is |
+|---|---|
+| `device.mp4` | Raw emulator screen recording |
+| `annotated.mp4` | Side-by-side device + live step panel + backend response card |
+| `tickmarks.html` | Per-step pass/fail with Ext API responses inline |
+| `sink.jsonl` | Raw JSON events posted by the flow's assertion scripts |
+| `debug/` | Maestro's native debug output (commands JSON, maestro.log, failure screenshot) |
+
+## Files here
 
 | File | Purpose |
 |---|---|
-| `config.yaml` | Maestro config |
-| `smoke_login_event_logout.yaml` | The flow |
-| `scripts/setup_run.js` | Generates `output.run_id` + `output.email` |
-| `scripts/assert_message_delivered.js` | Polls Ext API for (email, type, min_metric) |
-| `.env.example` | Template for local env |
-| `.env` | Actual key (gitignored) |
+| `run.sh` | Starts sink + emulator capture, runs Maestro, renders HTML + annotated video |
+| `config.yaml` | Maestro workspace config (appId) |
+| `smoke_login_event_logout.yaml` | Optional smoke flow for just the login→event path |
+| `inline_messages.yaml` | Optional inline-rendering validation (needs a seeded campaign) |
+| `.env.example` | Template — copy to `.env` and fill in `MAESTRO_EXT_API_KEY` |
+| `harness/` | Shared scripts + flows auto-cloned from `customerio/mobile-e2e` (gitignored) |
 
 ## Selector strategy
 
-Compose `testTag` isn't exposed to Maestro as a resource-id in this sample
-(the app doesn't set `testTagsAsResourceId = true` at the semantics root).
-Flow targets **visible text** instead — `"Login"`, `"Send Random Event"`, etc.
-To migrate to `id:` selectors across all three platforms, the small change
-is adding `Modifier.semantics { testTagsAsResourceId = true }` at the root
-of each screen's Scaffold.
+The sample exposes the same accessibility ID on every widget the shared
+flow drives, matching the iOS APN-UIKit sample — one snake_case vocabulary:
+
+| id | widget |
+|---|---|
+| `login_button` | Login button |
+| `first_name_input` | Display name input |
+| `email_input` | Email input |
+| `custom_event_button` | Dashboard "Send Custom Event" |
+| `event_name_input` | Custom-event name input |
+| `property_name_input` | Custom-event property name |
+| `property_value_input` | Custom-event property value |
+| `send_event_button` | Fire-event button on the custom-event screen |
+
+Set via `android:id` in XML layouts + `ViewUtils.prepareForAutomatedTests`
+(for `contentDescription`). The same shared flow targets iOS using each
+widget's matching `accessibilityIdentifier`.
 
 ## Known limitations
 
-- **Real FCM delivery** isn't wired up — we assert `drafted` on push. On a real device change the assertion's `MIN_METRIC` to `"sent"` or `"delivered"`.
-- No cleanup of created customers. Test-prod workspace is fine for now.
+- `simctl`-style simulator recording collides with Maestro's session, so
+  Android uses `adb shell screenrecord` (supported) while iOS falls back
+  to a 5 fps `screenshot` poll — see the iOS sample's `capture_frames.sh`.
+- No cleanup of created Customer.io customers. Test-prod workspace is
+  fine for now.

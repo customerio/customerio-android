@@ -139,6 +139,10 @@
             android:name=".ui.inbox.InboxMessagesActivity"
             android:exported="false"
             android:label="@string/label_inbox_messages_activity" />
+        <activity
+            android:name=".ui.livenotification.LiveNotificationDemoActivity"
+            android:exported="false"
+            android:label="@string/label_live_notification_demo_activity" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

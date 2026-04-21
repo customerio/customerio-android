@@ -13,6 +13,7 @@ import android.os.Parcelable
  * @property cioDeliveryToken Customer.io message delivery token
  * @property title notification content title text
  * @property body notification content body text
+ * @property activityId stable id identifying a live notification (null for standard push)
  */
 data class CustomerIOParsedPushPayload(
     val extras: Bundle,
@@ -21,7 +22,7 @@ data class CustomerIOParsedPushPayload(
     val cioDeliveryToken: String,
     val title: String,
     val body: String,
-    val liveNotificationId: String? = null
+    val activityId: String? = null
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
         extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle(),
@@ -30,7 +31,7 @@ data class CustomerIOParsedPushPayload(
         cioDeliveryToken = parcel.readString().orEmpty(),
         title = parcel.readString().orEmpty(),
         body = parcel.readString().orEmpty(),
-        liveNotificationId = parcel.readString()
+        activityId = parcel.readString()
     )
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
@@ -40,7 +41,7 @@ data class CustomerIOParsedPushPayload(
         parcel.writeString(cioDeliveryToken)
         parcel.writeString(title)
         parcel.writeString(body)
-        parcel.writeString(liveNotificationId)
+        parcel.writeString(activityId)
     }
 
     override fun describeContents(): Int {

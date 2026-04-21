@@ -6,6 +6,9 @@ import android.os.Looper;
 
 import com.google.firebase.messaging.RemoteMessage;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.UUID;
 
 import io.customer.android.sample.java_layout.R;
@@ -19,15 +22,31 @@ import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
  * <p>
  * Select a notification type via radio buttons, then use manual controls
  * (Start / Update / End) or auto-run all steps with a 2-second interval.
+ * <p>
+ * Payloads follow the iOS-style Live Activity schema: top-level keys
+ * ({@code activity_id}, {@code event}, {@code activity_type}) plus two
+ * JSON blobs: {@code attributes} (structural/static) and
+ * {@code content_state} (dynamic/mutable).
  */
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
     private static final String DEMO_DELIVERY_TOKEN = "demo-token-live";
     private static final long AUTO_STEP_DELAY_MS = 2000;
 
+    // Event values (lifecycle)
+    private static final String EVENT_START = "start";
+    private static final String EVENT_UPDATE = "update";
+    private static final String EVENT_END = "end";
+
+    // Activity types (rendering mode)
+    private static final String TYPE_PROGRESS = "progress";
+    private static final String TYPE_COUNTDOWN = "countdown";
+    private static final String TYPE_TEXT = "text";
+
     // Shared demo assets
     private static final String DEMO_ICON = "ic_notification";
     private static final String DEMO_LARGE_ICON_URL = "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/a0a7586b-3d38-4293-9d13-75e10782ff57/dgy0t9h-e6de6201-962c-47d5-b227-a948394fdd89.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiIvZi9hMGE3NTg2Yi0zZDM4LTQyOTMtOWQxMy03NWUxMDc4MmZmNTcvZGd5MHQ5aC1lNmRlNjIwMS05NjJjLTQ3ZDUtYjIyNy1hOTQ4Mzk0ZmRkODkucG5nIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.XBVeXq1J6SOYsJOPsp1l7E-JdkHpdyM2xxtakzx9MaQ";
+    private static final long DEMO_DISMISS_DELAY_MS = 5000L;
 
     // Delivery tracking config
     private static final String DELIVERY_ID = "demo-delivery";
@@ -53,6 +72,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private static final String[] SPORTS_BODIES = {"Q4 2:30 remaining", "Q4 1:15 remaining", "Game Over"};
     private static final String[] SPORTS_SUBTEXTS = {"Live", "Live", "Final"};
     private static final String SPORTS_COLOR = "#4A148C";
+    private static final String SPORTS_ACTIONS =
+            "[{\"label\":\"Open Scorecard\",\"link\":\"sample://sports/game/123\"}]";
 
     // Parking timer config
     private static final String TIMER_ID = "demo-parking";
@@ -60,6 +81,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private static final String[] TIMER_BODIES = {"Zone A - Spot 42", "Zone A - Spot 42", "Your session has ended"};
     private static final String[] TIMER_SUBTEXTS = {"Time remaining", "Expiring soon", "Expired"};
     private static final String[] TIMER_COLORS = {"#2E7D32", "#E65100", "#B71C1C"};
+    private static final String TIMER_ACTIONS =
+            "[{\"label\":\"Extend Parking\",\"link\":\"sample://parking/extend\"}]";
 
     // Delivery with actions config
     private static final String ACTIONS_ID = "demo-delivery-actions";
@@ -72,6 +95,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     };
     private static final String ACTIONS_SEGMENTS = "[{\"length\":1},{\"length\":1},{\"length\":1},{\"length\":1}]";
     private static final String ACTIONS_COLOR = "#1B5E20";
+    private static final String ACTIONS_BUTTONS =
+            "[{\"label\":\"View Order\",\"link\":\"sample://order/456\"},{\"label\":\"Get Directions\",\"link\":\"sample://directions\"}]";
 
     private enum NotificationType { DELIVERY, TIMER, SPORTS, DELIVERY_ACTIONS }
 
@@ -130,7 +155,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         currentStep = 0;
         isActive = true;
         updateButtonStates();
-        sendPush("started", currentStep);
+        sendPush(EVENT_START, currentStep);
         updateStatusText();
     }
 
@@ -138,7 +163,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         if (!isActive) return;
         currentStep = Math.min(currentStep + 1, getStepCount() - 1);
         updateButtonStates();
-        sendPush("updated", currentStep);
+        sendPush(EVENT_UPDATE, currentStep);
         updateStatusText();
     }
 
@@ -146,7 +171,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         if (!isActive) return;
         isActive = false;
         updateButtonStates();
-        sendPush("ended", getStepCount() - 1);
+        sendPush(EVENT_END, getStepCount() - 1);
         binding.statusTextView.setText(R.string.live_notification_status_ended);
     }
 
@@ -173,19 +198,19 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     // --- Push construction ---
 
-    private void sendPush(String status, int step) {
+    private void sendPush(String event, int step) {
         switch (getSelectedType()) {
             case DELIVERY:
-                sendDeliveryPush(status, step);
+                sendDeliveryPush(event, step);
                 break;
             case TIMER:
-                sendTimerPush(status, step);
+                sendTimerPush(event, step);
                 break;
             case SPORTS:
-                sendSportsPush(status, step);
+                sendSportsPush(event, step);
                 break;
             case DELIVERY_ACTIONS:
-                sendDeliveryActionsPush(status, step);
+                sendDeliveryActionsPush(event, step);
                 break;
         }
     }
@@ -194,93 +219,107 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         return binding.fullPayloadCheckbox.isChecked();
     }
 
-    private void sendDeliveryPush(String status, int step) {
-        Bundle bundle = baseBundle(DELIVERY_ID, status, DELIVERY_TITLES[step], DELIVERY_BODIES[step]);
-        // Required for progress type
-        bundle.putString("cio_live_notification_progress", String.valueOf(step + 1));
-        bundle.putString("cio_live_notification_progress_max", String.valueOf(DELIVERY_TITLES.length));
-        if (isFullPayload()) {
-            bundle.putString("cio_live_notification_segments", DELIVERY_SEGMENTS);
-            bundle.putString("cio_live_notification_subtext", DELIVERY_SUBTEXTS[step]);
-            bundle.putString("cio_live_notification_color", DELIVERY_COLOR);
-            bundle.putString("cio_live_notification_colorized", "true");
-            bundle.putString("cio_live_notification_start_icon", DEMO_ICON);
-            bundle.putString("cio_live_notification_end_icon", DEMO_ICON);
-            bundle.putString("cio_live_notification_tracker_icon", DEMO_ICON);
-            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-            bundle.putString("cio_live_notification_dismiss_delay", "5000");
-        }
-        fire(bundle);
+    private void sendDeliveryPush(String event, int step) {
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        try {
+            attributes.put("progress_max", DELIVERY_TITLES.length);
+            contentState.put("title", DELIVERY_TITLES[step]);
+            contentState.put("body", DELIVERY_BODIES[step]);
+            contentState.put("progress", step + 1);
+            if (isFullPayload()) {
+                attributes.put("segments", DELIVERY_SEGMENTS);
+                attributes.put("start_icon", DEMO_ICON);
+                attributes.put("end_icon", DEMO_ICON);
+                attributes.put("tracker_icon", DEMO_ICON);
+                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
+                attributes.put("colorized", true);
+                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
+                contentState.put("subtext", DELIVERY_SUBTEXTS[step]);
+                contentState.put("color", DELIVERY_COLOR);
+            }
+        } catch (JSONException ignored) { }
+        fire(baseBundle(DELIVERY_ID, event, TYPE_PROGRESS, attributes, contentState));
     }
 
-    private void sendTimerPush(String status, int step) {
-        Bundle bundle = baseBundle(TIMER_ID, status, TIMER_TITLES[step], TIMER_BODIES[step]);
-        // Required for countdown type
-        bundle.putString("cio_live_notification_type", "countdown");
-        if (!status.equals("ended")) {
-            long countdownUntil = System.currentTimeMillis() + 5 * 1000;
-            bundle.putString("cio_live_notification_countdown_until", String.valueOf(countdownUntil));
-        }
-        if (isFullPayload()) {
-            bundle.putString("cio_live_notification_subtext", TIMER_SUBTEXTS[step]);
-            bundle.putString("cio_live_notification_color", TIMER_COLORS[step]);
-            bundle.putString("cio_live_notification_colorized", "true");
-            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-            bundle.putString("cio_live_notification_dismiss_delay", "5000");
-            bundle.putString("cio_live_notification_actions",
-                    "[{\"label\":\"Extend Parking\",\"link\":\"sample://parking/extend\"}]");
-        }
-        fire(bundle);
+    private void sendTimerPush(String event, int step) {
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        try {
+            contentState.put("title", TIMER_TITLES[step]);
+            contentState.put("body", TIMER_BODIES[step]);
+            if (!event.equals(EVENT_END)) {
+                long countdownUntil = System.currentTimeMillis() + 5 * 1000;
+                contentState.put("countdown_until", countdownUntil);
+            }
+            if (isFullPayload()) {
+                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
+                attributes.put("colorized", true);
+                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
+                contentState.put("subtext", TIMER_SUBTEXTS[step]);
+                contentState.put("color", TIMER_COLORS[step]);
+                contentState.put("actions", TIMER_ACTIONS);
+            }
+        } catch (JSONException ignored) { }
+        fire(baseBundle(TIMER_ID, event, TYPE_COUNTDOWN, attributes, contentState));
     }
 
-    private void sendSportsPush(String status, int step) {
-        Bundle bundle = baseBundle(SPORTS_ID, status, SPORTS_TITLES[step], SPORTS_BODIES[step]);
-        // Required for text type
-        bundle.putString("cio_live_notification_type", "text");
-        if (isFullPayload()) {
-            bundle.putString("cio_live_notification_subtext", SPORTS_SUBTEXTS[step]);
-            bundle.putString("cio_live_notification_color", SPORTS_COLOR);
-            bundle.putString("cio_live_notification_colorized", "true");
-            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-            bundle.putString("cio_live_notification_dismiss_delay", "5000");
-            bundle.putString("cio_live_notification_actions",
-                    "[{\"label\":\"Open Scorecard\",\"link\":\"sample://sports/game/123\"}]");
-        }
-        fire(bundle);
+    private void sendSportsPush(String event, int step) {
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        try {
+            contentState.put("title", SPORTS_TITLES[step]);
+            contentState.put("body", SPORTS_BODIES[step]);
+            if (isFullPayload()) {
+                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
+                attributes.put("colorized", true);
+                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
+                contentState.put("subtext", SPORTS_SUBTEXTS[step]);
+                contentState.put("color", SPORTS_COLOR);
+                contentState.put("actions", SPORTS_ACTIONS);
+            }
+        } catch (JSONException ignored) { }
+        fire(baseBundle(SPORTS_ID, event, TYPE_TEXT, attributes, contentState));
     }
 
-    private void sendDeliveryActionsPush(String status, int step) {
-        Bundle bundle = baseBundle(ACTIONS_ID, status, ACTIONS_TITLES[step], ACTIONS_BODIES[step]);
-        // Required for progress type
-        bundle.putString("cio_live_notification_progress", String.valueOf(step + 1));
-        bundle.putString("cio_live_notification_progress_max", String.valueOf(ACTIONS_TITLES.length));
+    private void sendDeliveryActionsPush(String event, int step) {
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        try {
+            attributes.put("progress_max", ACTIONS_TITLES.length);
+            contentState.put("title", ACTIONS_TITLES[step]);
+            contentState.put("body", ACTIONS_BODIES[step]);
+            contentState.put("progress", step + 1);
+            if (isFullPayload()) {
+                attributes.put("segments", ACTIONS_SEGMENTS);
+                attributes.put("start_icon", DEMO_ICON);
+                attributes.put("end_icon", DEMO_ICON);
+                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
+                attributes.put("colorized", true);
+                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
+                int minutesRemaining = Math.max(1, (ACTIONS_TITLES.length - step) * 3);
+                contentState.put("subtext", "ETA: " + minutesRemaining + " min");
+                contentState.put("color", ACTIONS_COLOR);
+                contentState.put("actions", ACTIONS_BUTTONS);
+            }
+        } catch (JSONException ignored) { }
+        Bundle bundle = baseBundle(ACTIONS_ID, event, TYPE_PROGRESS, attributes, contentState);
         if (isFullPayload()) {
-            bundle.putString("cio_live_notification_segments", ACTIONS_SEGMENTS);
-            bundle.putString("cio_live_notification_subtext", "ETA: " + Math.max(1, (ACTIONS_TITLES.length - step) * 3) + " min");
-            bundle.putString("cio_live_notification_color", ACTIONS_COLOR);
-            bundle.putString("cio_live_notification_colorized", "true");
-            bundle.putString("cio_live_notification_start_icon", DEMO_ICON);
-            bundle.putString("cio_live_notification_end_icon", DEMO_ICON);
-            bundle.putString("cio_live_notification_large_icon", DEMO_LARGE_ICON_URL);
-            bundle.putString("cio_live_notification_dismiss_delay", "5000");
             bundle.putString("link", "sample://order/456/details");
-            bundle.putString("cio_live_notification_actions",
-                    "[{\"label\":\"View Order\",\"link\":\"sample://order/456\"},{\"label\":\"Get Directions\",\"link\":\"sample://directions\"}]");
         }
         fire(bundle);
     }
 
-    private Bundle baseBundle(String liveId, String status, String title, String body) {
+    private Bundle baseBundle(String activityId, String event, String activityType,
+                              JSONObject attributes, JSONObject contentState) {
         Bundle bundle = new Bundle();
         bundle.putString("CIO-Delivery-ID", UUID.randomUUID().toString());
         bundle.putString("CIO-Delivery-Token", DEMO_DELIVERY_TOKEN);
-        bundle.putString("title", title);
-        bundle.putString("body", body);
-        bundle.putString("cio_live_notification_id", liveId);
-        bundle.putString("cio_live_notification_status", status);
-        // Use a dedicated live notification channel with high importance
-        bundle.putString("cio_live_notification_channel_name", "Live Updates");
-        bundle.putString("cio_live_notification_channel_importance", "high");
+        bundle.putString("activity_id", activityId);
+        bundle.putString("event", event);
+        bundle.putString("activity_type", activityType);
+        bundle.putString("attributes", attributes.toString());
+        bundle.putString("content_state", contentState.toString());
         return bundle;
     }
 

@@ -3,6 +3,7 @@ package io.customer.messagingpush
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -10,10 +11,11 @@ import android.os.Bundle
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.toColorInt
 import io.customer.sdk.core.di.SDKComponent
 import org.json.JSONArray
 import org.json.JSONException
-import androidx.core.graphics.toColorInt
 
 /**
  * Parameters for building a promoted live notification on API 36+ (BAKLAVA).
@@ -66,6 +68,8 @@ internal object Api36LiveNotificationBuilder {
     // Notification.EXTRA_REQUEST_PROMOTED_ONGOING was added in extension SDK 36.1.
     // Use the raw string value so we can compile against base API 36.
     private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
+    private const val POST_PROMOTED_NOTIFICATIONS_PERMISSION =
+        "android.permission.POST_PROMOTED_NOTIFICATIONS"
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
     fun build(params: Api36LiveNotificationParams): Notification {
@@ -76,11 +80,17 @@ internal object Api36LiveNotificationBuilder {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
 
-        // Request promoted ongoing status for live update treatment.
-        // Requires android.permission.POST_PROMOTED_NOTIFICATIONS in the app manifest.
-        builder.addExtras(Bundle().apply {
-            putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
-        })
+        // Request promoted ongoing status when the host app holds the permission.
+        // If missing, fall back silently to standard ongoing — the notification still posts.
+        if (canPostPromotedNotifications(params.context)) {
+            builder.addExtras(Bundle().apply {
+                putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+            })
+        } else {
+            SDKComponent.logger.debug(
+                "POST_PROMOTED_NOTIFICATIONS not granted; posting as standard ongoing"
+            )
+        }
 
         if (params.showProgress) {
             builder.setCategory(Notification.CATEGORY_PROGRESS)
@@ -149,6 +159,13 @@ internal object Api36LiveNotificationBuilder {
         }
 
         return builder.build()
+    }
+
+    private fun canPostPromotedNotifications(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            POST_PROMOTED_NOTIFICATIONS_PERMISSION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)

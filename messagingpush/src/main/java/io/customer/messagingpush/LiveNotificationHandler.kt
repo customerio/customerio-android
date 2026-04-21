@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
@@ -12,66 +13,47 @@ import android.os.Handler
 import android.os.Looper
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
+import androidx.core.content.ContextCompat
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.getDrawableByName
 import io.customer.messagingpush.extensions.toColorOrNull
+import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.sdk.core.di.SDKComponent
-import java.net.URL
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONException
+import org.json.JSONObject
 
 /**
  * Handles live notification creation, updates, and dismissal.
  *
  * Live notifications are ongoing notifications that can be updated in-place
  * (the Android counterpart of iOS Live Activities). They use a stable
- * notification ID derived from [liveNotificationId] so successive pushes
+ * notification ID derived from [ACTIVITY_ID_KEY] so successive pushes
  * replace the previous notification rather than creating new ones.
+ *
+ * Payload schema (iOS-style split):
+ * - [ACTIVITY_ID_KEY] — stable id
+ * - [EVENT_KEY] — "start" | "update" | "end"
+ * - [ACTIVITY_TYPE_KEY] — "progress" | "countdown" | "text"
+ * - [ATTRIBUTES_KEY] — JSON string: structural/static data (progress_max, icons, etc.)
+ * - [CONTENT_STATE_KEY] — JSON string: dynamic data (title, body, progress, subtext, etc.)
  */
 internal class LiveNotificationHandler(
     private val bundle: Bundle
 ) {
 
     companion object {
-        // Required — every live notification payload must include these
-        const val LIVE_NOTIFICATION_ID_KEY = "cio_live_notification_id"
-        const val LIVE_NOTIFICATION_STATUS_KEY = "cio_live_notification_status"
-        // title and body come from standard push keys, not live-specific keys
-
-        // Required per type — minimum fields for the notification to be meaningful
-        // Progress: type + progress + progress_max (renders a progress bar)
-        // Countdown: type + countdown_until (renders a countdown timer)
-        // Text: type alone is sufficient (title/body carry the content)
-        const val LIVE_NOTIFICATION_TYPE_KEY = "cio_live_notification_type"
-        const val LIVE_NOTIFICATION_PROGRESS_KEY = "cio_live_notification_progress"
-        const val LIVE_NOTIFICATION_PROGRESS_MAX_KEY = "cio_live_notification_progress_max"
-        const val LIVE_NOTIFICATION_COUNTDOWN_UNTIL_KEY = "cio_live_notification_countdown_until"
-
-        // Optional — visual customization (notification works without these)
-        const val LIVE_NOTIFICATION_SUBTEXT_KEY = "cio_live_notification_subtext"
-        const val LIVE_NOTIFICATION_COLOR_KEY = "cio_live_notification_color"
-        const val LIVE_NOTIFICATION_COLORIZED_KEY = "cio_live_notification_colorized"
-        const val LIVE_NOTIFICATION_LARGE_ICON_KEY = "cio_live_notification_large_icon"
-        const val LIVE_NOTIFICATION_ACTIONS_KEY = "cio_live_notification_actions"
-        const val LIVE_NOTIFICATION_DISMISS_DELAY_KEY = "cio_live_notification_dismiss_delay"
-        const val LIVE_NOTIFICATION_SEGMENTS_KEY = "cio_live_notification_segments"
-        const val LIVE_NOTIFICATION_POINTS_KEY = "cio_live_notification_points"
-        const val LIVE_NOTIFICATION_START_ICON_KEY = "cio_live_notification_start_icon"
-        const val LIVE_NOTIFICATION_END_ICON_KEY = "cio_live_notification_end_icon"
-        const val LIVE_NOTIFICATION_TRACKER_ICON_KEY = "cio_live_notification_tracker_icon"
-
-        // Optional — channel configuration (only needed on first push, ignored after channel exists)
-        const val LIVE_NOTIFICATION_CHANNEL_ID_KEY = "cio_live_notification_channel_id"
-        const val LIVE_NOTIFICATION_CHANNEL_NAME_KEY = "cio_live_notification_channel_name"
-        const val LIVE_NOTIFICATION_CHANNEL_IMPORTANCE_KEY = "cio_live_notification_channel_importance"
+        const val ACTIVITY_ID_KEY = "activity_id"
+        const val EVENT_KEY = "event"
+        const val ACTIVITY_TYPE_KEY = "activity_type"
+        const val CONTENT_STATE_KEY = "content_state"
+        const val ATTRIBUTES_KEY = "attributes"
 
         private const val TYPE_PROGRESS = "progress"
         private const val TYPE_COUNTDOWN = "countdown"
-        private const val TYPE_TEXT = "text"
+
+        private const val EVENT_END = "end"
 
         private const val DEFAULT_DISMISS_DELAY_MS = 3000L
     }
@@ -80,45 +62,47 @@ internal class LiveNotificationHandler(
         context: Context,
         deliveryId: String,
         deliveryToken: String,
-        liveNotificationId: String,
-        title: String,
-        body: String,
         @DrawableRes smallIcon: Int,
         @ColorInt tintColor: Int?,
         channelId: String,
         notificationManager: NotificationManager
     ) {
-        val status = bundle.getString(LIVE_NOTIFICATION_STATUS_KEY) ?: "updated"
-        val segmentsJson = bundle.getString(LIVE_NOTIFICATION_SEGMENTS_KEY)
-        val pointsJson = bundle.getString(LIVE_NOTIFICATION_POINTS_KEY)
-        val progress = bundle.getString(LIVE_NOTIFICATION_PROGRESS_KEY)?.toIntOrNull() ?: 0
-        val progressMax = bundle.getString(LIVE_NOTIFICATION_PROGRESS_MAX_KEY)?.toIntOrNull() ?: 100
-        val subText = bundle.getString(LIVE_NOTIFICATION_SUBTEXT_KEY)
-        val backgroundColor = bundle.getString(LIVE_NOTIFICATION_COLOR_KEY)?.toColorOrNull()
-        val colorized = bundle.getString(LIVE_NOTIFICATION_COLORIZED_KEY) == "true"
-        val startIconRes = context.getDrawableByName(bundle.getString(LIVE_NOTIFICATION_START_ICON_KEY))
-        val endIconRes = context.getDrawableByName(bundle.getString(LIVE_NOTIFICATION_END_ICON_KEY))
-        val trackerIconRes = context.getDrawableByName(bundle.getString(LIVE_NOTIFICATION_TRACKER_ICON_KEY))
+        val activityId = bundle.getString(ACTIVITY_ID_KEY) ?: return
+        val event = bundle.getString(EVENT_KEY) ?: "update"
+        val activityType = bundle.getString(ACTIVITY_TYPE_KEY) ?: TYPE_PROGRESS
 
-        // New v1 fields
-        val type = bundle.getString(LIVE_NOTIFICATION_TYPE_KEY) ?: TYPE_PROGRESS
-        val largeIconUrl = bundle.getString(LIVE_NOTIFICATION_LARGE_ICON_KEY)
-        val dismissDelay = bundle.getString(LIVE_NOTIFICATION_DISMISS_DELAY_KEY)?.toLongOrNull()
-            ?: DEFAULT_DISMISS_DELAY_MS
-        val actionsJson = bundle.getString(LIVE_NOTIFICATION_ACTIONS_KEY)
+        val attributes = parseJson(ATTRIBUTES_KEY, bundle.getString(ATTRIBUTES_KEY))
+        val contentState = parseJson(CONTENT_STATE_KEY, bundle.getString(CONTENT_STATE_KEY))
 
-        // Derive rendering flags from explicit type
-        val showProgress = type == TYPE_PROGRESS
-        val countdownUntil = if (type == TYPE_COUNTDOWN) {
-            bundle.getString(LIVE_NOTIFICATION_COUNTDOWN_UNTIL_KEY)?.toLongOrNull()
+        // Structural fields (attributes — stable for the life of the activity)
+        val progressMax = attributes.optInt("progress_max", 100)
+        val segmentsJson = attributes.optString("segments").takeIf { it.isNotEmpty() }
+        val startIconRes = context.getDrawableByName(attributes.optString("start_icon").takeIf { it.isNotEmpty() })
+        val endIconRes = context.getDrawableByName(attributes.optString("end_icon").takeIf { it.isNotEmpty() })
+        val trackerIconRes = context.getDrawableByName(attributes.optString("tracker_icon").takeIf { it.isNotEmpty() })
+        val largeIconUrl = attributes.optString("large_icon").takeIf { it.isNotEmpty() }
+        val colorized = attributes.optBoolean("colorized", false)
+        val dismissDelay = attributes.optLong("dismiss_delay", DEFAULT_DISMISS_DELAY_MS)
+
+        // Dynamic fields (content_state — updated on every event)
+        val title = contentState.optString("title")
+        val body = contentState.optString("body")
+        val subText = contentState.optString("subtext").takeIf { it.isNotEmpty() }
+        val backgroundColor = contentState.optString("color").takeIf { it.isNotEmpty() }?.toColorOrNull()
+        val actionsJson = contentState.optString("actions").takeIf { it.isNotEmpty() }
+        val progress = contentState.optInt("progress", 0)
+        val pointsJson = contentState.optString("points").takeIf { it.isNotEmpty() }
+        val countdownUntil = if (activityType == TYPE_COUNTDOWN && contentState.has("countdown_until")) {
+            contentState.optLong("countdown_until").takeIf { it > 0 }
         } else {
             null
         }
 
-        // Download large icon if URL is provided
+        val showProgress = activityType == TYPE_PROGRESS
+
         val largeIcon: Bitmap? = largeIconUrl?.let { url -> downloadBitmap(url) }
 
-        val notifId = liveNotificationId.hashCode() and 0x7FFFFFFF
+        val notifId = activityId.hashCode() and 0x7FFFFFFF
 
         bundle.putInt(CustomerIOPushNotificationHandler.NOTIFICATION_REQUEST_CODE, notifId)
 
@@ -129,13 +113,12 @@ internal class LiveNotificationHandler(
             cioDeliveryToken = deliveryToken,
             title = title,
             body = body,
-            liveNotificationId = liveNotificationId
+            activityId = activityId
         )
 
         val pendingIntent = createIntentForNotificationClick(context, notifId, payload)
 
-        // Parse action buttons
-        val actions = parseActions(context, actionsJson, liveNotificationId, payload)
+        val actions = parseActions(context, actionsJson, activityId, payload)
 
         val notification = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {
@@ -185,31 +168,42 @@ internal class LiveNotificationHandler(
             }
         }
 
-        notificationManager.notify(liveNotificationId, notifId, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            SDKComponent.logger.error(
+                "Live notification not shown: POST_NOTIFICATIONS permission not granted. " +
+                    "The host app must request this permission on Android 13+."
+            )
+            return
+        }
 
-        if (status == "ended") {
+        notificationManager.notify(activityId, notifId, notification)
+
+        if (event == EVENT_END) {
             Handler(Looper.getMainLooper()).postDelayed({
-                notificationManager.cancel(liveNotificationId, notifId)
+                notificationManager.cancel(activityId, notifId)
             }, dismissDelay)
         }
     }
 
-    private fun downloadBitmap(imageUrl: String): Bitmap? = runBlocking {
-        withContext(Dispatchers.IO) {
-            try {
-                val input = URL(imageUrl).openStream()
-                BitmapFactory.decodeStream(input)
-            } catch (e: Exception) {
-                SDKComponent.logger.error("Failed to download live notification large icon from '$imageUrl': ${e.message}")
-                null
-            }
+    private fun parseJson(key: String, raw: String?): JSONObject {
+        if (raw.isNullOrEmpty()) return JSONObject()
+        return try {
+            JSONObject(raw)
+        } catch (e: JSONException) {
+            SDKComponent.logger.error("Failed to parse live notification '$key' JSON: ${e.message}")
+            JSONObject()
         }
     }
+
+    private fun downloadBitmap(imageUrl: String): Bitmap? = BitmapDownloader.download(imageUrl)
 
     private fun parseActions(
         context: Context,
         actionsJson: String?,
-        liveNotificationId: String,
+        activityId: String,
         payload: CustomerIOParsedPushPayload
     ): List<ActionData> {
         if (actionsJson.isNullOrBlank()) return emptyList()
@@ -223,7 +217,6 @@ internal class LiveNotificationHandler(
                 val label = obj.optString("label", "").takeIf { it.isNotEmpty() } ?: continue
                 val link = obj.optString("link", "")
 
-                // Create a payload copy with this action's deep link
                 val actionPayload = CustomerIOParsedPushPayload(
                     extras = payload.extras,
                     deepLink = link.takeIf { it.isNotEmpty() },
@@ -231,10 +224,10 @@ internal class LiveNotificationHandler(
                     cioDeliveryToken = payload.cioDeliveryToken,
                     title = payload.title,
                     body = payload.body,
-                    liveNotificationId = liveNotificationId
+                    activityId = activityId
                 )
 
-                val requestCode = (liveNotificationId.hashCode() + i + 1) and 0x7FFFFFFF
+                val requestCode = (activityId.hashCode() + i + 1) and 0x7FFFFFFF
                 val pendingIntent = createIntentForNotificationClick(context, requestCode, actionPayload)
 
                 actions.add(ActionData(label = label, link = link, pendingIntent = pendingIntent))

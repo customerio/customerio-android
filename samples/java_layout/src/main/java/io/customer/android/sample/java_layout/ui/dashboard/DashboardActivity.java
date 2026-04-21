@@ -104,15 +104,15 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
-        ViewUtils.prepareForAutomatedTests(binding.userEmailTextView, R.string.acd_email_id_text);
-        ViewUtils.prepareForAutomatedTests(binding.deviceIdTextView, R.string.acd_device_id_text);
-        ViewUtils.prepareForAutomatedTests(binding.sendRandomEventButton, R.string.acd_random_event_button);
-        ViewUtils.prepareForAutomatedTests(binding.customEventButton, R.string.acd_custom_event_button);
-        ViewUtils.prepareForAutomatedTests(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);
-        ViewUtils.prepareForAutomatedTests(binding.setProfileAttributesButton, R.string.acd_profile_attribute_button);
-        ViewUtils.prepareForAutomatedTests(binding.showPushPromptButton, R.string.acd_push_prompt_button);
-        ViewUtils.prepareForAutomatedTests(binding.logoutButton, R.string.acd_logout_button);
+        ViewUtils.setAccessibilityId(binding.settingsButton, R.string.acd_settings_icon);
+        ViewUtils.setAccessibilityId(binding.userEmailTextView, R.string.acd_email_id_text);
+        ViewUtils.setAccessibilityId(binding.deviceIdTextView, R.string.acd_device_id_text);
+        ViewUtils.setAccessibilityId(binding.sendRandomEventButton, R.string.acd_random_event_button);
+        ViewUtils.setAccessibilityId(binding.customEventButton, R.string.acd_custom_event_button);
+        ViewUtils.setAccessibilityId(binding.setDeviceAttributesButton, R.string.acd_device_attribute_button);
+        ViewUtils.setAccessibilityId(binding.setProfileAttributesButton, R.string.acd_profile_attribute_button);
+        ViewUtils.setAccessibilityId(binding.showPushPromptButton, R.string.acd_push_prompt_button);
+        ViewUtils.setAccessibilityId(binding.logoutButton, R.string.acd_logout_button);
     }
 
     private void setupViews() {

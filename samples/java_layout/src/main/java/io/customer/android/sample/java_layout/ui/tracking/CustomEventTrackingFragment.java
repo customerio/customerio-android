@@ -44,10 +44,10 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.eventNameInput, R.string.acd_event_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.propertyNameInput, R.string.acd_property_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.propertyValueInput, R.string.acd_property_value_input);
-        ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_event_button);
+        ViewUtils.setAccessibilityId(binding.eventNameInput, R.string.acd_event_name_input);
+        ViewUtils.setAccessibilityId(binding.propertyNameInput, R.string.acd_property_name_input);
+        ViewUtils.setAccessibilityId(binding.propertyValueInput, R.string.acd_property_value_input);
+        ViewUtils.setAccessibilityId(binding.sendEventButton, R.string.acd_send_event_button);
     }
 
     private void setupViews() {

@@ -75,7 +75,7 @@ flow drives, matching the iOS APN-UIKit sample — one snake_case vocabulary:
 | `property_value_input` | Custom-event property value |
 | `send_event_button` | Fire-event button on the custom-event screen |
 
-Set via `android:id` in XML layouts + `ViewUtils.prepareForAutomatedTests`
+Set via `android:id` in XML layouts + `ViewUtils.setAccessibilityId`
 (for `contentDescription`). The same shared flow targets iOS using each
 widget's matching `accessibilityIdentifier`.
 

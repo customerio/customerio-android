@@ -37,11 +37,11 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
-        ViewUtils.prepareForAutomatedTests(binding.firstNameInput, R.string.acd_first_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.emailInput, R.string.acd_email_input);
-        ViewUtils.prepareForAutomatedTests(binding.loginButton, R.string.acd_login_button);
-        ViewUtils.prepareForAutomatedTests(binding.randomLoginButton, R.string.acd_random_login_button);
+        ViewUtils.setAccessibilityId(binding.settingsButton, R.string.acd_settings_icon);
+        ViewUtils.setAccessibilityId(binding.firstNameInput, R.string.acd_first_name_input);
+        ViewUtils.setAccessibilityId(binding.emailInput, R.string.acd_email_input);
+        ViewUtils.setAccessibilityId(binding.loginButton, R.string.acd_login_button);
+        ViewUtils.setAccessibilityId(binding.randomLoginButton, R.string.acd_random_login_button);
     }
 
     private void setupObservers() {

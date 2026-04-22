@@ -37,11 +37,11 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.settingsButton, R.string.acd_settings_icon);
-        ViewUtils.prepareForAutomatedTests(binding.displayNameTextInput, R.string.acd_first_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.emailTextInput, R.string.acd_email_input);
-        ViewUtils.prepareForAutomatedTests(binding.loginButton, R.string.acd_login_button);
-        ViewUtils.prepareForAutomatedTests(binding.randomLoginButton, R.string.acd_random_login_button);
+        ViewUtils.setAccessibilityId(binding.settingsButton, R.string.acd_settings_icon);
+        ViewUtils.setAccessibilityId(binding.firstNameInput, R.string.acd_first_name_input);
+        ViewUtils.setAccessibilityId(binding.emailInput, R.string.acd_email_input);
+        ViewUtils.setAccessibilityId(binding.loginButton, R.string.acd_login_button);
+        ViewUtils.setAccessibilityId(binding.randomLoginButton, R.string.acd_random_login_button);
     }
 
     private void setupObservers() {
@@ -64,13 +64,13 @@ public class LoginActivity extends BaseActivity<ActivityLoginBinding> {
         });
         binding.loginButton.setOnClickListener(view -> {
             boolean isFormValid = true;
-            String displayName = ViewUtils.getText(binding.displayNameTextInput);
-            String email = ViewUtils.getTextTrimmed(binding.emailTextInput);
+            String displayName = ViewUtils.getText(binding.firstNameInput);
+            String email = ViewUtils.getTextTrimmed(binding.emailInput);
             if (TextUtils.isEmpty(email) || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                ViewUtils.setError(binding.emailInputLayout, getString(R.string.error_email));
+                ViewUtils.setError(binding.emailWrapper, getString(R.string.error_email));
                 isFormValid = false;
             } else {
-                ViewUtils.setError(binding.emailInputLayout, null);
+                ViewUtils.setError(binding.emailWrapper, null);
             }
 
             if (isFormValid) {

@@ -44,17 +44,17 @@ public class CustomEventTrackingFragment extends BaseFragment<FragmentCustomEven
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.eventNameTextInput, R.string.acd_event_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.propertyNameTextInput, R.string.acd_property_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.propertyValueTextInput, R.string.acd_property_value_input);
-        ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_event_button);
+        ViewUtils.setAccessibilityId(binding.eventNameInput, R.string.acd_event_name_input);
+        ViewUtils.setAccessibilityId(binding.propertyNameInput, R.string.acd_property_name_input);
+        ViewUtils.setAccessibilityId(binding.propertyValueInput, R.string.acd_property_value_input);
+        ViewUtils.setAccessibilityId(binding.sendEventButton, R.string.acd_send_event_button);
     }
 
     private void setupViews() {
         binding.sendEventButton.setOnClickListener(view -> {
-            String eventName = ViewUtils.getText(binding.eventNameTextInput);
-            String propertyName = ViewUtils.getText(binding.propertyNameTextInput);
-            String propertyValue = ViewUtils.getText(binding.propertyValueTextInput);
+            String eventName = ViewUtils.getText(binding.eventNameInput);
+            String propertyName = ViewUtils.getText(binding.propertyNameInput);
+            String propertyValue = ViewUtils.getText(binding.propertyValueInput);
 
             Map<String, String> extras = new HashMap<>();
             if (!TextUtils.isEmpty(propertyName)) {

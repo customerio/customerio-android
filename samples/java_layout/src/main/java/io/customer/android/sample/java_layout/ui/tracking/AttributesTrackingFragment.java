@@ -64,14 +64,14 @@ public class AttributesTrackingFragment extends BaseFragment<FragmentAttributesT
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.attributeNameTextInput, R.string.acd_attribute_name_input);
-        ViewUtils.prepareForAutomatedTests(binding.attributeValueTextInput, R.string.acd_attribute_value_input);
+        ViewUtils.setAccessibilityId(binding.attributeNameTextInput, R.string.acd_attribute_name_input);
+        ViewUtils.setAccessibilityId(binding.attributeValueTextInput, R.string.acd_attribute_value_input);
         switch (mAttributeType) {
             case ATTRIBUTE_TYPE_DEVICE:
-                ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_device_attribute_button);
+                ViewUtils.setAccessibilityId(binding.sendEventButton, R.string.acd_send_device_attribute_button);
                 break;
             case ATTRIBUTE_TYPE_PROFILE:
-                ViewUtils.prepareForAutomatedTests(binding.sendEventButton, R.string.acd_send_profile_attribute_button);
+                ViewUtils.setAccessibilityId(binding.sendEventButton, R.string.acd_send_profile_attribute_button);
                 break;
         }
     }

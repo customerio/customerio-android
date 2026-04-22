@@ -92,11 +92,11 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
     }
 
     private void prepareViewsForAutomatedTests() {
-        ViewUtils.prepareForAutomatedTests(binding.topAppBar);
-        ViewUtils.prepareForAutomatedTests(binding.settingsCdpApiKeyLabel, R.string.acd_cdp_api_key_input);
-        ViewUtils.prepareForAutomatedTests(binding.settingsSiteIdKeyLabel, R.string.acd_site_id_input);
-        ViewUtils.prepareForAutomatedTests(binding.settingsSaveButton, R.string.acd_save_settings_button);
-        ViewUtils.prepareForAutomatedTests(binding.settingsRestoreDefaultsButton, R.string.acd_restore_default_settings_button);
+        ViewUtils.setAccessibilityId(binding.topAppBar);
+        ViewUtils.setAccessibilityId(binding.settingsCdpApiKeyLabel, R.string.acd_cdp_api_key_input);
+        ViewUtils.setAccessibilityId(binding.settingsSiteIdKeyLabel, R.string.acd_site_id_input);
+        ViewUtils.setAccessibilityId(binding.settingsSaveButton, R.string.acd_save_settings_button);
+        ViewUtils.setAccessibilityId(binding.settingsRestoreDefaultsButton, R.string.acd_restore_default_settings_button);
     }
 
     private void setupViews() {

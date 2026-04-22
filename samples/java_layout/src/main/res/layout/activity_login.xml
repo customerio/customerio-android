@@ -31,7 +31,7 @@
             android:gravity="center"
             android:text="@string/app_title"
             android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-            app:layout_constraintBottom_toTopOf="@id/display_name_input_layout"
+            app:layout_constraintBottom_toTopOf="@id/first_name_input_layout"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/settings_button"
@@ -45,18 +45,18 @@
             android:id="@+id/title_display_name_spacer"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            app:layout_constraintBottom_toTopOf="@id/display_name_input_layout"
+            app:layout_constraintBottom_toTopOf="@id/first_name_input_layout"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHeight_min="72dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/title_text_view" />
 
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/display_name_input_layout"
+            android:id="@+id/first_name_input_layout"
             style="?attr/textInputStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            app:layout_constraintBottom_toTopOf="@id/email_input_layout"
+            app:layout_constraintBottom_toTopOf="@id/email_wrapper"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
@@ -64,7 +64,7 @@
             app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/display_name_text_input"
+                android:id="@+id/first_name_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="@string/display_name"
@@ -74,7 +74,7 @@
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/email_input_layout"
+            android:id="@+id/email_wrapper"
             style="?attr/textInputStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -82,11 +82,11 @@
             app:layout_constraintBottom_toTopOf="@id/login_button"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/display_name_input_layout"
+            app:layout_constraintTop_toBottomOf="@id/first_name_input_layout"
             app:layout_constraintWidth_max="@dimen/material_text_field_max_width">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/email_text_input"
+                android:id="@+id/email_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="@string/email"
@@ -106,7 +106,7 @@
             app:layout_constraintBottom_toTopOf="@id/random_login_button"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/email_input_layout"
+            app:layout_constraintTop_toBottomOf="@id/email_wrapper"
             app:layout_constraintWidth_max="@dimen/material_button_max_width" />
 
         <Button

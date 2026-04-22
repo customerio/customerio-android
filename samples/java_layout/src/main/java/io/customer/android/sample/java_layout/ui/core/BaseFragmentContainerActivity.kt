@@ -41,7 +41,7 @@ abstract class BaseFragmentContainerActivity<VB : ViewBinding> : BaseActivity<VB
     }
 
     protected fun setupToolbar(toolbar: Toolbar, useAsSupportActionBar: Boolean = false) {
-        ViewUtils.prepareForAutomatedTests(toolbar)
+        ViewUtils.setAccessibilityId(toolbar)
         if (useAsSupportActionBar) {
             setSupportActionBar(toolbar)
         }

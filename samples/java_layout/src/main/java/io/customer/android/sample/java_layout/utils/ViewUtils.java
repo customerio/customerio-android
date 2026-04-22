@@ -19,11 +19,20 @@ import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.buildinfo.BuildInfoMetadata;
 
 public class ViewUtils {
-    public static void prepareForAutomatedTests(@NonNull View view, @StringRes int contentDescResId) {
+    /**
+     * Tag a view with a stable accessibility identifier so E2E runners
+     * (Maestro, UiAutomator, Appium) and screen readers (TalkBack) can find
+     * it by name. Mirrors the iOS {@code setAccessibilityId(_:to:)}.
+     */
+    public static void setAccessibilityId(@NonNull View view, @StringRes int contentDescResId) {
         view.setContentDescription(view.getContext().getString(contentDescResId));
     }
 
-    public static void prepareForAutomatedTests(@NonNull Toolbar toolbar) {
+    /**
+     * Convenience overload for top-bar back buttons that don't go through
+     * {@link View#setContentDescription(CharSequence)} directly.
+     */
+    public static void setAccessibilityId(@NonNull Toolbar toolbar) {
         toolbar.setNavigationContentDescription(R.string.acd_back_button_icon);
     }
 

@@ -84,3 +84,7 @@ lint/tmp/
 
 # Kotlin state files
 .kotlin/
+
+# Maestro run outputs
+artifacts/
+

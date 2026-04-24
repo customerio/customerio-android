@@ -1,6 +1,9 @@
 package io.customer.sdk.core.di
 
 import android.content.Context
+import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.core.network.CustomerIOHttpClient
+import io.customer.sdk.core.network.CustomerIOHttpClientImpl
 
 /**
  * The file contains extension functions for the SDKComponent object and its dependencies.
@@ -17,3 +20,7 @@ fun SDKComponent.setupAndroidComponent(
 ) = registerDependency<AndroidSDKComponent> {
     AndroidSDKComponentImpl(context)
 }
+
+@InternalCustomerIOApi
+val SDKComponent.httpClient: CustomerIOHttpClient
+    get() = singleton<CustomerIOHttpClient> { CustomerIOHttpClientImpl() }

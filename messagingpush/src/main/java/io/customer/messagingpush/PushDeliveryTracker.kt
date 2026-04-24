@@ -1,9 +1,9 @@
 package io.customer.messagingpush
 
-import io.customer.messagingpush.di.httpClient
-import io.customer.messagingpush.network.HttpClient
-import io.customer.messagingpush.network.HttpRequestParams
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.httpClient
+import io.customer.sdk.core.network.CustomerIOHttpClient
+import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.util.EventNames
 import kotlinx.coroutines.CoroutineScope
@@ -16,7 +16,7 @@ internal interface PushDeliveryTracker {
 
 internal class PushDeliveryTrackerImpl : PushDeliveryTracker {
 
-    private val httpClient: HttpClient
+    private val httpClient: CustomerIOHttpClient
         get() = SDKComponent.httpClient
 
     /**

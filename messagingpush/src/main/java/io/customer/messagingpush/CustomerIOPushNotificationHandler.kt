@@ -113,9 +113,6 @@ internal class CustomerIOPushNotificationHandler(
         pushLogger.logShowingPushNotification(remoteMessage)
 
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
-        val requestCode = abs(System.currentTimeMillis().toInt())
-
-        bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
 
         val appMetaData = context.applicationMetaData()
 
@@ -146,6 +143,33 @@ internal class CustomerIOPushNotificationHandler(
             appMetaData = appMetaData,
             notificationManager = notificationManager
         )
+
+        // Check if this is a live notification
+        val activityId = bundle.getString(LiveNotificationHandler.ACTIVITY_ID_KEY)
+        if (activityId != null) {
+            val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
+                context = context,
+                applicationName = applicationName,
+                appMetaData = appMetaData,
+                notificationManager = notificationManager
+            )
+            // onNotificationComposed is intentionally not called for live notifications —
+            // their layout is SDK-controlled and cannot be safely modified by host apps.
+            LiveNotificationHandler(bundle).handle(
+                context = context,
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken,
+                smallIcon = smallIcon,
+                tintColor = tintColor,
+                channelId = liveChannelId,
+                notificationManager = notificationManager
+            )
+            return
+        }
+
+        val requestCode = abs(System.currentTimeMillis().toInt())
+        bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
+
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)

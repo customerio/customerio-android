@@ -4,4 +4,31 @@
     <!-- Coarse location is sufficient for city/timezone level tracking -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!--
+        Geofence monitoring requires these permissions declared in the host app:
+        - android.permission.ACCESS_FINE_LOCATION
+        - android.permission.ACCESS_BACKGROUND_LOCATION
+        - android.permission.RECEIVE_BOOT_COMPLETED
+        The SDK does not declare them to avoid adding permissions for customers
+        not using geofencing.
+    -->
+
+    <application>
+        <!-- Disabled by default; dynamically enabled by GeofenceManager when geofences are registered -->
+        <receiver
+            android:name="io.customer.location.geofence.GeofenceBroadcastReceiver"
+            android:enabled="false"
+            android:exported="false" />
+
+        <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->
+        <receiver
+            android:name="io.customer.location.geofence.GeofenceBootReceiver"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
 </manifest>

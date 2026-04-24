@@ -20,9 +20,9 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
-import io.customer.messagingpush.util.WorkManagerProvider
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.workManagerProvider
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -51,9 +51,6 @@ internal val SDKComponent.deepLinkUtil: DeepLinkUtil
 @InternalCustomerIOApi
 val SDKComponent.pushTrackingUtil: PushTrackingUtil
     get() = newInstance<PushTrackingUtil> { PushTrackingUtilImpl() }
-
-internal val SDKComponent.workManagerProvider: WorkManagerProvider
-    get() = singleton<WorkManagerProvider> { WorkManagerProvider(android().applicationContext, pushLogger) }
 
 internal val SDKComponent.asyncPushDeliveryTracker: AsyncPushDeliveryTracker
     get() = singleton<AsyncPushDeliveryTracker> { AsyncPushDeliveryTracker(pushDeliveryTracker) }

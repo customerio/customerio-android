@@ -7,7 +7,7 @@ import androidx.work.WorkManager
 import io.customer.commontest.extensions.random
 import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.testutils.core.JUnitTest
-import io.customer.messagingpush.util.WorkManagerProvider
+import io.customer.sdk.core.util.WorkManagerProvider
 import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk

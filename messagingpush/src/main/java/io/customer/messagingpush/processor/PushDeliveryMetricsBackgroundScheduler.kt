@@ -9,8 +9,8 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.di.pushDeliveryTracker
-import io.customer.messagingpush.util.WorkManagerProvider
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.events.Metric
 import java.io.IOException
 
@@ -18,7 +18,7 @@ private const val DELIVERY_ID = "delivery-id"
 private const val DELIVERY_TOKEN = "delivery-token"
 
 internal class PushDeliveryMetricsBackgroundScheduler(
-    private val workManagerProvider: WorkManagerProvider,
+    private val workManagerProvider: CustomerIOWorkManagerProvider,
     private val asyncPushDeliveryTracker: AsyncPushDeliveryTracker
 ) {
 

@@ -71,6 +71,7 @@ class CustomerIO private constructor(
     private val logger: Logger = SDKComponent.logger
     private val dataPipelinesLogger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+    private val secureUserStore = androidSDKComponent.secureUserStore
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
@@ -157,6 +158,14 @@ class CustomerIO private constructor(
         }
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
+        }
+        // Cache user identity encrypted for direct API calls (WorkManager workers,
+        // BroadcastReceivers) that run without full SDK initialization.
+        eventBus.subscribe<Event.UserChangedEvent> {
+            secureUserStore.saveUserId(it.userId)
+        }
+        eventBus.subscribe<Event.ResetEvent> {
+            secureUserStore.clearAll()
         }
     }
 

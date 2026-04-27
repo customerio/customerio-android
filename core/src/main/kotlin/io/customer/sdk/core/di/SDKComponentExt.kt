@@ -4,7 +4,7 @@ import android.content.Context
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.CustomerIOHttpClientImpl
-import io.customer.sdk.core.util.WorkManagerProvider
+import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 
 /**
  * The file contains extension functions for the SDKComponent object and its dependencies.
@@ -27,5 +27,5 @@ val SDKComponent.httpClient: CustomerIOHttpClient
     get() = singleton<CustomerIOHttpClient> { CustomerIOHttpClientImpl() }
 
 @InternalCustomerIOApi
-val SDKComponent.workManagerProvider: WorkManagerProvider
-    get() = singleton<WorkManagerProvider> { WorkManagerProvider(android().applicationContext, logger) }
+val SDKComponent.workManagerProvider: CustomerIOWorkManagerProvider
+    get() = singleton<CustomerIOWorkManagerProvider> { CustomerIOWorkManagerProvider(android().applicationContext, logger) }

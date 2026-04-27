@@ -26,7 +26,7 @@ import io.customer.base.internal.InternalCustomerIOApi
  * These scenarios are handled based on documented exceptions from WorkManager's getInstance() and initialize() methods.
  */
 @InternalCustomerIOApi
-class WorkManagerProvider(
+class CustomerIOWorkManagerProvider(
     private val context: Context,
     private val logger: Logger
 ) {

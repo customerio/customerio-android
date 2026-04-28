@@ -157,4 +157,23 @@
     <string name="inbox_delete_cancel">Cancel</string>
     <string name="inbox_message_deleted">Message deleted</string>
 
+    <!-- Live Notification Demo -->
+    <string name="live_notification_demo">Live Notification Demo</string>
+    <string name="label_live_notification_demo_activity">LiveNotificationDemoActivity</string>
+    <string name="live_notification_start">Start</string>
+    <string name="live_notification_update">Update</string>
+    <string name="live_notification_end">End</string>
+    <string name="live_notification_status_idle">Status: Idle</string>
+    <string name="live_notification_status_format">Status: %1$s (Step %2$d)</string>
+    <string name="live_notification_status_ended">Status: Ended</string>
+    <string name="live_notification_auto">Run All Steps (2s each)</string>
+    <string name="live_notification_section_type">Notification Type</string>
+    <string name="live_notification_section_manual">Manual Control</string>
+    <string name="live_notification_section_auto">Auto Sequence</string>
+    <string name="live_notification_type_delivery">Delivery Tracking</string>
+    <string name="live_notification_type_timer">Parking Timer (countdown)</string>
+    <string name="live_notification_type_sports">Sports Score (no progress bar)</string>
+    <string name="live_notification_type_delivery_actions">Delivery with Actions</string>
+    <string name="live_notification_full_payload">Send full payload (include optional fields)</string>
+
 </resources>

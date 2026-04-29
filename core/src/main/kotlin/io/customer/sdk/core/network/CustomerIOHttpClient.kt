@@ -1,6 +1,7 @@
-package io.customer.messagingpush.network
+package io.customer.sdk.core.network
 
 import android.util.Base64
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.Client
 import io.customer.sdk.data.store.GlobalPreferenceStore
@@ -9,13 +10,16 @@ import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
 
-internal data class HttpRequestParams(
+@InternalCustomerIOApi
+data class HttpRequestParams(
     val path: String,
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null
 )
 
-internal interface HttpClient {
+/** HTTP client for Customer.io API calls with SDK authentication. */
+@InternalCustomerIOApi
+interface CustomerIOHttpClient {
     /**
      * Performs a POST request to [params.path] with [params.headers] and [params.body].
      *
@@ -27,7 +31,7 @@ internal interface HttpClient {
     suspend fun request(params: HttpRequestParams): Result<String>
 }
 
-internal class HttpClientImpl : HttpClient {
+internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
 
     private val connectTimeoutMs = 10_000
     private val readTimeoutMs = 10_000

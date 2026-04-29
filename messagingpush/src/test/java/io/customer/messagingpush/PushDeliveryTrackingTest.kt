@@ -2,9 +2,9 @@ package io.customer.messagingpush
 
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
-import io.customer.messagingpush.network.HttpClient
-import io.customer.messagingpush.network.HttpRequestParams
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import io.customer.sdk.core.network.CustomerIOHttpClient
+import io.customer.sdk.core.network.HttpRequestParams
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -20,7 +20,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class PushDeliveryTrackingTest : IntegrationTest() {
 
-    private val httpClient: HttpClient = mockk(relaxed = true)
+    private val httpClient: CustomerIOHttpClient = mockk(relaxed = true)
     private val pushDeliveryTracker = PushDeliveryTrackerImpl()
 
     override fun setup(testConfig: TestConfig) {
@@ -29,7 +29,7 @@ class PushDeliveryTrackingTest : IntegrationTest() {
                 diGraph {
                     sdk {
                         // Override the httpClient in your DI so the SUT uses this mock.
-                        overrideDependency<HttpClient>(httpClient)
+                        overrideDependency<CustomerIOHttpClient>(httpClient)
                     }
                 }
             }

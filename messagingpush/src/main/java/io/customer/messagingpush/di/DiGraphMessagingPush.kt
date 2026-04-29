@@ -11,8 +11,6 @@ import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.PushDeliveryTracker
 import io.customer.messagingpush.PushDeliveryTrackerImpl
 import io.customer.messagingpush.logger.PushNotificationLogger
-import io.customer.messagingpush.network.HttpClient
-import io.customer.messagingpush.network.HttpClientImpl
 import io.customer.messagingpush.processor.PushDeliveryMetricsBackgroundScheduler
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
@@ -22,9 +20,9 @@ import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.messagingpush.util.PushTrackingUtilImpl
-import io.customer.messagingpush.util.WorkManagerProvider
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.workManagerProvider
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -54,9 +52,6 @@ internal val SDKComponent.deepLinkUtil: DeepLinkUtil
 val SDKComponent.pushTrackingUtil: PushTrackingUtil
     get() = newInstance<PushTrackingUtil> { PushTrackingUtilImpl() }
 
-internal val SDKComponent.workManagerProvider: WorkManagerProvider
-    get() = singleton<WorkManagerProvider> { WorkManagerProvider(android().applicationContext, pushLogger) }
-
 internal val SDKComponent.asyncPushDeliveryTracker: AsyncPushDeliveryTracker
     get() = singleton<AsyncPushDeliveryTracker> { AsyncPushDeliveryTracker(pushDeliveryTracker) }
 
@@ -72,9 +67,6 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             deliveryMetricsScheduler = deliveryMetricsScheduler
         )
     }
-
-internal val SDKComponent.httpClient: HttpClient
-    get() = singleton<HttpClient> { HttpClientImpl() }
 
 internal val SDKComponent.pushDeliveryTracker: PushDeliveryTracker
     get() = singleton<PushDeliveryTracker> { PushDeliveryTrackerImpl() }

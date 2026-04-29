@@ -7,7 +7,7 @@ import androidx.work.WorkManager
 import io.customer.commontest.extensions.random
 import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.testutils.core.JUnitTest
-import io.customer.messagingpush.util.WorkManagerProvider
+import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test
 
 class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
 
-    private val mockWorkManagerProvider = mockk<WorkManagerProvider>(relaxed = true)
+    private val mockWorkManagerProvider = mockk<CustomerIOWorkManagerProvider>(relaxed = true)
     private val mockWorkManager = mockk<WorkManager>(relaxed = true)
     private val mockAsyncPushDeliveryTracker = mockk<AsyncPushDeliveryTracker>(relaxed = true)
     private val scheduler = PushDeliveryMetricsBackgroundScheduler(mockWorkManagerProvider, mockAsyncPushDeliveryTracker)

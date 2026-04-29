@@ -1,9 +1,9 @@
-package io.customer.messagingpush.util
+package io.customer.sdk.core.util
 
 import android.content.Context
 import androidx.work.Configuration
 import androidx.work.WorkManager
-import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Provider for WorkManager instances with safe initialization.
@@ -25,9 +25,10 @@ import io.customer.messagingpush.logger.PushNotificationLogger
  *
  * These scenarios are handled based on documented exceptions from WorkManager's getInstance() and initialize() methods.
  */
-internal class WorkManagerProvider(
+@InternalCustomerIOApi
+class CustomerIOWorkManagerProvider(
     private val context: Context,
-    private val pushLogger: PushNotificationLogger
+    private val logger: Logger
 ) {
 
     /**
@@ -48,7 +49,7 @@ internal class WorkManagerProvider(
             // Try to get existing instance first
             WorkManager.getInstance(context)
         } catch (e: Exception) {
-            pushLogger.logWorkManagerInitializationAttempt(e)
+            logger.error("WorkManager not initialized, attempting to initialize", tag = TAG, throwable = e)
             try {
                 // Check if host app implements Configuration.Provider, otherwise use default config
                 val config = (context.applicationContext as? Configuration.Provider)?.workManagerConfiguration ?: Configuration.Builder().build()
@@ -56,9 +57,13 @@ internal class WorkManagerProvider(
                 // Now try to get the instance again
                 WorkManager.getInstance(context)
             } catch (initException: Exception) {
-                pushLogger.logWorkManagerInitializationFailed(initException)
+                logger.error("Failed to initialize WorkManager", tag = TAG, throwable = initException)
                 null
             }
         }
+    }
+
+    internal companion object {
+        private const val TAG = "WorkManager"
     }
 }

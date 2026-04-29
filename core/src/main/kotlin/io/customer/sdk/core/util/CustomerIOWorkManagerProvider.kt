@@ -49,7 +49,7 @@ class CustomerIOWorkManagerProvider(
             // Try to get existing instance first
             WorkManager.getInstance(context)
         } catch (e: Exception) {
-            logger.error("WorkManager not initialized, attempting to initialize", throwable = e)
+            logger.error("WorkManager not initialized, attempting to initialize", tag = TAG, throwable = e)
             try {
                 // Check if host app implements Configuration.Provider, otherwise use default config
                 val config = (context.applicationContext as? Configuration.Provider)?.workManagerConfiguration ?: Configuration.Builder().build()
@@ -57,9 +57,13 @@ class CustomerIOWorkManagerProvider(
                 // Now try to get the instance again
                 WorkManager.getInstance(context)
             } catch (initException: Exception) {
-                logger.error("Failed to initialize WorkManager", throwable = initException)
+                logger.error("Failed to initialize WorkManager", tag = TAG, throwable = initException)
                 null
             }
         }
+    }
+
+    internal companion object {
+        private const val TAG = "WorkManager"
     }
 }

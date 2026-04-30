@@ -1,7 +1,6 @@
 package io.customer.messagingpush.livenotification.template
 
 import android.content.Context
-import android.graphics.Color
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 

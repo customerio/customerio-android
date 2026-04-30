@@ -18,7 +18,6 @@ import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.getDrawableByName
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
-import io.customer.messagingpush.livenotification.template.TemplateRenderResult
 import io.customer.sdk.core.di.SDKComponent
 import org.json.JSONException
 import org.json.JSONObject
@@ -204,4 +203,3 @@ internal class LiveNotificationHandler(
         )
     }
 }
-

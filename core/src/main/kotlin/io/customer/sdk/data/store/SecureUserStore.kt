@@ -2,6 +2,7 @@ package io.customer.sdk.data.store
 
 import android.content.Context
 import androidx.core.content.edit
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -16,6 +17,7 @@ import io.customer.sdk.core.util.Logger
  * Currently stores user identity for direct API calls from WorkManager
  * workers and BroadcastReceivers (e.g., geofence events, push metrics).
  */
+@InternalCustomerIOApi
 interface SecureUserStore {
     fun saveUserId(userId: String?)
     fun getUserId(): String?

@@ -39,7 +39,10 @@ internal class GeofenceManager(
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     suspend fun addGeofences(regions: List<GeofenceRegion>): Result<Unit> {
-        if (regions.isEmpty()) return Result.success(Unit)
+        if (regions.isEmpty()) {
+            logger.logGeofencesRegistered(0)
+            return Result.success(Unit)
+        }
         if (!hasRequiredPermissions()) {
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
@@ -51,7 +54,7 @@ internal class GeofenceManager(
         val businessGeofences = regions.filter { it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID }
 
         if (movementTrigger.isNotEmpty()) {
-            val result = registerBatch(movementTrigger, initialTrigger = 0)
+            val result = registerBatch(movementTrigger, initialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER)
             if (result.isFailure) return result
         }
 

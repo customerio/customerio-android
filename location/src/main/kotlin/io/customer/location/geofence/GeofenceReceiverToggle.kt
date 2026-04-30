@@ -5,15 +5,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 
 /** Enables/disables geofence broadcast receivers via PackageManager. */
-internal interface GeofenceReceiverToggle {
-    fun setEnabled(enabled: Boolean)
-}
-
-internal class GeofenceReceiverToggleImpl(
+internal class GeofenceReceiverToggle(
     private val context: Context
-) : GeofenceReceiverToggle {
-
-    override fun setEnabled(enabled: Boolean) {
+) {
+    fun setEnabled(enabled: Boolean) {
         val state = if (enabled) {
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED
         } else {

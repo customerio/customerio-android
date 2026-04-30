@@ -8,6 +8,7 @@ internal object GeofenceConstants {
     const val MAX_BUSINESS_GEOFENCES = 19
     const val STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000L
     const val DEDUPE_COOLDOWN_MS = 60 * 60 * 1000L
+    const val NO_INITIAL_TRIGGER = 0
     const val GEOFENCE_EXPIRATION_NEVER = -1L
     const val PENDING_INTENT_REQUEST_CODE = 0x4765_6F10
 }

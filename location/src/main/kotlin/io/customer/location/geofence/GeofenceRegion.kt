@@ -25,6 +25,10 @@ internal enum class GeofenceTransitionType(val gmsValue: Int) {
 
 /**
  * Straight-line distance in meters from this region's center to the given coordinates.
+ *
+ * @throws IllegalArgumentException if coordinates are out of range
+ * (latitude must be -90..90, longitude must be -180..180).
+ * Callers should validate coordinates at the API boundary.
  */
 internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
     val result = FloatArray(1)

@@ -17,90 +17,33 @@ import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
 
 /**
- * Demo activity that simulates live notification updates by sending synthetic
- * push messages through the SDK's actual push handling code path.
+ * Demo activity that simulates templated live-notification updates by sending
+ * synthetic push messages through the SDK's actual push handling code path.
  * <p>
- * Select a notification type via radio buttons, then use manual controls
- * (Start / Update / End) or auto-run all steps with a 2-second interval.
- * <p>
- * Payloads follow the iOS-style Live Activity schema: top-level keys
- * ({@code activity_id}, {@code event}, {@code activity_type}) plus two
- * JSON blobs: {@code attributes} (structural/static) and
- * {@code content_state} (dynamic/mutable).
+ * Each scenario builds a templated FCM data bundle: top-level lifecycle keys
+ * ({@code activity_id}, {@code event}, {@code template}) plus a {@code payload}
+ * JSON string carrying template-specific fields. The static branding bundle
+ * lives in {@code MessagingPushModuleConfig} and is registered once at SDK init.
  */
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
     private static final String DEMO_DELIVERY_TOKEN = "demo-token-live";
     private static final long AUTO_STEP_DELAY_MS = 2000;
 
-    // Event values (lifecycle)
     private static final String EVENT_START = "start";
     private static final String EVENT_UPDATE = "update";
     private static final String EVENT_END = "end";
 
-    // Activity types (rendering mode)
-    private static final String TYPE_PROGRESS = "progress";
-    private static final String TYPE_COUNTDOWN = "countdown";
-    private static final String TYPE_TEXT = "text";
+    // Templates
+    private static final String TEMPLATE_DELIVERY_TRACKING = "delivery_tracking";
+    private static final String TEMPLATE_FLIGHT_STATUS = "flight_status";
+    private static final String TEMPLATE_LIVE_SCORE = "live_score";
+    private static final String TEMPLATE_COUNTDOWN_TIMER = "countdown_timer";
+    private static final String TEMPLATE_AUCTION_BID = "auction_bid";
 
-    // Shared demo assets
-    private static final String DEMO_ICON = "ic_notification";
-    // Lorem Picsum — free placeholder image service (https://picsum.photos).
-    // Using a fixed image id so the demo displays the same image on every run.
-    private static final String DEMO_LARGE_ICON_URL = "https://picsum.photos/id/237/400/400.jpg";
-    private static final long DEMO_DISMISS_DELAY_MS = 5000L;
-
-    // Delivery tracking config
-    private static final String DELIVERY_ID = "demo-delivery";
-    private static final String[] DELIVERY_TITLES = {"Ordered", "Preparing", "On the way", "Delivered"};
-    private static final String[] DELIVERY_BODIES = {
-            "Your order has been placed",
-            "Your order is being prepared",
-            "Your order is on the way",
-            "Your order has been delivered"
-    };
-    private static final String[] DELIVERY_SUBTEXTS = {
-            "Estimated delivery: 30 min",
-            "Estimated delivery: 25 min",
-            "Estimated delivery: 10 min",
-            "Enjoy your meal!"
-    };
-    private static final String DELIVERY_SEGMENTS = "[{\"length\":1},{\"length\":1},{\"length\":1},{\"length\":1}]";
-    private static final String DELIVERY_COLOR = "#1B5E20";
-
-    // Sports score config
-    private static final String SPORTS_ID = "demo-sports";
-    private static final String[] SPORTS_TITLES = {"Lakers 98 - Celtics 95", "Lakers 101 - Celtics 97", "Final: Lakers 105 - Celtics 99"};
-    private static final String[] SPORTS_BODIES = {"Q4 2:30 remaining", "Q4 1:15 remaining", "Game Over"};
-    private static final String[] SPORTS_SUBTEXTS = {"Live", "Live", "Final"};
-    private static final String SPORTS_COLOR = "#4A148C";
-    private static final String SPORTS_ACTIONS =
-            "[{\"label\":\"Open Scorecard\",\"link\":\"sample://sports/game/123\"}]";
-
-    // Parking timer config
-    private static final String TIMER_ID = "demo-parking";
-    private static final String[] TIMER_TITLES = {"Parking Session", "Parking Session", "Parking Expired"};
-    private static final String[] TIMER_BODIES = {"Zone A - Spot 42", "Zone A - Spot 42", "Your session has ended"};
-    private static final String[] TIMER_SUBTEXTS = {"Time remaining", "Expiring soon", "Expired"};
-    private static final String[] TIMER_COLORS = {"#2E7D32", "#E65100", "#B71C1C"};
-    private static final String TIMER_ACTIONS =
-            "[{\"label\":\"Extend Parking\",\"link\":\"sample://parking/extend\"}]";
-
-    // Delivery with actions config
-    private static final String ACTIONS_ID = "demo-delivery-actions";
-    private static final String[] ACTIONS_TITLES = {"Order confirmed", "Preparing", "On the way", "Delivered!"};
-    private static final String[] ACTIONS_BODIES = {
-            "Restaurant received your order",
-            "Your food is being prepared",
-            "Driver is heading to you",
-            "Enjoy your meal"
-    };
-    private static final String ACTIONS_SEGMENTS = "[{\"length\":1},{\"length\":1},{\"length\":1},{\"length\":1}]";
-    private static final String ACTIONS_COLOR = "#1B5E20";
-    private static final String ACTIONS_BUTTONS =
-            "[{\"label\":\"View Order\",\"link\":\"sample://order/456\"},{\"label\":\"Get Directions\",\"link\":\"sample://directions\"}]";
-
-    private enum NotificationType { DELIVERY, TIMER, SPORTS, DELIVERY_ACTIONS }
+    private enum TemplateChoice {
+        DELIVERY_TRACKING, FLIGHT_STATUS, LIVE_SCORE, COUNTDOWN_TIMER, AUCTION_BID
+    }
 
     private int currentStep = 0;
     private boolean isActive = false;
@@ -122,7 +65,6 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.autoButton.setOnClickListener(v -> autoRun());
 
         binding.typeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            // Reset state when switching type
             if (isActive) {
                 autoHandler.removeCallbacksAndMessages(null);
                 isActive = false;
@@ -134,20 +76,23 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         });
     }
 
-    private NotificationType getSelectedType() {
+    private TemplateChoice getSelectedTemplate() {
         int checkedId = binding.typeRadioGroup.getCheckedRadioButtonId();
-        if (checkedId == R.id.radio_timer) return NotificationType.TIMER;
-        if (checkedId == R.id.radio_sports) return NotificationType.SPORTS;
-        if (checkedId == R.id.radio_delivery_actions) return NotificationType.DELIVERY_ACTIONS;
-        return NotificationType.DELIVERY;
+        if (checkedId == R.id.radio_flight_status) return TemplateChoice.FLIGHT_STATUS;
+        if (checkedId == R.id.radio_live_score) return TemplateChoice.LIVE_SCORE;
+        if (checkedId == R.id.radio_countdown_timer) return TemplateChoice.COUNTDOWN_TIMER;
+        if (checkedId == R.id.radio_auction_bid) return TemplateChoice.AUCTION_BID;
+        return TemplateChoice.DELIVERY_TRACKING;
     }
 
     private int getStepCount() {
-        switch (getSelectedType()) {
-            case TIMER: return TIMER_TITLES.length;
-            case SPORTS: return SPORTS_TITLES.length;
-            case DELIVERY_ACTIONS: return ACTIONS_TITLES.length;
-            default: return DELIVERY_TITLES.length;
+        switch (getSelectedTemplate()) {
+            case DELIVERY_TRACKING: return 4; // ordered, preparing, on the way, delivered
+            case FLIGHT_STATUS: return 4;     // pre-departure, boarding, in-flight, arrived
+            case LIVE_SCORE: return 4;        // 4 score updates
+            case COUNTDOWN_TIMER: return 3;   // pre-target, near-target, expired
+            case AUCTION_BID: return 4;       // outbid, winning, outbid again, ended
+            default: return 1;
         }
     }
 
@@ -201,127 +146,132 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     // --- Push construction ---
 
     private void sendPush(String event, int step) {
-        switch (getSelectedType()) {
-            case DELIVERY:
-                sendDeliveryPush(event, step);
-                break;
-            case TIMER:
-                sendTimerPush(event, step);
-                break;
-            case SPORTS:
-                sendSportsPush(event, step);
-                break;
-            case DELIVERY_ACTIONS:
-                sendDeliveryActionsPush(event, step);
-                break;
+        switch (getSelectedTemplate()) {
+            case DELIVERY_TRACKING: sendDeliveryTracking(event, step); break;
+            case FLIGHT_STATUS: sendFlightStatus(event, step); break;
+            case LIVE_SCORE: sendLiveScore(event, step); break;
+            case COUNTDOWN_TIMER: sendCountdownTimer(event, step); break;
+            case AUCTION_BID: sendAuctionBid(event, step); break;
         }
     }
 
-    private boolean isFullPayload() {
-        return binding.fullPayloadCheckbox.isChecked();
-    }
-
-    private void sendDeliveryPush(String event, int step) {
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
+    private void sendDeliveryTracking(String event, int step) {
+        String[] statuses = {
+                "Your order has been placed",
+                "Your order is being prepared",
+                "Your order is out for delivery",
+                "Your order has been delivered"
+        };
+        String[] imageKeys = {"delivery_warehouse", "delivery_warehouse", "delivery_truck", "delivery_door"};
+        JSONObject payload = new JSONObject();
         try {
-            attributes.put("progress_max", DELIVERY_TITLES.length);
-            contentState.put("title", DELIVERY_TITLES[step]);
-            contentState.put("body", DELIVERY_BODIES[step]);
-            contentState.put("progress", step + 1);
-            if (isFullPayload()) {
-                attributes.put("segments", DELIVERY_SEGMENTS);
-                attributes.put("start_icon", DEMO_ICON);
-                attributes.put("end_icon", DEMO_ICON);
-                attributes.put("tracker_icon", DEMO_ICON);
-                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
-                attributes.put("colorized", true);
-                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
-                contentState.put("subtext", DELIVERY_SUBTEXTS[step]);
-                contentState.put("color", DELIVERY_COLOR);
-            }
+            payload.put("orderId", "ABC-1234");
+            payload.put("recipientName", "Mahmoud");
+            payload.put("statusMessage", statuses[step]);
+            payload.put("statusImageKey", imageKeys[step]);
+            payload.put("stepCurrent", step + 1);
+            payload.put("stepTotal", statuses.length);
+            payload.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
+            if (step == 2) payload.put("driverName", "Sam");
         } catch (JSONException ignored) { }
-        fire(baseBundle(DELIVERY_ID, event, TYPE_PROGRESS, attributes, contentState));
+        fire(buildBundle("demo-delivery-tracking", event, TEMPLATE_DELIVERY_TRACKING, payload));
     }
 
-    private void sendTimerPush(String event, int step) {
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
+    private void sendFlightStatus(String event, int step) {
+        String[] statuses = {"On time", "Boarding now", "In flight", "Arrived"};
+        Double[] progress = {null, null, 0.55, 1.0};
+        JSONObject payload = new JSONObject();
         try {
-            contentState.put("title", TIMER_TITLES[step]);
-            contentState.put("body", TIMER_BODIES[step]);
-            if (!event.equals(EVENT_END)) {
-                long countdownUntil = System.currentTimeMillis() + 5 * 1000;
-                contentState.put("countdown_until", countdownUntil);
-            }
-            if (isFullPayload()) {
-                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
-                attributes.put("colorized", true);
-                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
-                contentState.put("subtext", TIMER_SUBTEXTS[step]);
-                contentState.put("color", TIMER_COLORS[step]);
-                contentState.put("actions", TIMER_ACTIONS);
-            }
+            JSONObject origin = new JSONObject();
+            origin.put("code", "JFK");
+            origin.put("city", "New York");
+            JSONObject destination = new JSONObject();
+            destination.put("code", "LAX");
+            destination.put("city", "Los Angeles");
+
+            payload.put("flightNumber", "AA1234");
+            payload.put("origin", origin);
+            payload.put("destination", destination);
+            payload.put("statusMessage", statuses[step]);
+            payload.put("gate", step >= 1 ? "B12" : JSONObject.NULL);
+            payload.put("terminal", step >= 1 ? "4" : JSONObject.NULL);
+            payload.put("scheduledDeparture", System.currentTimeMillis() + 45L * 60 * 1000);
+            payload.put("estimatedArrival", System.currentTimeMillis() + 6L * 60 * 60 * 1000);
+            if (progress[step] != null) payload.put("progressFraction", progress[step]);
+            if (step == 0) payload.put("delayMinutes", 0); // example: not delayed
         } catch (JSONException ignored) { }
-        fire(baseBundle(TIMER_ID, event, TYPE_COUNTDOWN, attributes, contentState));
+        fire(buildBundle("demo-flight-status", event, TEMPLATE_FLIGHT_STATUS, payload));
     }
 
-    private void sendSportsPush(String event, int step) {
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
+    private void sendLiveScore(String event, int step) {
+        int[] homeScores = {0, 14, 21, 28};
+        int[] awayScores = {0, 7, 21, 24};
+        String[] periods = {"1st Quarter", "2nd Quarter", "3rd Quarter", "FT"};
+        String[] clocks = {"12:00", "5:30", "0:42", null};
+        JSONObject payload = new JSONObject();
         try {
-            contentState.put("title", SPORTS_TITLES[step]);
-            contentState.put("body", SPORTS_BODIES[step]);
-            if (isFullPayload()) {
-                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
-                attributes.put("colorized", true);
-                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
-                contentState.put("subtext", SPORTS_SUBTEXTS[step]);
-                contentState.put("color", SPORTS_COLOR);
-                contentState.put("actions", SPORTS_ACTIONS);
-            }
+            JSONObject homeTeam = new JSONObject();
+            homeTeam.put("name", "Lakers");
+            JSONObject awayTeam = new JSONObject();
+            awayTeam.put("name", "Celtics");
+
+            payload.put("homeTeam", homeTeam);
+            payload.put("awayTeam", awayTeam);
+            payload.put("sport", "basketball");
+            payload.put("leagueLogoKey", "league_nba");
+            payload.put("homeScore", homeScores[step]);
+            payload.put("awayScore", awayScores[step]);
+            payload.put("period", periods[step]);
+            if (clocks[step] != null) payload.put("clock", clocks[step]);
         } catch (JSONException ignored) { }
-        fire(baseBundle(SPORTS_ID, event, TYPE_TEXT, attributes, contentState));
+        fire(buildBundle("demo-live-score", event, TEMPLATE_LIVE_SCORE, payload));
     }
 
-    private void sendDeliveryActionsPush(String event, int step) {
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
+    private void sendCountdownTimer(String event, int step) {
+        JSONObject payload = new JSONObject();
         try {
-            attributes.put("progress_max", ACTIONS_TITLES.length);
-            contentState.put("title", ACTIONS_TITLES[step]);
-            contentState.put("body", ACTIONS_BODIES[step]);
-            contentState.put("progress", step + 1);
-            if (isFullPayload()) {
-                attributes.put("segments", ACTIONS_SEGMENTS);
-                attributes.put("start_icon", DEMO_ICON);
-                attributes.put("end_icon", DEMO_ICON);
-                attributes.put("large_icon", DEMO_LARGE_ICON_URL);
-                attributes.put("colorized", true);
-                attributes.put("dismiss_delay", DEMO_DISMISS_DELAY_MS);
-                int minutesRemaining = Math.max(1, (ACTIONS_TITLES.length - step) * 3);
-                contentState.put("subtext", "ETA: " + minutesRemaining + " min");
-                contentState.put("color", ACTIONS_COLOR);
-                contentState.put("actions", ACTIONS_BUTTONS);
-            }
+            payload.put("title", "Flash Sale");
+            payload.put("heroImageKey", "flash_sale_hero");
+            // Step 0: 5 min out. Step 1: 30s out. Step 2: post-target with expired message.
+            long now = System.currentTimeMillis();
+            long[] offsets = {5 * 60 * 1000L, 30 * 1000L, -1};
+            payload.put("targetDate", offsets[step] >= 0 ? now + offsets[step] : now - 1000);
+            payload.put("statusMessage", "Sale starts in");
+            if (step == 2) payload.put("expiredMessage", "Sale is live!");
         } catch (JSONException ignored) { }
-        Bundle bundle = baseBundle(ACTIONS_ID, event, TYPE_PROGRESS, attributes, contentState);
-        if (isFullPayload()) {
-            bundle.putString("link", "sample://order/456/details");
-        }
-        fire(bundle);
+        fire(buildBundle("demo-countdown-timer", event, TEMPLATE_COUNTDOWN_TIMER, payload));
     }
 
-    private Bundle baseBundle(String activityId, String event, String activityType,
-                              JSONObject attributes, JSONObject contentState) {
+    private void sendAuctionBid(String event, int step) {
+        // Step 0: outbid, step 1: winning, step 2: outbid again, step 3: ended
+        boolean[] highBidder = {false, true, false, false};
+        String[] currentBids = {"1,200", "1,250", "1,300", "1,300"};
+        String[] userBids = {"1,150", "1,250", "1,250", "1,250"};
+        String[] statuses = {"You've been outbid", "You're winning", "You've been outbid", "Auction ended"};
+        int[] bidCounts = {7, 8, 9, 9};
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("itemTitle", "Vintage Camera");
+            payload.put("itemImageKey", "auction_camera");
+            payload.put("currencySymbol", "$");
+            payload.put("currentBid", currentBids[step]);
+            payload.put("bidCount", bidCounts[step]);
+            payload.put("endTime", System.currentTimeMillis() + 10L * 60 * 1000);
+            payload.put("statusMessage", statuses[step]);
+            payload.put("isUserHighBidder", highBidder[step]);
+            payload.put("userBidAmount", userBids[step]);
+        } catch (JSONException ignored) { }
+        fire(buildBundle("demo-auction-bid", event, TEMPLATE_AUCTION_BID, payload));
+    }
+
+    private Bundle buildBundle(String activityId, String event, String template, JSONObject payload) {
         Bundle bundle = new Bundle();
         bundle.putString("CIO-Delivery-ID", UUID.randomUUID().toString());
         bundle.putString("CIO-Delivery-Token", DEMO_DELIVERY_TOKEN);
         bundle.putString("activity_id", activityId);
         bundle.putString("event", event);
-        bundle.putString("activity_type", activityType);
-        bundle.putString("attributes", attributes.toString());
-        bundle.putString("content_state", contentState.toString());
+        bundle.putString("template", template);
+        bundle.putString("payload", payload.toString());
         return bundle;
     }
 
@@ -341,15 +291,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     }
 
     private void updateStatusText() {
-        NotificationType type = getSelectedType();
-        String label;
-        switch (type) {
-            case TIMER: label = TIMER_TITLES[currentStep]; break;
-            case SPORTS: label = SPORTS_TITLES[currentStep]; break;
-            case DELIVERY_ACTIONS: label = ACTIONS_TITLES[currentStep]; break;
-            default: label = DELIVERY_TITLES[currentStep]; break;
-        }
-        binding.statusTextView.setText(getString(R.string.live_notification_status_format, label, currentStep + 1));
+        binding.statusTextView.setText(getString(R.string.live_notification_status_format, getSelectedTemplate().name(), currentStep + 1));
     }
 
     @Override

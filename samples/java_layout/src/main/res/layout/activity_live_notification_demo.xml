@@ -48,39 +48,37 @@
             android:orientation="vertical">
 
             <RadioButton
-                android:id="@+id/radio_delivery"
+                android:id="@+id/radio_delivery_tracking"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="@string/live_notification_type_delivery" />
+                android:text="@string/live_notification_type_delivery_tracking" />
 
             <RadioButton
-                android:id="@+id/radio_timer"
+                android:id="@+id/radio_flight_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/live_notification_type_timer" />
+                android:text="@string/live_notification_type_flight_status" />
 
             <RadioButton
-                android:id="@+id/radio_sports"
+                android:id="@+id/radio_live_score"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/live_notification_type_sports" />
+                android:text="@string/live_notification_type_live_score" />
 
             <RadioButton
-                android:id="@+id/radio_delivery_actions"
+                android:id="@+id/radio_countdown_timer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/live_notification_type_delivery_actions" />
+                android:text="@string/live_notification_type_countdown_timer" />
+
+            <RadioButton
+                android:id="@+id/radio_auction_bid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/live_notification_type_auction_bid" />
 
         </RadioGroup>
-
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/full_payload_checkbox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:checked="true"
-            android:text="@string/live_notification_full_payload" />
 
         <!-- Manual controls -->
         <TextView

@@ -12,10 +12,9 @@ import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.toColorInt
+import io.customer.messagingpush.livenotification.template.PointSpec
+import io.customer.messagingpush.livenotification.template.SegmentSpec
 import io.customer.sdk.core.di.SDKComponent
-import org.json.JSONArray
-import org.json.JSONException
 
 /**
  * Parameters for building a promoted live notification on API 36+ (BAKLAVA).
@@ -34,8 +33,8 @@ internal data class Api36LiveNotificationParams(
     val subText: String?,
     @DrawableRes val smallIcon: Int,
     @ColorInt val accentColor: Int?,
-    val segmentsJson: String?,
-    val pointsJson: String?,
+    val segments: List<SegmentSpec>,
+    val points: List<PointSpec>,
     val progress: Int,
     val progressMax: Int,
     @DrawableRes val startIconRes: Int?,
@@ -44,7 +43,6 @@ internal data class Api36LiveNotificationParams(
     val pendingIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
-    val actions: List<ActionData>,
     val showProgress: Boolean
 )
 
@@ -63,8 +61,6 @@ internal data class Api36LiveNotificationParams(
  */
 internal object Api36LiveNotificationBuilder {
 
-    private const val MAX_ACTIONS = 3
-
     // Notification.EXTRA_REQUEST_PROMOTED_ONGOING was added in extension SDK 36.1.
     // Use the raw string value so we can compile against base API 36.
     private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
@@ -80,8 +76,6 @@ internal object Api36LiveNotificationBuilder {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
 
-        // Request promoted ongoing status when the host app holds the permission.
-        // If missing, fall back silently to standard ongoing — the notification still posts.
         if (canPostPromotedNotifications(params.context)) {
             val extras = Bundle().apply {
                 putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
@@ -96,11 +90,10 @@ internal object Api36LiveNotificationBuilder {
         if (params.showProgress) {
             builder.setCategory(Notification.CATEGORY_PROGRESS)
 
-            val segments = params.segmentsJson?.let { parseSegments(it) } ?: emptyList()
-            // When no segments are provided, create a single segment sized to progressMax
-            // so ProgressStyle knows the total range for the bar.
-            val effectiveSegments = segments.ifEmpty {
-                listOf(Notification.ProgressStyle.Segment(params.progressMax))
+            val effectiveSegments = if (params.segments.isNotEmpty()) {
+                params.segments.map { it.toSystem() }
+            } else {
+                listOf(Notification.ProgressStyle.Segment(params.progressMax.coerceAtLeast(1)))
             }
             val maxProgress = effectiveSegments.sumOf { it.length }
             val safeProgress = params.progress.coerceIn(0, maxProgress)
@@ -110,11 +103,8 @@ internal object Api36LiveNotificationBuilder {
 
             progressStyle.progressSegments = effectiveSegments
 
-            params.pointsJson?.let { json ->
-                val points = parsePoints(json, maxProgress)
-                if (points.isNotEmpty()) {
-                    progressStyle.progressPoints = points
-                }
+            if (params.points.isNotEmpty()) {
+                progressStyle.progressPoints = params.points.map { it.toSystem(maxProgress) }
             }
 
             params.startIconRes?.let { res ->
@@ -133,7 +123,6 @@ internal object Api36LiveNotificationBuilder {
             builder.style = Notification.BigTextStyle().bigText(params.body)
         }
 
-        // Countdown timer
         params.countdownUntil?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)
@@ -141,7 +130,6 @@ internal object Api36LiveNotificationBuilder {
             builder.setShowWhen(true)
         }
 
-        // Large icon
         params.largeIcon?.let { bitmap ->
             builder.setLargeIcon(Icon.createWithBitmap(bitmap))
         }
@@ -149,15 +137,6 @@ internal object Api36LiveNotificationBuilder {
         params.subText?.let { builder.setSubText(it) }
         params.accentColor?.let { builder.setColor(it) }
         params.pendingIntent?.let { builder.setContentIntent(it) }
-
-        // Action buttons (Android supports max 3)
-        val actionCount = minOf(params.actions.size, MAX_ACTIONS)
-        for (i in 0 until actionCount) {
-            val action = params.actions[i]
-            builder.addAction(
-                Notification.Action.Builder(null, action.label, action.pendingIntent).build()
-            )
-        }
 
         return builder.build()
     }
@@ -170,52 +149,16 @@ internal object Api36LiveNotificationBuilder {
     }
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-    private fun parseSegments(json: String): List<Notification.ProgressStyle.Segment> {
-        val segments = mutableListOf<Notification.ProgressStyle.Segment>()
-        try {
-            val array = JSONArray(json)
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                val length = obj.optInt("length", 1).coerceAtLeast(1)
-                val segment = Notification.ProgressStyle.Segment(length)
-                val colorStr = obj.optString("color", "")
-                if (colorStr.isNotEmpty()) {
-                    try {
-                        segment.color = colorStr.toColorInt()
-                    } catch (e: IllegalArgumentException) {
-                        SDKComponent.logger.error("Invalid segment color '$colorStr': ${e.message}")
-                    }
-                }
-                segments.add(segment)
-            }
-        } catch (e: JSONException) {
-            SDKComponent.logger.error("Failed to parse live notification segments JSON: ${e.message}")
-        }
-        return segments
+    private fun SegmentSpec.toSystem(): Notification.ProgressStyle.Segment {
+        val segment = Notification.ProgressStyle.Segment(length.coerceAtLeast(1))
+        color?.let { segment.color = it }
+        return segment
     }
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
-    private fun parsePoints(json: String, maxProgress: Int): List<Notification.ProgressStyle.Point> {
-        val points = mutableListOf<Notification.ProgressStyle.Point>()
-        try {
-            val array = JSONArray(json)
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                val position = obj.optInt("position", 0).coerceIn(0, maxProgress)
-                val point = Notification.ProgressStyle.Point(position)
-                val colorStr = obj.optString("color", "")
-                if (colorStr.isNotEmpty()) {
-                    try {
-                        point.color = colorStr.toColorInt()
-                    } catch (e: IllegalArgumentException) {
-                        SDKComponent.logger.error("Invalid point color '$colorStr': ${e.message}")
-                    }
-                }
-                points.add(point)
-            }
-        } catch (e: JSONException) {
-            SDKComponent.logger.error("Failed to parse live notification points JSON: ${e.message}")
-        }
-        return points
+    private fun PointSpec.toSystem(maxProgress: Int): Notification.ProgressStyle.Point {
+        val point = Notification.ProgressStyle.Point(position.coerceIn(0, maxProgress))
+        color?.let { point.color = it }
+        return point
     }
 }

@@ -22,7 +22,7 @@ class ProcessLifecycleForegroundStateTest : JUnitTest() {
     }
 
     private fun newState() = ProcessLifecycleForegroundState(
-        processLifecycleOwner = mockOwner,
+        processLifecycleOwnerProvider = { mockOwner },
         dispatchersProvider = DispatchersProviderStub()
     )
 

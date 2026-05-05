@@ -13,14 +13,18 @@ internal interface AppForegroundState {
 }
 
 /**
- * [AppForegroundState] backed by [ProcessLifecycleOwner]. The `@MainThread`
- * `currentState` getter is invoked via `withContext(dispatchers.main)` so the
- * read happens on the main thread regardless of where the caller is suspended.
+ * [AppForegroundState] backed by [ProcessLifecycleOwner]. The `LifecycleOwner`
+ * is resolved lazily on first read of [isInForeground], which always happens
+ * inside `withContext(dispatchers.main)` — so `ProcessLifecycleOwner.get()`
+ * and the `@MainThread` `currentState` getter both run on the main thread
+ * regardless of where the SDK was initialized.
  */
 internal class ProcessLifecycleForegroundState(
-    private val processLifecycleOwner: LifecycleOwner = ProcessLifecycleOwner.get(),
+    processLifecycleOwnerProvider: () -> LifecycleOwner = { ProcessLifecycleOwner.get() },
     private val dispatchersProvider: DispatchersProvider = SDKComponent.dispatchersProvider
 ) : AppForegroundState {
+
+    private val processLifecycleOwner: LifecycleOwner by lazy(processLifecycleOwnerProvider)
 
     override suspend fun isInForeground(): Boolean = withContext(dispatchersProvider.main) {
         processLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)

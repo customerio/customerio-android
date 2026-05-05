@@ -4,6 +4,7 @@ import com.segment.analytics.kotlin.core.Analytics
 import io.customer.commontest.config.TestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.util.AppForegroundState
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -37,7 +38,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
 
     @Test
     fun schedule_givenForeground_expectsFlushOnEachTick() {
-        every { mockForegroundState.isInForeground } returns true
+        coEvery { mockForegroundState.isInForeground() } returns true
 
         val policy = newPolicy()
 
@@ -54,7 +55,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
 
     @Test
     fun schedule_givenBackground_expectsNoFlush() {
-        every { mockForegroundState.isInForeground } returns false
+        coEvery { mockForegroundState.isInForeground() } returns false
 
         val policy = newPolicy()
 
@@ -69,7 +70,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
 
     @Test
     fun schedule_givenForegroundThenBackgroundThenForeground_expectsPauseAndResume() {
-        every { mockForegroundState.isInForeground } returns true
+        coEvery { mockForegroundState.isInForeground() } returns true
 
         val policy = newPolicy()
 
@@ -77,7 +78,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
         testScope.runCurrent()
         verify(exactly = 1) { mockAnalytics.flush() }
 
-        every { mockForegroundState.isInForeground } returns false
+        coEvery { mockForegroundState.isInForeground() } returns false
         testScope.advanceTimeBy(flushIntervalMs + 1)
         testScope.runCurrent()
         verify(exactly = 1) { mockAnalytics.flush() }
@@ -86,7 +87,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
         testScope.runCurrent()
         verify(exactly = 1) { mockAnalytics.flush() }
 
-        every { mockForegroundState.isInForeground } returns true
+        coEvery { mockForegroundState.isInForeground() } returns true
         testScope.advanceTimeBy(flushIntervalMs + 1)
         testScope.runCurrent()
         verify(exactly = 2) { mockAnalytics.flush() }
@@ -96,7 +97,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
 
     @Test
     fun schedule_calledTwice_expectsOnlyOneCoroutine() {
-        every { mockForegroundState.isInForeground } returns true
+        coEvery { mockForegroundState.isInForeground() } returns true
 
         val policy = newPolicy()
 
@@ -117,7 +118,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
 
     @Test
     fun schedule_calledAfterUnschedule_expectsNewCoroutineLaunched() {
-        every { mockForegroundState.isInForeground } returns true
+        coEvery { mockForegroundState.isInForeground() } returns true
 
         val policy = newPolicy()
 
@@ -140,7 +141,7 @@ class BackgroundAwareFrequencyFlushPolicyTest : JUnitTest(dispatcher = StandardT
 
     @Test
     fun unschedule_givenScheduled_expectsCoroutineCancelled() {
-        every { mockForegroundState.isInForeground } returns true
+        coEvery { mockForegroundState.isInForeground() } returns true
 
         val policy = newPolicy()
 

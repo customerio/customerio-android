@@ -21,7 +21,7 @@ internal class BackgroundAwareFrequencyFlushPolicy(
         if (flushJob?.isActive == true) return
         flushJob = analytics.analyticsScope.launch(analytics.fileIODispatcher) {
             while (isActive) {
-                if (foregroundState.isInForeground) {
+                if (foregroundState.isInForeground()) {
                     analytics.flush()
                 }
                 delay(flushIntervalInMillis)

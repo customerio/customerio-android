@@ -927,4 +927,67 @@ class DataPipelinesInteractionTests : JUnitTest() {
         assertCalledOnce { mockDataPipelinesLogger.logTrackingDevicesAttributesWithoutValidToken() }
     }
     //endregion Logging
+
+    //region Event serialization
+
+    @Test
+    fun givenComplexEventWithNestedNulls_expectSuccessfulEventProcessing() {
+        val eventName = "complex_event"
+        val properties: CustomAttributes = mapOf(
+            "customer" to mapOf(
+                "id" to 123,
+                "name" to "Test Customer",
+                "account" to mapOf(
+                    "type" to "premium",
+                    "paymentMethod" to null,
+                    "details" to mapOf(
+                        "active" to true,
+                        "lastPaymentDate" to null
+                    )
+                ),
+                "preferences" to null
+            ),
+            "products" to listOf(
+                mapOf("id" to 1, "name" to "Product A", "variants" to null),
+                mapOf(
+                    "id" to 2,
+                    "name" to "Product B",
+                    "variants" to listOf(
+                        mapOf("color" to "red", "size" to null),
+                        null
+                    )
+                ),
+                null
+            )
+        )
+
+        sdkInstance.track(eventName, properties)
+
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
+        val event = outputReaderPlugin.trackEvents.first()
+        event.shouldNotBeNull()
+        event.event shouldBeEqualTo eventName
+
+        val customer = event.properties["customer"] as? Map<*, *>
+        customer.shouldNotBeNull()
+
+        val account = customer["account"] as? Map<*, *>
+        account.shouldNotBeNull()
+
+        val details = account["details"] as? Map<*, *>
+        details.shouldNotBeNull()
+
+        val products = event.properties["products"] as? List<*>
+        products.shouldNotBeNull()
+        products.size shouldBeEqualTo 3
+
+        val productB = products[1] as? Map<*, *>
+        productB.shouldNotBeNull()
+
+        val variants = productB["variants"] as? List<*>
+        variants.shouldNotBeNull()
+        variants.size shouldBeEqualTo 2
+    }
+
+    //endregion Event serialization
 }

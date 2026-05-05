@@ -54,12 +54,11 @@ class CustomerIODestinationTest : IntegrationTest() {
         // Verify plugin is present in analytics instance
         sdkInstance.analytics.find(CustomerIODestination::class) shouldNotBe null
 
-        // Track an event to verify it flows through the pipeline
-        sdkInstance.track("test_event")
-
-        // Verify event was processed
-        outputReaderPlugin.trackEvents.size shouldBe 1
-        outputReaderPlugin.trackEvents.first().event shouldBe "test_event"
+        // In 1.19.2, checkSettings() dispatched ToggleRunningAction(true) unconditionally,
+        // so StartupQueue released events even on settings failure. From 1.20.0 onward,
+        // ToggleRunningAction(true) is only dispatched on successful settings fetch, meaning
+        // events remain held in StartupQueue when settings fail. Asserting event flow here
+        // was validating that 1.19.2 bug, not an intentional contract.
     }
 
     @Test
@@ -74,66 +73,10 @@ class CustomerIODestinationTest : IntegrationTest() {
 
     @Test
     fun givenComplexEventWithNestedNulls_expectSuccessfulEventProcessingThroughDestination() {
-        // Create an event with complex nested structure containing nulls
-        val eventName = "complex_event"
-        val properties: CustomAttributes = mapOf(
-            "customer" to mapOf(
-                "id" to 123,
-                "name" to "Test Customer",
-                "account" to mapOf(
-                    "type" to "premium",
-                    "paymentMethod" to null, // Null at deeper level
-                    "details" to mapOf(
-                        "active" to true,
-                        "lastPaymentDate" to null // Another null at even deeper level
-                    )
-                ),
-                "preferences" to null // Null at second level
-            ),
-            "products" to listOf(
-                mapOf("id" to 1, "name" to "Product A", "variants" to null), // Null in list item
-                mapOf(
-                    "id" to 2,
-                    "name" to "Product B",
-                    "variants" to listOf(
-                        mapOf("color" to "red", "size" to null), // Null in nested list item
-                        null // Null list item in nested list
-                    )
-                ),
-                null // Null list item
-            )
-        )
-
-        // Track event with complex properties containing nulls
-        sdkInstance.track(eventName, properties)
-
-        // Verify the event was processed successfully
-        outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        val event = outputReaderPlugin.trackEvents.first()
-        event.shouldNotBeNull()
-        event.event shouldBeEqualTo eventName
-
-        // Verify the nested structures were preserved
-        val customer = event.properties["customer"] as? Map<*, *>
-        customer.shouldNotBeNull()
-
-        val account = customer["account"] as? Map<*, *>
-        account.shouldNotBeNull()
-
-        val details = account["details"] as? Map<*, *>
-        details.shouldNotBeNull()
-
-        // Verify the list was properly processed
-        val products = event.properties["products"] as? List<*>
-        products.shouldNotBeNull()
-        products.size shouldBeEqualTo 3
-
-        // Verify an item with a nested list was processed correctly
-        val productB = products[1] as? Map<*, *>
-        productB.shouldNotBeNull()
-
-        val variants = productB["variants"] as? List<*>
-        variants.shouldNotBeNull()
-        variants.size shouldBeEqualTo 2
+        // Moved to DataPipelinesInteractionTests as givenComplexEventWithNestedNulls_expectSuccessfulEventProcessing.
+        // This fixture mocks HTTPClient to throw on settings fetch, so StartupQueue never releases events
+        // (same root cause as the first test above: ToggleRunningAction(true) is only dispatched on
+        // successful settings fetch from 1.20.0 onward). The moved test runs where settings succeed,
+        // making the assertion meaningful.
     }
 }

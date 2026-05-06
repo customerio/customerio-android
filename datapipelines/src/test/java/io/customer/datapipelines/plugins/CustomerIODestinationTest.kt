@@ -67,12 +67,10 @@ class CustomerIODestinationTest : IntegrationTest() {
         (integrations?.contains(CUSTOMER_IO_DATA_PIPELINES) ?: false) shouldBe true
     }
 
-    @Test
-    fun givenComplexEventWithNestedNulls_expectSuccessfulEventProcessingThroughDestination() {
-        // Moved to DataPipelinesInteractionTests as givenComplexEventWithNestedNulls_expectSuccessfulEventProcessing.
-        // This fixture mocks HTTPClient to throw on settings fetch, so StartupQueue never releases events
-        // (same root cause as the first test above: ToggleRunningAction(true) is only dispatched on
-        // successful settings fetch from 1.20.0 onward). The moved test runs where settings succeed,
-        // making the assertion meaningful.
-    }
+    // Moved givenComplexEventWithNestedNulls_expectSuccessfulEventProcessingThroughDestination
+    // to DataPipelinesInteractionTests as givenComplexEventWithNestedNulls_expectSuccessfulEventProcessing.
+    // This fixture mocks HTTPClient to throw on settings fetch, so StartupQueue never releases events
+    // (same root cause as the first test above: ToggleRunningAction(true) is only dispatched on
+    // successful settings fetch from 1.20.0 onward). The moved test runs where settings succeed,
+    // making the assertion meaningful.
 }

@@ -55,6 +55,7 @@ public final class io/customer/datapipelines/plugins/AutoTrackDeviceAttributesPl
 	public fun getType ()Lcom/segment/analytics/kotlin/core/platform/Plugin$Type;
 	public fun setAnalytics (Lcom/segment/analytics/kotlin/core/Analytics;)V
 	public fun setup (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun shutdown ()V
 	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
 }
 
@@ -73,6 +74,7 @@ public final class io/customer/datapipelines/plugins/AutomaticActivityScreenTrac
 	public fun onActivityStopped (Landroid/app/Activity;)V
 	public fun setAnalytics (Lcom/segment/analytics/kotlin/core/Analytics;)V
 	public fun setup (Lcom/segment/analytics/kotlin/core/Analytics;)V
+	public fun shutdown ()V
 	public fun update (Lcom/segment/analytics/kotlin/core/Settings;Lcom/segment/analytics/kotlin/core/platform/Plugin$UpdateType;)V
 }
 

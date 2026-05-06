@@ -5,15 +5,11 @@ import io.customer.commontest.config.TestConfig
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
-import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.sdk.data.model.CustomAttributes
 import io.mockk.every
 import io.mockk.mockkConstructor
 import okio.IOException
 import org.amshove.kluent.shouldBe
-import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBe
-import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

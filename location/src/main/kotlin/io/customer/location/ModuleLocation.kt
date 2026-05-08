@@ -2,6 +2,7 @@ package io.customer.location
 
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.customer.location.geofence.di.geofenceCooldownFilter
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -118,6 +119,12 @@ class ModuleLocation @JvmOverloads constructor(
             if (!it.userId.isNullOrEmpty()) {
                 locationTracker.onUserIdentified()
             }
+        }
+
+        // Clear geofence cooldown state on user reset so a new user isn't suppressed
+        // by transitions emitted under the previous identity.
+        eventBus.subscribe<Event.ResetEvent> {
+            SDKComponent.android().geofenceCooldownFilter.clearAll()
         }
 
         // Register lifecycle observer for background cancellation and ON_APP_START.

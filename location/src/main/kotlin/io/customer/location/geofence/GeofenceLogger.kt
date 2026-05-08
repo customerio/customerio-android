@@ -29,12 +29,24 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Cannot register geofences: $permission not granted. Host app must request this permission.", tag = TAG)
     }
 
-    fun logTransitionReceived(geofenceId: String, transitionName: String) {
-        logger.debug("Transition $transitionName for geofence $geofenceId", tag = TAG)
+    fun logTransitionEmitting(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: emitting tracked event via EventBus", tag = TAG)
+    }
+
+    fun logUnknownTransition(transitionType: Int) {
+        logger.debug("Ignoring geofence transition type=$transitionType (only ENTER and EXIT are tracked)", tag = TAG)
+    }
+
+    fun logTransitionWithoutLocation() {
+        logger.debug("Geofence transition fired but OS provided no location; emitting event with lat/lng omitted from properties", tag = TAG)
+    }
+
+    fun logMovementTriggerSkipped() {
+        logger.debug("Movement trigger geofence fired; movement-trigger handling lands in MBL-1623", tag = TAG)
     }
 
     fun logGeofencingError(errorCode: Int) {
-        logger.error("Geofencing error code: $errorCode", tag = TAG)
+        logger.error("OS reported geofencing error (code=$errorCode); see GeofenceStatusCodes for meaning", tag = TAG)
     }
 
     fun logSyncFailed(message: String?) {

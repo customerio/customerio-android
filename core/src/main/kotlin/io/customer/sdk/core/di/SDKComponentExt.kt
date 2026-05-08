@@ -4,7 +4,9 @@ import android.content.Context
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.CustomerIOHttpClientImpl
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
+import io.customer.sdk.core.util.SystemClock
 
 /**
  * The file contains extension functions for the SDKComponent object and its dependencies.
@@ -29,3 +31,7 @@ val SDKComponent.httpClient: CustomerIOHttpClient
 @InternalCustomerIOApi
 val SDKComponent.workManagerProvider: CustomerIOWorkManagerProvider
     get() = singleton<CustomerIOWorkManagerProvider> { CustomerIOWorkManagerProvider(android().applicationContext, logger) }
+
+@InternalCustomerIOApi
+val SDKComponent.clock: Clock
+    get() = singleton<Clock> { SystemClock() }

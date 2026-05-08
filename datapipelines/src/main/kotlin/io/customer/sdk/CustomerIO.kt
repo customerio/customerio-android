@@ -167,6 +167,13 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.ResetEvent> {
             secureUserStore.clearAll()
         }
+        eventBus.subscribe<Event.GeofenceTransitionEvent> {
+            val eventName = when (it.transition) {
+                Event.GeofenceTransition.ENTER -> EventNames.GEOFENCE_ENTERED
+                Event.GeofenceTransition.EXIT -> EventNames.GEOFENCE_EXITED
+            }
+            track(name = eventName, properties = it.properties)
+        }
     }
 
     private fun migrateTrackingEvents() {

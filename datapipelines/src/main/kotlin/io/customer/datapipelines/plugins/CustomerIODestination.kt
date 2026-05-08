@@ -1,5 +1,6 @@
 package io.customer.datapipelines.plugins
 
+import android.os.Build
 import com.segment.analytics.kotlin.core.AliasEvent
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.BaseEvent
@@ -18,6 +19,7 @@ import com.segment.analytics.kotlin.core.platform.plugins.DestinationMetadataPlu
 import com.segment.analytics.kotlin.core.platform.policies.CountBasedFlushPolicy
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
 import com.segment.analytics.kotlin.core.platform.policies.FrequencyFlushPolicy
+import io.customer.datapipelines.plugins.policies.BackgroundAwareFrequencyFlushPolicy
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import sovran.kotlin.Subscriber
@@ -82,9 +84,16 @@ class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
 
         // convert flushAt and flushIntervals into FlushPolicies
         flushPolicies = analytics.configuration.flushPolicies.ifEmpty {
+            val flushIntervalMs = analytics.configuration.flushInterval * 1000L
+            // Android 15+ blocks background network; gate the periodic flush on foreground state.
+            val frequencyPolicy: FlushPolicy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                BackgroundAwareFrequencyFlushPolicy(flushIntervalMs)
+            } else {
+                FrequencyFlushPolicy(flushIntervalMs)
+            }
             listOf(
                 CountBasedFlushPolicy(analytics.configuration.flushAt),
-                FrequencyFlushPolicy(analytics.configuration.flushInterval * 1000L)
+                frequencyPolicy
             )
         }
 

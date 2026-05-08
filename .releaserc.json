@@ -45,7 +45,7 @@
           "core/src/main/kotlin/io/customer/sdk/Version.kt",
           "reports/sdk-binary-size.json"
         ],
-        "message": "chore: prepare for ${nextRelease.version}\n\n${nextRelease.notes}"
+        "message": "chore: prepare for ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],
     ["@semantic-release/github", {

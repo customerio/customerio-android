@@ -43,3 +43,13 @@ public final class io/customer/location/ModuleLocation$Companion {
 	public final fun instance ()Lio/customer/location/ModuleLocation;
 }
 
+public final class io/customer/location/geofence/GeofenceBootReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
+public final class io/customer/location/geofence/GeofenceBroadcastReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+

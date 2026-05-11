@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import io.customer.location.geofence.di.geofenceEventScheduler
 import io.customer.location.geofence.di.geofenceLogger
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
@@ -58,6 +59,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     ) {
         val logger = SDKComponent.geofenceLogger
         val timestamp = SDKComponent.clock.currentTimeSeconds()
+        val androidComponent = SDKComponent.android()
+        val scheduler = androidComponent.geofenceEventScheduler
         val eventBus = SDKComponent.eventBus
 
         triggeringGeofenceIds.forEach { geofenceId ->
@@ -77,6 +80,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
 
             logger.logTransitionEmitting(geofenceId, transition.name)
+
+            // Parallel delivery: WorkManager (survives process death) + EventBus (analytics pipeline).
+            scheduler.schedule(
+                geofenceId = geofenceId,
+                transition = transition,
+                latitude = latitude,
+                longitude = longitude,
+                timestamp = timestamp
+            )
 
             val properties = buildMap<String, Any> {
                 put("geofence_id", geofenceId)

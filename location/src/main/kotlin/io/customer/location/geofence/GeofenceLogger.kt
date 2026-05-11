@@ -30,7 +30,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logTransitionEmitting(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: emitting tracked event via EventBus", tag = TAG)
+        logger.debug("Geofence '$geofenceId' $transitionName: emitting tracked event via WorkManager + EventBus", tag = TAG)
     }
 
     fun logUnknownTransition(transitionType: Int) {
@@ -55,6 +55,18 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logReceiverSkipped(reason: String) {
         logger.debug("Geofence receiver skipped: $reason", tag = TAG)
+    }
+
+    fun logEventDeliveryRetryable(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery hit network error; WorkManager will retry", tag = TAG)
+    }
+
+    fun logEventDeliveryFailed(geofenceId: String, transitionName: String, message: String?) {
+        logger.error("Geofence '$geofenceId' $transitionName: HTTP delivery failed and will not retry — $message", tag = TAG)
+    }
+
+    fun logEventInvalidInput() {
+        logger.error("Geofence event worker dropped: input data missing required fields", tag = TAG)
     }
 
     companion object {

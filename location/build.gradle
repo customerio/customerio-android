@@ -47,4 +47,7 @@ dependencies {
     implementation Dependencies.androidxProcessLifecycle
     implementation Dependencies.coroutinesCore
     implementation Dependencies.coroutinesAndroid
+    implementation Dependencies.workManager
+
+    testImplementation Dependencies.workManagerTesting
 }

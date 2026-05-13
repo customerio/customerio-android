@@ -638,13 +638,13 @@ class NotificationInboxTest : IntegrationTest() {
         // Tests thread safety - listeners should receive correct callbacks without crashes or duplicates
         val threads = listeners.map { listener ->
             thread(start = false) {
-                Thread.yield() // Hand off scheduler to increase interleaving likelihood
+                Thread.sleep(1) // Small delay to increase race likelihood
                 notificationInbox.addChangeListener(listener)
                     .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
                 completionLatch.countDown()
             }
         } + thread(start = false) {
-            Thread.yield() // Hand off scheduler to interleave dispatch with listener registrations
+            Thread.sleep(1) // Small delay to increase race likelihood
             manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
                 .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
             completionLatch.countDown()

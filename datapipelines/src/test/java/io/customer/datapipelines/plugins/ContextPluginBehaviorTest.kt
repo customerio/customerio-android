@@ -45,17 +45,22 @@ class ContextPluginBehaviorTest : JUnitTest() {
     }
 
     /**
-     * Verifies the [ContextPlugin]'s @Volatile-field contract directly: a device-token write
-     * from thread A is visible to thread B's next [ContextPlugin.execute] call, which must stamp
-     * the event with that token.
+     * Verifies that [ContextPlugin.execute] reads `deviceToken` freshly on every call and stamps
+     * the current value into the event's context — i.e., a per-event read, not a cached snapshot.
+     *
+     * Note this test does *not* verify the `@Volatile` annotation on `ContextPlugin.deviceToken`.
+     * The [CyclicBarrier] used to fence each round already establishes happens-before between the
+     * writer and reader threads, so cross-thread visibility is guaranteed by the barrier itself.
+     * Asserting `@Volatile` deterministically from a unit test isn't feasible; that property is a
+     * defensive declaration whose removal would be caught by code review, not by this test.
      *
      * The original version of this test queued events through the asynchronous analytics pipeline
      * and tried to correlate events to writes by wall-clock timestamps, racing two threads for
      * five seconds. The pipeline batches and reorders, so on slow CI the correlation window broke
-     * down. We now exercise the contract synchronously: the writer sets `contextPlugin.deviceToken`
-     * directly, the reader calls `contextPlugin.execute(event)` directly, and a [CyclicBarrier]
-     * fences every round so the read happens-after the write. Deterministic across [ROUND_COUNT]
-     * rounds.
+     * down. We now exercise the per-call-read contract synchronously: the writer sets
+     * `contextPlugin.deviceToken` directly, the reader calls `contextPlugin.execute(event)`
+     * directly, and a [CyclicBarrier] fences every round so the read happens-after the write.
+     * Deterministic across [ROUND_COUNT] rounds.
      */
     @Test
     fun execute_whenDeviceTokenIsSetFromAnotherThread_thenAddsCorrectTokenToEvent() {

@@ -22,7 +22,7 @@ jobs:
         report-path: ${{ matrix.module }}/build/reports/lint-results-debug.xml
       if: ${{ always() }} # if running tests fails, we still want to parse the test results 
 
-  # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed. 
+  # Task to verify ktlint already ran for all commits. This verifies you have your git hooks installed.
   kotlin-lint:
     runs-on: ubuntu-latest
     name: Kotlin Lint
@@ -32,3 +32,33 @@ jobs:
 
     - name: Install and run ktlint
       run: make lint-install && make lint-no-format
+
+  # Guardrail: the test files listed below were de-sleeped as part of the
+  # 2026-05 flake fixes. Reintroducing Thread.sleep / runBlocking { delay(...) }
+  # here would re-create the wall-clock races we just eliminated. Use a
+  # CyclicBarrier, runCurrent / flushCoroutines, composeTestRule.waitUntil, or
+  # a real recording listener instead. As future PRs clean up other test
+  # files, add them to this list.
+  no-sleeps-in-tests:
+    runs-on: ubuntu-latest
+    name: No sleeps in protected tests
+    steps:
+    - uses: actions/checkout@v4
+    - name: Fail if Thread.sleep / runBlocking { delay } appears in protected test files
+      run: |
+        set -euo pipefail
+        files=(
+          "messaginginapp/src/test/java/io/customer/messaginginapp/inbox/NotificationInboxTest.kt"
+          "datapipelines/src/test/java/io/customer/datapipelines/plugins/ContextPluginBehaviorTest.kt"
+          "datapipelines/src/test/java/io/customer/datapipelines/util/SegmentInstantFormatterTest.kt"
+          "samples/kotlin_compose/src/androidTest/java/io/customer/android/sample/kotlin_compose/MemoryLeakageInstrumentedTest.kt"
+        )
+        fail=0
+        for f in "${files[@]}"; do
+          if [ ! -f "$f" ]; then continue; fi
+          if grep -nE 'Thread\.sleep|runBlocking\s*\{[^}]*delay\(|kotlinx\.coroutines\.delay' "$f"; then
+            echo "::error file=$f::Sleeps are forbidden in this file. Use deterministic synchronization (CyclicBarrier, flushCoroutines, composeTestRule.waitUntil, recording listener)."
+            fail=1
+          fi
+        done
+        exit $fail

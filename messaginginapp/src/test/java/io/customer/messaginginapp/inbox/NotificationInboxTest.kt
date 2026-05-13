@@ -252,8 +252,13 @@ class NotificationInboxTest : IntegrationTest() {
         val message3 = createInboxMessage(deliveryId = "msg3", topics = listOf("promotions", "special"))
         val allMessages = listOf(message1, message2, message3)
 
-        // Create and add listener
-        val listener = mockk<NotificationInboxChangeListener>(relaxed = true)
+        // Use a real recording listener instead of a mockk + verify pair. MockK's
+        // `verify` raced against the listener callback (which the SUT dispatches
+        // via `coroutineScope.launch(dispatchersProvider.main)` — see
+        // `NotificationInbox.notifyAllListeners`); a plain capturing listener
+        // records the call into a CopyOnWriteArrayList we can read after the
+        // explicit `flushCoroutines` fence.
+        val listener = RecordingChangeListener()
         notificationInbox.addChangeListener(listener)
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
@@ -261,10 +266,11 @@ class NotificationInboxTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.ProcessInboxMessages(allMessages))
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        // Verify listener received all messages
-        verify(exactly = 1) {
-            listener.onMessagesChanged(allMessages)
-        }
+        // First invocation is the initial-state notification (empty list); the
+        // post-dispatch invocation is the one we care about.
+        val nonInitialInvocations = listener.invocations.filter { it.isNotEmpty() }
+        assertEquals(1, nonInitialInvocations.size)
+        assertEquals(allMessages, nonInitialInvocations.first())
     }
 
     @Test
@@ -632,13 +638,13 @@ class NotificationInboxTest : IntegrationTest() {
         // Tests thread safety - listeners should receive correct callbacks without crashes or duplicates
         val threads = listeners.map { listener ->
             thread(start = false) {
-                Thread.sleep(1) // Small delay to increase race likelihood
+                Thread.yield() // Hand off scheduler to increase interleaving likelihood
                 notificationInbox.addChangeListener(listener)
                     .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
                 completionLatch.countDown()
             }
         } + thread(start = false) {
-            Thread.sleep(1) // Small delay to increase race likelihood
+            Thread.yield() // Hand off scheduler to interleave dispatch with listener registrations
             manager.dispatch(InAppMessagingAction.ProcessInboxMessages(updatedMessages))
                 .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
             completionLatch.countDown()
@@ -906,6 +912,25 @@ class NotificationInboxTest : IntegrationTest() {
 
     private fun emptyNotificationInboxChangeListener() = object : NotificationInboxChangeListener {
         override fun onMessagesChanged(messages: List<InboxMessage>) {
+        }
+    }
+
+    /**
+     * Test listener that records every `onMessagesChanged` invocation into a
+     * thread-safe list. Use this instead of `mockk(relaxed = true)` +
+     * `verify { ... }` for inbox-listener tests: the SUT dispatches the
+     * callback through `coroutineScope.launch(dispatchersProvider.main)`, and
+     * MockK's verify-call-table can race that dispatch even with
+     * `UnconfinedTestDispatcher`. A real implementation snapshots the call
+     * synchronously inside the dispatcher closure, so once `flushCoroutines`
+     * returns, the recorded list is authoritative.
+     */
+    private class RecordingChangeListener : NotificationInboxChangeListener {
+        private val received = CopyOnWriteArrayList<List<InboxMessage>>()
+        val invocations: List<List<InboxMessage>> get() = received.toList()
+
+        override fun onMessagesChanged(messages: List<InboxMessage>) {
+            received.add(messages.toList())
         }
     }
 }

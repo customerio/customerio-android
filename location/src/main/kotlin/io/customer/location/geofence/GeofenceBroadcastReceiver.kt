@@ -12,6 +12,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -28,6 +29,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         scope.launch {
             try {
                 handleGeofencingEvent(GeofencingEvent.fromIntent(intent))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver error: ${e.message}")
             } finally {

@@ -8,6 +8,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
+import androidx.work.await
 import io.customer.location.geofence.di.geofenceEventTracker
 import io.customer.location.geofence.di.geofenceLogger
 import io.customer.sdk.communication.Event
@@ -29,7 +30,7 @@ internal class GeofenceEventScheduler(
     private val workManagerProvider: CustomerIOWorkManagerProvider,
     private val asyncTracker: AsyncGeofenceEventTracker
 ) {
-    fun schedule(
+    suspend fun schedule(
         geofenceId: String,
         transition: Event.GeofenceTransition,
         latitude: Double?,
@@ -61,7 +62,8 @@ internal class GeofenceEventScheduler(
 
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
-            workManager.enqueueUniqueWork(uniqueKey, ExistingWorkPolicy.KEEP, workRequest)
+            // Await persistence so the BroadcastReceiver doesn't finish() before WM commits the work spec.
+            workManager.enqueueUniqueWork(uniqueKey, ExistingWorkPolicy.KEEP, workRequest).await()
         } else {
             asyncTracker.trackEvent(geofenceId, transition, latitude, longitude, timestamp)
         }

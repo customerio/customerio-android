@@ -3,7 +3,9 @@ package io.customer.location.geofence.worker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
+import androidx.work.Operation
 import androidx.work.WorkManager
+import com.google.common.util.concurrent.Futures
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
@@ -13,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBe
 import org.junit.Test
@@ -30,11 +33,19 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
+        // Default: enqueue returns an immediately-successful Operation so suspend await() resolves.
+        every {
+            workManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>())
+        } returns immediateSuccessfulOperation()
         scheduler = GeofenceEventScheduler(workManagerProvider, asyncTracker)
     }
 
+    private fun immediateSuccessfulOperation(): Operation = mockk(relaxed = true) {
+        every { result } returns Futures.immediateFuture(Operation.SUCCESS)
+    }
+
     @Test
-    fun schedule_givenWorkManagerAvailable_expectUniqueWorkEnqueued() {
+    fun schedule_givenWorkManagerAvailable_expectUniqueWorkEnqueued() = runTest {
         every { workManagerProvider.getWorkManager() } returns workManager
         val workRequestSlot = slot<OneTimeWorkRequest>()
         val uniqueKeySlot = slot<String>()
@@ -69,7 +80,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
     }
 
     @Test
-    fun schedule_givenNullLatLng_expectInputDataWithoutLatLngKeys() {
+    fun schedule_givenNullLatLng_expectInputDataWithoutLatLngKeys() = runTest {
         every { workManagerProvider.getWorkManager() } returns workManager
         val workRequestSlot = slot<OneTimeWorkRequest>()
 
@@ -88,7 +99,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
     }
 
     @Test
-    fun schedule_givenWorkManagerUnavailable_expectFallbackToAsyncTracker() {
+    fun schedule_givenWorkManagerUnavailable_expectFallbackToAsyncTracker() = runTest {
         every { workManagerProvider.getWorkManager() } returns null
 
         scheduler.schedule(

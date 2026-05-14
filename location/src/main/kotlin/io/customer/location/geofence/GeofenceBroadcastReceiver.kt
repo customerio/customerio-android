@@ -12,22 +12,35 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /** Receives OS geofence transition callbacks and dispatches them to the SDK. */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        // goAsync keeps the process alive until WorkManager has committed the work spec;
+        // without it the OS may kill us between enqueue and persist.
+        val pendingResult = goAsync()
         SDKComponent.setupAndroidComponent(context = context)
+        val scope = CoroutineScope(SDKComponent.dispatchersProvider.background + SupervisorJob())
 
-        try {
-            handleGeofencingEvent(GeofencingEvent.fromIntent(intent))
-        } catch (e: Exception) {
-            SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver error: ${e.message}")
+        scope.launch {
+            try {
+                handleGeofencingEvent(GeofencingEvent.fromIntent(intent))
+            } catch (e: Exception) {
+                SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver error: ${e.message}")
+            } finally {
+                pendingResult.finish()
+                scope.cancel()
+            }
         }
     }
 
     @VisibleForTesting
-    internal fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
+    internal suspend fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
         if (geofencingEvent == null) return
         val logger = SDKComponent.geofenceLogger
 
@@ -51,7 +64,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     @VisibleForTesting
-    internal fun dispatchTransition(
+    internal suspend fun dispatchTransition(
         gmsTransitionType: Int,
         triggeringGeofenceIds: List<String>,
         latitude: Double?,

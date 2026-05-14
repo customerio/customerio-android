@@ -109,7 +109,10 @@ class CustomerIO private constructor(
         )
     )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+    private val contextPlugin: ContextPlugin = ContextPlugin(
+        deviceStore = deviceStore,
+        installationId = androidSDKComponent.installationId
+    )
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration

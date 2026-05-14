@@ -1,0 +1,66 @@
+package io.customer.location.geofence
+
+import android.Manifest
+import androidx.annotation.RequiresPermission
+import io.customer.location.geofence.api.GeofenceApiService
+import io.customer.location.geofence.api.toDomainConfig
+import io.customer.location.geofence.api.toDomainRegions
+import io.customer.location.geofence.store.GeofenceRegionStore
+import io.customer.sdk.data.store.SecureUserStore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+/**
+ * Single entry point for the geofence sync pipeline: fetch nearby regions for the
+ * current user/location, persist them, then register the closest N with the OS.
+ */
+internal interface GeofenceRepository {
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    suspend fun refresh(latitude: Double, longitude: Double): Result<Unit>
+}
+
+internal class GeofenceRepositoryImpl(
+    private val apiService: GeofenceApiService,
+    private val store: GeofenceRegionStore,
+    private val distanceFilter: GeofenceDistanceFilter,
+    private val manager: GeofenceManager,
+    private val secureUserStore: SecureUserStore,
+    private val logger: GeofenceLogger
+) : GeofenceRepository {
+
+    // Serializes refresh() so concurrent triggers can't race
+    // GeofencingClient.addGeofences and leave inconsistent OS state.
+    private val refreshMutex = Mutex()
+
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> = refreshMutex.withLock {
+        val userId = secureUserStore.getUserId()
+        if (userId.isNullOrBlank()) {
+            logger.logSyncSkipped("no identified user")
+            return@withLock Result.success(Unit)
+        }
+
+        apiService.fetchGeofences(userId, latitude, longitude).fold(
+            onSuccess = { response ->
+                val regions = response.toDomainRegions()
+                val config = response.toDomainConfig()
+                store.saveAll(regions)
+                store.setLastSyncTimestamp(System.currentTimeMillis())
+
+                val nearest = distanceFilter.nearest(
+                    regions = regions,
+                    latitude = latitude,
+                    longitude = longitude,
+                    max = config.maxBusinessGeofences
+                )
+                manager.addGeofences(nearest).also { result ->
+                    if (result.isSuccess) logger.logSyncSucceeded(nearest.size)
+                }
+            },
+            onFailure = { error ->
+                logger.logSyncFailed(error.message)
+                Result.failure(error)
+            }
+        )
+    }
+}

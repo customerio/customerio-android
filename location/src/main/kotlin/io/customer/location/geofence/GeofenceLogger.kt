@@ -69,6 +69,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Geofence event worker dropped: input data missing required fields", tag = TAG)
     }
 
+    fun logEventDeliverySkippedNoUser(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery skipped — no identified user", tag = TAG)
+    }
+
     companion object {
         private const val TAG = "Geofence"
     }

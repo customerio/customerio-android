@@ -1,5 +1,6 @@
 package io.customer.location.geofence.worker
 
+import io.customer.location.geofence.GeofenceLogger
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
@@ -27,7 +28,8 @@ internal interface GeofenceEventTracker {
 
 internal class GeofenceEventTrackerImpl(
     private val httpClient: CustomerIOHttpClient,
-    private val secureUserStore: SecureUserStore
+    private val secureUserStore: SecureUserStore,
+    private val logger: GeofenceLogger
 ) : GeofenceEventTracker {
 
     override suspend fun trackEvent(
@@ -37,6 +39,13 @@ internal class GeofenceEventTrackerImpl(
         longitude: Double?,
         timestamp: Long
     ): Result<Unit> {
+        // Cached userId so direct-HTTP delivery works without full SDK init.
+        val userId = secureUserStore.getUserId()
+        if (userId.isNullOrEmpty()) {
+            logger.logEventDeliverySkippedNoUser(geofenceId, transition.name)
+            return Result.failure(IllegalStateException("No identified user; geofence event dropped"))
+        }
+
         val eventName = when (transition) {
             Event.GeofenceTransition.ENTER -> EventNames.GEOFENCE_ENTERED
             Event.GeofenceTransition.EXIT -> EventNames.GEOFENCE_EXITED
@@ -52,8 +61,7 @@ internal class GeofenceEventTrackerImpl(
         val bodyJson = JSONObject().apply {
             put("properties", propertiesJson)
             put("event", eventName)
-            // Cached userId so direct-HTTP delivery works without full SDK init.
-            secureUserStore.getUserId()?.let { put("userId", it) }
+            put("userId", userId)
         }
 
         val params = HttpRequestParams(

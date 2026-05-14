@@ -57,7 +57,7 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
-        val uniqueKey = "${geofenceId}_${transition.name}_$timestamp"
+        val uniqueKey = "${geofenceId}_${transition.name}"
 
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {

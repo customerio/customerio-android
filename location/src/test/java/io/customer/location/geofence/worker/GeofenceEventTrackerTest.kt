@@ -3,6 +3,7 @@ package io.customer.location.geofence.worker
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.location.geofence.GeofenceLogger
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
@@ -14,9 +15,9 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInstanceOf
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBeNull
-import org.amshove.kluent.shouldNotContain
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,12 +28,13 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     private val httpClient: CustomerIOHttpClient = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val logger: GeofenceLogger = mockk(relaxed = true)
 
     private lateinit var tracker: GeofenceEventTrackerImpl
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
-        tracker = GeofenceEventTrackerImpl(httpClient, secureUserStore)
+        tracker = GeofenceEventTrackerImpl(httpClient, secureUserStore, logger)
     }
 
     @Test
@@ -82,12 +84,10 @@ class GeofenceEventTrackerTest : RobolectricTest() {
     }
 
     @Test
-    fun trackEvent_givenAnonymousUser_expectBodyWithoutUserId() = runTest {
+    fun trackEvent_givenAnonymousUser_expectSkippedWithoutHttpCall() = runTest {
         every { secureUserStore.getUserId() } returns null
-        val capturedParams = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 
-        tracker.trackEvent(
+        val result = tracker.trackEvent(
             geofenceId = "biz-geofence-3",
             transition = Event.GeofenceTransition.ENTER,
             latitude = 0.0,
@@ -95,7 +95,9 @@ class GeofenceEventTrackerTest : RobolectricTest() {
             timestamp = 0L
         )
 
-        capturedParams.captured.body.shouldNotBeNull() shouldNotContain "userId"
+        result.isFailure shouldBeEqualTo true
+        result.exceptionOrNull().shouldNotBeNull() shouldBeInstanceOf IllegalStateException::class
+        coVerify(exactly = 0) { httpClient.request(any()) }
     }
 
     @Test
@@ -138,7 +140,7 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenContentTypeHeader_expectJsonHeader() = runTest {
-        every { secureUserStore.getUserId() } returns null
+        every { secureUserStore.getUserId() } returns "user-42"
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 

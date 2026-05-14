@@ -30,7 +30,7 @@ internal val AndroidSDKComponent.geofenceManager: GeofenceManager
 
 internal val AndroidSDKComponent.geofenceEventTracker: GeofenceEventTracker
     get() = singleton<GeofenceEventTracker> {
-        GeofenceEventTrackerImpl(SDKComponent.httpClient, secureUserStore)
+        GeofenceEventTrackerImpl(SDKComponent.httpClient, secureUserStore, SDKComponent.geofenceLogger)
     }
 
 internal val AndroidSDKComponent.asyncGeofenceEventTracker: AsyncGeofenceEventTracker

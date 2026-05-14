@@ -51,4 +51,19 @@ sealed class Event {
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()
+
+    enum class GeofenceTransition {
+        ENTER,
+        EXIT
+    }
+
+    /**
+     * Event published by the Location module when a geofence transition is received from the OS.
+     * Subscribers (e.g. data pipelines) translate this into a tracked event.
+     */
+    data class GeofenceTransitionEvent(
+        val geofenceId: String,
+        val transition: GeofenceTransition,
+        val properties: Map<String, Any>
+    ) : Event()
 }

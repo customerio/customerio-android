@@ -16,6 +16,29 @@ public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : 
 	public fun <init> ()V
 }
 
+public final class io/customer/sdk/communication/Event$GeofenceTransition : java/lang/Enum {
+	public static final field ENTER Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public static final field EXIT Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public static fun values ()[Lio/customer/sdk/communication/Event$GeofenceTransition;
+}
+
+public final class io/customer/sdk/communication/Event$GeofenceTransitionEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Lio/customer/sdk/communication/Event$GeofenceTransition;Ljava/util/Map;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (Ljava/lang/String;Lio/customer/sdk/communication/Event$GeofenceTransition;Ljava/util/Map;)Lio/customer/sdk/communication/Event$GeofenceTransitionEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$GeofenceTransitionEvent;Ljava/lang/String;Lio/customer/sdk/communication/Event$GeofenceTransition;Ljava/util/Map;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$GeofenceTransitionEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGeofenceId ()Ljava/lang/String;
+	public final fun getProperties ()Ljava/util/Map;
+	public final fun getTransition ()Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;

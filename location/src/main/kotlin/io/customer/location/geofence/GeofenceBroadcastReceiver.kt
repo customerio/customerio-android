@@ -6,27 +6,56 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import io.customer.location.geofence.di.geofenceEventScheduler
 import io.customer.location.geofence.di.geofenceLogger
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /** Receives OS geofence transition callbacks and dispatches them to the SDK. */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        SDKComponent.setupAndroidComponent(context = context)
-
+        // goAsync keeps the process alive until WorkManager has committed the work spec;
+        // without it the OS may kill us between enqueue and persist.
+        val pendingResult = goAsync()
         try {
-            handleGeofencingEvent(GeofencingEvent.fromIntent(intent))
-        } catch (e: Exception) {
-            SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver error: ${e.message}")
+            SDKComponent.setupAndroidComponent(context = context)
+            val scope = SDKComponent.scopeProvider.geofenceScope
+            launchTransitionHandler(scope, intent, pendingResult)
+        } catch (e: Throwable) {
+            // Setup threw before the coroutine could register its finally — release the PendingResult here.
+            SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver setup failed: ${e.message}")
+            pendingResult.finish()
+        }
+    }
+
+    private fun launchTransitionHandler(
+        scope: CoroutineScope,
+        intent: Intent,
+        pendingResult: PendingResult
+    ) {
+        scope.launch {
+            try {
+                handleGeofencingEvent(GeofencingEvent.fromIntent(intent))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver error: ${e.message}")
+            } finally {
+                pendingResult.finish()
+                scope.cancel()
+            }
         }
     }
 
     @VisibleForTesting
-    internal fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
+    internal suspend fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
         if (geofencingEvent == null) return
         val logger = SDKComponent.geofenceLogger
 
@@ -50,7 +79,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     @VisibleForTesting
-    internal fun dispatchTransition(
+    internal suspend fun dispatchTransition(
         gmsTransitionType: Int,
         triggeringGeofenceIds: List<String>,
         latitude: Double?,
@@ -58,6 +87,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     ) {
         val logger = SDKComponent.geofenceLogger
         val timestamp = SDKComponent.clock.currentTimeSeconds()
+        val androidComponent = SDKComponent.android()
+        val scheduler = androidComponent.geofenceEventScheduler
         val eventBus = SDKComponent.eventBus
 
         triggeringGeofenceIds.forEach { geofenceId ->
@@ -77,6 +108,22 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
 
             logger.logTransitionEmitting(geofenceId, transition.name)
+
+            // Parallel delivery: WorkManager (survives process death) + EventBus (analytics pipeline).
+            // Isolate the scheduler so a WorkManager failure doesn't skip EventBus or abandon the batch.
+            try {
+                scheduler.schedule(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    latitude = latitude,
+                    longitude = longitude,
+                    timestamp = timestamp
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.logSchedulerFailed(geofenceId, transition.name, e.message)
+            }
 
             val properties = buildMap<String, Any> {
                 put("geofence_id", geofenceId)

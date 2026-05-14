@@ -12,7 +12,6 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.DeviceStoreImpl
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.data.store.GlobalPreferenceStoreImpl
-import java.util.UUID
 
 abstract class AndroidSDKComponent : DiGraph() {
     abstract val client: Client
@@ -22,7 +21,6 @@ abstract class AndroidSDKComponent : DiGraph() {
     abstract val applicationStore: ApplicationStore
     abstract val deviceStore: DeviceStore
     abstract val globalPreferenceStore: GlobalPreferenceStore
-    abstract val installationId: String
 }
 
 /**
@@ -59,12 +57,6 @@ class AndroidSDKComponentImpl(
         }
     override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
-
-    override val installationId: String by lazy {
-        globalPreferenceStore.getInstallationId() ?: UUID.randomUUID().toString().also {
-            globalPreferenceStore.saveInstallationId(it)
-        }
-    }
 
     override fun reset() {
         super.reset()

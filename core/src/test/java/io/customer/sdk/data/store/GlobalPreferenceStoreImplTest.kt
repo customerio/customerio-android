@@ -3,7 +3,6 @@ package io.customer.sdk.data.store
 import io.customer.commontest.core.RobolectricTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
-import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -71,14 +70,16 @@ class GlobalPreferenceStoreImplTest : RobolectricTest() {
     }
 
     @Test
-    fun getInstallationId_givenClearAllInvoked_expectIdRemoved() {
+    fun getInstallationId_givenClearAllInvoked_expectIdPreserved() {
         val store = createStore()
         val givenId = "00000000-0000-0000-0000-000000000005"
+        val givenDeviceToken = "device-token-to-wipe"
         store.saveInstallationId(givenId)
-        store.getInstallationId().shouldNotBeNull()
+        store.saveDeviceToken(givenDeviceToken)
 
         store.clearAll()
 
-        store.getInstallationId().shouldBeNull()
+        store.getInstallationId() shouldBeEqualTo givenId
+        store.getDeviceToken().shouldBeNull()
     }
 }

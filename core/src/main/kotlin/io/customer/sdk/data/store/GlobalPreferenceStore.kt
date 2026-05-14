@@ -60,6 +60,14 @@ internal class GlobalPreferenceStoreImpl(
 
     override fun removeDeviceToken() = clear(KEY_DEVICE_TOKEN)
 
+    // installation_id is a per-install identifier whose lifecycle is owned by the OS
+    // (wiped only on app uninstall or "Clear data"). Bulk-clear paths must preserve it.
+    override fun clearAll() {
+        val preservedId = prefs.read { getString(KEY_INSTALLATION_ID, null) }
+        super.clearAll()
+        preservedId?.let(::saveInstallationId)
+    }
+
     companion object {
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_CONFIG_SETTINGS = "config_settings"

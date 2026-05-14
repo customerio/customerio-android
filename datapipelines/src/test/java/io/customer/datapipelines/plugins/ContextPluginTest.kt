@@ -50,9 +50,7 @@ class ContextPluginTest : JUnitTest() {
         return testConfiguration {
             diGraph {
                 android {
-                    // Override installation id stub BEFORE CustomerIO initialization so the
-                    // lazy `androidSDKComponent.installationId` picks it up when ContextPlugin
-                    // is constructed.
+                    // Stub before CustomerIO init so the init-block resolution reads this value.
                     every { globalPreferenceStore.getInstallationId() } returns installationId
                 }
             }

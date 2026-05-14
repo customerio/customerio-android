@@ -12,6 +12,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -32,6 +33,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     // extension properties inside `sdk { ... }` / `android { ... }` override lambdas.
     private val mockEventBus: EventBus = mockk(relaxed = true)
     private val mockScheduler: GeofenceEventScheduler = mockk(relaxed = true)
+    private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
 
     private lateinit var receiver: GeofenceBroadcastReceiver
 
@@ -41,10 +43,15 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                 argument(ApplicationArgument(applicationMock))
                 diGraph {
                     sdk { overrideDependency<EventBus>(mockEventBus) }
-                    android { overrideDependency<GeofenceEventScheduler>(mockScheduler) }
+                    android {
+                        overrideDependency<GeofenceEventScheduler>(mockScheduler)
+                        overrideDependency<GeofenceCooldownFilter>(mockCooldownFilter)
+                    }
                 }
             }
         )
+        // Default: cooldown allows emission. Tests override this to test suppression.
+        every { mockCooldownFilter.tryAcquire(any(), any()) } returns true
         receiver = GeofenceBroadcastReceiver()
     }
 
@@ -230,6 +237,37 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         published.properties["latitude"].shouldBeNull()
         published.properties["longitude"].shouldBeNull()
         published.properties["geofence_id"] shouldBeEqualTo "biz-geofence"
+    }
+
+    @Test
+    fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduledOrPublished() = runTest {
+        every { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) } returns false
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenCooldownAllows_expectTryAcquireBeforeScheduleAndPublish() = runTest {
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerifyOrder {
+            mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER)
+            mockScheduler.schedule(any(), any(), any(), any(), any())
+            mockEventBus.publish(any<Event.GeofenceTransitionEvent>())
+        }
     }
 
     @Test

@@ -13,6 +13,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -23,9 +24,22 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // goAsync keeps the process alive until WorkManager has committed the work spec;
         // without it the OS may kill us between enqueue and persist.
         val pendingResult = goAsync()
-        SDKComponent.setupAndroidComponent(context = context)
-        val scope = SDKComponent.scopeProvider.geofenceScope
+        try {
+            SDKComponent.setupAndroidComponent(context = context)
+            val scope = SDKComponent.scopeProvider.geofenceScope
+            launchTransitionHandler(scope, intent, pendingResult)
+        } catch (e: Throwable) {
+            // Setup threw before the coroutine could register its finally — release the PendingResult here.
+            SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver setup failed: ${e.message}")
+            pendingResult.finish()
+        }
+    }
 
+    private fun launchTransitionHandler(
+        scope: CoroutineScope,
+        intent: Intent,
+        pendingResult: PendingResult
+    ) {
         scope.launch {
             try {
                 handleGeofencingEvent(GeofencingEvent.fromIntent(intent))

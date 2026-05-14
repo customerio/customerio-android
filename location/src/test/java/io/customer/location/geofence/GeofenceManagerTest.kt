@@ -42,7 +42,15 @@ class GeofenceManagerTest : RobolectricTest() {
                 argument(ApplicationArgument(applicationMock))
             }
         )
-        manager = GeofenceManager(applicationMock, client, receiverToggle, SDKComponent.geofenceLogger)
+        // Use real GeofencePermissionChecker so Robolectric's grantPermission/denyPermission
+        // helpers continue to control the manager's permission-check path.
+        manager = GeofenceManager(
+            context = applicationMock,
+            client = client,
+            receiverToggle = receiverToggle,
+            permissionChecker = GeofencePermissionChecker(applicationMock),
+            logger = SDKComponent.geofenceLogger
+        )
     }
 
     @Test

@@ -4,10 +4,8 @@ import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresPermission
-import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
@@ -19,6 +17,7 @@ internal class GeofenceManager(
     private val context: Context,
     private val client: GeofencingClient,
     private val receiverToggle: GeofenceReceiverToggle,
+    private val permissionChecker: GeofencePermissionChecker,
     private val logger: GeofenceLogger
 ) {
 
@@ -43,7 +42,8 @@ internal class GeofenceManager(
             logger.logGeofencesRegistered(0)
             return Result.success(Unit)
         }
-        if (!hasRequiredPermissions()) {
+        if (!permissionChecker.hasRequiredLocationPermissions()) {
+            logger.logMissingPermission("ACCESS_FINE_LOCATION + ACCESS_BACKGROUND_LOCATION")
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
 
@@ -74,6 +74,7 @@ internal class GeofenceManager(
         return Result.success(Unit)
     }
 
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     private suspend fun registerBatch(
         regions: List<GeofenceRegion>,
         initialTrigger: Int
@@ -135,32 +136,6 @@ internal class GeofenceManager(
                     cont.resume(Result.failure(e))
                 }
         }
-    }
-
-    private fun hasRequiredPermissions(): Boolean {
-        val hasFineLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasFineLocation) {
-            logger.logMissingPermission("ACCESS_FINE_LOCATION")
-            return false
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val hasBackgroundLocation = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (!hasBackgroundLocation) {
-                logger.logMissingPermission("ACCESS_BACKGROUND_LOCATION (required on Android 10+)")
-                return false
-            }
-        }
-
-        return true
     }
 
     private fun GeofenceRegion.toGmsGeofence(): Geofence {

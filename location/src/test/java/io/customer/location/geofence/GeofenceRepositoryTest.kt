@@ -12,6 +12,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
@@ -19,6 +20,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,13 +90,14 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenApiSuccess_expectPersistedAndFilteredByConfigMaxAndRegistered() = runTest {
+    fun refresh_givenBusinessGeofences_expectMovementTriggerPrependedAndRegistered() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         val filtered = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         coEvery { apiService.fetchGeofences("user-42", 12.34, 56.78) } returns
-            Result.success(sampleResponse(maxBusinessGeofences = 3))
+            Result.success(sampleResponse(maxBusinessGeofences = 3, movementTriggerRadius = 1500f))
         every { distanceFilter.nearest(any(), 12.34, 56.78, 3) } returns filtered
-        coEvery { manager.addGeofences(filtered) } returns Result.success(Unit)
+        val captured = slot<List<GeofenceRegion>>()
+        coEvery { manager.addGeofences(capture(captured)) } returns Result.success(Unit)
 
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -102,8 +105,36 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify { store.saveAll(any()) }
         verify { store.setLastSyncTimestamp(any()) }
         verify { distanceFilter.nearest(any(), 12.34, 56.78, 3) }
-        coVerify { manager.addGeofences(filtered) }
         verify { logger.logSyncSucceeded(filtered.size) }
+
+        // Movement trigger is prepended with config's radius, centered on the request location,
+        // and only listens for EXIT (so we re-fetch when the user leaves this area).
+        captured.captured.size shouldBeEqualTo 2
+        val movementTrigger = captured.captured[0]
+        movementTrigger.id shouldBeEqualTo GeofenceConstants.MOVEMENT_TRIGGER_ID
+        movementTrigger.latitude shouldBeEqualTo 12.34
+        movementTrigger.longitude shouldBeEqualTo 56.78
+        movementTrigger.radius shouldBeEqualTo 1500f
+        movementTrigger.transitionTypes shouldBeEqualTo listOf(GeofenceTransitionType.EXIT)
+        captured.captured[1] shouldBeEqualTo filtered[0]
+    }
+
+    @Test
+    fun refresh_givenZeroBusinessGeofences_expectNothingRegisteredIncludingMovementTrigger() = runTest {
+        // Customers without configured geofences must pay zero runtime cost:
+        // no movement trigger registered, no OS-side geofence activity.
+        every { secureUserStore.getUserId() } returns "user-42"
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        val captured = slot<List<GeofenceRegion>>()
+        coEvery { manager.addGeofences(capture(captured)) } returns Result.success(Unit)
+
+        val result = repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        result.isSuccess shouldBeEqualTo true
+        captured.captured.shouldBeEmpty()
+        verify { logger.logSyncSucceeded(0) }
     }
 
     @Test
@@ -151,11 +182,14 @@ class GeofenceRepositoryTest : RobolectricTest() {
         maxObservedConcurrency.get() shouldBeEqualTo 1
     }
 
-    private fun sampleResponse(maxBusinessGeofences: Int): GeofenceApiResponse {
+    private fun sampleResponse(
+        maxBusinessGeofences: Int,
+        movementTriggerRadius: Float = 1000f
+    ): GeofenceApiResponse {
         val json = """
             {
               "config": {
-                "movement_trigger_radius": 1000,
+                "movement_trigger_radius": $movementTriggerRadius,
                 "local_refresh_trigger_radius": 5000,
                 "remote_fetch_refresh_trigger_radius": 10000,
                 "remote_fetch_refresh_expiry_time": 86400,

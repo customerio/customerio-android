@@ -8,6 +8,7 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import io.customer.location.geofence.di.geofenceEventScheduler
 import io.customer.location.geofence.di.geofenceLogger
+import io.customer.location.geofence.di.geofenceServices
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
@@ -93,8 +94,13 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         triggeringGeofenceIds.forEach { geofenceId ->
             if (geofenceId == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
-                // TODO(MBL-1623): dispatch movement-trigger EXIT to GeofenceServices.onMovementTriggerExit
-                logger.logMovementTriggerSkipped()
+                // Movement-trigger geofence is registered with NO_INITIAL_TRIGGER so it
+                // should only ever fire EXIT; defensive guard in case the OS surprises us.
+                if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
+                    androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
+                } else {
+                    logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))
+                }
                 return@forEach
             }
 
@@ -140,5 +146,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 )
             )
         }
+    }
+
+    private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {
+        Geofence.GEOFENCE_TRANSITION_ENTER -> "ENTER"
+        Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
+        Geofence.GEOFENCE_TRANSITION_DWELL -> "DWELL"
+        else -> "UNKNOWN($gmsTransitionType)"
     }
 }

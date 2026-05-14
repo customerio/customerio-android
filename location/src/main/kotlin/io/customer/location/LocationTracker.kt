@@ -44,7 +44,8 @@ internal class LocationTracker(
     private val dataPipelineRef = WeakReference(dataPipeline)
 
     @Volatile
-    private var lastLocation: LocationCoordinates? = null
+    internal var lastLocation: LocationCoordinates? = null
+        private set
 
     override fun getIdentifyContext(): Map<String, Any> {
         val location = lastLocation ?: return emptyMap()

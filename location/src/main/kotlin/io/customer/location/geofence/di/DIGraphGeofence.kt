@@ -5,9 +5,12 @@ import com.google.android.gms.location.LocationServices
 import io.customer.location.geofence.GeofenceDistanceFilter
 import io.customer.location.geofence.GeofenceLogger
 import io.customer.location.geofence.GeofenceManager
+import io.customer.location.geofence.GeofencePermissionChecker
 import io.customer.location.geofence.GeofenceReceiverToggle
 import io.customer.location.geofence.GeofenceRepository
 import io.customer.location.geofence.GeofenceRepositoryImpl
+import io.customer.location.geofence.GeofenceServices
+import io.customer.location.geofence.GeofenceServicesImpl
 import io.customer.location.geofence.api.GeofenceApiService
 import io.customer.location.geofence.api.GeofenceApiServiceImpl
 import io.customer.location.geofence.store.GeofenceRegionStore
@@ -32,7 +35,13 @@ internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
 
 internal val AndroidSDKComponent.geofenceManager: GeofenceManager
     get() = singleton {
-        GeofenceManager(applicationContext, geofencingClient, geofenceReceiverToggle, SDKComponent.geofenceLogger)
+        GeofenceManager(
+            context = applicationContext,
+            client = geofencingClient,
+            receiverToggle = geofenceReceiverToggle,
+            permissionChecker = geofencePermissionChecker,
+            logger = SDKComponent.geofenceLogger
+        )
     }
 
 internal val AndroidSDKComponent.geofenceEventTracker: GeofenceEventTracker
@@ -64,5 +73,18 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             manager = geofenceManager,
             secureUserStore = secureUserStore,
             logger = SDKComponent.geofenceLogger
+        )
+    }
+
+internal val AndroidSDKComponent.geofencePermissionChecker: GeofencePermissionChecker
+    get() = newInstance { GeofencePermissionChecker(applicationContext) }
+
+internal val AndroidSDKComponent.geofenceServices: GeofenceServices
+    get() = singleton<GeofenceServices> {
+        GeofenceServicesImpl(
+            repository = geofenceRepository,
+            scope = SDKComponent.scopeProvider.geofenceScope,
+            logger = SDKComponent.geofenceLogger,
+            permissionChecker = geofencePermissionChecker
         )
     }

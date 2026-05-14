@@ -174,7 +174,7 @@ class GeofenceManagerTest : RobolectricTest() {
             id = "geo-123",
             latitude = 40.7128,
             longitude = -74.0060,
-            radiusMeters = 250f,
+            radius = 250f,
             transitionTypes = listOf(GeofenceTransitionType.ENTER)
         )
         manager.addGeofences(listOf(region))
@@ -325,7 +325,7 @@ class GeofenceManagerTest : RobolectricTest() {
         id: String = "test-geofence",
         latitude: Double = 37.7749,
         longitude: Double = -122.4194,
-        radiusMeters: Float = 100f,
+        radius: Float = 100f,
         transitionTypes: List<GeofenceTransitionType> = listOf(
             GeofenceTransitionType.ENTER,
             GeofenceTransitionType.EXIT
@@ -334,7 +334,7 @@ class GeofenceManagerTest : RobolectricTest() {
         id = id,
         latitude = latitude,
         longitude = longitude,
-        radiusMeters = radiusMeters,
+        radius = radius,
         transitionTypes = transitionTypes
     )
 

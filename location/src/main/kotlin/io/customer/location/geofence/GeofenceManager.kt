@@ -166,7 +166,7 @@ internal class GeofenceManager(
     private fun GeofenceRegion.toGmsGeofence(): Geofence {
         return Geofence.Builder()
             .setRequestId(id)
-            .setCircularRegion(latitude, longitude, radiusMeters)
+            .setCircularRegion(latitude, longitude, radius)
             .setTransitionTypes(toGmsTransitionTypes())
             .setExpirationDuration(GeofenceConstants.GEOFENCE_EXPIRATION_NEVER)
             .build()

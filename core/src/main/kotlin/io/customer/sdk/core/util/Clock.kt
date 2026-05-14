@@ -7,9 +7,10 @@ import java.util.concurrent.TimeUnit
 @InternalCustomerIOApi
 interface Clock {
     fun currentTimeMillis(): Long
-    fun currentTimeSeconds(): Long = TimeUnit.MILLISECONDS.toSeconds(currentTimeMillis())
+    fun currentTimeSeconds(): Long
 }
 
 internal class SystemClock : Clock {
     override fun currentTimeMillis(): Long = System.currentTimeMillis()
+    override fun currentTimeSeconds(): Long = TimeUnit.MILLISECONDS.toSeconds(currentTimeMillis())
 }

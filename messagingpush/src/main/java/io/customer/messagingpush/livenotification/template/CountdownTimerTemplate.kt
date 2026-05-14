@@ -19,16 +19,17 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        payload: JSONObject,
+        attributes: JSONObject,
+        contentState: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val title = payload.optString("title")
-        val heroImageKey = payload.optString("heroImageKey").takeIf { it.isNotEmpty() }
-        val targetDate = payload.optLong("targetDate").takeIf { it > 0 }
-        val statusMessage = payload.optString("statusMessage")
-        val expiredMessage = payload.optString("expiredMessage").takeIf { it.isNotEmpty() }
+        val title = attributes.optString("title")
+        val heroImageKey = attributes.optString("heroImageKey").takeIf { it.isNotEmpty() }
+        val targetDate = contentState.optLong("targetDate").takeIf { it > 0 }
+        val statusMessage = contentState.optString("statusMessage")
+        val expiredMessage = contentState.optString("expiredMessage").takeIf { it.isNotEmpty() }
 
         val now = System.currentTimeMillis()
         val isPostTarget = targetDate != null && now >= targetDate

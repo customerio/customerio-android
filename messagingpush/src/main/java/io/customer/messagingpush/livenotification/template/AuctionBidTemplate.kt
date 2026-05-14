@@ -24,20 +24,21 @@ internal object AuctionBidTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        payload: JSONObject,
+        attributes: JSONObject,
+        contentState: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val itemTitle = payload.optString("itemTitle")
-        val itemImageKey = payload.optString("itemImageKey").takeIf { it.isNotEmpty() }
-        val currencySymbol = payload.optString("currencySymbol").takeIf { it.isNotEmpty() } ?: "$"
-        val currentBid = payload.optString("currentBid")
-        val bidCount = payload.optInt("bidCount", 0)
-        val endTime = payload.optLong("endTime").takeIf { it > 0 }
-        val statusMessage = payload.optString("statusMessage")
-        val isUserHighBidder = payload.optBoolean("isUserHighBidder", false)
-        val userBidAmount = payload.optString("userBidAmount").takeIf { it.isNotEmpty() }
+        val itemTitle = attributes.optString("itemTitle")
+        val itemImageKey = attributes.optString("itemImageKey").takeIf { it.isNotEmpty() }
+        val currencySymbol = attributes.optString("currencySymbol").takeIf { it.isNotEmpty() } ?: "$"
+        val currentBid = contentState.optString("currentBid")
+        val bidCount = contentState.optInt("bidCount", 0)
+        val endTime = contentState.optLong("endTime").takeIf { it > 0 }
+        val statusMessage = contentState.optString("statusMessage")
+        val isUserHighBidder = contentState.optBoolean("isUserHighBidder", false)
+        val userBidAmount = contentState.optString("userBidAmount").takeIf { it.isNotEmpty() }
 
         val body = "$statusMessage · $currencySymbol$currentBid"
         val subText = userBidAmount

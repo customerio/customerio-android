@@ -17,19 +17,20 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        payload: JSONObject,
+        attributes: JSONObject,
+        contentState: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val orderId = payload.optString("orderId")
-        val recipientName = payload.optString("recipientName").takeIf { it.isNotEmpty() }
-        val statusMessage = payload.optString("statusMessage")
-        val statusImageKey = payload.optString("statusImageKey").takeIf { it.isNotEmpty() }
-        val stepCurrent = payload.optInt("stepCurrent", 0)
-        val stepTotal = payload.optInt("stepTotal", 1).coerceAtLeast(1)
-        val estimatedArrival = payload.optLong("estimatedArrival").takeIf { it > 0 }
-        val driverName = payload.optString("driverName").takeIf { it.isNotEmpty() }
+        val orderId = attributes.optString("orderId")
+        val recipientName = attributes.optString("recipientName").takeIf { it.isNotEmpty() }
+        val statusMessage = contentState.optString("statusMessage")
+        val statusImageKey = contentState.optString("statusImageKey").takeIf { it.isNotEmpty() }
+        val stepCurrent = contentState.optInt("stepCurrent", 0)
+        val stepTotal = contentState.optInt("stepTotal", 1).coerceAtLeast(1)
+        val estimatedArrival = contentState.optLong("estimatedArrival").takeIf { it > 0 }
+        val driverName = contentState.optString("driverName").takeIf { it.isNotEmpty() }
 
         val title = recipientName?.let { "Delivery for $it" } ?: "Order #$orderId"
         val subText = when {

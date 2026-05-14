@@ -26,11 +26,12 @@ import org.json.JSONObject
  * Dispatches templated live notifications.
  *
  * Live notifications are ongoing notifications that can be updated in-place
- * (the Android counterpart of iOS Live Activities). Each push declares a
- * `template` (one of the closed set in [TemplateRegistry]) plus a flat JSON
- * `payload` of template-specific fields. Pushes share a stable [ACTIVITY_ID_KEY]
- * so successive updates replace the previous notification rather than creating
- * new ones.
+ * (the Android counterpart of iOS Live Activities). Each push declares an
+ * `activity_type` (one of the closed set in [TemplateRegistry], prefixed with
+ * `io.customer.live.`) plus two JSON objects: `attributes` for static fields
+ * and `content_state` for dynamic fields. Pushes share a stable
+ * [ACTIVITY_ID_KEY] so successive updates replace the previous notification
+ * rather than creating new ones.
  */
 internal class LiveNotificationHandler(
     private val bundle: Bundle
@@ -39,8 +40,9 @@ internal class LiveNotificationHandler(
     companion object {
         const val ACTIVITY_ID_KEY = "activity_id"
         const val EVENT_KEY = "event"
-        const val TEMPLATE_KEY = "template"
-        const val PAYLOAD_KEY = "payload"
+        const val ACTIVITY_TYPE_KEY = "activity_type"
+        const val ATTRIBUTES_KEY = "attributes"
+        const val CONTENT_STATE_KEY = "content_state"
 
         private const val EVENT_END = "end"
 
@@ -67,22 +69,24 @@ internal class LiveNotificationHandler(
         }
 
         val activityId = bundle.getString(ACTIVITY_ID_KEY) ?: return
-        val templateName = bundle.getString(TEMPLATE_KEY)
-        val template = TemplateRegistry.find(templateName)
+        val activityType = bundle.getString(ACTIVITY_TYPE_KEY)
+        val template = TemplateRegistry.find(activityType)
         if (template == null) {
             SDKComponent.logger.error(
-                "Unknown live notification template '$templateName'; dropping push for activity '$activityId'."
+                "Unknown live notification template '$activityType'; dropping push for activity '$activityId'."
             )
             return
         }
 
-        val payload = parsePayload(bundle.getString(PAYLOAD_KEY))
+        val attributes = parseJson(bundle.getString(ATTRIBUTES_KEY))
+        val contentState = parseJson(bundle.getString(CONTENT_STATE_KEY))
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
         val effectiveSmallIcon = resolveSmallIcon(context, branding, smallIcon)
 
         val result = template.render(
             context = context,
-            payload = payload,
+            attributes = attributes,
+            contentState = contentState,
             branding = branding,
             smallIcon = effectiveSmallIcon,
             fallbackTintColor = tintColor
@@ -162,12 +166,12 @@ internal class LiveNotificationHandler(
         }
     }
 
-    private fun parsePayload(raw: String?): JSONObject {
+    private fun parseJson(raw: String?): JSONObject {
         if (raw.isNullOrEmpty()) return JSONObject()
         return try {
             JSONObject(raw)
         } catch (e: JSONException) {
-            SDKComponent.logger.error("Failed to parse live notification payload JSON: ${e.message}")
+            SDKComponent.logger.error("Failed to parse live notification JSON: ${e.message}")
             JSONObject()
         }
     }

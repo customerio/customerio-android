@@ -21,21 +21,22 @@ internal object LiveScoreTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        payload: JSONObject,
+        attributes: JSONObject,
+        contentState: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val homeTeam = payload.optJSONObject("homeTeam")
-        val awayTeam = payload.optJSONObject("awayTeam")
+        val homeTeam = attributes.optJSONObject("homeTeam")
+        val awayTeam = attributes.optJSONObject("awayTeam")
         val homeName = homeTeam?.optString("name").orEmpty()
         val awayName = awayTeam?.optString("name").orEmpty()
-        val homeScore = payload.optInt("homeScore", 0)
-        val awayScore = payload.optInt("awayScore", 0)
-        val period = payload.optString("period")
-        val clock = payload.optString("clock").takeIf { it.isNotEmpty() }
-        val statusMessage = payload.optString("statusMessage").takeIf { it.isNotEmpty() }
-        val leagueLogoKey = payload.optString("leagueLogoKey").takeIf { it.isNotEmpty() }
+        val homeScore = contentState.optInt("homeScore", 0)
+        val awayScore = contentState.optInt("awayScore", 0)
+        val period = contentState.optString("period")
+        val clock = contentState.optString("clock").takeIf { it.isNotEmpty() }
+        val statusMessage = contentState.optString("statusMessage").takeIf { it.isNotEmpty() }
+        val leagueLogoKey = attributes.optString("leagueLogoKey").takeIf { it.isNotEmpty() }
 
         val title = "$homeName $homeScore - $awayScore $awayName"
         val body = statusMessage

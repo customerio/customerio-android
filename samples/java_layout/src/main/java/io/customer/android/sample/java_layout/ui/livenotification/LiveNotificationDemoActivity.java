@@ -20,10 +20,12 @@ import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
  * Demo activity that simulates templated live-notification updates by sending
  * synthetic push messages through the SDK's actual push handling code path.
  * <p>
- * Each scenario builds a templated FCM data bundle: top-level lifecycle keys
- * ({@code activity_id}, {@code event}, {@code template}) plus a {@code payload}
- * JSON string carrying template-specific fields. The static branding bundle
- * lives in {@code MessagingPushModuleConfig} and is registered once at SDK init.
+ * Each scenario builds a templated FCM data bundle that matches the
+ * cross-platform live-activity envelope: top-level lifecycle keys
+ * ({@code activity_id}, {@code event}, {@code activity_type}) plus two JSON
+ * strings, {@code attributes} (static fields) and {@code content_state}
+ * (dynamic fields). The static branding bundle lives in
+ * {@code MessagingPushModuleConfig} and is registered once at SDK init.
  */
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
@@ -34,12 +36,13 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private static final String EVENT_UPDATE = "update";
     private static final String EVENT_END = "end";
 
-    // Templates
-    private static final String TEMPLATE_DELIVERY_TRACKING = "delivery_tracking";
-    private static final String TEMPLATE_FLIGHT_STATUS = "flight_status";
-    private static final String TEMPLATE_LIVE_SCORE = "live_score";
-    private static final String TEMPLATE_COUNTDOWN_TIMER = "countdown_timer";
-    private static final String TEMPLATE_AUCTION_BID = "auction_bid";
+    // activity_type values are prefixed per the cross-platform spec.
+    private static final String ACTIVITY_TYPE_DELIVERY_TRACKING = "io.customer.live.delivery_tracking";
+    private static final String ACTIVITY_TYPE_FLIGHT_STATUS = "io.customer.live.flight_status";
+    private static final String ACTIVITY_TYPE_LIVE_SCORE = "io.customer.live.live_score";
+    private static final String ACTIVITY_TYPE_COUNTDOWN_TIMER = "io.customer.live.countdown_timer";
+    private static final String ACTIVITY_TYPE_AUCTION_BID = "io.customer.live.auction_bid";
+    private static final String ACTIVITY_TYPE_UNKNOWN = "io.customer.live.bogus";
 
     private enum TemplateChoice {
         DELIVERY_TRACKING, FLIGHT_STATUS, LIVE_SCORE, COUNTDOWN_TIMER, AUCTION_BID
@@ -63,6 +66,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.updateButton.setOnClickListener(v -> update());
         binding.endButton.setOnClickListener(v -> end());
         binding.autoButton.setOnClickListener(v -> autoRun());
+        binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
 
         binding.typeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (isActive) {
@@ -87,11 +91,15 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     private int getStepCount() {
         switch (getSelectedTemplate()) {
-            case DELIVERY_TRACKING: return 4; // ordered, preparing, on the way, delivered
-            case FLIGHT_STATUS: return 4;     // pre-departure, boarding, in-flight, arrived
-            case LIVE_SCORE: return 4;        // 4 score updates
-            case COUNTDOWN_TIMER: return 3;   // pre-target, near-target, expired
-            case AUCTION_BID: return 4;       // outbid, winning, outbid again, ended
+            // Delivery: ordered → preparing → out-for-delivery → delivered → missing-asset edge case
+            case DELIVERY_TRACKING: return 5;
+            // Flight: pre-departure → boarding → in-flight → arrived → delay-red variant
+            case FLIGHT_STATUS: return 5;
+            case LIVE_SCORE: return 4;
+            // Countdown: pre-target → near-target → expired (with message) → post-target dismiss
+            case COUNTDOWN_TIMER: return 4;
+            // Auction: outbid → winning → outbid again → ended → no-userBidAmount variant
+            case AUCTION_BID: return 5;
             default: return 1;
         }
     }
@@ -160,27 +168,41 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 "Your order has been placed",
                 "Your order is being prepared",
                 "Your order is out for delivery",
-                "Your order has been delivered"
+                "Your order has been delivered",
+                "Asset key missing — design-for-absence path"
         };
-        String[] imageKeys = {"delivery_warehouse", "delivery_warehouse", "delivery_truck", "delivery_door"};
-        JSONObject payload = new JSONObject();
+        // Step 4 intentionally points to a key the host app has not bundled, exercising
+        // TemplateAssets.resolveDrawable's "did not resolve" branch.
+        String[] imageKeys = {
+                "delivery_warehouse",
+                "delivery_warehouse",
+                "delivery_truck",
+                "delivery_door",
+                "unknown_key"
+        };
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
         try {
-            payload.put("orderId", "ABC-1234");
-            payload.put("recipientName", "Mahmoud");
-            payload.put("statusMessage", statuses[step]);
-            payload.put("statusImageKey", imageKeys[step]);
-            payload.put("stepCurrent", step + 1);
-            payload.put("stepTotal", statuses.length);
-            payload.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
-            if (step == 2) payload.put("driverName", "Sam");
+            attributes.put("orderId", "ABC-1234");
+            attributes.put("recipientName", "Mahmoud");
+
+            contentState.put("statusMessage", statuses[step]);
+            contentState.put("statusImageKey", imageKeys[step]);
+            contentState.put("stepCurrent", step + 1);
+            contentState.put("stepTotal", statuses.length);
+            contentState.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
+            if (step == 2) contentState.put("driverName", "Sam");
         } catch (JSONException ignored) { }
-        fire(buildBundle("demo-delivery-tracking", event, TEMPLATE_DELIVERY_TRACKING, payload));
+        fire(buildBundle("demo-delivery-tracking", event, ACTIVITY_TYPE_DELIVERY_TRACKING, attributes, contentState));
     }
 
     private void sendFlightStatus(String event, int step) {
-        String[] statuses = {"On time", "Boarding now", "In flight", "Arrived"};
-        Double[] progress = {null, null, 0.55, 1.0};
-        JSONObject payload = new JSONObject();
+        String[] statuses = {"On time", "Boarding now", "In flight", "Arrived", "Delayed at gate"};
+        Double[] progress = {null, null, 0.55, 1.0, null};
+        // Step 4 exercises the delay-red accent branch.
+        int[] delayMinutes = {0, 0, 0, 0, 25};
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
         try {
             JSONObject origin = new JSONObject();
             origin.put("code", "JFK");
@@ -189,18 +211,19 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             destination.put("code", "LAX");
             destination.put("city", "Los Angeles");
 
-            payload.put("flightNumber", "AA1234");
-            payload.put("origin", origin);
-            payload.put("destination", destination);
-            payload.put("statusMessage", statuses[step]);
-            payload.put("gate", step >= 1 ? "B12" : JSONObject.NULL);
-            payload.put("terminal", step >= 1 ? "4" : JSONObject.NULL);
-            payload.put("scheduledDeparture", System.currentTimeMillis() + 45L * 60 * 1000);
-            payload.put("estimatedArrival", System.currentTimeMillis() + 6L * 60 * 60 * 1000);
-            if (progress[step] != null) payload.put("progressFraction", progress[step]);
-            if (step == 0) payload.put("delayMinutes", 0); // example: not delayed
+            attributes.put("flightNumber", "AA1234");
+            attributes.put("origin", origin);
+            attributes.put("destination", destination);
+
+            contentState.put("statusMessage", statuses[step]);
+            contentState.put("gate", step >= 1 ? "B12" : JSONObject.NULL);
+            contentState.put("terminal", step >= 1 ? "4" : JSONObject.NULL);
+            contentState.put("scheduledDeparture", System.currentTimeMillis() + 45L * 60 * 1000);
+            contentState.put("estimatedArrival", System.currentTimeMillis() + 6L * 60 * 60 * 1000);
+            if (progress[step] != null) contentState.put("progressFraction", progress[step]);
+            if (delayMinutes[step] > 0) contentState.put("delayMinutes", delayMinutes[step]);
         } catch (JSONException ignored) { }
-        fire(buildBundle("demo-flight-status", event, TEMPLATE_FLIGHT_STATUS, payload));
+        fire(buildBundle("demo-flight-status", event, ACTIVITY_TYPE_FLIGHT_STATUS, attributes, contentState));
     }
 
     private void sendLiveScore(String event, int step) {
@@ -208,70 +231,106 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         int[] awayScores = {0, 7, 21, 24};
         String[] periods = {"1st Quarter", "2nd Quarter", "3rd Quarter", "FT"};
         String[] clocks = {"12:00", "5:30", "0:42", null};
-        JSONObject payload = new JSONObject();
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
         try {
             JSONObject homeTeam = new JSONObject();
             homeTeam.put("name", "Lakers");
             JSONObject awayTeam = new JSONObject();
             awayTeam.put("name", "Celtics");
 
-            payload.put("homeTeam", homeTeam);
-            payload.put("awayTeam", awayTeam);
-            payload.put("sport", "basketball");
-            payload.put("leagueLogoKey", "league_nba");
-            payload.put("homeScore", homeScores[step]);
-            payload.put("awayScore", awayScores[step]);
-            payload.put("period", periods[step]);
-            if (clocks[step] != null) payload.put("clock", clocks[step]);
+            attributes.put("homeTeam", homeTeam);
+            attributes.put("awayTeam", awayTeam);
+            attributes.put("sport", "basketball");
+            attributes.put("leagueLogoKey", "league_nba");
+
+            contentState.put("homeScore", homeScores[step]);
+            contentState.put("awayScore", awayScores[step]);
+            contentState.put("period", periods[step]);
+            if (clocks[step] != null) contentState.put("clock", clocks[step]);
         } catch (JSONException ignored) { }
-        fire(buildBundle("demo-live-score", event, TEMPLATE_LIVE_SCORE, payload));
+        fire(buildBundle("demo-live-score", event, ACTIVITY_TYPE_LIVE_SCORE, attributes, contentState));
     }
 
     private void sendCountdownTimer(String event, int step) {
-        JSONObject payload = new JSONObject();
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
         try {
-            payload.put("title", "Flash Sale");
-            payload.put("heroImageKey", "flash_sale_hero");
+            attributes.put("title", "Flash Sale");
+            attributes.put("heroImageKey", "flash_sale_hero");
+
             // Step 0: 5 min out. Step 1: 30s out. Step 2: post-target with expired message.
+            // Step 3: post-target with NO expiredMessage — exercises cancelImmediately path.
             long now = System.currentTimeMillis();
-            long[] offsets = {5 * 60 * 1000L, 30 * 1000L, -1};
-            payload.put("targetDate", offsets[step] >= 0 ? now + offsets[step] : now - 1000);
-            payload.put("statusMessage", "Sale starts in");
-            if (step == 2) payload.put("expiredMessage", "Sale is live!");
+            long[] offsets = {5 * 60 * 1000L, 30 * 1000L, -1, -1};
+            contentState.put("targetDate", offsets[step] >= 0 ? now + offsets[step] : now - 1000);
+            contentState.put("statusMessage", "Sale starts in");
+            if (step == 2) contentState.put("expiredMessage", "Sale is live!");
+            // step == 3: deliberately omit expiredMessage
         } catch (JSONException ignored) { }
-        fire(buildBundle("demo-countdown-timer", event, TEMPLATE_COUNTDOWN_TIMER, payload));
+        fire(buildBundle("demo-countdown-timer", event, ACTIVITY_TYPE_COUNTDOWN_TIMER, attributes, contentState));
     }
 
     private void sendAuctionBid(String event, int step) {
         // Step 0: outbid, step 1: winning, step 2: outbid again, step 3: ended
-        boolean[] highBidder = {false, true, false, false};
-        String[] currentBids = {"1,200", "1,250", "1,300", "1,300"};
-        String[] userBids = {"1,150", "1,250", "1,250", "1,250"};
-        String[] statuses = {"You've been outbid", "You're winning", "You've been outbid", "Auction ended"};
-        int[] bidCounts = {7, 8, 9, 9};
-        JSONObject payload = new JSONObject();
+        // Step 4: user has no bid in flight — exercises subtext "no user bid" branch.
+        boolean[] highBidder = {false, true, false, false, false};
+        String[] currentBids = {"1,200", "1,250", "1,300", "1,300", "1,300"};
+        String[] userBids = {"1,150", "1,250", "1,250", "1,250", null};
+        String[] statuses = {
+                "You've been outbid",
+                "You're winning",
+                "You've been outbid",
+                "Auction ended",
+                "You haven't bid yet"
+        };
+        int[] bidCounts = {7, 8, 9, 9, 9};
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
         try {
-            payload.put("itemTitle", "Vintage Camera");
-            payload.put("itemImageKey", "auction_camera");
-            payload.put("currencySymbol", "$");
-            payload.put("currentBid", currentBids[step]);
-            payload.put("bidCount", bidCounts[step]);
-            payload.put("endTime", System.currentTimeMillis() + 10L * 60 * 1000);
-            payload.put("statusMessage", statuses[step]);
-            payload.put("isUserHighBidder", highBidder[step]);
-            payload.put("userBidAmount", userBids[step]);
+            attributes.put("itemTitle", "Vintage Camera");
+            attributes.put("itemImageKey", "auction_camera");
+            attributes.put("currencySymbol", "$");
+
+            contentState.put("currentBid", currentBids[step]);
+            contentState.put("bidCount", bidCounts[step]);
+            contentState.put("endTime", System.currentTimeMillis() + 10L * 60 * 1000);
+            contentState.put("statusMessage", statuses[step]);
+            contentState.put("isUserHighBidder", highBidder[step]);
+            if (userBids[step] != null) contentState.put("userBidAmount", userBids[step]);
         } catch (JSONException ignored) { }
-        fire(buildBundle("demo-auction-bid", event, TEMPLATE_AUCTION_BID, payload));
+        fire(buildBundle("demo-auction-bid", event, ACTIVITY_TYPE_AUCTION_BID, attributes, contentState));
     }
 
-    private Bundle buildBundle(String activityId, String event, String template, JSONObject payload) {
+    private void sendUnknownActivityType() {
+        // Exercises LiveNotificationHandler's "Unknown live notification template" log path.
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        Bundle bundle = buildBundle(
+                "demo-unknown-activity-type",
+                EVENT_START,
+                ACTIVITY_TYPE_UNKNOWN,
+                attributes,
+                contentState
+        );
+        fire(bundle);
+    }
+
+    private Bundle buildBundle(
+            String activityId,
+            String event,
+            String activityType,
+            JSONObject attributes,
+            JSONObject contentState
+    ) {
         Bundle bundle = new Bundle();
         bundle.putString("CIO-Delivery-ID", UUID.randomUUID().toString());
         bundle.putString("CIO-Delivery-Token", DEMO_DELIVERY_TOKEN);
         bundle.putString("activity_id", activityId);
         bundle.putString("event", event);
-        bundle.putString("template", template);
-        bundle.putString("payload", payload.toString());
+        bundle.putString("activity_type", activityType);
+        bundle.putString("attributes", attributes.toString());
+        bundle.putString("content_state", contentState.toString());
         return bundle;
     }
 

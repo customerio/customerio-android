@@ -175,5 +175,7 @@
     <string name="live_notification_type_live_score">Live Score</string>
     <string name="live_notification_type_countdown_timer">Countdown Timer</string>
     <string name="live_notification_type_auction_bid">Auction Bid</string>
+    <string name="live_notification_section_debug">Debug</string>
+    <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
 
 </resources>

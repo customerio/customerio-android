@@ -20,26 +20,27 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        payload: JSONObject,
+        attributes: JSONObject,
+        contentState: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val flightNumber = payload.optString("flightNumber")
-        val origin = payload.optJSONObject("origin")
-        val destination = payload.optJSONObject("destination")
+        val flightNumber = attributes.optString("flightNumber")
+        val origin = attributes.optJSONObject("origin")
+        val destination = attributes.optJSONObject("destination")
         val originCode = origin?.optString("code").orEmpty()
         val destinationCode = destination?.optString("code").orEmpty()
 
-        val statusMessage = payload.optString("statusMessage")
-        val gate = payload.optString("gate").takeIf { it.isNotEmpty() }
-        val terminal = payload.optString("terminal").takeIf { it.isNotEmpty() }
-        val scheduledDeparture = payload.optLong("scheduledDeparture").takeIf { it > 0 }
-        val estimatedArrival = payload.optLong("estimatedArrival").takeIf { it > 0 }
+        val statusMessage = contentState.optString("statusMessage")
+        val gate = contentState.optString("gate").takeIf { it.isNotEmpty() }
+        val terminal = contentState.optString("terminal").takeIf { it.isNotEmpty() }
+        val scheduledDeparture = contentState.optLong("scheduledDeparture").takeIf { it > 0 }
+        val estimatedArrival = contentState.optLong("estimatedArrival").takeIf { it > 0 }
         val progressFractionRaw =
-            if (payload.has("progressFraction")) payload.optDouble("progressFraction") else Double.NaN
+            if (contentState.has("progressFraction")) contentState.optDouble("progressFraction") else Double.NaN
         val progressFraction = progressFractionRaw.takeIf { !it.isNaN() }
-        val delayMinutes = payload.optInt("delayMinutes", 0).takeIf { it > 0 }
+        val delayMinutes = contentState.optInt("delayMinutes", 0).takeIf { it > 0 }
 
         val title = "$flightNumber · $originCode → $destinationCode"
         val subText = "Gate ${gate ?: "TBA"} · Terminal ${terminal ?: "TBA"}"

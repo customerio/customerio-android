@@ -41,9 +41,11 @@ internal class GeofenceEventTrackerImpl(
     ): Result<Unit> {
         // Cached userId so direct-HTTP delivery works without full SDK init.
         val userId = secureUserStore.getUserId()
+        // Skip cleanly when there's no identified user — no retry will recover from this,
+        // so we report success to drop the work item without an error-level "delivery failed" log.
         if (userId.isNullOrEmpty()) {
             logger.logEventDeliverySkippedNoUser(geofenceId, transition.name)
-            return Result.failure(IllegalStateException("No identified user; geofence event dropped"))
+            return Result.success(Unit)
         }
 
         val eventName = when (transition) {

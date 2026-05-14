@@ -13,6 +13,7 @@ import io.customer.location.geofence.di.geofenceEventTracker
 import io.customer.location.geofence.di.geofenceLogger
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import java.io.IOException
 
@@ -58,7 +59,9 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
-        val uniqueKey = "${geofenceId}_${transition.name}"
+        // Second-precision timestamp: same-second bursts collide (KEEP dedupes them);
+        // later transitions get distinct keys so an offline-queued worker can't block legitimate re-entries.
+        val uniqueKey = "${geofenceId}_${transition.name}_$timestamp"
 
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
@@ -82,6 +85,9 @@ internal class GeofenceEventWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        // WorkManager may restart this worker in a cold process where the host app hasn't
+        // initialized the SDK yet; without this, SDKComponent.android() would throw.
+        SDKComponent.setupAndroidComponent(context = applicationContext)
         val logger = SDKComponent.geofenceLogger
         val geofenceId = inputData.getString(KEY_GEOFENCE_ID)
         val transitionName = inputData.getString(KEY_TRANSITION)
@@ -90,7 +96,7 @@ internal class GeofenceEventWorker(
         val timestamp = inputData.getLong(KEY_TIMESTAMP, 0L)
 
         if (geofenceId.isNullOrEmpty() || transitionName.isNullOrEmpty()) {
-            logger.logEventInvalidInput()
+            logger.logEventInvalidInput(geofenceId, transitionName)
             return Result.failure()
         }
 
@@ -98,7 +104,7 @@ internal class GeofenceEventWorker(
             Event.GeofenceTransition.ENTER.name -> Event.GeofenceTransition.ENTER
             Event.GeofenceTransition.EXIT.name -> Event.GeofenceTransition.EXIT
             else -> {
-                logger.logEventInvalidInput()
+                logger.logEventInvalidInput(geofenceId, transitionName)
                 return Result.failure()
             }
         }
@@ -109,7 +115,7 @@ internal class GeofenceEventWorker(
         return when {
             result.isSuccess -> Result.success()
             result.exceptionOrNull() is IOException -> {
-                logger.logEventDeliveryRetryable(geofenceId, transition.name)
+                logger.logEventDeliveryRetryable(geofenceId, transition.name, result.exceptionOrNull()?.message)
                 Result.retry()
             }
             else -> {

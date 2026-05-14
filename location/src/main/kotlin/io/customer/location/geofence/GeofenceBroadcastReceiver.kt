@@ -12,8 +12,6 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -25,7 +23,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // without it the OS may kill us between enqueue and persist.
         val pendingResult = goAsync()
         SDKComponent.setupAndroidComponent(context = context)
-        val scope = CoroutineScope(SDKComponent.dispatchersProvider.background + SupervisorJob())
+        val scope = SDKComponent.scopeProvider.geofenceScope
 
         scope.launch {
             try {

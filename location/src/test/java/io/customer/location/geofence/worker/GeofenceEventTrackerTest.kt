@@ -15,7 +15,6 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeInstanceOf
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBeNull
 import org.json.JSONObject
@@ -95,8 +94,7 @@ class GeofenceEventTrackerTest : RobolectricTest() {
             timestamp = 0L
         )
 
-        result.isFailure shouldBeEqualTo true
-        result.exceptionOrNull().shouldNotBeNull() shouldBeInstanceOf IllegalStateException::class
+        result.isSuccess shouldBeEqualTo true
         coVerify(exactly = 0) { httpClient.request(any()) }
     }
 

@@ -65,7 +65,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 capture(workRequestSlot)
             )
         }
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER"
+        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234"
 
         val input = workRequestSlot.captured.workSpec.input
         input.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"

@@ -57,16 +57,16 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence receiver skipped: $reason", tag = TAG)
     }
 
-    fun logEventDeliveryRetryable(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery hit network error; WorkManager will retry", tag = TAG)
+    fun logEventDeliveryRetryable(geofenceId: String, transitionName: String, message: String?) {
+        logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery hit network error ($message); WorkManager will retry", tag = TAG)
     }
 
     fun logEventDeliveryFailed(geofenceId: String, transitionName: String, message: String?) {
         logger.error("Geofence '$geofenceId' $transitionName: HTTP delivery failed and will not retry — $message", tag = TAG)
     }
 
-    fun logEventInvalidInput() {
-        logger.error("Geofence event worker dropped: input data missing required fields", tag = TAG)
+    fun logEventInvalidInput(geofenceId: String?, transitionName: String?) {
+        logger.error("Geofence event worker dropped: required field missing (geofenceId='$geofenceId', transition='$transitionName')", tag = TAG)
     }
 
     fun logEventDeliverySkippedNoUser(geofenceId: String, transitionName: String) {

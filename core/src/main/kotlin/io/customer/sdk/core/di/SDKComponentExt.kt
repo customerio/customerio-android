@@ -34,4 +34,4 @@ val SDKComponent.workManagerProvider: CustomerIOWorkManagerProvider
 
 @InternalCustomerIOApi
 val SDKComponent.clock: Clock
-    get() = singleton<Clock> { SystemClock() }
+    get() = newInstance<Clock> { SystemClock() }

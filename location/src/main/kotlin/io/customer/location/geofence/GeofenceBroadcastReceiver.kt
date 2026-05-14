@@ -110,13 +110,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             logger.logTransitionEmitting(geofenceId, transition.name)
 
             // Parallel delivery: WorkManager (survives process death) + EventBus (analytics pipeline).
-            scheduler.schedule(
-                geofenceId = geofenceId,
-                transition = transition,
-                latitude = latitude,
-                longitude = longitude,
-                timestamp = timestamp
-            )
+            // Isolate the scheduler so a WorkManager failure doesn't skip EventBus or abandon the batch.
+            try {
+                scheduler.schedule(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    latitude = latitude,
+                    longitude = longitude,
+                    timestamp = timestamp
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.logSchedulerFailed(geofenceId, transition.name, e.message)
+            }
 
             val properties = buildMap<String, Any> {
                 put("geofence_id", geofenceId)

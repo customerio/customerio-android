@@ -73,6 +73,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery skipped — no identified user", tag = TAG)
     }
 
+    fun logSchedulerFailed(geofenceId: String, transitionName: String, message: String?) {
+        logger.error("Geofence '$geofenceId' $transitionName: WorkManager scheduling failed; EventBus path still attempted — $message", tag = TAG)
+    }
+
     companion object {
         private const val TAG = "Geofence"
     }

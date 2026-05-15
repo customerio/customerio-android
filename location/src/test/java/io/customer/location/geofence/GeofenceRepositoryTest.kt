@@ -3,8 +3,8 @@ package io.customer.location.geofence
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
-import io.customer.location.geofence.api.GeofenceApiJson
 import io.customer.location.geofence.api.GeofenceApiResponse
+import io.customer.location.geofence.api.GeofenceApiResponseParser
 import io.customer.location.geofence.api.GeofenceApiService
 import io.customer.location.geofence.store.GeofenceRegionStore
 import io.customer.sdk.data.store.SecureUserStore
@@ -33,6 +33,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
+    private val parser = GeofenceApiResponseParser()
 
     private lateinit var repository: GeofenceRepositoryImpl
 
@@ -167,6 +168,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
               ]
             }
         """.trimIndent()
-        return GeofenceApiJson.decodeFromString(GeofenceApiResponse.serializer(), json)
+        return parser.parse(json)
     }
 }

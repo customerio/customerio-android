@@ -81,8 +81,8 @@ class ModuleMessagingPushFCMTest : JUnitTest() {
     @Test
     fun initialize_givenPendingPushDeliveriesOnDisk_expectFlushedViaEventBusAndCleared() {
         val pending = listOf(
-            PendingPushDeliveryMetric(id = "p1", deliveryId = "d1", token = "t1"),
-            PendingPushDeliveryMetric(id = "p2", deliveryId = "d2", token = "t2")
+            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1", timestamp = 1L),
+            PendingPushDeliveryMetric(deliveryId = "d2", token = "t2", timestamp = 2L)
         )
         every { mockPendingStore.loadAll() } returns pending
 

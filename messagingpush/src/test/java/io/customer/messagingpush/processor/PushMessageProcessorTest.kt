@@ -239,7 +239,7 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         assertNoInteractions(eventBus)
         verify(exactly = 0) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any(), any())
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
         }
         verify(exactly = 0) {
             mockPendingStore.append(any(), any())
@@ -250,8 +250,6 @@ class PushMessageProcessorTest : IntegrationTest() {
     fun processGCMMessageIntent_givenAutoTrackPushEventsEnabled_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
-        val givenPendingId = String.random
-        every { mockPendingStore.append(givenDeliveryId, givenDeviceToken) } returns givenPendingId
         val givenBundle = Bundle().apply {
             putString(PushTrackingUtil.DELIVERY_ID_KEY, givenDeliveryId)
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
@@ -282,8 +280,7 @@ class PushMessageProcessorTest : IntegrationTest() {
         verify(exactly = 1) {
             mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
                 deliveryId = givenDeliveryId,
-                deliveryToken = givenDeviceToken,
-                pendingId = givenPendingId
+                deliveryToken = givenDeviceToken
             )
         }
     }
@@ -303,7 +300,7 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         assertNoInteractions(eventBus)
         verify(exactly = 0) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any(), any())
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
         }
         verify(exactly = 0) {
             mockPendingStore.append(any(), any())
@@ -325,7 +322,7 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         assertCalledOnce { mockPushLogger.logPushMetricsAutoTrackingDisabled() }
         verify(exactly = 0) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any(), any())
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
         }
     }
 
@@ -333,8 +330,6 @@ class PushMessageProcessorTest : IntegrationTest() {
     fun processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsEnabled_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
-        val givenPendingId = String.random
-        every { mockPendingStore.append(givenDeliveryId, givenDeviceToken) } returns givenPendingId
         ModuleMessagingPushFCM(
             moduleConfig = MessagingPushModuleConfig.Builder()
                 .setAutoTrackPushEvents(true)
@@ -355,8 +350,7 @@ class PushMessageProcessorTest : IntegrationTest() {
         verify(exactly = 1) {
             mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
                 deliveryId = givenDeliveryId,
-                deliveryToken = givenDeviceToken,
-                pendingId = givenPendingId
+                deliveryToken = givenDeviceToken
             )
         }
     }

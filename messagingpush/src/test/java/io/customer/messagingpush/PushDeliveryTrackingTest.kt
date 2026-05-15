@@ -93,10 +93,9 @@ class PushDeliveryTrackingTest : IntegrationTest() {
      * Mirrors the WorkManager success-removal / failure-preservation contract.
      */
     @Test
-    fun asyncTrackMetric_givenHttpSuccess_expectPendingEntryRemoved() = runTest {
+    fun asyncTrackMetric_givenHttpSuccess_expectPendingEntryRemovedByDeliveryId() = runTest {
         val token = String.random
         val deliveryId = String.random
-        val pendingId = String.random
 
         coEvery {
             mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId)
@@ -110,19 +109,17 @@ class PushDeliveryTrackingTest : IntegrationTest() {
         asyncTracker.trackMetric(
             token = token,
             event = "Delivered",
-            deliveryId = deliveryId,
-            pendingId = pendingId
+            deliveryId = deliveryId
         )
 
         coVerify(exactly = 1) { mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId) }
-        verify(exactly = 1) { mockPendingStore.remove(pendingId) }
+        verify(exactly = 1) { mockPendingStore.remove(deliveryId) }
     }
 
     @Test
     fun asyncTrackMetric_givenHttpFailure_expectPendingEntryPreserved() = runTest {
         val token = String.random
         val deliveryId = String.random
-        val pendingId = String.random
 
         coEvery {
             mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId)
@@ -136,8 +133,7 @@ class PushDeliveryTrackingTest : IntegrationTest() {
         asyncTracker.trackMetric(
             token = token,
             event = "Delivered",
-            deliveryId = deliveryId,
-            pendingId = pendingId
+            deliveryId = deliveryId
         )
 
         coVerify(exactly = 1) { mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId) }

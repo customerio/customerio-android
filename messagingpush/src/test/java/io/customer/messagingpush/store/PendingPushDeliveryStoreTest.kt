@@ -7,6 +7,8 @@ import io.mockk.mockk
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeGreaterOrEqualTo
+import org.amshove.kluent.shouldBeLessOrEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBe
@@ -30,14 +32,17 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
     fun append_givenSingleEntry_expectLoadAllReturnsIt() {
         val deliveryId = String.random
         val token = String.random
+        val before = System.currentTimeMillis()
 
-        val id = store.append(deliveryId = deliveryId, token = token)
+        store.append(deliveryId = deliveryId, token = token)
 
+        val after = System.currentTimeMillis()
         val entries = store.loadAll()
         entries.size shouldBeEqualTo 1
-        entries[0].id shouldBeEqualTo id
         entries[0].deliveryId shouldBeEqualTo deliveryId
         entries[0].token shouldBeEqualTo token
+        entries[0].timestamp shouldBeGreaterOrEqualTo before
+        entries[0].timestamp shouldBeLessOrEqualTo after
     }
 
     @Test
@@ -45,43 +50,39 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
         val deliveryIds = List(3) { String.random }
         val tokens = List(3) { String.random }
 
-        val ids = deliveryIds.zip(tokens).map { (deliveryId, token) ->
+        deliveryIds.zip(tokens).forEach { (deliveryId, token) ->
             store.append(deliveryId = deliveryId, token = token)
         }
 
         val entries = store.loadAll()
-        entries.map { it.id } shouldBeEqualTo ids
         entries.map { it.deliveryId } shouldBeEqualTo deliveryIds
         entries.map { it.token } shouldBeEqualTo tokens
     }
 
     @Test
-    fun append_givenGeneratedIds_expectUnique() {
-        val ids = List(50) { store.append(deliveryId = String.random, token = String.random) }
-        ids.toSet().size shouldBeEqualTo ids.size
-    }
+    fun remove_givenExistingDeliveryId_expectEntryRemoved() {
+        val keepDeliveryId = String.random
+        val removeDeliveryId = String.random
+        store.append(deliveryId = keepDeliveryId, token = String.random)
+        store.append(deliveryId = removeDeliveryId, token = String.random)
 
-    @Test
-    fun remove_givenExistingId_expectEntryRemoved() {
-        val keepId = store.append(deliveryId = String.random, token = String.random)
-        val removeId = store.append(deliveryId = String.random, token = String.random)
-
-        store.remove(removeId)
+        store.remove(removeDeliveryId)
 
         val entries = store.loadAll()
         entries.size shouldBeEqualTo 1
-        entries[0].id shouldBeEqualTo keepId
+        entries[0].deliveryId shouldBeEqualTo keepDeliveryId
     }
 
     @Test
-    fun remove_givenUnknownId_expectNoOp() {
-        val keepId = store.append(deliveryId = String.random, token = String.random)
+    fun remove_givenUnknownDeliveryId_expectNoOp() {
+        val keepDeliveryId = String.random
+        store.append(deliveryId = keepDeliveryId, token = String.random)
 
-        store.remove("not-a-real-id")
+        store.remove("not-a-real-delivery-id")
 
         val entries = store.loadAll()
         entries.size shouldBeEqualTo 1
-        entries[0].id shouldBeEqualTo keepId
+        entries[0].deliveryId shouldBeEqualTo keepDeliveryId
     }
 
     @Test
@@ -102,8 +103,10 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
 
     @Test
     fun append_givenOverCapacity_expectOldestDropped() {
-        val firstId = store.append(deliveryId = "first", token = String.random)
-        val secondId = store.append(deliveryId = "second", token = String.random)
+        val firstDeliveryId = "first"
+        val secondDeliveryId = "second"
+        store.append(deliveryId = firstDeliveryId, token = String.random)
+        store.append(deliveryId = secondDeliveryId, token = String.random)
         for (i in 0 until (PendingPushDeliveryStore.MAX_ENTRIES - 2)) {
             store.append(deliveryId = "fill-$i", token = String.random)
         }
@@ -111,18 +114,19 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
         // Store is now exactly at MAX_ENTRIES. Both anchors should still exist.
         val beforeOverflow = store.loadAll()
         beforeOverflow.size shouldBeEqualTo PendingPushDeliveryStore.MAX_ENTRIES
-        beforeOverflow.first().id shouldBeEqualTo firstId
+        beforeOverflow.first().deliveryId shouldBeEqualTo firstDeliveryId
 
-        val lastId = store.append(deliveryId = "last", token = String.random)
+        val lastDeliveryId = "last"
+        store.append(deliveryId = lastDeliveryId, token = String.random)
 
         val afterOverflow = store.loadAll()
         afterOverflow.size shouldBeEqualTo PendingPushDeliveryStore.MAX_ENTRIES
-        // Oldest must have been dropped.
-        afterOverflow.none { it.id == firstId }.shouldBeTrue()
+        // Oldest (smallest-timestamp) must have been dropped.
+        afterOverflow.none { it.deliveryId == firstDeliveryId }.shouldBeTrue()
         // Second oldest is now the head.
-        afterOverflow.first().id shouldBeEqualTo secondId
+        afterOverflow.first().deliveryId shouldBeEqualTo secondDeliveryId
         // Newest entry is at the tail.
-        afterOverflow.last().id shouldBeEqualTo lastId
+        afterOverflow.last().deliveryId shouldBeEqualTo lastDeliveryId
     }
 
     @Test
@@ -151,8 +155,8 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
         // so the store should be capped — confirming the capacity guard works
         // under concurrent access without throwing.
         entries.size shouldBeEqualTo PendingPushDeliveryStore.MAX_ENTRIES
-        // Sanity-check that ids remain unique even across threads.
-        entries.map { it.id }.toSet().size shouldBeEqualTo entries.size
+        // Sanity-check that deliveryIds remain unique even across threads.
+        entries.map { it.deliveryId }.toSet().size shouldBeEqualTo entries.size
     }
 
     @Test
@@ -179,5 +183,6 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
         val raw = file.readText()
         raw shouldContain deliveryId
         raw shouldContain token
+        raw shouldContain "timestamp"
     }
 }

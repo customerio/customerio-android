@@ -17,7 +17,6 @@ import java.io.IOException
 
 private const val DELIVERY_ID = "delivery-id"
 private const val DELIVERY_TOKEN = "delivery-token"
-private const val PENDING_ID = "pending-id"
 
 internal class PushDeliveryMetricsBackgroundScheduler(
     private val workManagerProvider: CustomerIOWorkManagerProvider,
@@ -31,13 +30,11 @@ internal class PushDeliveryMetricsBackgroundScheduler(
 
     fun scheduleDeliveredPushMetricsReceipt(
         deliveryId: String,
-        deliveryToken: String,
-        pendingId: String
+        deliveryToken: String
     ) {
         val input = Data.Builder()
             .putString(DELIVERY_ID, deliveryId)
             .putString(DELIVERY_TOKEN, deliveryToken)
-            .putString(PENDING_ID, pendingId)
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<PushDeliveryMetricsWorker>()
@@ -58,8 +55,7 @@ internal class PushDeliveryMetricsBackgroundScheduler(
             asyncPushDeliveryTracker.trackMetric(
                 token = deliveryToken,
                 event = Metric.Delivered.name,
-                deliveryId = deliveryId,
-                pendingId = pendingId
+                deliveryId = deliveryId
             )
         }
     }
@@ -72,7 +68,6 @@ internal class PushDeliveryMetricsWorker(
     override suspend fun doWork(): Result {
         val deliveryId = inputData.getString(DELIVERY_ID)
         val deliveryToken = inputData.getString(DELIVERY_TOKEN)
-        val pendingId = inputData.getString(PENDING_ID)
 
         if (deliveryId.isNullOrEmpty() || deliveryToken.isNullOrEmpty()) {
             // Missing delivery data, prevent task from being retried
@@ -88,9 +83,7 @@ internal class PushDeliveryMetricsWorker(
         return when {
             result.isSuccess -> {
                 // Only clear the pending entry once the backend has confirmed receipt.
-                pendingId?.takeIf { it.isNotEmpty() }?.let {
-                    SDKComponent.pendingPushDeliveryStore.remove(it)
-                }
+                SDKComponent.pendingPushDeliveryStore.remove(deliveryId)
                 Result.success()
             }
             result.exceptionOrNull() is IOException -> Result.retry()

@@ -93,9 +93,9 @@ internal class PushMessageProcessorImpl(
 
             // Persist a pending entry first so the metric can be replayed via the
             // analytics pipeline at the next app launch if the primary delivery
-            // path fails. The id is passed through to the scheduler / direct-HTTP
-            // fallback so it can be cleared on a successful response.
-            val pendingId = pendingPushDeliveryStore.append(
+            // path fails. The entry is keyed by deliveryId; the scheduler /
+            // direct-HTTP fallback removes it on a successful response.
+            pendingPushDeliveryStore.append(
                 deliveryId = deliveryId,
                 token = deliveryToken
             )
@@ -105,8 +105,7 @@ internal class PushMessageProcessorImpl(
             // pending-store + launch-flush handles the analytics-pipeline path.
             deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
                 deliveryId = deliveryId,
-                deliveryToken = deliveryToken,
-                pendingId = pendingId
+                deliveryToken = deliveryToken
             )
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()

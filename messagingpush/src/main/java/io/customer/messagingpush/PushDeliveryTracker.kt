@@ -63,14 +63,15 @@ internal class AsyncPushDeliveryTracker(
     /**
      * Fire-and-forget direct-HTTP fallback used when WorkManager is not available.
      * Mirrors the WorkManager success contract: on a 2xx response the pending
-     * entry is removed; on any failure the entry is left in place so the
-     * app-launch flush will publish it via the analytics pipeline.
+     * entry keyed by [deliveryId] is removed; on any failure the entry is left
+     * in place so the app-launch flush will publish it via the analytics
+     * pipeline.
      */
-    fun trackMetric(token: String, event: String, deliveryId: String, pendingId: String) {
+    fun trackMetric(token: String, event: String, deliveryId: String) {
         CoroutineScope(dispatcher.background).launch {
             val result = deliveryTracker.trackMetric(token, event, deliveryId)
-            if (result.isSuccess && pendingId.isNotEmpty()) {
-                pendingStore.remove(pendingId)
+            if (result.isSuccess) {
+                pendingStore.remove(deliveryId)
             }
         }
     }

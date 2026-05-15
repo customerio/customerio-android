@@ -409,11 +409,10 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
     }
 
     @Test
-    fun doWork_givenHttpSuccessAndPendingId_expectPendingEntryRemoved() = runTest {
+    fun doWork_givenHttpSuccess_expectPendingEntryRemovedByDeliveryId() = runTest {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
-        val inputData = createInputData(deliveryId, deliveryToken, pendingId)
+        val inputData = createInputData(deliveryId, deliveryToken)
 
         coEvery {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
@@ -424,15 +423,14 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
 
         result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
 
-        verify(exactly = 1) { mockPendingStore.remove(pendingId) }
+        verify(exactly = 1) { mockPendingStore.remove(deliveryId) }
     }
 
     @Test
-    fun doWork_givenHttpFailureAndPendingId_expectPendingEntryPreserved() = runTest {
+    fun doWork_givenHttpFailure_expectPendingEntryPreserved() = runTest {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
-        val inputData = createInputData(deliveryId, deliveryToken, pendingId)
+        val inputData = createInputData(deliveryId, deliveryToken)
 
         coEvery {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
@@ -445,11 +443,10 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
     }
 
     @Test
-    fun doWork_givenHttpRetryableFailureAndPendingId_expectPendingEntryPreserved() = runTest {
+    fun doWork_givenHttpRetryableFailure_expectPendingEntryPreserved() = runTest {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
-        val inputData = createInputData(deliveryId, deliveryToken, pendingId)
+        val inputData = createInputData(deliveryId, deliveryToken)
 
         coEvery {
             mockPushDeliveryTracker.trackMetric(any(), any(), any())
@@ -458,23 +455,6 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val worker = createWorker(inputData)
         worker.doWork()
 
-        verify(exactly = 0) { mockPendingStore.remove(any()) }
-    }
-
-    @Test
-    fun doWork_givenMissingPendingId_expectNoStoreInteraction() = runTest {
-        val deliveryId = String.random
-        val deliveryToken = String.random
-        val inputData = createInputData(deliveryId, deliveryToken, pendingId = null)
-
-        coEvery {
-            mockPushDeliveryTracker.trackMetric(any(), any(), any())
-        } returns Result.success(Unit)
-
-        val worker = createWorker(inputData)
-        val result = worker.doWork()
-
-        result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
         verify(exactly = 0) { mockPendingStore.remove(any()) }
     }
 
@@ -503,13 +483,11 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
 
     private fun createInputData(
         deliveryId: String?,
-        deliveryToken: String?,
-        pendingId: String? = null
+        deliveryToken: String?
     ): Data {
         val builder = Data.Builder()
         deliveryId?.let { builder.putString("delivery-id", it) }
         deliveryToken?.let { builder.putString("delivery-token", it) }
-        pendingId?.let { builder.putString("pending-id", it) }
         return builder.build()
     }
 

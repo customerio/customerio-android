@@ -29,12 +29,11 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
     fun scheduleDeliveredPushMetricsReceipt_givenValidInputs_expectWorkRequestEnqueued() {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
         val workRequestSlot = slot<OneTimeWorkRequest>()
 
         every { mockWorkManagerProvider.getWorkManager() } returns mockWorkManager
 
-        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken, pendingId)
+        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
@@ -47,7 +46,6 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
         val inputData = workRequestSlot.captured.workSpec.input
         inputData.getString("delivery-id") shouldBeEqualTo deliveryId
         inputData.getString("delivery-token") shouldBeEqualTo deliveryToken
-        inputData.getString("pending-id") shouldBeEqualTo pendingId
 
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
@@ -58,11 +56,10 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
     fun scheduleDeliveredPushMetricsReceipt_givenWorkManagerProviderReturnsNull_expectFallbackToAsyncTracker() {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
 
         every { mockWorkManagerProvider.getWorkManager() } returns null
 
-        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken, pendingId)
+        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
 
         verify(exactly = 0) {
             mockWorkManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>())
@@ -72,8 +69,7 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
             mockAsyncPushDeliveryTracker.trackMetric(
                 token = deliveryToken,
                 event = Metric.Delivered.name,
-                deliveryId = deliveryId,
-                pendingId = pendingId
+                deliveryId = deliveryId
             )
         }
     }
@@ -82,11 +78,10 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
     fun scheduleDeliveredPushMetricsReceipt_givenWorkManagerProviderReturnsNull_expectNoWorkManagerInteraction() {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
 
         every { mockWorkManagerProvider.getWorkManager() } returns null
 
-        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken, pendingId)
+        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
 
         // Verify WorkManager is not called when null
         verify(exactly = 0) {
@@ -94,7 +89,7 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
         }
         // Verify async tracker is called as fallback
         verify(exactly = 1) {
-            mockAsyncPushDeliveryTracker.trackMetric(any(), any(), any(), any())
+            mockAsyncPushDeliveryTracker.trackMetric(any(), any(), any())
         }
     }
 
@@ -102,11 +97,10 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
     fun scheduleDeliveredPushMetricsReceipt_givenWorkManagerAvailable_expectNoAsyncTrackerCall() {
         val deliveryId = String.random
         val deliveryToken = String.random
-        val pendingId = String.random
 
         every { mockWorkManagerProvider.getWorkManager() } returns mockWorkManager
 
-        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken, pendingId)
+        scheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
 
         // Verify WorkManager is used when available
         verify(exactly = 1) {
@@ -114,7 +108,7 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
         }
         // Verify async tracker is NOT called when WorkManager is available
         verify(exactly = 0) {
-            mockAsyncPushDeliveryTracker.trackMetric(any(), any(), any(), any())
+            mockAsyncPushDeliveryTracker.trackMetric(any(), any(), any())
         }
     }
 }

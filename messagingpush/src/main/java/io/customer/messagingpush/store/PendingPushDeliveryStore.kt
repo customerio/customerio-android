@@ -3,7 +3,6 @@ package io.customer.messagingpush.store
 import android.content.Context
 import io.customer.sdk.core.util.Logger
 import java.io.File
-import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import org.json.JSONArray
@@ -12,17 +11,18 @@ import org.json.JSONObject
 /**
  * Disk-backed queue of push-delivered metrics waiting on a delivery confirmation.
  *
- * Each entry is the tuple `(id, deliveryId, token)` where `id` is generated at
- * [append] time and is the handle used to remove the entry once the metric has
- * been delivered. There is no timestamp and no age-based eviction; entries live
- * until [remove] / [removeAll] is called.
+ * Each entry is the tuple `(deliveryId, token, timestamp)` where [deliveryId]
+ * is the natural key used to remove the entry once the metric has been
+ * delivered, and [timestamp] is the epoch-millis value captured at [append]
+ * time. Entries live until [remove] / [removeAll] is called.
  *
  * Storage is a single JSON file in [Context.filesDir]. All read-modify-write
  * sequences are guarded by an in-process [ReentrantLock] so concurrent appends
  * from multiple FCM callbacks cannot corrupt the file.
  *
- * Capacity is capped at [MAX_ENTRIES]. On overflow the oldest entry is dropped
- * so the queue never grows without bound when delivery confirmation is failing.
+ * Capacity is capped at [MAX_ENTRIES]. On overflow the entry with the smallest
+ * timestamp is dropped so the queue never grows without bound when delivery
+ * confirmation is failing.
  */
 internal class PendingPushDeliveryStore(
     context: Context,
@@ -32,34 +32,39 @@ internal class PendingPushDeliveryStore(
     private val lock = ReentrantLock()
 
     /**
-     * Append a new pending entry and return its generated id. The id should be
-     * passed to the WorkManager job / direct-HTTP fallback so it can call
-     * [remove] on a successful response.
+     * Append a new pending entry, capturing [System.currentTimeMillis] as the
+     * entry's timestamp. The WorkManager job / direct-HTTP fallback uses
+     * [deliveryId] to call [remove] on a successful response.
      */
-    fun append(deliveryId: String, token: String): String {
-        val id = UUID.randomUUID().toString()
+    fun append(deliveryId: String, token: String) {
+        val entry = PendingPushDeliveryMetric(
+            deliveryId = deliveryId,
+            token = token,
+            timestamp = System.currentTimeMillis()
+        )
         lock.withLock {
             val entries = readAll().toMutableList()
-            entries.add(PendingPushDeliveryMetric(id = id, deliveryId = deliveryId, token = token))
-            // Drop oldest entries to keep the queue bounded.
+            entries.add(entry)
+            // Drop oldest (smallest-timestamp) entries to keep the queue bounded.
             while (entries.size > MAX_ENTRIES) {
-                entries.removeAt(0)
+                val oldestIndex = entries.indices.minBy { entries[it].timestamp }
+                entries.removeAt(oldestIndex)
             }
             writeAll(entries)
         }
-        return id
     }
 
     /** Returns all pending entries in insertion order. */
     fun loadAll(): List<PendingPushDeliveryMetric> = lock.withLock { readAll() }
 
     /**
-     * Remove the entry with the given [id]. No-op if no such entry exists
-     * (e.g. it was already flushed at launch or removed by an earlier success).
+     * Remove the entry with the given [deliveryId]. No-op if no such entry
+     * exists (e.g. it was already flushed at launch or removed by an earlier
+     * success).
      */
-    fun remove(id: String) {
+    fun remove(deliveryId: String) {
         lock.withLock {
-            val entries = readAll().filterNot { it.id == id }
+            val entries = readAll().filterNot { it.deliveryId == deliveryId }
             writeAll(entries)
         }
     }
@@ -80,10 +85,18 @@ internal class PendingPushDeliveryStore(
             buildList(array.length()) {
                 for (i in 0 until array.length()) {
                     val obj = array.optJSONObject(i) ?: continue
-                    val id = obj.optString(KEY_ID).takeIf { it.isNotBlank() } ?: continue
                     val deliveryId = obj.optString(KEY_DELIVERY_ID).takeIf { it.isNotBlank() } ?: continue
                     val token = obj.optString(KEY_TOKEN).takeIf { it.isNotBlank() } ?: continue
-                    add(PendingPushDeliveryMetric(id = id, deliveryId = deliveryId, token = token))
+                    if (!obj.has(KEY_TIMESTAMP)) continue
+                    val timestamp = obj.optLong(KEY_TIMESTAMP, Long.MIN_VALUE)
+                    if (timestamp == Long.MIN_VALUE) continue
+                    add(
+                        PendingPushDeliveryMetric(
+                            deliveryId = deliveryId,
+                            token = token,
+                            timestamp = timestamp
+                        )
+                    )
                 }
             }
         } catch (ex: Exception) {
@@ -101,9 +114,9 @@ internal class PendingPushDeliveryStore(
             val array = JSONArray()
             entries.forEach { entry ->
                 val obj = JSONObject().apply {
-                    put(KEY_ID, entry.id)
                     put(KEY_DELIVERY_ID, entry.deliveryId)
                     put(KEY_TOKEN, entry.token)
+                    put(KEY_TIMESTAMP, entry.timestamp)
                 }
                 array.put(obj)
             }
@@ -120,9 +133,9 @@ internal class PendingPushDeliveryStore(
     internal companion object {
         const val MAX_ENTRIES = 100
         private const val FILE_NAME = "cio_pending_push_delivery.json"
-        private const val KEY_ID = "id"
         private const val KEY_DELIVERY_ID = "deliveryId"
         private const val KEY_TOKEN = "token"
+        private const val KEY_TIMESTAMP = "timestamp"
         private const val TAG = "PendingPushDeliveryStore"
     }
 }

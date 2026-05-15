@@ -61,11 +61,18 @@ internal class PendingPushDeliveryStore(
      * Remove the entry with the given [deliveryId]. No-op if no such entry
      * exists (e.g. it was already flushed at launch or removed by an earlier
      * success).
+     *
+     * Skips the write when no entry was actually removed: if [readAll] returns
+     * empty (whether the file is genuinely empty or unreadable due to a
+     * transient IO failure / corruption), [writeAll] would otherwise wipe the
+     * file with an empty array. Matches iOS's `PendingPushDeliveryStore.remove`.
      */
     fun remove(deliveryId: String) {
         lock.withLock {
-            val entries = readAll().filterNot { it.deliveryId == deliveryId }
-            writeAll(entries)
+            val entries = readAll()
+            val filtered = entries.filterNot { it.deliveryId == deliveryId }
+            if (filtered.size == entries.size) return@withLock
+            writeAll(filtered)
         }
     }
 
@@ -74,13 +81,18 @@ internal class PendingPushDeliveryStore(
      * coordinated read-modify-write. Prefer this over calling [remove] in a
      * loop when flushing multiple metrics at once. Entries appended after
      * this call's read are not affected.
+     *
+     * Skips the write when no entry was actually removed — same protection as
+     * [remove] against transient [readAll] failures silently wiping the store.
      */
     fun removeAll(deliveryIds: Collection<String>) {
         if (deliveryIds.isEmpty()) return
         val idSet = deliveryIds.toSet()
         lock.withLock {
-            val entries = readAll().filterNot { it.deliveryId in idSet }
-            writeAll(entries)
+            val entries = readAll()
+            val filtered = entries.filterNot { it.deliveryId in idSet }
+            if (filtered.size == entries.size) return@withLock
+            writeAll(filtered)
         }
     }
 

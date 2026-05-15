@@ -4,6 +4,7 @@ import io.customer.commontest.extensions.random
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.amshove.kluent.shouldBeEqualTo
@@ -149,6 +150,32 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
         val remaining = store.loadAll()
         remaining.size shouldBeEqualTo 1
         remaining[0].deliveryId shouldBeEqualTo appendedMidFlush
+    }
+
+    @Test
+    fun remove_givenCorruptedFile_expectStoreFilePreserved() {
+        // Reproduces the Bugbot finding: if readAll() fails to parse and
+        // returns an empty list, the subsequent writeAll() must NOT silently
+        // wipe the file. After the fix, remove() skips the write entirely
+        // when nothing was filtered out.
+        val file = File(applicationMock.applicationContext.filesDir, "cio_pending_push_delivery.json")
+        val corrupted = "{not-valid-json"
+        file.writeText(corrupted)
+
+        store.remove("any-id")
+
+        file.readText() shouldBeEqualTo corrupted
+    }
+
+    @Test
+    fun removeAllIds_givenCorruptedFile_expectStoreFilePreserved() {
+        val file = File(applicationMock.applicationContext.filesDir, "cio_pending_push_delivery.json")
+        val corrupted = "{not-valid-json"
+        file.writeText(corrupted)
+
+        store.removeAll(listOf("id1", "id2"))
+
+        file.readText() shouldBeEqualTo corrupted
     }
 
     @Test

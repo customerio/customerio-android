@@ -125,22 +125,22 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenConcurrentCalls_expectSerializedThroughMutex() = runTest {
-        // Pins the Mutex contract: two concurrent refresh() calls must not both
-        // be inside manager.addGeofences at once, otherwise concurrent GMS
-        // registrations could leave the OS with inconsistent geofence state.
+    fun refresh_givenSecondCallWhileFirstInFlight_expectSecondDroppedAndOnlyOneApiCall() = runTest {
+        // In-flight gate dedups concurrent triggers: the second refresh returns
+        // success immediately without firing a redundant API call or attempting
+        // a second OS registration.
         every { secureUserStore.getUserId() } returns "user-42"
         coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
 
-        val inFlight = AtomicInteger(0)
+        val addGeofencesActive = AtomicInteger(0)
         val maxObservedConcurrency = AtomicInteger(0)
         coEvery { manager.addGeofences(any()) } coAnswers {
-            val n = inFlight.incrementAndGet()
+            val n = addGeofencesActive.incrementAndGet()
             maxObservedConcurrency.updateAndGet { current -> maxOf(current, n) }
             delay(50)
-            inFlight.decrementAndGet()
+            addGeofencesActive.decrementAndGet()
             Result.success(Unit)
         }
 
@@ -150,6 +150,60 @@ class GeofenceRepositoryTest : RobolectricTest() {
         }
 
         maxObservedConcurrency.get() shouldBeEqualTo 1
+        coVerify(exactly = 1) { apiService.fetchGeofences(any(), any(), any()) }
+        verify { logger.logSyncSkipped(match { it.contains("refresh already in progress") }) }
+    }
+
+    @Test
+    fun refresh_givenInFlightGateCleared_expectSubsequentCallProceeds() = runTest {
+        // Pins the contract that the in-flight gate is released even on failure,
+        // so a follow-up refresh isn't permanently locked out.
+        every { secureUserStore.getUserId() } returns "user-42"
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returnsMany listOf(
+            Result.failure(IOException("first call fails")),
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        )
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        val first = repository.refresh(latitude = 0.0, longitude = 0.0)
+        val second = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        first.isFailure shouldBeEqualTo true
+        second.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 2) { apiService.fetchGeofences(any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenUserChangesDuringApiCall_expectNoWriteToStoreOrManager() = runTest {
+        // Defends against a reset()/sign-out racing with an in-flight refresh:
+        // the userId recheck inside the state lock prevents writing the previous
+        // user's geofences after a sign-out cleared state.
+        every { secureUserStore.getUserId() } returnsMany listOf("user-A", "user-B")
+        coEvery { apiService.fetchGeofences("user-A", any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        verify(exactly = 0) { store.saveAll(any()) }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+        verify { logger.logSyncSkipped(match { it.contains("user changed") }) }
+    }
+
+    @Test
+    fun refresh_givenUserSignsOutDuringApiCall_expectNoWriteToStoreOrManager() = runTest {
+        every { secureUserStore.getUserId() } returnsMany listOf("user-A", null)
+        coEvery { apiService.fetchGeofences("user-A", any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        verify(exactly = 0) { store.saveAll(any()) }
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+        verify { logger.logSyncSkipped(match { it.contains("user changed") }) }
     }
 
     private fun sampleResponse(maxBusinessGeofences: Int): GeofenceApiResponse {

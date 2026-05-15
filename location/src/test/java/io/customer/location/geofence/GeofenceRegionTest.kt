@@ -51,7 +51,7 @@ class GeofenceRegionTest : RobolectricTest() {
         id = "test-geofence",
         latitude = 0.0,
         longitude = 0.0,
-        radiusMeters = 100f,
+        radius = 100f,
         transitionTypes = transitionTypes
     )
 }

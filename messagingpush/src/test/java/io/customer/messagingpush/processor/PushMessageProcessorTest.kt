@@ -21,6 +21,7 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -46,6 +47,7 @@ class PushMessageProcessorTest : IntegrationTest() {
     private lateinit var eventBus: EventBus
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
     private val mockDeliveryMetricsScheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
+    private val mockPendingStore = mockk<PendingPushDeliveryStore>(relaxed = true)
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
         return SDKComponent.pushMessageProcessor as PushMessageProcessorImpl
@@ -60,6 +62,7 @@ class PushMessageProcessorTest : IntegrationTest() {
                         overrideDependency<EventBus>(mockk(relaxed = true))
                         overrideDependency<PushNotificationLogger>(mockPushLogger)
                         overrideDependency<PushDeliveryMetricsBackgroundScheduler>(mockDeliveryMetricsScheduler)
+                        overrideDependency<PendingPushDeliveryStore>(mockPendingStore)
                     }
                 }
             }
@@ -236,7 +239,10 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         assertNoInteractions(eventBus)
         verify(exactly = 0) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any(), any())
+        }
+        verify(exactly = 0) {
+            mockPendingStore.append(any(), any())
         }
     }
 
@@ -244,6 +250,8 @@ class PushMessageProcessorTest : IntegrationTest() {
     fun processGCMMessageIntent_givenAutoTrackPushEventsEnabled_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
+        val givenPendingId = String.random
+        every { mockPendingStore.append(givenDeliveryId, givenDeviceToken) } returns givenPendingId
         val givenBundle = Bundle().apply {
             putString(PushTrackingUtil.DELIVERY_ID_KEY, givenDeliveryId)
             putString(PushTrackingUtil.DELIVERY_TOKEN_KEY, givenDeviceToken)
@@ -259,18 +267,24 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         processor.processGCMMessageIntent(gcmIntent)
 
-        assertCalledOnce {
-            eventBus.publish(
-                Event.TrackPushMetricEvent(
-                    event = Metric.Delivered,
-                    deliveryId = givenDeliveryId,
-                    deviceToken = givenDeviceToken
-                )
-            )
+        // The initial delivery path no longer dual-emits via the event bus; the
+        // pending store + WorkManager (or fallback) carry the metric to the
+        // backend, and the analytics-pipeline emission happens at the next
+        // launch flush from `ModuleMessagingPushFCM.initialize()`.
+        verify(exactly = 0) {
+            eventBus.publish(any<Event.TrackPushMetricEvent>())
         }
 
         verify(exactly = 1) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken)
+            mockPendingStore.append(givenDeliveryId, givenDeviceToken)
+        }
+
+        verify(exactly = 1) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
+                deliveryId = givenDeliveryId,
+                deliveryToken = givenDeviceToken,
+                pendingId = givenPendingId
+            )
         }
     }
 
@@ -289,7 +303,10 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         assertNoInteractions(eventBus)
         verify(exactly = 0) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any(), any())
+        }
+        verify(exactly = 0) {
+            mockPendingStore.append(any(), any())
         }
     }
 
@@ -308,7 +325,7 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         assertCalledOnce { mockPushLogger.logPushMetricsAutoTrackingDisabled() }
         verify(exactly = 0) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any(), any())
         }
     }
 
@@ -316,6 +333,8 @@ class PushMessageProcessorTest : IntegrationTest() {
     fun processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsEnabled_expectTrackPush() {
         val givenDeliveryId = String.random
         val givenDeviceToken = String.random
+        val givenPendingId = String.random
+        every { mockPendingStore.append(givenDeliveryId, givenDeviceToken) } returns givenPendingId
         ModuleMessagingPushFCM(
             moduleConfig = MessagingPushModuleConfig.Builder()
                 .setAutoTrackPushEvents(true)
@@ -325,18 +344,20 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
-        assertCalledOnce {
-            eventBus.publish(
-                Event.TrackPushMetricEvent(
-                    event = Metric.Delivered,
-                    deliveryId = givenDeliveryId,
-                    deviceToken = givenDeviceToken
-                )
-            )
+        verify(exactly = 0) {
+            eventBus.publish(any<Event.TrackPushMetricEvent>())
         }
 
         verify(exactly = 1) {
-            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken)
+            mockPendingStore.append(givenDeliveryId, givenDeviceToken)
+        }
+
+        verify(exactly = 1) {
+            mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
+                deliveryId = givenDeliveryId,
+                deliveryToken = givenDeviceToken,
+                pendingId = givenPendingId
+            )
         }
     }
 

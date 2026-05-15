@@ -8,6 +8,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import io.customer.messagingpush.AsyncPushDeliveryTracker
+import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
@@ -16,6 +17,7 @@ import java.io.IOException
 
 private const val DELIVERY_ID = "delivery-id"
 private const val DELIVERY_TOKEN = "delivery-token"
+private const val PENDING_ID = "pending-id"
 
 internal class PushDeliveryMetricsBackgroundScheduler(
     private val workManagerProvider: CustomerIOWorkManagerProvider,
@@ -27,10 +29,15 @@ internal class PushDeliveryMetricsBackgroundScheduler(
         private const val WORK_MANAGER_TAG_PUSH_DELIVERY = "cio-push-delivery"
     }
 
-    fun scheduleDeliveredPushMetricsReceipt(deliveryId: String, deliveryToken: String) {
+    fun scheduleDeliveredPushMetricsReceipt(
+        deliveryId: String,
+        deliveryToken: String,
+        pendingId: String
+    ) {
         val input = Data.Builder()
             .putString(DELIVERY_ID, deliveryId)
             .putString(DELIVERY_TOKEN, deliveryToken)
+            .putString(PENDING_ID, pendingId)
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<PushDeliveryMetricsWorker>()
@@ -48,7 +55,12 @@ internal class PushDeliveryMetricsBackgroundScheduler(
         if (workManager != null) {
             workManager.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)
         } else {
-            asyncPushDeliveryTracker.trackMetric(deliveryToken, Metric.Delivered.name, deliveryId)
+            asyncPushDeliveryTracker.trackMetric(
+                token = deliveryToken,
+                event = Metric.Delivered.name,
+                deliveryId = deliveryId,
+                pendingId = pendingId
+            )
         }
     }
 }
@@ -60,6 +72,7 @@ internal class PushDeliveryMetricsWorker(
     override suspend fun doWork(): Result {
         val deliveryId = inputData.getString(DELIVERY_ID)
         val deliveryToken = inputData.getString(DELIVERY_TOKEN)
+        val pendingId = inputData.getString(PENDING_ID)
 
         if (deliveryId.isNullOrEmpty() || deliveryToken.isNullOrEmpty()) {
             // Missing delivery data, prevent task from being retried
@@ -73,7 +86,13 @@ internal class PushDeliveryMetricsWorker(
         )
 
         return when {
-            result.isSuccess -> Result.success()
+            result.isSuccess -> {
+                // Only clear the pending entry once the backend has confirmed receipt.
+                pendingId?.takeIf { it.isNotEmpty() }?.let {
+                    SDKComponent.pendingPushDeliveryStore.remove(it)
+                }
+                Result.success()
+            }
             result.exceptionOrNull() is IOException -> Result.retry()
             else -> Result.failure()
         }

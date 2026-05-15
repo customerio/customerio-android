@@ -1,5 +1,6 @@
 package io.customer.messagingpush
 
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.httpClient
 import io.customer.sdk.core.network.CustomerIOHttpClient
@@ -53,14 +54,24 @@ internal class PushDeliveryTrackerImpl : PushDeliveryTracker {
 }
 
 internal class AsyncPushDeliveryTracker(
-    private val deliveryTracker: PushDeliveryTracker
+    private val deliveryTracker: PushDeliveryTracker,
+    private val pendingStore: PendingPushDeliveryStore
 ) {
     private val dispatcher: DispatchersProvider
         get() = SDKComponent.dispatchersProvider
 
-    fun trackMetric(token: String, event: String, deliveryId: String) {
+    /**
+     * Fire-and-forget direct-HTTP fallback used when WorkManager is not available.
+     * Mirrors the WorkManager success contract: on a 2xx response the pending
+     * entry is removed; on any failure the entry is left in place so the
+     * app-launch flush will publish it via the analytics pipeline.
+     */
+    fun trackMetric(token: String, event: String, deliveryId: String, pendingId: String) {
         CoroutineScope(dispatcher.background).launch {
-            deliveryTracker.trackMetric(token, event, deliveryId)
+            val result = deliveryTracker.trackMetric(token, event, deliveryId)
+            if (result.isSuccess && pendingId.isNotEmpty()) {
+                pendingStore.remove(pendingId)
+            }
         }
     }
 }

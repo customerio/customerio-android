@@ -2,13 +2,18 @@ package io.customer.messagingpush
 
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.extensions.random
+import io.customer.commontest.util.DispatchersProviderStub
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
+import io.customer.sdk.core.util.DispatchersProvider
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
@@ -22,6 +27,8 @@ class PushDeliveryTrackingTest : IntegrationTest() {
 
     private val httpClient: CustomerIOHttpClient = mockk(relaxed = true)
     private val pushDeliveryTracker = PushDeliveryTrackerImpl()
+    private val mockPendingStore: PendingPushDeliveryStore = mockk(relaxed = true)
+    private val mockDeliveryTracker: PushDeliveryTracker = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -30,6 +37,7 @@ class PushDeliveryTrackingTest : IntegrationTest() {
                     sdk {
                         // Override the httpClient in your DI so the SUT uses this mock.
                         overrideDependency<CustomerIOHttpClient>(httpClient)
+                        overrideDependency<DispatchersProvider>(DispatchersProviderStub())
                     }
                 }
             }
@@ -78,5 +86,61 @@ class PushDeliveryTrackingTest : IntegrationTest() {
         val result = pushDeliveryTracker.trackMetric("token", "OPENED", "deliveryId")
 
         result.isFailure.shouldBeEqualTo(true)
+    }
+
+    /**
+     * Tests for the direct-HTTP fallback used when WorkManager is not available.
+     * Mirrors the WorkManager success-removal / failure-preservation contract.
+     */
+    @Test
+    fun asyncTrackMetric_givenHttpSuccess_expectPendingEntryRemoved() = runTest {
+        val token = String.random
+        val deliveryId = String.random
+        val pendingId = String.random
+
+        coEvery {
+            mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId)
+        } returns Result.success(Unit)
+
+        val asyncTracker = AsyncPushDeliveryTracker(
+            deliveryTracker = mockDeliveryTracker,
+            pendingStore = mockPendingStore
+        )
+
+        asyncTracker.trackMetric(
+            token = token,
+            event = "Delivered",
+            deliveryId = deliveryId,
+            pendingId = pendingId
+        )
+
+        coVerify(exactly = 1) { mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId) }
+        verify(exactly = 1) { mockPendingStore.remove(pendingId) }
+    }
+
+    @Test
+    fun asyncTrackMetric_givenHttpFailure_expectPendingEntryPreserved() = runTest {
+        val token = String.random
+        val deliveryId = String.random
+        val pendingId = String.random
+
+        coEvery {
+            mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId)
+        } returns Result.failure(Exception("boom"))
+
+        val asyncTracker = AsyncPushDeliveryTracker(
+            deliveryTracker = mockDeliveryTracker,
+            pendingStore = mockPendingStore
+        )
+
+        asyncTracker.trackMetric(
+            token = token,
+            event = "Delivered",
+            deliveryId = deliveryId,
+            pendingId = pendingId
+        )
+
+        coVerify(exactly = 1) { mockDeliveryTracker.trackMetric(token, "Delivered", deliveryId) }
+        verify(exactly = 0) { mockPendingStore.remove(any()) }
     }
 }

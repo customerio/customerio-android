@@ -79,7 +79,7 @@ class ModuleMessagingPushFCMTest : JUnitTest() {
     }
 
     @Test
-    fun initialize_givenPendingPushDeliveriesOnDisk_expectFlushedViaEventBusAndCleared() {
+    fun initialize_givenPendingPushDeliveriesOnDisk_expectFlushedViaEventBusAndEachRemoved() {
         val pending = listOf(
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1", timestamp = 1L),
             PendingPushDeliveryMetric(deliveryId = "d2", token = "t2", timestamp = 2L)
@@ -98,17 +98,19 @@ class ModuleMessagingPushFCMTest : JUnitTest() {
                     )
                 )
             }
+            verify(exactly = 1) { mockPendingStore.remove(entry.deliveryId) }
         }
-        verify(exactly = 1) { mockPendingStore.removeAll() }
+        verify(exactly = 0) { mockPendingStore.removeAll() }
     }
 
     @Test
-    fun initialize_givenNoPendingPushDeliveries_expectNoPublishAndNoClear() {
+    fun initialize_givenNoPendingPushDeliveries_expectNoPublishAndNoRemove() {
         every { mockPendingStore.loadAll() } returns emptyList()
 
         module.initialize()
 
         verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        verify(exactly = 0) { mockPendingStore.remove(any()) }
         verify(exactly = 0) { mockPendingStore.removeAll() }
     }
 

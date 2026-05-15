@@ -63,11 +63,10 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * At app launch, drain any push-delivered metrics that were observed locally
      * but never confirmed by the primary delivery path (WorkManager / direct
      * HTTP). For each pending entry we publish a [Event.TrackPushMetricEvent] so
-     * the analytics pipeline can deliver it, then clear the store.
+     * the analytics pipeline can deliver it, then remove that specific entry.
      *
-     * Disk I/O (the JSON read and the post-flush clear) MUST happen off the main
-     * thread, so the entire load + publish + clear sequence is dispatched on the
-     * background dispatcher.
+     * Disk I/O (the JSON read and per-entry removes) MUST happen off the main
+     * thread, so the sequence is dispatched on the background dispatcher.
      */
     private fun flushPendingPushDeliveryMetrics() {
         CoroutineScope(dispatchers.background).launch {
@@ -83,8 +82,11 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                             deviceToken = entry.token
                         )
                     )
+                    // Remove only the entries we actually flushed. Using
+                    // removeAll() would race with append() and silently drop
+                    // pushes that arrived mid-flush.
+                    pendingPushDeliveryStore.remove(entry.deliveryId)
                 }
-                pendingPushDeliveryStore.removeAll()
             }
         }
     }

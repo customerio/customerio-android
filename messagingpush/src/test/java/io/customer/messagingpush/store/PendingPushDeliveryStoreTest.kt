@@ -97,6 +97,61 @@ class PendingPushDeliveryStoreTest : IntegrationTest() {
     }
 
     @Test
+    fun removeAllIds_givenSubsetOfEntries_expectOnlyMatchingRemoved() {
+        val keep = "keep-${String.random}"
+        val remove1 = "remove1-${String.random}"
+        val remove2 = "remove2-${String.random}"
+        store.append(deliveryId = remove1, token = String.random)
+        store.append(deliveryId = keep, token = String.random)
+        store.append(deliveryId = remove2, token = String.random)
+
+        store.removeAll(listOf(remove1, remove2))
+
+        val remaining = store.loadAll()
+        remaining.size shouldBeEqualTo 1
+        remaining[0].deliveryId shouldBeEqualTo keep
+    }
+
+    @Test
+    fun removeAllIds_givenIdsNotPresent_expectStoreUnchanged() {
+        val kept = listOf(String.random, String.random)
+        kept.forEach { store.append(deliveryId = it, token = String.random) }
+
+        store.removeAll(listOf("nonexistent-1", "nonexistent-2"))
+
+        store.loadAll().map { it.deliveryId } shouldBeEqualTo kept
+    }
+
+    @Test
+    fun removeAllIds_givenEmptyCollection_expectNoOp() {
+        val kept = String.random
+        store.append(deliveryId = kept, token = String.random)
+
+        store.removeAll(emptyList<String>())
+
+        val remaining = store.loadAll()
+        remaining.size shouldBeEqualTo 1
+        remaining[0].deliveryId shouldBeEqualTo kept
+    }
+
+    @Test
+    fun removeAllIds_givenEntryAppendedAfterLoad_expectAppendedEntrySurvives() {
+        val loaded = "loaded-${String.random}"
+        val appendedMidFlush = "midflush-${String.random}"
+        store.append(deliveryId = loaded, token = String.random)
+
+        // Simulate the flush sequence: snapshot ids before append, then remove
+        // only those ids — the entry appended afterward must survive.
+        val flushedIds = store.loadAll().map { it.deliveryId }
+        store.append(deliveryId = appendedMidFlush, token = String.random)
+        store.removeAll(flushedIds)
+
+        val remaining = store.loadAll()
+        remaining.size shouldBeEqualTo 1
+        remaining[0].deliveryId shouldBeEqualTo appendedMidFlush
+    }
+
+    @Test
     fun loadAll_givenFreshStore_expectEmpty() {
         store.loadAll().isEmpty().shouldBeTrue()
     }

@@ -69,7 +69,22 @@ internal class PendingPushDeliveryStore(
         }
     }
 
-    /** Remove all pending entries (used after the launch flush hands them off). */
+    /**
+     * Remove all entries whose deliveryIds are in [deliveryIds] in a single
+     * coordinated read-modify-write. Prefer this over calling [remove] in a
+     * loop when flushing multiple metrics at once. Entries appended after
+     * this call's read are not affected.
+     */
+    fun removeAll(deliveryIds: Collection<String>) {
+        if (deliveryIds.isEmpty()) return
+        val idSet = deliveryIds.toSet()
+        lock.withLock {
+            val entries = readAll().filterNot { it.deliveryId in idSet }
+            writeAll(entries)
+        }
+    }
+
+    /** Remove all pending entries. */
     fun removeAll() {
         lock.withLock {
             writeAll(emptyList())

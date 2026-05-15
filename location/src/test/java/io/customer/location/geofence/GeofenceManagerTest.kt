@@ -242,6 +242,20 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
+    fun removeGeofencesByIds_givenClientThrowsSecurityException_expectFailureResultNotPropagated() = runTest {
+        // Synchronous SecurityException (e.g., permission revoked) must be converted
+        // to Result.failure — matches the registerBatch contract so callers can rely
+        // on "manager methods always return Result, never throw."
+        val securityException = SecurityException("permission revoked")
+        every { client.removeGeofences(any<List<String>>()) } throws securityException
+
+        val result = manager.removeGeofencesByIds(listOf("geo-1"))
+
+        result.isFailure.shouldBeTrue()
+        result.exceptionOrNull() shouldBeEqualTo securityException
+    }
+
+    @Test
     fun clearAll_givenSuccess_expectClientCalledWithPendingIntent() = runTest {
         stubClientRemoveByPendingIntentSuccess()
 

@@ -107,17 +107,22 @@ internal class GeofenceManager(
         if (ids.isEmpty()) return Result.success(Unit)
 
         return suspendCancellableCoroutine { cont ->
-            client.removeGeofences(ids)
-                .addOnSuccessListener {
-                    if (!cont.isActive) return@addOnSuccessListener
-                    logger.logGeofencesRemoved(ids.size)
-                    cont.resume(Result.success(Unit))
-                }
-                .addOnFailureListener { e ->
-                    if (!cont.isActive) return@addOnFailureListener
-                    logger.logRemovalFailed(e.message)
-                    cont.resume(Result.failure(e))
-                }
+            try {
+                client.removeGeofences(ids)
+                    .addOnSuccessListener {
+                        if (!cont.isActive) return@addOnSuccessListener
+                        logger.logGeofencesRemoved(ids.size)
+                        cont.resume(Result.success(Unit))
+                    }
+                    .addOnFailureListener { e ->
+                        if (!cont.isActive) return@addOnFailureListener
+                        logger.logRemovalFailed(e.message)
+                        cont.resume(Result.failure(e))
+                    }
+            } catch (e: SecurityException) {
+                logger.logRemovalFailed(e.message)
+                cont.resume(Result.failure(e))
+            }
         }
     }
 

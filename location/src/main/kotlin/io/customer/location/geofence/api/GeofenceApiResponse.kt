@@ -6,10 +6,6 @@ import io.customer.location.geofence.GeofenceTransitionType
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-
-/** Shared parser config: tolerant to unknown keys so backend additions don't break decoding. */
-internal val GeofenceApiJson: Json = Json { ignoreUnknownKeys = true }
 
 @Serializable
 internal data class GeofenceApiResponse(

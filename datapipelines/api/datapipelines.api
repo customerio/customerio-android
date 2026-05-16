@@ -143,8 +143,9 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 	public fun getUserId ()Ljava/lang/String;
 	public fun initialize ()V
 	public static final fun initialize (Lio/customer/sdk/CustomerIOConfig;)V
-	public static final fun instance ()Lio/customer/sdk/DataPipelineInstance;
+	public static final fun instance ()Lio/customer/sdk/CustomerIO;
 	public fun isUserIdentified ()Z
+	public static final fun safeInstance ()Lio/customer/sdk/DataPipelineInstance;
 	public fun setDeviceAttributes (Ljava/util/Map;)V
 	public fun setDeviceAttributesDeprecated (Ljava/util/Map;)V
 	public fun setProfileAttributes (Ljava/util/Map;)V
@@ -153,7 +154,8 @@ public final class io/customer/sdk/CustomerIO : io/customer/sdk/DataPipelineInst
 
 public final class io/customer/sdk/CustomerIO$Companion {
 	public final fun initialize (Lio/customer/sdk/CustomerIOConfig;)V
-	public final fun instance ()Lio/customer/sdk/DataPipelineInstance;
+	public final fun instance ()Lio/customer/sdk/CustomerIO;
+	public final fun safeInstance ()Lio/customer/sdk/DataPipelineInstance;
 }
 
 public final class io/customer/sdk/CustomerIOBuilder {

@@ -2,7 +2,6 @@ package io.customer.datapipelines.testutils.core
 
 import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.commontest.config.configureAndroidSDKComponent
 import io.customer.commontest.util.DeviceStoreStub
 import io.customer.datapipelines.testutils.extensions.registerAnalyticsFactory
@@ -108,8 +107,7 @@ class UnitTestDelegate(
         // Apply custom configuration for the test at the end to allow overriding default configurations
         testConfig.sdkConfig(builder)
         CustomerIO.initialize(builder.build())
-        @OptIn(InternalCustomerIOApi::class)
-        return CustomerIO.realInstance()
+        return CustomerIO.instance()
     }
 
     fun teardownSDKComponent() {

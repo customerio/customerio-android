@@ -428,43 +428,45 @@ class CustomerIO private constructor(
         private var preInitBufferingInstance: PreInitBufferingInstance? = null
 
         /**
-         * Returns the active SDK instance.
-         *
-         * If [initialize] has already completed, returns the real [CustomerIO];
-         * otherwise returns a buffering proxy that absorbs event-shaped calls
-         * (`track`, `identify`, `screen`, etc.) and replays them in order once
-         * the real instance is available.
-         *
-         * **Note**: the return type is the abstract [DataPipelineInstance] rather
-         * than the concrete [CustomerIO]. Callers that depend on `CustomerIO`-
-         * specific properties must obtain the real instance after [initialize]
-         * has completed (use a type check, or read from [SDKComponent.modules]).
+         * Returns the instance of CustomerIO SDK.
+         * If the instance is not initialized, it will throw an exception.
+         * Please ensure that the SDK is initialized before calling this method.
          */
         @JvmStatic
-        fun instance(): DataPipelineInstance {
+        fun instance(): CustomerIO {
+            return instance ?: throw IllegalStateException(
+                "CustomerIO is not initialized. CustomerIO.initialize() must be called before obtaining SDK instance."
+            )
+        }
+
+        /**
+         * Returns a [DataPipelineInstance] that is **safe to use before**
+         * [initialize] has completed.
+         *
+         * - If [initialize] has already completed, returns the real
+         *   [CustomerIO] singleton.
+         * - Otherwise returns a buffering proxy that absorbs event-shaped
+         *   calls (`track`, `identify`, `screen`, etc.) into a bounded FIFO.
+         *   Buffered calls replay in order against the real instance as soon
+         *   as [initialize] runs.
+         *
+         * Unlike [instance], this accessor never throws. Use this from
+         * wrapper bridges (React Native, Flutter, Expo) and from any host-app
+         * code that may fire events during cold-start or deep-link handling
+         * before the SDK has been initialized.
+         *
+         * Returns a `DataPipelineInstance` rather than the concrete
+         * `CustomerIO`. Callers that need `CustomerIO`-specific members
+         * should continue to use [instance] after initialization completes.
+         */
+        @JvmStatic
+        fun safeInstance(): DataPipelineInstance {
             instance?.let { return it }
             return synchronized(this) {
                 instance?.let { return it }
                 preInitBufferingInstance ?: PreInitBufferingInstance()
                     .also { preInitBufferingInstance = it }
             }
-        }
-
-        /**
-         * Returns the fully-initialized concrete [CustomerIO] instance, or
-         * throws [IllegalStateException] if [initialize] has not yet completed.
-         *
-         * Use this when you need access to [CustomerIO]-specific members
-         * (e.g. `analytics`, `moduleConfig`) that are not part of the public
-         * [DataPipelineInstance] surface. Most call sites should prefer
-         * [instance] which returns the buffering proxy pre-init.
-         */
-        @JvmStatic
-        @InternalCustomerIOApi
-        fun realInstance(): CustomerIO {
-            return instance ?: throw IllegalStateException(
-                "CustomerIO is not initialized. CustomerIO.initialize() must be called before obtaining SDK instance."
-            )
         }
 
         /**

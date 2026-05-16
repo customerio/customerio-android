@@ -2,6 +2,7 @@ package io.customer.datapipelines.testutils.core
 
 import android.app.Application
 import com.segment.analytics.kotlin.core.Analytics
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.commontest.config.configureAndroidSDKComponent
 import io.customer.commontest.util.DeviceStoreStub
 import io.customer.datapipelines.testutils.extensions.registerAnalyticsFactory
@@ -9,7 +10,6 @@ import io.customer.datapipelines.testutils.stubs.TestCoroutineConfiguration
 import io.customer.datapipelines.testutils.utils.clearPersistentStorage
 import io.customer.datapipelines.testutils.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.testutils.utils.mockHTTPClient
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
 import io.customer.sdk.core.di.SDKComponent

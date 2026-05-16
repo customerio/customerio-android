@@ -7,12 +7,12 @@ import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
 import io.mockk.verifyOrder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.jupiter.api.Test
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 
 /**
  * Unit tests for [PreInitEventBuffer]. Mirrors the iOS coverage —

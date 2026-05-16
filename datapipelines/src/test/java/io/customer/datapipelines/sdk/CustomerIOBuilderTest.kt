@@ -133,7 +133,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
     fun build_givenDefaultConfiguration_expectDefaultDataPipelinesModuleConfig() {
         createCustomerIOBuilder().build()
 
-        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        val dataPipelinesModuleConfig = CustomerIO.realInstance().moduleConfig
         dataPipelinesModuleConfig.migrationSiteId shouldBe null
         dataPipelinesModuleConfig.autoTrackDeviceAttributes shouldBe true
         dataPipelinesModuleConfig.trackApplicationLifecycleEvents shouldBe true
@@ -167,7 +167,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
 
         // verify the customerIOBuilder config with DataPipelinesModuleConfig
 
-        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        val dataPipelinesModuleConfig = CustomerIO.realInstance().moduleConfig
         dataPipelinesModuleConfig.cdpApiKey shouldBe givenCdpApiKey
         dataPipelinesModuleConfig.migrationSiteId shouldBe givenMigrationSiteId
         dataPipelinesModuleConfig.autoTrackDeviceAttributes shouldBe false
@@ -183,7 +183,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
         SDKComponent.logger.logLevel shouldBe CioLogLevel.DEBUG
 
         // verify plugin is added
-        CustomerIO.instance().analytics.find(CustomerIODestination::class) shouldNotBe null
+        CustomerIO.realInstance().analytics.find(CustomerIODestination::class) shouldNotBe null
     }
 
     @Test
@@ -193,7 +193,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .autoTrackActivityScreens(true)
             .build()
 
-        CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldNotBeEqualTo null
+        CustomerIO.realInstance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldNotBeEqualTo null
     }
 
     @Test
@@ -203,14 +203,14 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .autoTrackActivityScreens(false)
             .build()
 
-        CustomerIO.instance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldBe null
+        CustomerIO.realInstance().analytics.find(AutomaticActivityScreenTrackingPlugin::class) shouldBe null
     }
 
     @Test
     fun build_givenModuleInitialized_expectScreenFilterPluginPluginAdded() {
         createCustomerIOBuilder().build()
 
-        CustomerIO.instance().analytics.find(ScreenFilterPlugin::class) shouldNotBe null
+        CustomerIO.realInstance().analytics.find(ScreenFilterPlugin::class) shouldNotBe null
     }
 
     @Test
@@ -226,7 +226,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .build()
 
         // verify apiHost and cdnHost are not overridden by region
-        val dataPipelinesEUModuleConfig = CustomerIO.instance().moduleConfig
+        val dataPipelinesEUModuleConfig = CustomerIO.realInstance().moduleConfig
         dataPipelinesEUModuleConfig.apiHost shouldBe givenApiHost
         dataPipelinesEUModuleConfig.cdnHost shouldBe givenCdnHost
 
@@ -244,7 +244,7 @@ class CustomerIOBuilderTest : RobolectricTest() {
             .build()
 
         // verify apiHost and cdnHost are not overridden by region
-        val dataPipelinesUSModuleConfig = CustomerIO.instance().moduleConfig
+        val dataPipelinesUSModuleConfig = CustomerIO.realInstance().moduleConfig
         dataPipelinesUSModuleConfig.apiHost shouldBe givenUSApiHost
         dataPipelinesUSModuleConfig.cdnHost shouldBe givenUSCdnHost
     }

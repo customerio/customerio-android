@@ -9,6 +9,7 @@ import io.customer.datapipelines.testutils.stubs.TestCoroutineConfiguration
 import io.customer.datapipelines.testutils.utils.clearPersistentStorage
 import io.customer.datapipelines.testutils.utils.createTestAnalyticsInstance
 import io.customer.datapipelines.testutils.utils.mockHTTPClient
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
 import io.customer.sdk.core.di.SDKComponent
@@ -107,7 +108,8 @@ class UnitTestDelegate(
         // Apply custom configuration for the test at the end to allow overriding default configurations
         testConfig.sdkConfig(builder)
         CustomerIO.initialize(builder.build())
-        return CustomerIO.instance()
+        @OptIn(InternalCustomerIOApi::class)
+        return CustomerIO.realInstance()
     }
 
     fun teardownSDKComponent() {

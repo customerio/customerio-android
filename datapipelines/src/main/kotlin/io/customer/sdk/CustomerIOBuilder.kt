@@ -2,6 +2,7 @@ package io.customer.sdk
 
 import android.app.Application
 import com.segment.analytics.kotlin.core.platform.policies.FlushPolicy
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.ScreenView
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -225,6 +226,7 @@ class CustomerIOBuilder(
 
         // Initialize the SDK and return the instance
         CustomerIO.initialize(config)
-        return CustomerIO.instance()
+        @OptIn(InternalCustomerIOApi::class)
+        return CustomerIO.realInstance()
     }
 }

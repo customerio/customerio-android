@@ -43,31 +43,54 @@ internal class PreInitEventBuffer(
     private var droppedCount: Int = 0
 
     /**
+     * Outcome of an [enqueue] call. Carried out of the lock so logging can
+     * happen without re-entrancy concerns.
+     */
+    private sealed class EnqueueOutcome {
+        data class Enqueued(val bufferedCount: Int) : EnqueueOutcome()
+        data class Dropped(val totalDropped: Int) : EnqueueOutcome()
+        data class ExecuteNow(val impl: DataPipelineInstance) : EnqueueOutcome()
+    }
+
+    /**
      * Enqueue a call for future replay, or execute it immediately if the buffer
      * is already in the [State.Ready] state. If the buffer is at capacity, the
-     * new call is dropped and the running drop counter is incremented (logged
-     * on the next [transitionToReady]).
+     * new call is dropped and the running drop counter is incremented (also
+     * surfaced in the next [transitionToReady] summary log).
      */
     fun enqueue(block: Block) {
-        val executeNow: DataPipelineInstance? = lock.withLock {
+        val outcome: EnqueueOutcome = lock.withLock {
             when (val current = state) {
                 is State.Buffering -> {
                     if (current.blocks.size >= capacity) {
                         droppedCount++
-                        null
+                        EnqueueOutcome.Dropped(droppedCount)
                     } else {
                         current.blocks.add(block)
-                        null
+                        EnqueueOutcome.Enqueued(current.blocks.size)
                     }
                 }
                 is State.Draining -> {
                     current.pending.add(block)
-                    null
+                    EnqueueOutcome.Enqueued(current.pending.size)
                 }
-                is State.Ready -> current.impl
+                is State.Ready -> EnqueueOutcome.ExecuteNow(current.impl)
             }
         }
-        executeNow?.let { block(it) }
+        when (outcome) {
+            is EnqueueOutcome.Enqueued ->
+                loggerProvider()?.debug(
+                    "Pre-init event buffer accepted event (buffered count: ${outcome.bufferedCount}).",
+                    LOG_TAG
+                )
+            is EnqueueOutcome.Dropped ->
+                loggerProvider()?.debug(
+                    "Pre-init event buffer is at capacity ($capacity); dropping event. " +
+                        "Total dropped this session: ${outcome.totalDropped}.",
+                    LOG_TAG
+                )
+            is EnqueueOutcome.ExecuteNow -> outcome.impl.let { block(it) }
+        }
     }
 
     /**
@@ -121,16 +144,11 @@ internal class PreInitEventBuffer(
             dropped
         }
 
-        val logger = loggerProvider()
-        if (totalDrained > 0) {
-            logger?.debug("Pre-init event buffer drained $totalDrained event(s).", LOG_TAG)
-        }
-        if (droppedSnapshot > 0) {
-            logger?.debug(
-                "Pre-init event buffer dropped $droppedSnapshot event(s) due to capacity ($capacity).",
-                LOG_TAG
-            )
-        }
+        loggerProvider()?.debug(
+            "Pre-init event buffer transitioned to ready. Drained $totalDrained event(s) " +
+                "(dropped due to capacity this session: $droppedSnapshot).",
+            LOG_TAG
+        )
     }
 
     // Test-only inspection ------------------------------------------------

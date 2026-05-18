@@ -272,6 +272,30 @@ class CustomerIO private constructor() :
         }
     }
 
+    /**
+     * Single chokepoint for every event-shaped public-API method.
+     *
+     * Pre-drain: enqueues [block] into the buffer so it replays in FIFO order
+     * once initialization completes. Post-drain: runs [block] inline. Wrapped
+     * in `synchronized(this)` so that public setters which don't go through
+     * [DataPipelineInstance]'s synchronized wrappers (`setProfileAttributes`,
+     * `setDeviceAttributes`) still serialize with `identify` / `track` /
+     * `screen` / etc., matching the locking that the pre-refactor
+     * `setProfileAttributes -> this.identify(...)` chain used to acquire.
+     * The lock is reentrant on `this`, so wrappers that already hold it (the
+     * `*Impl` overrides invoked through the parent's `synchronized { }`
+     * helper) simply re-enter.
+     */
+    private inline fun dispatch(crossinline block: () -> Unit) {
+        synchronized(this) {
+            if (!isReady) {
+                preInitBuffer.enqueue { block() }
+            } else {
+                block()
+            }
+        }
+    }
+
     @Deprecated("Use setProfileAttributes() function instead")
     @set:JvmName("setProfileAttributesDeprecated")
     override var profileAttributes: CustomAttributes
@@ -281,11 +305,7 @@ class CustomerIO private constructor() :
         }
 
     override fun setProfileAttributes(attributes: CustomAttributes) {
-        if (!isReady) {
-            preInitBuffer.enqueue { setProfileAttributesInternal(attributes) }
-            return
-        }
-        setProfileAttributesInternal(attributes)
+        dispatch { setProfileAttributesInternal(attributes) }
     }
 
     private fun setProfileAttributesInternal(attributes: CustomAttributes) {
@@ -313,11 +333,7 @@ class CustomerIO private constructor() :
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
     ) {
-        if (!isReady) {
-            preInitBuffer.enqueue { identifyInternal(userId, traits, serializationStrategy) }
-            return
-        }
-        identifyInternal(userId, traits, serializationStrategy)
+        dispatch { identifyInternal(userId, traits, serializationStrategy) }
     }
 
     private fun <Traits> identifyInternal(
@@ -376,11 +392,7 @@ class CustomerIO private constructor() :
      * All other track methods should call this method to ensure consistency.
      */
     override fun <T> trackImpl(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
-        if (!isReady) {
-            preInitBuffer.enqueue { trackInternal(name, properties, serializationStrategy, null) }
-            return
-        }
-        trackInternal(name, properties, serializationStrategy, null)
+        dispatch { trackInternal(name, properties, serializationStrategy, null) }
     }
 
     /**
@@ -396,11 +408,7 @@ class CustomerIO private constructor() :
      * All other screen methods should call this method to ensure consistency.
      */
     override fun <T> screenImpl(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
-        if (!isReady) {
-            preInitBuffer.enqueue { screenInternal(title, properties, serializationStrategy) }
-            return
-        }
-        screenInternal(title, properties, serializationStrategy)
+        dispatch { screenInternal(title, properties, serializationStrategy) }
     }
 
     private fun <T> screenInternal(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
@@ -410,11 +418,7 @@ class CustomerIO private constructor() :
     }
 
     override fun clearIdentifyImpl() {
-        if (!isReady) {
-            preInitBuffer.enqueue { clearIdentifyInternal() }
-            return
-        }
-        clearIdentifyInternal()
+        dispatch { clearIdentifyInternal() }
     }
 
     private fun clearIdentifyInternal() {
@@ -440,16 +444,52 @@ class CustomerIO private constructor() :
     }
 
     override val registeredDeviceToken: String?
-        get() = if (isReady) globalPreferenceStore.getDeviceToken() else null
+        get() {
+            if (!isReady) {
+                logPreInitRead("registeredDeviceToken")
+                return null
+            }
+            return globalPreferenceStore.getDeviceToken()
+        }
 
     override val anonymousId: String
-        get() = if (isReady) analytics.anonymousId() else ""
+        get() {
+            if (!isReady) {
+                logPreInitRead("anonymousId")
+                return ""
+            }
+            return analytics.anonymousId()
+        }
 
     override val userId: String?
-        get() = if (isReady) analytics.userId() else null
+        get() {
+            if (!isReady) {
+                logPreInitRead("userId")
+                return null
+            }
+            return analytics.userId()
+        }
 
     override val isUserIdentified: Boolean
-        get() = if (isReady) !analytics.userId().isNullOrEmpty() else false
+        get() {
+            if (!isReady) {
+                logPreInitRead("isUserIdentified")
+                return false
+            }
+            return !analytics.userId().isNullOrEmpty()
+        }
+
+    private fun logPreInitRead(property: String) {
+        // The accessor was hit before `CustomerIO.initialize(...)` finished
+        // wiring the SDK. We still return a safe default to preserve the
+        // contract of these (mostly non-nullable) properties, but surface the
+        // misuse so it stops being silent: the value at this point reflects
+        // an un-initialized SDK, not real customer state.
+        logger.debug(
+            "$property accessed before SDK initialization completed; " +
+                "returning default. Call after CustomerIO.initialize(...) for a live value."
+        )
+    }
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")
@@ -460,11 +500,7 @@ class CustomerIO private constructor() :
         }
 
     override fun setDeviceAttributes(attributes: CustomAttributes) {
-        if (!isReady) {
-            preInitBuffer.enqueue { setDeviceAttributesInternal(attributes) }
-            return
-        }
-        setDeviceAttributesInternal(attributes)
+        dispatch { setDeviceAttributesInternal(attributes) }
     }
 
     private fun setDeviceAttributesInternal(attributes: CustomAttributes) {
@@ -472,11 +508,7 @@ class CustomerIO private constructor() :
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
-        if (!isReady) {
-            preInitBuffer.enqueue { registerDeviceTokenInternal(deviceToken) }
-            return
-        }
-        registerDeviceTokenInternal(deviceToken)
+        dispatch { registerDeviceTokenInternal(deviceToken) }
     }
 
     private fun registerDeviceTokenInternal(deviceToken: String) {
@@ -527,11 +559,7 @@ class CustomerIO private constructor() :
     }
 
     override fun deleteDeviceTokenImpl() {
-        if (!isReady) {
-            preInitBuffer.enqueue { deleteDeviceTokenInternal() }
-            return
-        }
-        deleteDeviceTokenInternal()
+        dispatch { deleteDeviceTokenInternal() }
     }
 
     private fun deleteDeviceTokenInternal() {
@@ -556,11 +584,7 @@ class CustomerIO private constructor() :
     }
 
     override fun trackMetricImpl(event: TrackMetric) {
-        if (!isReady) {
-            preInitBuffer.enqueue { trackMetricInternal(event) }
-            return
-        }
-        trackMetricInternal(event)
+        dispatch { trackMetricInternal(event) }
     }
 
     private fun trackMetricInternal(event: TrackMetric) {

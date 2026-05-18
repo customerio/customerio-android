@@ -2,8 +2,6 @@ package io.customer.sdk
 
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 /**
  * A bounded FIFO buffer that absorbs event-shaped public-API calls invoked
@@ -20,8 +18,9 @@ import kotlin.concurrent.withLock
  * highest-value early events. This is a deliberate divergence from the iOS
  * rewrite (which drops oldest); see the porting plan.
  *
- * Thread safety: state transitions are protected by a [ReentrantLock]. Block
- * execution always happens outside the lock to avoid re-entrancy.
+ * Thread safety: state transitions are protected by a `synchronized(lock)`
+ * block on a private monitor. Block execution always happens outside the lock
+ * to avoid re-entrancy.
  */
 internal class PreInitEventBuffer(
     private val capacity: Int = DEFAULT_CAPACITY,
@@ -38,7 +37,7 @@ internal class PreInitEventBuffer(
         data class Ready(val impl: DataPipelineInstance) : State()
     }
 
-    private val lock = ReentrantLock()
+    private val lock = Any()
     private var state: State = State.Buffering(mutableListOf())
     private var droppedCount: Int = 0
 
@@ -59,7 +58,7 @@ internal class PreInitEventBuffer(
      * surfaced in the next [transitionToReady] summary log).
      */
     fun enqueue(block: Block) {
-        val outcome: EnqueueOutcome = lock.withLock {
+        val outcome: EnqueueOutcome = synchronized(lock) {
             when (val current = state) {
                 is State.Buffering -> {
                     if (current.blocks.size >= capacity) {
@@ -107,7 +106,7 @@ internal class PreInitEventBuffer(
     fun transitionToReady(implementation: DataPipelineInstance) {
         var totalDrained = 0
         while (true) {
-            val blocksToReplay: List<Block>? = lock.withLock {
+            val blocksToReplay: List<Block>? = synchronized(lock) {
                 when (val current = state) {
                     is State.Buffering -> {
                         if (current.blocks.isEmpty()) {
@@ -143,7 +142,7 @@ internal class PreInitEventBuffer(
             totalDrained += blocksToReplay.size
         }
 
-        val droppedSnapshot = lock.withLock {
+        val droppedSnapshot = synchronized(lock) {
             val dropped = droppedCount
             droppedCount = 0
             dropped
@@ -159,7 +158,7 @@ internal class PreInitEventBuffer(
     // Test-only inspection ------------------------------------------------
 
     internal val bufferedCount: Int
-        get() = lock.withLock {
+        get() = synchronized(lock) {
             when (val current = state) {
                 is State.Buffering -> current.blocks.size
                 is State.Draining -> current.pending.size
@@ -168,10 +167,10 @@ internal class PreInitEventBuffer(
         }
 
     internal val isReady: Boolean
-        get() = lock.withLock { state is State.Ready }
+        get() = synchronized(lock) { state is State.Ready }
 
     internal val droppedEventCount: Int
-        get() = lock.withLock { droppedCount }
+        get() = synchronized(lock) { droppedCount }
 }
 
 internal typealias Block = (DataPipelineInstance) -> Unit

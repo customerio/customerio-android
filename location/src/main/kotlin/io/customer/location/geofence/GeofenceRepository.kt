@@ -62,6 +62,13 @@ internal class GeofenceRepositoryImpl(
                         longitude = longitude,
                         max = config.maxBusinessGeofences
                     )
+                    // Zero business geofences => register nothing (no movement trigger either).
+                    // Customers without configured geofences pay zero runtime cost.
+                    val toRegister = if (nearest.isEmpty()) {
+                        emptyList()
+                    } else {
+                        listOf(buildMovementTrigger(latitude, longitude, config.movementTriggerRadius)) + nearest
+                    }
                     stateMutex.withLock {
                         // Recheck userId — sign-out or user switch may have happened
                         // during the API call. Without this we'd write the previous
@@ -73,7 +80,7 @@ internal class GeofenceRepositoryImpl(
                         }
                         store.saveAll(regions)
                         store.setLastSyncTimestamp(System.currentTimeMillis())
-                        manager.addGeofences(nearest).also { result ->
+                        manager.addGeofences(toRegister).also { result ->
                             if (result.isSuccess) logger.logSyncSucceeded(nearest.size)
                         }
                     }
@@ -87,4 +94,16 @@ internal class GeofenceRepositoryImpl(
             refreshInProgress.set(false)
         }
     }
+
+    private fun buildMovementTrigger(
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Float
+    ): GeofenceRegion = GeofenceRegion(
+        id = GeofenceConstants.MOVEMENT_TRIGGER_ID,
+        latitude = latitude,
+        longitude = longitude,
+        radius = radiusMeters,
+        transitionTypes = listOf(GeofenceTransitionType.EXIT)
+    )
 }

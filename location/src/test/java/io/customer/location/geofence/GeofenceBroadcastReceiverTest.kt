@@ -33,6 +33,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     // extension properties inside `sdk { ... }` / `android { ... }` override lambdas.
     private val mockEventBus: EventBus = mockk(relaxed = true)
     private val mockScheduler: GeofenceEventScheduler = mockk(relaxed = true)
+    private val mockServices: GeofenceServices = mockk(relaxed = true)
     private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
 
     private lateinit var receiver: GeofenceBroadcastReceiver
@@ -45,6 +46,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                     sdk { overrideDependency<EventBus>(mockEventBus) }
                     android {
                         overrideDependency<GeofenceEventScheduler>(mockScheduler)
+                        overrideDependency<GeofenceServices>(mockServices)
                         overrideDependency<GeofenceCooldownFilter>(mockCooldownFilter)
                     }
                 }
@@ -186,14 +188,31 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenMovementTriggerGeofence_expectNothingScheduledOrPublished() = runTest {
+    fun dispatchTransition_givenMovementTriggerExit_expectServicesNotifiedAndNoEventPublished() = runTest {
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementTriggerNonExit_expectServicesNotNotified() = runTest {
+        // Movement trigger is registered NO_INITIAL_TRIGGER so it should never fire ENTER;
+        // defensive guard ensures we ignore stray non-EXIT transitions if the OS surprises us.
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
             triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
             latitude = 0.0,
             longitude = 0.0
         )
 
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
         verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
     }

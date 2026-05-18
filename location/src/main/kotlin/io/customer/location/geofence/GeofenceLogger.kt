@@ -45,8 +45,20 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence transition fired but OS provided no location; emitting event with lat/lng omitted from properties", tag = TAG)
     }
 
-    fun logMovementTriggerSkipped() {
-        logger.debug("Movement trigger geofence fired; movement-trigger handling lands in MBL-1623", tag = TAG)
+    fun logMovementTriggerIgnoredNonExit(transitionName: String) {
+        logger.debug("Movement trigger geofence fired with transition=$transitionName; only EXIT triggers a sync", tag = TAG)
+    }
+
+    fun logSyncTriggered(reason: String) {
+        logger.debug("Geofence sync triggered: $reason", tag = TAG)
+    }
+
+    fun logSyncSkippedNoLocation(reason: String) {
+        logger.debug("Geofence sync skipped ($reason): no location available", tag = TAG)
+    }
+
+    fun logSyncSkippedNoPermission(reason: String) {
+        logger.debug("Geofence sync skipped ($reason): location permissions not granted", tag = TAG)
     }
 
     fun logGeofencingError(errorCode: Int) {

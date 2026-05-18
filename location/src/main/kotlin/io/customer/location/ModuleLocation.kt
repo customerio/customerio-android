@@ -3,6 +3,7 @@ package io.customer.location
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.location.geofence.di.geofenceCooldownFilter
+import io.customer.location.geofence.di.geofenceServices
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -118,6 +119,11 @@ class ModuleLocation @JvmOverloads constructor(
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
                 locationTracker.onUserIdentified()
+                val location = locationTracker.lastLocation
+                SDKComponent.android().geofenceServices.onUserIdentified(
+                    latitude = location?.latitude,
+                    longitude = location?.longitude
+                )
             }
         }
 

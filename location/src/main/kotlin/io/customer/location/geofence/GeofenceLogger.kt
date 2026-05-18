@@ -33,6 +33,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' $transitionName: emitting tracked event via WorkManager + EventBus", tag = TAG)
     }
 
+    fun logTransitionSuppressed(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: suppressed — same transition fired within the cooldown window", tag = TAG)
+    }
+
     fun logUnknownTransition(transitionType: Int) {
         logger.debug("Ignoring geofence transition type=$transitionType (only ENTER and EXIT are tracked)", tag = TAG)
     }

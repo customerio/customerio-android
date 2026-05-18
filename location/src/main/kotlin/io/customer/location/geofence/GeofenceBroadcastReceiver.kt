@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import io.customer.location.geofence.di.geofenceCooldownFilter
 import io.customer.location.geofence.di.geofenceEventScheduler
 import io.customer.location.geofence.di.geofenceLogger
 import io.customer.location.geofence.di.geofenceServices
@@ -90,6 +91,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val timestamp = SDKComponent.clock.currentTimeSeconds()
         val androidComponent = SDKComponent.android()
         val scheduler = androidComponent.geofenceEventScheduler
+        val cooldownFilter = androidComponent.geofenceCooldownFilter
         val eventBus = SDKComponent.eventBus
 
         triggeringGeofenceIds.forEach { geofenceId ->
@@ -113,6 +115,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
 
+            if (!cooldownFilter.tryAcquire(geofenceId, transition)) {
+                logger.logTransitionSuppressed(geofenceId, transition.name)
+                return@forEach
+            }
             logger.logTransitionEmitting(geofenceId, transition.name)
 
             // Parallel delivery: WorkManager (survives process death) + EventBus (analytics pipeline).

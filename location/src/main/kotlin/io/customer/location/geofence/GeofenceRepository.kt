@@ -28,6 +28,16 @@ internal interface GeofenceRepository {
     suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
 
     /**
+     * Re-registers the cached geofences with the OS after a device reboot
+     * (which drops all OS-side registrations). Uses the cached anchor as the
+     * effective "current location" since no real-time location is available
+     * during boot. Skips silently when there's nothing to restore — no user,
+     * no anchor, or no cached config.
+     */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    suspend fun restoreFromCache(): Result<Unit>
+
+    /**
      * Clears all geofence state: persisted regions in the store and OS-side
      * registrations via the manager. Called on user sign-out so the next user
      * (or anonymous session) doesn't inherit the previous user's geofences.
@@ -104,6 +114,32 @@ internal class GeofenceRepositoryImpl(
             } else {
                 performLocalRefresh(userId, latitude, longitude, cachedConfig)
             }
+        } finally {
+            refreshInProgress.set(false)
+        }
+    }
+
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    override suspend fun restoreFromCache(): Result<Unit> {
+        if (!refreshInProgress.compareAndSet(false, true)) {
+            logger.logSyncSkipped("refresh already in progress")
+            return Result.success(Unit)
+        }
+        try {
+            val userId = secureUserStore.getUserId()
+            if (userId.isNullOrBlank()) {
+                logger.logSyncSkipped("no identified user")
+                return Result.success(Unit)
+            }
+            val anchor = store.getLastApiFetchLocation()
+            val cachedConfig = store.getCachedConfig()
+            if (anchor == null || cachedConfig == null) {
+                logger.logSyncSkipped("no cached state to restore")
+                return Result.success(Unit)
+            }
+            // Re-register using the anchor as the effective location; subsequent
+            // movement EXITs will retarget the trigger to the user's actual location.
+            return performLocalRefresh(userId, anchor.latitude, anchor.longitude, cachedConfig)
         } finally {
             refreshInProgress.set(false)
         }

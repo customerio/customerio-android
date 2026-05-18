@@ -94,9 +94,11 @@ class CustomerIO private constructor() :
     // ahead of earlier buffered calls.
     private val isReady: Boolean get() = preInitBuffer.isReady
 
-    // Latched at the start of [initializeComponents] to make the companion
-    // [initialize] idempotent. Distinct from [isReady] so the double-init
-    // guard fires even before the drain completes.
+    // Latched at the start of [initializeComponents] so the wiring step
+    // (analytics + plugins + journey subscribers) is itself idempotent if
+    // anything ever invokes it twice. The companion [initialize] is
+    // serialized by `@Synchronized` and gated on [isReady] for the
+    // duplicate-init case; this flag is not the companion-level guard.
     @Volatile
     private var initStarted: Boolean = false
 
@@ -651,6 +653,7 @@ class CustomerIO private constructor() :
          * @param config The configuration for initializing the CustomerIO SDK
          */
         @JvmStatic
+        @Synchronized
         fun initialize(config: CustomerIOConfig) {
             val androidSDKComponent = SDKComponent.android()
 
@@ -686,9 +689,13 @@ class CustomerIO private constructor() :
                 androidSDKComponent = androidSDKComponent,
                 moduleConfig = dataPipelinesConfig
             )
-            // Double-init early-out: createInstance returns a cio that already
-            // had initializeComponents() run. The buffer is also Ready, so the
-            // module loop and drain below are no-ops too.
+            // Double-init early-out. `@Synchronized` on this companion method
+            // serializes concurrent callers, so by the time the second caller
+            // reaches this point the first has already run `finishInitialization`
+            // and flipped `isReady` to true. Without that serialization, two
+            // callers could both pass an `isReady == false` check, both enter
+            // the module loop, and double-register modules (duplicate analytics
+            // plugins + duplicate EventBus subscribers).
             if (customerIO.isReady) {
                 logger.coreSdkInitSuccess()
                 return

@@ -12,9 +12,8 @@ import kotlinx.coroutines.launch
  */
 internal interface GeofenceServices {
     /**
-     * Movement-trigger EXIT bypasses the freshness threshold: the trigger's center
-     * must be updated to the new location for the next EXIT to fire correctly, so
-     * we always re-fetch regardless of how recent the last sync was.
+     * Movement-trigger EXIT routes to the tier-dispatch path: re-rank cached regions
+     * when within the API anchor's threshold, otherwise fetch fresh.
      */
     fun onMovementTriggerExit(latitude: Double?, longitude: Double?)
 
@@ -44,15 +43,30 @@ internal class GeofenceServicesImpl(
 ) : GeofenceServices {
 
     override fun onMovementTriggerExit(latitude: Double?, longitude: Double?) {
-        triggerSync(reason = REASON_MOVEMENT_EXIT, latitude = latitude, longitude = longitude, force = true)
+        triggerSync(
+            reason = REASON_MOVEMENT_EXIT,
+            latitude = latitude,
+            longitude = longitude,
+            action = repository::handleMovement
+        )
     }
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
-        triggerSync(reason = REASON_USER_IDENTIFIED, latitude = latitude, longitude = longitude, force = false)
+        triggerSync(
+            reason = REASON_USER_IDENTIFIED,
+            latitude = latitude,
+            longitude = longitude,
+            action = repository::refresh
+        )
     }
 
     override fun onAppLaunch(latitude: Double?, longitude: Double?) {
-        triggerSync(reason = REASON_APP_LAUNCH, latitude = latitude, longitude = longitude, force = false)
+        triggerSync(
+            reason = REASON_APP_LAUNCH,
+            latitude = latitude,
+            longitude = longitude,
+            action = repository::refresh
+        )
     }
 
     override fun onUserSignedOut() {
@@ -62,7 +76,12 @@ internal class GeofenceServicesImpl(
         }
     }
 
-    private fun triggerSync(reason: String, latitude: Double?, longitude: Double?, force: Boolean) {
+    private fun triggerSync(
+        reason: String,
+        latitude: Double?,
+        longitude: Double?,
+        action: suspend (Double, Double) -> Result<Unit>
+    ) {
         if (latitude == null || longitude == null) {
             logger.logSyncSkippedNoLocation(reason)
             return
@@ -76,7 +95,7 @@ internal class GeofenceServicesImpl(
         // permissions are revoked, so no mid-flight revocation to handle.
         @SuppressLint("MissingPermission")
         scope.launch {
-            repository.refresh(latitude, longitude, force = force)
+            action(latitude, longitude)
         }
     }
 

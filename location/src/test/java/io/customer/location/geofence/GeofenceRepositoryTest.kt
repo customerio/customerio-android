@@ -83,24 +83,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenRecentSyncButForced_expectApiCalled() = runTest {
-        // Movement-trigger EXIT path: force = true bypasses the freshness check so
-        // the trigger's center can be updated to the new location.
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L // 1 min ago
-        every { store.getRegisteredIds() } returns emptySet()
-        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
-            Result.success(sampleResponse(maxBusinessGeofences = 3))
-        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
-
-        repository.refresh(latitude = 0.0, longitude = 0.0, force = true)
-
-        coVerify { apiService.fetchGeofences(any(), any(), any()) }
-        verify(exactly = 0) { logger.logSyncSkippedFresh() }
-    }
-
-    @Test
     fun refresh_givenNoPreviousSync_expectApiCalled() = runTest {
         // First-ever sync: no timestamp, threshold check is a no-op, proceed.
         every { secureUserStore.getUserId() } returns "user-42"
@@ -495,6 +477,180 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.exceptionOrNull() shouldBeEqualTo error
         verify(exactly = 0) { store.clearAll() }
     }
+
+    // ---------- handleMovement / tier dispatch ----------
+
+    @Test
+    fun handleMovement_givenNoUserId_expectSkipAndNoOp() = runTest {
+        every { secureUserStore.getUserId() } returns null
+
+        val result = repository.handleMovement(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+    }
+
+    @Test
+    fun handleMovement_givenNoAnchor_expectRemoteFetch() = runTest {
+        // First EXIT after install / sign-out / clearAll: no anchor yet, so we
+        // can't compute the tier-A distance. Fall through to a remote fetch.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns null
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 1.0, longitude = 2.0)
+
+        coVerify { apiService.fetchGeofences("user-42", 1.0, 2.0) }
+    }
+
+    @Test
+    fun handleMovement_givenNoCachedConfig_expectRemoteFetch() = runTest {
+        // Defensive: anchor without cached config shouldn't happen in practice
+        // (both are written together), but if it does, fall back to remote fetch
+        // rather than guessing thresholds.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns null
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0)
+
+        coVerify { apiService.fetchGeofences(any(), any(), any()) }
+    }
+
+    @Test
+    fun handleMovement_givenAnchorWithinThreshold_expectLocalRerankAndNoApiCall() = runTest {
+        // Anchor at (0, 0), current location ~111m away (0, 0.001), threshold 5km
+        // → tier A: re-rank cache, register, no API.
+        val cached = listOf(
+            GeofenceRegion("biz-1", 0.0, 0.0, 100f),
+            GeofenceRegion("biz-2", 0.0, 1.0, 100f)
+        )
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(cached, any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.001)
+
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+        coVerify { manager.addGeofences(any()) }
+        verify { distanceFilter.nearest(cached, 0.0, 0.001, any()) }
+    }
+
+    @Test
+    fun handleMovement_givenAnchorBeyondThreshold_expectRemoteFetch() = runTest {
+        // Anchor at (0, 0), current location ~11km away (0, 0.1), threshold 5km
+        // → tier B: API fetch.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.1)
+
+        coVerify { apiService.fetchGeofences("user-42", 0.0, 0.1) }
+    }
+
+    @Test
+    fun handleMovement_givenAnchorBeyondThreshold_expectCacheAndAnchorPersisted() = runTest {
+        // Tier B via handleMovement must wire through to the same persist path
+        // refresh() uses — new anchor is the current location, cache + config + timestamp written.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+        val anchorSlot = slot<GeofenceLocation>()
+        every { store.saveLastApiFetchLocation(capture(anchorSlot)) } returns Unit
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.1)
+
+        verify { store.saveCachedRegions(any()) }
+        verify { store.saveCachedConfig(any()) }
+        verify { store.setLastSyncTimestamp(any()) }
+        anchorSlot.captured shouldBeEqualTo GeofenceLocation(0.0, 0.1)
+    }
+
+    @Test
+    fun handleMovement_givenLocalRerankSucceeds_expectCacheAndAnchorAndTimestampNotUpdated() = runTest {
+        // Tier A reuses the existing anchor so the 5km threshold keeps measuring from the same point.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.001)
+
+        verify(exactly = 0) { store.saveCachedRegions(any()) }
+        verify(exactly = 0) { store.saveCachedConfig(any()) }
+        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+    }
+
+    @Test
+    fun handleMovement_givenSecondCallWhileFirstInFlight_expectSecondDropped() = runTest {
+        // handleMovement and refresh share the same in-flight gate. A movement
+        // EXIT arriving while a refresh is mid-API call must drop fast — same
+        // dedup guarantee.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns null
+        every { store.getCachedConfig() } returns null
+        every { store.getRegisteredIds() } returns emptySet()
+        val concurrentApiCalls = AtomicInteger(0)
+        val maxObservedConcurrency = AtomicInteger(0)
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } coAnswers {
+            val n = concurrentApiCalls.incrementAndGet()
+            maxObservedConcurrency.updateAndGet { current -> maxOf(current, n) }
+            delay(50)
+            concurrentApiCalls.decrementAndGet()
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        }
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        coroutineScope {
+            launch { repository.handleMovement(latitude = 1.0, longitude = 1.0) }
+            launch { repository.handleMovement(latitude = 2.0, longitude = 2.0) }
+        }
+
+        maxObservedConcurrency.get() shouldBeEqualTo 1
+        coVerify(exactly = 1) { apiService.fetchGeofences(any(), any(), any()) }
+    }
+
+    private fun sampleConfig(): GeofenceConfig = GeofenceConfig(
+        localRefreshTriggerRadius = 1_000f,
+        remoteFetchRefreshTriggerRadius = 5_000f,
+        remoteFetchRefreshExpiryMs = 86_400_000L,
+        duplicateEventsExpiryMs = 3_600_000L,
+        maxBusinessGeofences = 19
+    )
 
     private fun sampleResponse(
         maxBusinessGeofences: Int,

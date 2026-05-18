@@ -60,19 +60,63 @@ import kotlinx.serialization.serializer
  * ```
  * It is recommended to initialize the client in the `Application::onCreate()` method.
  * After the instance is created you can access it via singleton instance: `CustomerIO.instance()` anywhere,
+ *
+ * **Pre-init event buffering**
+ *
+ * Event-shaped public-API calls (`track`, `identify`, `screen`, …) made on
+ * [instance] **before** [initialize] completes are absorbed into a bounded
+ * FIFO (capacity 100, drop-most-recent on overflow) and replayed in order
+ * once initialization finishes. This eliminates the legacy
+ * `IllegalStateException` thrown by pre-init `instance()` calls and ensures
+ * cold-start / deep-link events fired by host apps and wrapper SDKs aren't
+ * silently lost.
+ *
+ * Read-side accessors (`userId`, `anonymousId`, `registeredDeviceToken`,
+ * `profileAttributes`, `deviceAttributes`) return safe defaults (`null`,
+ * empty string, empty map) until initialization completes.
  */
-class CustomerIO private constructor(
-    androidSDKComponent: AndroidSDKComponent,
-    override val moduleConfig: DataPipelinesModuleConfig,
-    overrideAnalytics: Analytics? = null
-) : CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance(), DataPipeline {
+class CustomerIO private constructor() :
+    CustomerIOModule<DataPipelinesModuleConfig>, DataPipelineInstance(), DataPipeline {
     override val moduleName: String = MODULE_NAME
 
     private val logger: Logger = SDKComponent.logger
     private val dataPipelinesLogger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
-    private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
-    private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
+
+    // Pre-init buffer: absorbs event-shaped calls invoked before
+    // initializeComponents() runs and replays them in order on init.
+    private val preInitBuffer = PreInitEventBuffer()
+
+    // Single source of truth for "the SDK has finished initializing AND the
+    // pre-init buffer has been fully drained." Cached as a `@Volatile`
+    // boolean rather than reading through `preInitBuffer.isReady` so the
+    // post-init event hot path (every track / identify / screen call goes
+    // through [dispatch]) doesn't have to acquire the buffer's internal
+    // monitor on every invocation. `sdkReady` is a one-way latch
+    // (false → true), so a relaxed volatile read is safe.
+    @Volatile
+    private var sdkReady: Boolean = false
+    private val isReady: Boolean get() = sdkReady
+
+    // Latched at the start of [initializeComponents] so the wiring step
+    // (analytics + plugins + journey subscribers) is itself idempotent if
+    // anything ever invokes it twice. The companion [initialize] is
+    // serialized by `@Synchronized` and gated on [isReady] for the
+    // duplicate-init case; this flag is not the companion-level guard.
+    @Volatile
+    private var initStarted: Boolean = false
+
+    // Lateinit runtime components — populated by initializeComponents().
+    // Access guarded by isReady; callers that route through a public method
+    // either execute (post-init) or enqueue into preInitBuffer (pre-init).
+    private lateinit var _moduleConfig: DataPipelinesModuleConfig
+    override val moduleConfig: DataPipelinesModuleConfig
+        get() = _moduleConfig
+
+    private lateinit var globalPreferenceStore: io.customer.sdk.data.store.GlobalPreferenceStore
+    private lateinit var deviceStore: io.customer.sdk.data.store.DeviceStore
+    internal lateinit var analytics: Analytics
+    private lateinit var contextPlugin: ContextPlugin
     internal var migrationProcessor: MigrationProcessor? = null
 
     // Display logs under the CIO tag for easier filtering in logcat
@@ -100,18 +144,42 @@ class CustomerIO private constructor(
         }
     }
 
-    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
-        writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext,
-        configs = updateAnalyticsConfig(
-            moduleConfig = moduleConfig,
-            errorHandler = errorLogger
+    /**
+     * Populate runtime components. Called exactly once from
+     * [Companion.createInstance] when [Companion.initialize] runs.
+     *
+     * Does **not** flip the readiness signal or drain the pre-init buffer —
+     * those are deferred to [finishInitialization] so that modules added by
+     * the companion `initialize` (e.g. `MessagingInApp`) have their EventBus
+     * subscribers installed before the buffered events replay. Without that
+     * deferral, a screen-heavy pre-init buffer can evict the initial
+     * UserChangedEvent from the SharedFlow replay window before late-added
+     * subscribers see it.
+     */
+    @Synchronized
+    private fun initializeComponents(
+        androidSDKComponent: AndroidSDKComponent,
+        moduleConfig: DataPipelinesModuleConfig,
+        overrideAnalytics: Analytics? = null
+    ) {
+        if (initStarted) return
+        initStarted = true
+
+        this._moduleConfig = moduleConfig
+        this.globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+        this.deviceStore = androidSDKComponent.deviceStore
+
+        this.analytics = overrideAnalytics ?: Analytics(
+            writeKey = moduleConfig.cdpApiKey,
+            context = androidSDKComponent.applicationContext,
+            configs = updateAnalyticsConfig(
+                moduleConfig = moduleConfig,
+                errorHandler = errorLogger
+            )
         )
-    )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+        this.contextPlugin = ContextPlugin(deviceStore)
 
-    init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
         Analytics.setLogger(segmentLogger)
@@ -138,8 +206,26 @@ class CustomerIO private constructor(
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
-        // republish profile/anonymous events for late-added modules
+    }
+
+    /**
+     * Publish the initial identity to subscribers (in-app messaging, etc.) and
+     * drain the pre-init buffer. Called from the companion `initialize` **after**
+     * `module.initialize()` has run for every registered module, so that:
+     * - The UserChangedEvent reaches late-subscribing modules directly via the
+     *   live SharedFlow instead of via replay (replay can evict it when the
+     *   pre-init buffer was filled with screen events).
+     * - Public setters that arrive concurrently route through the buffer until
+     *   the drain completes, preserving FIFO order with earlier buffered calls.
+     */
+    internal fun finishInitialization() {
         postUserIdentificationEvents()
+        preInitBuffer.transitionToReady()
+        // Flip the readiness latch *after* the drain so concurrent public
+        // calls that arrive during the drain window route through the
+        // buffer (preserving FIFO order with earlier buffered calls)
+        // rather than racing ahead of in-flight replay.
+        sdkReady = true
     }
 
     private fun postUserIdentificationEvents() {
@@ -197,18 +283,50 @@ class CustomerIO private constructor(
         }
     }
 
+    /**
+     * Single chokepoint for every event-shaped public-API method.
+     *
+     * Pre-drain: enqueues [block] into the buffer so it replays in FIFO order
+     * once initialization completes. Post-drain: runs [block] inline. Wrapped
+     * in `synchronized(this)` so that public setters which don't go through
+     * [DataPipelineInstance]'s synchronized wrappers (`setProfileAttributes`,
+     * `setDeviceAttributes`) still serialize with `identify` / `track` /
+     * `screen` / etc., matching the locking that the pre-refactor
+     * `setProfileAttributes -> this.identify(...)` chain used to acquire.
+     * The lock is reentrant on `this`, so wrappers that already hold it (the
+     * `*Impl` overrides invoked through the parent's `synchronized { }`
+     * helper) simply re-enter.
+     */
+    private inline fun dispatch(crossinline block: () -> Unit) {
+        synchronized(this) {
+            if (!isReady) {
+                preInitBuffer.enqueue { block() }
+            } else {
+                block()
+            }
+        }
+    }
+
     @Deprecated("Use setProfileAttributes() function instead")
     @set:JvmName("setProfileAttributesDeprecated")
     override var profileAttributes: CustomAttributes
-        get() = analytics.traits() ?: emptyMap()
+        get() = if (isReady) analytics.traits() ?: emptyMap() else emptyMap()
         set(value) {
             setProfileAttributes(value)
         }
 
     override fun setProfileAttributes(attributes: CustomAttributes) {
-        val identifier = this.userId
+        dispatch { setProfileAttributesInternal(attributes) }
+    }
+
+    private fun setProfileAttributesInternal(attributes: CustomAttributes) {
+        val identifier = analytics.userId().takeUnless { it.isNullOrBlank() }
         if (identifier != null) {
-            identify(userId = identifier, traits = attributes)
+            identifyInternal(
+                userId = identifier,
+                traits = attributes.sanitizeForJson(),
+                serializationStrategy = JsonAnySerializer.serializersModule.serializer()
+            )
         } else {
             logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
             analytics.identify(traits = attributes.sanitizeForJson())
@@ -226,19 +344,28 @@ class CustomerIO private constructor(
         traits: Traits,
         serializationStrategy: SerializationStrategy<Traits>
     ) {
+        dispatch { identifyInternal(userId, traits, serializationStrategy) }
+    }
+
+    private fun <Traits> identifyInternal(
+        userId: String,
+        traits: Traits,
+        serializationStrategy: SerializationStrategy<Traits>
+    ) {
         if (userId.isBlank()) {
             logger.debug("Profile cannot be identified: Identifier is blank. Please retry with a valid, non-empty identifier.")
             return
         }
 
-        // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
+        // Raw reads against analytics/store — must not go through the gated
+        // public accessors, which return safe defaults during the drain window.
+        val currentlyIdentifiedProfile = analytics.userId().takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
         if (isChangingIdentifiedProfile) {
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
-            if (registeredDeviceToken != null) {
+            if (globalPreferenceStore.getDeviceToken() != null) {
                 dataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification()
                 deleteDeviceToken { event ->
                     event?.apply {
@@ -262,7 +389,7 @@ class CustomerIO private constructor(
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")
-            val existingDeviceToken = registeredDeviceToken
+            val existingDeviceToken = globalPreferenceStore.getDeviceToken()
             if (existingDeviceToken != null) {
                 dataPipelinesLogger.automaticTokenRegistrationForNewProfile(existingDeviceToken, userId)
                 // register device to newly identified profile
@@ -275,12 +402,14 @@ class CustomerIO private constructor(
      * Common method to track an event with traits.
      * All other track methods should call this method to ensure consistency.
      */
-    override fun <T> trackImpl(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) = track(name, properties, serializationStrategy, null)
+    override fun <T> trackImpl(name: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        dispatch { trackInternal(name, properties, serializationStrategy, null) }
+    }
 
     /**
-     * Private method that support enrichment of generated track events.
+     * Private method that supports enrichment of generated track events.
      */
-    private fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
+    private fun <T> trackInternal(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
         logger.debug("track an event with name $name and attributes $properties")
         analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
     }
@@ -290,19 +419,28 @@ class CustomerIO private constructor(
      * All other screen methods should call this method to ensure consistency.
      */
     override fun <T> screenImpl(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
+        dispatch { screenInternal(title, properties, serializationStrategy) }
+    }
+
+    private fun <T> screenInternal(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
         logger.debug("track a screen with title $title, properties $properties")
         eventBus.publish(Event.ScreenViewedEvent(name = title))
         analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
     }
 
     override fun clearIdentifyImpl() {
-        logger.info("resetting user profile with id ${this.userId}")
+        dispatch { clearIdentifyInternal() }
+    }
+
+    private fun clearIdentifyInternal() {
+        // Raw read — userId getter would return null during the drain window.
+        val existingUserId = analytics.userId()
+        logger.info("resetting user profile with id $existingUserId")
 
         logger.debug("deleting device token to remove device from user profile")
 
-        // since the tasks are asynchronous, we need to store the userId before deleting the device token
+        // since the tasks are asynchronous, we need to capture the userId before deleting the device token
         // otherwise, the userId could be null when the delete task is executed
-        val existingUserId = userId
         deleteDeviceToken { event ->
             event?.apply { userId = existingUserId.toString() }
         }
@@ -317,16 +455,52 @@ class CustomerIO private constructor(
     }
 
     override val registeredDeviceToken: String?
-        get() = globalPreferenceStore.getDeviceToken()
+        get() {
+            if (!isReady) {
+                logPreInitRead("registeredDeviceToken")
+                return null
+            }
+            return globalPreferenceStore.getDeviceToken()
+        }
 
     override val anonymousId: String
-        get() = analytics.anonymousId()
+        get() {
+            if (!isReady) {
+                logPreInitRead("anonymousId")
+                return ""
+            }
+            return analytics.anonymousId()
+        }
 
     override val userId: String?
-        get() = analytics.userId()
+        get() {
+            if (!isReady) {
+                logPreInitRead("userId")
+                return null
+            }
+            return analytics.userId()
+        }
 
     override val isUserIdentified: Boolean
-        get() = !analytics.userId().isNullOrEmpty()
+        get() {
+            if (!isReady) {
+                logPreInitRead("isUserIdentified")
+                return false
+            }
+            return !analytics.userId().isNullOrEmpty()
+        }
+
+    private fun logPreInitRead(property: String) {
+        // The accessor was hit before `CustomerIO.initialize(...)` finished
+        // wiring the SDK. We still return a safe default to preserve the
+        // contract of these (mostly non-nullable) properties, but surface the
+        // misuse so it stops being silent: the value at this point reflects
+        // an un-initialized SDK, not real customer state.
+        logger.debug(
+            "$property accessed before SDK initialization completed; " +
+                "returning default. Call after CustomerIO.initialize(...) for a live value."
+        )
+    }
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")
@@ -337,19 +511,28 @@ class CustomerIO private constructor(
         }
 
     override fun setDeviceAttributes(attributes: CustomAttributes) {
-        trackDeviceAttributes(registeredDeviceToken, attributes)
+        dispatch { setDeviceAttributesInternal(attributes) }
+    }
+
+    private fun setDeviceAttributesInternal(attributes: CustomAttributes) {
+        trackDeviceAttributes(globalPreferenceStore.getDeviceToken(), attributes)
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
+        dispatch { registerDeviceTokenInternal(deviceToken) }
+    }
+
+    private fun registerDeviceTokenInternal(deviceToken: String) {
         if (deviceToken.isBlank()) {
             dataPipelinesLogger.logStoringBlankPushToken()
             return
         }
 
-        dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
+        val currentUserId = analytics.userId()
+        dataPipelinesLogger.logStoringDevicePushToken(deviceToken, currentUserId)
         globalPreferenceStore.saveDeviceToken(deviceToken)
 
-        dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
+        dataPipelinesLogger.logRegisteringPushToken(deviceToken, currentUserId)
         trackDeviceAttributes(token = deviceToken)
     }
 
@@ -378,13 +561,21 @@ class CustomerIO private constructor(
         contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
-        track(
+        trackInternal(
             name = EventNames.DEVICE_UPDATE,
-            properties = attributes
+            properties = attributes,
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = null
         )
     }
 
-    override fun deleteDeviceTokenImpl() = deleteDeviceToken(null)
+    override fun deleteDeviceTokenImpl() {
+        dispatch { deleteDeviceTokenInternal() }
+    }
+
+    private fun deleteDeviceTokenInternal() {
+        deleteDeviceToken(null)
+    }
 
     private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
         logger.info("deleting device token")
@@ -395,14 +586,28 @@ class CustomerIO private constructor(
             return
         }
 
-        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
+        trackInternal(
+            name = EventNames.DEVICE_DELETE,
+            properties = emptyJsonObject,
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = enrichment
+        )
     }
 
     override fun trackMetricImpl(event: TrackMetric) {
+        dispatch { trackMetricInternal(event) }
+    }
+
+    private fun trackMetricInternal(event: TrackMetric) {
         logger.info("${event.type} metric received for ${event.metric} event")
         logger.debug("tracking ${event.type} metric event with properties $event")
 
-        track(name = EventNames.METRIC_DELIVERY, properties = event.asMap())
+        trackInternal(
+            name = EventNames.METRIC_DELIVERY,
+            properties = event.asMap(),
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = null
+        )
     }
 
     companion object {
@@ -413,21 +618,29 @@ class CustomerIO private constructor(
         internal const val MODULE_NAME = "DataPipelines"
 
         /**
-         * Singleton instance of CustomerIO SDK that is created and set using the provided implementation.
+         * Singleton instance of CustomerIO SDK.
+         *
+         * Lazily created on first [instance] call so that events fired
+         * before [initialize] are absorbed into the singleton's pre-init
+         * buffer rather than throwing.
          */
         @Volatile
-        private var instance: CustomerIO? = null
+        private var _instance: CustomerIO? = null
 
         /**
-         * Returns the instance of CustomerIO SDK.
-         * If the instance is not initialized, it will throw an exception.
-         * Please ensure that the SDK is initialized before calling this method.
+         * Returns the singleton instance of CustomerIO SDK.
+         *
+         * Safe to call before [initialize]. Pre-init, returns a singleton
+         * whose event-shaped methods buffer calls (cap 100, drop-most-recent
+         * on overflow) and replay them in order once [initialize] completes.
+         * Read-side properties return safe defaults (`null` / empty string /
+         * empty map) until initialization completes.
          */
         @JvmStatic
         fun instance(): CustomerIO {
-            return instance ?: throw IllegalStateException(
-                "CustomerIO is not initialized. CustomerIO.initialize() must be called before obtaining SDK instance."
-            )
+            return _instance ?: synchronized(this) {
+                _instance ?: CustomerIO().also { _instance = it }
+            }
         }
 
         /**
@@ -449,6 +662,7 @@ class CustomerIO private constructor(
          * @param config The configuration for initializing the CustomerIO SDK
          */
         @JvmStatic
+        @Synchronized
         fun initialize(config: CustomerIOConfig) {
             val androidSDKComponent = SDKComponent.android()
 
@@ -477,11 +691,24 @@ class CustomerIO private constructor(
                 screenViewUse = config.screenViewUse
             )
 
-            // Initialize CustomerIO instance before initializing the modules
+            // Initialize CustomerIO instance before initializing the modules.
+            // Wires analytics + plugins + journey-event subscribers, but does
+            // NOT drain the pre-init buffer yet.
             val customerIO = createInstance(
                 androidSDKComponent = androidSDKComponent,
                 moduleConfig = dataPipelinesConfig
             )
+            // Double-init early-out. `@Synchronized` on this companion method
+            // serializes concurrent callers, so by the time the second caller
+            // reaches this point the first has already run `finishInitialization`
+            // and flipped `isReady` to true. Without that serialization, two
+            // callers could both pass an `isReady == false` check, both enter
+            // the module loop, and double-register modules (duplicate analytics
+            // plugins + duplicate EventBus subscribers).
+            if (customerIO.isReady) {
+                logger.coreSdkInitSuccess()
+                return
+            }
 
             // Register DataPipelines module and all other modules with SDKComponent
             modules[MODULE_NAME] = customerIO
@@ -493,13 +720,23 @@ class CustomerIO private constructor(
                 logger.moduleInitSuccess(module)
             }
 
+            // Finish initialization AFTER all modules have run their
+            // initialize() — so EventBus subscribers (e.g. MessagingInApp's
+            // UserChangedEvent/ScreenViewedEvent handlers) are installed before
+            // the initial identity is published and before the pre-init buffer
+            // drains. This is what prevents the initial UserChangedEvent from
+            // being evicted by a screen-heavy drain on the SharedFlow replay.
+            customerIO.finishInitialization()
+
             logger.coreSdkInitSuccess()
         }
 
         /**
-         * Creates and sets new instance of CustomerIO SDK using the provided implementation.
-         * If the instance is already initialized, it will log an error and skip the initialization.
-         * This method should be called only once during the application lifecycle using the provided builder.
+         * Wires real components into the singleton CustomerIO instance. The
+         * pre-init buffer is **not** drained here — the companion `initialize`
+         * defers that to [finishInitialization] after all modules have run
+         * their own `initialize()`. If the singleton was already initialized,
+         * logs and returns it as-is.
          */
         @Synchronized
         @InternalCustomerIOApi
@@ -508,18 +745,17 @@ class CustomerIO private constructor(
             moduleConfig: DataPipelinesModuleConfig
         ): CustomerIO {
             val logger = SDKComponent.dataPipelinesLogger
-
-            val existingInstance = instance
-            if (existingInstance != null) {
+            val cio = instance()
+            if (cio.initStarted) {
                 logger.coreSdkAlreadyInitialized()
-                return existingInstance
+                return cio
             }
-
-            return CustomerIO(
+            cio.initializeComponents(
                 androidSDKComponent = androidSDKComponent,
                 moduleConfig = moduleConfig,
                 overrideAnalytics = SDKComponent.analyticsFactory?.invoke(moduleConfig)
-            ).apply { instance = this }
+            )
+            return cio
         }
 
         /**
@@ -531,7 +767,9 @@ class CustomerIO private constructor(
         fun clearInstance() {
             // Reset SDKComponent to clear static references and avoid memory leaks
             SDKComponent.reset()
-            instance = null
+            // Discard the singleton so the next instance() call returns a fresh
+            // pre-init CustomerIO. Any pre-init buffer state is dropped.
+            _instance = null
         }
     }
 }

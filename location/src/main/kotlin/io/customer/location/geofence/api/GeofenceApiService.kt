@@ -13,7 +13,8 @@ internal interface GeofenceApiService {
 }
 
 internal class GeofenceApiServiceImpl(
-    private val httpClient: CustomerIOHttpClient
+    private val httpClient: CustomerIOHttpClient,
+    private val parser: GeofenceApiResponseParser
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(
@@ -41,7 +42,7 @@ internal class GeofenceApiServiceImpl(
         )
 
         return httpClient.request(params).mapCatching { responseBody ->
-            GeofenceApiJson.decodeFromString(GeofenceApiResponse.serializer(), responseBody)
+            parser.parse(responseBody)
         }
     }
 

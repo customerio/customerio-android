@@ -104,8 +104,10 @@ class GeofenceApiResponseTest : RobolectricTest() {
         regions.shouldBeEmpty()
     }
 
+    private val parser = GeofenceApiResponseParser()
+
     private fun parseAndMap(raw: String): Pair<GeofenceConfig, List<GeofenceRegion>> {
-        val response = GeofenceApiJson.decodeFromString(GeofenceApiResponse.serializer(), raw)
+        val response = parser.parse(raw)
         return response.toDomainConfig() to response.toDomainRegions()
     }
 

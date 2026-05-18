@@ -46,17 +46,6 @@ class ContextPluginTest : JUnitTest() {
         analytics.add(outputReaderPlugin)
     }
 
-    private fun setupWithInstallationId(installationId: String?): DataPipelinesTestConfig {
-        return testConfiguration {
-            diGraph {
-                android {
-                    // Stub before CustomerIO init so the init-block resolution reads this value.
-                    every { globalPreferenceStore.getInstallationId() } returns installationId
-                }
-            }
-        }
-    }
-
     @Test
     fun process_givenTokenExists_expectDoNotUpdateContextDeviceToken() {
         val migrationTokenPlugin = MigrationTokenPlugin()
@@ -117,7 +106,15 @@ class ContextPluginTest : JUnitTest() {
     @Test
     fun process_givenInstallationIdExists_expectAttachedToDeviceContext() {
         val givenInstallationId = UUID.randomUUID().toString()
-        setupWithConfig(setupWithInstallationId(givenInstallationId))
+        setupWithConfig(
+            testConfiguration {
+                diGraph {
+                    android {
+                        every { globalPreferenceStore.getInstallationId() } returns givenInstallationId
+                    }
+                }
+            }
+        )
 
         val givenEventName = String.random
         analytics.process(TrackEvent(emptyJsonObject, givenEventName))
@@ -159,7 +156,15 @@ class ContextPluginTest : JUnitTest() {
     @Test
     fun process_acrossClearIdentify_expectInstallationIdUnchanged() {
         val givenInstallationId = UUID.randomUUID().toString()
-        setupWithConfig(setupWithInstallationId(givenInstallationId))
+        setupWithConfig(
+            testConfiguration {
+                diGraph {
+                    android {
+                        every { globalPreferenceStore.getInstallationId() } returns givenInstallationId
+                    }
+                }
+            }
+        )
 
         val firstEventName = String.random
         analytics.process(TrackEvent(emptyJsonObject, firstEventName))

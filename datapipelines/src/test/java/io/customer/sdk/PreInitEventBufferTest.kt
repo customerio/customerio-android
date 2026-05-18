@@ -165,6 +165,37 @@ class PreInitEventBufferTest : JUnitTest() {
     }
 
     @Test
+    fun drainingStateEnforcesCapacity() {
+        // While in Draining (i.e. the drain is replaying outer blocks), any
+        // reentrant enqueue must respect the same capacity as Buffering.
+        // Without this guarantee, a launch-time burst racing the drain could
+        // grow `pending` past the documented bound and bypass drop accounting.
+        val buffer = makeBuffer(capacity = 2)
+        val instance = mockInstance()
+
+        // First block triggers 4 reentrant enqueues while the buffer is in
+        // Draining. Only the first 2 should be retained; the remaining 2
+        // must be counted as drops.
+        buffer.enqueue { it.trackString("outer") }
+        buffer.enqueue { _ ->
+            repeat(4) { i ->
+                buffer.enqueue { inner -> inner.trackString("inner-$i") }
+            }
+        }
+        buffer.transitionToReady(instance)
+
+        verifyOrder {
+            instance.track("outer", emptyMap<String, Any?>())
+            instance.track("inner-0", emptyMap<String, Any?>())
+            instance.track("inner-1", emptyMap<String, Any?>())
+        }
+        verify(exactly = 0) { instance.track("inner-2", emptyMap<String, Any?>()) }
+        verify(exactly = 0) { instance.track("inner-3", emptyMap<String, Any?>()) }
+        // Drop counter is reset after drain.
+        buffer.droppedEventCount shouldBeEqualTo 0
+    }
+
+    @Test
     fun concurrentEnqueuesArePreservedUpToCap() {
         val buffer = makeBuffer(capacity = 200)
         val instance = mockInstance()

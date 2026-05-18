@@ -78,10 +78,37 @@ internal class GeofenceRepositoryImpl(
                             logger.logSyncSkipped("user changed during refresh")
                             return@withLock Result.success(Unit)
                         }
-                        store.saveAll(regions)
+
+                        // Remove geofences that were registered last time but aren't in the new set.
+                        // Without this, OS-side registrations accumulate across refreshes until we
+                        // hit the 100-per-app limit and new registrations silently fail.
+                        val previousRegions = store.getAll()
+                        val newIds = toRegister.map { it.id }.toSet()
+                        val staleRegions = previousRegions.filter { it.id !in newIds }
+                        val staleRemovalSucceeded = if (staleRegions.isNotEmpty()) {
+                            // Failures here are logged by the manager; don't block the fresh
+                            // registration — we keep the unremoved entries in the persisted set
+                            // below so the next refresh's diff retries their cleanup.
+                            manager.removeGeofencesByIds(staleRegions.map { it.id }).isSuccess
+                        } else {
+                            true
+                        }
+
                         store.setLastSyncTimestamp(System.currentTimeMillis())
+
                         manager.addGeofences(toRegister).also { result ->
-                            if (result.isSuccess) logger.logSyncSucceeded(nearest.size)
+                            if (result.isSuccess) {
+                                // Persist what we just registered. If stale-cleanup failed, keep
+                                // the unremoved stale entries too so the next refresh's diff sees
+                                // them and retries — otherwise they'd orphan in the OS forever.
+                                val toPersist = if (staleRemovalSucceeded) {
+                                    toRegister
+                                } else {
+                                    toRegister + staleRegions
+                                }
+                                store.saveAll(toPersist)
+                                logger.logSyncSucceeded(nearest.size)
+                            }
                         }
                     }
                 },

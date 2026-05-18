@@ -244,10 +244,16 @@ internal class GeofenceRepositoryImpl(
     }
 
     override suspend fun reset(): Result<Unit> = stateMutex.withLock {
-        // Serialised against in-flight refresh state writes so a sign-out can't
-        // interleave with a partially-completed registration and leave us in an
-        // inconsistent state.
-        //
+        // Skip if a new user is signed in by the time this reset runs.
+        // geofenceScope runs on Dispatchers.Default, which doesn't order coroutines —
+        // a refresh queued after this reset may have already written the new user's
+        // state. Wiping now would clobber it; the new user's refresh handles previous-
+        // user cleanup via the stale-diff in registerNearestAndPersist.
+        val currentUserId = secureUserStore.getUserId()
+        if (!currentUserId.isNullOrBlank()) {
+            logger.logSyncSkipped("reset superseded by signed-in user")
+            return@withLock Result.success(Unit)
+        }
         // Order matters: clear OS-side FIRST, then the persisted record. If
         // manager.clearAll fails (transient GMS error), preserving the store
         // lets the next refresh's stale-cleanup diff see the previous regions

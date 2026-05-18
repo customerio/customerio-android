@@ -9,6 +9,8 @@ import com.google.android.gms.location.GeofencingEvent
 import io.customer.location.geofence.di.geofenceCooldownFilter
 import io.customer.location.geofence.di.geofenceEventScheduler
 import io.customer.location.geofence.di.geofenceLogger
+import io.customer.location.geofence.di.geofenceManager
+import io.customer.location.geofence.di.geofenceRegionStore
 import io.customer.location.geofence.di.geofenceServices
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
@@ -93,8 +95,18 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val scheduler = androidComponent.geofenceEventScheduler
         val cooldownFilter = androidComponent.geofenceCooldownFilter
         val eventBus = SDKComponent.eventBus
+        // Defense-in-depth against orphans (failed clearAll, app-data wipe, SDK
+        // ID-format changes): events for unregistered IDs are dropped and the OS-side
+        // registration is removed so it stops firing.
+        val registeredIds = androidComponent.geofenceRegionStore.getRegisteredIds()
+        val (knownIds, unknownIds) = triggeringGeofenceIds.partition { it in registeredIds }
+        if (unknownIds.isNotEmpty()) {
+            unknownIds.forEach { logger.logTransitionDroppedUnknownId(it) }
+            // Result ignored — a failed removal self-heals on the next orphan event.
+            androidComponent.geofenceManager.removeGeofencesByIds(unknownIds)
+        }
 
-        triggeringGeofenceIds.forEach { geofenceId ->
+        knownIds.forEach { geofenceId ->
             if (geofenceId == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
                 // Movement-trigger geofence is registered with NO_INITIAL_TRIGGER so it
                 // should only ever fire EXIT; defensive guard in case the OS surprises us.

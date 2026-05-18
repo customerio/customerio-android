@@ -463,6 +463,19 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun reset_givenNewUserSignedInDuringWait_expectSkipWipe() = runTest {
+        // Sign-out + immediate-sign-in race — see reset() for the rationale.
+        every { secureUserStore.getUserId() } returns "user-B"
+
+        val result = repository.reset()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { manager.clearAll() }
+        verify(exactly = 0) { store.clearAll() }
+        verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
+    }
+
+    @Test
     fun reset_givenManagerFails_expectStorePreservedForSelfHeal() = runTest {
         // If manager.clearAll fails (transient GMS error), the store MUST be
         // preserved — otherwise OS-side registrations orphan with no record to

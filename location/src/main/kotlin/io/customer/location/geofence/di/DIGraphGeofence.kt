@@ -7,11 +7,15 @@ import io.customer.location.geofence.GeofenceDistanceFilter
 import io.customer.location.geofence.GeofenceLogger
 import io.customer.location.geofence.GeofenceManager
 import io.customer.location.geofence.GeofenceReceiverToggle
+import io.customer.location.geofence.GeofenceRepository
+import io.customer.location.geofence.GeofenceRepositoryImpl
 import io.customer.location.geofence.api.GeofenceApiResponseParser
 import io.customer.location.geofence.api.GeofenceApiService
 import io.customer.location.geofence.api.GeofenceApiServiceImpl
 import io.customer.location.geofence.store.GeofenceCooldownStore
 import io.customer.location.geofence.store.GeofenceCooldownStoreImpl
+import io.customer.location.geofence.store.GeofenceRegionStore
+import io.customer.location.geofence.store.GeofenceRegionStoreImpl
 import io.customer.location.geofence.worker.AsyncGeofenceEventTracker
 import io.customer.location.geofence.worker.GeofenceEventScheduler
 import io.customer.location.geofence.worker.GeofenceEventTracker
@@ -61,3 +65,18 @@ internal val AndroidSDKComponent.geofenceCooldownStore: GeofenceCooldownStore
 
 internal val AndroidSDKComponent.geofenceCooldownFilter: GeofenceCooldownFilter
     get() = singleton<GeofenceCooldownFilter> { GeofenceCooldownFilter(geofenceCooldownStore, SDKComponent.clock) }
+
+internal val AndroidSDKComponent.geofenceRegionStore: GeofenceRegionStore
+    get() = singleton<GeofenceRegionStore> { GeofenceRegionStoreImpl(applicationContext) }
+
+internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
+    get() = singleton<GeofenceRepository> {
+        GeofenceRepositoryImpl(
+            apiService = SDKComponent.geofenceApiService,
+            store = geofenceRegionStore,
+            distanceFilter = SDKComponent.geofenceDistanceFilter,
+            manager = geofenceManager,
+            secureUserStore = secureUserStore,
+            logger = SDKComponent.geofenceLogger
+        )
+    }

@@ -57,6 +57,14 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Geofence sync failed: $message", tag = TAG)
     }
 
+    fun logSyncSucceeded(count: Int) {
+        logger.debug("Geofence sync succeeded: $count regions registered", tag = TAG)
+    }
+
+    fun logSyncSkipped(reason: String) {
+        logger.debug("Geofence sync skipped: $reason", tag = TAG)
+    }
+
     fun logReceiverSkipped(reason: String) {
         logger.debug("Geofence receiver skipped: $reason", tag = TAG)
     }

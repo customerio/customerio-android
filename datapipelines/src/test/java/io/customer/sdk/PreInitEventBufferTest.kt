@@ -17,7 +17,9 @@ import org.junit.jupiter.api.Test
 /**
  * Unit tests for [PreInitEventBuffer]. Mirrors the iOS coverage —
  * state transitions, drop-most-recent overflow, order preservation,
- * reentrancy, and concurrent enqueueing.
+ * reentrancy, and concurrent enqueueing. Closures capture their target
+ * via lexical scope, matching the production usage from
+ * `CustomerIO.dispatch { … }`.
  */
 class PreInitEventBufferTest : JUnitTest() {
 
@@ -61,11 +63,11 @@ class PreInitEventBufferTest : JUnitTest() {
         val buffer = makeBuffer()
         val instance = mockInstance()
 
-        buffer.enqueue { it.trackString("one") }
-        buffer.enqueue { it.identifyString("alice") }
-        buffer.enqueue { it.screenString("Home") }
+        buffer.enqueue { instance.trackString("one") }
+        buffer.enqueue { instance.identifyString("alice") }
+        buffer.enqueue { instance.screenString("Home") }
 
-        buffer.transitionToReady(instance)
+        buffer.transitionToReady()
 
         verifyOrder {
             instance.track("one", emptyMap<String, Any?>())
@@ -80,8 +82,8 @@ class PreInitEventBufferTest : JUnitTest() {
     fun postReadyEnqueueExecutesImmediately() {
         val buffer = makeBuffer()
         val instance = mockInstance()
-        buffer.transitionToReady(instance)
-        buffer.enqueue { it.trackString("after") }
+        buffer.transitionToReady()
+        buffer.enqueue { instance.trackString("after") }
         verify { instance.track("after", emptyMap<String, Any?>()) }
         buffer.bufferedCount shouldBeEqualTo 0
     }
@@ -92,12 +94,12 @@ class PreInitEventBufferTest : JUnitTest() {
         val instance = mockInstance()
 
         repeat(5) { index ->
-            buffer.enqueue { it.trackString("event-$index") }
+            buffer.enqueue { instance.trackString("event-$index") }
         }
         buffer.bufferedCount shouldBeEqualTo 3
         buffer.droppedEventCount shouldBeEqualTo 2
 
-        buffer.transitionToReady(instance)
+        buffer.transitionToReady()
 
         verifyOrder {
             instance.track("event-0", emptyMap<String, Any?>())
@@ -113,7 +115,7 @@ class PreInitEventBufferTest : JUnitTest() {
     fun transitionToReadyOnEmptyBufferIsNoop() {
         val buffer = makeBuffer()
         val instance = mockInstance()
-        buffer.transitionToReady(instance)
+        buffer.transitionToReady()
         buffer.isReady.shouldBeTrue()
         verify(exactly = 0) {
             instance.track(any<String>(), any<Map<String, Any?>>())
@@ -123,13 +125,11 @@ class PreInitEventBufferTest : JUnitTest() {
     @Test
     fun transitionToReadyCalledTwiceIsSafe() {
         val buffer = makeBuffer()
-        val first = mockInstance()
-        val second = mockInstance()
-        buffer.enqueue { it.trackString("first") }
-        buffer.transitionToReady(first)
-        buffer.transitionToReady(second)
-        verify { first.track("first", emptyMap<String, Any?>()) }
-        verify(exactly = 0) { second.track(any<String>(), any<Map<String, Any?>>()) }
+        val instance = mockInstance()
+        buffer.enqueue { instance.trackString("first") }
+        buffer.transitionToReady()
+        buffer.transitionToReady()
+        verify(exactly = 1) { instance.track("first", emptyMap<String, Any?>()) }
     }
 
     @Test
@@ -152,11 +152,11 @@ class PreInitEventBufferTest : JUnitTest() {
         val buffer = makeBuffer()
         val instance = mockInstance()
 
-        buffer.enqueue { it.trackString("outer") }
+        buffer.enqueue { instance.trackString("outer") }
         buffer.enqueue {
-            buffer.enqueue { inner -> inner.trackString("inner") }
+            buffer.enqueue { instance.trackString("inner") }
         }
-        buffer.transitionToReady(instance)
+        buffer.transitionToReady()
 
         verifyOrder {
             instance.track("outer", emptyMap<String, Any?>())
@@ -176,13 +176,13 @@ class PreInitEventBufferTest : JUnitTest() {
         // First block triggers 4 reentrant enqueues while the buffer is in
         // Draining. Only the first 2 should be retained; the remaining 2
         // must be counted as drops.
-        buffer.enqueue { it.trackString("outer") }
-        buffer.enqueue { _ ->
+        buffer.enqueue { instance.trackString("outer") }
+        buffer.enqueue {
             repeat(4) { i ->
-                buffer.enqueue { inner -> inner.trackString("inner-$i") }
+                buffer.enqueue { instance.trackString("inner-$i") }
             }
         }
-        buffer.transitionToReady(instance)
+        buffer.transitionToReady()
 
         verifyOrder {
             instance.track("outer", emptyMap<String, Any?>())
@@ -208,7 +208,7 @@ class PreInitEventBufferTest : JUnitTest() {
         repeat(threadCount) { threadIndex ->
             executor.submit {
                 repeat(perThread) { eventIndex ->
-                    buffer.enqueue { it.trackString("t$threadIndex-$eventIndex") }
+                    buffer.enqueue { instance.trackString("t$threadIndex-$eventIndex") }
                 }
                 latch.countDown()
             }
@@ -217,7 +217,7 @@ class PreInitEventBufferTest : JUnitTest() {
         executor.shutdown()
 
         buffer.bufferedCount shouldBeEqualTo threadCount * perThread
-        buffer.transitionToReady(instance)
+        buffer.transitionToReady()
         verify(exactly = threadCount * perThread) {
             instance.track(any<String>(), any<Map<String, Any?>>())
         }

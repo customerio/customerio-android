@@ -88,11 +88,15 @@ class CustomerIO private constructor() :
     private val preInitBuffer = PreInitEventBuffer()
 
     // Single source of truth for "the SDK has finished initializing AND the
-    // pre-init buffer has been fully drained." Reading from the buffer means
-    // public setters that arrive during the drain window route through
-    // preInitBuffer.enqueue (which puts them on `pending`) instead of racing
-    // ahead of earlier buffered calls.
-    private val isReady: Boolean get() = preInitBuffer.isReady
+    // pre-init buffer has been fully drained." Cached as a `@Volatile`
+    // boolean rather than reading through `preInitBuffer.isReady` so the
+    // post-init event hot path (every track / identify / screen call goes
+    // through [dispatch]) doesn't have to acquire the buffer's internal
+    // monitor on every invocation. `sdkReady` is a one-way latch
+    // (false → true), so a relaxed volatile read is safe.
+    @Volatile
+    private var sdkReady: Boolean = false
+    private val isReady: Boolean get() = sdkReady
 
     // Latched at the start of [initializeComponents] so the wiring step
     // (analytics + plugins + journey subscribers) is itself idempotent if
@@ -216,7 +220,12 @@ class CustomerIO private constructor() :
      */
     internal fun finishInitialization() {
         postUserIdentificationEvents()
-        preInitBuffer.transitionToReady(this)
+        preInitBuffer.transitionToReady()
+        // Flip the readiness latch *after* the drain so concurrent public
+        // calls that arrive during the drain window route through the
+        // buffer (preserving FIFO order with earlier buffered calls)
+        // rather than racing ahead of in-flight replay.
+        sdkReady = true
     }
 
     private fun postUserIdentificationEvents() {

@@ -35,14 +35,51 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun triggerSync_givenLocationAndPermissions_expectRefreshLaunched() = runTest(StandardTestDispatcher()) {
-        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refresh(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onMovementTriggerExit(latitude = 12.34, longitude = 56.78)
         advanceUntilIdle()
 
-        coVerify { repository.refresh(12.34, 56.78) }
+        coVerify { repository.refresh(12.34, 56.78, any()) }
         verify { logger.logSyncTriggered(any()) }
+    }
+
+    @Test
+    fun onMovementTriggerExit_expectForceTrue() = runTest(StandardTestDispatcher()) {
+        // Movement EXIT must force-refresh so the trigger's center can be updated.
+        coEvery { repository.refresh(any(), any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(1.0, 2.0, force = true) }
+    }
+
+    @Test
+    fun onUserIdentified_expectForceFalse() = runTest(StandardTestDispatcher()) {
+        // Identify honours the freshness threshold so repeated identify is a no-op.
+        coEvery { repository.refresh(any(), any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(1.0, 2.0, force = false) }
+    }
+
+    @Test
+    fun onAppLaunch_givenLocation_expectRefreshLaunchedWithForceFalse() = runTest(StandardTestDispatcher()) {
+        // App-launch trigger honours threshold; redundant with identify in the common case.
+        coEvery { repository.refresh(any(), any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onAppLaunch(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(1.0, 2.0, force = false) }
+        verify { logger.logSyncTriggered("app-launch") }
     }
 
     @Test
@@ -52,7 +89,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onMovementTriggerExit(latitude = null, longitude = 12.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refresh(any(), any(), any()) }
         verify { logger.logSyncSkippedNoLocation(any()) }
     }
 
@@ -64,21 +101,37 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refresh(any(), any(), any()) }
         verify { logger.logSyncSkippedNoPermission(any()) }
     }
 
     @Test
+    fun onUserSignedOut_expectRepositoryResetLaunched() = runTest(StandardTestDispatcher()) {
+        // Sign-out hands off to repository.reset, which clears persisted state and
+        // OS-side registrations via the manager.
+        coEvery { repository.reset() } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserSignedOut()
+        advanceUntilIdle()
+
+        coVerify { repository.reset() }
+        verify { logger.logGeofenceStateResetOnSignOut() }
+    }
+
+    @Test
     fun triggerSync_expectReasonStringMatchesTriggerSource() = runTest(StandardTestDispatcher()) {
-        // Pins the only behavioral difference between the two trigger methods: the reason string.
-        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        // Pins the only behavioral difference between the trigger methods: the reason string.
+        coEvery { repository.refresh(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
         services.onUserIdentified(latitude = 3.0, longitude = 4.0)
+        services.onAppLaunch(latitude = 5.0, longitude = 6.0)
         advanceUntilIdle()
 
         verify { logger.logSyncTriggered("movement-trigger-exit") }
         verify { logger.logSyncTriggered("user-identified") }
+        verify { logger.logSyncTriggered("app-launch") }
     }
 }

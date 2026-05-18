@@ -127,10 +127,27 @@ class ModuleLocation @JvmOverloads constructor(
             }
         }
 
-        // Clear geofence cooldown state on user reset so a new user isn't suppressed
-        // by transitions emitted under the previous identity.
+        // Sign-out: clear geofence state and cooldown so the next user (or anonymous
+        // session) doesn't inherit anything from the previous identity. ResetEvent
+        // fires from `clearIdentify()` before `UserChangedEvent(null)`, so it's the
+        // explicit "wipe user state" signal — analogous to analytics.reset().
         eventBus.subscribe<Event.ResetEvent> {
+            SDKComponent.android().geofenceServices.onUserSignedOut()
             SDKComponent.android().geofenceCooldownFilter.clearAll()
+        }
+
+        // Defensive sync trigger at module init: if a user identified in a previous
+        // session is still persisted, kick off a geofence refresh now. The repository's
+        // freshness threshold makes this a cheap no-op when identify also fires shortly
+        // after init (the common case), so it only does work when the host app doesn't
+        // call identify on this launch and the last sync is stale.
+        val existingUserId = SDKComponent.android().secureUserStore.getUserId()
+        if (!existingUserId.isNullOrEmpty()) {
+            val cachedLocation = locationTracker.lastLocation
+            SDKComponent.android().geofenceServices.onAppLaunch(
+                latitude = cachedLocation?.latitude,
+                longitude = cachedLocation?.longitude
+            )
         }
 
         // Register lifecycle observer for background cancellation and ON_APP_START.

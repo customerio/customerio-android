@@ -54,11 +54,15 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenEmptyList_expectSuccessWithoutCallingClient() = runTest {
+    fun addGeofences_givenEmptyList_expectReceiverDisabledAndNoClientCall() = runTest {
+        // Account with no geofences => receiver must be disabled so the SDK doesn't
+        // burn resources listening for events that can't fire. Covers both fresh
+        // accounts and accounts that transitioned to 0 after a refresh.
         val result = manager.addGeofences(emptyList())
 
         result.isSuccess.shouldBeTrue()
         verify(exactly = 0) { client.addGeofences(any<GeofencingRequest>(), any()) }
+        verify { receiverToggle.setEnabled(false) }
     }
 
     @Test
@@ -143,7 +147,12 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenMixedBatchWithBusinessFailure_expectMovementTriggerCleanedUp() = runTest {
+    fun addGeofences_givenMixedBatchWithBusinessFailure_expectMovementTriggerRolledBack() = runTest {
+        // Business-batch failure is a rare edge case (transient OS / GMS issue).
+        // Rather than leave a stand-alone movement trigger in the OS, we roll it
+        // back so we don't carry safety-net state we can't act on. Recovery
+        // happens on the next identify/app-launch trigger past the freshness
+        // threshold — see `GeofenceConstants.STALE_THRESHOLD_MS`.
         grantAllPermissions()
 
         var callCount = 0
@@ -166,9 +175,8 @@ class GeofenceManagerTest : RobolectricTest() {
         )
 
         result.isFailure.shouldBeTrue()
-        // Movement trigger should be cleaned up after business batch failure
         verify { client.removeGeofences(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
-        verify(exactly = 0) { receiverToggle.setEnabled(any()) }
+        verify(exactly = 0) { receiverToggle.setEnabled(true) }
     }
 
     @Test

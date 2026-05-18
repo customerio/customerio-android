@@ -2,6 +2,7 @@ package io.customer.location.geofence.api
 
 import io.customer.commontest.core.RobolectricTest
 import io.customer.location.geofence.GeofenceConfig
+import io.customer.location.geofence.GeofenceConstants
 import io.customer.location.geofence.GeofenceRegion
 import io.customer.location.geofence.GeofenceTransitionType
 import org.amshove.kluent.shouldBeEmpty
@@ -88,6 +89,95 @@ class GeofenceApiResponseTest : RobolectricTest() {
         config.movementTriggerRadius shouldBeEqualTo 1000f
         regions.shouldBeEmpty()
     }
+
+    @Test
+    fun parseAndMap_givenConfigFieldsMissing_expectAllFallbacksApplied() {
+        // Backend rollout safety: any/all config fields can be absent and the SDK
+        // must keep working with SDK-level defaults.
+        val (config, _) = parseAndMap(
+            """
+            {
+              "config": {},
+              "geofences": []
+            }
+            """.trimIndent()
+        )
+
+        config shouldBeEqualTo GeofenceConfig(
+            movementTriggerRadius = GeofenceConstants.FALLBACK_MOVEMENT_TRIGGER_RADIUS_METERS,
+            localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
+            remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
+            remoteFetchRefreshExpiryMs = GeofenceConstants.STALE_THRESHOLD_MS,
+            duplicateEventsExpiryMs = GeofenceConstants.DEDUPE_COOLDOWN_MS,
+            maxBusinessGeofences = GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
+        )
+    }
+
+    @Test
+    fun parseAndMap_givenConfigFieldsZeroOrNegative_expectAllFallbacksApplied() {
+        // Radii / expiry fields: zero or negative are bogus and fall back via
+        // `takeIf { it > 0 }`. `maxBusinessGeofence` has different semantics
+        // (zero is a valid kill switch) — covered in a dedicated test below.
+        val (config, _) = parseAndMap(
+            """
+            {
+              "config": {
+                "movement_trigger_radius": 0,
+                "local_refresh_trigger_radius": -1,
+                "remote_fetch_refresh_trigger_radius": 0,
+                "remote_fetch_refresh_expiry_time": -100,
+                "duplicate_events_expiry_time": 0,
+                "android": { "max_business_geofence": -5 }
+              },
+              "geofences": []
+            }
+            """.trimIndent()
+        )
+
+        config shouldBeEqualTo GeofenceConfig(
+            movementTriggerRadius = GeofenceConstants.FALLBACK_MOVEMENT_TRIGGER_RADIUS_METERS,
+            localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
+            remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
+            remoteFetchRefreshExpiryMs = GeofenceConstants.STALE_THRESHOLD_MS,
+            duplicateEventsExpiryMs = GeofenceConstants.DEDUPE_COOLDOWN_MS,
+            maxBusinessGeofences = GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
+        )
+    }
+
+    @Test
+    fun parseAndMap_givenMaxBusinessGeofenceZero_expectRespected() {
+        // Zero is a valid server-side kill switch: "register no business
+        // geofences for this user." Distinct from missing / out-of-range
+        // (which fall back to the SDK default).
+        val (config, _) = parseAndMap(geofencesJsonWithMax(0))
+        config.maxBusinessGeofences shouldBeEqualTo 0
+    }
+
+    @Test
+    fun parseAndMap_givenMaxBusinessGeofenceAtOrAboveOsLimit_expectFallback() {
+        // OS hard-caps at 100 geofences per app (movement trigger + business).
+        // Business cap of 100 would push total to 101 and the OS rejects it.
+        // 99 is the highest accepted value.
+        val (atLimit, _) = parseAndMap(geofencesJsonWithMax(100))
+        val (above, _) = parseAndMap(geofencesJsonWithMax(500))
+
+        atLimit.maxBusinessGeofences shouldBeEqualTo GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
+        above.maxBusinessGeofences shouldBeEqualTo GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
+    }
+
+    private fun geofencesJsonWithMax(max: Int): String = """
+        {
+          "config": {
+            "movement_trigger_radius": 1000,
+            "local_refresh_trigger_radius": 5000,
+            "remote_fetch_refresh_trigger_radius": 10000,
+            "remote_fetch_refresh_expiry_time": 86400,
+            "duplicate_events_expiry_time": 3600,
+            "android": { "max_business_geofence": $max }
+          },
+          "geofences": []
+        }
+    """.trimIndent()
 
     @Test
     fun parseAndMap_givenMixedValidAndInvalidTransitionTypes_expectOnlyValidKept() {

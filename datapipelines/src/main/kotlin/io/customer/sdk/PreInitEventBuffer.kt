@@ -71,8 +71,13 @@ internal class PreInitEventBuffer(
                     }
                 }
                 is State.Draining -> {
-                    current.pending.add(block)
-                    EnqueueOutcome.Enqueued(current.pending.size)
+                    if (current.pending.size >= capacity) {
+                        droppedCount++
+                        EnqueueOutcome.Dropped(droppedCount)
+                    } else {
+                        current.pending.add(block)
+                        EnqueueOutcome.Enqueued(current.pending.size)
+                    }
                 }
                 is State.Ready -> EnqueueOutcome.ExecuteNow(current.impl)
             }

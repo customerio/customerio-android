@@ -2,6 +2,7 @@ package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -108,9 +109,16 @@ class MemoryLeakageInstrumentedTest {
 
         composeTestRule.runOnIdle { }
 
-        // wait for 1000ms to make sure the user is logged in and home screen is visible
-        // this is required because we are storing data and at times depending on device that process can be slow
-        Thread.sleep(1000)
+        // Wait for the dashboard ("random event" button) to be composed. The
+        // previous fixed-time wait flaked on slow emulators where the post-login
+        // DB write + navigation could outlast the timer. Bounded at 10s as a
+        // hard ceiling; in practice this resumes within the first idle tick
+        // after composition.
+        composeTestRule.waitUntil(timeoutMillis = 10_000L) {
+            composeTestRule
+                .onAllNodesWithTag(appContext.getString(R.string.acd_random_event_button))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
 
         // Click the random event button 50 times.
         composeTestRule.onNodeWithTag(appContext.getString(R.string.acd_random_event_button))

@@ -15,15 +15,12 @@ import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
 class SegmentInstantFormatterTest : JUnitTest() {
-    private val mockedTime: Long
-    private val mockedTimestamp: Long
-
-    init {
-        val mockedDate = Date()
-
-        mockedTime = mockedDate.time
-        mockedTimestamp = mockedDate.getUnixTimestamp()
-    }
+    // The shared timestamp constant is captured at class load, before any
+    // mockkConstructor / time stubs run; using a fixed literal removes the
+    // wall-clock dependency that produced an off-by-1s flake when the
+    // boundary crossed a second between class init and test execution.
+    private val mockedTime: Long = FIXED_TIME_MILLIS
+    private val mockedTimestamp: Long = Date(FIXED_TIME_MILLIS).getUnixTimestamp()
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfig)
@@ -40,11 +37,22 @@ class SegmentInstantFormatterTest : JUnitTest() {
 
     @Test
     fun parse_givenValidTimestamp_expectMatchAnalyticsFormat() {
+        // Pin Date().time so that the analytics-emitted event timestamp and
+        // SegmentInstantFormatter both read the same fixed instant. The
+        // original test let `event.timestamp` re-read the wall clock at
+        // runtime, which produced an off-by-1s flake whenever the boundary
+        // crossed a second between class init and test execution.
         every { anyConstructed<Date>().time } returns mockedTime
 
         val event = TrackEvent(emptyJsonObject, String.random)
         analytics.process(event)
 
         SegmentInstantFormatter.from(mockedTimestamp).shouldNotBeNull() shouldBeEqualTo event.timestamp
+    }
+
+    private companion object {
+        // Arbitrary fixed instant (2023-11-14T22:13:20Z). Stable across runs;
+        // the exact value doesn't matter — only that it's deterministic.
+        const val FIXED_TIME_MILLIS: Long = 1_700_000_000_000L
     }
 }

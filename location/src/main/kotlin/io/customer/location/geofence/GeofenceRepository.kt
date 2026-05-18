@@ -89,7 +89,7 @@ internal class GeofenceRepositoryImpl(
                     val toRegister = if (nearest.isEmpty()) {
                         emptyList()
                     } else {
-                        listOf(buildMovementTrigger(latitude, longitude, config.movementTriggerRadius)) + nearest
+                        listOf(buildMovementTrigger(latitude, longitude, config.localRefreshTriggerRadius)) + nearest
                     }
                     stateMutex.withLock {
                         // Recheck userId — sign-out or user switch may have happened
@@ -107,26 +107,28 @@ internal class GeofenceRepositoryImpl(
                                 // leave previous OS registrations intact — better to keep
                                 // serving the last-known-good set than to wipe everything and
                                 // be unable to recover until the next refresh.
-                                val previousRegions = store.getAll()
-                                val newIds = toRegister.map { it.id }.toSet()
-                                val staleRegions = previousRegions.filter { it.id !in newIds }
-                                val staleRemovalSucceeded = if (staleRegions.isNotEmpty()) {
+                                val previouslyRegistered = store.getRegisteredIds()
+                                val newlyRegistered = toRegister.map { it.id }.toSet()
+                                val staleIds = previouslyRegistered - newlyRegistered
+                                val staleRemovalSucceeded = if (staleIds.isNotEmpty()) {
                                     // Failures are logged by the manager; we preserve the
-                                    // unremoved entries in the persisted set below so the next
-                                    // refresh's diff retries their cleanup.
-                                    manager.removeGeofencesByIds(staleRegions.map { it.id }).isSuccess
+                                    // unremoved IDs below so the next refresh's diff retries.
+                                    manager.removeGeofencesByIds(staleIds.toList()).isSuccess
                                 } else {
                                     true
                                 }
-                                // Persist what we just registered. If stale-cleanup failed, keep
-                                // the unremoved stale entries too so the next refresh's diff sees
-                                // them and retries — otherwise they'd orphan in the OS forever.
-                                val toPersist = if (staleRemovalSucceeded) {
-                                    toRegister
+                                // What's actually in the OS after this refresh: the new set,
+                                // plus any stale IDs whose removal failed (so the next refresh's
+                                // diff sees them and retries — otherwise they'd orphan in the OS).
+                                val currentlyRegistered = if (staleRemovalSucceeded) {
+                                    newlyRegistered
                                 } else {
-                                    toRegister + staleRegions
+                                    newlyRegistered + staleIds
                                 }
-                                store.saveAll(toPersist)
+                                store.saveRegisteredIds(currentlyRegistered)
+                                store.saveCachedRegions(regions)
+                                store.saveCachedConfig(config)
+                                store.saveLastApiFetchLocation(GeofenceLocation(latitude, longitude))
                                 // Timestamp marks the last end-to-end-successful sync (API + OS).
                                 // If registration failed, we deliberately leave it stale so the
                                 // next external trigger (identify / app launch) past the threshold

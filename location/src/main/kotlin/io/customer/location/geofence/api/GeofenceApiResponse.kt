@@ -19,8 +19,6 @@ internal data class GeofenceApiResponse(
 // Per-field fallbacks are applied in [toDomain].
 @Serializable
 internal data class GeofenceApiConfig(
-    @SerialName("movement_trigger_radius")
-    val movementTriggerRadius: Float? = null,
     @SerialName("local_refresh_trigger_radius")
     val localRefreshTriggerRadius: Float? = null,
     @SerialName("remote_fetch_refresh_trigger_radius")
@@ -57,8 +55,6 @@ internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> =
     geofences.mapNotNull { it.toDomain() }
 
 private fun GeofenceApiConfig.toDomain(): GeofenceConfig = GeofenceConfig(
-    movementTriggerRadius = movementTriggerRadius?.takeIf { it > 0 }
-        ?: GeofenceConstants.FALLBACK_MOVEMENT_TRIGGER_RADIUS_METERS,
     localRefreshTriggerRadius = localRefreshTriggerRadius?.takeIf { it > 0 }
         ?: GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
     remoteFetchRefreshTriggerRadius = remoteFetchRefreshTriggerRadius?.takeIf { it > 0 }

@@ -1,5 +1,6 @@
 package io.customer.location.geofence.api
 
+import io.customer.location.geofence.GeofenceJsonSerializer
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import org.json.JSONObject
@@ -14,7 +15,7 @@ internal interface GeofenceApiService {
 
 internal class GeofenceApiServiceImpl(
     private val httpClient: CustomerIOHttpClient,
-    private val parser: GeofenceApiResponseParser
+    private val jsonSerializer: GeofenceJsonSerializer
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(
@@ -42,7 +43,7 @@ internal class GeofenceApiServiceImpl(
         )
 
         return httpClient.request(params).mapCatching { responseBody ->
-            parser.parse(responseBody)
+            jsonSerializer.decode(GeofenceApiResponse.serializer(), responseBody)
         }
     }
 

@@ -96,6 +96,17 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenQuotedStringId_expectDecodedAsString() {
+        // Forward-compat: if backend ever ships ids as opaque strings (UUIDs etc.),
+        // the SDK consumes them unchanged.
+        val regions = parseRegions(
+            """{ "geofences": [ { "id": "abc-123", "latitude": 0.0, "longitude": 0.0, "radius": 100 } ] }"""
+        )
+
+        regions[0].id shouldBeEqualTo "abc-123"
+    }
+
+    @Test
     fun parseAndMap_givenUnknownTopLevelField_expectIgnoredAndParses() {
         // Forward-compat: future top-level additions don't break decoding.
         val regions = parseRegions(
@@ -295,8 +306,10 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     private val jsonSerializer = GeofenceJsonSerializer()
 
+    // Mirrors GeofenceApiServiceImpl's call site so tests exercise the same
+    // decode path (lenient at the wire boundary).
     private fun parseResponse(raw: String): GeofenceApiResponse =
-        jsonSerializer.decode(GeofenceApiResponse.serializer(), raw)
+        jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
 
     private fun parseRegions(raw: String): List<GeofenceRegion> =
         parseResponse(raw).toDomainRegions()

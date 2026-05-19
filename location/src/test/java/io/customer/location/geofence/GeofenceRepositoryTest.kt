@@ -701,22 +701,23 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun handleMovement_givenNoCachedConfig_expectRemoteFetch() = runTest {
-        // Defensive: anchor without cached config shouldn't happen in practice
-        // (both are written together), but if it does, fall back to remote fetch
-        // rather than guessing thresholds.
+    fun handleMovement_givenNoCachedConfig_expectTierAUsingFallbackThreshold() = runTest {
+        // Null cached config falls back to defaults — anchor within the
+        // fallback 5km radius still routes to Tier A (local re-rank), not B.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
         every { store.getCachedConfig() } returns null
+        every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet()
-        coEvery { apiService.fetchGeofences(any(), any()) } returns
-            Result.success(sampleResponse(maxBusinessGeofences = 3))
-        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        every { distanceFilter.nearest(cached, any(), any(), any()) } returns cached
         coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
 
-        repository.handleMovement(latitude = 0.0, longitude = 0.0)
+        // ~111m from anchor — well within the fallback 5km threshold.
+        repository.handleMovement(latitude = 0.0, longitude = 0.001)
 
-        coVerify { apiService.fetchGeofences(any(), any()) }
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
+        coVerify { manager.replaceGeofences(any()) }
     }
 
     @Test

@@ -168,9 +168,9 @@ internal class GeofenceRegionStoreImpl(
      * as-is and the JSON parse decides if it's readable — same self-healing
      * wipe path as [readJson] for unparseable payloads.
      */
-    private fun <T> readEncryptedJson(key: String, serializer: KSerializer<T>): T? = prefs.read {
-        val raw = getString(key, null) ?: return@read null
-        jsonSerializer.decodeOrNull(serializer, crypto.decrypt(raw)) ?: run {
+    private fun <T> readEncryptedJson(key: String, serializer: KSerializer<T>): T? {
+        val raw = prefs.read { getString(key, null) } ?: return null
+        return jsonSerializer.decodeOrNull(serializer, crypto.decrypt(raw)) ?: run {
             prefs.edit { remove(key) }
             null
         }

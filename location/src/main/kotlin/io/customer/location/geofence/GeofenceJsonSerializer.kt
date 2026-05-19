@@ -5,27 +5,37 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
 /**
- * Project-owned wrapper around `Json { ignoreUnknownKeys = true }` so the geofence
- * sync pipeline doesn't ship a bare framework type.
+ * Project-owned JSON wrapper for the geofence sync pipeline.
  *
- * Two decode flavours for the two call sites:
- * - [decode] (strict) — for API responses, where a parse failure should propagate
- *   as a Result.failure to the caller.
- * - [decodeOrNull] (lenient) — for cached state, where schema drift / corruption
- *   should degrade to "no cached value" instead of crashing the sync path.
+ * Two decode entry points for the two failure modes:
+ * - [decode] — surface parse failures (API responses; failure → `Result.failure`).
+ * - [decodeOrNull] — swallow parse failures (cached state; failure → `null` and the
+ *   key gets wiped by the caller).
+ *
+ * Opt-in `lenient` flag accepts loose wire types (e.g. `"id": 123` or `"id": "abc-123"`)
+ * without committing the SDK to a specific shape. Cache reads stay strict — we wrote
+ * that JSON ourselves, so loose parsing would only mask corruption.
  */
 internal class GeofenceJsonSerializer {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val strictJson = Json { ignoreUnknownKeys = true }
+    private val lenientJson = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     fun <T> encode(serializer: KSerializer<T>, value: T): String =
-        json.encodeToString(serializer, value)
+        strictJson.encodeToString(serializer, value)
 
-    fun <T> decode(serializer: KSerializer<T>, raw: String): T =
-        json.decodeFromString(serializer, raw)
+    fun <T> decode(serializer: KSerializer<T>, raw: String, lenient: Boolean = false): T =
+        (if (lenient) lenientJson else strictJson).decodeFromString(serializer, raw)
 
-    fun <T> decodeOrNull(serializer: KSerializer<T>, raw: String): T? = try {
-        decode(serializer, raw)
+    fun <T> decodeOrNull(
+        serializer: KSerializer<T>,
+        raw: String,
+        lenient: Boolean = false
+    ): T? = try {
+        decode(serializer, raw, lenient)
     } catch (e: CancellationException) {
         // Always propagate coroutine cancellation; otherwise callers from a
         // suspending context could miss being cancelled.

@@ -48,7 +48,7 @@ internal data class GeofenceApiPlatformConfig(
 internal data class GeofenceApiRegion(
     // Used as the OS request ID and the `geofence_id` key on transition events.
     @SerialName("id")
-    val id: Int,
+    val id: String,
     @SerialName("name")
     val name: String = "",
     @SerialName("latitude")
@@ -88,7 +88,7 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig = GeofenceConfig(
 )
 
 private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(
-    id = id.toString(),
+    id = id,
     name = name,
     externalId = externalId,
     latitude = latitude,

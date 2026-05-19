@@ -3,6 +3,7 @@ package io.customer.location.geofence.api
 import io.customer.commontest.core.RobolectricTest
 import io.customer.location.geofence.GeofenceConfig
 import io.customer.location.geofence.GeofenceConstants
+import io.customer.location.geofence.GeofenceJsonSerializer
 import io.customer.location.geofence.GeofenceRegion
 import io.customer.location.geofence.GeofenceTransitionType
 import org.amshove.kluent.shouldBeEmpty
@@ -21,9 +22,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """
             {
               "config": {
-                "movement_trigger_radius": 1000,
-                "local_refresh_trigger_radius": 5000,
-                "remote_fetch_refresh_trigger_radius": 10000,
+                "local_refresh_trigger_radius": 1000,
+                "remote_fetch_refresh_trigger_radius": 5000,
                 "remote_fetch_refresh_expiry_time": 86400,
                 "duplicate_events_expiry_time": 3600,
                 "android": { "max_business_geofence": 19 },
@@ -45,9 +45,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         config shouldBeEqualTo GeofenceConfig(
-            movementTriggerRadius = 1000f,
-            localRefreshTriggerRadius = 5000f,
-            remoteFetchRefreshTriggerRadius = 10000f,
+            localRefreshTriggerRadius = 1000f,
+            remoteFetchRefreshTriggerRadius = 5000f,
             remoteFetchRefreshExpiryMs = 86_400_000L,
             duplicateEventsExpiryMs = 3_600_000L,
             maxBusinessGeofences = 19
@@ -74,9 +73,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
             {
               "version": "2",
               "config": {
-                "movement_trigger_radius": 1000,
-                "local_refresh_trigger_radius": 5000,
-                "remote_fetch_refresh_trigger_radius": 10000,
+                "local_refresh_trigger_radius": 1000,
+                "remote_fetch_refresh_trigger_radius": 5000,
                 "remote_fetch_refresh_expiry_time": 86400,
                 "duplicate_events_expiry_time": 3600,
                 "android": { "max_business_geofence": 19 }
@@ -86,7 +84,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """.trimIndent()
         )
 
-        config.movementTriggerRadius shouldBeEqualTo 1000f
+        config.localRefreshTriggerRadius shouldBeEqualTo 1000f
         regions.shouldBeEmpty()
     }
 
@@ -104,7 +102,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         config shouldBeEqualTo GeofenceConfig(
-            movementTriggerRadius = GeofenceConstants.FALLBACK_MOVEMENT_TRIGGER_RADIUS_METERS,
             localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
             remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
             remoteFetchRefreshExpiryMs = GeofenceConstants.STALE_THRESHOLD_MS,
@@ -122,7 +119,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """
             {
               "config": {
-                "movement_trigger_radius": 0,
                 "local_refresh_trigger_radius": -1,
                 "remote_fetch_refresh_trigger_radius": 0,
                 "remote_fetch_refresh_expiry_time": -100,
@@ -135,7 +131,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         config shouldBeEqualTo GeofenceConfig(
-            movementTriggerRadius = GeofenceConstants.FALLBACK_MOVEMENT_TRIGGER_RADIUS_METERS,
             localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
             remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
             remoteFetchRefreshExpiryMs = GeofenceConstants.STALE_THRESHOLD_MS,
@@ -168,9 +163,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
     private fun geofencesJsonWithMax(max: Int): String = """
         {
           "config": {
-            "movement_trigger_radius": 1000,
-            "local_refresh_trigger_radius": 5000,
-            "remote_fetch_refresh_trigger_radius": 10000,
+            "local_refresh_trigger_radius": 1000,
+            "remote_fetch_refresh_trigger_radius": 5000,
             "remote_fetch_refresh_expiry_time": 86400,
             "duplicate_events_expiry_time": 3600,
             "android": { "max_business_geofence": $max }
@@ -194,10 +188,10 @@ class GeofenceApiResponseTest : RobolectricTest() {
         regions.shouldBeEmpty()
     }
 
-    private val parser = GeofenceApiResponseParser()
+    private val jsonSerializer = GeofenceJsonSerializer()
 
     private fun parseAndMap(raw: String): Pair<GeofenceConfig, List<GeofenceRegion>> {
-        val response = parser.parse(raw)
+        val response = jsonSerializer.decode(GeofenceApiResponse.serializer(), raw)
         return response.toDomainConfig() to response.toDomainRegions()
     }
 
@@ -206,9 +200,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
         return """
             {
               "config": {
-                "movement_trigger_radius": 1000,
-                "local_refresh_trigger_radius": 5000,
-                "remote_fetch_refresh_trigger_radius": 10000,
+                "local_refresh_trigger_radius": 1000,
+                "remote_fetch_refresh_trigger_radius": 5000,
                 "remote_fetch_refresh_expiry_time": 86400,
                 "duplicate_events_expiry_time": 3600,
                 "android": { "max_business_geofence": 19 }

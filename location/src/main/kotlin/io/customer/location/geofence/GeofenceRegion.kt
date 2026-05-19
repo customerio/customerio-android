@@ -2,27 +2,31 @@ package io.customer.location.geofence
 
 import android.location.Location
 import com.google.android.gms.location.Geofence
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** A geographic region to monitor for enter/exit transitions. */
 @Serializable
 internal data class GeofenceRegion(
-    val id: String,
-    val latitude: Double,
-    val longitude: Double,
-    val radius: Float,
-    val name: String = "",
-    val transitionTypes: List<GeofenceTransitionType> = listOf(
+    @SerialName("id") val id: String,
+    @SerialName("latitude") val latitude: Double,
+    @SerialName("longitude") val longitude: Double,
+    @SerialName("radius") val radius: Float,
+    @SerialName("name") val name: String = "",
+    @SerialName("transitionTypes") val transitionTypes: List<GeofenceTransitionType> = listOf(
         GeofenceTransitionType.ENTER,
         GeofenceTransitionType.EXIT
     ),
-    val lastUpdated: Long = 0L
+    @SerialName("lastUpdated") val lastUpdated: Long = 0L
 )
 
 /** Transition types a geofence can monitor, mapped to GMS constants. */
 @Serializable
 internal enum class GeofenceTransitionType(val gmsValue: Int) {
+    @SerialName("ENTER")
     ENTER(Geofence.GEOFENCE_TRANSITION_ENTER),
+
+    @SerialName("EXIT")
     EXIT(Geofence.GEOFENCE_TRANSITION_EXIT)
 }
 

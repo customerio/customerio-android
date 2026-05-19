@@ -4,6 +4,7 @@ import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import io.customer.location.geofence.GeofenceCooldownFilter
 import io.customer.location.geofence.GeofenceDistanceFilter
+import io.customer.location.geofence.GeofenceJsonSerializer
 import io.customer.location.geofence.GeofenceLogger
 import io.customer.location.geofence.GeofenceManager
 import io.customer.location.geofence.GeofencePermissionChecker
@@ -12,7 +13,6 @@ import io.customer.location.geofence.GeofenceRepository
 import io.customer.location.geofence.GeofenceRepositoryImpl
 import io.customer.location.geofence.GeofenceServices
 import io.customer.location.geofence.GeofenceServicesImpl
-import io.customer.location.geofence.api.GeofenceApiResponseParser
 import io.customer.location.geofence.api.GeofenceApiService
 import io.customer.location.geofence.api.GeofenceApiServiceImpl
 import io.customer.location.geofence.store.GeofenceCooldownStore
@@ -63,11 +63,11 @@ internal val AndroidSDKComponent.geofenceEventScheduler: GeofenceEventScheduler
 internal val SDKComponent.geofenceDistanceFilter: GeofenceDistanceFilter
     get() = newInstance<GeofenceDistanceFilter> { GeofenceDistanceFilter() }
 
-internal val SDKComponent.geofenceApiResponseParser: GeofenceApiResponseParser
-    get() = singleton { GeofenceApiResponseParser() }
+internal val SDKComponent.geofenceJsonSerializer: GeofenceJsonSerializer
+    get() = singleton { GeofenceJsonSerializer() }
 
 internal val SDKComponent.geofenceApiService: GeofenceApiService
-    get() = newInstance<GeofenceApiService> { GeofenceApiServiceImpl(httpClient, geofenceApiResponseParser) }
+    get() = newInstance<GeofenceApiService> { GeofenceApiServiceImpl(httpClient, geofenceJsonSerializer) }
 
 internal val AndroidSDKComponent.geofenceCooldownStore: GeofenceCooldownStore
     get() = singleton<GeofenceCooldownStore> { GeofenceCooldownStoreImpl(applicationContext) }
@@ -76,7 +76,9 @@ internal val AndroidSDKComponent.geofenceCooldownFilter: GeofenceCooldownFilter
     get() = singleton<GeofenceCooldownFilter> { GeofenceCooldownFilter(geofenceCooldownStore, SDKComponent.clock) }
 
 internal val AndroidSDKComponent.geofenceRegionStore: GeofenceRegionStore
-    get() = singleton<GeofenceRegionStore> { GeofenceRegionStoreImpl(applicationContext) }
+    get() = singleton<GeofenceRegionStore> {
+        GeofenceRegionStoreImpl(applicationContext, SDKComponent.geofenceJsonSerializer)
+    }
 
 internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
     get() = singleton<GeofenceRepository> {

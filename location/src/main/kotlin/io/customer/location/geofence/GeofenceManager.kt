@@ -36,24 +36,28 @@ internal class GeofenceManager(
         )
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
-    suspend fun addGeofences(regions: List<GeofenceRegion>): Result<Unit> =
-        addGeofencesInternal(regions, movementInitialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER)
-
     /**
-     * Boot-restore variant: registers the movement trigger with
-     * `INITIAL_TRIGGER_EXIT` so the OS evaluates current location at register
-     * time. If the user moved beyond the cached circle while the device was
-     * off, EXIT fires immediately and the next handleMovement self-heals with
-     * real coordinates. Normal re-registrations use [addGeofences] to avoid
-     * spurious EXITs.
+     * Replaces any currently-registered geofences with [regions]. An empty
+     * list disables the broadcast receiver — registering nothing leaves no
+     * events to listen for.
      */
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
-    suspend fun addGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
-        addGeofencesInternal(regions, movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT)
+    suspend fun replaceGeofences(regions: List<GeofenceRegion>): Result<Unit> =
+        replaceGeofencesInternal(regions, movementInitialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER)
+
+    /**
+     * Boot-restore variant of [replaceGeofences]: registers the movement
+     * trigger with `INITIAL_TRIGGER_EXIT` so the OS evaluates current
+     * location at register time. If the user moved beyond the cached circle
+     * while the device was off, EXIT fires immediately and the next
+     * handleMovement self-heals with real coordinates.
+     */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
+        replaceGeofencesInternal(regions, movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT)
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
-    private suspend fun addGeofencesInternal(
+    private suspend fun replaceGeofencesInternal(
         regions: List<GeofenceRegion>,
         movementInitialTrigger: Int
     ): Result<Unit> {

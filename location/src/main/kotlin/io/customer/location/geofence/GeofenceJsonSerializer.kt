@@ -1,5 +1,6 @@
 package io.customer.location.geofence
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
@@ -25,7 +26,11 @@ internal class GeofenceJsonSerializer {
 
     fun <T> decodeOrNull(serializer: KSerializer<T>, raw: String): T? = try {
         decode(serializer, raw)
-    } catch (_: Throwable) {
+    } catch (e: CancellationException) {
+        // Always propagate coroutine cancellation; otherwise callers from a
+        // suspending context could miss being cancelled.
+        throw e
+    } catch (_: Exception) {
         null
     }
 }

@@ -54,11 +54,11 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenEmptyList_expectReceiverDisabledAndNoClientCall() = runTest {
+    fun replaceGeofences_givenEmptyList_expectReceiverDisabledAndNoClientCall() = runTest {
         // Account with no geofences => receiver must be disabled so the SDK doesn't
         // burn resources listening for events that can't fire. Covers both fresh
         // accounts and accounts that transitioned to 0 after a refresh.
-        val result = manager.addGeofences(emptyList())
+        val result = manager.replaceGeofences(emptyList())
 
         result.isSuccess.shouldBeTrue()
         verify(exactly = 0) { client.addGeofences(any<GeofencingRequest>(), any()) }
@@ -66,56 +66,56 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenNoFineLocationPermission_expectFailure() = runTest {
+    fun replaceGeofences_givenNoFineLocationPermission_expectFailure() = runTest {
         denyPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
-        val result = manager.addGeofences(listOf(buildRegion()))
+        val result = manager.replaceGeofences(listOf(buildRegion()))
 
         result.isFailure.shouldBeTrue()
         verify(exactly = 0) { client.addGeofences(any<GeofencingRequest>(), any()) }
     }
 
     @Test
-    fun addGeofences_givenFineLocationGrantedNoBackgroundOnQ_expectFailure() = runTest {
+    fun replaceGeofences_givenFineLocationGrantedNoBackgroundOnQ_expectFailure() = runTest {
         grantPermission(Manifest.permission.ACCESS_FINE_LOCATION)
         denyPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
 
-        val result = manager.addGeofences(listOf(buildRegion()))
+        val result = manager.replaceGeofences(listOf(buildRegion()))
 
         result.isFailure.shouldBeTrue()
     }
 
     @Test
-    fun addGeofences_givenAllPermissionsGranted_expectClientCalled() = runTest {
+    fun replaceGeofences_givenAllPermissionsGranted_expectClientCalled() = runTest {
         grantAllPermissions()
         stubClientAddSuccess()
 
-        val result = manager.addGeofences(listOf(buildRegion()))
+        val result = manager.replaceGeofences(listOf(buildRegion()))
 
         result.isSuccess.shouldBeTrue()
         verify { client.addGeofences(any<GeofencingRequest>(), any()) }
     }
 
     @Test
-    fun addGeofences_givenBusinessGeofences_expectInitialTriggerEnter() = runTest {
+    fun replaceGeofences_givenBusinessGeofences_expectInitialTriggerEnter() = runTest {
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
         stubClientAddSuccess(requestSlot)
 
-        manager.addGeofences(listOf(buildRegion(id = "business-1")))
+        manager.replaceGeofences(listOf(buildRegion(id = "business-1")))
 
         requestSlot.captured.initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
     }
 
     @Test
-    fun addGeofences_givenMovementTrigger_expectNoInitialTrigger() = runTest {
+    fun replaceGeofences_givenMovementTrigger_expectNoInitialTrigger() = runTest {
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
         stubClientAddSuccess(requestSlot)
 
-        manager.addGeofences(
+        manager.replaceGeofences(
             listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
         )
 
@@ -123,13 +123,13 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofencesForBootRestore_givenMovementTrigger_expectInitialTriggerExit() = runTest {
+    fun replaceGeofencesForBootRestore_givenMovementTrigger_expectInitialTriggerExit() = runTest {
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
         stubClientAddSuccess(requestSlot)
 
-        manager.addGeofencesForBootRestore(
+        manager.replaceGeofencesForBootRestore(
             listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
         )
 
@@ -137,7 +137,7 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofencesForBootRestore_givenBusinessGeofences_expectInitialTriggerEnterUnchanged() = runTest {
+    fun replaceGeofencesForBootRestore_givenBusinessGeofences_expectInitialTriggerEnterUnchanged() = runTest {
         // Only the movement trigger differs between variants; business batch
         // still uses INITIAL_TRIGGER_ENTER.
         grantAllPermissions()
@@ -145,20 +145,20 @@ class GeofenceManagerTest : RobolectricTest() {
         val requestSlot = slot<GeofencingRequest>()
         stubClientAddSuccess(requestSlot)
 
-        manager.addGeofencesForBootRestore(listOf(buildRegion(id = "business-1")))
+        manager.replaceGeofencesForBootRestore(listOf(buildRegion(id = "business-1")))
 
         requestSlot.captured.initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
     }
 
     @Test
-    fun addGeofences_givenMixedBatch_expectSeparateRequestsWithCorrectTriggers() = runTest {
+    fun replaceGeofences_givenMixedBatch_expectSeparateRequestsWithCorrectTriggers() = runTest {
         grantAllPermissions()
 
         val requests = mutableListOf<GeofencingRequest>()
         val task = immediateSuccessTask<Void>()
         every { client.addGeofences(capture(requests), any()) } returns task
 
-        manager.addGeofences(
+        manager.replaceGeofences(
             listOf(
                 buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID),
                 buildRegion(id = "business-1")
@@ -175,7 +175,7 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenMixedBatchWithBusinessFailure_expectMovementTriggerRolledBack() = runTest {
+    fun replaceGeofences_givenMixedBatchWithBusinessFailure_expectMovementTriggerRolledBack() = runTest {
         // Business-batch failure is a rare edge case (transient OS / GMS issue).
         // Rather than leave a stand-alone movement trigger in the OS, we roll it
         // back so we don't carry safety-net state we can't act on. Recovery
@@ -195,7 +195,7 @@ class GeofenceManagerTest : RobolectricTest() {
         val removeTask = immediateSuccessTask<Void>()
         every { client.removeGeofences(any<List<String>>()) } returns removeTask
 
-        val result = manager.addGeofences(
+        val result = manager.replaceGeofences(
             listOf(
                 buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID),
                 buildRegion(id = "business-1")
@@ -208,7 +208,7 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenRegion_expectGmsGeofenceBuiltCorrectly() = runTest {
+    fun replaceGeofences_givenRegion_expectGmsGeofenceBuiltCorrectly() = runTest {
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
@@ -221,7 +221,7 @@ class GeofenceManagerTest : RobolectricTest() {
             radius = 250f,
             transitionTypes = listOf(GeofenceTransitionType.ENTER)
         )
-        manager.addGeofences(listOf(region))
+        manager.replaceGeofences(listOf(region))
 
         val gmsGeofence = requestSlot.captured.geofences.first()
         gmsGeofence.requestId shouldBeEqualTo "geo-123"
@@ -230,31 +230,31 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun addGeofences_givenSuccess_expectReceiversEnabled() = runTest {
+    fun replaceGeofences_givenSuccess_expectReceiversEnabled() = runTest {
         grantAllPermissions()
         stubClientAddSuccess()
 
-        manager.addGeofences(listOf(buildRegion()))
+        manager.replaceGeofences(listOf(buildRegion()))
 
         verify { receiverToggle.setEnabled(true) }
     }
 
     @Test
-    fun addGeofences_givenFailure_expectReceiversNotToggled() = runTest {
+    fun replaceGeofences_givenFailure_expectReceiversNotToggled() = runTest {
         grantAllPermissions()
         stubClientAddFailure(RuntimeException("GMS error"))
 
-        manager.addGeofences(listOf(buildRegion()))
+        manager.replaceGeofences(listOf(buildRegion()))
 
         verify(exactly = 0) { receiverToggle.setEnabled(any()) }
     }
 
     @Test
-    fun addGeofences_givenClientFails_expectFailureResult() = runTest {
+    fun replaceGeofences_givenClientFails_expectFailureResult() = runTest {
         grantAllPermissions()
         stubClientAddFailure(RuntimeException("GMS error"))
 
-        val result = manager.addGeofences(listOf(buildRegion()))
+        val result = manager.replaceGeofences(listOf(buildRegion()))
 
         result.isFailure.shouldBeTrue()
     }

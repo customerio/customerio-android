@@ -39,11 +39,16 @@ internal interface GeofenceRepository {
     suspend fun restoreFromCache(): Result<Unit>
 
     /**
-     * Clears all geofence state: persisted regions in the store and OS-side
-     * registrations via the manager. Called on user sign-out so the next user
-     * (or anonymous session) doesn't inherit the previous user's geofences.
+     * Drops OS-registered geofences + wipes user-specific store state on
+     * sign-out. Workspace cache (regions, config, last-sync) is preserved.
+     *
+     * [signedOutUserId] is the user being signed out, captured synchronously
+     * at the call site. Used to distinguish a normal sign-out (current user
+     * still matches because `secureUserStore` hasn't been cleared yet by its
+     * own ResetEvent subscriber) from a true re-login (different user signed
+     * in during the reset window, skip wipe).
      */
-    suspend fun reset(): Result<Unit>
+    suspend fun reset(signedOutUserId: String?): Result<Unit>
 }
 
 internal class GeofenceRepositoryImpl(
@@ -86,6 +91,15 @@ internal class GeofenceRepositoryImpl(
                     ?.takeIf { it > 0 }
                     ?: GeofenceConstants.STALE_THRESHOLD_MS
                 if (clock.currentTimeMillis() - lastSync < threshold) {
+                    // Cache fresh — if OS regs were wiped on sign-out, re-
+                    // register from cache instead of skipping; otherwise the
+                    // new user has no geofences until stale-window expiry.
+                    val cachedRegions = store.getCachedRegions()
+                    val registered = store.getRegisteredIds()
+                    val cachedConfig = store.getCachedConfig()
+                    if (cachedRegions.isNotEmpty() && registered.isEmpty() && cachedConfig != null) {
+                        return performLocalRefresh(userId, latitude, longitude, cachedConfig)
+                    }
                     logger.logSyncSkippedFresh()
                     return Result.success(Unit)
                 }
@@ -153,13 +167,13 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("no cached state to restore")
                 return Result.success(Unit)
             }
-            // Boot-restore variant — see [GeofenceManager.addGeofencesForBootRestore].
+            // Boot-restore variant — see [GeofenceManager.replaceGeofencesForBootRestore].
             return performLocalRefresh(
                 userId = userId,
                 latitude = effectiveLocation.latitude,
                 longitude = effectiveLocation.longitude,
                 cachedConfig = cachedConfig,
-                register = manager::addGeofencesForBootRestore
+                register = manager::replaceGeofencesForBootRestore
             )
         } finally {
             refreshInProgress.set(false)
@@ -202,7 +216,7 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         cachedConfig: GeofenceConfig,
-        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::addGeofences
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::replaceGeofences
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
@@ -219,7 +233,7 @@ internal class GeofenceRepositoryImpl(
         longitude: Double,
         regions: List<GeofenceRegion>,
         config: GeofenceConfig,
-        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::addGeofences,
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::replaceGeofences,
         onRegistered: () -> Unit = {}
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
@@ -275,25 +289,21 @@ internal class GeofenceRepositoryImpl(
         }
     }
 
-    override suspend fun reset(): Result<Unit> = stateMutex.withLock {
-        // Skip if a new user is signed in by the time this reset runs.
-        // geofenceScope runs on Dispatchers.Default, which doesn't order coroutines —
-        // a refresh queued after this reset may have already written the new user's
-        // state. Wiping now would clobber it; the new user's refresh handles previous-
-        // user cleanup via the stale-diff in registerNearestAndPersist.
+    override suspend fun reset(signedOutUserId: String?): Result<Unit> = stateMutex.withLock {
+        // Skip only when a DIFFERENT user is signed in — see KDoc on [reset].
         val currentUserId = secureUserStore.getUserId()
-        if (!currentUserId.isNullOrBlank()) {
+        if (!currentUserId.isNullOrBlank() && currentUserId != signedOutUserId) {
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }
-        // Order matters: clear OS-side FIRST, then the persisted record. If
-        // manager.clearAll fails (transient GMS error), preserving the store
-        // lets the next refresh's stale-cleanup diff see the previous regions
-        // and retry their removal — without it, OS state orphans with no
-        // record to drive the cleanup.
+        // Clear OS-side FIRST, then wipe user-specific store state. On
+        // manager.clearAll failure preserve everything so the next refresh's
+        // stale-cleanup diff retries removal — without it, unremoved OS regs
+        // orphan with no record to drive cleanup. Workspace cache (regions,
+        // config, lastSync) is always preserved.
         manager.clearAll().also { result ->
             if (result.isSuccess) {
-                store.clearAll()
+                store.clearUserScopedState()
             }
         }
     }

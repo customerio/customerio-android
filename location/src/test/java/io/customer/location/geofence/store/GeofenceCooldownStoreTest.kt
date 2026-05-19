@@ -58,6 +58,17 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun recordEmit_givenNewStoreInstance_expectValuePersisted() {
+        // Cooldown state must survive across SDK / process restarts — otherwise a
+        // re-launch could fire a duplicate event still within the suppression window.
+        store.recordEmit("biz-1", Event.GeofenceTransition.ENTER, 1_234L)
+
+        val newInstance = GeofenceCooldownStoreImpl(applicationMock)
+
+        newInstance.getLastEmitTimestamp("biz-1", Event.GeofenceTransition.ENTER) shouldBeEqualTo 1_234L
+    }
+
+    @Test
     fun clearAll_expectAllValuesRemoved() {
         store.recordEmit("biz-1", Event.GeofenceTransition.ENTER, 100L)
         store.recordEmit("biz-2", Event.GeofenceTransition.EXIT, 200L)

@@ -6,19 +6,24 @@ import io.customer.location.geofence.GeofenceRegion
 import io.customer.location.geofence.GeofenceTransitionType
 import io.customer.location.geofence.di.geofenceLogger
 import io.customer.sdk.core.di.SDKComponent
-import java.util.concurrent.TimeUnit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * Wire shape of `GET /v1/geofences/nearby`. Backend ships only `geofences`
+ * today; `config` and per-region `transition_types` / `last_updated` are
+ * nullable forward-compat slots the SDK will honor when backend adds them.
+ */
 @Serializable
 internal data class GeofenceApiResponse(
-    val config: GeofenceApiConfig,
+    @SerialName("config")
+    val config: GeofenceApiConfig? = null,
+    @SerialName("geofences")
     val geofences: List<GeofenceApiRegion>
 )
 
-// All config fields are nullable with defaults so the SDK keeps working if the
-// backend rolls out fields gradually or temporarily returns invalid values.
-// Per-field fallbacks are applied in [toDomain].
+// Every field nullable so backend can roll fields out gradually; per-field
+// fallbacks live in [toDomain].
 @Serializable
 internal data class GeofenceApiConfig(
     @SerialName("local_refresh_trigger_radius")
@@ -29,6 +34,7 @@ internal data class GeofenceApiConfig(
     val remoteFetchRefreshExpiryTime: Long? = null,
     @SerialName("duplicate_events_expiry_time")
     val duplicateEventsExpiryTime: Long? = null,
+    @SerialName("android")
     val android: GeofenceApiPlatformConfig? = null
 )
 
@@ -40,57 +46,72 @@ internal data class GeofenceApiPlatformConfig(
 
 @Serializable
 internal data class GeofenceApiRegion(
-    val id: String,
-    val name: String,
+    // Used as the OS request ID and the `geofence_id` key on transition events.
+    @SerialName("id")
+    val id: Int,
+    @SerialName("name")
+    val name: String = "",
+    @SerialName("latitude")
     val latitude: Double,
+    @SerialName("longitude")
     val longitude: Double,
-    val radius: Float,
+    @SerialName("radius")
+    val radius: Int,
+    @SerialName("external_id")
+    val externalId: String? = null,
     @SerialName("transition_types")
-    val transitionTypes: List<String>,
+    val transitionTypes: List<String>? = null,
     @SerialName("last_updated")
-    val lastUpdated: Long
+    val lastUpdated: Long? = null
 )
 
-internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig = config.toDomain()
+/** Returns `null` when backend didn't send a `config` block — gates the cache save. */
+internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig? =
+    config?.toDomain()
 
 internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> =
-    geofences.mapNotNull { it.toDomain() }
+    geofences.map { it.toDomain() }
 
 private fun GeofenceApiConfig.toDomain(): GeofenceConfig = GeofenceConfig(
     localRefreshTriggerRadius = localRefreshTriggerRadius?.takeIf { it > 0 }
         ?: GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
     remoteFetchRefreshTriggerRadius = remoteFetchRefreshTriggerRadius?.takeIf { it > 0 }
         ?: GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
-    remoteFetchRefreshExpiryMs = remoteFetchRefreshExpiryTime?.takeIf { it > 0 }
-        ?.let { TimeUnit.SECONDS.toMillis(it) }
+    remoteFetchRefreshExpiry = remoteFetchRefreshExpiryTime?.takeIf { it > 0 }
         ?: GeofenceConstants.STALE_THRESHOLD_MS,
-    duplicateEventsExpiryMs = duplicateEventsExpiryTime?.takeIf { it > 0 }
-        ?.let { TimeUnit.SECONDS.toMillis(it) }
+    duplicateEventsExpiry = duplicateEventsExpiryTime?.takeIf { it > 0 }
         ?: GeofenceConstants.DEDUPE_COOLDOWN_MS,
-    // Cap at OS per-app geofence limit (100 total slots, minus 1 for the
-    // movement trigger = 99 for business). Zero is a valid value (server-side
-    // kill switch — no business geofences and no movement trigger).
+    // Range is 0..99: zero is a valid server-side kill switch; 99 leaves one
+    // OS slot for the movement trigger. Out-of-range values fall back.
     maxBusinessGeofences = android?.maxBusinessGeofence?.takeIf { it in 0..99 }
         ?: GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
 )
 
-private fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
-    val types = transitionTypes.mapNotNull { value ->
+private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(
+    id = id.toString(),
+    name = name,
+    externalId = externalId,
+    latitude = latitude,
+    longitude = longitude,
+    radius = radius.toFloat(),
+    transitionTypes = resolveTransitionTypes(transitionTypes),
+    lastUpdated = lastUpdated ?: 0L
+)
+
+/**
+ * Null / empty / all-unknown values fall back to `[ENTER, EXIT]`; mixed
+ * valid + unknown keeps just the valid subset. Each unknown value is logged.
+ */
+private fun resolveTransitionTypes(raw: List<String>?): List<GeofenceTransitionType> {
+    val defaults = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT)
+    if (raw.isNullOrEmpty()) return defaults
+    val parsed = raw.mapNotNull { value ->
         parseTransitionType(value) ?: run {
             SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)
             null
         }
     }
-    if (types.isEmpty()) return null
-    return GeofenceRegion(
-        id = id,
-        name = name,
-        latitude = latitude,
-        longitude = longitude,
-        radius = radius,
-        transitionTypes = types,
-        lastUpdated = lastUpdated
-    )
+    return parsed.takeIf { it.isNotEmpty() } ?: defaults
 }
 
 private fun parseTransitionType(value: String): GeofenceTransitionType? =

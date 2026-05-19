@@ -10,6 +10,7 @@ import io.customer.location.geofence.GeofenceJsonSerializer
 import io.customer.location.geofence.GeofenceLocation
 import io.customer.location.geofence.GeofenceRegion
 import io.customer.location.geofence.GeofenceTransitionType
+import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
@@ -30,7 +31,11 @@ class GeofenceRegionStoreTest : RobolectricTest() {
                 argument(ApplicationArgument(applicationMock))
             }
         )
-        store = GeofenceRegionStoreImpl(applicationMock, GeofenceJsonSerializer())
+        store = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
         store.clearAll()
     }
 
@@ -107,8 +112,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         val config = GeofenceConfig(
             localRefreshTriggerRadius = 1_000f,
             remoteFetchRefreshTriggerRadius = 5_000f,
-            remoteFetchRefreshExpiryMs = 86_400_000L,
-            duplicateEventsExpiryMs = 3_600_000L,
+            remoteFetchRefreshExpiry = 86_400_000L,
+            duplicateEventsExpiry = 3_600_000L,
             maxBusinessGeofences = 19
         )
 
@@ -131,6 +136,24 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveLastApiFetchLocation(location)
 
         store.getLastApiFetchLocation() shouldBeEqualTo location
+    }
+
+    @Test
+    fun saveLastApiFetchLocation_givenNewStoreInstance_expectValueDecryptedCorrectly() {
+        // Cross-instance round trip. Location snapshots are encrypted via
+        // [PreferenceCrypto] (Android Keystore); a fresh store must be able to
+        // decrypt what a prior store wrote — otherwise process restarts would
+        // wipe the anchor and break the Tier-B distance check.
+        val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
+        store.saveLastApiFetchLocation(location)
+
+        val newInstance = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
+
+        newInstance.getLastApiFetchLocation() shouldBeEqualTo location
     }
 
     // --- Movement-trigger location ---
@@ -201,8 +224,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             GeofenceConfig(
                 localRefreshTriggerRadius = 1_000f,
                 remoteFetchRefreshTriggerRadius = 5_000f,
-                remoteFetchRefreshExpiryMs = 1L,
-                duplicateEventsExpiryMs = 1L,
+                remoteFetchRefreshExpiry = 1L,
+                duplicateEventsExpiry = 1L,
                 maxBusinessGeofences = 1
             )
         )
@@ -256,8 +279,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             GeofenceConfig(
                 localRefreshTriggerRadius = 1_000f,
                 remoteFetchRefreshTriggerRadius = 5_000f,
-                remoteFetchRefreshExpiryMs = 86_400_000L,
-                duplicateEventsExpiryMs = 3_600_000L,
+                remoteFetchRefreshExpiry = 86_400_000L,
+                duplicateEventsExpiry = 3_600_000L,
                 maxBusinessGeofences = 19
             )
         )
@@ -266,8 +289,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         listOf(
             "localRefreshTriggerRadius",
             "remoteFetchRefreshTriggerRadius",
-            "remoteFetchRefreshExpiryMs",
-            "duplicateEventsExpiryMs",
+            "remoteFetchRefreshExpiry",
+            "duplicateEventsExpiry",
             "maxBusinessGeofences"
         ).forEach { key -> raw shouldContain "\"$key\"" }
     }
@@ -315,8 +338,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             """{
               "localRefreshTriggerRadius": 1000.0,
               "remoteFetchRefreshTriggerRadius": 5000.0,
-              "remoteFetchRefreshExpiryMs": 86400000,
-              "duplicateEventsExpiryMs": 3600000,
+              "remoteFetchRefreshExpiry": 86400000,
+              "duplicateEventsExpiry": 3600000,
               "maxBusinessGeofences": 19,
               "future_field_we_dont_know": "ignore me"
             }
@@ -326,8 +349,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getCachedConfig() shouldBeEqualTo GeofenceConfig(
             localRefreshTriggerRadius = 1_000f,
             remoteFetchRefreshTriggerRadius = 5_000f,
-            remoteFetchRefreshExpiryMs = 86_400_000L,
-            duplicateEventsExpiryMs = 3_600_000L,
+            remoteFetchRefreshExpiry = 86_400_000L,
+            duplicateEventsExpiry = 3_600_000L,
             maxBusinessGeofences = 19
         )
     }

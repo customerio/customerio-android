@@ -100,6 +100,7 @@ internal val AndroidSDKComponent.geofenceServices: GeofenceServices
     get() = singleton<GeofenceServices> {
         GeofenceServicesImpl(
             repository = geofenceRepository,
+            secureUserStore = secureUserStore,
             scope = SDKComponent.scopeProvider.geofenceScope,
             logger = SDKComponent.geofenceLogger,
             permissionChecker = geofencePermissionChecker

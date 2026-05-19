@@ -1,6 +1,7 @@
 package io.customer.location.geofence
 
 import android.annotation.SuppressLint
+import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,7 @@ internal interface GeofenceServices {
 
 internal class GeofenceServicesImpl(
     private val repository: GeofenceRepository,
+    private val secureUserStore: SecureUserStore,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
     private val permissionChecker: GeofencePermissionChecker
@@ -70,9 +72,14 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onUserSignedOut() {
+        // Snapshot the userId synchronously — the datapipelines `ResetEvent`
+        // subscriber races to clear `secureUserStore`, so a deferred read
+        // inside `reset()` could see null and misclassify a normal sign-out
+        // as a re-login.
+        val signedOutUserId = secureUserStore.getUserId()
         logger.logGeofenceStateResetOnSignOut()
         scope.launch {
-            repository.reset()
+            repository.reset(signedOutUserId)
         }
     }
 

@@ -1,6 +1,7 @@
 package io.customer.location.geofence
 
 import io.customer.commontest.core.RobolectricTest
+import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -20,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 class GeofenceServicesTest : RobolectricTest() {
 
     private val repository: GeofenceRepository = mockk(relaxed = true)
+    private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val permissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
         every { hasRequiredLocationPermissions() } returns true
@@ -28,6 +30,7 @@ class GeofenceServicesTest : RobolectricTest() {
     private fun servicesWith(scope: TestScope): GeofenceServicesImpl =
         GeofenceServicesImpl(
             repository = repository,
+            secureUserStore = secureUserStore,
             scope = scope,
             logger = logger,
             permissionChecker = permissionChecker
@@ -98,14 +101,18 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
-    fun onUserSignedOut_expectRepositoryResetLaunched() = runTest(StandardTestDispatcher()) {
-        coEvery { repository.reset() } returns Result.success(Unit)
+    fun onUserSignedOut_expectSignedOutUserIdCapturedSynchronouslyAndPassedToReset() = runTest(StandardTestDispatcher()) {
+        // The capture has to happen BEFORE scope.launch — otherwise a racing
+        // ResetEvent subscriber (datapipelines clears secureUserStore) could
+        // null it out by the time reset() reads it.
+        every { secureUserStore.getUserId() } returns "user-42"
+        coEvery { repository.reset(any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onUserSignedOut()
         advanceUntilIdle()
 
-        coVerify { repository.reset() }
+        coVerify { repository.reset("user-42") }
         verify { logger.logGeofenceStateResetOnSignOut() }
     }
 }

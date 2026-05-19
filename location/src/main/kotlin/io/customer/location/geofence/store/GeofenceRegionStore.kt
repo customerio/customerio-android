@@ -16,19 +16,28 @@ import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
 
 /**
- * State for the geofence sync pipeline:
+ * State for the geofence sync pipeline. Keys are split into two lifecycles:
  *
- *   cachedRegions               — full backend response; source for tier-A re-rank.
+ * Workspace-level (survive sign-out — see [clearUserScopedState]):
+ *   cachedRegions     — full backend response; source for tier-A re-rank.
+ *   cachedConfig      — last server-driven thresholds.
+ *   lastSyncTimestamp — freshness throttle for identify / app-launch.
+ *
+ * User-specific (wiped on sign-out):
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
- *   cachedConfig                — last server-driven thresholds.
  *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
  *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
  *                                  registration; used by boot restore to re-center
  *                                  closer to the user's real position than the anchor.
- *   lastSyncTimestamp           — freshness throttle for identify / app-launch.
  *
- * Decoding is schema-drift safe via [GeofenceJsonSerializer]: parse failures wipe the
- * key and return null/empty rather than propagating an exception up the sync path.
+ * Split rationale: backend `/v1/geofences/nearby` is workspace-scoped (no
+ * userId on the wire), so the workspace cache is valid for any user in the
+ * same workspace. Preserving it across sign-out skips a redundant API call
+ * on a quick re-login. If backend ever adds per-user filtering, revisit.
+ *
+ * Decoding is schema-drift safe via [GeofenceJsonSerializer]: parse failures
+ * wipe the key and return null/empty rather than propagating an exception up
+ * the sync path.
  *
  * Storage: SharedPreferences. Workspace configuration (geofence IDs, names,
  * lat/lng, radii, external IDs) is plaintext — UID isolation keeps it
@@ -54,6 +63,13 @@ internal interface GeofenceRegionStore {
 
     fun getLastSyncTimestamp(): Long?
     fun setLastSyncTimestamp(timestamp: Long)
+
+    /**
+     * Sign-out wipe. Drops user-specific keys (anchor, movement-trigger
+     * location, registered IDs); preserves workspace cache (regions, config,
+     * last-sync) so a quick re-login skips a redundant API call.
+     */
+    fun clearUserScopedState()
 
     fun clearAll()
 }
@@ -112,6 +128,14 @@ internal class GeofenceRegionStoreImpl(
         prefs.edit { putLong(KEY_LAST_SYNC, timestamp) }
     }
 
+    override fun clearUserScopedState() {
+        prefs.edit {
+            remove(KEY_LAST_API_FETCH_LOCATION)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
+            remove(KEY_REGISTERED_IDS)
+        }
+    }
+
     override fun clearAll() {
         prefs.edit { clear() }
     }
@@ -121,13 +145,14 @@ internal class GeofenceRegionStoreImpl(
     }
 
     /**
-     * Returns the decoded value, or `null` if the key is absent OR the stored
-     * payload can't be parsed (schema drift, corruption). On parse failure the
-     * key is wiped so a stale, unparseable value won't keep failing on every read.
+     * Returns the decoded value, or `null` if absent or unparseable. On parse
+     * failure the key is wiped so a stale value won't keep failing on every
+     * read. Read and remove are sequenced separately so the write doesn't
+     * nest inside the read block.
      */
-    private fun <T> readJson(key: String, serializer: KSerializer<T>): T? = prefs.read {
-        val raw = getString(key, null) ?: return@read null
-        jsonSerializer.decodeOrNull(serializer, raw) ?: run {
+    private fun <T> readJson(key: String, serializer: KSerializer<T>): T? {
+        val raw = prefs.read { getString(key, null) } ?: return null
+        return jsonSerializer.decodeOrNull(serializer, raw) ?: run {
             prefs.edit { remove(key) }
             null
         }

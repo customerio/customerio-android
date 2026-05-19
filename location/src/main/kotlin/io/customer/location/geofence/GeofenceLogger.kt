@@ -61,6 +61,14 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence sync skipped ($reason): location permissions not granted", tag = TAG)
     }
 
+    fun logGeofenceStateResetOnSignOut() {
+        logger.debug("Geofence state reset on user sign-out: clearing persisted regions and OS registrations", tag = TAG)
+    }
+
+    fun logSyncSkippedFresh() {
+        logger.debug("Geofence sync skipped: last successful sync is still within the freshness window", tag = TAG)
+    }
+
     fun logGeofencingError(errorCode: Int) {
         logger.error("OS reported geofencing error (code=$errorCode); see GeofenceStatusCodes for meaning", tag = TAG)
     }

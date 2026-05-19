@@ -39,6 +39,11 @@ internal class GeofenceManager(
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     suspend fun addGeofences(regions: List<GeofenceRegion>): Result<Unit> {
         if (regions.isEmpty()) {
+            // No geofences to register => disable the receiver so we don't burn
+            // resources listening for events that can't fire. Covers both the
+            // fresh-account-with-no-geofences case and the account-transitioned-to-0
+            // case (where stale cleanup just removed the previous registrations).
+            receiverToggle.setEnabled(false)
             logger.logGeofencesRegistered(0)
             return Result.success(Unit)
         }
@@ -61,7 +66,11 @@ internal class GeofenceManager(
         if (businessGeofences.isNotEmpty()) {
             val result = registerBatch(businessGeofences, initialTrigger = GeofencingRequest.INITIAL_TRIGGER_ENTER)
             if (result.isFailure) {
-                // Clean up movement trigger if business batch fails to avoid orphaned geofences
+                // Roll back the movement trigger so we don't leave an unattended
+                // safety-net geofence in the OS without any business geofences to
+                // recover. Business-batch failure is a rare edge case (transient OS
+                // / GMS issue); recovery happens on the next identify or app-launch
+                // trigger past the freshness threshold.
                 if (movementTrigger.isNotEmpty()) {
                     removeGeofencesByIds(movementTrigger.map { it.id })
                 }

@@ -10,6 +10,7 @@ import io.customer.location.geofence.store.GeofenceRegionStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -50,6 +51,70 @@ class GeofenceRepositoryTest : RobolectricTest() {
             secureUserStore = secureUserStore,
             logger = logger
         )
+    }
+
+    @Test
+    fun refresh_givenRecentSuccessfulSyncAndNotForced_expectSkipApiCall() = runTest {
+        // Repeated identify within the freshness window must not hit the API.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L // 1 min ago
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+        verify { logger.logSyncSkippedFresh() }
+    }
+
+    @Test
+    fun refresh_givenStaleLastSync_expectApiCalled() = runTest {
+        // Last sync older than threshold => proceed with refresh.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns
+            System.currentTimeMillis() - GeofenceConstants.STALE_THRESHOLD_MS - 1_000L
+        every { store.getAll() } returns emptyList()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify { apiService.fetchGeofences(any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenRecentSyncButForced_expectApiCalled() = runTest {
+        // Movement-trigger EXIT path: force = true bypasses the freshness check so
+        // the trigger's center can be updated to the new location.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L // 1 min ago
+        every { store.getAll() } returns emptyList()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0, force = true)
+
+        coVerify { apiService.fetchGeofences(any(), any(), any()) }
+        verify(exactly = 0) { logger.logSyncSkippedFresh() }
+    }
+
+    @Test
+    fun refresh_givenNoPreviousSync_expectApiCalled() = runTest {
+        // First-ever sync: no timestamp, threshold check is a no-op, proceed.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getAll() } returns emptyList()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify { apiService.fetchGeofences(any(), any(), any()) }
     }
 
     @Test
@@ -105,10 +170,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 
         result.isSuccess shouldBeEqualTo true
-        verify { store.saveAll(any()) }
         verify { store.setLastSyncTimestamp(any()) }
         verify { distanceFilter.nearest(any(), 12.34, 56.78, 3) }
         verify { logger.logSyncSucceeded(filtered.size) }
+        // Store holds exactly what was registered (movement trigger + business),
+        // so the next refresh's stale-cleanup diff is accurate.
+        verify { store.saveAll(captured.captured) }
 
         // Movement trigger is prepended with config's radius, centered on the request location,
         // and only listens for EXIT (so we re-fetch when the user leaves this area).
@@ -123,10 +190,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenPreviouslyRegisteredIdsAbsentFromNew_expectStaleRemovedBeforeAdd() = runTest {
+    fun refresh_givenPreviouslyRegisteredIdsAbsentFromNew_expectStaleRemovedAfterAdd() = runTest {
         // OS-side geofence accumulation guard: previously-registered IDs not in the new
-        // set must be removed before the new batch is registered, otherwise stale
-        // entries linger in the OS until the per-app limit is hit.
+        // set must be removed, otherwise stale entries linger in the OS until the
+        // per-app limit is hit. Ordering: add runs FIRST so a transient add failure
+        // doesn't wipe the last-known-good state (see _expectStaleRemovalNotAttempted).
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getAll() } returns listOf(
             GeofenceRegion(GeofenceConstants.MOVEMENT_TRIGGER_ID, 0.0, 0.0, 1000f),
@@ -149,7 +217,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // biz-old-1 and biz-old-2 are no longer in the new set; movement trigger and
         // biz-shared survive (same IDs, will be replaced by addGeofences).
         val staleSlot = slot<List<String>>()
-        coVerify { manager.removeGeofencesByIds(capture(staleSlot)) }
+        coVerifyOrder {
+            manager.addGeofences(any())
+            manager.removeGeofencesByIds(capture(staleSlot))
+        }
         staleSlot.captured shouldContainSame listOf("biz-old-1", "biz-old-2")
     }
 
@@ -169,11 +240,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenStaleRemovalFails_expectAddStillRunsAndUnremovedStalePreserved() = runTest {
-        // Stale-cleanup failure must not block fresh registration; the new batch is
-        // the priority. Unremoved stale entries must stay in the persisted set so the
-        // next refresh's diff sees them again and retries the cleanup. Without this,
-        // failed-stale geofences orphan in the OS forever.
+    fun refresh_givenAddSucceedsButStaleRemovalFails_expectUnremovedStalePreserved() = runTest {
+        // Order: add succeeds, then stale removal fails. The new batch is registered
+        // and we treat the sync as successful — but we must preserve the unremoved
+        // stale entries in the persisted set so the next refresh's diff sees them and
+        // retries the cleanup. Without this, failed-stale geofences orphan in the OS.
         val staleRegion = GeofenceRegion("biz-old", 0.0, 0.0, 100f)
         val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
         every { secureUserStore.getUserId() } returns "user-42"
@@ -181,16 +252,19 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
         coEvery { manager.removeGeofencesByIds(any()) } returns
             Result.failure(RuntimeException("remove boom"))
         val persisted = slot<List<GeofenceRegion>>()
-        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
         every { store.saveAll(capture(persisted)) } returns Unit
 
         val result = repository.refresh(latitude = 0.0, longitude = 0.0)
 
         result.isSuccess shouldBeEqualTo true
-        coVerify { manager.addGeofences(any()) }
+        coVerifyOrder {
+            manager.addGeofences(any())
+            manager.removeGeofencesByIds(any())
+        }
         verify { logger.logSyncSucceeded(1) }
         // Persisted set includes the unremoved stale region — next refresh will retry it.
         persisted.captured.map { it.id } shouldContainSame
@@ -239,23 +313,29 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenManagerFailure_expectFailureAndStoreUnchanged() = runTest {
-        // Persisted set is the source of truth for the next refresh's stale-cleanup
-        // diff. If addGeofences fails, the previous persisted set must remain so we
-        // don't lose track of what's still in the OS.
+    fun refresh_givenManagerAddFails_expectStaleRemovalNotAttemptedAndPreviousStatePreserved() = runTest {
+        // Critical 7g invariant: when addGeofences fails, removeGeofencesByIds must
+        // NOT be called. Otherwise we'd destroy the last-known-good OS registrations
+        // and leave the device with NO geofences at all until the next refresh.
+        // Store and timestamp also stay untouched so the next refresh sees the same
+        // previous state and the freshness check retries instead of skipping.
         val error = RuntimeException("gms boom")
+        val previousRegion = GeofenceRegion("biz-old", 0.0, 0.0, 100f)
         every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getAll() } returns emptyList()
+        every { store.getAll() } returns listOf(previousRegion)
         coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 5))
-        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-new", 0.0, 0.0, 100f))
         coEvery { manager.addGeofences(any()) } returns Result.failure(error)
 
         val result = repository.refresh(latitude = 0.0, longitude = 0.0)
 
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error
+        coVerify(exactly = 0) { manager.removeGeofencesByIds(any()) }
         verify(exactly = 0) { store.saveAll(any()) }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
         verify(exactly = 0) { logger.logSyncSucceeded(any()) }
     }
 
@@ -341,6 +421,38 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { store.saveAll(any()) }
         coVerify(exactly = 0) { manager.addGeofences(any()) }
         verify { logger.logSyncSkipped(match { it.contains("user changed") }) }
+    }
+
+    @Test
+    fun reset_givenManagerSucceeds_expectStoreAndManagerCleared() = runTest {
+        // Sign-out cleanup: the persisted set must be wiped AND OS-side state
+        // (registered geofences + receiver) cleared via manager.clearAll so a
+        // subsequent user doesn't inherit anything from the previous one.
+        coEvery { manager.clearAll() } returns Result.success(Unit)
+
+        val result = repository.reset()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerifyOrder {
+            manager.clearAll()
+            store.clearAll()
+        }
+    }
+
+    @Test
+    fun reset_givenManagerFails_expectStorePreservedForSelfHeal() = runTest {
+        // If manager.clearAll fails (transient GMS error), the store MUST be
+        // preserved — otherwise OS-side registrations orphan with no record to
+        // drive cleanup. The next refresh's stale-cleanup diff uses the store
+        // to retry the removal.
+        val error = RuntimeException("gms clear boom")
+        coEvery { manager.clearAll() } returns Result.failure(error)
+
+        val result = repository.reset()
+
+        result.isFailure shouldBeEqualTo true
+        result.exceptionOrNull() shouldBeEqualTo error
+        verify(exactly = 0) { store.clearAll() }
     }
 
     private fun sampleResponse(

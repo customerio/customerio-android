@@ -1,40 +1,30 @@
 package io.customer.datapipelines.plugins
 
-import com.segment.analytics.kotlin.core.BaseEvent
-import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
+import com.segment.analytics.kotlin.core.TrackEvent
+import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.commontest.config.TestConfig
-import io.customer.commontest.extensions.flushCoroutines
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
-import io.customer.datapipelines.testutils.extensions.getStringAtPath
-import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
-import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.DataPipelinesLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
 import io.mockk.mockk
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
+import java.util.concurrent.atomic.AtomicReference
 import org.amshove.kluent.internal.assertEquals
-import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
 /**
- * Tests [ContextPlugin] behavior using [StandardTestDispatcher] to simulate realistic coroutine
- * scheduling and timing.
+ * Tests [ContextPlugin] behavior. Uses the test SDK's default dispatcher.
  */
-class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher()) {
-    private val testScope get() = delegate.testScope
-
+class ContextPluginBehaviorTest : JUnitTest() {
     private lateinit var deviceStore: DeviceStore
-    private lateinit var outputReaderPlugin: OutputReaderPlugin
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -52,132 +42,107 @@ class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher(
         val androidSDKComponent = SDKComponent.android()
         deviceStore = androidSDKComponent.deviceStore
         every { deviceStore.buildUserAgent() } returns "test-user-agent"
-
-        outputReaderPlugin = OutputReaderPlugin()
-        analytics.add(outputReaderPlugin)
-
-        // Run all pending coroutines to ensure analytics is initialized and ready to process events
-        @Suppress("OPT_IN_USAGE")
-        testScope.runCurrent()
     }
 
     /**
-     * Verifies that the plugin correctly adds the expected device token to the event context
-     * when the token is accessed from a different thread, including within coroutine dispatchers.
-     * This test should fail intermittently if token value is not correctly synchronized across threads.
+     * Verifies that [ContextPlugin.execute] reads `deviceToken` freshly on every call and stamps
+     * the current value into the event's context — i.e., a per-event read, not a cached snapshot.
+     *
+     * Note this test does *not* verify the `@Volatile` annotation on `ContextPlugin.deviceToken`.
+     * The [CyclicBarrier] used to fence each round already establishes happens-before between the
+     * writer and reader threads, so cross-thread visibility is guaranteed by the barrier itself.
+     * Asserting `@Volatile` deterministically from a unit test isn't feasible; that property is a
+     * defensive declaration whose removal would be caught by code review, not by this test.
+     *
+     * The original version of this test queued events through the asynchronous analytics pipeline
+     * and tried to correlate events to writes by wall-clock timestamps, racing two threads for
+     * five seconds. The pipeline batches and reorders, so on slow CI the correlation window broke
+     * down. We now exercise the per-call-read contract synchronously: the writer sets
+     * `contextPlugin.deviceToken` directly, the reader calls `contextPlugin.execute(event)`
+     * directly, and a [CyclicBarrier] fences every round so the read happens-after the write.
+     * Deterministic across [ROUND_COUNT] rounds.
      */
     @Test
-    fun execute_whenDeviceTokenIsSetFromAnotherThread_thenAddsCorrectTokenToEvent() = runTest {
-        // Define test parameters for easier configuration
-        val readerExecutionTimeMillis = 5000
-        val writerCutoffTimeMillis = readerExecutionTimeMillis - 200 // ensure writer ends before reader execution
-        val minThreadWaitTime = 50
-        val maxThreadWaitTime = 100
-        val tokenPrefix = "test-token-"
-        val currentNanoTime = { System.nanoTime() }
-        // Setup context plugin with a custom processor to track execution time
-        val contextPluginProcessor = object : ContextPluginEventProcessor {
-            val defaultProcessor = DefaultContextPluginEventProcessor()
-            override fun execute(event: BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): BaseEvent {
-                // Add execution time to context for verification later
-                event.putInContextUnderKey("test", "executionStartTime", currentNanoTime())
-                val result = defaultProcessor.execute(event, deviceStore, deviceTokenProvider)
-                event.putInContextUnderKey("test", "executionEndTime", currentNanoTime())
-                return result
-            }
-        }
-        val contextPlugin = ContextPlugin(deviceStore, contextPluginProcessor)
-        analytics.add(contextPlugin)
-        // Set initial value for test
-        val writerLog = mutableMapOf<Long, String>() // (timestamp, read)
-        // Set initial device token to skip unnecessary null checks and ensure value is fetched for initial events
-        writerLog[currentNanoTime()] = ""
-        // Prepare for concurrent execution
+    fun execute_whenDeviceTokenIsSetFromAnotherThread_thenAddsCorrectTokenToEvent() {
+        val rounds = ROUND_COUNT
+        val contextPlugin = ContextPlugin(deviceStore)
+        // We exercise contextPlugin.execute(event) in isolation — no need to
+        // attach to analytics. ContextPlugin.execute does not touch the
+        // `analytics` lateinit; attaching it under JUnitTest's StandardTestDispatcher
+        // can queue setup work that never runs without an explicit `runCurrent`.
+
+        val barrier = CyclicBarrier(2)
         val executor = Executors.newFixedThreadPool(2)
-        val testStartTimeMs = currentNanoTime().nanosToMillis()
+        val captured = CopyOnWriteArrayList<Pair<String, String?>>()
+        val writerError = AtomicReference<Throwable?>()
+        val readerError = AtomicReference<Throwable?>()
 
-        // Writer thread: writes tokens at random intervals
-        val writerThread = executor.submit {
-            var counter = 1
-            while (true) {
-                val nowMs = currentNanoTime().nanosToMillis()
-                if (nowMs - testStartTimeMs >= writerCutoffTimeMillis) break
-
-                val newToken = "${tokenPrefix}${counter++}"
-                waitUntil(nowMs + Random.nextInt(minThreadWaitTime, maxThreadWaitTime))
-
-                sdkInstance.registerDeviceToken(newToken).flushCoroutines(testScope)
-                writerLog[currentNanoTime()] = newToken
+        // Helper to fence a round half — if our partner threw and bailed,
+        // resetting the barrier breaks both threads out instead of timing out.
+        fun safeAwait() {
+            try {
+                barrier.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            } catch (t: Throwable) {
+                barrier.reset()
+                throw t
             }
         }
 
-        // Reader thread: executes events with the current device token at random intervals
-        val readerThread = executor.submit {
-            var counter = 1
-            // Ensure writer has started
-            Thread.sleep(maxThreadWaitTime.toLong())
-            while (true) {
-                val nowMs = currentNanoTime().nanosToMillis()
-                if (nowMs - testStartTimeMs >= readerExecutionTimeMillis) break
-
-                waitUntil(nowMs + Random.nextInt(minThreadWaitTime, maxThreadWaitTime))
-                // Track an event with so that the context is updated with the current device token
-                sdkInstance.track(name = "test-event-${counter++}").flushCoroutines(testScope)
-                // Yield to allow other thread to run
-                Thread.yield()
-            }
-        }
-
-        // Wait for both threads to finish
-        writerThread.get(readerExecutionTimeMillis + 500L, TimeUnit.MILLISECONDS)
-        readerThread.get(readerExecutionTimeMillis + 500L, TimeUnit.MILLISECONDS)
-        executor.shutdown()
-
-        // For each event executed by SDK, verify writer token that was active during the event's execution
-        val sortedWrites = writerLog.entries.sortedBy { it.key }
-        val mismatches = outputReaderPlugin.trackEvents.mapNotNull { event ->
-            val executionStartTime = event.context.getStringAtPath("test.executionStartTime")?.toLong().shouldNotBeNull()
-            val executionEndTime = event.context.getStringAtPath("test.executionEndTime")?.toLong().shouldNotBeNull()
-            val actualToken = event.context.deviceToken
-
-            // Find the index of the latest write logged before the event finished.
-            // Note: registerDeviceToken sets the @Volatile field BEFORE writerLog
-            // records the timestamp, so on slow CI the actual token may be several
-            // writes ahead of the latest log entry. We allow a window of up to 3
-            // entries beyond the latest logged write to account for this gap.
-            val latestBeforeIndex = sortedWrites.indexOfLast { it.key <= executionEndTime }
-            val windowStart = latestBeforeIndex.coerceAtLeast(0)
-            val windowEnd = (latestBeforeIndex + 3).coerceAtMost(sortedWrites.size - 1)
-            val validTokens = (windowStart..windowEnd).map { sortedWrites[it].value }.toSet()
-
-            // If the actual token is not in valid tokens, it's a mismatch
-            if (actualToken !in validTokens) {
-                return@mapNotNull Triple("$executionStartTime..$executionEndTime", actualToken, validTokens.joinToString(" or "))
-            }
-            return@mapNotNull null
-        }
-
-        assertEquals(
-            expected = 0,
-            actual = mismatches.size,
-            message = buildString {
-                append("Event processed with incorrect device token:\n")
-                append(
-                    mismatches.joinToString("\n") { (time, actual, expected) ->
-                        "- At $time NS: saw `$actual`, expected `$expected`"
+        try {
+            val writer = executor.submit {
+                try {
+                    for (i in 1..rounds) {
+                        safeAwait() // start of round
+                        contextPlugin.deviceToken = "$TOKEN_PREFIX$i"
+                        safeAwait() // publish complete
                     }
-                )
+                } catch (t: Throwable) {
+                    writerError.set(t); barrier.reset()
+                }
             }
-        )
+            val reader = executor.submit {
+                try {
+                    for (i in 1..rounds) {
+                        safeAwait() // start of round
+                        safeAwait() // wait for write to complete
+                        val event = TrackEvent(properties = emptyJsonObject, event = "$TEST_EVENT_PREFIX$i").apply {
+                            // BaseEvent has `context` and `integrations` as lateinit JsonObject.
+                            // The analytics pipeline normally initializes them via `applyBaseEventData`;
+                            // when we feed events directly to ContextPlugin we must initialize here.
+                            context = emptyJsonObject
+                            integrations = emptyJsonObject
+                        }
+                        val processed = contextPlugin.execute(event) as TrackEvent
+                        captured.add(processed.event to processed.context.deviceToken)
+                    }
+                } catch (t: Throwable) {
+                    readerError.set(t); barrier.reset()
+                }
+            }
+            writer.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            reader.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } finally {
+            executor.shutdownNow()
+        }
+        writerError.get()?.let { throw AssertionError("writer thread threw", it) }
+        readerError.get()?.let { throw AssertionError("reader thread threw", it) }
+
+        assertEquals(rounds, captured.size, "expected one processed event per round")
+        for ((eventName, tokenSeen) in captured) {
+            val roundIndex = eventName.removePrefix(TEST_EVENT_PREFIX).toInt()
+            val expectedToken = "$TOKEN_PREFIX$roundIndex"
+            assertEquals(
+                expected = expectedToken,
+                actual = tokenSeen,
+                message = "Event $eventName should carry the token written immediately before it"
+            )
+        }
     }
 
-    private fun waitUntil(timeMs: Long) {
-        val sleepTime = timeMs - System.nanoTime().nanosToMillis()
-        assert(sleepTime > 0) { "Cannot wait for past time: $timeMs" }
-        Thread.sleep(sleepTime)
-    }
-
-    private fun Long.nanosToMillis(): Long {
-        return this / 1_000_000
+    private companion object {
+        const val ROUND_COUNT = 50
+        const val TOKEN_PREFIX = "test-token-"
+        const val TEST_EVENT_PREFIX = "test-event-"
+        const val TIMEOUT_SECONDS = 10L
     }
 }

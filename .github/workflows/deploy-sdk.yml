@@ -19,7 +19,21 @@ jobs:
       new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
     steps:
+      - name: Generate App installation token
+        id: generate_token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ secrets.CIO_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CIO_APP_SECRET }}
+
+      # Pass the App token to checkout so the persisted git credentials are the
+      # App identity (the only bypass actor on the main ruleset). Without this,
+      # a default checkout persists GITHUB_TOKEN (= github-actions[bot]) and
+      # later git pushes are rejected with GH013.
       - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+
       # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
       - name: Install sd CLI to use later in the workflow
         uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
@@ -38,13 +52,6 @@ jobs:
 #         env:
 #           # Use local version to make sure the report is generated for the current changes
 #           IS_DEVELOPMENT: 'true'
-
-      - name: 'Generate token'
-        id: generate_token
-        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2.1.0
-        with:
-          app_id: ${{ secrets.CIO_APP_ID }}
-          private_key: ${{ secrets.CIO_APP_SECRET }}
       # Semantic-release tool is used to:
       # 1. Determine the next semantic version for the software during deployment.
       #    For example, if the last deployment you made was version 1.3.5 and you are releasing a new feature

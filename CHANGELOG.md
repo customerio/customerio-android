@@ -1,3 +1,9 @@
+## [4.17.1](https://github.com/customerio/customerio-android/compare/4.17.0...4.17.1) (2026-05-18)
+
+### Bug Fixes
+
+* Defined a working range of versions for the Segment Analytics ([#679](https://github.com/customerio/customerio-android/issues/679)) ([865851b](https://github.com/customerio/customerio-android/commit/865851bac927c9063bd1774cb4e4109b3029ec53))
+
 ## [4.17.0](https://github.com/customerio/customerio-android/compare/4.16.1...4.17.0) (2026-03-09)
 
 ### Features

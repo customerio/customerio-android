@@ -123,6 +123,34 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
+    fun addGeofencesForBootRestore_givenMovementTrigger_expectInitialTriggerExit() = runTest {
+        grantAllPermissions()
+
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientAddSuccess(requestSlot)
+
+        manager.addGeofencesForBootRestore(
+            listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
+        )
+
+        requestSlot.captured.initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_EXIT
+    }
+
+    @Test
+    fun addGeofencesForBootRestore_givenBusinessGeofences_expectInitialTriggerEnterUnchanged() = runTest {
+        // Only the movement trigger differs between variants; business batch
+        // still uses INITIAL_TRIGGER_ENTER.
+        grantAllPermissions()
+
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientAddSuccess(requestSlot)
+
+        manager.addGeofencesForBootRestore(listOf(buildRegion(id = "business-1")))
+
+        requestSlot.captured.initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+    }
+
+    @Test
     fun addGeofences_givenMixedBatch_expectSeparateRequestsWithCorrectTriggers() = runTest {
         grantAllPermissions()
 

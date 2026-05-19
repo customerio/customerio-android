@@ -37,7 +37,26 @@ internal class GeofenceManager(
     }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
-    suspend fun addGeofences(regions: List<GeofenceRegion>): Result<Unit> {
+    suspend fun addGeofences(regions: List<GeofenceRegion>): Result<Unit> =
+        addGeofencesInternal(regions, movementInitialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER)
+
+    /**
+     * Boot-restore variant: registers the movement trigger with
+     * `INITIAL_TRIGGER_EXIT` so the OS evaluates current location at register
+     * time. If the user moved beyond the cached circle while the device was
+     * off, EXIT fires immediately and the next handleMovement self-heals with
+     * real coordinates. Normal re-registrations use [addGeofences] to avoid
+     * spurious EXITs.
+     */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    suspend fun addGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
+        addGeofencesInternal(regions, movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT)
+
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    private suspend fun addGeofencesInternal(
+        regions: List<GeofenceRegion>,
+        movementInitialTrigger: Int
+    ): Result<Unit> {
         if (regions.isEmpty()) {
             // No geofences to register => disable the receiver so we don't burn
             // resources listening for events that can't fire. Covers both the
@@ -52,14 +71,14 @@ internal class GeofenceManager(
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
 
-        // Split into separate requests: GMS only supports one initial-trigger per request.
-        // Movement trigger uses no initial trigger to avoid spurious EXIT on re-registration.
-        // Business geofences use INITIAL_TRIGGER_ENTER for immediate detection if already inside.
+        // GMS allows one initial-trigger per batch — split movement vs business.
+        // Business: INITIAL_TRIGGER_ENTER fires immediately if user is already inside.
+        // Movement: caller-controlled (NO_INITIAL_TRIGGER on normal paths, EXIT on boot restore).
         val movementTrigger = regions.filter { it.id == GeofenceConstants.MOVEMENT_TRIGGER_ID }
         val businessGeofences = regions.filter { it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID }
 
         if (movementTrigger.isNotEmpty()) {
-            val result = registerBatch(movementTrigger, initialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER)
+            val result = registerBatch(movementTrigger, initialTrigger = movementInitialTrigger)
             if (result.isFailure) return result
         }
 

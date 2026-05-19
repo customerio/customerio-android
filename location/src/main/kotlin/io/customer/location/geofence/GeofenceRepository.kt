@@ -141,15 +141,26 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("no identified user")
                 return Result.success(Unit)
             }
-            val anchor = store.getLastApiFetchLocation()
+            // Prefer the most recent movement-trigger center as the effective
+            // location — it tracks Tier A drift and is much closer to the user's
+            // real position than the anchor (only updated on Tier B fetches).
+            // Fall back to the anchor if there's no movement-trigger location yet
+            // (older cache / first-ever boot restore).
+            val effectiveLocation = store.getLastMovementTriggerLocation()
+                ?: store.getLastApiFetchLocation()
             val cachedConfig = store.getCachedConfig()
-            if (anchor == null || cachedConfig == null) {
+            if (effectiveLocation == null || cachedConfig == null) {
                 logger.logSyncSkipped("no cached state to restore")
                 return Result.success(Unit)
             }
-            // Re-register using the anchor as the effective location; subsequent
-            // movement EXITs will retarget the trigger to the user's actual location.
-            return performLocalRefresh(userId, anchor.latitude, anchor.longitude, cachedConfig)
+            // Boot-restore variant — see [GeofenceManager.addGeofencesForBootRestore].
+            return performLocalRefresh(
+                userId = userId,
+                latitude = effectiveLocation.latitude,
+                longitude = effectiveLocation.longitude,
+                cachedConfig = cachedConfig,
+                register = manager::addGeofencesForBootRestore
+            )
         } finally {
             refreshInProgress.set(false)
         }
@@ -190,13 +201,15 @@ internal class GeofenceRepositoryImpl(
         userId: String,
         latitude: Double,
         longitude: Double,
-        cachedConfig: GeofenceConfig
+        cachedConfig: GeofenceConfig,
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::addGeofences
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
         longitude = longitude,
         regions = store.getCachedRegions(),
-        config = cachedConfig
+        config = cachedConfig,
+        register = register
     )
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
@@ -206,6 +219,7 @@ internal class GeofenceRepositoryImpl(
         longitude: Double,
         regions: List<GeofenceRegion>,
         config: GeofenceConfig,
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::addGeofences,
         onRegistered: () -> Unit = {}
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
@@ -226,7 +240,7 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
-            manager.addGeofences(regionsToRegister).also { result ->
+            register(regionsToRegister).also { result ->
                 if (result.isSuccess) {
                     // Stale cleanup runs ONLY after add succeeds. If add fails we
                     // leave previous OS registrations intact — better to keep
@@ -246,6 +260,14 @@ internal class GeofenceRepositoryImpl(
                         newlyRegistered + staleIds
                     }
                     store.saveRegisteredIds(currentlyRegistered)
+                    // Track the user's location at each successful registration so
+                    // boot restore can re-center close to their real position. Clear
+                    // when the business set transitions to empty — no trigger exists.
+                    if (nearest.isNotEmpty()) {
+                        store.saveLastMovementTriggerLocation(GeofenceLocation(latitude, longitude))
+                    } else {
+                        store.clearLastMovementTriggerLocation()
+                    }
                     onRegistered()
                     logger.logSyncSucceeded(nearest.size)
                 }

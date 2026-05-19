@@ -7,6 +7,7 @@ import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.location.geofence.store.GeofenceRegionStore
 import io.customer.location.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
@@ -35,6 +36,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockScheduler: GeofenceEventScheduler = mockk(relaxed = true)
     private val mockServices: GeofenceServices = mockk(relaxed = true)
     private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
+    private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
+    private val mockManager: GeofenceManager = mockk(relaxed = true)
 
     private lateinit var receiver: GeofenceBroadcastReceiver
 
@@ -48,12 +51,24 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceEventScheduler>(mockScheduler)
                         overrideDependency<GeofenceServices>(mockServices)
                         overrideDependency<GeofenceCooldownFilter>(mockCooldownFilter)
+                        overrideDependency<GeofenceRegionStore>(mockStore)
+                        overrideDependency<GeofenceManager>(mockManager)
                     }
                 }
             }
         )
         // Default: cooldown allows emission. Tests override this to test suppression.
         every { mockCooldownFilter.tryAcquire(any(), any()) } returns true
+        // Default: all geofence IDs the tests reference are "registered" so the
+        // dispatchTransition store filter is a no-op. Tests for the filter override.
+        every { mockStore.getRegisteredIds() } returns setOf(
+            GeofenceConstants.MOVEMENT_TRIGGER_ID,
+            "biz-1",
+            "biz-2",
+            "biz-geofence",
+            "biz-geofence-1",
+            "biz-geofence-2"
+        )
         receiver = GeofenceBroadcastReceiver()
     }
 
@@ -343,6 +358,80 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         capturedEvents.size shouldBeEqualTo 2
         capturedEvents.map { (it as Event.GeofenceTransitionEvent).geofenceId } shouldBeEqualTo listOf("biz-1", "biz-2")
+    }
+
+    @Test
+    fun dispatchTransition_givenIdNotInStore_expectDroppedAndRemovedFromOs() = runTest {
+        // Orphan ID must not reach scheduler/eventbus/cooldown AND must be removed
+        // from the OS so it stops firing.
+        every { mockStore.getRegisteredIds() } returns setOf("biz-known")
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-orphan"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any()) }
+        coVerify { mockManager.removeGeofencesByIds(listOf("biz-orphan")) }
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementTriggerNotInStore_expectMovementHandlerNotCalledAndRemoved() = runTest {
+        // Movement trigger is only registered when business set is non-empty. If it
+        // fires while not in the store, treat it as an orphan: drop + remove.
+        every { mockStore.getRegisteredIds() } returns setOf("biz-known")
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
+        coVerify { mockManager.removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
+    }
+
+    @Test
+    fun dispatchTransition_givenMixedKnownAndUnknownIds_expectOnlyKnownProcessedAndUnknownsRemovedAsBatch() = runTest {
+        // A single batch can carry both registered and orphan IDs. Per-ID filter,
+        // and orphans removed as a single batched GMS call (not one call per orphan).
+        every { mockStore.getRegisteredIds() } returns setOf("biz-known")
+        val capturedEvents = mutableListOf<Event>()
+        every { mockEventBus.publish(capture(capturedEvents)) } returns Unit
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-orphan-1", "biz-known", "biz-orphan-2"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        capturedEvents.size shouldBeEqualTo 1
+        val published = capturedEvents.first().shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
+        published.geofenceId shouldBeEqualTo "biz-known"
+        // Single batched removal call carrying both orphans.
+        coVerify(exactly = 1) {
+            mockManager.removeGeofencesByIds(listOf("biz-orphan-1", "biz-orphan-2"))
+        }
+    }
+
+    @Test
+    fun dispatchTransition_givenAllIdsKnown_expectNoRemoveCall() = runTest {
+        // Normal (no-orphan) path: removeGeofencesByIds must NOT be called when all
+        // incoming IDs are tracked.
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 
     private fun buildGeofencingEvent(

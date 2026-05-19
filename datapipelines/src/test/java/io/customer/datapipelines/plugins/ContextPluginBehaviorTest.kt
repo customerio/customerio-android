@@ -65,7 +65,9 @@ class ContextPluginBehaviorTest : JUnitTest() {
     @Test
     fun execute_whenDeviceTokenIsSetFromAnotherThread_thenAddsCorrectTokenToEvent() {
         val rounds = ROUND_COUNT
-        val contextPlugin = ContextPlugin(deviceStore)
+        // #689 added a required `installationId` to ContextPlugin; the deterministic test
+        // only asserts on deviceToken propagation, so a fixed stub id is sufficient.
+        val contextPlugin = ContextPlugin(deviceStore, installationId = "test-installation-id")
         // We exercise contextPlugin.execute(event) in isolation — no need to
         // attach to analytics. ContextPlugin.execute does not touch the
         // `analytics` lateinit; attaching it under JUnitTest's StandardTestDispatcher

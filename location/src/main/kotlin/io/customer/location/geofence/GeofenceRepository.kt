@@ -6,6 +6,7 @@ import io.customer.location.geofence.api.GeofenceApiService
 import io.customer.location.geofence.api.toDomainConfig
 import io.customer.location.geofence.api.toDomainRegions
 import io.customer.location.geofence.store.GeofenceRegionStore
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.sync.Mutex
@@ -14,8 +15,8 @@ import kotlinx.coroutines.sync.withLock
 /**
  * Geofence sync pipeline. Two public entry points:
  *
- * - [refresh] — for identify / app-launch. Honors the 24h freshness threshold; a recent
- *   successful sync short-circuits the API call.
+ * - [refresh] — for identify / app-launch. A recent successful sync within the
+ *   freshness window short-circuits the API call.
  * - [handleMovement] — for movement-trigger EXIT. Two-tier dispatch: re-rank cached regions
  *   when within `remoteFetchRefreshTriggerRadius` of the last API anchor, otherwise hit
  *   the API for fresh data.
@@ -51,6 +52,7 @@ internal class GeofenceRepositoryImpl(
     private val distanceFilter: GeofenceDistanceFilter,
     private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore,
+    private val clock: Clock,
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
 
@@ -76,9 +78,17 @@ internal class GeofenceRepositoryImpl(
                 return Result.success(Unit)
             }
             val lastSync = store.getLastSyncTimestamp()
-            if (lastSync != null && System.currentTimeMillis() - lastSync < GeofenceConstants.STALE_THRESHOLD_MS) {
-                logger.logSyncSkippedFresh()
-                return Result.success(Unit)
+            if (lastSync != null) {
+                // Freshness window comes from the cached server config; falls back
+                // to STALE_THRESHOLD_MS when no cache exists or the value is
+                // non-positive (defensive against bad config).
+                val threshold = store.getCachedConfig()?.remoteFetchRefreshExpiryMs
+                    ?.takeIf { it > 0 }
+                    ?: GeofenceConstants.STALE_THRESHOLD_MS
+                if (clock.currentTimeMillis() - lastSync < threshold) {
+                    logger.logSyncSkippedFresh()
+                    return Result.success(Unit)
+                }
             }
             return performRemoteRefresh(userId, latitude, longitude)
         } finally {
@@ -165,7 +175,7 @@ internal class GeofenceRepositoryImpl(
                     store.saveCachedRegions(regions)
                     store.saveCachedConfig(config)
                     store.saveLastApiFetchLocation(GeofenceLocation(latitude, longitude))
-                    store.setLastSyncTimestamp(System.currentTimeMillis())
+                    store.setLastSyncTimestamp(clock.currentTimeMillis())
                 }
             )
         },

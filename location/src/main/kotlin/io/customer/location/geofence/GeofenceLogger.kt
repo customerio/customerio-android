@@ -45,6 +45,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Ignoring geofence transition type=$transitionType (only ENTER and EXIT are tracked)", tag = TAG)
     }
 
+    fun logUnknownApiTransitionType(value: String) {
+        logger.error("API response contained unknown transition_type='$value' (expected enter/exit). Region's affected types dropped — check SDK / backend version alignment.", tag = TAG)
+    }
+
     fun logTransitionWithoutLocation() {
         logger.debug("Geofence transition fired but OS provided no location; emitting event with lat/lng omitted from properties", tag = TAG)
     }

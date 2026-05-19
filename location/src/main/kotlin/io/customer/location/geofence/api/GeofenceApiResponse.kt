@@ -4,6 +4,8 @@ import io.customer.location.geofence.GeofenceConfig
 import io.customer.location.geofence.GeofenceConstants
 import io.customer.location.geofence.GeofenceRegion
 import io.customer.location.geofence.GeofenceTransitionType
+import io.customer.location.geofence.di.geofenceLogger
+import io.customer.sdk.core.di.SDKComponent
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -73,7 +75,12 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig = GeofenceConfig(
 )
 
 private fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
-    val types = transitionTypes.mapNotNull { parseTransitionType(it) }
+    val types = transitionTypes.mapNotNull { value ->
+        parseTransitionType(value) ?: run {
+            SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)
+            null
+        }
+    }
     if (types.isEmpty()) return null
     return GeofenceRegion(
         id = id,

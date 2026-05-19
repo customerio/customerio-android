@@ -78,15 +78,24 @@ class ContextPluginBehaviorTest : JUnitTest(dispatcher = StandardTestDispatcher(
         // Setup context plugin with a custom processor to track execution time
         val contextPluginProcessor = object : ContextPluginEventProcessor {
             val defaultProcessor = DefaultContextPluginEventProcessor()
-            override fun execute(event: BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): BaseEvent {
+            override fun execute(
+                event: BaseEvent,
+                deviceStore: DeviceStore,
+                installationId: String,
+                deviceTokenProvider: () -> String?
+            ): BaseEvent {
                 // Add execution time to context for verification later
                 event.putInContextUnderKey("test", "executionStartTime", currentNanoTime())
-                val result = defaultProcessor.execute(event, deviceStore, deviceTokenProvider)
+                val result = defaultProcessor.execute(event, deviceStore, installationId, deviceTokenProvider)
                 event.putInContextUnderKey("test", "executionEndTime", currentNanoTime())
                 return result
             }
         }
-        val contextPlugin = ContextPlugin(deviceStore, contextPluginProcessor)
+        val contextPlugin = ContextPlugin(
+            deviceStore = deviceStore,
+            installationId = "test-installation-id",
+            eventProcessor = contextPluginProcessor
+        )
         analytics.add(contextPlugin)
         // Set initial value for test
         val writerLog = mutableMapOf<Long, String>() // (timestamp, read)

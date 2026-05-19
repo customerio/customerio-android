@@ -85,6 +85,9 @@ private fun <T> Json.encode(value: T?): JsonElement = when (value) {
 internal val JsonObject.deviceToken: String?
     get() = this.getStringAtPath("device.token")
 
+internal val JsonObject.installationId: String?
+    get() = this.getStringAtPath("device.installationId")
+
 fun JsonObject.getStringAtPath(path: String): String? {
     return findAtPath(path).firstOrNull()?.content
 }

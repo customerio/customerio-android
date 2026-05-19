@@ -41,6 +41,7 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import java.util.UUID
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.serializer
 
@@ -109,12 +110,20 @@ class CustomerIO private constructor(
         )
     )
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+    private val contextPlugin: ContextPlugin
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
         Analytics.setLogger(segmentLogger)
+
+        // Resolve installation id: load if present, otherwise generate once and persist.
+        // Survives clearIdentify and SDK re-init; only OS app-data clear wipes it.
+        val installationId = globalPreferenceStore.getInstallationId()
+            ?: UUID.randomUUID().toString().also { id ->
+                globalPreferenceStore.saveInstallationId(id)
+            }
+        contextPlugin = ContextPlugin(deviceStore = deviceStore, installationId = installationId)
 
         // Add required plugins to analytics instance
         analytics.add(contextPlugin)

@@ -87,7 +87,7 @@ internal class GeofenceRepositoryImpl(
                 // Freshness window comes from the cached server config; falls back
                 // to STALE_THRESHOLD_MS when no cache exists or the value is
                 // non-positive (defensive against bad config).
-                val threshold = store.getCachedConfig()?.remoteFetchRefreshExpiryMs
+                val threshold = store.getCachedConfig()?.remoteFetchRefreshExpiry
                     ?.takeIf { it > 0 }
                     ?: GeofenceConstants.STALE_THRESHOLD_MS
                 if (clock.currentTimeMillis() - lastSync < threshold) {
@@ -96,8 +96,8 @@ internal class GeofenceRepositoryImpl(
                     // new user has no geofences until stale-window expiry.
                     val cachedRegions = store.getCachedRegions()
                     val registered = store.getRegisteredIds()
-                    val cachedConfig = store.getCachedConfig()
-                    if (cachedRegions.isNotEmpty() && registered.isEmpty() && cachedConfig != null) {
+                    if (cachedRegions.isNotEmpty() && registered.isEmpty()) {
+                        val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
                         return performLocalRefresh(userId, latitude, longitude, cachedConfig)
                     }
                     logger.logSyncSkippedFresh()
@@ -123,16 +123,13 @@ internal class GeofenceRepositoryImpl(
                 return Result.success(Unit)
             }
             val anchor = store.getLastApiFetchLocation()
-            val cachedConfig = store.getCachedConfig()
+            val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
             // Tier B (remote fetch) when:
             // - no anchor yet (first EXIT after install / clearAll / sign-out), OR
             // - we've moved beyond the API threshold from the last fetch.
             // Otherwise Tier A: re-rank the cached regions for the new location.
-            val remoteFetchThreshold = cachedConfig?.remoteFetchRefreshTriggerRadius
-                ?: GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS
             val needsRemoteFetch = anchor == null ||
-                cachedConfig == null ||
-                anchor.distanceTo(latitude, longitude) >= remoteFetchThreshold
+                anchor.distanceTo(latitude, longitude) >= cachedConfig.remoteFetchRefreshTriggerRadius
             return if (needsRemoteFetch) {
                 performRemoteRefresh(userId, latitude, longitude)
             } else {
@@ -162,11 +159,11 @@ internal class GeofenceRepositoryImpl(
             // (older cache / first-ever boot restore).
             val effectiveLocation = store.getLastMovementTriggerLocation()
                 ?: store.getLastApiFetchLocation()
-            val cachedConfig = store.getCachedConfig()
-            if (effectiveLocation == null || cachedConfig == null) {
+            if (effectiveLocation == null) {
                 logger.logSyncSkipped("no cached state to restore")
                 return Result.success(Unit)
             }
+            val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
             // Boot-restore variant — see [GeofenceManager.replaceGeofencesForBootRestore].
             return performLocalRefresh(
                 userId = userId,
@@ -185,10 +182,14 @@ internal class GeofenceRepositoryImpl(
         userId: String,
         latitude: Double,
         longitude: Double
-    ): Result<Unit> = apiService.fetchGeofences(userId, latitude, longitude).fold(
+    ): Result<Unit> = apiService.fetchGeofences(latitude, longitude).fold(
         onSuccess = { response ->
             val regions = response.toDomainRegions()
-            val config = response.toDomainConfig()
+            // Config preference: server-shipped > last cached > constants.
+            val parsedConfig = response.toDomainConfig()
+            val config = parsedConfig
+                ?: store.getCachedConfig()
+                ?: GeofenceConfig.fallback()
             registerNearestAndPersist(
                 userId = userId,
                 latitude = latitude,
@@ -196,9 +197,11 @@ internal class GeofenceRepositoryImpl(
                 regions = regions,
                 config = config,
                 // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
+                // Skip the config save when backend didn't ship one this response —
+                // a null parse must not clobber a previously cached value.
                 onRegistered = {
                     store.saveCachedRegions(regions)
-                    store.saveCachedConfig(config)
+                    parsedConfig?.let { store.saveCachedConfig(it) }
                     store.saveLastApiFetchLocation(GeofenceLocation(latitude, longitude))
                     store.setLastSyncTimestamp(clock.currentTimeMillis())
                 }

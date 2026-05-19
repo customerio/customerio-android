@@ -21,12 +21,12 @@ internal object GeofenceConstants {
     // Minimum interval between server fetches. Non-forced refresh calls (identify,
     // app launch) skip the API call when a successful sync happened within this
     // window. Movement-trigger EXIT bypasses this so the loop can update the
-    // trigger's center. Doubles as the fallback for `remoteFetchRefreshExpiryMs`
+    // trigger's center. Doubles as the fallback for `remoteFetchRefreshExpiry`
     // when the API config field is missing or non-positive.
     const val STALE_THRESHOLD_MS = 24 * 60 * 60 * 1_000L
 
     // Duplicate-transition suppression window used by GeofenceCooldownFilter.
-    // Doubles as the fallback for `duplicateEventsExpiryMs` from the API config
+    // Doubles as the fallback for `duplicateEventsExpiry` from the API config
     // when the field is missing or non-positive.
     const val DEDUPE_COOLDOWN_MS = 60 * 60 * 1_000L
 

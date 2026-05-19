@@ -77,7 +77,11 @@ internal val AndroidSDKComponent.geofenceCooldownFilter: GeofenceCooldownFilter
 
 internal val AndroidSDKComponent.geofenceRegionStore: GeofenceRegionStore
     get() = singleton<GeofenceRegionStore> {
-        GeofenceRegionStoreImpl(applicationContext, SDKComponent.geofenceJsonSerializer)
+        GeofenceRegionStoreImpl(
+            context = applicationContext,
+            jsonSerializer = SDKComponent.geofenceJsonSerializer,
+            logger = SDKComponent.logger
+        )
     }
 
 internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository

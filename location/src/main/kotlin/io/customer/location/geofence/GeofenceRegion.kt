@@ -23,10 +23,10 @@ internal data class GeofenceRegion(
 /** Transition types a geofence can monitor, mapped to GMS constants. */
 @Serializable
 internal enum class GeofenceTransitionType(val gmsValue: Int) {
-    @SerialName("ENTER")
+    @SerialName("enter")
     ENTER(Geofence.GEOFENCE_TRANSITION_ENTER),
 
-    @SerialName("EXIT")
+    @SerialName("exit")
     EXIT(Geofence.GEOFENCE_TRANSITION_EXIT)
 }
 

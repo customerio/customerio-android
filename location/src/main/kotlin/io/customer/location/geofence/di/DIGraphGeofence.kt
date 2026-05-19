@@ -88,6 +88,7 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             distanceFilter = SDKComponent.geofenceDistanceFilter,
             manager = geofenceManager,
             secureUserStore = secureUserStore,
+            clock = SDKComponent.clock,
             logger = SDKComponent.geofenceLogger
         )
     }

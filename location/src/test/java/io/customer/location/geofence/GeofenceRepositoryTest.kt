@@ -6,6 +6,7 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.location.geofence.api.GeofenceApiResponse
 import io.customer.location.geofence.api.GeofenceApiService
 import io.customer.location.geofence.store.GeofenceRegionStore
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -35,6 +36,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     private val distanceFilter: GeofenceDistanceFilter = mockk(relaxed = true)
     private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val clock: Clock = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val jsonSerializer = GeofenceJsonSerializer()
 
@@ -42,12 +44,16 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
+        // Default: mirror real time so tests using relative timestamps work
+        // without churn. Override for deterministic timing.
+        every { clock.currentTimeMillis() } answers { System.currentTimeMillis() }
         repository = GeofenceRepositoryImpl(
             apiService = apiService,
             store = store,
             distanceFilter = distanceFilter,
             manager = manager,
             secureUserStore = secureUserStore,
+            clock = clock,
             logger = logger
         )
     }
@@ -71,6 +77,59 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns
             System.currentTimeMillis() - GeofenceConstants.STALE_THRESHOLD_MS - 1_000L
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify { apiService.fetchGeofences(any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenCachedConfigWithLongerExpiry_expectSkipWhenWithinIt() = runTest {
+        // Cached config's `remoteFetchRefreshExpiryMs` overrides the constant.
+        // With expiry=72h and lastSync=25h ago we skip, whereas the 24h
+        // constant alone would have triggered a fresh API call.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns
+            System.currentTimeMillis() - (25 * 60 * 60 * 1_000L)
+        every { store.getCachedConfig() } returns
+            sampleConfig(remoteFetchRefreshExpiryMs = 72 * 60 * 60 * 1_000L)
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+        verify { logger.logSyncSkippedFresh() }
+    }
+
+    @Test
+    fun refresh_givenCachedConfigWithNonPositiveExpiry_expectFallbackToConstant() = runTest {
+        // Defense: a 0 or negative `remoteFetchRefreshExpiryMs` (bad server config)
+        // must NOT short-circuit the freshness check — falls back to the constant.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig(remoteFetchRefreshExpiryMs = 0L)
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+        verify { logger.logSyncSkippedFresh() }
+    }
+
+    @Test
+    fun refresh_givenCachedConfigWithShorterExpiry_expectApiCallSooner() = runTest {
+        // Symmetric case: shorter server window (1h) trips earlier than the
+        // 24h constant. A sync 2h ago now triggers an API call.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns
+            System.currentTimeMillis() - (2 * 60 * 60 * 1_000L)
+        every { store.getCachedConfig() } returns
+            sampleConfig(remoteFetchRefreshExpiryMs = 60 * 60 * 1_000L)
         every { store.getRegisteredIds() } returns emptySet()
         coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
@@ -721,10 +780,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
     }
 
-    private fun sampleConfig(): GeofenceConfig = GeofenceConfig(
+    private fun sampleConfig(
+        remoteFetchRefreshExpiryMs: Long = 86_400_000L
+    ): GeofenceConfig = GeofenceConfig(
         localRefreshTriggerRadius = 1_000f,
         remoteFetchRefreshTriggerRadius = 5_000f,
-        remoteFetchRefreshExpiryMs = 86_400_000L,
+        remoteFetchRefreshExpiryMs = remoteFetchRefreshExpiryMs,
         duplicateEventsExpiryMs = 3_600_000L,
         maxBusinessGeofences = 19
     )

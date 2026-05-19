@@ -1,11 +1,16 @@
 package io.customer.location.geofence.api
 
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.location.geofence.GeofenceConfig
 import io.customer.location.geofence.GeofenceConstants
 import io.customer.location.geofence.GeofenceJsonSerializer
+import io.customer.location.geofence.GeofenceLogger
 import io.customer.location.geofence.GeofenceRegion
 import io.customer.location.geofence.GeofenceTransitionType
+import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContainSame
@@ -15,6 +20,19 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class GeofenceApiResponseTest : RobolectricTest() {
+
+    // 'mock' prefix to avoid shadowing SDKComponent.geofenceLogger inside `sdk { ... }`.
+    private val mockLogger: GeofenceLogger = mockk(relaxed = true)
+
+    override fun setup(testConfig: TestConfig) {
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk { overrideDependency<GeofenceLogger>(mockLogger) }
+                }
+            }
+        )
+    }
 
     @Test
     fun parseAndMap_givenFullSampleResponse_expectDomainValues() {
@@ -174,18 +192,31 @@ class GeofenceApiResponseTest : RobolectricTest() {
     """.trimIndent()
 
     @Test
-    fun parseAndMap_givenMixedValidAndInvalidTransitionTypes_expectOnlyValidKept() {
+    fun parseAndMap_givenMixedValidAndInvalidTransitionTypes_expectOnlyValidKeptAndUnknownsLogged() {
         val (_, regions) = parseAndMap(geofencesJsonWith(transitionTypes = listOf("enter", "dwell", "unknown")))
 
         regions.size shouldBeEqualTo 1
         regions[0].transitionTypes shouldContainSame listOf(GeofenceTransitionType.ENTER)
+        // Each unknown string surfaces as a distinct log so a misconfigured backend
+        // (or SDK-vs-backend version drift) doesn't fail silently.
+        verify { mockLogger.logUnknownApiTransitionType("dwell") }
+        verify { mockLogger.logUnknownApiTransitionType("unknown") }
     }
 
     @Test
-    fun parseAndMap_givenAllInvalidTransitionTypes_expectRegionSkipped() {
+    fun parseAndMap_givenAllInvalidTransitionTypes_expectRegionSkippedAndAllLogged() {
         val (_, regions) = parseAndMap(geofencesJsonWith(transitionTypes = listOf("dwell")))
 
         regions.shouldBeEmpty()
+        verify { mockLogger.logUnknownApiTransitionType("dwell") }
+    }
+
+    @Test
+    fun parseAndMap_givenOnlyValidTransitionTypes_expectNoUnknownLogged() {
+        // Pins the inverse: no spurious "unknown" logs on the happy path.
+        parseAndMap(geofencesJsonWith(transitionTypes = listOf("enter", "exit")))
+
+        verify(exactly = 0) { mockLogger.logUnknownApiTransitionType(any()) }
     }
 
     private val jsonSerializer = GeofenceJsonSerializer()

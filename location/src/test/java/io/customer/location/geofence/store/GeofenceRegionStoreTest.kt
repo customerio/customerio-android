@@ -263,8 +263,9 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         listOf("id", "latitude", "longitude", "radius", "name", "transitionTypes", "lastUpdated").forEach { key ->
             raw shouldContain "\"$key\""
         }
-        // Enum value serialized as the pinned name.
-        raw shouldContain "\"ENTER\""
+        // Enum value serialized as the pinned name — lowercase to match the API
+        // wire format (otherwise the cache and the API speak different dialects).
+        raw shouldContain "\"enter\""
     }
 
     @Test

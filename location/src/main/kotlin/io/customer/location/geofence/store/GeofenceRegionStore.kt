@@ -20,7 +20,7 @@ import kotlinx.serialization.builtins.serializer
  *   registeredIds        — subset live in OS; drives the stale-cleanup diff.
  *   cachedConfig         — last server-driven thresholds.
  *   lastApiFetchLocation — anchor for the tier-B distance check.
- *   lastSyncTimestamp    — 24h freshness throttle for identify / app-launch.
+ *   lastSyncTimestamp    — freshness throttle for identify / app-launch.
  *
  * Decoding is schema-drift safe via [GeofenceJsonSerializer]: parse failures wipe the
  * key and return null/empty rather than propagating an exception up the sync path.

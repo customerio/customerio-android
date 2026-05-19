@@ -16,11 +16,14 @@ import kotlinx.serialization.builtins.serializer
 /**
  * State for the geofence sync pipeline:
  *
- *   cachedRegions        — full backend response; source for tier-A re-rank.
- *   registeredIds        — subset live in OS; drives the stale-cleanup diff.
- *   cachedConfig         — last server-driven thresholds.
- *   lastApiFetchLocation — anchor for the tier-B distance check.
- *   lastSyncTimestamp    — freshness throttle for identify / app-launch.
+ *   cachedRegions               — full backend response; source for tier-A re-rank.
+ *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
+ *   cachedConfig                — last server-driven thresholds.
+ *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
+ *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
+ *                                  registration; used by boot restore to re-center
+ *                                  closer to the user's real position than the anchor.
+ *   lastSyncTimestamp           — freshness throttle for identify / app-launch.
  *
  * Decoding is schema-drift safe via [GeofenceJsonSerializer]: parse failures wipe the
  * key and return null/empty rather than propagating an exception up the sync path.
@@ -37,6 +40,10 @@ internal interface GeofenceRegionStore {
 
     fun saveLastApiFetchLocation(location: GeofenceLocation)
     fun getLastApiFetchLocation(): GeofenceLocation?
+
+    fun saveLastMovementTriggerLocation(location: GeofenceLocation)
+    fun getLastMovementTriggerLocation(): GeofenceLocation?
+    fun clearLastMovementTriggerLocation()
 
     fun getLastSyncTimestamp(): Long?
     fun setLastSyncTimestamp(timestamp: Long)
@@ -77,6 +84,16 @@ internal class GeofenceRegionStoreImpl(
     override fun getLastApiFetchLocation(): GeofenceLocation? =
         readJson(KEY_LAST_API_FETCH_LOCATION, GeofenceLocation.serializer())
 
+    override fun saveLastMovementTriggerLocation(location: GeofenceLocation) =
+        writeJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer(), location)
+
+    override fun getLastMovementTriggerLocation(): GeofenceLocation? =
+        readJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer())
+
+    override fun clearLastMovementTriggerLocation() {
+        prefs.edit { remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION) }
+    }
+
     override fun getLastSyncTimestamp(): Long? = prefs.read {
         if (contains(KEY_LAST_SYNC)) getLong(KEY_LAST_SYNC, 0L) else null
     }
@@ -111,6 +128,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_REGISTERED_IDS = "registered_ids"
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
+        const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())

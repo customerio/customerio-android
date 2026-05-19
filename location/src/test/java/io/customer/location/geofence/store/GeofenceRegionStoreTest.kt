@@ -133,6 +133,42 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getLastApiFetchLocation() shouldBeEqualTo location
     }
 
+    // --- Movement-trigger location ---
+
+    @Test
+    fun getLastMovementTriggerLocation_givenNothingStored_expectNull() {
+        store.getLastMovementTriggerLocation().shouldBeNull()
+    }
+
+    @Test
+    fun saveLastMovementTriggerLocation_thenGet_expectRoundTrip() {
+        val location = GeofenceLocation(latitude = 40.7128, longitude = -74.0060)
+
+        store.saveLastMovementTriggerLocation(location)
+
+        store.getLastMovementTriggerLocation() shouldBeEqualTo location
+    }
+
+    @Test
+    fun saveLastMovementTriggerLocation_givenSubsequentSave_expectOverwrite() {
+        // Each successful registration overwrites — we only ever need the latest.
+        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
+
+        store.getLastMovementTriggerLocation() shouldBeEqualTo GeofenceLocation(3.0, 4.0)
+    }
+
+    @Test
+    fun clearLastMovementTriggerLocation_givenPriorSave_expectNull() {
+        // Called when a refresh succeeds with an empty business set (no movement
+        // trigger registered → the cached location is now stale).
+        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0))
+
+        store.clearLastMovementTriggerLocation()
+
+        store.getLastMovementTriggerLocation().shouldBeNull()
+    }
+
     // --- Last-sync timestamp ---
 
     @Test
@@ -171,6 +207,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             )
         )
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastSyncTimestamp(12_345L)
 
         store.clearAll()
@@ -179,6 +216,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getRegisteredIds().shouldBeEmpty()
         store.getCachedConfig().shouldBeNull()
         store.getLastApiFetchLocation().shouldBeNull()
+        store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastSyncTimestamp().shouldBeNull()
     }
 

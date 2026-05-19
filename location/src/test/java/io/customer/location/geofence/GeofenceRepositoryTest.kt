@@ -197,6 +197,59 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenSuccessWithBusiness_expectMovementTriggerLocationPersisted() = runTest {
+        // Persisted point is the user's lat/lng at registration time — boot
+        // restore reads it later as the effective coordinates.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+        val capturedLoc = slot<GeofenceLocation>()
+        every { store.saveLastMovementTriggerLocation(capture(capturedLoc)) } returns Unit
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        capturedLoc.captured shouldBeEqualTo GeofenceLocation(latitude = 12.34, longitude = 56.78)
+    }
+
+    @Test
+    fun refresh_givenEmptyBusinessSet_expectMovementTriggerLocationCleared() = runTest {
+        // Account transitioned to 0 businesses — no movement trigger exists,
+        // so any previously-stored location is stale and must be cleared.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
+        verify { store.clearLastMovementTriggerLocation() }
+    }
+
+    @Test
+    fun refresh_givenManagerAddFails_expectMovementTriggerLocationNotPersisted() = runTest {
+        // Persistence is gated on add success — a failed registration must leave the
+        // last-known good movement location intact (next refresh retries).
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any(), any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.addGeofences(any()) } returns Result.failure(RuntimeException("boom"))
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
+    }
+
+    @Test
     fun refresh_givenBusinessGeofences_expectMovementTriggerPrependedAndRegistered() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getRegisteredIds() } returns emptySet()
@@ -725,57 +778,98 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val result = repository.restoreFromCache()
 
         result.isSuccess shouldBeEqualTo true
-        coVerify(exactly = 0) { manager.addGeofences(any()) }
+        coVerify(exactly = 0) { manager.addGeofencesForBootRestore(any()) }
     }
 
     @Test
-    fun restoreFromCache_givenNoAnchor_expectSkipAndNoRegistration() = runTest {
+    fun restoreFromCache_givenNoMovementLocationAndNoAnchor_expectSkip() = runTest {
+        // Neither location available — nothing to restore from.
         every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns null
         every { store.getLastApiFetchLocation() } returns null
         every { store.getCachedConfig() } returns sampleConfig()
 
         val result = repository.restoreFromCache()
 
         result.isSuccess shouldBeEqualTo true
-        coVerify(exactly = 0) { manager.addGeofences(any()) }
+        coVerify(exactly = 0) { manager.addGeofencesForBootRestore(any()) }
     }
 
     @Test
-    fun restoreFromCache_givenNoCachedConfig_expectSkipAndNoRegistration() = runTest {
+    fun restoreFromCache_givenNoCachedConfig_expectSkip() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastApiFetchLocation() } returns GeofenceLocation(1.0, 2.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(1.0, 2.0)
         every { store.getCachedConfig() } returns null
 
         val result = repository.restoreFromCache()
 
         result.isSuccess shouldBeEqualTo true
-        coVerify(exactly = 0) { manager.addGeofences(any()) }
+        coVerify(exactly = 0) { manager.addGeofencesForBootRestore(any()) }
     }
 
     @Test
-    fun restoreFromCache_givenCachedState_expectRegistrationAtAnchorLocation() = runTest {
-        // Anchor is the effective "current location" on boot — no real-time location available.
+    fun restoreFromCache_givenMovementLocation_expectUsedAsEffectiveLocation() = runTest {
+        // Boot restore must prefer the movement-trigger location over the anchor.
+        val movementLoc = GeofenceLocation(latitude = 50.0, longitude = 60.0)
         val anchor = GeofenceLocation(latitude = 12.34, longitude = 56.78)
-        val cached = listOf(
-            GeofenceRegion("biz-1", 12.34, 56.78, 100f),
-            GeofenceRegion("biz-2", 13.0, 57.0, 100f)
-        )
+        val cached = listOf(GeofenceRegion("biz-1", 50.0, 60.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns movementLoc
         every { store.getLastApiFetchLocation() } returns anchor
         every { store.getCachedConfig() } returns sampleConfig()
         every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet()
-        every { distanceFilter.nearest(cached, 12.34, 56.78, any()) } returns
-            listOf(GeofenceRegion("biz-1", 12.34, 56.78, 100f))
-        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+        every { distanceFilter.nearest(cached, 50.0, 60.0, any()) } returns cached
+        coEvery { manager.addGeofencesForBootRestore(any()) } returns Result.success(Unit)
+
+        repository.restoreFromCache()
+
+        // Distance filter receives movementLoc coords, NOT the anchor's.
+        verify { distanceFilter.nearest(cached, 50.0, 60.0, any()) }
+        verify(exactly = 0) { distanceFilter.nearest(any(), 12.34, 56.78, any()) }
+        // Pins the boot-restore manager variant, not the normal one.
+        coVerify { manager.addGeofencesForBootRestore(any()) }
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenNoMovementLocationButAnchor_expectFallbackToAnchor() = runTest {
+        // Older cache (or first ever boot after this PR ships): no movement-trigger
+        // location yet. Fall back to the anchor so we still restore something.
+        val anchor = GeofenceLocation(latitude = 12.34, longitude = 56.78)
+        val cached = listOf(GeofenceRegion("biz-1", 12.34, 56.78, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns null
+        every { store.getLastApiFetchLocation() } returns anchor
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(cached, 12.34, 56.78, any()) } returns cached
+        coEvery { manager.addGeofencesForBootRestore(any()) } returns Result.success(Unit)
 
         repository.restoreFromCache()
 
         verify { distanceFilter.nearest(cached, 12.34, 56.78, any()) }
-        coVerify { manager.addGeofences(any()) }
-        // No API call — restore reuses the existing cache.
-        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
-        // Anchor + timestamp stay intact; restore doesn't re-fetch.
+        coVerify { manager.addGeofencesForBootRestore(any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenSuccess_expectAnchorAndTimestampNotRewritten() = runTest {
+        // Local-refresh-style restore must not bump the anchor or sync timestamp;
+        // those belong to Tier B (remote fetch) only.
+        val movementLoc = GeofenceLocation(50.0, 60.0)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns movementLoc
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 50.0, 60.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 50.0, 60.0, 100f))
+        coEvery { manager.addGeofencesForBootRestore(any()) } returns Result.success(Unit)
+
+        repository.restoreFromCache()
+
         verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
     }

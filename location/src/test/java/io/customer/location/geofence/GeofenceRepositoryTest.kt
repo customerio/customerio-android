@@ -93,21 +93,23 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenFreshCacheAndOsRegsWipedButNullCachedConfig_expectSkip() = runTest {
-        // Defensive branch: if `cachedConfig` is null (can't happen on this
-        // branch but possible once backend stops shipping `config`), we can't
-        // drive a local re-register. Skip rather than crash.
+    fun refresh_givenFreshCacheAndOsRegsWipedButNullCachedConfig_expectLocalRefreshWithFallback() = runTest {
+        // Backend may not ship `config` yet — null cachedConfig must NOT skip
+        // re-registration, otherwise the new user has no geofences until the
+        // stale window expires. Falls back to default thresholds.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
-        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns null
+        every { distanceFilter.nearest(cached, any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
-        verify { logger.logSyncSkippedFresh() }
+        coVerify { manager.replaceGeofences(any()) }
     }
 
     @Test
@@ -968,8 +970,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
               "config": {
                 "local_refresh_trigger_radius": $localRefreshTriggerRadius,
                 "remote_fetch_refresh_trigger_radius": 5000,
-                "remote_fetch_refresh_expiry_time": 86400,
-                "duplicate_events_expiry_time": 3600,
+                "remote_fetch_refresh_expiry_time": 86400000,
+                "duplicate_events_expiry_time": 3600000,
                 "android": { "max_business_geofence": $maxBusinessGeofences }
               },
               "geofences": [

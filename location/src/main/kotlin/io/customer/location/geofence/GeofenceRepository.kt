@@ -96,8 +96,8 @@ internal class GeofenceRepositoryImpl(
                     // new user has no geofences until stale-window expiry.
                     val cachedRegions = store.getCachedRegions()
                     val registered = store.getRegisteredIds()
-                    val cachedConfig = store.getCachedConfig()
-                    if (cachedRegions.isNotEmpty() && registered.isEmpty() && cachedConfig != null) {
+                    if (cachedRegions.isNotEmpty() && registered.isEmpty()) {
+                        val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
                         return performLocalRefresh(userId, latitude, longitude, cachedConfig)
                     }
                     logger.logSyncSkippedFresh()

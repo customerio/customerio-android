@@ -644,6 +644,70 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coVerify(exactly = 1) { apiService.fetchGeofences(any(), any(), any()) }
     }
 
+    // ---------- restoreFromCache (boot path) ----------
+
+    @Test
+    fun restoreFromCache_givenNoUserId_expectSkipAndNoRegistration() = runTest {
+        every { secureUserStore.getUserId() } returns null
+
+        val result = repository.restoreFromCache()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenNoAnchor_expectSkipAndNoRegistration() = runTest {
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns null
+        every { store.getCachedConfig() } returns sampleConfig()
+
+        val result = repository.restoreFromCache()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenNoCachedConfig_expectSkipAndNoRegistration() = runTest {
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(1.0, 2.0)
+        every { store.getCachedConfig() } returns null
+
+        val result = repository.restoreFromCache()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { manager.addGeofences(any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenCachedState_expectRegistrationAtAnchorLocation() = runTest {
+        // Anchor is the effective "current location" on boot — no real-time location available.
+        val anchor = GeofenceLocation(latitude = 12.34, longitude = 56.78)
+        val cached = listOf(
+            GeofenceRegion("biz-1", 12.34, 56.78, 100f),
+            GeofenceRegion("biz-2", 13.0, 57.0, 100f)
+        )
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns anchor
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(cached, 12.34, 56.78, any()) } returns
+            listOf(GeofenceRegion("biz-1", 12.34, 56.78, 100f))
+        coEvery { manager.addGeofences(any()) } returns Result.success(Unit)
+
+        repository.restoreFromCache()
+
+        verify { distanceFilter.nearest(cached, 12.34, 56.78, any()) }
+        coVerify { manager.addGeofences(any()) }
+        // No API call — restore reuses the existing cache.
+        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any(), any()) }
+        // Anchor + timestamp stay intact; restore doesn't re-fetch.
+        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+    }
+
     private fun sampleConfig(): GeofenceConfig = GeofenceConfig(
         localRefreshTriggerRadius = 1_000f,
         remoteFetchRefreshTriggerRadius = 5_000f,

@@ -14,6 +14,7 @@ import io.customer.sdk.data.store.DeviceStore
  */
 internal class ContextPlugin(
     private val deviceStore: DeviceStore,
+    private val installationId: String,
     private val eventProcessor: ContextPluginEventProcessor = DefaultContextPluginEventProcessor()
 ) : Plugin {
     override val type: Plugin.Type = Plugin.Type.Before
@@ -23,7 +24,7 @@ internal class ContextPlugin(
     internal var deviceToken: String? = null
 
     override fun execute(event: BaseEvent): BaseEvent {
-        return eventProcessor.execute(event, deviceStore) { deviceToken }
+        return eventProcessor.execute(event, deviceStore, installationId) { deviceToken }
     }
 }
 
@@ -32,7 +33,12 @@ internal class ContextPlugin(
  * Allows custom logic to be injected for testing or extension.
  */
 internal interface ContextPluginEventProcessor {
-    fun execute(event: BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): BaseEvent
+    fun execute(
+        event: BaseEvent,
+        deviceStore: DeviceStore,
+        installationId: String,
+        deviceTokenProvider: () -> String?
+    ): BaseEvent
 }
 
 /**
@@ -40,7 +46,12 @@ internal interface ContextPluginEventProcessor {
  * in the context and ensures the device token is added if not already present.
  */
 internal class DefaultContextPluginEventProcessor : ContextPluginEventProcessor {
-    override fun execute(event: BaseEvent, deviceStore: DeviceStore, deviceTokenProvider: () -> String?): BaseEvent {
+    override fun execute(
+        event: BaseEvent,
+        deviceStore: DeviceStore,
+        installationId: String,
+        deviceTokenProvider: () -> String?
+    ): BaseEvent {
         // Set user agent in context as it is required by Customer.io Data Pipelines
         event.putInContext("userAgent", deviceStore.buildUserAgent())
         // Remove analytics library information from context as Customer.io
@@ -54,6 +65,10 @@ internal class DefaultContextPluginEventProcessor : ContextPluginEventProcessor 
             // Device token is expected to be attached to device in context
             event.putInContextUnderKey("device", "token", token)
         }
+
+        // Attach installation id to device in context so backend can correlate
+        // events to a single install across identify/clearIdentify cycles.
+        event.putInContextUnderKey("device", "installationId", installationId)
 
         return event
     }

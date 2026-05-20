@@ -600,6 +600,51 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenRemoteFetchAndCachedMatchesIncoming_expectIdForwardedAsExisting() = runTest {
+        // Tier B remote fetch where the cached region equals the incoming one — no
+        // backend-side edit. The diff helper forwards the overlap ID so the manager
+        // can skip the re-upsert that would otherwise trigger GMS state
+        // reconciliation and spurious EXITs.
+        val region = GeofenceRegion("biz-1", 1.0, 2.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(region)
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns listOf(region)
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refresh_givenRemoteFetchAndCachedParamsDifferFromIncoming_expectIdExcludedFromExisting() = runTest {
+        // Backend edited biz-1's radius (100m → 200m). Cache still holds the old
+        // value at diff time; equality fails on the mismatch so biz-1 falls out of
+        // existingBusinessIds and gets re-registered. Without this, GMS would keep
+        // the 100m geofence after the cache moved to 200m.
+        val cached = GeofenceRegion("biz-1", 1.0, 2.0, 100f)
+        val incoming = cached.copy(radius = 200f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(cached)
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns listOf(incoming)
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured.shouldBeEmpty()
+    }
+
+    @Test
     fun reset_givenManagerSucceeds_expectUserScopedStateClearedAndWorkspaceCachePreserved() = runTest {
         // Sign-out cleanup: drop OS registrations + wipe user-specific state
         // (anchor, movement-trigger location, registered IDs). Workspace

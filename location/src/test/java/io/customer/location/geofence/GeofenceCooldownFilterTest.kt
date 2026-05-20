@@ -4,6 +4,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.location.geofence.store.GeofenceCooldownStore
+import io.customer.location.geofence.store.GeofenceRegionStore
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.mockk.every
@@ -19,13 +20,17 @@ import org.robolectric.RobolectricTestRunner
 class GeofenceCooldownFilterTest : RobolectricTest() {
 
     private val mockStore: GeofenceCooldownStore = mockk(relaxed = true)
+    private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true) {
+        // Default to no cached config — exercises the fallback to DEDUPE_COOLDOWN_MS.
+        every { getCachedConfig() } returns null
+    }
     private val mockClock: Clock = mockk(relaxed = true)
 
     private lateinit var filter: GeofenceCooldownFilter
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
-        filter = GeofenceCooldownFilter(mockStore, mockClock)
+        filter = GeofenceCooldownFilter(mockStore, mockRegionStore, mockClock)
     }
 
     @Test
@@ -79,6 +84,26 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
         filter.tryAcquire("biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
         filter.tryAcquire("biz-1", Event.GeofenceTransition.EXIT).shouldBeTrue()
+    }
+
+    @Test
+    fun tryAcquire_givenCachedConfig_expectServerConfiguredCooldownUsed() {
+        // Server-pushed cooldown is shorter than the fallback. Verifies the
+        // filter actually consults GeofenceConfig and isn't pinned to the constant.
+        val serverCooldownMs = 5_000L
+        every { mockRegionStore.getCachedConfig() } returns GeofenceConfig.fallback().copy(
+            duplicateEventsExpiry = serverCooldownMs
+        )
+        val lastEmit = 100_000L
+        every { mockStore.getLastEmitTimestamp("biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
+
+        // Inside the server window but well outside the constant fallback → must block.
+        every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs - 1
+        filter.tryAcquire("biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
+
+        // Past the server window but still inside the constant fallback → must allow.
+        every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs + 1
+        filter.tryAcquire("biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
     }
 
     @Test

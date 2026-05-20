@@ -69,6 +69,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence sync skipped ($reason): location permissions not granted", tag = TAG)
     }
 
+    fun logBackgroundDeliveryUnavailable(reason: String) {
+        logger.info("Geofence sync ($reason): ACCESS_BACKGROUND_LOCATION not granted — transitions will only fire while the app is in the foreground", tag = TAG)
+    }
+
     fun logGeofenceStateResetOnSignOut() {
         logger.debug("Geofence state reset on user sign-out: clearing persisted regions and OS registrations", tag = TAG)
     }

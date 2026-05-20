@@ -79,6 +79,25 @@ class LocationTrackerTest {
         verify { store.saveCachedLocation(37.7749, -122.4194) }
     }
 
+    @Test
+    fun givenLocationReceived_listenerRegistered_expectListenerInvokedWithCoordinates() {
+        var captured: Pair<Double, Double>? = null
+        tracker.onLocationReceivedListener = { lat, lng -> captured = lat to lng }
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        captured shouldBeEqualTo (37.7749 to -122.4194)
+    }
+
+    @Test
+    fun givenLocationReceived_noListener_expectNoException() {
+        tracker.onLocationReceivedListener = null
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        verify { store.saveCachedLocation(37.7749, -122.4194) }
+    }
+
     // -- syncCachedLocationIfNeeded --
 
     @Test

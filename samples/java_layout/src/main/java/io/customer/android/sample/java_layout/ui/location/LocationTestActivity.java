@@ -8,6 +8,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -60,6 +61,19 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                 }
             });
 
+    // On API 30+, BACKGROUND can't be requested via the standard runtime dialog —
+    // the launcher returns immediately as "denied" and the user must toggle "Allow
+    // all the time" from app settings. This launcher handles the API 29 case where
+    // the runtime dialog still works.
+    private final ActivityResultLauncher<String> backgroundLocationLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) {
+                    showSnackbar(getString(R.string.background_location_already_granted));
+                } else {
+                    showBackgroundLocationSettingsAlert();
+                }
+            });
+
     @Override
     protected ActivityLocationTestBinding inflateViewBinding() {
         return ActivityLocationTestBinding.inflate(getLayoutInflater());
@@ -76,6 +90,56 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         setupSdkLocationButtons();
         setupDeviceLocationButton();
         setupManualEntrySection();
+        setupBackgroundPermissionButton();
+    }
+
+    private void setupBackgroundPermissionButton() {
+        binding.grantBackgroundLocation.setOnClickListener(v -> requestBackgroundLocation());
+    }
+
+    private void requestBackgroundLocation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            showSnackbar(getString(R.string.background_location_not_required_pre_q));
+            return;
+        }
+        if (!hasFineLocation()) {
+            showSnackbar(getString(R.string.background_location_needs_fine_first));
+            return;
+        }
+        if (hasBackgroundLocation()) {
+            showSnackbar(getString(R.string.background_location_already_granted));
+            return;
+        }
+        // API 30+ requires the user to grant from Settings; the runtime dialog
+        // is not shown. Route them directly there.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            showBackgroundLocationSettingsAlert();
+            return;
+        }
+        backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+    }
+
+    private boolean hasFineLocation() {
+        return ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasBackgroundLocation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true;
+        return ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void showBackgroundLocationSettingsAlert() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.geofence_permissions_section)
+                .setMessage(R.string.background_location_open_settings)
+                .setNeutralButton(R.string.open_settings, (dialog, which) -> {
+                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                })
+                .show();
     }
 
     private void setupPresetButtons() {

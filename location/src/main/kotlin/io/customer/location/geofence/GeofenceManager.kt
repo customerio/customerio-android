@@ -71,7 +71,7 @@ internal class GeofenceManager(
             return Result.success(Unit)
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
-            logger.logMissingPermission("ACCESS_FINE_LOCATION + ACCESS_BACKGROUND_LOCATION")
+            logger.logMissingPermission("ACCESS_FINE_LOCATION")
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
 

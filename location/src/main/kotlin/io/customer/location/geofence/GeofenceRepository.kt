@@ -230,15 +230,19 @@ internal class GeofenceRepositoryImpl(
     )
 
     /**
-     * Default register path for Tier A / Tier B refreshes — forwards the
-     * persisted business IDs as `existingBusinessIds` so the manager skips
-     * re-registering the overlap (see [GeofenceManager.replaceGeofences]).
+     * Default register path for Tier A / Tier B refreshes. An ID is treated
+     * as skip-safe only when the cached region equals the incoming one — any
+     * param drift forces a re-register so GMS doesn't keep stale values.
      * Boot restore bypasses this; OS state is empty after reboot.
      */
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     private suspend fun registerWithBusinessDiff(regions: List<GeofenceRegion>): Result<Unit> {
-        val existingBusinessIds =
-            store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+        val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+        val cachedById = store.getCachedRegions().associateBy { it.id }
+        val existingBusinessIds = regions
+            .filter { it.id in registeredBusinessIds && cachedById[it.id] == it }
+            .map { it.id }
+            .toSet()
         return manager.replaceGeofences(
             regions = regions,
             existingBusinessIds = existingBusinessIds

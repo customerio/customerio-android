@@ -37,13 +37,23 @@ internal class GeofenceManager(
     }
 
     /**
-     * Replaces any currently-registered geofences with [regions]. An empty
-     * list disables the broadcast receiver — registering nothing leaves no
-     * events to listen for.
+     * Replaces currently-registered geofences with [regions]; empty list
+     * disables the broadcast receiver. Business IDs in [existingBusinessIds]
+     * are left alone — only additions (regions − existing) are sent to GMS.
+     *
+     * Re-upserting a same-ID geofence triggers GMS state reconciliation that
+     * can fire spurious EXIT events; skipping the overlap avoids that.
+     * Default `emptySet()` means "OS state unknown, register everything".
      */
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
-    suspend fun replaceGeofences(regions: List<GeofenceRegion>): Result<Unit> =
-        replaceGeofencesInternal(regions, movementInitialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER)
+    suspend fun replaceGeofences(
+        regions: List<GeofenceRegion>,
+        existingBusinessIds: Set<String> = emptySet()
+    ): Result<Unit> = replaceGeofencesInternal(
+        regions = regions,
+        movementInitialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER,
+        existingBusinessIds = existingBusinessIds
+    )
 
     /**
      * Boot-restore variant of [replaceGeofences]: registers the movement
@@ -59,7 +69,8 @@ internal class GeofenceManager(
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     private suspend fun replaceGeofencesInternal(
         regions: List<GeofenceRegion>,
-        movementInitialTrigger: Int
+        movementInitialTrigger: Int,
+        existingBusinessIds: Set<String> = emptySet()
     ): Result<Unit> {
         if (regions.isEmpty()) {
             // No geofences to register => disable the receiver so we don't burn
@@ -75,25 +86,23 @@ internal class GeofenceManager(
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
 
-        // GMS allows one initial-trigger per batch — split movement vs business.
-        // Business: INITIAL_TRIGGER_ENTER fires immediately if user is already inside.
-        // Movement: caller-controlled (NO_INITIAL_TRIGGER on normal paths, EXIT on boot restore).
+        // Split because GMS allows one initial-trigger per batch — business
+        // uses INITIAL_TRIGGER_ENTER, movement is caller-controlled.
         val movementTrigger = regions.filter { it.id == GeofenceConstants.MOVEMENT_TRIGGER_ID }
-        val businessGeofences = regions.filter { it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID }
+        val (businessToAdd, businessKept) = regions
+            .filter { it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID }
+            .partition { it.id !in existingBusinessIds }
 
         if (movementTrigger.isNotEmpty()) {
             val result = registerBatch(movementTrigger, initialTrigger = movementInitialTrigger)
             if (result.isFailure) return result
         }
 
-        if (businessGeofences.isNotEmpty()) {
-            val result = registerBatch(businessGeofences, initialTrigger = GeofencingRequest.INITIAL_TRIGGER_ENTER)
+        if (businessToAdd.isNotEmpty()) {
+            val result = registerBatch(businessToAdd, initialTrigger = GeofencingRequest.INITIAL_TRIGGER_ENTER)
             if (result.isFailure) {
-                // Roll back the movement trigger so we don't leave an unattended
-                // safety-net geofence in the OS without any business geofences to
-                // recover. Business-batch failure is a rare edge case (transient OS
-                // / GMS issue); recovery happens on the next identify or app-launch
-                // trigger past the freshness threshold.
+                // Roll back the movement trigger so we don't leave a safety-net
+                // geofence alone in the OS with no business regions to act on.
                 if (movementTrigger.isNotEmpty()) {
                     removeGeofencesByIds(movementTrigger.map { it.id })
                 }
@@ -102,7 +111,11 @@ internal class GeofenceManager(
         }
 
         receiverToggle.setEnabled(true)
-        logger.logGeofencesRegistered(regions.size)
+        val registeredCount = movementTrigger.size + businessToAdd.size
+        logger.logGeofencesRegistered(registeredCount)
+        if (businessKept.isNotEmpty()) {
+            logger.logBusinessGeofencesKept(businessKept.size)
+        }
         return Result.success(Unit)
     }
 

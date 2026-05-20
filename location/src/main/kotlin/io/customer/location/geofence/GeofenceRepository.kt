@@ -219,7 +219,7 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         cachedConfig: GeofenceConfig,
-        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::replaceGeofences
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
@@ -229,6 +229,22 @@ internal class GeofenceRepositoryImpl(
         register = register
     )
 
+    /**
+     * Default register path for Tier A / Tier B refreshes — forwards the
+     * persisted business IDs as `existingBusinessIds` so the manager skips
+     * re-registering the overlap (see [GeofenceManager.replaceGeofences]).
+     * Boot restore bypasses this; OS state is empty after reboot.
+     */
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    private suspend fun registerWithBusinessDiff(regions: List<GeofenceRegion>): Result<Unit> {
+        val existingBusinessIds =
+            store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+        return manager.replaceGeofences(
+            regions = regions,
+            existingBusinessIds = existingBusinessIds
+        )
+    }
+
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     private suspend fun registerNearestAndPersist(
         userId: String,
@@ -236,7 +252,7 @@ internal class GeofenceRepositoryImpl(
         longitude: Double,
         regions: List<GeofenceRegion>,
         config: GeofenceConfig,
-        register: suspend (List<GeofenceRegion>) -> Result<Unit> = manager::replaceGeofences,
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
         onRegistered: () -> Unit = {}
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
@@ -259,24 +275,23 @@ internal class GeofenceRepositoryImpl(
             }
             register(regionsToRegister).also { result ->
                 if (result.isSuccess) {
-                    // Stale cleanup runs ONLY after add succeeds. If add fails we
-                    // leave previous OS registrations intact — better to keep
-                    // serving the last-known-good set than to wipe everything and
-                    // be unable to recover until the next refresh.
-                    val previouslyRegistered = store.getRegisteredIds()
-                    val newlyRegistered = regionsToRegister.map { it.id }.toSet()
-                    val staleIds = previouslyRegistered - newlyRegistered
+                    // Stale cleanup — Manager added new−existing, we remove
+                    // existing−new. Runs only on add success; on failure leave
+                    // previous registrations intact rather than wipe.
+                    val existingIds = store.getRegisteredIds()
+                    val newIds = regionsToRegister.map { it.id }.toSet()
+                    val staleIds = existingIds - newIds
                     val staleRemovalSucceeded = if (staleIds.isNotEmpty()) {
                         manager.removeGeofencesByIds(staleIds.toList()).isSuccess
                     } else {
                         true
                     }
-                    val currentlyRegistered = if (staleRemovalSucceeded) {
-                        newlyRegistered
+                    val idsToSave = if (staleRemovalSucceeded) {
+                        newIds
                     } else {
-                        newlyRegistered + staleIds
+                        newIds + staleIds
                     }
-                    store.saveRegisteredIds(currentlyRegistered)
+                    store.saveRegisteredIds(idsToSave)
                     // Track the user's location at each successful registration so
                     // boot restore can re-center close to their real position. Clear
                     // when the business set transitions to empty — no trigger exists.

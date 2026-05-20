@@ -9,6 +9,13 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Registered $count geofences with OS", tag = TAG)
     }
 
+    fun logBusinessGeofencesKept(count: Int) {
+        logger.debug(
+            "Kept $count business geofences unchanged in OS; skipped re-upsert to avoid GMS state reconciliation",
+            tag = TAG
+        )
+    }
+
     fun logGeofencesRemoved(count: Int) {
         logger.debug("Removed $count geofences from OS", tag = TAG)
     }

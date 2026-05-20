@@ -1,0 +1,14 @@
+{
+  "_help": "Edit this file then run: python3 location/mock/generate.py. Required per region: lat, lng. The `config` block below mirrors the SDK's fallback values — tweak any field, or delete the whole block to exercise the SDK fallbacks. See location/MOCK_TESTING.md for the full schema.",
+  "config": {
+    "local_refresh_trigger_radius": 1000,
+    "remote_fetch_refresh_trigger_radius": 5000,
+    "remote_fetch_refresh_expiry_time": 86400000,
+    "duplicate_events_expiry_time": 3600000,
+    "android": { "max_business_geofence": 19 }
+  },
+  "geofences": [
+    { "name": "Ferry Building", "lat": 37.7955, "lng": -122.3937, "radius": 150 },
+    { "name": "Office", "lat": 37.4220, "lng": -122.0841 }
+  ]
+}

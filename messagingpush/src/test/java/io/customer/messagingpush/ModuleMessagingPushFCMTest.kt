@@ -10,6 +10,7 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
@@ -25,6 +26,8 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -37,6 +40,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     private val mockPendingStore: PendingDeliveryStore<PendingPushDeliveryMetric> = mockk(relaxed = true)
     private val mockWorkManager: WorkManager = mockk(relaxed = true)
     private val mockWorkManagerProvider: CustomerIOWorkManagerProvider = mockk(relaxed = true)
+    private val mockPushLogger: PushNotificationLogger = mockk(relaxed = true)
 
     private fun immediateSuccessfulOperation(): Operation = mockk(relaxed = true) {
         every { result } returns Futures.immediateFuture(Operation.SUCCESS)
@@ -50,6 +54,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                         overrideDependency<EventBus>(mockk(relaxed = true))
                         overrideDependency<PendingDeliveryStore<PendingPushDeliveryMetric>>(mockPendingStore)
                         overrideDependency<CustomerIOWorkManagerProvider>(mockWorkManagerProvider)
+                        overrideDependency<PushNotificationLogger>(mockPushLogger)
                         overrideDependency<DispatchersProvider>(DispatchersProviderStub())
                     }
                     android { overrideDependency<DeviceTokenProvider>(mockk(relaxed = true)) }
@@ -66,6 +71,12 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     override fun teardown() {
+        // Clear the static observer ref so tests don't see leftovers across runs.
+        // The observer itself is still attached to the process singleton's
+        // LifecycleRegistry; we don't manipulate that because LifecycleRegistry
+        // cannot be wound backward from DESTROYED, and ProcessLifecycleOwner is
+        // not test-owned.
+        ModuleMessagingPushFCM.foregroundObserver = null
         eventBus.removeAllSubscriptions()
         super.teardown()
     }
@@ -160,10 +171,11 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     @Test
-    fun handoff_givenWorkManagerUnavailable_expectPublishWithoutCancelAndStillRemoveAll() = runTest {
+    fun handoff_givenWorkManagerUnavailable_expectPublishWithoutCancelLogAndStillRemoveAll() = runTest {
         // Simulates the async-tracker schedule path (WM not initialized at enqueue
         // time): there is no work for cancelUniqueWork to act on, the handoff
-        // still publishes and clears the store.
+        // still publishes and clears the store. The "cancelled WM" log must not
+        // fire either — emitting it would mislead anyone debugging handoff via logs.
         every { mockWorkManagerProvider.getWorkManager() } returns null
         val entries = listOf(
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1", timestamp = 1L)
@@ -173,6 +185,8 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
         verify(exactly = 0) { mockWorkManager.cancelUniqueWork(any()) }
+        verify(exactly = 0) { mockPushLogger.logHandoffCancelledWorkManager(any()) }
+        verify(exactly = 1) { mockPushLogger.logHandoffPublishedToEventBus("d1") }
         verify(exactly = 1) {
             eventBus.publish(
                 Event.TrackPushMetricEvent(
@@ -183,5 +197,24 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
             )
         }
         verify(exactly = 1) { mockPendingStore.removeAll(listOf("d1")) }
+    }
+
+    @Test
+    fun initialize_calledTwice_expectObserverReplacedNotAccumulated() = runTest {
+        // ProcessLifecycleOwner is process-scoped — naively accumulating observers
+        // across repeat-init calls would make every ON_START fire the handoff
+        // once per initialize() ever called. The implementation must replace
+        // the prior observer; we verify that bookkeeping here.
+        module.initialize()
+        val firstObserver = ModuleMessagingPushFCM.foregroundObserver
+        firstObserver.shouldNotBeNull()
+
+        ModuleMessagingPushFCM().initialize()
+        val secondObserver = ModuleMessagingPushFCM.foregroundObserver
+        secondObserver.shouldNotBeNull()
+
+        // The static ref must point at the latest observer — the prior one was
+        // removed from the process lifecycle before the new one was added.
+        (secondObserver !== firstObserver).shouldBeTrue()
     }
 }

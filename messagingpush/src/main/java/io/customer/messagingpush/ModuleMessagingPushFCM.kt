@@ -83,18 +83,26 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * the pending store at that point is handed off and its WorkManager job
      * is cancelled so the two channels can't both deliver.
      *
+     * ProcessLifecycleOwner is process-scoped, so observer state is held in
+     * the companion object. A repeat `initialize()` removes the prior
+     * observer before installing a new one — otherwise observers would
+     * accumulate and each ON_START would fire the handoff once per call to
+     * `initialize()`.
+     *
      * ProcessLifecycleOwner.addObserver must be called on the main thread —
      * if initialize() is invoked off-main, we post to the main looper first.
      */
     private fun observeProcessForeground() {
+        val newObserver = LifecycleEventObserver { _: LifecycleOwner, event: Lifecycle.Event ->
+            if (event == Lifecycle.Event.ON_START) {
+                handoffPendingPushDeliveryToAnalyticsPipeline()
+            }
+        }
         val attach = Runnable {
-            ProcessLifecycleOwner.get().lifecycle.addObserver(
-                LifecycleEventObserver { _: LifecycleOwner, event: Lifecycle.Event ->
-                    if (event == Lifecycle.Event.ON_START) {
-                        handoffPendingPushDeliveryToAnalyticsPipeline()
-                    }
-                }
-            )
+            val processLifecycle = ProcessLifecycleOwner.get().lifecycle
+            foregroundObserver?.let { processLifecycle.removeObserver(it) }
+            foregroundObserver = newObserver
+            processLifecycle.addObserver(newObserver)
         }
         if (Looper.myLooper() == Looper.getMainLooper()) {
             attach.run()
@@ -127,8 +135,13 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
                 val wm = workManagerForCancel
                 pending.forEach { entry ->
-                    wm?.cancelUniqueWork(entry.deliveryId)?.await()
-                    pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
+                    // Only log "cancelled WM" when there's actually a WorkManager to
+                    // cancel against; the async-tracker schedule path leaves no work
+                    // for cancelUniqueWork to act on.
+                    if (wm != null) {
+                        wm.cancelUniqueWork(entry.deliveryId).await()
+                        pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
+                    }
                     eventBus.publish(
                         Event.TrackPushMetricEvent(
                             event = Metric.Delivered,
@@ -162,5 +175,13 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     companion object {
         internal const val MODULE_NAME = "MessagingPushFCM"
+
+        // Held statically because ProcessLifecycleOwner is process-scoped.
+        // Mutated only from the main thread inside `observeProcessForeground`
+        // — the attach Runnable always posts to the main looper if needed —
+        // so no additional synchronization is required.
+        @Volatile
+        @androidx.annotation.VisibleForTesting
+        internal var foregroundObserver: LifecycleEventObserver? = null
     }
 }

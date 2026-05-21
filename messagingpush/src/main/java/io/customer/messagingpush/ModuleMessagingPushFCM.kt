@@ -2,13 +2,19 @@ package io.customer.messagingpush
 
 import androidx.lifecycle.Lifecycle
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.provider.DeviceTokenProvider
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
+import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.events.Metric
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
@@ -18,6 +24,10 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = SDKComponent.android().fcmTokenProvider
     private val pushTrackingUtil = SDKComponent.pushTrackingUtil
     private val activityLifecycleCallbacks = SDKComponent.activityLifecycleCallbacks
+    private val pendingPushDeliveryStore: PendingPushDeliveryStore
+        get() = SDKComponent.pendingPushDeliveryStore
+    private val dispatchers: DispatchersProvider
+        get() = SDKComponent.dispatchersProvider
 
     override val moduleName: String
         get() = MODULE_NAME
@@ -25,6 +35,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     override fun initialize() {
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
+        flushPendingPushDeliveryMetrics()
     }
 
     private fun subscribeToLifecycleEvents() {
@@ -45,6 +56,37 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                         else -> {}
                     }
                 }
+        }
+    }
+
+    /**
+     * At app launch, drain any push-delivered metrics that were observed locally
+     * but never confirmed by the primary delivery path (WorkManager / direct
+     * HTTP). For each pending entry we publish a [Event.TrackPushMetricEvent] so
+     * the analytics pipeline can deliver it, then remove only the entries we
+     * actually loaded — entries appended mid-flush survive.
+     *
+     * Disk I/O (the JSON read and targeted remove) MUST happen off the main
+     * thread, so the sequence is dispatched on the background dispatcher.
+     */
+    private fun flushPendingPushDeliveryMetrics() {
+        CoroutineScope(dispatchers.background).launch {
+            runCatching {
+                val pending = pendingPushDeliveryStore.loadAll()
+                if (pending.isEmpty()) return@runCatching
+
+                val flushedIds = pending.map { it.deliveryId }
+                pending.forEach { entry ->
+                    eventBus.publish(
+                        Event.TrackPushMetricEvent(
+                            event = Metric.Delivered,
+                            deliveryId = entry.deliveryId,
+                            deviceToken = entry.token
+                        )
+                    )
+                }
+                pendingPushDeliveryStore.removeAll(flushedIds)
+            }
         }
     }
 

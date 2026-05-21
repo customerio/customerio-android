@@ -10,6 +10,7 @@ import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
@@ -20,7 +21,8 @@ internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
-    private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler
+    private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
+    private val pendingPushDeliveryStore: PendingPushDeliveryStore
 ) : PushMessageProcessor {
 
     /**
@@ -89,15 +91,21 @@ internal class PushMessageProcessorImpl(
         if (moduleConfig.autoTrackPushEvents) {
             pushLogger.logTrackingPushMessageDelivered(deliveryId)
 
-            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
+            // Persist a pending entry first so the metric can be replayed via the
+            // analytics pipeline at the next app launch if the primary delivery
+            // path fails. The entry is keyed by deliveryId; the scheduler /
+            // direct-HTTP fallback removes it on a successful response.
+            pendingPushDeliveryStore.append(
+                deliveryId = deliveryId,
+                token = deliveryToken
+            )
 
-            // Track delivered metrics via event bus
-            eventBus.publish(
-                Event.TrackPushMetricEvent(
-                    event = Metric.Delivered,
-                    deliveryId = deliveryId,
-                    deviceToken = deliveryToken
-                )
+            // WorkManager (or its direct-HTTP fallback) remains the primary
+            // delivery mechanism. The eventBus dual-emit was removed; the
+            // pending-store + launch-flush handles the analytics-pipeline path.
+            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken
             )
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()

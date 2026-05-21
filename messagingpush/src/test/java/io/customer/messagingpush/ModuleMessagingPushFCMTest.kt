@@ -200,6 +200,53 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     @Test
+    fun handoff_givenCancelThrowsOnOneEntry_expectOtherEntriesStillProcessed() = runTest {
+        // workManager.cancelUniqueWork(...).await() can throw. A failure on one
+        // entry must not short-circuit the rest of the batch, and the failed
+        // entry must stay in the store so the next foreground retries it
+        // (publishing now without a successful cancel would risk double delivery).
+        val entries = listOf(
+            PendingPushDeliveryMetric(deliveryId = "boom", token = "t1", timestamp = 1L),
+            PendingPushDeliveryMetric(deliveryId = "ok", token = "t2", timestamp = 2L)
+        )
+        every { mockPendingStore.loadAll() } returns entries
+        val failingOperation: Operation = mockk(relaxed = true) {
+            every { result } returns
+                com.google.common.util.concurrent.Futures.immediateFailedFuture<Operation.State.SUCCESS>(
+                    RuntimeException("cancel failed")
+                )
+        }
+        every { mockWorkManager.cancelUniqueWork("boom") } returns failingOperation
+        every { mockWorkManager.cancelUniqueWork("ok") } returns immediateSuccessfulOperation()
+
+        module.handoffPendingPushDeliveryToAnalyticsPipeline()
+
+        // First entry's publish was skipped because cancel threw.
+        verify(exactly = 0) {
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = Metric.Delivered,
+                    deliveryId = "boom",
+                    deviceToken = "t1"
+                )
+            )
+        }
+        // Second entry was still processed normally.
+        verify(exactly = 1) {
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = Metric.Delivered,
+                    deliveryId = "ok",
+                    deviceToken = "t2"
+                )
+            )
+        }
+        // Only the successfully-processed key is removed; "boom" stays for the next retry.
+        verify(exactly = 1) { mockPendingStore.removeAll(listOf("ok")) }
+        verify(exactly = 1) { mockPushLogger.logHandoffEntryFailed("boom", any()) }
+    }
+
+    @Test
     fun initialize_calledTwice_expectObserverReplacedNotAccumulated() = runTest {
         // ProcessLifecycleOwner is process-scoped — naively accumulating observers
         // across repeat-init calls would make every ON_START fire the handoff

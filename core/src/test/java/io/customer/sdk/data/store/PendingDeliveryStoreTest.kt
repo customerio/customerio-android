@@ -7,11 +7,11 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBe
-import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,34 +22,24 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     private val mockLogger: Logger = mockk(relaxed = true)
     private val fileName = "cio_test_pending_delivery.json"
 
-    private data class TestEntry(val id: String, val payload: String, val ts: Long)
-
-    private val testSerializer = object : PendingDeliveryStore.Serializer<TestEntry> {
-        override fun key(entry: TestEntry): String = entry.id
-        override fun timestamp(entry: TestEntry): Long = entry.ts
-        override fun toJson(entry: TestEntry): JSONObject = JSONObject().apply {
-            put("id", entry.id)
-            put("payload", entry.payload)
-            put("ts", entry.ts)
-        }
-
-        override fun fromJson(obj: JSONObject): TestEntry? {
-            val id = obj.optString("id").takeIf { it.isNotBlank() } ?: return null
-            val payload = obj.optString("payload").takeIf { it.isNotBlank() } ?: return null
-            if (!obj.has("ts")) return null
-            return TestEntry(id = id, payload = payload, ts = obj.optLong("ts"))
-        }
+    @Serializable
+    private data class TestEntry(
+        val id: String,
+        val payload: String,
+        override val timestamp: Long
+    ) : PendingDeliveryStore.PendingDeliveryEntry {
+        override val key: String get() = id
     }
 
     private val timestamp = AtomicLong(1)
     private fun entry(id: String, payload: String = "p-$id"): TestEntry =
-        TestEntry(id = id, payload = payload, ts = timestamp.incrementAndGet())
+        TestEntry(id = id, payload = payload, timestamp = timestamp.incrementAndGet())
 
     private fun newStore(maxEntries: Int = PendingDeliveryStore.DEFAULT_MAX_ENTRIES) =
         PendingDeliveryStore(
             context = contextMock,
             fileName = fileName,
-            serializer = testSerializer,
+            elementSerializer = TestEntry.serializer(),
             logger = mockLogger,
             maxEntries = maxEntries
         ).also { it.removeAll() }
@@ -85,7 +75,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         store.append(keep)
         store.append(drop)
 
-        store.remove(drop.id)
+        store.remove(drop.key)
 
         val remaining = store.loadAll()
         remaining.size shouldBeEqualTo 1
@@ -111,7 +101,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         val r2 = entry("r2")
         listOf(r1, keep, r2).forEach { store.append(it) }
 
-        store.removeAll(listOf(r1.id, r2.id))
+        store.removeAll(listOf(r1.key, r2.key))
 
         store.loadAll() shouldBeEqualTo listOf(keep)
     }
@@ -146,7 +136,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
 
         // Mirror the handoff sequence: snapshot keys, then a fresh entry lands,
         // then removeAll(snapshottedKeys). The fresh entry must survive.
-        val snapshot = store.loadAll().map { it.id }
+        val snapshot = store.loadAll().map { it.key }
         val midFlush = entry("midflush")
         store.append(midFlush)
         store.removeAll(snapshot)
@@ -256,7 +246,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun append_givenSerializedContent_expectSerializerKeysPresent() {
+    fun append_givenSerializedContent_expectFieldsPresent() {
         val store = newStore()
         val e = entry(id = "serial", payload = "the-payload")
 
@@ -265,6 +255,6 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         val raw = storeFile().readText()
         raw shouldContain "\"id\":\"serial\""
         raw shouldContain "\"payload\":\"the-payload\""
-        raw shouldContain "\"ts\":"
+        raw shouldContain "\"timestamp\":"
     }
 }

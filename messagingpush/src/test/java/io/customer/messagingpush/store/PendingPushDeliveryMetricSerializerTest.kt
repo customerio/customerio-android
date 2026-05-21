@@ -1,24 +1,23 @@
 package io.customer.messagingpush.store
 
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import kotlinx.serialization.json.Json
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeNull
-import org.json.JSONObject
+import org.amshove.kluent.shouldContain
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
  * The generic disk-backed store is covered by `PendingDeliveryStoreTest` in
- * `core`. This file only checks the push-specific [PendingPushDeliveryMetric.Serializer]
- * roundtrip and the documented "skip malformed rows" contract — both are
- * push-specific behaviors that don't belong in a generic test.
- *
- * Robolectric is required because [JSONObject] is part of the Android runtime
- * and not present in plain JVM unit tests.
+ * `core`. This file pins the push-specific serialized shape: the JSON field
+ * stays named `deliveryId` for on-disk backward compatibility, and the
+ * computed `key` override is not part of the persisted payload.
  */
 @RunWith(RobolectricTestRunner::class)
 class PendingPushDeliveryMetricSerializerTest : IntegrationTest() {
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     @Test
     fun roundTrip_givenValidEntry_expectAllFieldsPreserved() {
@@ -28,64 +27,40 @@ class PendingPushDeliveryMetricSerializerTest : IntegrationTest() {
             timestamp = 1_700_000_000_000L
         )
 
-        val json = PendingPushDeliveryMetric.Serializer.toJson(original)
-        val read = PendingPushDeliveryMetric.Serializer.fromJson(json)
+        val encoded = json.encodeToString(PendingPushDeliveryMetric.serializer(), original)
+        val decoded = json.decodeFromString(PendingPushDeliveryMetric.serializer(), encoded)
 
-        read shouldBeEqualTo original
+        decoded shouldBeEqualTo original
     }
 
     @Test
-    fun fromJson_givenMissingDeliveryId_expectNull() {
-        val json = JSONObject().apply {
-            put("token", "t")
-            put("timestamp", 1L)
-        }
+    fun toJson_givenEntry_expectDeliveryIdFieldName() {
+        // The JSON-on-disk field is the domain term, not the generic "key". Renaming
+        // would break readers of any unflushed pending file written by a prior version.
+        val entry = PendingPushDeliveryMetric(
+            deliveryId = "d-1",
+            token = "t-1",
+            timestamp = 1L
+        )
 
-        PendingPushDeliveryMetric.Serializer.fromJson(json).shouldBeNull()
+        val encoded = json.encodeToString(PendingPushDeliveryMetric.serializer(), entry)
+
+        encoded shouldContain "\"deliveryId\":\"d-1\""
+        encoded shouldContain "\"token\":\"t-1\""
+        encoded shouldContain "\"timestamp\":1"
     }
 
     @Test
-    fun fromJson_givenBlankDeliveryId_expectNull() {
-        val json = JSONObject().apply {
-            put("deliveryId", "")
-            put("token", "t")
-            put("timestamp", 1L)
-        }
-
-        PendingPushDeliveryMetric.Serializer.fromJson(json).shouldBeNull()
-    }
-
-    @Test
-    fun fromJson_givenMissingToken_expectNull() {
-        val json = JSONObject().apply {
-            put("deliveryId", "d")
-            put("timestamp", 1L)
-        }
-
-        PendingPushDeliveryMetric.Serializer.fromJson(json).shouldBeNull()
-    }
-
-    @Test
-    fun fromJson_givenMissingTimestamp_expectNull() {
-        val json = JSONObject().apply {
-            put("deliveryId", "d")
-            put("token", "t")
-        }
-
-        PendingPushDeliveryMetric.Serializer.fromJson(json).shouldBeNull()
-    }
-
-    @Test
-    fun key_returnsDeliveryId() {
+    fun key_propertyExposesDeliveryId() {
         val entry = PendingPushDeliveryMetric(deliveryId = "d-1", token = "t", timestamp = 1L)
 
-        PendingPushDeliveryMetric.Serializer.key(entry) shouldBeEqualTo "d-1"
+        entry.key shouldBeEqualTo "d-1"
     }
 
     @Test
-    fun timestamp_returnsEntryTimestamp() {
+    fun timestamp_propertyExposesEntryTimestamp() {
         val entry = PendingPushDeliveryMetric(deliveryId = "d", token = "t", timestamp = 42L)
 
-        PendingPushDeliveryMetric.Serializer.timestamp(entry) shouldBeEqualTo 42L
+        entry.timestamp shouldBeEqualTo 42L
     }
 }

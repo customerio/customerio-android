@@ -148,21 +148,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenCachedConfigWithNonPositiveExpiry_expectFallbackToConstant() = runTest {
-        // Defense: a 0 or negative `remoteFetchRefreshExpiry` (bad server config)
-        // must NOT short-circuit the freshness check — falls back to the constant.
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
-        every { store.getCachedConfig() } returns sampleConfig(remoteFetchRefreshExpiry = 0L)
-
-        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
-
-        result.isSuccess shouldBeEqualTo true
-        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        verify { logger.logSyncSkippedFresh() }
-    }
-
-    @Test
     fun refresh_givenCachedConfigWithShorterExpiry_expectApiCallSooner() = runTest {
         // Symmetric case: shorter server window (1h) trips earlier than the
         // 24h constant. A sync 2h ago now triggers an API call.

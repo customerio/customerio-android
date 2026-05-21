@@ -84,11 +84,10 @@ internal class GeofenceRepositoryImpl(
             }
             val lastSync = store.getLastSyncTimestamp()
             if (lastSync != null) {
-                // Freshness window comes from the cached server config; falls back
-                // to STALE_THRESHOLD_MS when no cache exists or the value is
-                // non-positive (defensive against bad config).
+                // Freshness window from the cached server config; falls back to
+                // STALE_THRESHOLD_MS when no cache exists. Non-positive values
+                // are sanitized at parse time in GeofenceApiConfig.toDomain.
                 val threshold = store.getCachedConfig()?.remoteFetchRefreshExpiry
-                    ?.takeIf { it > 0 }
                     ?: GeofenceConstants.STALE_THRESHOLD_MS
                 if (clock.currentTimeMillis() - lastSync < threshold) {
                     // Cache fresh — if OS regs were wiped on sign-out, re-

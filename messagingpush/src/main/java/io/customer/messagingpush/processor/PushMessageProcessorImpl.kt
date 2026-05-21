@@ -10,8 +10,9 @@ import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
-import io.customer.messagingpush.store.PendingPushDeliveryStore
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.util.DeepLinkUtil
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
@@ -22,7 +23,7 @@ internal class PushMessageProcessorImpl(
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
-    private val pendingPushDeliveryStore: PendingPushDeliveryStore
+    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
 ) : PushMessageProcessor {
 
     /**
@@ -92,17 +93,21 @@ internal class PushMessageProcessorImpl(
             pushLogger.logTrackingPushMessageDelivered(deliveryId)
 
             // Persist a pending entry first so the metric can be replayed via the
-            // analytics pipeline at the next app launch if the primary delivery
-            // path fails. The entry is keyed by deliveryId; the scheduler /
-            // direct-HTTP fallback removes it on a successful response.
+            // analytics pipeline when the user next foregrounds the app, if the
+            // WorkManager job has not confirmed delivery by then. The entry is
+            // keyed by deliveryId; the worker (or direct-HTTP fallback) removes
+            // it on a successful response, otherwise the foreground handoff
+            // cancels the worker and publishes the entry via the analytics
+            // pipeline instead.
+            pushLogger.logPendingStoreAppended(deliveryId)
             pendingPushDeliveryStore.append(
-                deliveryId = deliveryId,
-                token = deliveryToken
+                PendingPushDeliveryMetric(
+                    deliveryId = deliveryId,
+                    token = deliveryToken,
+                    timestamp = System.currentTimeMillis()
+                )
             )
 
-            // WorkManager (or its direct-HTTP fallback) remains the primary
-            // delivery mechanism. The eventBus dual-emit was removed; the
-            // pending-store + launch-flush handles the analytics-pipeline path.
             deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
                 deliveryId = deliveryId,
                 deliveryToken = deliveryToken

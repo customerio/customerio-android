@@ -1,16 +1,27 @@
 package io.customer.messagingpush
 
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.WorkManager
+import androidx.work.await
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.pendingPushDeliveryStore
+import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
+import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
-import io.customer.messagingpush.store.PendingPushDeliveryStore
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.core.di.workManagerProvider
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
@@ -24,10 +35,14 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = SDKComponent.android().fcmTokenProvider
     private val pushTrackingUtil = SDKComponent.pushTrackingUtil
     private val activityLifecycleCallbacks = SDKComponent.activityLifecycleCallbacks
-    private val pendingPushDeliveryStore: PendingPushDeliveryStore
+    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
         get() = SDKComponent.pendingPushDeliveryStore
     private val dispatchers: DispatchersProvider
         get() = SDKComponent.dispatchersProvider
+    private val pushLogger: PushNotificationLogger
+        get() = SDKComponent.pushLogger
+    private val workManagerForCancel: WorkManager?
+        get() = SDKComponent.workManagerProvider.getWorkManager()
 
     override val moduleName: String
         get() = MODULE_NAME
@@ -35,7 +50,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     override fun initialize() {
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
-        flushPendingPushDeliveryMetrics()
+        observeProcessForeground()
     }
 
     private fun subscribeToLifecycleEvents() {
@@ -60,32 +75,94 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     }
 
     /**
-     * At app launch, drain any push-delivered metrics that were observed locally
-     * but never confirmed by the primary delivery path (WorkManager / direct
-     * HTTP). For each pending entry we publish a [Event.TrackPushMetricEvent] so
-     * the analytics pipeline can deliver it, then remove only the entries we
-     * actually loaded — entries appended mid-flush survive.
+     * Register a process-wide foreground listener. The push-delivery handoff
+     * fires on every foreground transition: WorkManager + direct HTTP is the
+     * only credible channel in FCM-woken background processes, but once the
+     * user opens the app the analytics pipeline (with foreground network and
+     * full Segment storage) becomes the better channel. Any entry still in
+     * the pending store at that point is handed off and its WorkManager job
+     * is cancelled so the two channels can't both deliver.
      *
-     * Disk I/O (the JSON read and targeted remove) MUST happen off the main
-     * thread, so the sequence is dispatched on the background dispatcher.
+     * ProcessLifecycleOwner is process-scoped, so observer state is held in
+     * the companion object. A repeat `initialize()` removes the prior
+     * observer before installing a new one — otherwise observers would
+     * accumulate and each ON_START would fire the handoff once per call to
+     * `initialize()`.
+     *
+     * ProcessLifecycleOwner.addObserver must be called on the main thread —
+     * if initialize() is invoked off-main, we post to the main looper first.
      */
-    private fun flushPendingPushDeliveryMetrics() {
+    private fun observeProcessForeground() {
+        val newObserver = LifecycleEventObserver { _: LifecycleOwner, event: Lifecycle.Event ->
+            if (event == Lifecycle.Event.ON_START) {
+                handoffPendingPushDeliveryToAnalyticsPipeline()
+            }
+        }
+        val attach = Runnable {
+            val processLifecycle = ProcessLifecycleOwner.get().lifecycle
+            foregroundObserver?.let { processLifecycle.removeObserver(it) }
+            foregroundObserver = newObserver
+            processLifecycle.addObserver(newObserver)
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            attach.run()
+        } else {
+            Handler(Looper.getMainLooper()).post(attach)
+        }
+    }
+
+    /**
+     * Snapshot the pending store, cancel each entry's WorkManager unique work
+     * so the worker won't also deliver, then publish each entry through the
+     * analytics pipeline. Removes only the snapshotted keys at the end so
+     * entries appended mid-handoff survive.
+     *
+     * Cancel happens before publish on purpose: a worker that is `ENQUEUED`
+     * or running flips to `CANCELLED` immediately and won't issue its HTTP
+     * call. Reversing the order would widen the window in which both
+     * channels can race to deliver the same metric.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun handoffPendingPushDeliveryToAnalyticsPipeline() {
         CoroutineScope(dispatchers.background).launch {
             runCatching {
                 val pending = pendingPushDeliveryStore.loadAll()
-                if (pending.isEmpty()) return@runCatching
+                if (pending.isEmpty()) {
+                    pushLogger.logForegroundSnapshot(count = 0)
+                    return@runCatching
+                }
+                pushLogger.logForegroundSnapshot(count = pending.size)
 
-                val flushedIds = pending.map { it.deliveryId }
+                val wm = workManagerForCancel
+                // Process each entry in isolation. WorkManager's cancelUniqueWork().await()
+                // can throw — if one entry's cancel fails we don't want to short-circuit
+                // the rest of the batch. Failed entries stay in the store so the next
+                // foreground transition retries them; only successfully-published keys
+                // are removed below.
+                val flushedIds = mutableListOf<String>()
                 pending.forEach { entry ->
-                    eventBus.publish(
-                        Event.TrackPushMetricEvent(
-                            event = Metric.Delivered,
-                            deliveryId = entry.deliveryId,
-                            deviceToken = entry.token
+                    try {
+                        if (wm != null) {
+                            wm.cancelUniqueWork(entry.deliveryId).await()
+                            pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
+                        }
+                        eventBus.publish(
+                            Event.TrackPushMetricEvent(
+                                event = Metric.Delivered,
+                                deliveryId = entry.deliveryId,
+                                deviceToken = entry.token
+                            )
                         )
-                    )
+                        pushLogger.logHandoffPublishedToEventBus(entry.deliveryId)
+                        flushedIds += entry.deliveryId
+                    } catch (ce: kotlinx.coroutines.CancellationException) {
+                        throw ce
+                    } catch (ex: Exception) {
+                        pushLogger.logHandoffEntryFailed(entry.deliveryId, ex)
+                    }
                 }
                 pendingPushDeliveryStore.removeAll(flushedIds)
+                pushLogger.logHandoffComplete(count = flushedIds.size)
             }
         }
     }
@@ -107,5 +184,13 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     companion object {
         internal const val MODULE_NAME = "MessagingPushFCM"
+
+        // Held statically because ProcessLifecycleOwner is process-scoped.
+        // Mutated only from the main thread inside `observeProcessForeground`
+        // — the attach Runnable always posts to the main looper if needed —
+        // so no additional synchronization is required.
+        @Volatile
+        @androidx.annotation.VisibleForTesting
+        internal var foregroundObserver: LifecycleEventObserver? = null
     }
 }

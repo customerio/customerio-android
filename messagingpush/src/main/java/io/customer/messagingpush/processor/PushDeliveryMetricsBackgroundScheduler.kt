@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushDeliveryTracker
+import io.customer.messagingpush.di.pushLogger
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.events.Metric
@@ -24,8 +25,8 @@ internal class PushDeliveryMetricsBackgroundScheduler(
 ) {
 
     companion object {
-        private const val WORK_MANAGER_TAG_CIO = "cio-requests"
-        private const val WORK_MANAGER_TAG_PUSH_DELIVERY = "cio-push-delivery"
+        internal const val WORK_MANAGER_TAG_CIO = "cio-requests"
+        internal const val WORK_MANAGER_TAG_PUSH_DELIVERY = "cio-push-delivery"
     }
 
     fun scheduleDeliveredPushMetricsReceipt(
@@ -48,10 +49,13 @@ internal class PushDeliveryMetricsBackgroundScheduler(
             .addTag(WORK_MANAGER_TAG_PUSH_DELIVERY)
             .build()
 
+        val logger = SDKComponent.pushLogger
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
             workManager.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)
+            logger.logWorkManagerEnqueued(deliveryId)
         } else {
+            logger.logWorkManagerUnavailableAsyncFallback(deliveryId)
             asyncPushDeliveryTracker.trackMetric(
                 token = deliveryToken,
                 event = Metric.Delivered.name,
@@ -74,6 +78,7 @@ internal class PushDeliveryMetricsWorker(
             return Result.failure()
         }
 
+        val logger = SDKComponent.pushLogger
         val result = SDKComponent.pushDeliveryTracker.trackMetric(
             event = Metric.Delivered.name,
             deliveryId = deliveryId,
@@ -84,10 +89,17 @@ internal class PushDeliveryMetricsWorker(
             result.isSuccess -> {
                 // Only clear the pending entry once the backend has confirmed receipt.
                 SDKComponent.pendingPushDeliveryStore.remove(deliveryId)
+                logger.logWorkerSuccessRemoved(deliveryId)
                 Result.success()
             }
-            result.exceptionOrNull() is IOException -> Result.retry()
-            else -> Result.failure()
+            result.exceptionOrNull() is IOException -> {
+                logger.logWorkerRetry(deliveryId, result.exceptionOrNull())
+                Result.retry()
+            }
+            else -> {
+                logger.logWorkerFailure(deliveryId, result.exceptionOrNull())
+                Result.failure()
+            }
         }
     }
 }

@@ -533,7 +533,9 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.identify(givenIdentifier)
 
-        outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 1
+        // The second identify with the same userId and no traits is deduped in this SDK session.
+        // See IdentifyDedupTests for the dedicated coverage of this behavior.
+        outputReaderPlugin.identifyEvents.count() shouldBeEqualTo 0
         outputReaderPlugin.trackEvents.count() shouldBeEqualTo 0
     }
 

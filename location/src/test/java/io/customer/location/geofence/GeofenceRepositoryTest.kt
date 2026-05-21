@@ -981,6 +981,42 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
     }
 
+    @Test
+    fun restoreFromCache_givenRefreshInFlight_expectStillRunsViaBootRestoreVariant() = runTest {
+        // After a reboot GMS is wiped but persisted registeredIds aren't, so a
+        // concurrent refresh would skip business as "unchanged" via the equality
+        // diff and leave GMS empty. Boot-restore must run regardless of the gate,
+        // via the no-diff replaceGeofencesForBootRestore.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getLastSyncTimestamp() } returns null
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            // Hold the refresh path long enough that restoreFromCache enters mid-flight.
+            delay(100)
+            Result.success(Unit)
+        }
+        coEvery { manager.replaceGeofencesForBootRestore(any()) } returns Result.success(Unit)
+
+        coroutineScope {
+            launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+            launch {
+                delay(20)
+                repository.restoreFromCache()
+            }
+        }
+
+        // Without the bypass, the gate would have deduped restoreFromCache and
+        // replaceGeofencesForBootRestore would never have been called.
+        coVerify { manager.replaceGeofencesForBootRestore(any()) }
+    }
+
     private fun sampleConfig(
         remoteFetchRefreshExpiry: Long = 86_400_000L
     ): GeofenceConfig = GeofenceConfig(

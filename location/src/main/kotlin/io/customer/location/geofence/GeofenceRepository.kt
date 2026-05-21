@@ -141,39 +141,36 @@ internal class GeofenceRepositoryImpl(
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     override suspend fun restoreFromCache(): Result<Unit> {
-        if (!refreshInProgress.compareAndSet(false, true)) {
-            logger.logSyncSkipped("refresh already in progress")
+        // Bypasses the in-flight gate: after a reboot, app-launch refresh's
+        // registerWithBusinessDiff would see persisted registeredIds matching
+        // the incoming set and skip business as "unchanged" — but GMS was wiped
+        // by the reboot. Boot-restore must still run via
+        // replaceGeofencesForBootRestore (no diff); stateMutex serializes the
+        // concurrent writes.
+        val userId = secureUserStore.getUserId()
+        if (userId.isNullOrBlank()) {
+            logger.logSyncSkipped("no identified user")
             return Result.success(Unit)
         }
-        try {
-            val userId = secureUserStore.getUserId()
-            if (userId.isNullOrBlank()) {
-                logger.logSyncSkipped("no identified user")
-                return Result.success(Unit)
-            }
-            // Prefer the most recent movement-trigger center as the effective
-            // location — it tracks Tier A drift and is much closer to the user's
-            // real position than the anchor (only updated on Tier B fetches).
-            // Fall back to the anchor if there's no movement-trigger location yet
-            // (older cache / first-ever boot restore).
-            val effectiveLocation = store.getLastMovementTriggerLocation()
-                ?: store.getLastApiFetchLocation()
-            if (effectiveLocation == null) {
-                logger.logSyncSkipped("no cached state to restore")
-                return Result.success(Unit)
-            }
-            val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
-            // Boot-restore variant — see [GeofenceManager.replaceGeofencesForBootRestore].
-            return performLocalRefresh(
-                userId = userId,
-                latitude = effectiveLocation.latitude,
-                longitude = effectiveLocation.longitude,
-                cachedConfig = cachedConfig,
-                register = manager::replaceGeofencesForBootRestore
-            )
-        } finally {
-            refreshInProgress.set(false)
+        // Prefer the most recent movement-trigger center as the effective
+        // location — it tracks Tier A drift and is much closer to the user's
+        // real position than the anchor (only updated on Tier B fetches).
+        // Fall back to the anchor if there's no movement-trigger location yet
+        // (older cache / first-ever boot restore).
+        val effectiveLocation = store.getLastMovementTriggerLocation()
+            ?: store.getLastApiFetchLocation()
+        if (effectiveLocation == null) {
+            logger.logSyncSkipped("no cached state to restore")
+            return Result.success(Unit)
         }
+        val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
+        return performLocalRefresh(
+            userId = userId,
+            latitude = effectiveLocation.latitude,
+            longitude = effectiveLocation.longitude,
+            cachedConfig = cachedConfig,
+            register = manager::replaceGeofencesForBootRestore
+        )
     }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])

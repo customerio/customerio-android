@@ -16,6 +16,7 @@ import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -52,8 +53,21 @@ internal val SDKComponent.deepLinkUtil: DeepLinkUtil
 val SDKComponent.pushTrackingUtil: PushTrackingUtil
     get() = newInstance<PushTrackingUtil> { PushTrackingUtilImpl() }
 
+internal val SDKComponent.pendingPushDeliveryStore: PendingPushDeliveryStore
+    get() = singleton<PendingPushDeliveryStore> {
+        PendingPushDeliveryStore(
+            context = android().applicationContext,
+            logger = logger
+        )
+    }
+
 internal val SDKComponent.asyncPushDeliveryTracker: AsyncPushDeliveryTracker
-    get() = singleton<AsyncPushDeliveryTracker> { AsyncPushDeliveryTracker(pushDeliveryTracker) }
+    get() = singleton<AsyncPushDeliveryTracker> {
+        AsyncPushDeliveryTracker(
+            deliveryTracker = pushDeliveryTracker,
+            pendingStore = pendingPushDeliveryStore
+        )
+    }
 
 internal val SDKComponent.deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler
     get() = singleton<PushDeliveryMetricsBackgroundScheduler> { PushDeliveryMetricsBackgroundScheduler(workManagerProvider, asyncPushDeliveryTracker) }
@@ -64,7 +78,8 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             pushLogger = pushLogger,
             moduleConfig = pushModuleConfig,
             deepLinkUtil = deepLinkUtil,
-            deliveryMetricsScheduler = deliveryMetricsScheduler
+            deliveryMetricsScheduler = deliveryMetricsScheduler,
+            pendingPushDeliveryStore = pendingPushDeliveryStore
         )
     }
 

@@ -66,7 +66,11 @@ class PushDeliveryMetricsBackgroundSchedulerTest : JUnitTest() {
         }
 
         verify(exactly = 1) {
-            mockAsyncPushDeliveryTracker.trackMetric(deliveryToken, Metric.Delivered.name, deliveryId)
+            mockAsyncPushDeliveryTracker.trackMetric(
+                token = deliveryToken,
+                event = Metric.Delivered.name,
+                deliveryId = deliveryId
+            )
         }
     }
 

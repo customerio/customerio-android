@@ -8,6 +8,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import io.customer.messagingpush.AsyncPushDeliveryTracker
+import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
@@ -27,7 +28,10 @@ internal class PushDeliveryMetricsBackgroundScheduler(
         private const val WORK_MANAGER_TAG_PUSH_DELIVERY = "cio-push-delivery"
     }
 
-    fun scheduleDeliveredPushMetricsReceipt(deliveryId: String, deliveryToken: String) {
+    fun scheduleDeliveredPushMetricsReceipt(
+        deliveryId: String,
+        deliveryToken: String
+    ) {
         val input = Data.Builder()
             .putString(DELIVERY_ID, deliveryId)
             .putString(DELIVERY_TOKEN, deliveryToken)
@@ -48,7 +52,11 @@ internal class PushDeliveryMetricsBackgroundScheduler(
         if (workManager != null) {
             workManager.enqueueUniqueWork(deliveryId, ExistingWorkPolicy.KEEP, workRequest)
         } else {
-            asyncPushDeliveryTracker.trackMetric(deliveryToken, Metric.Delivered.name, deliveryId)
+            asyncPushDeliveryTracker.trackMetric(
+                token = deliveryToken,
+                event = Metric.Delivered.name,
+                deliveryId = deliveryId
+            )
         }
     }
 }
@@ -73,7 +81,11 @@ internal class PushDeliveryMetricsWorker(
         )
 
         return when {
-            result.isSuccess -> Result.success()
+            result.isSuccess -> {
+                // Only clear the pending entry once the backend has confirmed receipt.
+                SDKComponent.pendingPushDeliveryStore.remove(deliveryId)
+                Result.success()
+            }
             result.exceptionOrNull() is IOException -> Result.retry()
             else -> Result.failure()
         }

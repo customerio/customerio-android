@@ -6,11 +6,13 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
 import io.customer.messagingpush.PushDeliveryTracker
+import io.customer.messagingpush.store.PendingPushDeliveryStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.events.Metric
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -25,6 +27,7 @@ import org.robolectric.RobolectricTestRunner
 class PushDeliveryMetricsWorkerTest : IntegrationTest() {
 
     private val mockPushDeliveryTracker = mockk<PushDeliveryTracker>(relaxed = true)
+    private val mockPendingStore = mockk<PendingPushDeliveryStore>(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -32,6 +35,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
                 diGraph {
                     sdk {
                         overrideDependency<PushDeliveryTracker>(mockPushDeliveryTracker)
+                        overrideDependency<PendingPushDeliveryStore>(mockPendingStore)
                     }
                 }
             }
@@ -405,6 +409,56 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
     }
 
     @Test
+    fun doWork_givenHttpSuccess_expectPendingEntryRemovedByDeliveryId() = runTest {
+        val deliveryId = String.random
+        val deliveryToken = String.random
+        val inputData = createInputData(deliveryId, deliveryToken)
+
+        coEvery {
+            mockPushDeliveryTracker.trackMetric(any(), any(), any())
+        } returns Result.success(Unit)
+
+        val worker = createWorker(inputData)
+        val result = worker.doWork()
+
+        result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
+
+        verify(exactly = 1) { mockPendingStore.remove(deliveryId) }
+    }
+
+    @Test
+    fun doWork_givenHttpFailure_expectPendingEntryPreserved() = runTest {
+        val deliveryId = String.random
+        val deliveryToken = String.random
+        val inputData = createInputData(deliveryId, deliveryToken)
+
+        coEvery {
+            mockPushDeliveryTracker.trackMetric(any(), any(), any())
+        } returns Result.failure(IllegalStateException("boom"))
+
+        val worker = createWorker(inputData)
+        worker.doWork()
+
+        verify(exactly = 0) { mockPendingStore.remove(any()) }
+    }
+
+    @Test
+    fun doWork_givenHttpRetryableFailure_expectPendingEntryPreserved() = runTest {
+        val deliveryId = String.random
+        val deliveryToken = String.random
+        val inputData = createInputData(deliveryId, deliveryToken)
+
+        coEvery {
+            mockPushDeliveryTracker.trackMetric(any(), any(), any())
+        } returns Result.failure(IOException("retry me"))
+
+        val worker = createWorker(inputData)
+        worker.doWork()
+
+        verify(exactly = 0) { mockPendingStore.remove(any()) }
+    }
+
+    @Test
     fun doWork_givenMetricConstantValue_expectCorrectMetricPassed() = runTest {
         val deliveryId = String.random
         val deliveryToken = String.random
@@ -427,7 +481,10 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         }
     }
 
-    private fun createInputData(deliveryId: String?, deliveryToken: String?): Data {
+    private fun createInputData(
+        deliveryId: String?,
+        deliveryToken: String?
+    ): Data {
         val builder = Data.Builder()
         deliveryId?.let { builder.putString("delivery-id", it) }
         deliveryToken?.let { builder.putString("delivery-token", it) }

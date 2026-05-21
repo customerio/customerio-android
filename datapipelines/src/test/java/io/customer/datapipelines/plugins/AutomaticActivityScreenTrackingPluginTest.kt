@@ -106,60 +106,33 @@ class AutomaticActivityScreenTrackingPluginTest : JUnitTest() {
     }
 
     @Test
-    fun onActivityStarted_concurrent_isThreadSafe() {
-        // Mirrors the style of ConcurrentScreenViewTest.verifyScreenMethodIsThreadSafe:
-        // multiple threads fire onActivityStarted simultaneously, then we assert the
-        // dedup guard remained internally consistent under contention.
-        val threadCount = 5
-        val eventsPerThread = 3
-        val totalUniqueScreens = threadCount * eventsPerThread
+    fun onActivityStarted_givenSameNameAcrossThreads_emitsOnce() {
+        // Probes the @Synchronized guard on shouldSkipDuplicate by hammering the same
+        // name from many threads at once. Without the guard, the read-compare-write on
+        // lastScreenTracked races: two threads can both observe lastScreenTracked != name,
+        // both decide "not duplicate", both emit. With the guard, exactly one emission
+        // wins regardless of contention.
+        val threadCount = 16
+        val callsPerThread = 50
+        val sharedActivity = activityForScreen("Home")
 
-        val readyLatch = CountDownLatch(threadCount)
         val startLatch = CountDownLatch(1)
-        val completionLatch = CountDownLatch(totalUniqueScreens)
+        val doneLatch = CountDownLatch(threadCount)
         val executor = Executors.newFixedThreadPool(threadCount)
 
-        repeat(threadCount) { threadId ->
+        repeat(threadCount) {
             executor.submit {
-                readyLatch.countDown()
                 startLatch.await()
-                repeat(eventsPerThread) { eventIndex ->
-                    val screenName = "Screen_${eventIndex}_Thread_$threadId"
-                    plugin.onActivityStarted(activityForScreen(screenName))
-                    // Fire the same screen again — the dedup guard must collapse this
-                    // when it remains the "last tracked" on this plugin instance, but
-                    // interleaved threads may race; the invariant is "each unique name
-                    // emits at least once and the bus never sees an inconsistent state".
-                    plugin.onActivityStarted(activityForScreen(screenName))
-                    completionLatch.countDown()
-                    Thread.sleep(10)
-                }
+                repeat(callsPerThread) { plugin.onActivityStarted(sharedActivity) }
+                doneLatch.countDown()
             }
         }
 
-        assertTrue(readyLatch.await(5, TimeUnit.SECONDS))
         startLatch.countDown()
-        assertTrue(completionLatch.await(10, TimeUnit.SECONDS))
+        assertTrue(doneLatch.await(10, TimeUnit.SECONDS))
         executor.shutdown()
         executor.awaitTermination(1, TimeUnit.SECONDS)
 
-        val expectedScreenNames = mutableSetOf<String>()
-        repeat(threadCount) { threadId ->
-            repeat(eventsPerThread) { eventIndex ->
-                expectedScreenNames.add("Screen_${eventIndex}_Thread_$threadId")
-            }
-        }
-
-        val emitted = publishedScreenNames()
-        // Each unique screen name must appear at least once. Same-name back-to-back calls
-        // are deduped by the guard, but interleaving from other threads can change the
-        // "last tracked" value between the two same-name calls on a given thread, so
-        // we don't constrain the upper bound here — the threadsafe guarantee under test
-        // is structural integrity (no exceptions, no lost names).
-        assertEquals(expectedScreenNames, emitted.toSet())
-        assertTrue(
-            emitted.size in totalUniqueScreens..(totalUniqueScreens * 2),
-            "emitted=${emitted.size} expected between $totalUniqueScreens and ${totalUniqueScreens * 2}"
-        )
+        assertEquals(listOf("Home"), publishedScreenNames())
     }
 }

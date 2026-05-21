@@ -114,7 +114,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         // because background-process network conditions make WorkManager the only
         // credible channel.
         every { mockPendingStore.loadAll() } returns listOf(
-            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1", timestamp = 1L)
+            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1")
         )
 
         module.initialize()
@@ -127,8 +127,8 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     @Test
     fun handoff_givenPendingEntries_expectCancelThenPublishThenRemoveAll() = runTest {
         val entries = listOf(
-            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1", timestamp = 1L),
-            PendingPushDeliveryMetric(deliveryId = "d2", token = "t2", timestamp = 2L)
+            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1"),
+            PendingPushDeliveryMetric(deliveryId = "d2", token = "t2")
         )
         every { mockPendingStore.loadAll() } returns entries
 
@@ -178,7 +178,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         // fire either — emitting it would mislead anyone debugging handoff via logs.
         every { mockWorkManagerProvider.getWorkManager() } returns null
         val entries = listOf(
-            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1", timestamp = 1L)
+            PendingPushDeliveryMetric(deliveryId = "d1", token = "t1")
         )
         every { mockPendingStore.loadAll() } returns entries
 
@@ -206,8 +206,8 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         // entry must stay in the store so the next foreground retries it
         // (publishing now without a successful cancel would risk double delivery).
         val entries = listOf(
-            PendingPushDeliveryMetric(deliveryId = "boom", token = "t1", timestamp = 1L),
-            PendingPushDeliveryMetric(deliveryId = "ok", token = "t2", timestamp = 2L)
+            PendingPushDeliveryMetric(deliveryId = "boom", token = "t1"),
+            PendingPushDeliveryMetric(deliveryId = "ok", token = "t2")
         )
         every { mockPendingStore.loadAll() } returns entries
         val failingOperation: Operation = mockk(relaxed = true) {

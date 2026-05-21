@@ -61,10 +61,16 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
             if (!screenName.isNullOrBlank()) {
                 // Dedup by name only (case-sensitive), parity with iOS.
                 if (isDuplicateScreen(screenName)) return
-                runCatching { CustomerIO.instance().screen(screenName) }.onFailure { analytics.screen(screenName) }
-                // Mark only after the emission attempt so a thrown emit doesn't silently swallow
-                // the next same-name screen.
-                markScreenTracked(screenName)
+                // Mark only when the emit actually succeeds — if both the SDK call and the
+                // analytics fallback throw, the screen wasn't delivered and the next
+                // same-name screen must not be silently deduped.
+                runCatching {
+                    CustomerIO.instance().screen(screenName)
+                    markScreenTracked(screenName)
+                }.onFailure {
+                    analytics.screen(screenName)
+                    markScreenTracked(screenName)
+                }
             }
         } catch (e: PackageManager.NameNotFoundException) {
             logger.error(e.message ?: "Unable to activity screen NameNotFoundException, $activity")

@@ -134,24 +134,33 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                 pushLogger.logForegroundSnapshot(count = pending.size)
 
                 val wm = workManagerForCancel
+                // Process each entry in isolation. WorkManager's cancelUniqueWork().await()
+                // can throw — if one entry's cancel fails we don't want to short-circuit
+                // the rest of the batch. Failed entries stay in the store so the next
+                // foreground transition retries them; only successfully-published keys
+                // are removed below.
+                val flushedIds = mutableListOf<String>()
                 pending.forEach { entry ->
-                    // Only log "cancelled WM" when there's actually a WorkManager to
-                    // cancel against; the async-tracker schedule path leaves no work
-                    // for cancelUniqueWork to act on.
-                    if (wm != null) {
-                        wm.cancelUniqueWork(entry.deliveryId).await()
-                        pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
-                    }
-                    eventBus.publish(
-                        Event.TrackPushMetricEvent(
-                            event = Metric.Delivered,
-                            deliveryId = entry.deliveryId,
-                            deviceToken = entry.token
+                    try {
+                        if (wm != null) {
+                            wm.cancelUniqueWork(entry.deliveryId).await()
+                            pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
+                        }
+                        eventBus.publish(
+                            Event.TrackPushMetricEvent(
+                                event = Metric.Delivered,
+                                deliveryId = entry.deliveryId,
+                                deviceToken = entry.token
+                            )
                         )
-                    )
-                    pushLogger.logHandoffPublishedToEventBus(entry.deliveryId)
+                        pushLogger.logHandoffPublishedToEventBus(entry.deliveryId)
+                        flushedIds += entry.deliveryId
+                    } catch (ce: kotlinx.coroutines.CancellationException) {
+                        throw ce
+                    } catch (ex: Exception) {
+                        pushLogger.logHandoffEntryFailed(entry.deliveryId, ex)
+                    }
                 }
-                val flushedIds = pending.map { it.deliveryId }
                 pendingPushDeliveryStore.removeAll(flushedIds)
                 pushLogger.logHandoffComplete(count = flushedIds.size)
             }

@@ -59,7 +59,7 @@ internal val SDKComponent.pendingPushDeliveryStore: PendingDeliveryStore<Pending
         PendingDeliveryStore(
             context = android().applicationContext,
             fileName = PendingPushDeliveryMetric.FILE_NAME,
-            serializer = PendingPushDeliveryMetric.Serializer,
+            elementSerializer = PendingPushDeliveryMetric.serializer(),
             logger = logger
         )
     }

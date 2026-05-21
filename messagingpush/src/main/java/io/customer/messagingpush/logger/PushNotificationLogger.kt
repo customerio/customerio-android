@@ -82,6 +82,14 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logHandoffEntryFailed(deliveryId: String, throwable: Throwable) {
+        logger.error(
+            tag = HANDOFF_TAG,
+            message = "handoff entry failed key=$deliveryId cause=${throwable.javaClass.simpleName}",
+            throwable = throwable
+        )
+    }
+
     fun logGooglePlayServicesAvailable() {
         logger.debug(
             tag = TAG,

@@ -21,16 +21,18 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.logger.PushNotificationLogger
-import io.customer.messagingpush.store.PendingPushDeliveryStore
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
@@ -47,7 +49,7 @@ class PushMessageProcessorTest : IntegrationTest() {
     private lateinit var eventBus: EventBus
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
     private val mockDeliveryMetricsScheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
-    private val mockPendingStore = mockk<PendingPushDeliveryStore>(relaxed = true)
+    private val mockPendingStore = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
         return SDKComponent.pushMessageProcessor as PushMessageProcessorImpl
@@ -62,7 +64,7 @@ class PushMessageProcessorTest : IntegrationTest() {
                         overrideDependency<EventBus>(mockk(relaxed = true))
                         overrideDependency<PushNotificationLogger>(mockPushLogger)
                         overrideDependency<PushDeliveryMetricsBackgroundScheduler>(mockDeliveryMetricsScheduler)
-                        overrideDependency<PendingPushDeliveryStore>(mockPendingStore)
+                        overrideDependency<PendingDeliveryStore<PendingPushDeliveryMetric>>(mockPendingStore)
                     }
                 }
             }
@@ -242,7 +244,7 @@ class PushMessageProcessorTest : IntegrationTest() {
             mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
         }
         verify(exactly = 0) {
-            mockPendingStore.append(any(), any())
+            mockPendingStore.append(any<PendingPushDeliveryMetric>())
         }
     }
 
@@ -268,14 +270,15 @@ class PushMessageProcessorTest : IntegrationTest() {
         // The initial delivery path no longer dual-emits via the event bus; the
         // pending store + WorkManager (or fallback) carry the metric to the
         // backend, and the analytics-pipeline emission happens at the next
-        // launch flush from `ModuleMessagingPushFCM.initialize()`.
+        // foreground transition via the handoff.
         verify(exactly = 0) {
             eventBus.publish(any<Event.TrackPushMetricEvent>())
         }
 
-        verify(exactly = 1) {
-            mockPendingStore.append(givenDeliveryId, givenDeviceToken)
-        }
+        val appendedSlot = slot<PendingPushDeliveryMetric>()
+        verify(exactly = 1) { mockPendingStore.append(capture(appendedSlot)) }
+        appendedSlot.captured.deliveryId shouldBeEqualTo givenDeliveryId
+        appendedSlot.captured.token shouldBeEqualTo givenDeviceToken
 
         verify(exactly = 1) {
             mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
@@ -303,7 +306,7 @@ class PushMessageProcessorTest : IntegrationTest() {
             mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any())
         }
         verify(exactly = 0) {
-            mockPendingStore.append(any(), any())
+            mockPendingStore.append(any<PendingPushDeliveryMetric>())
         }
     }
 
@@ -343,9 +346,10 @@ class PushMessageProcessorTest : IntegrationTest() {
             eventBus.publish(any<Event.TrackPushMetricEvent>())
         }
 
-        verify(exactly = 1) {
-            mockPendingStore.append(givenDeliveryId, givenDeviceToken)
-        }
+        val appendedSlot = slot<PendingPushDeliveryMetric>()
+        verify(exactly = 1) { mockPendingStore.append(capture(appendedSlot)) }
+        appendedSlot.captured.deliveryId shouldBeEqualTo givenDeliveryId
+        appendedSlot.captured.token shouldBeEqualTo givenDeviceToken
 
         verify(exactly = 1) {
             mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(

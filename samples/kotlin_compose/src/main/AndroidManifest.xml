@@ -59,6 +59,20 @@
             android:exported="false"
             android:label="Inline Examples (Tabs)"
             android:theme="@style/Theme.CustomerioSDK.NoActionBar" />
+
+        <!--
+            Dev-only test harness for the push handoff verification scenarios.
+            Wakes the process when sent via `adb shell am broadcast` and drives
+            the production processRemoteMessageDeliveredMetrics() path so logs
+            from a cold-start FCM-style delivery can be observed.
+        -->
+        <receiver
+            android:name=".util.SimulatePushDeliveryReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.customer.sample.SIMULATE_PUSH_DELIVERY" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

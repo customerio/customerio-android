@@ -4,7 +4,8 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
-import io.customer.messagingpush.store.PendingPushDeliveryStore
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
@@ -27,7 +28,7 @@ class PushDeliveryTrackingTest : IntegrationTest() {
 
     private val httpClient: CustomerIOHttpClient = mockk(relaxed = true)
     private val pushDeliveryTracker = PushDeliveryTrackerImpl()
-    private val mockPendingStore: PendingPushDeliveryStore = mockk(relaxed = true)
+    private val mockPendingStore: PendingDeliveryStore<PendingPushDeliveryMetric> = mockk(relaxed = true)
     private val mockDeliveryTracker: PushDeliveryTracker = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {

@@ -6,8 +6,9 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
 import io.customer.messagingpush.PushDeliveryTracker
-import io.customer.messagingpush.store.PendingPushDeliveryStore
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -27,7 +28,7 @@ import org.robolectric.RobolectricTestRunner
 class PushDeliveryMetricsWorkerTest : IntegrationTest() {
 
     private val mockPushDeliveryTracker = mockk<PushDeliveryTracker>(relaxed = true)
-    private val mockPendingStore = mockk<PendingPushDeliveryStore>(relaxed = true)
+    private val mockPendingStore = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -35,7 +36,7 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
                 diGraph {
                     sdk {
                         overrideDependency<PushDeliveryTracker>(mockPushDeliveryTracker)
-                        overrideDependency<PendingPushDeliveryStore>(mockPendingStore)
+                        overrideDependency<PendingDeliveryStore<PendingPushDeliveryMetric>>(mockPendingStore)
                     }
                 }
             }

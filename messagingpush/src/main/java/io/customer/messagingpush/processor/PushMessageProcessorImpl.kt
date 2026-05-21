@@ -12,10 +12,10 @@ import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.util.DeepLinkUtil
-import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(

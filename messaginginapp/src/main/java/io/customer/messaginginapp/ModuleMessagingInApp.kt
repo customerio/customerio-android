@@ -13,6 +13,8 @@ import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.events.Metric
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class ModuleMessagingInApp(
     config: MessagingInAppModuleConfig
@@ -24,6 +26,14 @@ class ModuleMessagingInApp(
     private val gistProvider: GistProvider
         get() = SDKComponent.gistProvider
     private val logger = SDKComponent.logger
+
+    // Per-session set of deliveryIDs whose `Opened` metric has already been published.
+    // Used to dedupe `onMessageShown` emissions so the same in-app view does not produce
+    // multiple `TrackInAppMetricEvent`s within a single SDK process lifetime.
+    // Lifetime: scoped to this `ModuleMessagingInApp` instance (per-process). No persistence.
+    // Mirrors iOS `GistDelegateImpl` behavior — see Phase 1 PR 2.
+    private val shownDeliveryIdsLock = ReentrantLock()
+    private val shownDeliveryIds = mutableSetOf<String>()
 
     /**
      * Access the inbox messages instance for managing user inbox messages.
@@ -87,6 +97,17 @@ class ModuleMessagingInApp(
         moduleConfig.eventListener?.messageShown(InAppMessage.getFromGistMessage(message))
 
         message.gistProperties.campaignId?.let { deliveryID ->
+            // Dedupe `Opened` metric emission per-deliveryID for this session. Host UI
+            // side-effects (eventListener.messageShown above) still fire on every call —
+            // only the analytics publish is suppressed on duplicates. See PR 6 in
+            // binary-tinkering-treasure-phase1.md.
+            val isFirstShown = shownDeliveryIdsLock.withLock {
+                shownDeliveryIds.add(deliveryID)
+            }
+            if (!isFirstShown) {
+                logger.debug("In-app message shown again with deliveryId $deliveryID — skipping duplicate metric publish")
+                return
+            }
             logger.debug("In-app message shown with deliveryId $deliveryID")
             eventBus.publish(
                 Event.TrackInAppMetricEvent(

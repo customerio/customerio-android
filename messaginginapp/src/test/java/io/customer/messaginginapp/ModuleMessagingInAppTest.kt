@@ -277,6 +277,100 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         }
     }
 
+    @Test
+    fun onMessageShown_givenSameDeliveryIdCalledTwice_expectOnePublish() {
+        val message = createInAppMessage(campaignId = "test_campaign_id")
+        val inAppMessage = InAppMessage(
+            messageId = message.messageId,
+            deliveryId = "test_campaign_id",
+            queueId = message.queueId
+        )
+
+        mockkObject(InAppMessage.Companion)
+        every { InAppMessage.getFromGistMessage(any()) } returns inAppMessage
+
+        module.initialize()
+        module.onMessageShown(message)
+        module.onMessageShown(message)
+
+        // eventListener.messageShown still fires on every call — host UI side-effects must remain unaffected.
+        verify(exactly = 2) {
+            inAppEventListenerMock.messageShown(inAppMessage)
+        }
+        // The TrackInAppMetricEvent should only be published once for the same deliveryID.
+        verify(exactly = 1) {
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = "test_campaign_id",
+                    event = Metric.Opened
+                )
+            )
+        }
+    }
+
+    @Test
+    fun onMessageShown_givenDifferentDeliveryIds_expectTwoPublishes() {
+        val firstMessage = createInAppMessage(campaignId = "campaign_one")
+        val secondMessage = createInAppMessage(campaignId = "campaign_two")
+        val firstInAppMessage = InAppMessage(
+            messageId = firstMessage.messageId,
+            deliveryId = "campaign_one",
+            queueId = firstMessage.queueId
+        )
+        val secondInAppMessage = InAppMessage(
+            messageId = secondMessage.messageId,
+            deliveryId = "campaign_two",
+            queueId = secondMessage.queueId
+        )
+
+        mockkObject(InAppMessage.Companion)
+        every { InAppMessage.getFromGistMessage(firstMessage) } returns firstInAppMessage
+        every { InAppMessage.getFromGistMessage(secondMessage) } returns secondInAppMessage
+
+        module.initialize()
+        module.onMessageShown(firstMessage)
+        module.onMessageShown(secondMessage)
+
+        verify(exactly = 1) {
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = "campaign_one",
+                    event = Metric.Opened
+                )
+            )
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = "campaign_two",
+                    event = Metric.Opened
+                )
+            )
+        }
+    }
+
+    @Test
+    fun onMessageShown_givenNullDeliveryId_doesNotCrashAndDoesNotPublish() {
+        val message = createInAppMessage(campaignId = null)
+        val inAppMessage = InAppMessage(
+            messageId = message.messageId,
+            deliveryId = null,
+            queueId = message.queueId
+        )
+
+        mockkObject(InAppMessage.Companion)
+        every { InAppMessage.getFromGistMessage(any()) } returns inAppMessage
+
+        module.initialize()
+        // Calling twice asserts both the no-crash contract and that the null-guard short-circuits
+        // before the dedup set is touched.
+        module.onMessageShown(message)
+        module.onMessageShown(message)
+
+        verify(exactly = 2) { inAppEventListenerMock.messageShown(inAppMessage) }
+        verify(exactly = 0) {
+            eventBus.publish(any<Event.TrackInAppMetricEvent>())
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun onAction_givenCloseAction_expectNoTrackInAppMetricEventPublished() = runTest {

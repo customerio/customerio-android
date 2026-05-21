@@ -25,16 +25,17 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
     private val logger: Logger = SDKComponent.logger
 
     // Last screen name emitted by this plugin instance. Guarded by `@Synchronized` on
-    // the dedup helper below — the codebase idiom (see CustomerIO.createInstance,
+    // the dedup helpers below — the codebase idiom (see CustomerIO.createInstance,
     // IdentifyHookRegistry, PreferenceCrypto) is `@Synchronized` rather than ReentrantLock.
     // Scope: per-plugin-instance, lifetime of the process; not persisted across launches.
     private var lastScreenTracked: String? = null
 
     @Synchronized
-    private fun shouldSkipDuplicate(screenName: String): Boolean {
-        if (lastScreenTracked == screenName) return true
+    private fun isDuplicateScreen(screenName: String): Boolean = lastScreenTracked == screenName
+
+    @Synchronized
+    private fun markScreenTracked(screenName: String) {
         lastScreenTracked = screenName
-        return false
     }
 
     override fun onActivityStarted(activity: Activity?) {
@@ -59,8 +60,11 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
             // If screen name is null or blank, we do not track the screen
             if (!screenName.isNullOrBlank()) {
                 // Dedup by name only (case-sensitive), parity with iOS.
-                if (shouldSkipDuplicate(screenName)) return
+                if (isDuplicateScreen(screenName)) return
                 runCatching { CustomerIO.instance().screen(screenName) }.onFailure { analytics.screen(screenName) }
+                // Mark only after the emission attempt so a thrown emit doesn't silently swallow
+                // the next same-name screen.
+                markScreenTracked(screenName)
             }
         } catch (e: PackageManager.NameNotFoundException) {
             logger.error(e.message ?: "Unable to activity screen NameNotFoundException, $activity")

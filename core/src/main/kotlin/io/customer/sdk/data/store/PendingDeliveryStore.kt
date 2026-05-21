@@ -54,10 +54,6 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val file: File = File(context.applicationContext.filesDir, fileName)
     private val lock = ReentrantLock()
     private val listSerializer = ListSerializer(elementSerializer)
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
 
     /** Append a new entry, evicting the head if the store is at capacity. */
     fun append(entry: T) {
@@ -116,7 +112,7 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         return try {
             val text = file.readText()
             if (text.isBlank()) return emptyList()
-            json.decodeFromString(listSerializer, text)
+            Json.decodeFromString(listSerializer, text)
         } catch (ex: Exception) {
             logger.error(
                 "Failed to read pending delivery store ${file.name}; treating as empty",
@@ -129,7 +125,7 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
 
     private fun writeAll(entries: List<T>) {
         try {
-            file.writeText(json.encodeToString(listSerializer, entries))
+            file.writeText(Json.encodeToString(listSerializer, entries))
         } catch (ex: Exception) {
             logger.error(
                 "Failed to write pending delivery store ${file.name}",

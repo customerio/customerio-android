@@ -6,7 +6,6 @@ import io.mockk.mockk
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
@@ -25,15 +24,13 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     @Serializable
     private data class TestEntry(
         val id: String,
-        val payload: String,
-        override val timestamp: Long
+        val payload: String
     ) : PendingDeliveryStore.PendingDeliveryEntry {
         override val key: String get() = id
     }
 
-    private val timestamp = AtomicLong(1)
     private fun entry(id: String, payload: String = "p-$id"): TestEntry =
-        TestEntry(id = id, payload = payload, timestamp = timestamp.incrementAndGet())
+        TestEntry(id = id, payload = payload)
 
     private fun newStore(maxEntries: Int = PendingDeliveryStore.DEFAULT_MAX_ENTRIES) =
         PendingDeliveryStore(
@@ -161,7 +158,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun append_givenOverCapacity_expectOldestByTimestampDropped() {
+    fun append_givenOverCapacity_expectHeadOfInsertionOrderDropped() {
         val cap = 5
         val store = newStore(maxEntries = cap)
         val first = entry("first")
@@ -180,7 +177,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
 
         val afterOverflow = store.loadAll()
         afterOverflow.size shouldBeEqualTo cap
-        // Smallest-timestamp entry (first) must have been dropped.
+        // FIFO eviction: the oldest entry (head of the insertion order) is dropped.
         afterOverflow.none { it.id == first.id }.shouldBeTrue()
         afterOverflow.first() shouldBeEqualTo second
         afterOverflow.last() shouldBeEqualTo last
@@ -255,6 +252,5 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         val raw = storeFile().readText()
         raw shouldContain "\"id\":\"serial\""
         raw shouldContain "\"payload\":\"the-payload\""
-        raw shouldContain "\"timestamp\":"
     }
 }

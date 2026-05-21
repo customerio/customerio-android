@@ -42,15 +42,13 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
 ) {
     /**
      * Shape contract every entry must satisfy. The store relies on [key]
-     * to filter on remove and [timestamp] to evict the oldest entry on
-     * overflow.
+     * to filter on remove. Eviction order is insertion order — the store
+     * appends to the tail and drops from the head when at capacity, so
+     * no timestamp field is required from the entry.
      */
     interface PendingDeliveryEntry {
         /** Stable dedup key for [remove]/[removeAll]. Must be unique per entry. */
         val key: String
-
-        /** Epoch-millis timestamp used to evict the oldest entry on overflow. */
-        val timestamp: Long
     }
 
     private val file: File = File(context.applicationContext.filesDir, fileName)
@@ -61,14 +59,13 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         encodeDefaults = true
     }
 
-    /** Append a new entry, evicting the oldest if the store is at capacity. */
+    /** Append a new entry, evicting the head if the store is at capacity. */
     fun append(entry: T) {
         lock.withLock {
             val entries = readAll().toMutableList()
             entries.add(entry)
             while (entries.size > maxEntries) {
-                val oldestIndex = entries.indices.minBy { entries[it].timestamp }
-                entries.removeAt(oldestIndex)
+                entries.removeAt(0)
             }
             writeAll(entries)
         }

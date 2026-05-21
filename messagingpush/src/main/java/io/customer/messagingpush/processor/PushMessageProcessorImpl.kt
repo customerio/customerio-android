@@ -103,8 +103,7 @@ internal class PushMessageProcessorImpl(
             pendingPushDeliveryStore.append(
                 PendingPushDeliveryMetric(
                     deliveryId = deliveryId,
-                    token = deliveryToken,
-                    timestamp = System.currentTimeMillis()
+                    token = deliveryToken
                 )
             )
 

@@ -4,6 +4,7 @@ import io.customer.messagingpush.testutils.core.IntegrationTest
 import kotlinx.serialization.json.Json
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
+import org.amshove.kluent.shouldNotContain
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,8 +24,7 @@ class PendingPushDeliveryMetricSerializerTest : IntegrationTest() {
     fun roundTrip_givenValidEntry_expectAllFieldsPreserved() {
         val original = PendingPushDeliveryMetric(
             deliveryId = "delivery-abc",
-            token = "token-xyz",
-            timestamp = 1_700_000_000_000L
+            token = "token-xyz"
         )
 
         val encoded = json.encodeToString(PendingPushDeliveryMetric.serializer(), original)
@@ -34,33 +34,38 @@ class PendingPushDeliveryMetricSerializerTest : IntegrationTest() {
     }
 
     @Test
-    fun toJson_givenEntry_expectDeliveryIdFieldName() {
-        // The JSON-on-disk field is the domain term, not the generic "key". Renaming
-        // would break readers of any unflushed pending file written by a prior version.
-        val entry = PendingPushDeliveryMetric(
-            deliveryId = "d-1",
-            token = "t-1",
-            timestamp = 1L
-        )
+    fun toJson_givenEntry_expectDeliveryIdFieldNameAndNoComputedKeyField() {
+        // The JSON-on-disk field is the domain term (`deliveryId`). The `key`
+        // override is computed, not stored, so it must NOT appear in serialized
+        // output — otherwise it'd both bloat the file and risk drifting from
+        // `deliveryId` if either side changes.
+        val entry = PendingPushDeliveryMetric(deliveryId = "d-1", token = "t-1")
 
         val encoded = json.encodeToString(PendingPushDeliveryMetric.serializer(), entry)
 
         encoded shouldContain "\"deliveryId\":\"d-1\""
         encoded shouldContain "\"token\":\"t-1\""
-        encoded shouldContain "\"timestamp\":1"
+        encoded shouldNotContain "\"key\""
+    }
+
+    @Test
+    fun fromJson_givenLegacyEntryWithTimestampField_expectDeserializesAndIgnoresField() {
+        // Older builds of the SDK wrote a `timestamp` field alongside
+        // `deliveryId`/`token`. With kotlinx.serialization's
+        // ignoreUnknownKeys = true (set by the store's Json config), pre-upgrade
+        // entries must still load cleanly so we don't lose unflushed metrics
+        // across an SDK upgrade.
+        val legacy = """{"deliveryId":"legacy-d","token":"legacy-t","timestamp":1700000000000}"""
+
+        val decoded = json.decodeFromString(PendingPushDeliveryMetric.serializer(), legacy)
+
+        decoded shouldBeEqualTo PendingPushDeliveryMetric(deliveryId = "legacy-d", token = "legacy-t")
     }
 
     @Test
     fun key_propertyExposesDeliveryId() {
-        val entry = PendingPushDeliveryMetric(deliveryId = "d-1", token = "t", timestamp = 1L)
+        val entry = PendingPushDeliveryMetric(deliveryId = "d-1", token = "t")
 
         entry.key shouldBeEqualTo "d-1"
-    }
-
-    @Test
-    fun timestamp_propertyExposesEntryTimestamp() {
-        val entry = PendingPushDeliveryMetric(deliveryId = "d", token = "t", timestamp = 42L)
-
-        entry.timestamp shouldBeEqualTo 42L
     }
 }

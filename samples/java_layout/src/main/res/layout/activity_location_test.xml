@@ -255,6 +255,42 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- OR separator -->
+        <include layout="@layout/or_separator" />
+
+        <!-- OPTION 5: GEOFENCE PERMISSIONS -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/section_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/geofence_permissions_section"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/grant_background_location"
+                style="?attr/materialButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/grant_background_location" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/background_location_description"
+                android:textColor="?android:attr/textColorTertiary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
         <!-- Status section -->
         <TextView
             android:id="@+id/last_set_location_label"

@@ -2,6 +2,7 @@ package io.customer.location.geofence
 
 import android.annotation.SuppressLint
 import io.customer.sdk.data.store.SecureUserStore
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -34,6 +35,14 @@ internal interface GeofenceServices {
      * user's geofences. Fired when [Event.UserChangedEvent] arrives with a null userId.
      */
     fun onUserSignedOut()
+
+    /**
+     * Re-attempts a refresh when a fresh GPS fix arrives after a prior sync was
+     * skipped for not-yet-available location. On fresh install identify can race
+     * ahead of the first fix; without this hook the SDK would self-heal only on
+     * sign-out / next cold launch.
+     */
+    fun onLocationAcquired(latitude: Double, longitude: Double)
 }
 
 internal class GeofenceServicesImpl(
@@ -43,6 +52,11 @@ internal class GeofenceServicesImpl(
     private val logger: GeofenceLogger,
     private val permissionChecker: GeofencePermissionChecker
 ) : GeofenceServices {
+
+    // Rearm flag: set when a sync skips for no-location, cleared on any
+    // successful trigger. onLocationAcquired only fires when this is set,
+    // so streamed location updates don't cause repeated refreshes.
+    private val lastSkippedForNoLocation = AtomicBoolean(false)
 
     override fun onMovementTriggerExit(latitude: Double?, longitude: Double?) {
         triggerSync(
@@ -71,6 +85,16 @@ internal class GeofenceServicesImpl(
         )
     }
 
+    override fun onLocationAcquired(latitude: Double, longitude: Double) {
+        // Only act on the rising edge of a no-location skip; otherwise this
+        // becomes a per-update refresh storm on hosts that stream locations.
+        if (!lastSkippedForNoLocation.compareAndSet(true, false)) return
+        val userId = secureUserStore.getUserId()
+        // No user: a future identify catches the now-cached location.
+        if (userId.isNullOrEmpty()) return
+        onUserIdentified(latitude, longitude)
+    }
+
     override fun onUserSignedOut() {
         // Snapshot the userId synchronously — the datapipelines `ResetEvent`
         // subscriber races to clear `secureUserStore`, so a deferred read
@@ -90,6 +114,7 @@ internal class GeofenceServicesImpl(
         action: suspend (Double, Double) -> Result<Unit>
     ) {
         if (latitude == null || longitude == null) {
+            lastSkippedForNoLocation.set(true)
             logger.logSyncSkippedNoLocation(reason)
             return
         }
@@ -97,6 +122,10 @@ internal class GeofenceServicesImpl(
             logger.logSyncSkippedNoPermission(reason)
             return
         }
+        if (!permissionChecker.isBackgroundDeliveryAvailable()) {
+            logger.logBackgroundDeliveryUnavailable(reason)
+        }
+        lastSkippedForNoLocation.set(false)
         logger.logSyncTriggered(reason)
         // Guarded by permissionChecker above; Android kills the process when
         // permissions are revoked, so no mid-flight revocation to handle.

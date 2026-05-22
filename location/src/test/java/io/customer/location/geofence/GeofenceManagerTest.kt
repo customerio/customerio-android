@@ -76,13 +76,18 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun replaceGeofences_givenFineLocationGrantedNoBackgroundOnQ_expectFailure() = runTest {
+    fun replaceGeofences_givenFineLocationGrantedNoBackground_expectRegistrationProceeds() = runTest {
+        // GMS only requires FINE to register; BACKGROUND only gates whether
+        // transitions are delivered while the app is backgrounded. The host gets a
+        // foreground-only degraded mode rather than silent zero-registration.
         grantPermission(Manifest.permission.ACCESS_FINE_LOCATION)
         denyPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        stubClientAddSuccess()
 
         val result = manager.replaceGeofences(listOf(buildRegion()))
 
-        result.isFailure.shouldBeTrue()
+        result.isSuccess.shouldBeTrue()
+        verify { client.addGeofences(any<GeofencingRequest>(), any()) }
     }
 
     @Test

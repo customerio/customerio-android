@@ -25,6 +25,7 @@ class GeofenceServicesTest : RobolectricTest() {
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val permissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
         every { hasRequiredLocationPermissions() } returns true
+        every { isBackgroundDeliveryAvailable() } returns true
     }
 
     private fun servicesWith(scope: TestScope): GeofenceServicesImpl =
@@ -98,6 +99,78 @@ class GeofenceServicesTest : RobolectricTest() {
         coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { logger.logSyncSkippedNoPermission(any()) }
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenBackgroundLocationMissing_expectProceedAndWarn() = runTest(StandardTestDispatcher()) {
+        every { permissionChecker.isBackgroundDeliveryAvailable() } returns false
+        coEvery { repository.handleMovement(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerify { repository.handleMovement(1.0, 2.0) }
+        verify { logger.logBackgroundDeliveryUnavailable("movement-trigger-exit") }
+        verify { logger.logSyncTriggered("movement-trigger-exit") }
+    }
+
+    @Test
+    fun onLocationAcquired_givenPriorSkipAndUserIdentified_expectRefresh() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        // Skip first, then deliver the fix.
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(12.0, 34.0) }
+    }
+
+    @Test
+    fun onLocationAcquired_givenNoPriorSkip_expectNoOp() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        val services = servicesWith(this)
+
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
+    }
+
+    @Test
+    fun onLocationAcquired_givenPriorSkipButUserNotIdentified_expectNoOp() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns null
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+    }
+
+    @Test
+    fun onLocationAcquired_givenPriorSuccessfulSync_expectNoRetriggerOnNewFix() = runTest(StandardTestDispatcher()) {
+        // Successful trigger must clear the rearm flag — otherwise hosts that
+        // stream location updates would refresh on every fix.
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+        services.onLocationAcquired(latitude = 3.0, longitude = 4.0)
+        advanceUntilIdle()
+
+        // Only the initial identify call should reach the repository.
+        coVerify(exactly = 1) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refresh(3.0, 4.0) }
     }
 
     @Test

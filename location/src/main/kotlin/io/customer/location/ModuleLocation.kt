@@ -107,6 +107,13 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
+        // Recover from a first-run race where identify lands before the first
+        // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
+        // and re-triggers a refresh when a fresh fix arrives.
+        locationTracker.onLocationReceivedListener = { lat, lng ->
+            SDKComponent.android().geofenceServices.onLocationAcquired(lat, lng)
+        }
+
         // Register as IdentifyHook so location is added to identify event context
         // and cleared synchronously during analytics.reset(). This ensures every
         // identify() call carries the device's current location in the event context —

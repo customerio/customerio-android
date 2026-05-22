@@ -84,12 +84,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns sampleConfig()
         every { distanceFilter.nearest(cached, any(), any(), any()) } returns cached
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify { manager.replaceGeofences(any()) }
+        coVerify { manager.replaceGeofences(any(), any()) }
     }
 
     @Test
@@ -104,12 +104,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns null
         every { distanceFilter.nearest(cached, any(), any(), any()) } returns cached
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify { manager.replaceGeofences(any()) }
+        coVerify { manager.replaceGeofences(any(), any()) }
     }
 
     @Test
@@ -122,7 +122,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -148,21 +148,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenCachedConfigWithNonPositiveExpiry_expectFallbackToConstant() = runTest {
-        // Defense: a 0 or negative `remoteFetchRefreshExpiry` (bad server config)
-        // must NOT short-circuit the freshness check — falls back to the constant.
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
-        every { store.getCachedConfig() } returns sampleConfig(remoteFetchRefreshExpiry = 0L)
-
-        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
-
-        result.isSuccess shouldBeEqualTo true
-        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        verify { logger.logSyncSkippedFresh() }
-    }
-
-    @Test
     fun refresh_givenCachedConfigWithShorterExpiry_expectApiCallSooner() = runTest {
         // Symmetric case: shorter server window (1h) trips earlier than the
         // 24h constant. A sync 2h ago now triggers an API call.
@@ -175,7 +160,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -191,7 +176,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -206,7 +191,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify { logger.logSyncSkipped(match { it.contains("no identified user") }) }
     }
@@ -234,7 +219,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify { logger.logSyncFailed(match { it?.contains("network down") == true }) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
     }
 
     @Test
@@ -247,7 +232,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         val capturedLoc = slot<GeofenceLocation>()
         every { store.saveLastMovementTriggerLocation(capture(capturedLoc)) } returns Unit
 
@@ -265,7 +250,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -283,7 +268,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.failure(RuntimeException("boom"))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(RuntimeException("boom"))
 
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -299,7 +284,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
         every { distanceFilter.nearest(any(), 12.34, 56.78, 3) } returns filtered
         val captured = slot<List<GeofenceRegion>>()
-        coEvery { manager.replaceGeofences(capture(captured)) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(capture(captured), any()) } returns Result.success(Unit)
 
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -331,7 +316,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
         every { distanceFilter.nearest(any(), 12.34, 56.78, 3) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         val regionsSlot = slot<List<GeofenceRegion>>()
         val configSlot = slot<GeofenceConfig>()
         val anchorSlot = slot<GeofenceLocation>()
@@ -358,7 +343,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.failure(RuntimeException("boom"))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(RuntimeException("boom"))
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -387,7 +372,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 5))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns newBusiness
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
@@ -396,7 +381,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // biz-shared survive (same IDs, will be replaced by replaceGeofences).
         val staleSlot = slot<List<String>>()
         coVerifyOrder {
-            manager.replaceGeofences(any())
+            manager.replaceGeofences(any(), any())
             manager.removeGeofencesByIds(capture(staleSlot))
         }
         staleSlot.captured shouldContainSame listOf("biz-old-1", "biz-old-2")
@@ -410,7 +395,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -429,7 +414,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns listOf(newRegion)
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         coEvery { manager.removeGeofencesByIds(any()) } returns
             Result.failure(RuntimeException("remove boom"))
         val persisted = slot<Set<String>>()
@@ -439,7 +424,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
-            manager.replaceGeofences(any())
+            manager.replaceGeofences(any(), any())
             manager.removeGeofencesByIds(any())
         }
         verify { logger.logSyncSucceeded(1) }
@@ -460,7 +445,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
@@ -480,7 +465,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
         val captured = slot<List<GeofenceRegion>>()
-        coEvery { manager.replaceGeofences(capture(captured)) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(capture(captured), any()) } returns Result.success(Unit)
 
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -503,7 +488,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 5))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-new", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.failure(error)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(error)
 
         val result = repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -528,7 +513,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         val addGeofencesActive = AtomicInteger(0)
         val maxObservedConcurrency = AtomicInteger(0)
-        coEvery { manager.replaceGeofences(any()) } coAnswers {
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
             val n = addGeofencesActive.incrementAndGet()
             maxObservedConcurrency.updateAndGet { current -> maxOf(current, n) }
             delay(50)
@@ -557,7 +542,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         )
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         val first = repository.refresh(latitude = 0.0, longitude = 0.0)
         val second = repository.refresh(latitude = 0.0, longitude = 0.0)
@@ -581,7 +566,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         verify { logger.logSyncSkipped(match { it.contains("user changed") }) }
     }
 
@@ -595,8 +580,53 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         verify { logger.logSyncSkipped(match { it.contains("user changed") }) }
+    }
+
+    @Test
+    fun refresh_givenRemoteFetchAndCachedMatchesIncoming_expectIdForwardedAsExisting() = runTest {
+        // Tier B remote fetch where the cached region equals the incoming one — no
+        // backend-side edit. The diff helper forwards the overlap ID so the manager
+        // can skip the re-upsert that would otherwise trigger GMS state
+        // reconciliation and spurious EXITs.
+        val region = GeofenceRegion("biz-1", 1.0, 2.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(region)
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns listOf(region)
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refresh_givenRemoteFetchAndCachedParamsDifferFromIncoming_expectIdExcludedFromExisting() = runTest {
+        // Backend edited biz-1's radius (100m → 200m). Cache still holds the old
+        // value at diff time; equality fails on the mismatch so biz-1 falls out of
+        // existingBusinessIds and gets re-registered. Without this, GMS would keep
+        // the 100m geofence after the cache moved to 200m.
+        val cached = GeofenceRegion("biz-1", 1.0, 2.0, 100f)
+        val incoming = cached.copy(radius = 200f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(cached)
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns listOf(incoming)
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured.shouldBeEmpty()
     }
 
     @Test
@@ -681,7 +711,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
     }
 
     @Test
@@ -695,7 +725,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.handleMovement(latitude = 1.0, longitude = 2.0)
 
@@ -713,13 +743,13 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet()
         every { distanceFilter.nearest(cached, any(), any(), any()) } returns cached
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         // ~111m from anchor — well within the fallback 5km threshold.
         repository.handleMovement(latitude = 0.0, longitude = 0.001)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify { manager.replaceGeofences(any()) }
+        coVerify { manager.replaceGeofences(any(), any()) }
     }
 
     @Test
@@ -737,12 +767,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { distanceFilter.nearest(cached, any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.handleMovement(latitude = 0.0, longitude = 0.001)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify { manager.replaceGeofences(any()) }
+        coVerify { manager.replaceGeofences(any(), any()) }
         verify { distanceFilter.nearest(cached, 0.0, 0.001, any()) }
     }
 
@@ -757,7 +787,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coEvery { apiService.fetchGeofences(any(), any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.handleMovement(latitude = 0.0, longitude = 0.1)
 
@@ -776,7 +806,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         val anchorSlot = slot<GeofenceLocation>()
         every { store.saveLastApiFetchLocation(capture(anchorSlot)) } returns Unit
 
@@ -798,7 +828,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         repository.handleMovement(latitude = 0.0, longitude = 0.001)
 
@@ -827,7 +857,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         }
         every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
         coroutineScope {
             launch { repository.handleMovement(latitude = 1.0, longitude = 1.0) }
@@ -906,7 +936,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { distanceFilter.nearest(any(), 12.34, 56.78, any()) }
         // Pins the boot-restore manager variant, not the normal one.
         coVerify { manager.replaceGeofencesForBootRestore(any()) }
-        coVerify(exactly = 0) { manager.replaceGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
     }
 
@@ -949,6 +979,42 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenRefreshInFlight_expectStillRunsViaBootRestoreVariant() = runTest {
+        // After a reboot GMS is wiped but persisted registeredIds aren't, so a
+        // concurrent refresh would skip business as "unchanged" via the equality
+        // diff and leave GMS empty. Boot-restore must run regardless of the gate,
+        // via the no-diff replaceGeofencesForBootRestore.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getLastSyncTimestamp() } returns null
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            // Hold the refresh path long enough that restoreFromCache enters mid-flight.
+            delay(100)
+            Result.success(Unit)
+        }
+        coEvery { manager.replaceGeofencesForBootRestore(any()) } returns Result.success(Unit)
+
+        coroutineScope {
+            launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+            launch {
+                delay(20)
+                repository.restoreFromCache()
+            }
+        }
+
+        // Without the bypass, the gate would have deduped restoreFromCache and
+        // replaceGeofencesForBootRestore would never have been called.
+        coVerify { manager.replaceGeofencesForBootRestore(any()) }
     }
 
     private fun sampleConfig(

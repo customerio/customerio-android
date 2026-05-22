@@ -73,7 +73,9 @@ internal val AndroidSDKComponent.geofenceCooldownStore: GeofenceCooldownStore
     get() = singleton<GeofenceCooldownStore> { GeofenceCooldownStoreImpl(applicationContext) }
 
 internal val AndroidSDKComponent.geofenceCooldownFilter: GeofenceCooldownFilter
-    get() = singleton<GeofenceCooldownFilter> { GeofenceCooldownFilter(geofenceCooldownStore, SDKComponent.clock) }
+    get() = singleton<GeofenceCooldownFilter> {
+        GeofenceCooldownFilter(geofenceCooldownStore, geofenceRegionStore, SDKComponent.clock)
+    }
 
 internal val AndroidSDKComponent.geofenceRegionStore: GeofenceRegionStore
     get() = singleton<GeofenceRegionStore> {

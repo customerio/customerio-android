@@ -138,6 +138,15 @@
     <string name="location_not_available">Could not get device location</string>
     <string name="label_location_test_activity">LocationTestActivity</string>
 
+    <!-- Geofence permissions section -->
+    <string name="geofence_permissions_section">Geofence permissions</string>
+    <string name="grant_background_location">Grant background location</string>
+    <string name="background_location_description">Required on Android 10+ for geofence transitions to fire while the app is backgrounded. Without it, transitions only fire while the app is in the foreground.</string>
+    <string name="background_location_already_granted">Background location is already granted</string>
+    <string name="background_location_not_required_pre_q">Background location permission is not required on this Android version</string>
+    <string name="background_location_needs_fine_first">Grant fine location first, then re-tap this button</string>
+    <string name="background_location_open_settings">Open Settings and choose \"Allow all the time\"</string>
+
     <!-- Inbox Messages -->
     <string name="inbox_messages">Inbox Messages</string>
     <string name="label_inbox_messages_activity">InboxMessagesActivity</string>

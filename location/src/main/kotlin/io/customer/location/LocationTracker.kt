@@ -47,6 +47,12 @@ internal class LocationTracker(
     internal var lastLocation: LocationCoordinates? = null
         private set
 
+    // Single-listener hook fired after every successful location update.
+    // Promote to a list-backed API or EventBus if multiple consumers or
+    // modularity needs emerge.
+    @Volatile
+    internal var onLocationReceivedListener: ((Double, Double) -> Unit)? = null
+
     override fun getIdentifyContext(): Map<String, Any> {
         val location = lastLocation ?: return emptyMap()
         return mapOf(
@@ -92,6 +98,7 @@ internal class LocationTracker(
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
         trySendLocationTrack(latitude, longitude)
+        onLocationReceivedListener?.invoke(latitude, longitude)
     }
 
     /**

@@ -61,16 +61,19 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                 }
             });
 
-    // On API 30+, BACKGROUND can't be requested via the standard runtime dialog —
-    // the launcher returns immediately as "denied" and the user must toggle "Allow
-    // all the time" from app settings. This launcher handles the API 29 case where
-    // the runtime dialog still works.
+    // Launcher behavior varies by API:
+    // - API 29: shows the runtime dialog with "Allow all the time".
+    // - API 30+: OS may route directly to the app's location permission page
+    //   (recent Pixel/Samsung) or silently deny (others). Don't trust the
+    //   `granted` flag — re-check actual permission state to cover both paths.
     private final ActivityResultLauncher<String> backgroundLocationLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-                if (granted) {
+                if (hasBackgroundLocation()) {
                     showSnackbar(getString(R.string.background_location_already_granted));
                 } else {
-                    showBackgroundLocationSettingsAlert();
+                    // Rationale was already shown before launch. If the OS silently
+                    // denied (didn't route to settings), take the user there now.
+                    openAppDetailsSettings();
                 }
             });
 
@@ -110,13 +113,19 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
             showSnackbar(getString(R.string.background_location_already_granted));
             return;
         }
-        // API 30+ requires the user to grant from Settings; the runtime dialog
-        // is not shown. Route them directly there.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            showBackgroundLocationSettingsAlert();
-            return;
-        }
-        backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+        // Show the rationale first — "Allow all the time" is not obvious in
+        // either the API 29 runtime dialog or the API 30+ settings page.
+        showBackgroundLocationRationale();
+    }
+
+    private void showBackgroundLocationRationale() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.geofence_permissions_section)
+                .setMessage(R.string.background_location_rationale_message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.background_location_continue, (dialog, which) ->
+                        backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+                .show();
     }
 
     private boolean hasFineLocation() {
@@ -130,16 +139,10 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                 Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void showBackgroundLocationSettingsAlert() {
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.geofence_permissions_section)
-                .setMessage(R.string.background_location_open_settings)
-                .setNeutralButton(R.string.open_settings, (dialog, which) -> {
-                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                })
-                .show();
+    private void openAppDetailsSettings() {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivity(intent);
     }
 
     private void setupPresetButtons() {
@@ -270,11 +273,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.location_permission_required)
                 .setMessage(R.string.location_permission_failure)
-                .setNeutralButton(R.string.open_settings, (dialog, which) -> {
-                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                })
+                .setNeutralButton(R.string.open_settings, (dialog, which) -> openAppDetailsSettings())
                 .show();
     }
 

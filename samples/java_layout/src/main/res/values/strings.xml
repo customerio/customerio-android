@@ -37,6 +37,11 @@
     <string name="settings_yes">Yes</string>
     <string name="settings_no">No</string>
     <string name="enable_in_app_messages">Enable in-app messages</string>
+    <string name="location_tracking_mode">Location tracking mode</string>
+    <string name="location_tracking_mode_desc">(Controls whether the SDK captures location automatically — required for geofencing without a manual fetch)</string>
+    <string name="location_tracking_mode_off">Off</string>
+    <string name="location_tracking_mode_manual">Manual</string>
+    <string name="location_tracking_mode_on_app_start">On app start</string>
     <string name="development">Development</string>
     <string name="log_level">Log level</string>
     <string name="log_level_none">None</string>
@@ -145,7 +150,8 @@
     <string name="background_location_already_granted">Background location is already granted</string>
     <string name="background_location_not_required_pre_q">Background location permission is not required on this Android version</string>
     <string name="background_location_needs_fine_first">Grant fine location first, then re-tap this button</string>
-    <string name="background_location_open_settings">Open Settings and choose \"Allow all the time\"</string>
+    <string name="background_location_rationale_message">Background location is required so geofence transitions can fire while the app isn\'t running. On the next screen, choose \"Allow all the time\" for location.</string>
+    <string name="background_location_continue">Continue</string>
 
     <!-- Inbox Messages -->
     <string name="inbox_messages">Inbox Messages</string>

@@ -309,6 +309,36 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
+    fun onMessageShown_givenSameDeliveryIdAcrossResetEvent_expectPublishAgainAfterReset() {
+        val message = createInAppMessage(campaignId = "test_campaign_id")
+        val inAppMessage = InAppMessage(
+            messageId = message.messageId,
+            deliveryId = "test_campaign_id",
+            queueId = message.queueId
+        )
+
+        mockkObject(InAppMessage.Companion)
+        every { InAppMessage.getFromGistMessage(any()) } returns inAppMessage
+
+        module.initialize()
+        module.onMessageShown(message)
+        // Logout/reset must drop per-session dedup state so the next session can re-emit.
+        eventBus.publish(Event.ResetEvent)
+        module.onMessageShown(message)
+
+        // Same deliveryID shown once before and once after reset -> two publishes,
+        // because the dedup set is cleared on ResetEvent.
+        verify(exactly = 2) {
+            eventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = "test_campaign_id",
+                    event = Metric.Opened
+                )
+            )
+        }
+    }
+
+    @Test
     fun onMessageShown_givenDifferentDeliveryIds_expectTwoPublishes() {
         val firstMessage = createInAppMessage(campaignId = "campaign_one")
         val secondMessage = createInAppMessage(campaignId = "campaign_two")

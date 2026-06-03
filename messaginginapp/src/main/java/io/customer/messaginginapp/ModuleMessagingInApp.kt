@@ -13,8 +13,8 @@ import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.events.Metric
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 
 class ModuleMessagingInApp(
     config: MessagingInAppModuleConfig
@@ -30,10 +30,14 @@ class ModuleMessagingInApp(
     // Per-session set of deliveryIDs whose `Opened` metric has already been published.
     // Used to dedupe `onMessageShown` emissions so the same in-app view does not produce
     // multiple `TrackInAppMetricEvent`s within a single SDK process lifetime.
-    // Lifetime: scoped to this `ModuleMessagingInApp` instance (per-process). No persistence.
-    // Mirrors iOS `GistDelegateImpl` behavior — see Phase 1 PR 2.
-    private val shownDeliveryIdsLock = ReentrantLock()
-    private val shownDeliveryIds = mutableSetOf<String>()
+    // Lifetime: scoped to this `ModuleMessagingInApp` instance (per-process) and cleared on
+    // `ResetEvent` (logout) so a new session does not inherit a prior user's deliveryIDs.
+    // No persistence. Mirrors iOS `GistDelegateImpl` behavior — see Phase 1 PR 2.
+    // Thread-safe concurrent set: `onMessageShown` may be invoked off the main thread.
+    // `ConcurrentHashMap.newKeySet()` requires API 24; this form is equivalent and works
+    // at our minSdk (21).
+    private val shownDeliveryIds: MutableSet<String> =
+        Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     /**
      * Access the inbox messages instance for managing user inbox messages.
@@ -87,6 +91,9 @@ class ModuleMessagingInApp(
             logger.debug("Resetting user token")
             gistProvider.reset()
             clearCustomAttributes()
+            // Drop per-session dedup state so a subsequent user/session can re-emit
+            // `Opened` for the same deliveryID if it is shown again.
+            shownDeliveryIds.clear()
         }
     }
 
@@ -101,9 +108,7 @@ class ModuleMessagingInApp(
             // side-effects (eventListener.messageShown above) still fire on every call —
             // only the analytics publish is suppressed on duplicates. See PR 6 in
             // binary-tinkering-treasure-phase1.md.
-            val isFirstShown = shownDeliveryIdsLock.withLock {
-                shownDeliveryIds.add(deliveryID)
-            }
+            val isFirstShown = shownDeliveryIds.add(deliveryID)
             if (!isFirstShown) {
                 logger.debug("In-app message shown again with deliveryId $deliveryID — skipping duplicate metric publish")
                 return

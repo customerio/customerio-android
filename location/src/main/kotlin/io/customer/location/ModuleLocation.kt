@@ -131,6 +131,14 @@ class ModuleLocation @JvmOverloads constructor(
                     latitude = location?.latitude,
                     longitude = location?.longitude
                 )
+
+                // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
+                // wipes lastLocation on logout — a subsequent identify in the same process
+                // needs a fresh fetch. The onLocationReceivedListener above re-triggers the
+                // geofence refresh once the fix arrives. MANUAL deliberately doesn't auto-fetch.
+                if (location == null && moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
+                    services.requestLocationUpdate()
+                }
             }
         }
 

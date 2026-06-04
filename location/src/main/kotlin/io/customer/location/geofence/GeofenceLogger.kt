@@ -153,7 +153,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logSchedulerFailed(geofenceId: String, transitionName: String, message: String?) {
-        logger.error("Geofence '$geofenceId' $transitionName: WorkManager scheduling failed; EventBus path still attempted — $message", tag = TAG)
+        logger.error("Geofence '$geofenceId' $transitionName: WorkManager scheduling failed; left in pending store for the foreground flush — $message", tag = TAG)
     }
 
     companion object {

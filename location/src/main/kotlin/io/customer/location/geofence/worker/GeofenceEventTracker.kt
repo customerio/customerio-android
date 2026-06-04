@@ -8,6 +8,7 @@ import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.data.store.SecureUserStore
+import io.customer.sdk.data.store.claimSendRestore
 import io.customer.sdk.util.EventNames
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -80,9 +81,10 @@ internal class GeofenceEventTrackerImpl(
 
 /**
  * Async fallback when WorkManager is unavailable. Fire-and-forget; does not
- * survive process death. Mirrors the worker's success contract: on success the
- * pending entry is removed; on failure it is left in the store so the
- * foreground flush can still deliver it via the analytics pipeline.
+ * survive process death. Uses the same [claimSendRestore] contract as the
+ * worker — claim before sending — so that if the foreground flush fires while
+ * this HTTP call is in flight, only one channel delivers: a lost claim skips
+ * the send, and a failed send restores the entry for the flush to retry.
  */
 internal class AsyncGeofenceEventTracker(
     private val tracker: GeofenceEventTracker,
@@ -91,15 +93,14 @@ internal class AsyncGeofenceEventTracker(
 ) {
     fun trackEvent(entry: PendingGeofenceDelivery) {
         CoroutineScope(dispatcher.background).launch {
-            val result = tracker.trackEvent(
-                geofenceId = entry.geofenceId,
-                transition = entry.transition,
-                latitude = entry.latitude,
-                longitude = entry.longitude,
-                timestamp = entry.timestamp
-            )
-            if (result.isSuccess) {
-                pendingStore.remove(entry.key)
+            pendingStore.claimSendRestore(entry) {
+                tracker.trackEvent(
+                    geofenceId = entry.geofenceId,
+                    transition = entry.transition,
+                    latitude = entry.latitude,
+                    longitude = entry.longitude,
+                    timestamp = entry.timestamp
+                )
             }
         }
     }

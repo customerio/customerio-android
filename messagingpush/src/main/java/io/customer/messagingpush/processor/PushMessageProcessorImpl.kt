@@ -10,17 +10,20 @@ import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
-    private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler
+    private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
+    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
 ) : PushMessageProcessor {
 
     /**
@@ -89,15 +92,24 @@ internal class PushMessageProcessorImpl(
         if (moduleConfig.autoTrackPushEvents) {
             pushLogger.logTrackingPushMessageDelivered(deliveryId)
 
-            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(deliveryId, deliveryToken)
-
-            // Track delivered metrics via event bus
-            eventBus.publish(
-                Event.TrackPushMetricEvent(
-                    event = Metric.Delivered,
+            // Persist a pending entry first so the metric can be replayed via the
+            // analytics pipeline when the user next foregrounds the app, if the
+            // WorkManager job has not confirmed delivery by then. The entry is
+            // keyed by deliveryId; the worker (or direct-HTTP fallback) removes
+            // it on a successful response, otherwise the foreground handoff
+            // cancels the worker and publishes the entry via the analytics
+            // pipeline instead.
+            pushLogger.logPendingStoreAppended(deliveryId)
+            pendingPushDeliveryStore.append(
+                PendingPushDeliveryMetric(
                     deliveryId = deliveryId,
-                    deviceToken = deliveryToken
+                    token = deliveryToken
                 )
+            )
+
+            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken
             )
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()

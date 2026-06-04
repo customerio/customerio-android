@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Dev-only test harness for the push-handoff verification scenarios.
+        Restricted to debug builds: this receiver is exported and drives the
+        production processRemoteMessageDeliveredMetrics() path on broadcast,
+        which would be unsafe in a release build because any app on the
+        device could trigger it.
+    -->
+    <application>
+        <receiver
+            android:name=".util.SimulatePushDeliveryReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.customer.sample.SIMULATE_PUSH_DELIVERY" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

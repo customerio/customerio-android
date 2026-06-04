@@ -112,6 +112,11 @@ class CustomerIO private constructor(
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
 
+    // Tracks the last userId successfully identified in this SDK session. Used to dedup
+    // back-to-back identify(userId) calls with no traits, which are no-ops server-side.
+    // Reset on clearIdentify so a subsequent identify of the same userId is not deduped.
+    private var lastIdentifiedUserIdThisSession: String? = null
+
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
@@ -247,6 +252,18 @@ class CustomerIO private constructor(
             return
         }
 
+        // Dedup back-to-back identify calls for the same userId when no traits are supplied.
+        // Because the public API exposes identify(userId, traits = emptyMap()) as a single method
+        // with a defaulted parameter, identify("alice") and identify("alice", emptyMap()) are
+        // indistinguishable at runtime — both compile to the same call with traits = emptyMap().
+        // We treat any empty Map-shaped traits payload (including JsonObject) as the no-traits case;
+        // server-side merge of empty traits is a no-op, so deduping is behaviorally safe.
+        val traitsAreEmpty = traits is Map<*, *> && traits.isEmpty()
+        if (traitsAreEmpty && userId == lastIdentifiedUserIdThisSession) {
+            logger.debug("identify with userId $userId and no traits is a duplicate of the last identify in this session; skipping.")
+            return
+        }
+
         // this is the current userId that is identified in the SDK
         val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
@@ -285,6 +302,10 @@ class CustomerIO private constructor(
                 trackDeviceAttributes(token = existingDeviceToken)
             }
         }
+
+        // Update the per-session marker after a successful identify (with or without traits)
+        // so that a subsequent no-traits identify of the same userId can be deduped.
+        lastIdentifiedUserIdThisSession = userId
     }
 
     /**
@@ -313,6 +334,9 @@ class CustomerIO private constructor(
 
     override fun clearIdentifyImpl() {
         logger.info("resetting user profile with id ${this.userId}")
+
+        // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
+        lastIdentifiedUserIdThisSession = null
 
         logger.debug("deleting device token to remove device from user profile")
 

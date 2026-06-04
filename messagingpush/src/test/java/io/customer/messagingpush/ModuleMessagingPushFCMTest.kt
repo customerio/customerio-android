@@ -120,24 +120,26 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         module.initialize()
 
         verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
-        verify(exactly = 0) { mockPendingStore.removeAll(any<Collection<String>>()) }
+        verify(exactly = 0) { mockPendingStore.claim(any()) }
         verify(exactly = 0) { mockWorkManager.cancelUniqueWork(any()) }
     }
 
     @Test
-    fun handoff_givenPendingEntries_expectCancelThenPublishThenRemoveAll() = runTest {
+    fun handoff_givenPendingEntries_expectCancelThenClaimThenPublish() = runTest {
         val entries = listOf(
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1"),
             PendingPushDeliveryMetric(deliveryId = "d2", token = "t2")
         )
         every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.claim(any()) } returns true
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
-        // For each entry: cancel happens before publish. Reversing the order
-        // would widen the double-delivery window.
+        // For each entry: cancel, then atomically claim, then publish. Cancel
+        // before claim/publish keeps the worker from also delivering.
         verifyOrder {
             mockWorkManager.cancelUniqueWork("d1")
+            mockPendingStore.claim("d1")
             eventBus.publish(
                 Event.TrackPushMetricEvent(
                     event = Metric.Delivered,
@@ -146,6 +148,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                 )
             )
             mockWorkManager.cancelUniqueWork("d2")
+            mockPendingStore.claim("d2")
             eventBus.publish(
                 Event.TrackPushMetricEvent(
                     event = Metric.Delivered,
@@ -154,33 +157,49 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                 )
             )
         }
-        // Only snapshotted keys are removed at the end — entries appended mid-handoff survive.
-        verify(exactly = 1) { mockPendingStore.removeAll(listOf("d1", "d2")) }
+        // Removal happens via claim() per entry, not a batch removeAll.
+        verify(exactly = 0) { mockPendingStore.removeAll(any<Collection<String>>()) }
         verify(exactly = 0) { mockPendingStore.remove(any()) }
     }
 
     @Test
-    fun handoff_givenEmptyStore_expectNoCancelNoPublishNoRemove() = runTest {
+    fun handoff_givenEntryAlreadyClaimedByWorker_expectNoPublish() = runTest {
+        // The WorkManager worker won the race and already claimed (delivered) the
+        // entry; the handoff's claim returns false, so it must not publish again.
+        val entries = listOf(PendingPushDeliveryMetric(deliveryId = "d1", token = "t1"))
+        every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.claim("d1") } returns false
+
+        module.handoffPendingPushDeliveryToAnalyticsPipeline()
+
+        verify(exactly = 1) { mockPendingStore.claim("d1") }
+        verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        verify(exactly = 0) { mockPushLogger.logHandoffPublishedToEventBus(any()) }
+    }
+
+    @Test
+    fun handoff_givenEmptyStore_expectNoCancelNoPublishNoClaim() = runTest {
         every { mockPendingStore.loadAll() } returns emptyList()
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
         verify(exactly = 0) { mockWorkManager.cancelUniqueWork(any()) }
         verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
-        verify(exactly = 0) { mockPendingStore.removeAll(any<Collection<String>>()) }
+        verify(exactly = 0) { mockPendingStore.claim(any()) }
     }
 
     @Test
-    fun handoff_givenWorkManagerUnavailable_expectPublishWithoutCancelLogAndStillRemoveAll() = runTest {
+    fun handoff_givenWorkManagerUnavailable_expectPublishWithoutCancelLogAndStillClaim() = runTest {
         // Simulates the async-tracker schedule path (WM not initialized at enqueue
         // time): there is no work for cancelUniqueWork to act on, the handoff
-        // still publishes and clears the store. The "cancelled WM" log must not
-        // fire either — emitting it would mislead anyone debugging handoff via logs.
+        // still claims and publishes. The "cancelled WM" log must not fire either —
+        // emitting it would mislead anyone debugging handoff via logs.
         every { mockWorkManagerProvider.getWorkManager() } returns null
         val entries = listOf(
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1")
         )
         every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.claim("d1") } returns true
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
@@ -196,7 +215,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                 )
             )
         }
-        verify(exactly = 1) { mockPendingStore.removeAll(listOf("d1")) }
+        verify(exactly = 1) { mockPendingStore.claim("d1") }
     }
 
     @Test
@@ -210,6 +229,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
             PendingPushDeliveryMetric(deliveryId = "ok", token = "t2")
         )
         every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.claim("ok") } returns true
         val failingOperation: Operation = mockk(relaxed = true) {
             every { result } returns
                 com.google.common.util.concurrent.Futures.immediateFailedFuture<Operation.State.SUCCESS>(
@@ -241,8 +261,10 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                 )
             )
         }
-        // Only the successfully-processed key is removed; "boom" stays for the next retry.
-        verify(exactly = 1) { mockPendingStore.removeAll(listOf("ok")) }
+        // Only the successfully-cancelled key is claimed; "boom" was never claimed
+        // (cancel threw first) so it stays for the next retry.
+        verify(exactly = 1) { mockPendingStore.claim("ok") }
+        verify(exactly = 0) { mockPendingStore.claim("boom") }
         verify(exactly = 1) { mockPushLogger.logHandoffEntryFailed("boom", any()) }
     }
 

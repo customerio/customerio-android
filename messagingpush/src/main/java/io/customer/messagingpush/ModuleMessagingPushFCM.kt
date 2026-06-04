@@ -137,15 +137,20 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                 // Process each entry in isolation. WorkManager's cancelUniqueWork().await()
                 // can throw — if one entry's cancel fails we don't want to short-circuit
                 // the rest of the batch. Failed entries stay in the store so the next
-                // foreground transition retries them; only successfully-published keys
-                // are removed below.
-                val flushedIds = mutableListOf<String>()
+                // foreground transition retries them.
+                var flushedCount = 0
                 pending.forEach { entry ->
                     try {
                         if (wm != null) {
                             wm.cancelUniqueWork(entry.deliveryId).await()
                             pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
                         }
+                        // Atomically claim before publishing so the WorkManager worker
+                        // (which also claims before sending) cannot deliver the same
+                        // metric. Removing per-entry here, rather than batching at the
+                        // end, also means a mid-loop CancellationException can't strand
+                        // an already-published entry for re-publish next foreground.
+                        if (!pendingPushDeliveryStore.claim(entry.deliveryId)) return@forEach
                         eventBus.publish(
                             Event.TrackPushMetricEvent(
                                 event = Metric.Delivered,
@@ -154,15 +159,14 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                             )
                         )
                         pushLogger.logHandoffPublishedToEventBus(entry.deliveryId)
-                        flushedIds += entry.deliveryId
+                        flushedCount++
                     } catch (ce: kotlinx.coroutines.CancellationException) {
                         throw ce
                     } catch (ex: Exception) {
                         pushLogger.logHandoffEntryFailed(entry.deliveryId, ex)
                     }
                 }
-                pendingPushDeliveryStore.removeAll(flushedIds)
-                pushLogger.logHandoffComplete(count = flushedIds.size)
+                pushLogger.logHandoffComplete(count = flushedCount)
             }
         }
     }

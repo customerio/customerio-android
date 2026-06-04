@@ -85,6 +85,24 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     }
 
     /**
+     * Atomically remove the entry whose [PendingDeliveryEntry.key] equals
+     * [key] and report whether it was present. Lets a caller "claim" an entry
+     * so that exactly one of several racing delivery channels (e.g. the
+     * WorkManager worker and the foreground handoff) sends the metric: the
+     * channel whose [claim] returns true owns the send, the other backs off.
+     * A read-only check is not enough — claim-then-send must be atomic, or a
+     * slow send lets both channels act on the same still-present entry.
+     * Returns true if this call removed the entry, false if it was already gone.
+     */
+    fun claim(key: String): Boolean = lock.withLock {
+        val entries = readAll()
+        val filtered = entries.filterNot { it.key == key }
+        if (filtered.size == entries.size) return@withLock false
+        writeAll(filtered)
+        true
+    }
+
+    /**
      * Remove all entries whose key is in [keys]. Prefer this over looping
      * [remove] when flushing multiple entries — it's one coordinated
      * read-modify-write, and entries appended after this call's read survive.

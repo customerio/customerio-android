@@ -40,6 +40,13 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logWorkerSkippedAlreadyDelivered(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "worker skipped, already delivered key=$deliveryId"
+        )
+    }
+
     fun logWorkerRetry(deliveryId: String, cause: Throwable?) {
         logger.info(
             tag = HANDOFF_TAG,

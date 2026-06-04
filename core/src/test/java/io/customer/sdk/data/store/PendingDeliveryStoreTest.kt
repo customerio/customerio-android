@@ -80,6 +80,40 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun claim_givenPresentKey_expectRemovedAndReturnsTrue() {
+        val store = newStore()
+        val keep = entry("keep")
+        val target = entry("target")
+        store.append(keep)
+        store.append(target)
+
+        store.claim(target.key) shouldBeEqualTo true
+
+        store.loadAll() shouldBeEqualTo listOf(keep)
+    }
+
+    @Test
+    fun claim_givenAbsentKey_expectFalseAndStoreUnchanged() {
+        val store = newStore()
+        val keep = entry("keep")
+        store.append(keep)
+
+        store.claim("not-a-real-id") shouldBeEqualTo false
+
+        store.loadAll() shouldBeEqualTo listOf(keep)
+    }
+
+    @Test
+    fun claim_givenSameKeyTwice_expectOnlyFirstClaimWins() {
+        val store = newStore()
+        val target = entry("target")
+        store.append(target)
+
+        store.claim(target.key) shouldBeEqualTo true
+        store.claim(target.key) shouldBeEqualTo false
+    }
+
+    @Test
     fun remove_givenUnknownKey_expectNoOp() {
         val store = newStore()
         val keep = entry("keep")

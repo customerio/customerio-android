@@ -11,6 +11,7 @@ import io.customer.messagingpush.AsyncPushDeliveryTracker
 import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushDeliveryTracker
 import io.customer.messagingpush.di.pushLogger
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.events.Metric
@@ -79,6 +80,18 @@ internal class PushDeliveryMetricsWorker(
         }
 
         val logger = SDKComponent.pushLogger
+        val store = SDKComponent.pendingPushDeliveryStore
+
+        // Atomically claim the entry before sending. If it's already gone, the
+        // foreground handoff (which also claims before publishing) already
+        // delivered this metric via the analytics pipeline, so sending here
+        // would double-count it. This guards the race when WorkManager restores
+        // a persisted job after process death and runs it alongside the handoff.
+        if (!store.claim(deliveryId)) {
+            logger.logWorkerSkippedAlreadyDelivered(deliveryId)
+            return Result.success()
+        }
+
         val result = SDKComponent.pushDeliveryTracker.trackMetric(
             event = Metric.Delivered.name,
             deliveryId = deliveryId,
@@ -87,16 +100,19 @@ internal class PushDeliveryMetricsWorker(
 
         return when {
             result.isSuccess -> {
-                // Only clear the pending entry once the backend has confirmed receipt.
-                SDKComponent.pendingPushDeliveryStore.remove(deliveryId)
+                // Entry was already removed by claim() above; just log success.
                 logger.logWorkerSuccessRemoved(deliveryId)
                 Result.success()
             }
             result.exceptionOrNull() is IOException -> {
+                // Transient failure: restore the claim so a WorkManager retry —
+                // or the foreground handoff — can deliver it later.
+                store.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
                 logger.logWorkerRetry(deliveryId, result.exceptionOrNull())
                 Result.retry()
             }
             else -> {
+                store.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
                 logger.logWorkerFailure(deliveryId, result.exceptionOrNull())
                 Result.failure()
             }

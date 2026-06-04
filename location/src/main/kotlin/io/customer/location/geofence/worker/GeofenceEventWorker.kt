@@ -11,11 +11,14 @@ import androidx.work.WorkerParameters
 import androidx.work.await
 import io.customer.location.geofence.di.geofenceEventTracker
 import io.customer.location.geofence.di.geofenceLogger
+import io.customer.location.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
-import java.io.IOException
+import io.customer.sdk.data.store.PendingDeliveryResult
+import io.customer.sdk.data.store.claimSendRestore
 
 private const val KEY_GEOFENCE_ID = "geofence_id"
 private const val KEY_TRANSITION = "transition"
@@ -31,20 +34,14 @@ internal class GeofenceEventScheduler(
     private val workManagerProvider: CustomerIOWorkManagerProvider,
     private val asyncTracker: AsyncGeofenceEventTracker
 ) {
-    suspend fun schedule(
-        geofenceId: String,
-        transition: Event.GeofenceTransition,
-        latitude: Double?,
-        longitude: Double?,
-        timestamp: Long
-    ) {
+    suspend fun schedule(entry: PendingGeofenceDelivery) {
         val input = Data.Builder()
-            .putString(KEY_GEOFENCE_ID, geofenceId)
-            .putString(KEY_TRANSITION, transition.name)
-            .putLong(KEY_TIMESTAMP, timestamp)
+            .putString(KEY_GEOFENCE_ID, entry.geofenceId)
+            .putString(KEY_TRANSITION, entry.transition.name)
+            .putLong(KEY_TIMESTAMP, entry.timestamp)
             .apply {
-                if (latitude != null) putDouble(KEY_LATITUDE, latitude)
-                if (longitude != null) putDouble(KEY_LONGITUDE, longitude)
+                entry.latitude?.let { putDouble(KEY_LATITUDE, it) }
+                entry.longitude?.let { putDouble(KEY_LONGITUDE, it) }
             }
             .build()
 
@@ -59,16 +56,16 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
+        // entry.key ("${geofenceId}_${transition}_${timestamp}") doubles as the
+        // unique-work name so the foreground flush can cancel this worker by key.
         // Second-precision timestamp: same-second bursts collide (KEEP dedupes them);
         // later transitions get distinct keys so an offline-queued worker can't block legitimate re-entries.
-        val uniqueKey = "${geofenceId}_${transition.name}_$timestamp"
-
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
             // Await persistence so the BroadcastReceiver doesn't finish() before WM commits the work spec.
-            workManager.enqueueUniqueWork(uniqueKey, ExistingWorkPolicy.KEEP, workRequest).await()
+            workManager.enqueueUniqueWork(entry.key, ExistingWorkPolicy.KEEP, workRequest).await()
         } else {
-            asyncTracker.trackEvent(geofenceId, transition, latitude, longitude, timestamp)
+            asyncTracker.trackEvent(entry)
         }
     }
 
@@ -109,17 +106,33 @@ internal class GeofenceEventWorker(
             }
         }
 
-        val result = SDKComponent.android().geofenceEventTracker
-            .trackEvent(geofenceId, transition, latitude, longitude, timestamp)
+        val store = SDKComponent.android().pendingGeofenceDeliveryStore
+        val entry = PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp)
 
-        return when {
-            result.isSuccess -> Result.success()
-            result.exceptionOrNull() is IOException -> {
-                logger.logEventDeliveryRetryable(geofenceId, transition.name, result.exceptionOrNull()?.message)
+        // Shared exactly-once decision: claim before sending so we don't double
+        // deliver against the foreground flush (which also claims before
+        // publishing), and restore the entry on failure so a retry or the flush
+        // can deliver it later.
+        return when (
+            val outcome = store.claimSendRestore(entry) {
+                SDKComponent.android().geofenceEventTracker
+                    .trackEvent(geofenceId, transition, latitude, longitude, timestamp)
+            }
+        ) {
+            PendingDeliveryResult.AlreadyClaimed -> {
+                logger.logEventDeliverySkippedAlreadyDelivered(geofenceId, transition.name)
+                Result.success()
+            }
+            PendingDeliveryResult.Delivered -> {
+                logger.logEventDelivered(geofenceId, transition.name)
+                Result.success()
+            }
+            is PendingDeliveryResult.Retryable -> {
+                logger.logEventDeliveryRetryable(geofenceId, transition.name, outcome.cause?.message)
                 Result.retry()
             }
-            else -> {
-                logger.logEventDeliveryFailed(geofenceId, transition.name, result.exceptionOrNull()?.message)
+            is PendingDeliveryResult.Failed -> {
+                logger.logEventDeliveryFailed(geofenceId, transition.name, outcome.cause?.message)
                 Result.failure()
             }
         }

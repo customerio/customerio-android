@@ -37,7 +37,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logTransitionEmitting(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: emitting tracked event via WorkManager + EventBus", tag = TAG)
+        logger.debug("Geofence '$geofenceId' $transitionName: queued for exactly-once delivery (WorkManager now, analytics pipeline on next foreground)", tag = TAG)
     }
 
     fun logTransitionSuppressed(geofenceId: String, transitionName: String) {
@@ -122,6 +122,34 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logEventDeliverySkippedNoUser(geofenceId: String, transitionName: String) {
         logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery skipped — no identified user", tag = TAG)
+    }
+
+    fun logEventDelivered(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: delivered via WorkManager (direct HTTP); removed from pending store", tag = TAG)
+    }
+
+    fun logEventDeliverySkippedAlreadyDelivered(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: worker skipped — already delivered via the analytics pipeline (claim lost)", tag = TAG)
+    }
+
+    fun logForegroundFlushSnapshot(count: Int) {
+        logger.debug("Geofence foreground flush: $count pending transition(s) to hand off to the analytics pipeline", tag = TAG)
+    }
+
+    fun logForegroundFlushCancelledWorkManager(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: cancelled pending WorkManager delivery before flush", tag = TAG)
+    }
+
+    fun logForegroundFlushPublished(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: published to analytics pipeline via foreground flush", tag = TAG)
+    }
+
+    fun logForegroundFlushEntryFailed(geofenceId: String, transitionName: String, message: String?) {
+        logger.error("Geofence '$geofenceId' $transitionName: foreground flush failed; left in store for next flush — $message", tag = TAG)
+    }
+
+    fun logForegroundFlushComplete(count: Int) {
+        logger.debug("Geofence foreground flush complete: $count transition(s) handed off this run", tag = TAG)
     }
 
     fun logSchedulerFailed(geofenceId: String, transitionName: String, message: String?) {

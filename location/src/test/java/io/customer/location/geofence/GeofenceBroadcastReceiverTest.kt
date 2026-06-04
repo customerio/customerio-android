@@ -7,10 +7,13 @@ import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.location.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.location.geofence.store.GeofenceRegionStore
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.location.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
+import io.customer.sdk.core.di.SDKComponent
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -20,7 +23,6 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeInstanceOf
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
@@ -38,6 +40,10 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockManager: GeofenceManager = mockk(relaxed = true)
+
+    // Real disk-backed store (Robolectric filesDir). The mocked scheduler never
+    // claims, so an appended entry stays in the store and we can assert on it.
+    private val pendingStore get() = SDKComponent.android().pendingGeofenceDeliveryStore
 
     private lateinit var receiver: GeofenceBroadcastReceiver
 
@@ -69,19 +75,20 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             "biz-geofence-1",
             "biz-geofence-2"
         )
+        pendingStore.removeAll()
         receiver = GeofenceBroadcastReceiver()
     }
 
     @Test
-    fun handleGeofencingEvent_givenNullEvent_expectNothingPublished() = runTest {
+    fun handleGeofencingEvent_givenNullEvent_expectNothingScheduled() = runTest {
         receiver.handleGeofencingEvent(null)
 
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun handleGeofencingEvent_givenHasError_expectNothingPublished() = runTest {
+    fun handleGeofencingEvent_givenHasError_expectNothingScheduled() = runTest {
         val event = mockk<GeofencingEvent>(relaxed = true) {
             every { hasError() } returns true
             every { errorCode } returns 1000
@@ -89,12 +96,12 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         receiver.handleGeofencingEvent(event)
 
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun handleGeofencingEvent_givenNullTriggeringGeofences_expectNothingPublished() = runTest {
+    fun handleGeofencingEvent_givenNullTriggeringGeofences_expectNothingScheduled() = runTest {
         val event = mockk<GeofencingEvent>(relaxed = true) {
             every { hasError() } returns false
             every { geofenceTransition } returns Geofence.GEOFENCE_TRANSITION_ENTER
@@ -103,50 +110,45 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         receiver.handleGeofencingEvent(event)
 
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun handleGeofencingEvent_givenNullTriggeringLocation_expectEventPublishedWithoutLatLng() = runTest {
+    fun handleGeofencingEvent_givenNullTriggeringLocation_expectEntryQueuedWithoutLatLng() = runTest {
         val event = buildGeofencingEvent(
             transition = Geofence.GEOFENCE_TRANSITION_ENTER,
             geofenceIds = listOf("biz-1"),
             location = null
         )
-        val capturedEvent = slot<Event>()
-        every { mockEventBus.publish(capture(capturedEvent)) } returns Unit
 
         receiver.handleGeofencingEvent(event)
 
-        val published = capturedEvent.captured.shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.geofenceId shouldBeEqualTo "biz-1"
-        published.properties["latitude"].shouldBeNull()
-        published.properties["longitude"].shouldBeNull()
+        val entry = pendingStore.loadAll().single()
+        entry.geofenceId shouldBeEqualTo "biz-1"
+        entry.latitude.shouldBeNull()
+        entry.longitude.shouldBeNull()
     }
 
     @Test
-    fun handleGeofencingEvent_givenValidEnterEvent_expectEventPublishedWithLatLng() = runTest {
+    fun handleGeofencingEvent_givenValidEnterEvent_expectEntryQueuedWithLatLng() = runTest {
         val event = buildGeofencingEvent(
             transition = Geofence.GEOFENCE_TRANSITION_ENTER,
             geofenceIds = listOf("biz-1"),
             location = realLocation(37.7749, -122.4194)
         )
-        val capturedEvent = slot<Event>()
-        every { mockEventBus.publish(capture(capturedEvent)) } returns Unit
 
         receiver.handleGeofencingEvent(event)
 
-        val published = capturedEvent.captured.shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
-        published.properties["latitude"] shouldBeEqualTo 37.7749
-        published.properties["longitude"] shouldBeEqualTo -122.4194
+        val entry = pendingStore.loadAll().single()
+        entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+        entry.latitude shouldBeEqualTo 37.7749
+        entry.longitude shouldBeEqualTo -122.4194
     }
 
     @Test
-    fun dispatchTransition_givenEnterTransition_expectScheduledAndPublished() = runTest {
-        val capturedEvent = slot<Event>()
-        every { mockEventBus.publish(capture(capturedEvent)) } returns Unit
+    fun dispatchTransition_givenEnterTransition_expectEntryAppendedAndScheduledButNotPublished() = runTest {
+        val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -155,30 +157,24 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        coVerify(exactly = 1) {
-            mockScheduler.schedule(
-                geofenceId = "biz-geofence-1",
-                transition = Event.GeofenceTransition.ENTER,
-                latitude = 37.7749,
-                longitude = -122.4194,
-                timestamp = any()
-            )
-        }
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        val scheduled = entrySlot.captured
+        scheduled.geofenceId shouldBeEqualTo "biz-geofence-1"
+        scheduled.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+        scheduled.latitude shouldBeEqualTo 37.7749
+        scheduled.longitude shouldBeEqualTo -122.4194
+        scheduled.toEventProperties()["transition_type"] shouldBeEqualTo "enter"
+        scheduled.timestamp.shouldNotBeNull()
 
-        val published = capturedEvent.captured.shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.geofenceId shouldBeEqualTo "biz-geofence-1"
-        published.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
-        published.properties["geofence_id"] shouldBeEqualTo "biz-geofence-1"
-        published.properties["transition_type"] shouldBeEqualTo "enter"
-        published.properties["latitude"] shouldBeEqualTo 37.7749
-        published.properties["longitude"] shouldBeEqualTo -122.4194
-        published.properties["timestamp"].shouldNotBeNull()
+        // Durably recorded for the foreground flush, and not published inline:
+        // exactly-once is now arbitrated by the store, not a double-send.
+        pendingStore.loadAll() shouldBeEqualTo listOf(scheduled)
+        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
     }
 
     @Test
-    fun dispatchTransition_givenExitTransition_expectScheduledAndPublished() = runTest {
-        val capturedEvent = slot<Event>()
-        every { mockEventBus.publish(capture(capturedEvent)) } returns Unit
+    fun dispatchTransition_givenExitTransition_expectEntryScheduled() = runTest {
+        val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -187,23 +183,13 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -0.1278
         )
 
-        coVerify(exactly = 1) {
-            mockScheduler.schedule(
-                geofenceId = "biz-geofence-2",
-                transition = Event.GeofenceTransition.EXIT,
-                latitude = 51.5074,
-                longitude = -0.1278,
-                timestamp = any()
-            )
-        }
-
-        val published = capturedEvent.captured.shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
-        published.properties["transition_type"] shouldBeEqualTo "exit"
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
+        entrySlot.captured.toEventProperties()["transition_type"] shouldBeEqualTo "exit"
     }
 
     @Test
-    fun dispatchTransition_givenMovementTriggerExit_expectServicesNotifiedAndNoEventPublished() = runTest {
+    fun dispatchTransition_givenMovementTriggerExit_expectServicesNotifiedAndNothingScheduled() = runTest {
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
             triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
@@ -212,8 +198,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify { mockServices.onMovementTriggerExit(37.7749, -122.4194) }
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
@@ -228,12 +214,12 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun dispatchTransition_givenUnknownTransitionType_expectNothingScheduledOrPublished() = runTest {
+    fun dispatchTransition_givenUnknownTransitionType_expectNothingScheduled() = runTest {
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_DWELL,
             triggeringGeofenceIds = listOf("biz-geofence"),
@@ -241,14 +227,13 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun dispatchTransition_givenMissingLatLng_expectBothPathsReceiveNullLatLng() = runTest {
-        val capturedEvent = slot<Event>()
-        every { mockEventBus.publish(capture(capturedEvent)) } returns Unit
+    fun dispatchTransition_givenMissingLatLng_expectEntryScheduledWithNullLatLng() = runTest {
+        val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -257,24 +242,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = null
         )
 
-        coVerify(exactly = 1) {
-            mockScheduler.schedule(
-                geofenceId = "biz-geofence",
-                transition = Event.GeofenceTransition.ENTER,
-                latitude = null,
-                longitude = null,
-                timestamp = any()
-            )
-        }
-
-        val published = capturedEvent.captured.shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.properties["latitude"].shouldBeNull()
-        published.properties["longitude"].shouldBeNull()
-        published.properties["geofence_id"] shouldBeEqualTo "biz-geofence"
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.latitude.shouldBeNull()
+        entrySlot.captured.longitude.shouldBeNull()
+        entrySlot.captured.geofenceId shouldBeEqualTo "biz-geofence"
     }
 
     @Test
-    fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduledOrPublished() = runTest {
+    fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduled() = runTest {
         every { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) } returns false
 
         receiver.dispatchTransition(
@@ -284,12 +259,12 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun dispatchTransition_givenCooldownAllows_expectTryAcquireBeforeScheduleAndPublish() = runTest {
+    fun dispatchTransition_givenCooldownAllows_expectTryAcquireBeforeSchedule() = runTest {
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
             triggeringGeofenceIds = listOf("biz-geofence"),
@@ -299,15 +274,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerifyOrder {
             mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER)
-            mockScheduler.schedule(any(), any(), any(), any(), any())
-            mockEventBus.publish(any<Event.GeofenceTransitionEvent>())
+            mockScheduler.schedule(any())
         }
     }
 
     @Test
-    fun dispatchTransition_givenBatchWithMovementTriggerAndBusiness_expectOnlyBusinessPublished() = runTest {
-        val capturedEvents = mutableListOf<Event>()
-        every { mockEventBus.publish(capture(capturedEvents)) } returns Unit
+    fun dispatchTransition_givenBatchWithMovementTriggerAndBusiness_expectOnlyBusinessScheduled() = runTest {
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -316,16 +290,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        capturedEvents.size shouldBeEqualTo 1
-        val published = capturedEvents.first().shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.geofenceId shouldBeEqualTo "biz-geofence"
+        scheduled.map { it.geofenceId } shouldBeEqualTo listOf("biz-geofence")
     }
 
     @Test
-    fun dispatchTransition_givenSchedulerThrows_expectEventBusStillPublished() = runTest {
-        coEvery { mockScheduler.schedule(any(), any(), any(), any(), any()) } throws RuntimeException("WM internal")
-        val capturedEvent = slot<Event>()
-        every { mockEventBus.publish(capture(capturedEvent)) } returns Unit
+    fun dispatchTransition_givenSchedulerThrows_expectEntryStillRecordedForFlush() = runTest {
+        // Append happens before schedule, so a WorkManager scheduling failure
+        // still leaves the entry in the store for the foreground flush to deliver.
+        coEvery { mockScheduler.schedule(any()) } throws RuntimeException("WM internal")
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -334,20 +306,13 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        val published = capturedEvent.captured.shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.geofenceId shouldBeEqualTo "biz-geofence-1"
+        pendingStore.loadAll().single().geofenceId shouldBeEqualTo "biz-geofence-1"
     }
 
     @Test
     fun dispatchTransition_givenSchedulerThrowsOnFirstGeofence_expectSecondGeofenceStillProcessed() = runTest {
-        coEvery {
-            mockScheduler.schedule("biz-1", any(), any(), any(), any())
-        } throws RuntimeException("WM internal")
-        coEvery {
-            mockScheduler.schedule("biz-2", any(), any(), any(), any())
-        } returns Unit
-        val capturedEvents = mutableListOf<Event>()
-        every { mockEventBus.publish(capture(capturedEvents)) } returns Unit
+        coEvery { mockScheduler.schedule(match { it.geofenceId == "biz-1" }) } throws RuntimeException("WM internal")
+        coEvery { mockScheduler.schedule(match { it.geofenceId == "biz-2" }) } returns Unit
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -356,13 +321,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        capturedEvents.size shouldBeEqualTo 2
-        capturedEvents.map { (it as Event.GeofenceTransitionEvent).geofenceId } shouldBeEqualTo listOf("biz-1", "biz-2")
+        // Both transitions were appended before their schedule attempt.
+        pendingStore.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1", "biz-2")
+        coVerify { mockScheduler.schedule(match { it.geofenceId == "biz-2" }) }
     }
 
     @Test
     fun dispatchTransition_givenIdNotInStore_expectDroppedAndRemovedFromOs() = runTest {
-        // Orphan ID must not reach scheduler/eventbus/cooldown AND must be removed
+        // Orphan ID must not reach scheduler/cooldown AND must be removed
         // from the OS so it stops firing.
         every { mockStore.getRegisteredIds() } returns setOf("biz-known")
 
@@ -373,8 +339,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        coVerify(exactly = 0) { mockScheduler.schedule(any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
         verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf("biz-orphan")) }
     }
@@ -401,8 +367,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // A single batch can carry both registered and orphan IDs. Per-ID filter,
         // and orphans removed as a single batched GMS call (not one call per orphan).
         every { mockStore.getRegisteredIds() } returns setOf("biz-known")
-        val capturedEvents = mutableListOf<Event>()
-        every { mockEventBus.publish(capture(capturedEvents)) } returns Unit
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -411,9 +377,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        capturedEvents.size shouldBeEqualTo 1
-        val published = capturedEvents.first().shouldBeInstanceOf<Event.GeofenceTransitionEvent>()
-        published.geofenceId shouldBeEqualTo "biz-known"
+        scheduled.map { it.geofenceId } shouldBeEqualTo listOf("biz-known")
         // Single batched removal call carrying both orphans.
         coVerify(exactly = 1) {
             mockManager.removeGeofencesByIds(listOf("biz-orphan-1", "biz-orphan-2"))

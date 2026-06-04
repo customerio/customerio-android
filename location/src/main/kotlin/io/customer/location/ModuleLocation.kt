@@ -3,7 +3,10 @@ package io.customer.location
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.location.geofence.di.geofenceCooldownFilter
+import io.customer.location.geofence.di.geofenceDeliveryFlusher
+import io.customer.location.geofence.di.geofenceLogger
 import io.customer.location.geofence.di.geofenceServices
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -17,6 +20,7 @@ import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.MainThreadPoster
+import io.customer.sdk.data.store.PendingDeliveryFlusher
 
 /**
  * Location module for Customer.io SDK.
@@ -173,7 +177,42 @@ class ModuleLocation @JvmOverloads constructor(
         val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
         mainThreadPoster.post {
             ProcessLifecycleOwner.get().lifecycle.addObserver(
-                LocationLifecycleObserver(services, moduleConfig.trackingMode)
+                LocationLifecycleObserver(
+                    locationServices = services,
+                    trackingMode = moduleConfig.trackingMode,
+                    onForeground = { flushPendingGeofenceDeliveries() }
+                )
+            )
+        }
+    }
+
+    /**
+     * Hand off pending geofence transitions to the analytics pipeline on app
+     * foreground. The shared [PendingDeliveryFlusher] cancels each transition's
+     * WorkManager delivery and atomically claims it, so it can't be delivered
+     * twice (once here via the pipeline, once by the worker via direct HTTP).
+     */
+    private fun flushPendingGeofenceDeliveries() {
+        val eventBus = SDKComponent.eventBus
+        val logger = SDKComponent.geofenceLogger
+        SDKComponent.android().geofenceDeliveryFlusher.flush(
+            callbacks = object : PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>() {
+                override fun onSnapshot(count: Int) = logger.logForegroundFlushSnapshot(count)
+                override fun onWorkCancelled(entry: PendingGeofenceDelivery) =
+                    logger.logForegroundFlushCancelledWorkManager(entry.geofenceId, entry.transition.name)
+                override fun onPublished(entry: PendingGeofenceDelivery) =
+                    logger.logForegroundFlushPublished(entry.geofenceId, entry.transition.name)
+                override fun onEntryFailed(entry: PendingGeofenceDelivery, cause: Throwable) =
+                    logger.logForegroundFlushEntryFailed(entry.geofenceId, entry.transition.name, cause.message)
+                override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
+            }
+        ) { entry ->
+            eventBus.publish(
+                Event.GeofenceTransitionEvent(
+                    geofenceId = entry.geofenceId,
+                    transition = entry.transition,
+                    properties = entry.toEventProperties()
+                )
             )
         }
     }

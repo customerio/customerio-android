@@ -1,3 +1,9 @@
+## [4.18.0](https://github.com/customerio/customerio-android/compare/4.17.1...4.18.0) (2026-06-04)
+
+### Features
+
+* events volume optimization release ([#715](https://github.com/customerio/customerio-android/issues/715)) ([5324714](https://github.com/customerio/customerio-android/commit/5324714e021708a47f730cb4c7de5630b022d8eb))
+
 ## [4.17.1](https://github.com/customerio/customerio-android/compare/4.17.0...4.17.1) (2026-05-18)
 
 ### Bug Fixes

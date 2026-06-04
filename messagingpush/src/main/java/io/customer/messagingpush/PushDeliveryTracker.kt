@@ -1,10 +1,12 @@
 package io.customer.messagingpush
 
+import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.httpClient
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.util.EventNames
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -53,14 +55,25 @@ internal class PushDeliveryTrackerImpl : PushDeliveryTracker {
 }
 
 internal class AsyncPushDeliveryTracker(
-    private val deliveryTracker: PushDeliveryTracker
+    private val deliveryTracker: PushDeliveryTracker,
+    private val pendingStore: PendingDeliveryStore<PendingPushDeliveryMetric>
 ) {
     private val dispatcher: DispatchersProvider
         get() = SDKComponent.dispatchersProvider
 
+    /**
+     * Fire-and-forget direct-HTTP fallback used when WorkManager is not available.
+     * Mirrors the WorkManager success contract: on a 2xx response the pending
+     * entry keyed by [deliveryId] is removed; on any failure the entry is left
+     * in place so the foreground handoff will publish it via the analytics
+     * pipeline.
+     */
     fun trackMetric(token: String, event: String, deliveryId: String) {
         CoroutineScope(dispatcher.background).launch {
-            deliveryTracker.trackMetric(token, event, deliveryId)
+            val result = deliveryTracker.trackMetric(token, event, deliveryId)
+            if (result.isSuccess) {
+                pendingStore.remove(deliveryId)
+            }
         }
     }
 }

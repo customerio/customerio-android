@@ -9,6 +9,92 @@ internal class PushNotificationLogger(private val logger: Logger) {
 
     companion object {
         const val TAG = "Push"
+        const val HANDOFF_TAG = "CIO-Push-Handoff"
+    }
+
+    fun logPendingStoreAppended(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "appended pending entry key=$deliveryId"
+        )
+    }
+
+    fun logWorkManagerEnqueued(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "enqueued WM key=$deliveryId"
+        )
+    }
+
+    fun logWorkManagerUnavailableAsyncFallback(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "WM unavailable, async-tracker fallback key=$deliveryId"
+        )
+    }
+
+    fun logWorkerSuccessRemoved(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "worker success, removed key=$deliveryId"
+        )
+    }
+
+    fun logWorkerSkippedAlreadyDelivered(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "worker skipped, already delivered key=$deliveryId"
+        )
+    }
+
+    fun logWorkerRetry(deliveryId: String, cause: Throwable?) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "worker retry key=$deliveryId cause=${cause?.javaClass?.simpleName ?: "unknown"}"
+        )
+    }
+
+    fun logWorkerFailure(deliveryId: String, cause: Throwable?) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "worker failure key=$deliveryId cause=${cause?.javaClass?.simpleName ?: "unknown"}"
+        )
+    }
+
+    fun logForegroundSnapshot(count: Int) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "foreground reached, snapshot count=$count"
+        )
+    }
+
+    fun logHandoffCancelledWorkManager(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "cancelled WM key=$deliveryId"
+        )
+    }
+
+    fun logHandoffPublishedToEventBus(deliveryId: String) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "published to eventBus key=$deliveryId"
+        )
+    }
+
+    fun logHandoffComplete(count: Int) {
+        logger.info(
+            tag = HANDOFF_TAG,
+            message = "handoff complete, removed count=$count"
+        )
+    }
+
+    fun logHandoffEntryFailed(deliveryId: String, throwable: Throwable) {
+        logger.error(
+            tag = HANDOFF_TAG,
+            message = "handoff entry failed key=$deliveryId cause=${throwable.javaClass.simpleName}",
+            throwable = throwable
+        )
     }
 
     fun logGooglePlayServicesAvailable() {

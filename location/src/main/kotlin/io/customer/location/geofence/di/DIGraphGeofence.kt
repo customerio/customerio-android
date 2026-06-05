@@ -19,6 +19,7 @@ import io.customer.location.geofence.store.GeofenceCooldownStore
 import io.customer.location.geofence.store.GeofenceCooldownStoreImpl
 import io.customer.location.geofence.store.GeofenceRegionStore
 import io.customer.location.geofence.store.GeofenceRegionStoreImpl
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.location.geofence.worker.AsyncGeofenceEventTracker
 import io.customer.location.geofence.worker.GeofenceEventScheduler
 import io.customer.location.geofence.worker.GeofenceEventTracker
@@ -28,6 +29,8 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.httpClient
 import io.customer.sdk.core.di.workManagerProvider
+import io.customer.sdk.data.store.PendingDeliveryFlusher
+import io.customer.sdk.data.store.PendingDeliveryStore
 
 internal val SDKComponent.geofenceLogger: GeofenceLogger
     get() = singleton { GeofenceLogger(logger) }
@@ -54,8 +57,35 @@ internal val AndroidSDKComponent.geofenceEventTracker: GeofenceEventTracker
         GeofenceEventTrackerImpl(SDKComponent.httpClient, secureUserStore, SDKComponent.geofenceLogger)
     }
 
+// Shared by the WorkManager worker, the async fallback, and the foreground flush
+// so all three coordinate exactly-once delivery over one lock/file.
+internal val AndroidSDKComponent.pendingGeofenceDeliveryStore: PendingDeliveryStore<PendingGeofenceDelivery>
+    get() = singleton {
+        PendingDeliveryStore(
+            context = applicationContext,
+            fileName = PendingGeofenceDelivery.FILE_NAME,
+            elementSerializer = PendingGeofenceDelivery.serializer(),
+            logger = SDKComponent.logger
+        )
+    }
+
+internal val AndroidSDKComponent.geofenceDeliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>
+    get() = singleton {
+        PendingDeliveryFlusher(
+            store = pendingGeofenceDeliveryStore,
+            workManagerProvider = SDKComponent.workManagerProvider,
+            dispatchersProvider = SDKComponent.dispatchersProvider
+        )
+    }
+
 internal val AndroidSDKComponent.asyncGeofenceEventTracker: AsyncGeofenceEventTracker
-    get() = singleton { AsyncGeofenceEventTracker(geofenceEventTracker, SDKComponent.dispatchersProvider) }
+    get() = singleton {
+        AsyncGeofenceEventTracker(
+            tracker = geofenceEventTracker,
+            pendingStore = pendingGeofenceDeliveryStore,
+            dispatcher = SDKComponent.dispatchersProvider
+        )
+    }
 
 internal val AndroidSDKComponent.geofenceEventScheduler: GeofenceEventScheduler
     get() = singleton { GeofenceEventScheduler(SDKComponent.workManagerProvider, asyncGeofenceEventTracker) }

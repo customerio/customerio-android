@@ -9,6 +9,7 @@ import com.google.common.util.concurrent.Futures
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.mockk.every
@@ -51,11 +52,13 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         val uniqueKeySlot = slot<String>()
 
         scheduler.schedule(
-            geofenceId = "biz-geofence-1",
-            transition = Event.GeofenceTransition.ENTER,
-            latitude = 37.7749,
-            longitude = -122.4194,
-            timestamp = 1_234L
+            PendingGeofenceDelivery(
+                geofenceId = "biz-geofence-1",
+                transition = Event.GeofenceTransition.ENTER,
+                latitude = 37.7749,
+                longitude = -122.4194,
+                timestamp = 1_234L
+            )
         )
 
         verify(exactly = 1) {
@@ -85,11 +88,13 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         val workRequestSlot = slot<OneTimeWorkRequest>()
 
         scheduler.schedule(
-            geofenceId = "biz-geofence-2",
-            transition = Event.GeofenceTransition.EXIT,
-            latitude = null,
-            longitude = null,
-            timestamp = 99L
+            PendingGeofenceDelivery(
+                geofenceId = "biz-geofence-2",
+                transition = Event.GeofenceTransition.EXIT,
+                latitude = null,
+                longitude = null,
+                timestamp = 99L
+            )
         )
 
         verify { workManager.enqueueUniqueWork(any(), any(), capture(workRequestSlot)) }
@@ -101,8 +106,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
     @Test
     fun schedule_givenWorkManagerUnavailable_expectFallbackToAsyncTracker() = runTest {
         every { workManagerProvider.getWorkManager() } returns null
-
-        scheduler.schedule(
+        val entry = PendingGeofenceDelivery(
             geofenceId = "biz-geofence-3",
             transition = Event.GeofenceTransition.ENTER,
             latitude = 1.0,
@@ -110,15 +114,9 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
             timestamp = 42L
         )
 
+        scheduler.schedule(entry)
+
         verify(exactly = 0) { workManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
-        verify(exactly = 1) {
-            asyncTracker.trackEvent(
-                geofenceId = "biz-geofence-3",
-                transition = Event.GeofenceTransition.ENTER,
-                latitude = 1.0,
-                longitude = 2.0,
-                timestamp = 42L
-            )
-        }
+        verify(exactly = 1) { asyncTracker.trackEvent(entry) }
     }
 }

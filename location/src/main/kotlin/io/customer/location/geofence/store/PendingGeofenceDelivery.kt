@@ -1,0 +1,43 @@
+package io.customer.location.geofence.store
+
+import io.customer.sdk.communication.Event
+import io.customer.sdk.data.store.PendingDeliveryStore
+import kotlinx.serialization.Serializable
+
+/**
+ * A geofence transition observed locally but not yet confirmed as tracked by
+ * the Customer.io backend. Appended when a transition fires, removed when one
+ * of the two delivery channels — the [GeofenceEventWorker] (durable, direct
+ * HTTP) or the foreground flush (analytics pipeline) — delivers it.
+ *
+ * The shared [PendingDeliveryStore] requires a stable `key`; ours doubles as
+ * the WorkManager unique-work name, so the foreground flush can cancel the
+ * pending worker by the same key before publishing.
+ */
+@Serializable
+internal data class PendingGeofenceDelivery(
+    val geofenceId: String,
+    val transition: Event.GeofenceTransition,
+    val latitude: Double?,
+    val longitude: Double?,
+    val timestamp: Long
+) : PendingDeliveryStore.PendingDeliveryEntry {
+    override val key: String get() = "${geofenceId}_${transition.name}_$timestamp"
+
+    /**
+     * Properties carried on the tracked "GeoFence Entered/Exited" event. Kept
+     * here so the producer, the worker's direct-HTTP send, and the foreground
+     * flush all build an identical property set.
+     */
+    fun toEventProperties(): Map<String, Any> = buildMap {
+        put("geofence_id", geofenceId)
+        put("transition_type", transition.name.lowercase())
+        latitude?.let { put("latitude", it) }
+        longitude?.let { put("longitude", it) }
+        put("timestamp", timestamp)
+    }
+
+    companion object {
+        internal const val FILE_NAME = "cio_pending_geofence_delivery.json"
+    }
+}

@@ -24,6 +24,7 @@ import io.customer.messagingpush.util.PushTrackingUtilImpl
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.workManagerProvider
+import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.data.store.PendingDeliveryStore
 
 /*
@@ -61,6 +62,15 @@ internal val SDKComponent.pendingPushDeliveryStore: PendingDeliveryStore<Pending
             fileName = PendingPushDeliveryMetric.FILE_NAME,
             elementSerializer = PendingPushDeliveryMetric.serializer(),
             logger = logger
+        )
+    }
+
+internal val SDKComponent.pushDeliveryFlusher: PendingDeliveryFlusher<PendingPushDeliveryMetric>
+    get() = singleton {
+        PendingDeliveryFlusher(
+            store = pendingPushDeliveryStore,
+            workManagerProvider = workManagerProvider,
+            dispatchersProvider = dispatchersProvider
         )
     }
 

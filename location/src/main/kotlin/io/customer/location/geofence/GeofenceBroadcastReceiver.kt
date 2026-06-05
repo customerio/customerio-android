@@ -12,6 +12,8 @@ import io.customer.location.geofence.di.geofenceLogger
 import io.customer.location.geofence.di.geofenceManager
 import io.customer.location.geofence.di.geofenceRegionStore
 import io.customer.location.geofence.di.geofenceServices
+import io.customer.location.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
@@ -94,7 +96,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val androidComponent = SDKComponent.android()
         val scheduler = androidComponent.geofenceEventScheduler
         val cooldownFilter = androidComponent.geofenceCooldownFilter
-        val eventBus = SDKComponent.eventBus
         // Defense-in-depth against orphans (failed clearAll, app-data wipe, SDK
         // ID-format changes): events for unregistered IDs are dropped and the OS-side
         // registration is removed so it stops firing.
@@ -133,36 +134,27 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
             logger.logTransitionEmitting(geofenceId, transition.name)
 
-            // Parallel delivery: WorkManager (survives process death) + EventBus (analytics pipeline).
-            // Isolate the scheduler so a WorkManager failure doesn't skip EventBus or abandon the batch.
+            // Record the transition durably before scheduling. Two channels then
+            // race to deliver it exactly once, arbitrated by the shared store's
+            // atomic claim: the WorkManager worker (direct HTTP, survives process
+            // death) and the foreground flush (analytics pipeline). Append first
+            // so a WorkManager scheduling failure still leaves the entry for the
+            // flush; isolate the scheduler so it can't abandon the rest of the batch.
+            val entry = PendingGeofenceDelivery(
+                geofenceId = geofenceId,
+                transition = transition,
+                latitude = latitude,
+                longitude = longitude,
+                timestamp = timestamp
+            )
+            androidComponent.pendingGeofenceDeliveryStore.append(entry)
             try {
-                scheduler.schedule(
-                    geofenceId = geofenceId,
-                    transition = transition,
-                    latitude = latitude,
-                    longitude = longitude,
-                    timestamp = timestamp
-                )
+                scheduler.schedule(entry)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 logger.logSchedulerFailed(geofenceId, transition.name, e.message)
             }
-
-            val properties = buildMap<String, Any> {
-                put("geofence_id", geofenceId)
-                put("transition_type", transition.name.lowercase())
-                latitude?.let { put("latitude", it) }
-                longitude?.let { put("longitude", it) }
-                put("timestamp", timestamp)
-            }
-            eventBus.publish(
-                Event.GeofenceTransitionEvent(
-                    geofenceId = geofenceId,
-                    transition = transition,
-                    properties = properties
-                )
-            )
         }
     }
 

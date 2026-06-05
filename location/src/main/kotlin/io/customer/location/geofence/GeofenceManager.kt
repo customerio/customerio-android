@@ -51,7 +51,7 @@ internal class GeofenceManager(
         existingBusinessIds: Set<String> = emptySet()
     ): Result<Unit> = replaceGeofencesInternal(
         regions = regions,
-        movementInitialTrigger = GeofenceConstants.NO_INITIAL_TRIGGER,
+        movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_ENTER,
         existingBusinessIds = existingBusinessIds
     )
 
@@ -94,6 +94,10 @@ internal class GeofenceManager(
             .partition { it.id !in existingBusinessIds }
 
         if (movementTrigger.isNotEmpty()) {
+            // GMS retains per-ID transition state across same-ID re-registers, so
+            // a just-fired EXIT keeps the ID stuck OUTSIDE and blocks future EXITs
+            // at the new center. Removing first forces a fresh state machine.
+            removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID))
             val result = registerBatch(movementTrigger, initialTrigger = movementInitialTrigger)
             if (result.isFailure) return result
         }

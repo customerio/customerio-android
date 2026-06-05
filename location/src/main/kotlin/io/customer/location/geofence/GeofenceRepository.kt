@@ -84,20 +84,23 @@ internal class GeofenceRepositoryImpl(
             }
             val lastSync = store.getLastSyncTimestamp()
             if (lastSync != null) {
-                // Freshness window from the cached server config; falls back to
-                // STALE_THRESHOLD_MS when no cache exists. Non-positive values
-                // are sanitized at parse time in GeofenceApiConfig.toDomain.
-                val threshold = store.getCachedConfig()?.remoteFetchRefreshExpiry
-                    ?: GeofenceConstants.STALE_THRESHOLD_MS
-                if (clock.currentTimeMillis() - lastSync < threshold) {
+                // Time-fresh alone isn't enough: if the app was killed while the
+                // user travelled far, no movement EXIT fired to update the cache.
+                // Null anchor (never fetched) treats distance as 0 → time-only check.
+                val effectiveConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
+                val timeSinceLastSync = clock.currentTimeMillis() - lastSync
+                val distanceFromAnchor = store.getLastApiFetchLocation()
+                    ?.distanceTo(latitude, longitude) ?: 0f
+                val withinFreshness = timeSinceLastSync < effectiveConfig.remoteFetchRefreshExpiry &&
+                    distanceFromAnchor < effectiveConfig.remoteFetchRefreshTriggerRadius
+                if (withinFreshness) {
                     // Cache fresh — if OS regs were wiped on sign-out, re-
                     // register from cache instead of skipping; otherwise the
                     // new user has no geofences until stale-window expiry.
                     val cachedRegions = store.getCachedRegions()
                     val registered = store.getRegisteredIds()
                     if (cachedRegions.isNotEmpty() && registered.isEmpty()) {
-                        val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
-                        return performLocalRefresh(userId, latitude, longitude, cachedConfig)
+                        return performLocalRefresh(userId, latitude, longitude, effectiveConfig)
                     }
                     logger.logSyncSkippedFresh()
                     return Result.success(Unit)

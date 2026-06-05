@@ -63,6 +63,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Repeated identify within the freshness window must not hit the API.
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L // 1 min ago
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
 
         val result = repository.refresh(latitude = 0.0, longitude = 0.0)
 
@@ -110,6 +112,28 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
         coVerify { manager.replaceGeofences(any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenFreshButMovedFarFromAnchor_expectApiCalled() = runTest {
+        // App killed → user travels far → reopens within freshness window.
+        // Time-based check alone would skip and leave geofences stale at the
+        // old location; the distance check forces a fresh fetch.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        coEvery { apiService.fetchGeofences(any(), any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        // 1° latitude ≈ 111 km, way beyond the 5 km remoteFetchRefreshTriggerRadius.
+        repository.refresh(latitude = 1.0, longitude = 0.0)
+
+        coVerify { apiService.fetchGeofences(1.0, 0.0) }
+        verify(exactly = 0) { logger.logSyncSkippedFresh() }
     }
 
     @Test

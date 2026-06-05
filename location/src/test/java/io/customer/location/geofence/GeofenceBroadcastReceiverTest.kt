@@ -218,8 +218,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenMovementTriggerNonExit_expectServicesNotNotified() = runTest {
-        // Movement trigger is registered NO_INITIAL_TRIGGER so it should never fire ENTER;
-        // defensive guard ensures we ignore stray non-EXIT transitions if the OS surprises us.
+        // Movement trigger fires ENTER expectedly (INITIAL_TRIGGER_ENTER on re-registration)
+        // and may also fire DWELL/ENTER on boot. Only EXIT drives a refresh — verify the
+        // receiver ignores non-EXIT cases.
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
             triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),

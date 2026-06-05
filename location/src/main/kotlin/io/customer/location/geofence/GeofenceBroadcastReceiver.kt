@@ -108,8 +108,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         knownIds.forEach { geofenceId ->
             if (geofenceId == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
-                // Movement-trigger geofence is registered with NO_INITIAL_TRIGGER so it
-                // should only ever fire EXIT; defensive guard in case the OS surprises us.
+                // ENTER fires on every re-registration and boot-restore can fire
+                // EXIT. Only EXIT drives a refresh.
                 if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
                     androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
                 } else {

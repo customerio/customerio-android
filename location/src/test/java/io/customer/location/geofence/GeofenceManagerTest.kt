@@ -21,7 +21,6 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -114,17 +113,37 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun replaceGeofences_givenMovementTrigger_expectNoInitialTrigger() = runTest {
+    fun replaceGeofences_givenMovementTrigger_expectInitialTriggerEnter() = runTest {
+        // Movement trigger registered with INITIAL_TRIGGER_ENTER so GMS records
+        // state as INSIDE at the new center — without this, prior OUTSIDE state
+        // from the previous EXIT would block future EXITs from firing.
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
         stubClientAddSuccess(requestSlot)
+        stubClientRemoveByIdsSuccess()
 
         manager.replaceGeofences(
             listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
         )
 
-        requestSlot.captured.initialTrigger shouldNotContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+        requestSlot.captured.initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+    }
+
+    @Test
+    fun replaceGeofences_givenMovementTrigger_expectPriorRegistrationRemovedFirst() = runTest {
+        // GMS caches per-ID transition state across same-ID addGeofences. Removing
+        // the prior registration first forces a truly fresh state machine so the
+        // next EXIT will fire.
+        grantAllPermissions()
+        stubClientAddSuccess()
+        stubClientRemoveByIdsSuccess()
+
+        manager.replaceGeofences(
+            listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
+        )
+
+        verify { client.removeGeofences(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
     }
 
     @Test
@@ -133,6 +152,7 @@ class GeofenceManagerTest : RobolectricTest() {
 
         val requestSlot = slot<GeofencingRequest>()
         stubClientAddSuccess(requestSlot)
+        stubClientRemoveByIdsSuccess()
 
         manager.replaceGeofencesForBootRestore(
             listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
@@ -162,6 +182,7 @@ class GeofenceManagerTest : RobolectricTest() {
         val requests = mutableListOf<GeofencingRequest>()
         val task = immediateSuccessTask<Void>()
         every { client.addGeofences(capture(requests), any()) } returns task
+        stubClientRemoveByIdsSuccess()
 
         manager.replaceGeofences(
             listOf(
@@ -171,10 +192,8 @@ class GeofenceManagerTest : RobolectricTest() {
         )
 
         requests.size shouldBeEqualTo 2
-        // First request: movement trigger with no initial trigger
-        requests[0].initialTrigger shouldNotContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+        requests[0].initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
         requests[0].geofences.first().requestId shouldBeEqualTo GeofenceConstants.MOVEMENT_TRIGGER_ID
-        // Second request: business geofence with INITIAL_TRIGGER_ENTER
         requests[1].initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
         requests[1].geofences.first().requestId shouldBeEqualTo "business-1"
     }
@@ -403,10 +422,6 @@ class GeofenceManagerTest : RobolectricTest() {
 
     private infix fun Int.shouldContainFlag(flag: Int) {
         (this and flag == flag).shouldBeTrue()
-    }
-
-    private infix fun Int.shouldNotContainFlag(flag: Int) {
-        (this and flag == flag).shouldBeFalse()
     }
 
     private infix fun <T> List<T>.shouldContainAll(expected: List<T>) {

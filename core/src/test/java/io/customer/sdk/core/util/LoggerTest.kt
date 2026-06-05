@@ -200,4 +200,19 @@ class LoggerTest : JUnit5Test() {
         assertCalledOnce { mockLogger.info(LoggerImpl.TAG, "[Tag?] Test info message") }
         assertCalledOnce { mockLogger.debug(LoggerImpl.TAG, "[Tag?] Test debug message") }
     }
+
+    @Test
+    fun givenTagAndDispatcher_shouldDeliverTaggedMessageToDispatcher() {
+        logger.logLevel = CioLogLevel.DEBUG
+        val logEventListenerMock = mockk<(CioLogLevel, String) -> Unit>(relaxed = true)
+        logger.setLogDispatcher(logEventListenerMock)
+
+        logger.error("error msg", "Subsystem")
+        logger.info("info msg", "Subsystem")
+        logger.debug("debug msg", "Subsystem")
+
+        assertCalledOnce { logEventListenerMock(CioLogLevel.ERROR, "[Subsystem] error msg") }
+        assertCalledOnce { logEventListenerMock(CioLogLevel.INFO, "[Subsystem] info msg") }
+        assertCalledOnce { logEventListenerMock(CioLogLevel.DEBUG, "[Subsystem] debug msg") }
+    }
 }

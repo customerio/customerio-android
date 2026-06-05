@@ -1,11 +1,15 @@
 package io.customer.sdk.data.store
 
+import androidx.work.Operation
+import androidx.work.WorkManager
+import com.google.common.util.concurrent.Futures
 import io.customer.commontest.core.RobolectricTest
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verifyOrder
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
@@ -44,13 +48,19 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
     private class RecordingCallbacks : PendingDeliveryFlusher.Callbacks<TestEntry>() {
         var snapshotCount: Int? = null
         var completeCount: Int? = null
+        val cancelled = mutableListOf<String>()
         val published = mutableListOf<String>()
         val failed = mutableListOf<String>()
 
         override fun onSnapshot(count: Int) { snapshotCount = count }
+        override fun onWorkCancelled(entry: TestEntry) { cancelled += entry.key }
         override fun onPublished(entry: TestEntry) { published += entry.key }
         override fun onEntryFailed(entry: TestEntry, cause: Throwable) { failed += entry.key }
         override fun onComplete(count: Int) { completeCount = count }
+    }
+
+    private fun immediateSuccessfulOperation(): Operation = mockk(relaxed = true) {
+        every { result } returns Futures.immediateFuture(Operation.SUCCESS)
     }
 
     @Test
@@ -80,6 +90,31 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.snapshotCount shouldBeEqualTo 3
         callbacks.published shouldBeEqualTo listOf("a", "b", "c")
         callbacks.completeCount shouldBeEqualTo 3
+        store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun flush_givenWorkManagerAvailable_expectCancelsUniqueWorkByKeyBeforePublishing() {
+        val store = newStore()
+        listOf("a", "b").forEach { store.append(TestEntry(it)) }
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(store).flush(callbacks) { publishedKeys += it.key }
+
+        // Each entry's WorkManager unique work is cancelled before it's published,
+        // so the worker can't also deliver.
+        verifyOrder {
+            workManager.cancelUniqueWork("a")
+            workManager.cancelUniqueWork("b")
+        }
+        callbacks.cancelled shouldBeEqualTo listOf("a", "b")
+        publishedKeys shouldBeEqualTo listOf("a", "b")
+        callbacks.completeCount shouldBeEqualTo 2
         store.loadAll().isEmpty().shouldBeTrue()
     }
 

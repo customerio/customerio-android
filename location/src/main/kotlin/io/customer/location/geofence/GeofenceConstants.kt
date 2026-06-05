@@ -30,11 +30,6 @@ internal object GeofenceConstants {
     // when the field is missing or non-positive.
     const val DEDUPE_COOLDOWN_MS = 60 * 60 * 1_000L
 
-    // GMS `GeofencingRequest.Builder().setInitialTrigger()` flag for "no initial
-    // events on registration". Used for the movement trigger so re-registration
-    // doesn't spuriously fire EXIT.
-    const val NO_INITIAL_TRIGGER = 0
-
     // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".
     // Our geofences are managed at the application level (we remove explicitly)
     // so OS-side expiration is disabled.

@@ -3,12 +3,13 @@
   "config": {
     "local_refresh_trigger_radius": 1000,
     "remote_fetch_refresh_trigger_radius": 5000,
-    "remote_fetch_refresh_expiry_time": 86400000,
-    "duplicate_events_expiry_time": 3600000,
+    "remote_fetch_refresh_expiry_time": 1,
+    "duplicate_events_expiry_time": 300000,
     "android": { "max_business_geofence": 19 }
   },
   "geofences": [
-    { "name": "Ferry Building", "lat": 37.7955, "lng": -122.3937, "radius": 150 },
-    { "name": "Office", "lat": 37.4220, "lng": -122.0841 }
+    { "name": "HashTag Cafe", "lat": 25.1096772, "lng": 55.1842351, "radius": 150 },
+    { "name": "Collective 2.0", "lat": 25.114898, "lng": 55.2476149, "radius": 150 },
+    { "name": "Circle Mall", "lat": 25.0660395, "lng": 55.2162257, "radius": 150 }
   ]
 }

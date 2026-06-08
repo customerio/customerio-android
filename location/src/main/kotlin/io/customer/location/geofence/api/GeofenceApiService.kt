@@ -67,28 +67,36 @@ internal class GeofenceApiServiceImpl(
                 "config": {
                   "local_refresh_trigger_radius": 1000,
                   "remote_fetch_refresh_trigger_radius": 5000,
-                  "remote_fetch_refresh_expiry_time": 86400000,
-                  "duplicate_events_expiry_time": 3600000,
+                  "remote_fetch_refresh_expiry_time": 1,
+                  "duplicate_events_expiry_time": 300000,
                   "android": {
                     "max_business_geofence": 19
                   }
                 },
                 "geofences": [
                   {
-                    "id": "1-ferry-building",
-                    "name": "Ferry Building",
-                    "latitude": 37.7955,
-                    "longitude": -122.3937,
+                    "id": "1-hashtag-cafe",
+                    "name": "HashTag Cafe",
+                    "latitude": 25.1096772,
+                    "longitude": 55.1842351,
                     "radius": 150,
                     "external_id": "test-1"
                   },
                   {
-                    "id": "2-office",
-                    "name": "Office",
-                    "latitude": 37.422,
-                    "longitude": -122.0841,
+                    "id": "2-collective-2-0",
+                    "name": "Collective 2.0",
+                    "latitude": 25.114898,
+                    "longitude": 55.2476149,
                     "radius": 150,
                     "external_id": "test-2"
+                  },
+                  {
+                    "id": "3-circle-mall",
+                    "name": "Circle Mall",
+                    "latitude": 25.0660395,
+                    "longitude": 55.2162257,
+                    "radius": 150,
+                    "external_id": "test-3"
                   }
                 ]
               }

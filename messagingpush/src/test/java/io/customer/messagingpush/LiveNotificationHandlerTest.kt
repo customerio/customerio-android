@@ -6,7 +6,9 @@ import android.os.Bundle
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.json.JSONObject
@@ -114,6 +116,23 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         verify(exactly = 1) {
             notificationManager.notify(activityId, expectedNotifId, any<Notification>())
         }
+    }
+
+    @Test
+    fun handle_givenTemplateFieldNamedTitle_isNotStrippedAsReservedKey() {
+        // Regression: "title" is a CountdownTimer template field and must reach the
+        // template, not be treated as the standard-push reserved key and dropped.
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        val data = JSONObject().apply {
+            put("title", "Flash Sale")
+            put("targetDate", System.currentTimeMillis() + 60_000L)
+            put("statusMessage", "Sale starts in")
+        }
+        invoke(handlerFor(newBundle(activityType = TemplateRegistry.COUNTDOWN_TIMER, data = data)))
+
+        posted.captured.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() shouldBeEqualTo "Flash Sale"
     }
 
     @Test

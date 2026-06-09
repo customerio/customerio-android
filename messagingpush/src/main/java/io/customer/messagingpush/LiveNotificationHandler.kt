@@ -48,8 +48,14 @@ internal class LiveNotificationHandler(
         private const val EVENT_END = "end"
 
         /**
-         * Envelope keys that are not template fields. Everything else in the
-         * bundle is flattened into the template `data` object.
+         * Live-notification envelope keys that are never template fields.
+         * Everything else in the bundle is flattened into the template `data`
+         * object.
+         *
+         * Note: standard-push keys (`title`, `body`, `image`, `link`, …) are
+         * intentionally NOT reserved here — they are not part of the live
+         * envelope, and reserving them would shadow legitimate template fields
+         * of the same name (e.g. CountdownTimer's `title`).
          */
         private val RESERVED_KEYS = setOf(
             ACTIVITY_ID_KEY,
@@ -58,12 +64,7 @@ internal class LiveNotificationHandler(
             TIMESTAMP_KEY,
             DISMISSAL_DATE_KEY,
             PushTrackingUtil.DELIVERY_ID_KEY,
-            PushTrackingUtil.DELIVERY_TOKEN_KEY,
-            CustomerIOPushNotificationHandler.DEEP_LINK_KEY,
-            CustomerIOPushNotificationHandler.IMAGE_KEY,
-            CustomerIOPushNotificationHandler.TITLE_KEY,
-            CustomerIOPushNotificationHandler.BODY_KEY,
-            CustomerIOPushNotificationHandler.NOTIFICATION_REQUEST_CODE
+            PushTrackingUtil.DELIVERY_TOKEN_KEY
         )
     }
 

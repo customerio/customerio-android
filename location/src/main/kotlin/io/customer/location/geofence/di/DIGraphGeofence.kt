@@ -54,7 +54,7 @@ internal val AndroidSDKComponent.geofenceManager: GeofenceManager
 
 internal val AndroidSDKComponent.geofenceEventTracker: GeofenceEventTracker
     get() = singleton<GeofenceEventTracker> {
-        GeofenceEventTrackerImpl(SDKComponent.httpClient, secureUserStore, SDKComponent.geofenceLogger)
+        GeofenceEventTrackerImpl(SDKComponent.httpClient)
     }
 
 // Shared by the WorkManager worker, the async fallback, and the foreground flush
@@ -83,7 +83,8 @@ internal val AndroidSDKComponent.asyncGeofenceEventTracker: AsyncGeofenceEventTr
         AsyncGeofenceEventTracker(
             tracker = geofenceEventTracker,
             pendingStore = pendingGeofenceDeliveryStore,
-            dispatcher = SDKComponent.dispatchersProvider
+            dispatcher = SDKComponent.dispatchersProvider,
+            logger = SDKComponent.geofenceLogger
         )
     }
 

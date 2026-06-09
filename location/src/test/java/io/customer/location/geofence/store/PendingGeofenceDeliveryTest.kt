@@ -11,7 +11,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun key_expectGeofenceIdTransitionTimestampComposite() {
-        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1.0, 2.0, 1_234L)
+        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1.0, 2.0, 1_234L, "user-A")
 
         // Doubles as the WorkManager unique-work name so the flush can cancel by key.
         entry.key shouldBeEqualTo "biz-1_ENTER_1234"
@@ -19,7 +19,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun serialization_givenRoundTrip_expectEqualEntry() {
-        val entry = PendingGeofenceDelivery("biz-2", Event.GeofenceTransition.EXIT, 37.7749, -122.4194, 99L)
+        val entry = PendingGeofenceDelivery("biz-2", Event.GeofenceTransition.EXIT, 37.7749, -122.4194, 99L, "user-A")
 
         val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
         val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
@@ -29,7 +29,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun serialization_givenNullLatLng_expectRoundTripPreservesNulls() {
-        val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, null, null, 0L)
+        val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, null, null, 0L, "user-A")
 
         val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
         val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
@@ -40,8 +40,30 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
+    fun serialization_givenUserIdSnapshot_expectRoundTripPreservesIt() {
+        val entry = PendingGeofenceDelivery("biz-u", Event.GeofenceTransition.ENTER, 1.0, 2.0, 3L, "user-A")
+
+        val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
+        val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
+
+        restored.userId shouldBeEqualTo "user-A"
+    }
+
+    @Test
+    fun serialization_givenNullUserId_expectRoundTripPreservesNull() {
+        // Anonymous entries are queued by the receiver for the foreground flush.
+        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 1.0, 2.0, 5L, userId = null)
+
+        val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
+        val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
+
+        restored shouldBeEqualTo entry
+        restored.userId shouldBeEqualTo null
+    }
+
+    @Test
     fun toEventProperties_givenLatLng_expectAllPropertiesPresent() {
-        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 1.5, 2.5, 50L)
+        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 1.5, 2.5, 50L, "user-A")
 
         val props = entry.toEventProperties()
 
@@ -54,7 +76,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun toEventProperties_givenNullLatLng_expectLatLngOmitted() {
-        val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.EXIT, null, null, 7L)
+        val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.EXIT, null, null, 7L, "user-A")
 
         val props = entry.toEventProperties()
 

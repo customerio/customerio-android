@@ -191,6 +191,8 @@ class ModuleLocation @JvmOverloads constructor(
      * foreground. The shared [PendingDeliveryFlusher] cancels each transition's
      * WorkManager delivery and atomically claims it, so it can't be delivered
      * twice (once here via the pipeline, once by the worker via direct HTTP).
+     * The pipeline attributes via the SDK's current identity; the worker's
+     * snapshotted userId path is what handles cross-user attribution.
      */
     private fun flushPendingGeofenceDeliveries() {
         val eventBus = SDKComponent.eventBus

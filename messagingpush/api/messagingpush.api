@@ -141,6 +141,16 @@ public final class io/customer/messagingpush/livenotification/LiveNotificationBr
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/customer/messagingpush/livenotification/LiveNotificationDismissReceiver : android/content/BroadcastReceiver {
+	public static final field Companion Lio/customer/messagingpush/livenotification/LiveNotificationDismissReceiver$Companion;
+	public static final field EXTRA_ACTIVITY_ID Ljava/lang/String;
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationDismissReceiver$Companion {
+}
+
 public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {
 	public static final field RECENT_MESSAGES_MAX_SIZE I
 	public final fun getRecentMessagesQueue ()Ljava/util/concurrent/LinkedBlockingDeque;

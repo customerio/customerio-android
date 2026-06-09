@@ -5,13 +5,12 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `countdown_timer` template — chronometer ticking toward [targetDate].
+ * `countdowntimer` template — chronometer ticking toward [targetDate].
  *
- * Static: title (req), heroImageKey (opt).
- * Dynamic: targetDate (req, epoch ms — extendable across pushes), statusMessage
- * (req, label above timer), expiredMessage (opt). Post-target with no
- * expiredMessage means the activity should hide; SDK signals this via
- * [TemplateRenderResult.cancelImmediately].
+ * Fields: title (req), heroImageKey (opt), targetDate (req, epoch ms —
+ * extendable across pushes), statusMessage (req, label above timer),
+ * expiredMessage (opt). Post-target with no expiredMessage means the activity
+ * should hide; SDK signals this via [TemplateRenderResult.cancelImmediately].
  */
 internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
@@ -19,53 +18,28 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        attributes: JSONObject,
-        contentState: JSONObject,
+        data: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val title = attributes.optString("title")
-        val heroImageKey = attributes.optString("heroImageKey").takeIf { it.isNotEmpty() }
-        val targetDate = contentState.optLong("targetDate").takeIf { it > 0 }
-        val statusMessage = contentState.optString("statusMessage")
-        val expiredMessage = contentState.optString("expiredMessage").takeIf { it.isNotEmpty() }
+        val title = data.optString("title")
+        val heroImageKey = data.optStringNonEmpty("heroImageKey")
+        val targetDate = data.optLong("targetDate").takeIf { it > 0 }
+        val statusMessage = data.optString("statusMessage")
+        val expiredMessage = data.optStringNonEmpty("expiredMessage")
 
         val now = System.currentTimeMillis()
         val isPostTarget = targetDate != null && now >= targetDate
-
-        if (isPostTarget && expiredMessage == null) {
-            // Server pushed a post-target state with no message: hide the activity.
-            return TemplateRenderResult(
-                title = title,
-                body = "",
-                subText = null,
-                largeIcon = null,
-                accentColor = null,
-                colorized = false,
-                showProgress = false,
-                progress = 0,
-                progressMax = 0,
-                segments = emptyList(),
-                points = emptyList(),
-                startIconRes = null,
-                endIconRes = null,
-                trackerIconRes = null,
-                countdownUntil = null,
-                deepLink = null,
-                cancelImmediately = true
-            )
-        }
-
-        val body = if (isPostTarget) expiredMessage.orEmpty() else statusMessage
-        val countdownUntil = if (isPostTarget) null else targetDate
+        // Server pushed a post-target state with no message: hide the activity.
+        val cancelImmediately = isPostTarget && expiredMessage == null
 
         return TemplateRenderResult(
             title = title,
-            body = body,
+            body = if (isPostTarget) expiredMessage.orEmpty() else statusMessage,
             subText = null,
-            largeIcon = TemplateAssets.resolveBitmap(context, heroImageKey),
-            accentColor = branding?.accentColor ?: fallbackTintColor,
+            largeIcon = if (cancelImmediately) null else TemplateAssets.resolveBitmap(context, heroImageKey),
+            accentColor = if (cancelImmediately) null else (branding?.accentColor ?: fallbackTintColor),
             colorized = false,
             showProgress = false,
             progress = 0,
@@ -75,8 +49,9 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
             startIconRes = null,
             endIconRes = null,
             trackerIconRes = null,
-            countdownUntil = countdownUntil,
-            deepLink = null
+            countdownUntil = if (isPostTarget) null else targetDate,
+            deepLink = null,
+            cancelImmediately = cancelImmediately
         )
     }
 }

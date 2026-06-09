@@ -39,7 +39,6 @@ internal data class BasicNotificationParams(
     val pendingIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
-    val actions: List<ActionData>,
     val showProgress: Boolean
 )
 
@@ -48,8 +47,6 @@ internal data class BasicNotificationParams(
  * [NotificationCompat] styles with a native progress bar.
  */
 internal object BasicNotificationBuilder {
-
-    private const val MAX_ACTIONS = 3
 
     fun build(params: BasicNotificationParams): Notification {
         val category = if (params.showProgress) {
@@ -72,7 +69,6 @@ internal object BasicNotificationBuilder {
             builder.setProgress(params.progressMax, safeProgress, false)
         }
 
-        // Countdown timer
         params.countdownUntil?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)
@@ -82,7 +78,6 @@ internal object BasicNotificationBuilder {
             builder.setShowWhen(true)
         }
 
-        // Large icon
         params.largeIcon?.let { builder.setLargeIcon(it) }
 
         params.subText?.let { builder.setSubText(it) }
@@ -91,13 +86,6 @@ internal object BasicNotificationBuilder {
             builder.setColorized(true)
         }
         params.pendingIntent?.let { builder.setContentIntent(it) }
-
-        // Action buttons (Android supports max 3)
-        val actionCount = minOf(params.actions.size, MAX_ACTIONS)
-        for (i in 0 until actionCount) {
-            val action = params.actions[i]
-            builder.addAction(0, action.label, action.pendingIntent)
-        }
 
         return builder.build()
     }

@@ -16,7 +16,11 @@ import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.location.LocationModuleConfig;
 import io.customer.location.LocationTrackingMode;
 import io.customer.location.ModuleLocation;
+import android.graphics.Color;
+
+import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.livenotification.LiveNotificationBranding;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOConfig;
 import io.customer.sdk.CustomerIOConfigBuilder;
@@ -38,8 +42,16 @@ public class CustomerIORepository {
         configureSdk(builder, sdkConfig);
 
         // Enable optional features of the SDK by adding desired modules.
-        // Enables push notification
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+        // Enables push notification with live-notification branding registered once at init.
+        builder.addCustomerIOModule(new ModuleMessagingPushFCM(
+                new MessagingPushModuleConfig.Builder()
+                        .setLiveNotificationBranding(new LiveNotificationBranding(
+                                "Customer.io Sample",
+                                Color.parseColor("#1B5E20"),
+                                null
+                        ))
+                        .build()
+        ));
 
         // Enables location tracking
         builder.addCustomerIOModule(new ModuleLocation(

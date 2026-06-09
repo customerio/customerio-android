@@ -1,5 +1,6 @@
 package io.customer.messagingpush
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -20,6 +21,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationDismissReceiver
 import io.customer.messagingpush.livenotification.template.TemplateAssets
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
+import io.customer.messagingpush.livenotification.template.TemplateRenderResult
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.core.di.SDKComponent
 import org.json.JSONArray
@@ -116,9 +118,13 @@ internal class LiveNotificationHandler(
 
         val activityType = bundle.getString(ACTIVITY_TYPE_KEY)
         val template = TemplateRegistry.find(activityType)
-        if (template == null) {
+        // Customer-defined types have no built-in template; they are rendered by the
+        // host app's createLiveNotification callback (checked below).
+        val isCustomType = activityType != null &&
+            activityType in SDKComponent.pushModuleConfig.liveNotificationCustomTypes
+        if (template == null && !isCustomType) {
             SDKComponent.logger.error(
-                "Unknown live notification template '$activityType'; dropping push for activity '$activityId'."
+                "Unknown live notification type '$activityType'; dropping push for activity '$activityId'."
             )
             return
         }
@@ -133,7 +139,7 @@ internal class LiveNotificationHandler(
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
         val effectiveSmallIcon = resolveSmallIcon(context, branding, smallIcon)
 
-        val result = template.render(
+        val result = template?.render(
             context = context,
             data = data,
             branding = branding,
@@ -143,7 +149,7 @@ internal class LiveNotificationHandler(
 
         val notifId = activityId.hashCode() and 0x7FFFFFFF
 
-        if (result.cancelImmediately) {
+        if (result?.cancelImmediately == true) {
             notificationManager.cancel(activityId, notifId)
             return
         }
@@ -151,19 +157,50 @@ internal class LiveNotificationHandler(
         bundle.putInt(CustomerIOPushNotificationHandler.NOTIFICATION_REQUEST_CODE, notifId)
         val parsedPayload = CustomerIOParsedPushPayload(
             extras = Bundle(bundle),
-            deepLink = result.deepLink ?: bundle.getString(CustomerIOPushNotificationHandler.DEEP_LINK_KEY),
+            deepLink = result?.deepLink ?: bundle.getString(CustomerIOPushNotificationHandler.DEEP_LINK_KEY),
             cioDeliveryId = deliveryId,
             cioDeliveryToken = deliveryToken,
-            title = result.title,
-            body = result.body,
+            title = result?.title ?: bundle.getString(CustomerIOPushNotificationHandler.TITLE_KEY).orEmpty(),
+            body = result?.body ?: bundle.getString(CustomerIOPushNotificationHandler.BODY_KEY).orEmpty(),
             activityId = activityId
         )
         val pendingIntent = createIntentForNotificationClick(context, notifId, parsedPayload)
         val deletePendingIntent = createDeleteIntent(context, notifId, activityId)
 
-        val notification = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {
-                val params = Api36LiveNotificationParams(
+        // The host app may fully render the notification; otherwise fall back to the
+        // SDK template. Custom types have no template, so the callback is required.
+        val appNotification = SDKComponent.pushModuleConfig.notificationCallback
+            ?.createLiveNotification(parsedPayload, context)
+        val notification = appNotification ?: result?.let {
+            buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent)
+        }
+        if (notification == null) {
+            SDKComponent.logger.error(
+                "No renderer for live notification type '$activityType': no built-in template and " +
+                    "createLiveNotification returned null; dropping activity '$activityId'."
+            )
+            return
+        }
+
+        notificationManager.notify(activityId, notifId, notification)
+
+        if (event == EVENT_END) {
+            store.clearTimestamp(activityId)
+            scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
+        }
+    }
+
+    private fun buildSdkNotification(
+        context: Context,
+        channelId: String,
+        @DrawableRes effectiveSmallIcon: Int,
+        result: TemplateRenderResult,
+        pendingIntent: PendingIntent,
+        deletePendingIntent: PendingIntent
+    ): Notification = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {
+            Api36LiveNotificationBuilder.build(
+                Api36LiveNotificationParams(
                     context = context,
                     channelId = channelId,
                     title = result.title,
@@ -184,10 +221,11 @@ internal class LiveNotificationHandler(
                     largeIcon = result.largeIcon,
                     showProgress = result.showProgress
                 )
-                Api36LiveNotificationBuilder.build(params)
-            }
-            else -> {
-                val params = BasicNotificationParams(
+            )
+        }
+        else -> {
+            BasicNotificationBuilder.build(
+                BasicNotificationParams(
                     context = context,
                     channelId = channelId,
                     title = result.title,
@@ -204,15 +242,7 @@ internal class LiveNotificationHandler(
                     largeIcon = result.largeIcon,
                     showProgress = result.showProgress
                 )
-                BasicNotificationBuilder.build(params)
-            }
-        }
-
-        notificationManager.notify(activityId, notifId, notification)
-
-        if (event == EVENT_END) {
-            store.clearTimestamp(activityId)
-            scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
+            )
         }
     }
 

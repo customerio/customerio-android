@@ -1,14 +1,17 @@
 package io.customer.messagingpush.livenotification
 
+import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 
 /**
- * Registers the device's FCM token with the backend for each built-in
- * live-notification template type — the Android analogue of iOS push-to-start
- * registration — and keeps it current.
+ * Registers the device's FCM token with the backend for each live-notification
+ * activity type the SDK knows about — the built-in templates plus any
+ * customer-defined types registered via
+ * `MessagingPushModuleConfig.registerLiveNotificationTypes`. This is the
+ * Android analogue of iOS push-to-start registration.
  *
  * Registration is (re)attempted whenever the device token rotates
  * ([Event.RegisterDeviceTokenEvent]) or the user changes
@@ -26,6 +29,12 @@ internal class LiveNotificationRegistrar(
 
     @Volatile
     private var userId: String = ""
+
+    /** The current resolved user identity (identified userId, else anonymousId). */
+    fun currentUserId(): String = userId
+
+    private val registeredTypes: Set<String>
+        get() = TemplateRegistry.builtInTypes.toSet() + SDKComponent.pushModuleConfig.liveNotificationCustomTypes
 
     fun start() {
         // Drop dedup entries for activities that ended long ago without an explicit `end`.
@@ -51,7 +60,7 @@ internal class LiveNotificationRegistrar(
     private suspend fun registerAll() {
         val currentToken = token ?: return
         val signature = "$currentToken|$userId"
-        for (activityType in TemplateRegistry.builtInTypes) {
+        for (activityType in registeredTypes) {
             if (store.registrationSignature(activityType) == signature) continue
             val result = client.registerForActivityType(activityType, currentToken, userId)
             if (result.isSuccess) {

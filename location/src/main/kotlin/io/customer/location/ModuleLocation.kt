@@ -191,8 +191,8 @@ class ModuleLocation @JvmOverloads constructor(
      * foreground. The shared [PendingDeliveryFlusher] cancels each transition's
      * WorkManager delivery and atomically claims it, so it can't be delivered
      * twice (once here via the pipeline, once by the worker via direct HTTP).
-     * The pipeline attributes via the SDK's current identity; the worker's
-     * snapshotted userId path is what handles cross-user attribution.
+     * The entry's snapshotted userId rides through on [Event.GeofenceTransitionEvent]
+     * so the pipeline subscriber attributes the track event to it.
      */
     private fun flushPendingGeofenceDeliveries() {
         val eventBus = SDKComponent.eventBus
@@ -213,7 +213,8 @@ class ModuleLocation @JvmOverloads constructor(
                 Event.GeofenceTransitionEvent(
                     geofenceId = entry.geofenceId,
                     transition = entry.transition,
-                    properties = entry.toEventProperties()
+                    properties = entry.toEventProperties(),
+                    userId = entry.userId
                 )
             )
         }

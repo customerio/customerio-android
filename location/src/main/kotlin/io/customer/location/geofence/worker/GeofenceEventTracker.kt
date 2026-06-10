@@ -7,7 +7,6 @@ import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.PendingDeliveryStore
-import io.customer.sdk.data.store.SecureUserStore
 import io.customer.sdk.data.store.claimSendRestore
 import io.customer.sdk.util.EventNames
 import kotlinx.coroutines.CoroutineScope
@@ -18,53 +17,35 @@ import org.json.JSONObject
  * Sends a geofence transition event via direct HTTP, bypassing the analytics pipeline.
  * Used by [GeofenceEventWorker] (and the async fallback below) so delivery survives
  * process death and does not depend on full SDK initialization.
+ *
+ * Precondition: [entry] must carry a non-null [PendingGeofenceDelivery.userId]
+ * (the user identified when the transition fired, snapshotted at queue time so
+ * sign-out + sign-in cannot reattribute). Anonymous entries belong on the
+ * foreground-flush path and must not be passed here.
  */
 internal interface GeofenceEventTracker {
-    suspend fun trackEvent(
-        geofenceId: String,
-        transition: Event.GeofenceTransition,
-        latitude: Double?,
-        longitude: Double?,
-        timestamp: Long
-    ): Result<Unit>
+    suspend fun trackEvent(entry: PendingGeofenceDelivery): Result<Unit>
 }
 
 internal class GeofenceEventTrackerImpl(
-    private val httpClient: CustomerIOHttpClient,
-    private val secureUserStore: SecureUserStore,
-    private val logger: GeofenceLogger
+    private val httpClient: CustomerIOHttpClient
 ) : GeofenceEventTracker {
 
-    override suspend fun trackEvent(
-        geofenceId: String,
-        transition: Event.GeofenceTransition,
-        latitude: Double?,
-        longitude: Double?,
-        timestamp: Long
-    ): Result<Unit> {
-        // Cached userId so direct-HTTP delivery works without full SDK init.
-        val userId = secureUserStore.getUserId()
-        // Skip cleanly when there's no identified user — no retry will recover from this,
-        // so we report success to drop the work item without an error-level "delivery failed" log.
+    override suspend fun trackEvent(entry: PendingGeofenceDelivery): Result<Unit> {
+        val userId = entry.userId
         if (userId.isNullOrEmpty()) {
-            logger.logEventDeliverySkippedNoUser(geofenceId, transition.name)
-            return Result.success(Unit)
+            return Result.failure(
+                IllegalArgumentException("trackEvent precondition: entry.userId is null or empty; defer to foreground flush")
+            )
         }
 
-        val eventName = when (transition) {
+        val eventName = when (entry.transition) {
             Event.GeofenceTransition.ENTER -> EventNames.GEOFENCE_ENTERED
             Event.GeofenceTransition.EXIT -> EventNames.GEOFENCE_EXITED
         }
 
-        val propertiesJson = JSONObject().apply {
-            put("geofence_id", geofenceId)
-            put("transition_type", transition.name.lowercase())
-            latitude?.let { put("latitude", it) }
-            longitude?.let { put("longitude", it) }
-            put("timestamp", timestamp)
-        }
         val bodyJson = JSONObject().apply {
-            put("properties", propertiesJson)
+            put("properties", JSONObject(entry.toEventProperties()))
             put("event", eventName)
             put("userId", userId)
         }
@@ -75,7 +56,7 @@ internal class GeofenceEventTrackerImpl(
             body = bodyJson.toString()
         )
 
-        return httpClient.request(params).map { /* success/failure only */ }
+        return httpClient.request(params).map { }
     }
 }
 
@@ -85,22 +66,24 @@ internal class GeofenceEventTrackerImpl(
  * worker — claim before sending — so that if the foreground flush fires while
  * this HTTP call is in flight, only one channel delivers: a lost claim skips
  * the send, and a failed send restores the entry for the flush to retry.
+ *
+ * Entries with a null [PendingGeofenceDelivery.userId] are left untouched here;
+ * the foreground flush handles them via the analytics pipeline's anonymousId.
  */
 internal class AsyncGeofenceEventTracker(
     private val tracker: GeofenceEventTracker,
     private val pendingStore: PendingDeliveryStore<PendingGeofenceDelivery>,
-    private val dispatcher: DispatchersProvider
+    private val dispatcher: DispatchersProvider,
+    private val logger: GeofenceLogger
 ) {
     fun trackEvent(entry: PendingGeofenceDelivery) {
+        if (entry.userId.isNullOrEmpty()) {
+            logger.logEventDeliveryDeferredAnonymous(entry.geofenceId, entry.transition.name)
+            return
+        }
         CoroutineScope(dispatcher.background).launch {
             pendingStore.claimSendRestore(entry) {
-                tracker.trackEvent(
-                    geofenceId = entry.geofenceId,
-                    transition = entry.transition,
-                    latitude = entry.latitude,
-                    longitude = entry.longitude,
-                    timestamp = entry.timestamp
-                )
+                tracker.trackEvent(entry)
             }
         }
     }

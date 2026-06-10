@@ -60,10 +60,16 @@ sealed class Event {
     /**
      * Event published by the Location module when a geofence transition is received from the OS.
      * Subscribers (e.g. data pipelines) translate this into a tracked event.
+     *
+     * [userId] is snapshotted at queue time, not the SDK's current identity — non-null means the
+     * subscriber must attribute the resulting track event to this userId (not whoever is identified
+     * at flush time), so a sign-out + sign-in between queue and delivery cannot reattribute. Null
+     * means anonymous at queue time; the subscriber falls back to the pipeline's anonymousId path.
      */
     data class GeofenceTransitionEvent(
         val geofenceId: String,
         val transition: GeofenceTransition,
-        val properties: Map<String, Any>
+        val properties: Map<String, Any>,
+        val userId: String?
     ) : Event()
 }

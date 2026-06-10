@@ -120,8 +120,8 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Geofence event worker dropped: required field missing (geofenceId='$geofenceId', transition='$transitionName')", tag = TAG)
     }
 
-    fun logEventDeliverySkippedNoUser(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery skipped — no identified user", tag = TAG)
+    fun logEventDeliveryDeferredAnonymous(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: no identified user at queue time — HTTP path deferred to foreground flush (analytics pipeline)", tag = TAG)
     }
 
     fun logEventDelivered(geofenceId: String, transitionName: String) {

@@ -3,14 +3,12 @@ package io.customer.location.geofence.worker
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
-import io.customer.location.geofence.GeofenceLogger
+import io.customer.location.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
-import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
@@ -26,29 +24,29 @@ import org.robolectric.RobolectricTestRunner
 class GeofenceEventTrackerTest : RobolectricTest() {
 
     private val httpClient: CustomerIOHttpClient = mockk(relaxed = true)
-    private val secureUserStore: SecureUserStore = mockk(relaxed = true)
-    private val logger: GeofenceLogger = mockk(relaxed = true)
 
     private lateinit var tracker: GeofenceEventTrackerImpl
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
-        tracker = GeofenceEventTrackerImpl(httpClient, secureUserStore, logger)
+        tracker = GeofenceEventTrackerImpl(httpClient)
     }
+
+    private fun entry(
+        geofenceId: String = "biz-geofence-1",
+        transition: Event.GeofenceTransition = Event.GeofenceTransition.ENTER,
+        latitude: Double? = 37.7749,
+        longitude: Double? = -122.4194,
+        timestamp: Long = 1_234_567_890L,
+        userId: String? = "user-42"
+    ) = PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp, userId)
 
     @Test
     fun trackEvent_givenEnterTransition_expectPostToTrackWithCorrectBody() = runTest {
-        every { secureUserStore.getUserId() } returns "user-42"
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 
-        val result = tracker.trackEvent(
-            geofenceId = "biz-geofence-1",
-            transition = Event.GeofenceTransition.ENTER,
-            latitude = 37.7749,
-            longitude = -122.4194,
-            timestamp = 1_234_567_890L
-        )
+        val result = tracker.trackEvent(entry())
 
         result.isSuccess shouldBeEqualTo true
         capturedParams.captured.path shouldBeEqualTo "/track"
@@ -65,17 +63,10 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenExitTransition_expectExitedEventName() = runTest {
-        every { secureUserStore.getUserId() } returns "user-42"
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 
-        tracker.trackEvent(
-            geofenceId = "biz-geofence-2",
-            transition = Event.GeofenceTransition.EXIT,
-            latitude = 0.0,
-            longitude = 0.0,
-            timestamp = 0L
-        )
+        tracker.trackEvent(entry(transition = Event.GeofenceTransition.EXIT))
 
         val body = JSONObject(capturedParams.captured.body)
         body.getString("event") shouldBeEqualTo "GeoFence Exited"
@@ -83,72 +74,45 @@ class GeofenceEventTrackerTest : RobolectricTest() {
     }
 
     @Test
-    fun trackEvent_givenAnonymousUser_expectSkippedWithoutHttpCall() = runTest {
-        every { secureUserStore.getUserId() } returns null
-
-        val result = tracker.trackEvent(
-            geofenceId = "biz-geofence-3",
-            transition = Event.GeofenceTransition.ENTER,
-            latitude = 0.0,
-            longitude = 0.0,
-            timestamp = 0L
-        )
-
-        result.isSuccess shouldBeEqualTo true
-        coVerify(exactly = 0) { httpClient.request(any()) }
-    }
-
-    @Test
     fun trackEvent_givenNullLatLng_expectBodyWithoutLatLng() = runTest {
-        every { secureUserStore.getUserId() } returns "user-42"
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 
-        tracker.trackEvent(
-            geofenceId = "biz-geofence-4",
-            transition = Event.GeofenceTransition.ENTER,
-            latitude = null,
-            longitude = null,
-            timestamp = 1L
-        )
+        tracker.trackEvent(entry(latitude = null, longitude = null))
 
-        val body = JSONObject(capturedParams.captured.body)
-        val props = body.getJSONObject("properties")
+        val props = JSONObject(capturedParams.captured.body).getJSONObject("properties")
         props.has("latitude") shouldBeEqualTo false
         props.has("longitude") shouldBeEqualTo false
     }
 
     @Test
     fun trackEvent_givenHttpFailure_expectFailureResult() = runTest {
-        every { secureUserStore.getUserId() } returns "user-42"
         val error = RuntimeException("boom")
         coEvery { httpClient.request(any()) } returns Result.failure(error)
 
-        val result = tracker.trackEvent(
-            geofenceId = "biz-geofence-5",
-            transition = Event.GeofenceTransition.ENTER,
-            latitude = 0.0,
-            longitude = 0.0,
-            timestamp = 0L
-        )
+        val result = tracker.trackEvent(entry())
 
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error
     }
 
     @Test
+    fun trackEvent_givenNullUserIdEntry_expectFailureWithoutHttpCall() = runTest {
+        // Precondition guard: anonymous entries belong on the foreground-flush path.
+        // Callers must filter these out; if one slips through, fail loud rather than POST a userId-less event.
+        val result = tracker.trackEvent(entry(userId = null))
+
+        result.isFailure shouldBeEqualTo true
+        (result.exceptionOrNull() is IllegalArgumentException) shouldBeEqualTo true
+        coVerify(exactly = 0) { httpClient.request(any()) }
+    }
+
+    @Test
     fun trackEvent_givenContentTypeHeader_expectJsonHeader() = runTest {
-        every { secureUserStore.getUserId() } returns "user-42"
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 
-        tracker.trackEvent(
-            geofenceId = "biz-geofence-6",
-            transition = Event.GeofenceTransition.ENTER,
-            latitude = 0.0,
-            longitude = 0.0,
-            timestamp = 0L
-        )
+        tracker.trackEvent(entry())
 
         capturedParams.captured.headers["Content-Type"].shouldNotBeNull() shouldContain "application/json"
         coVerify(exactly = 1) { httpClient.request(any()) }

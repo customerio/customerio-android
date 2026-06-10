@@ -20,7 +20,8 @@ internal data class PendingGeofenceDelivery(
     val transition: Event.GeofenceTransition,
     val latitude: Double?,
     val longitude: Double?,
-    val timestamp: Long
+    val timestamp: Long,
+    val userId: String?
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String get() = "${geofenceId}_${transition.name}_$timestamp"
 

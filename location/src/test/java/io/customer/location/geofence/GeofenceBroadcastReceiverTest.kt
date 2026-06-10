@@ -14,6 +14,7 @@ import io.customer.location.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -40,6 +41,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockManager: GeofenceManager = mockk(relaxed = true)
+    private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
 
     // Real disk-backed store (Robolectric filesDir). The mocked scheduler never
     // claims, so an appended entry stays in the store and we can assert on it.
@@ -59,12 +61,16 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceCooldownFilter>(mockCooldownFilter)
                         overrideDependency<GeofenceRegionStore>(mockStore)
                         overrideDependency<GeofenceManager>(mockManager)
+                        overrideDependency<SecureUserStore>(mockSecureUserStore)
                     }
                 }
             }
         )
         // Default: cooldown allows emission. Tests override this to test suppression.
         every { mockCooldownFilter.tryAcquire(any(), any()) } returns true
+        // Default: an identified user is the common case; the snapshot lands on the entry.
+        // Tests that need an anonymous-at-queue-time scenario override this to null.
+        every { mockSecureUserStore.getUserId() } returns "user-42"
         // Default: all geofence IDs the tests reference are "registered" so the
         // dispatchTransition store filter is a no-op. Tests for the filter override.
         every { mockStore.getRegisteredIds() } returns setOf(
@@ -170,6 +176,57 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // exactly-once is now arbitrated by the store, not a double-send.
         pendingStore.loadAll() shouldBeEqualTo listOf(scheduled)
         verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenIdentifiedUser_expectUserIdSnapshottedOnEntry() = runTest {
+        // Snapshotting at queue time is what protects A's events from being
+        // reattributed to B if A signs out + B signs in before delivery.
+        every { mockSecureUserStore.getUserId() } returns "user-A"
+        val entrySlot = slot<PendingGeofenceDelivery>()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-1"),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.userId shouldBeEqualTo "user-A"
+    }
+
+    @Test
+    fun dispatchTransition_givenAnonymousSession_expectEntryQueuedAndNoWorkerScheduled() = runTest {
+        // Worker can't HTTP without a userId, so for anonymous entries we skip
+        // WorkManager entirely — the foreground flush is the only delivery path.
+        every { mockSecureUserStore.getUserId() } returns null
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-1"),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        pendingStore.loadAll().single().userId.shouldBeNull()
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenEmptyUserId_expectTreatedAsAnonymous() = runTest {
+        // Matches the SDK's `isUserIdentified` semantics — empty = not identified.
+        every { mockSecureUserStore.getUserId() } returns ""
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-1"),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        pendingStore.loadAll().single().userId.shouldBeNull()
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
     @Test

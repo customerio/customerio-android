@@ -140,20 +140,28 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             // death) and the foreground flush (analytics pipeline). Append first
             // so a WorkManager scheduling failure still leaves the entry for the
             // flush; isolate the scheduler so it can't abandon the rest of the batch.
+            // Snapshot userId so a sign-out + sign-in before delivery can't
+            // reattribute this transition. Empty userId is treated as "not
+            // identified" per the SDK's `isUserIdentified` convention.
             val entry = PendingGeofenceDelivery(
                 geofenceId = geofenceId,
                 transition = transition,
                 latitude = latitude,
                 longitude = longitude,
-                timestamp = timestamp
+                timestamp = timestamp,
+                userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
             )
             androidComponent.pendingGeofenceDeliveryStore.append(entry)
-            try {
-                scheduler.schedule(entry)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                logger.logSchedulerFailed(geofenceId, transition.name, e.message)
+            // Anonymous entries can only be delivered via the foreground flush —
+            // skip the WorkManager schedule that would just no-op on null userId.
+            if (entry.userId != null) {
+                try {
+                    scheduler.schedule(entry)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.logSchedulerFailed(geofenceId, transition.name, e.message)
+                }
             }
         }
     }

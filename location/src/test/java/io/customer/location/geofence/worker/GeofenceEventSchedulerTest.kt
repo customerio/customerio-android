@@ -57,7 +57,8 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 transition = Event.GeofenceTransition.ENTER,
                 latitude = 37.7749,
                 longitude = -122.4194,
-                timestamp = 1_234L
+                timestamp = 1_234L,
+                userId = "user-42"
             )
         )
 
@@ -76,6 +77,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         input.getDouble("latitude", -1.0) shouldBeEqualTo 37.7749
         input.getDouble("longitude", -1.0) shouldBeEqualTo -122.4194
         input.getLong("timestamp", -1L) shouldBeEqualTo 1_234L
+        input.getString("user_id") shouldBeEqualTo "user-42"
 
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
@@ -93,7 +95,8 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 transition = Event.GeofenceTransition.EXIT,
                 latitude = null,
                 longitude = null,
-                timestamp = 99L
+                timestamp = 99L,
+                userId = "user-42"
             )
         )
 
@@ -104,6 +107,28 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
     }
 
     @Test
+    fun schedule_givenNullUserId_expectInputDataWithoutUserIdKey() = runTest {
+        // Worker reads user_id and treats absence as "anonymous-when-queued" → defer to flush.
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val workRequestSlot = slot<OneTimeWorkRequest>()
+
+        scheduler.schedule(
+            PendingGeofenceDelivery(
+                geofenceId = "biz-anon",
+                transition = Event.GeofenceTransition.ENTER,
+                latitude = 1.0,
+                longitude = 2.0,
+                timestamp = 5L,
+                userId = null
+            )
+        )
+
+        verify { workManager.enqueueUniqueWork(any(), any(), capture(workRequestSlot)) }
+        val input = workRequestSlot.captured.workSpec.input
+        input.hasKeyWithValueOfType("user_id", String::class.java) shouldBeEqualTo false
+    }
+
+    @Test
     fun schedule_givenWorkManagerUnavailable_expectFallbackToAsyncTracker() = runTest {
         every { workManagerProvider.getWorkManager() } returns null
         val entry = PendingGeofenceDelivery(
@@ -111,7 +136,8 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
             transition = Event.GeofenceTransition.ENTER,
             latitude = 1.0,
             longitude = 2.0,
-            timestamp = 42L
+            timestamp = 42L,
+            userId = "user-42"
         )
 
         scheduler.schedule(entry)

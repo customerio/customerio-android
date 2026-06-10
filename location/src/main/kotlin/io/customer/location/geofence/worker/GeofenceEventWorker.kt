@@ -25,6 +25,7 @@ private const val KEY_TRANSITION = "transition"
 private const val KEY_LATITUDE = "latitude"
 private const val KEY_LONGITUDE = "longitude"
 private const val KEY_TIMESTAMP = "timestamp"
+private const val KEY_USER_ID = "user_id"
 
 /**
  * Schedules a [GeofenceEventWorker] for guaranteed delivery of a geofence transition event.
@@ -42,6 +43,7 @@ internal class GeofenceEventScheduler(
             .apply {
                 entry.latitude?.let { putDouble(KEY_LATITUDE, it) }
                 entry.longitude?.let { putDouble(KEY_LONGITUDE, it) }
+                entry.userId?.let { putString(KEY_USER_ID, it) }
             }
             .build()
 
@@ -106,8 +108,16 @@ internal class GeofenceEventWorker(
             }
         }
 
+        val userId = inputData.getString(KEY_USER_ID)
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
-        val entry = PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp)
+        val entry = PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp, userId)
+
+        // No identified user at queue time — direct HTTP needs a userId, so
+        // leave the entry in the store for the foreground flush instead.
+        if (userId.isNullOrEmpty()) {
+            logger.logEventDeliveryDeferredAnonymous(geofenceId, transition.name)
+            return Result.success()
+        }
 
         // Shared exactly-once decision: claim before sending so we don't double
         // deliver against the foreground flush (which also claims before
@@ -115,8 +125,7 @@ internal class GeofenceEventWorker(
         // can deliver it later.
         return when (
             val outcome = store.claimSendRestore(entry) {
-                SDKComponent.android().geofenceEventTracker
-                    .trackEvent(geofenceId, transition, latitude, longitude, timestamp)
+                SDKComponent.android().geofenceEventTracker.trackEvent(entry)
             }
         ) {
             PendingDeliveryResult.AlreadyClaimed -> {

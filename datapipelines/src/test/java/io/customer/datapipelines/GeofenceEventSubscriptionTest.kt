@@ -56,7 +56,8 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-1",
             transition = Event.GeofenceTransition.ENTER,
-            properties = mapOf("geofence_id" to "biz-1", "transition_type" to "enter")
+            properties = mapOf("geofence_id" to "biz-1", "transition_type" to "enter"),
+            userId = "user-A"
         )
 
         handlerSlot.captured.invoke(event)
@@ -70,12 +71,47 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-2",
             transition = Event.GeofenceTransition.EXIT,
-            properties = mapOf("geofence_id" to "biz-2", "transition_type" to "exit")
+            properties = mapOf("geofence_id" to "biz-2", "transition_type" to "exit"),
+            userId = "user-A"
         )
 
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
         outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "GeoFence Exited"
+    }
+
+    @Test
+    fun handler_givenPinnedUserIdDifferentFromCurrent_expectTrackAttributedToPinnedUserId() = runTest {
+        // Cross-user attribution guard: even though the SDK is currently identified as
+        // user-B (or anonymous), the pinned snapshot is what must land on the event.
+        sdkInstance.identify("user-current-B")
+        val event = Event.GeofenceTransitionEvent(
+            geofenceId = "biz-3",
+            transition = Event.GeofenceTransition.ENTER,
+            properties = mapOf("geofence_id" to "biz-3"),
+            userId = "user-pinned-A"
+        )
+
+        handlerSlot.captured.invoke(event)
+
+        outputReaderPlugin.trackEvents.last().userId shouldBeEqualTo "user-pinned-A"
+    }
+
+    @Test
+    fun handler_givenNullPinnedUserId_expectTrackUsesCurrentIdentity() = runTest {
+        // Anonymous-at-queue-time entry: no override, pipeline attributes via the
+        // current identity (or anonymousId if still anonymous).
+        sdkInstance.identify("user-current")
+        val event = Event.GeofenceTransitionEvent(
+            geofenceId = "biz-4",
+            transition = Event.GeofenceTransition.ENTER,
+            properties = mapOf("geofence_id" to "biz-4"),
+            userId = null
+        )
+
+        handlerSlot.captured.invoke(event)
+
+        outputReaderPlugin.trackEvents.last().userId shouldBeEqualTo "user-current"
     }
 }

@@ -146,8 +146,11 @@ internal class EngineWebView @JvmOverloads constructor(
         logger.debug("Rendering message with URL: $messageUrl")
         webView?.let {
             it.settings.javaScriptEnabled = true
-            it.settings.allowFileAccess = true
-            it.settings.allowContentAccess = true
+            // File and content access are disabled as defense-in-depth: the renderer only loads our
+            // first-party HTTPS page (navigation is locked to that origin), so it never needs to read
+            // local file:// or content:// resources. These default to false on API 30+ anyway.
+            it.settings.allowFileAccess = false
+            it.settings.allowContentAccess = false
             it.settings.domStorageEnabled = true
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)

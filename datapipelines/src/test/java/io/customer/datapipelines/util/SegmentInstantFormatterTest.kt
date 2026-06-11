@@ -50,6 +50,33 @@ class SegmentInstantFormatterTest : JUnitTest() {
         SegmentInstantFormatter.from(mockedTimestamp).shouldNotBeNull() shouldBeEqualTo event.timestamp
     }
 
+    @Test
+    fun parse_givenInvalidDate_expectReturnNull() {
+        every { anyConstructed<Date>().time } throws IllegalArgumentException("Forced exception")
+
+        SegmentInstantFormatter.from(Date()).shouldBeNull()
+    }
+
+    @Test
+    fun parse_givenValidDate_expectMatchAnalyticsFormat() {
+        every { anyConstructed<Date>().time } returns mockedTime
+
+        val event = TrackEvent(emptyJsonObject, String.random)
+        analytics.process(event)
+
+        SegmentInstantFormatter.from(Date()).shouldNotBeNull() shouldBeEqualTo event.timestamp
+    }
+
+    @Test
+    fun parse_givenDateWithSubSecondMillis_expectMillisPreservedInOutput() {
+        // Date-overload exists specifically to preserve ms precision (the Long
+        // overload is seconds-quantized). Pin .time to a non-zero ms fraction
+        // and assert the formatter renders it in the .SSS slot.
+        every { anyConstructed<Date>().time } returns FIXED_TIME_MILLIS + 123L
+
+        SegmentInstantFormatter.from(Date()).shouldNotBeNull() shouldBeEqualTo "2023-11-14T22:13:20.123Z"
+    }
+
     private companion object {
         // Arbitrary fixed instant (2023-11-14T22:13:20Z). Stable across runs;
         // the exact value doesn't matter — only that it's deterministic.

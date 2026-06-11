@@ -27,6 +27,7 @@ import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.IdentifyContextPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
+import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -180,8 +181,15 @@ class CustomerIO private constructor(
             // Snapshotted userId (if any) overrides current SDK identity for this one event so a
             // sign-out + sign-in between queue and flush cannot reattribute. Null snapshot → no
             // override → natural anonymousId path.
-            val enrichment: EnrichmentClosure? = geofenceEvent.userId?.takeIf { it.isNotEmpty() }?.let { pinnedUserId ->
-                { event -> event?.apply { userId = pinnedUserId } }
+            val pinnedUserId = geofenceEvent.userId?.takeIf { it.isNotEmpty() }
+            // Transition time, not flush time — a delayed flush still attributes the event to
+            // when the transition fired.
+            val transitionTimestamp = SegmentInstantFormatter.from(geofenceEvent.timestamp)
+            val enrichment: EnrichmentClosure = { event ->
+                event?.apply {
+                    pinnedUserId?.let { userId = it }
+                    transitionTimestamp?.let { timestamp = it }
+                }
             }
             track(
                 name = eventName,

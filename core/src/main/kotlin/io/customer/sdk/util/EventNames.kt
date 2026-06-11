@@ -16,6 +16,6 @@ object EventNames {
     const val LOCATION_UPDATE = "CIO Location Update"
 
     // Event names for geofence transitions tracked by the Location module
-    const val GEOFENCE_ENTERED = "GeoFence Entered"
-    const val GEOFENCE_EXITED = "GeoFence Exited"
+    const val GEOFENCE_ENTERED = "CIO Geofence Entered"
+    const val GEOFENCE_EXITED = "CIO Geofence Exited"
 }

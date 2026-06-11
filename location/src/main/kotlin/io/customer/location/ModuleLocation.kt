@@ -209,14 +209,7 @@ class ModuleLocation @JvmOverloads constructor(
                 override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
             }
         ) { entry ->
-            eventBus.publish(
-                Event.GeofenceTransitionEvent(
-                    geofenceId = entry.geofenceId,
-                    transition = entry.transition,
-                    properties = entry.toEventProperties(),
-                    userId = entry.userId
-                )
-            )
+            eventBus.publish(entry.toGeofenceTransitionEvent())
         }
     }
 

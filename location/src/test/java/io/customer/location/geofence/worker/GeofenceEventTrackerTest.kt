@@ -51,7 +51,7 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         capturedParams.captured.path shouldBeEqualTo "/track"
         val body = JSONObject(capturedParams.captured.body)
-        body.getString("event") shouldBeEqualTo "GeoFence Entered"
+        body.getString("event") shouldBeEqualTo "CIO Geofence Entered"
         body.getString("userId") shouldBeEqualTo "user-42"
         val props = body.getJSONObject("properties")
         props.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
@@ -69,7 +69,7 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         tracker.trackEvent(entry(transition = Event.GeofenceTransition.EXIT))
 
         val body = JSONObject(capturedParams.captured.body)
-        body.getString("event") shouldBeEqualTo "GeoFence Exited"
+        body.getString("event") shouldBeEqualTo "CIO Geofence Exited"
         body.getJSONObject("properties").getString("transition_type") shouldBeEqualTo "exit"
     }
 

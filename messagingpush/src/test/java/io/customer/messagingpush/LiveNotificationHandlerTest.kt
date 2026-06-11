@@ -348,4 +348,21 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }
     }
+
+    @Test
+    fun handle_givenStaleEndThenStaleUpdate_doesNotResurrect() {
+        // A stale, out-of-order `end` (lower timestamp) bypasses the guard to cancel, but
+        // must NOT lower the high-water mark; otherwise a later stale update could slip
+        // through and resurrect the cancelled activity.
+        val activityId = "stale-end-then-update"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 50L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 75L)))
+
+        // Mark stays at 100, so the 75 update is dropped: only the first update and the end posted.
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
 }

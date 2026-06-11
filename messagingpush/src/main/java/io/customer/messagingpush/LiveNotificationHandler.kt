@@ -123,8 +123,8 @@ internal class LiveNotificationHandler(
         // is terminal and bypasses the guard so a stale `end` still cancels the notification.
         val store = SDKComponent.liveNotificationStore
         val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
+        val lastSeen = store.lastTimestamp(activityId)
         if (!isEnd && timestamp != null) {
-            val lastSeen = store.lastTimestamp(activityId)
             if (lastSeen != null && timestamp <= lastSeen) {
                 SDKComponent.logger.debug(
                     "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp <= $lastSeen)."
@@ -137,9 +137,11 @@ internal class LiveNotificationHandler(
         // activity_id reuse where the delayed cancel would otherwise kill the new notification).
         cancelPendingDismissal(activityId)
 
-        // Record the high-water timestamp for ALL events (incl. `end`) so a later stale
-        // update — even one arriving after `end` — is dropped by the guard above.
-        if (timestamp != null) {
+        // Advance the high-water timestamp for ALL events (incl. `end`) so a later stale
+        // update — even one arriving after `end` — is dropped by the guard above. Only ever
+        // move it forward: a stale, out-of-order `end` (which bypasses the guard) must not
+        // lower the mark, or a later stale update could slip through and resurrect the activity.
+        if (timestamp != null && (lastSeen == null || timestamp > lastSeen)) {
             store.setLastTimestamp(activityId, timestamp)
         }
 

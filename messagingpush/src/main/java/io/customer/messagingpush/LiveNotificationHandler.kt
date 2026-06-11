@@ -7,13 +7,17 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
+import io.customer.messagingpush.livenotification.LiveNotificationDismissReceiver
 import io.customer.messagingpush.livenotification.template.TemplateAssets
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -95,6 +99,21 @@ internal class LiveNotificationHandler(
             )
             return
         }
+
+        // Out-of-order / duplicate guard. Android renders FCM data directly, so unlike
+        // iOS (where APNs/ActivityKit order updates) the SDK must drop stale pushes itself.
+        val store = SDKComponent.liveNotificationStore
+        val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
+        if (timestamp != null) {
+            val lastSeen = store.lastTimestamp(activityId)
+            if (lastSeen != null && timestamp <= lastSeen) {
+                SDKComponent.logger.debug(
+                    "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp <= $lastSeen)."
+                )
+                return
+            }
+        }
+
         val activityType = bundle.getString(ACTIVITY_TYPE_KEY)
         val template = TemplateRegistry.find(activityType)
         if (template == null) {
@@ -102,6 +121,12 @@ internal class LiveNotificationHandler(
                 "Unknown live notification template '$activityType'; dropping push for activity '$activityId'."
             )
             return
+        }
+
+        // We have committed to acting on this push: record its timestamp so later,
+        // out-of-order pushes for the same activity are dropped. `end` clears it below.
+        if (event != EVENT_END && timestamp != null) {
+            store.setLastTimestamp(activityId, timestamp)
         }
 
         val data = extractData(bundle)
@@ -134,6 +159,7 @@ internal class LiveNotificationHandler(
             activityId = activityId
         )
         val pendingIntent = createIntentForNotificationClick(context, notifId, parsedPayload)
+        val deletePendingIntent = createDeleteIntent(context, notifId, activityId)
 
         val notification = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {
@@ -153,6 +179,7 @@ internal class LiveNotificationHandler(
                     endIconRes = result.endIconRes,
                     trackerIconRes = result.trackerIconRes,
                     pendingIntent = pendingIntent,
+                    deleteIntent = deletePendingIntent,
                     countdownUntil = result.countdownUntil,
                     largeIcon = result.largeIcon,
                     showProgress = result.showProgress
@@ -172,6 +199,7 @@ internal class LiveNotificationHandler(
                     progress = result.progress,
                     progressMax = result.progressMax,
                     pendingIntent = pendingIntent,
+                    deleteIntent = deletePendingIntent,
                     countdownUntil = result.countdownUntil,
                     largeIcon = result.largeIcon,
                     showProgress = result.showProgress
@@ -183,10 +211,48 @@ internal class LiveNotificationHandler(
         notificationManager.notify(activityId, notifId, notification)
 
         if (event == EVENT_END) {
-            // Without a dismissal_date the activity is removed immediately.
-            // Scheduled dismissal via dismissal_date is added with lifecycle reporting.
-            notificationManager.cancel(activityId, notifId)
+            store.clearTimestamp(activityId)
+            scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
         }
+    }
+
+    /**
+     * On `end`, removes the notification at the server-provided `dismissal_date`
+     * (epoch ms). When absent, the activity is removed immediately — there is no
+     * invented default delay. (Best-effort: a long delay does not survive
+     * process death.)
+     */
+    private fun scheduleEndDismissal(
+        bundle: Bundle,
+        notificationManager: NotificationManager,
+        activityId: String,
+        notifId: Int
+    ) {
+        val dismissAtMs = bundle.getString(DISMISSAL_DATE_KEY)?.toLongOrNull()
+        if (dismissAtMs == null) {
+            notificationManager.cancel(activityId, notifId)
+            return
+        }
+        val delayMs = (dismissAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
+        Handler(Looper.getMainLooper()).postDelayed({
+            notificationManager.cancel(activityId, notifId)
+        }, delayMs)
+    }
+
+    private fun createDeleteIntent(
+        context: Context,
+        requestCode: Int,
+        activityId: String
+    ): PendingIntent {
+        val intent = Intent(context, LiveNotificationDismissReceiver::class.java).apply {
+            putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_ID, activityId)
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        return PendingIntent.getBroadcast(context, requestCode, intent, flags)
     }
 
     /**

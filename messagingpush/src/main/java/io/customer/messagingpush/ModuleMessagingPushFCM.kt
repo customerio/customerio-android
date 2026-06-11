@@ -7,6 +7,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
@@ -38,6 +39,9 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
+        // Start before requesting the token so the registrar observes the resulting
+        // RegisterDeviceTokenEvent and registers the built-in live-notification types.
+        SDKComponent.liveNotificationRegistrar.start()
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()

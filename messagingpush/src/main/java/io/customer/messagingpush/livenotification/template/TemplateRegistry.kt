@@ -8,6 +8,15 @@ internal object TemplateRegistry {
     const val COUNTDOWN_TIMER = "io.customer.liveactivities.countdowntimer"
     const val AUCTION_BID = "io.customer.liveactivities.auctionbid"
 
+    /** The built-in activity types the SDK registers for and can render. */
+    val builtInTypes: List<String> = listOf(
+        DELIVERY_TRACKING,
+        FLIGHT_STATUS,
+        LIVE_SCORE,
+        COUNTDOWN_TIMER,
+        AUCTION_BID
+    )
+
     fun find(name: String?): LiveNotificationTemplate? = when (name) {
         DELIVERY_TRACKING -> DeliveryTrackingTemplate
         FLIGHT_STATUS -> FlightStatusTemplate

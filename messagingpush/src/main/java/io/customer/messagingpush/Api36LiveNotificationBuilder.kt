@@ -124,7 +124,10 @@ internal object Api36LiveNotificationBuilder {
             builder.style = Notification.BigTextStyle().bigText(params.body)
         }
 
-        params.countdownUntil?.let { until ->
+        // Only start a count-down chronometer to a future instant. A stale/past target
+        // (e.g. an estimatedArrival that has already elapsed) would render as an
+        // already-expired live update and the system may suppress the notification entirely.
+        params.countdownUntil?.takeIf { it > System.currentTimeMillis() }?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)
             builder.setChronometerCountDown(true)

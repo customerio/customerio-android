@@ -13,8 +13,11 @@ import java.util.UUID;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityLiveNotificationDemoBinding;
+import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
+import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.livenotification.LiveNotificationType;
 
 /**
  * Demo activity that simulates templated live-notification updates by sending
@@ -68,6 +71,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.endButton.setOnClickListener(v -> end());
         binding.autoButton.setOnClickListener(v -> autoRun());
         binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
+        binding.apiStartButton.setOnClickListener(v -> startViaApi());
 
         binding.typeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (isActive) {
@@ -301,6 +305,26 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             if (userBids[step] != null) contentState.put("userBidAmount", userBids[step]);
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-auction-bid", event, ACTIVITY_TYPE_AUCTION_BID, attributes, contentState));
+    }
+
+    /**
+     * Exercises the public local-start API: the SDK generates the activity id, renders
+     * the notification immediately, and registers the instance with the backend.
+     */
+    private void startViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null) return;
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("orderId", "API-1001");
+        data.put("recipientName", "Mahmoud");
+        data.put("statusMessage", "Out for delivery (started via API)");
+        data.put("statusImageKey", "delivery_truck");
+        data.put("stepCurrent", 3);
+        data.put("stepTotal", 4);
+        data.put("driverName", "Sara");
+        data.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
+        String activityId = module.startLiveNotification(LiveNotificationType.DELIVERY_TRACKING, data);
+        binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + activityId, 1));
     }
 
     private void sendUnknownActivityType() {

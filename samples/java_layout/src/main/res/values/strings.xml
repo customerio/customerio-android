@@ -166,7 +166,7 @@
     <string name="live_notification_status_idle">Status: Idle</string>
     <string name="live_notification_status_format">Status: %1$s (Step %2$d)</string>
     <string name="live_notification_status_ended">Status: Ended</string>
-    <string name="live_notification_auto">Run All Steps (2s each)</string>
+    <string name="live_notification_auto">Run All Steps (5s each)</string>
     <string name="live_notification_section_type">Notification Type</string>
     <string name="live_notification_section_manual">Manual Control</string>
     <string name="live_notification_section_auto">Auto Sequence</string>
@@ -175,6 +175,17 @@
     <string name="live_notification_type_live_score">Live Score</string>
     <string name="live_notification_type_countdown_timer">Countdown Timer</string>
     <string name="live_notification_type_auction_bid">Auction Bid</string>
+    <string name="live_notification_type_rideshare">Rideshare (custom layout)</string>
+    <string name="live_notification_type_workout">Workout (builder API)</string>
+    <string name="live_notification_rideshare_eta">ETA</string>
+    <string name="live_notification_rideshare_step_pickup">Pickup</string>
+    <string name="live_notification_rideshare_step_arriving">Arriving</string>
+    <string name="live_notification_rideshare_step_trip">In trip</string>
+    <string name="live_notification_rideshare_step_dropoff">Drop-off</string>
+    <string name="live_notification_section_campaign">Trigger via Campaign</string>
+    <string name="live_notification_campaign_hint">Template (activity_type)</string>
+    <string name="live_notification_campaign_trigger">Send trigger_live event</string>
+    <string name="live_notification_campaign_event_sent">Tracked trigger_live: %1$s</string>
     <string name="live_notification_section_debug">Debug</string>
     <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
     <string name="live_notification_debug_start_via_api">Start via startLiveNotification() API</string>

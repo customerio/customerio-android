@@ -372,6 +372,12 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     protected void onResume() {
         super.onResume();
         // Permission may have been toggled in Settings while we were in the background.
+        // If we previously flagged "permanently denied" but the system now offers rationale,
+        // the user lifted don't-ask-again — treat the denial as recoverable.
+        if (wasFineDeniedPermanently && !hasFineLocation()
+                && ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+            wasFineDeniedPermanently = false;
+        }
         refreshGrantBackgroundLocationUI();
     }
 

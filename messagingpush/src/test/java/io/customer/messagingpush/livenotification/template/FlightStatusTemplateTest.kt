@@ -16,8 +16,9 @@ import org.robolectric.RobolectricTestRunner
  * - basic title/body/subText composition with origin / destination codes;
  * - the delay-red branch — `delayMinutes > 0` flips the accent and suffixes the body;
  * - countdown target switching: `progressFraction` present ⇒ estimatedArrival,
- *   absent ⇒ scheduledDeparture;
- * - strict slotting — `flightNumber` in `content_state` is ignored.
+ *   absent ⇒ scheduledDeparture.
+ *
+ * All fields arrive flattened; the legacy grouping is merged via [flatten].
  */
 @RunWith(RobolectricTestRunner::class)
 internal class FlightStatusTemplateTest : IntegrationTest() {
@@ -29,8 +30,7 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
         contentState: JSONObject = JSONObject()
     ): TemplateRenderResult = FlightStatusTemplate.render(
         context = contextMock,
-        attributes = attributes,
-        contentState = contentState,
+        data = flatten(attributes, contentState),
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
@@ -143,38 +143,5 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
         val result = render(baseAttributes(), contentState)
 
         result.progress shouldBeEqualTo 100
-    }
-
-    // --- Strict-slotting regression guard ---
-
-    @Test
-    fun render_flightNumberInContentState_isIgnored() {
-        val attributes = JSONObject().apply {
-            put("origin", JSONObject().put("code", "JFK"))
-            put("destination", JSONObject().put("code", "LAX"))
-        }
-        val contentState = JSONObject().apply {
-            put("flightNumber", "MISPLACED")
-            put("statusMessage", "x")
-        }
-
-        val result = render(attributes, contentState)
-
-        result.title shouldBeEqualTo " · JFK → LAX" // flightNumber empty, prefix space remains
-    }
-
-    @Test
-    fun render_delayMinutesInAttributes_isIgnored() {
-        val attributes = baseAttributes().apply {
-            put("delayMinutes", 25) // wrong slot
-        }
-        val contentState = JSONObject().apply {
-            put("statusMessage", "x")
-        }
-
-        val result = render(attributes, contentState)
-
-        (result.accentColor == delayRed).shouldBeFalse()
-        result.body shouldBeEqualTo "x"
     }
 }

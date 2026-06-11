@@ -9,14 +9,14 @@ import org.json.JSONObject
 /**
  * Renders a single live-notification template.
  *
- * Each template owns its typed schema (e.g. `delivery_tracking` knows about
+ * Each template owns its typed schema (e.g. `deliverytracking` knows about
  * `orderId`, `stepCurrent`, `statusImageKey`). The handler dispatches to a
  * concrete subtype via [TemplateRegistry.find] using the `activity_type` key
  * from the FCM envelope.
  *
- * Static fields arrive in the `attributes` JSON object; dynamic fields arrive
- * in the `content_state` JSON object. Strict slotting is enforced — each
- * template reads each documented field only from its designated slot.
+ * All template fields arrive flattened in a single [data] object alongside the
+ * envelope keys (unlike iOS, Android does not split static `attributes` from
+ * dynamic `content-state`). Each template reads the fields it documents.
  *
  * Sealed and `internal` — the v1 closed set of templates is the only path.
  * Adding a template means adding a subtype to this hierarchy and an entry to
@@ -27,8 +27,7 @@ internal sealed interface LiveNotificationTemplate {
 
     fun render(
         context: Context,
-        attributes: JSONObject,
-        contentState: JSONObject,
+        data: JSONObject,
         branding: LiveNotificationBranding?,
         @DrawableRes smallIcon: Int,
         @ColorInt fallbackTintColor: Int?

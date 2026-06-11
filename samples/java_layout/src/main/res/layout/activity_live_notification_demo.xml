@@ -146,5 +146,13 @@
             android:layout_marginTop="@dimen/margin_default"
             android:text="@string/live_notification_debug_unknown_activity_type" />
 
+        <Button
+            android:id="@+id/api_start_button"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_debug_start_via_api" />
+
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

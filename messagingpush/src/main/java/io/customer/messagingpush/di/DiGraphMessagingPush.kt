@@ -12,6 +12,7 @@ import io.customer.messagingpush.PushDeliveryTracker
 import io.customer.messagingpush.PushDeliveryTrackerImpl
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClient
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl
+import io.customer.messagingpush.livenotification.LiveNotificationManager
 import io.customer.messagingpush.livenotification.LiveNotificationRegistrar
 import io.customer.messagingpush.livenotification.LiveNotificationStore
 import io.customer.messagingpush.logger.PushNotificationLogger
@@ -99,6 +100,14 @@ internal val SDKComponent.liveNotificationLifecycleClient: LiveNotificationLifec
 internal val SDKComponent.liveNotificationRegistrar: LiveNotificationRegistrar
     get() = singleton<LiveNotificationRegistrar> {
         LiveNotificationRegistrar(liveNotificationLifecycleClient, liveNotificationStore)
+    }
+
+internal val SDKComponent.liveNotificationManager: LiveNotificationManager
+    get() = singleton<LiveNotificationManager> {
+        LiveNotificationManager(
+            lifecycleClient = liveNotificationLifecycleClient,
+            registrar = liveNotificationRegistrar
+        )
     }
 
 internal val SDKComponent.pushDeliveryTracker: PushDeliveryTracker

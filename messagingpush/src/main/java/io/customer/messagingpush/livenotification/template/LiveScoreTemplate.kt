@@ -26,16 +26,16 @@ internal object LiveScoreTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val homeTeam = data.optJSONObject("homeTeam")
-        val awayTeam = data.optJSONObject("awayTeam")
-        val homeName = homeTeam?.optString("name").orEmpty()
-        val awayName = awayTeam?.optString("name").orEmpty()
-        val homeScore = data.optInt("homeScore", 0)
-        val awayScore = data.optInt("awayScore", 0)
-        val period = data.optString("period")
-        val clock = data.optStringNonEmpty("clock")
-        val statusMessage = data.optStringNonEmpty("statusMessage")
-        val leagueLogoKey = data.optStringNonEmpty("leagueLogoKey")
+        val homeTeam = data.optJSONObject(LiveScoreFields.HOME_TEAM)
+        val awayTeam = data.optJSONObject(LiveScoreFields.AWAY_TEAM)
+        val homeName = homeTeam?.optString(TeamFields.NAME).orEmpty()
+        val awayName = awayTeam?.optString(TeamFields.NAME).orEmpty()
+        val homeScore = data.optInt(LiveScoreFields.HOME_SCORE, 0)
+        val awayScore = data.optInt(LiveScoreFields.AWAY_SCORE, 0)
+        val period = data.optString(LiveScoreFields.PERIOD)
+        val clock = data.optStringNonEmpty(LiveScoreFields.CLOCK)
+        val statusMessage = data.optStringNonEmpty(LiveScoreFields.STATUS_MESSAGE)
+        val leagueLogoKey = data.optStringNonEmpty(LiveScoreFields.LEAGUE_LOGO_KEY)
 
         val title = "$homeName $homeScore - $awayScore $awayName"
         val body = statusMessage

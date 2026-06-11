@@ -70,7 +70,9 @@ internal object BasicNotificationBuilder {
             builder.setProgress(params.progressMax, safeProgress, false)
         }
 
-        params.countdownUntil?.let { until ->
+        // Only count down to a future instant; a past target renders as an already-expired
+        // chronometer and can suppress the notification (see Api36LiveNotificationBuilder).
+        params.countdownUntil?.takeIf { it > System.currentTimeMillis() }?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

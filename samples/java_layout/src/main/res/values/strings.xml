@@ -177,5 +177,6 @@
     <string name="live_notification_type_auction_bid">Auction Bid</string>
     <string name="live_notification_section_debug">Debug</string>
     <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
+    <string name="live_notification_debug_start_via_api">Start via startLiveNotification() API</string>
 
 </resources>

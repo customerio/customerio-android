@@ -5,11 +5,11 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `live_score` template — text-only live update for sports scores.
+ * `livescore` template — text-only live update for sports scores.
  *
- * Static: homeTeam{name, logoKey?}, awayTeam{name, logoKey?}, sport (ignored —
- * Android can't change layout per sport without custom views), leagueLogoKey (opt).
- * Dynamic: homeScore/awayScore (int), period (req), clock (opt),
+ * Fields: homeTeam{name, logoKey?}, awayTeam{name, logoKey?}, sport (ignored —
+ * Android can't change layout per sport without custom views), leagueLogoKey (opt),
+ * homeScore/awayScore (int), period (req), clock (opt),
  * statusMessage (opt — overrides body for special situations).
  *
  * Limitation: Android exposes a single large-icon slot; we use [leagueLogoKey].
@@ -21,22 +21,21 @@ internal object LiveScoreTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        attributes: JSONObject,
-        contentState: JSONObject,
+        data: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val homeTeam = attributes.optJSONObject("homeTeam")
-        val awayTeam = attributes.optJSONObject("awayTeam")
+        val homeTeam = data.optJSONObject("homeTeam")
+        val awayTeam = data.optJSONObject("awayTeam")
         val homeName = homeTeam?.optString("name").orEmpty()
         val awayName = awayTeam?.optString("name").orEmpty()
-        val homeScore = contentState.optInt("homeScore", 0)
-        val awayScore = contentState.optInt("awayScore", 0)
-        val period = contentState.optString("period")
-        val clock = contentState.optString("clock").takeIf { it.isNotEmpty() }
-        val statusMessage = contentState.optString("statusMessage").takeIf { it.isNotEmpty() }
-        val leagueLogoKey = attributes.optString("leagueLogoKey").takeIf { it.isNotEmpty() }
+        val homeScore = data.optInt("homeScore", 0)
+        val awayScore = data.optInt("awayScore", 0)
+        val period = data.optString("period")
+        val clock = data.optStringNonEmpty("clock")
+        val statusMessage = data.optStringNonEmpty("statusMessage")
+        val leagueLogoKey = data.optStringNonEmpty("leagueLogoKey")
 
         val title = "$homeName $homeScore - $awayScore $awayName"
         val body = statusMessage

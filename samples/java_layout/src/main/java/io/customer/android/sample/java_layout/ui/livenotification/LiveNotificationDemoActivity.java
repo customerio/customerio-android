@@ -22,10 +22,11 @@ import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
  * <p>
  * Each scenario builds a templated FCM data bundle that matches the
  * cross-platform live-activity envelope: top-level lifecycle keys
- * ({@code activity_id}, {@code event}, {@code activity_type}) plus two JSON
- * strings, {@code attributes} (static fields) and {@code content_state}
- * (dynamic fields). The static branding bundle lives in
- * {@code MessagingPushModuleConfig} and is registered once at SDK init.
+ * ({@code activity_id}, {@code event}, {@code activity_type}) plus the
+ * template fields flattened alongside them (Android does not split static
+ * {@code attributes} from dynamic {@code content_state}). The static branding
+ * bundle lives in {@code MessagingPushModuleConfig} and is registered once at
+ * SDK init.
  */
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
@@ -36,13 +37,13 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private static final String EVENT_UPDATE = "update";
     private static final String EVENT_END = "end";
 
-    // activity_type values are prefixed per the cross-platform spec.
-    private static final String ACTIVITY_TYPE_DELIVERY_TRACKING = "io.customer.live.delivery_tracking";
-    private static final String ACTIVITY_TYPE_FLIGHT_STATUS = "io.customer.live.flight_status";
-    private static final String ACTIVITY_TYPE_LIVE_SCORE = "io.customer.live.live_score";
-    private static final String ACTIVITY_TYPE_COUNTDOWN_TIMER = "io.customer.live.countdown_timer";
-    private static final String ACTIVITY_TYPE_AUCTION_BID = "io.customer.live.auction_bid";
-    private static final String ACTIVITY_TYPE_UNKNOWN = "io.customer.live.bogus";
+    // activity_type values match the iOS Live Activity identifiers per the cross-platform spec.
+    private static final String ACTIVITY_TYPE_DELIVERY_TRACKING = "io.customer.liveactivities.deliverytracking";
+    private static final String ACTIVITY_TYPE_FLIGHT_STATUS = "io.customer.liveactivities.flightstatus";
+    private static final String ACTIVITY_TYPE_LIVE_SCORE = "io.customer.liveactivities.livescore";
+    private static final String ACTIVITY_TYPE_COUNTDOWN_TIMER = "io.customer.liveactivities.countdowntimer";
+    private static final String ACTIVITY_TYPE_AUCTION_BID = "io.customer.liveactivities.auctionbid";
+    private static final String ACTIVITY_TYPE_UNKNOWN = "io.customer.liveactivities.bogus";
 
     private enum TemplateChoice {
         DELIVERY_TRACKING, FLIGHT_STATUS, LIVE_SCORE, COUNTDOWN_TIMER, AUCTION_BID
@@ -329,9 +330,22 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         bundle.putString("activity_id", activityId);
         bundle.putString("event", event);
         bundle.putString("activity_type", activityType);
-        bundle.putString("attributes", attributes.toString());
-        bundle.putString("content_state", contentState.toString());
+        // The backend sends template fields flattened at the envelope top level.
+        putFlattened(bundle, attributes);
+        putFlattened(bundle, contentState);
         return bundle;
+    }
+
+    private void putFlattened(Bundle bundle, JSONObject obj) {
+        java.util.Iterator<String> keys = obj.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object value = obj.opt(key);
+            if (value == null || value == JSONObject.NULL) continue;
+            // Nested objects (origin, homeTeam, …) ride along as JSON strings,
+            // matching how FCM delivers non-scalar data values.
+            bundle.putString(key, value.toString());
+        }
     }
 
     private void fire(Bundle bundle) {

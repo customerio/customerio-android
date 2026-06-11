@@ -23,11 +23,11 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val title = data.optString("title")
-        val heroImageKey = data.optStringNonEmpty("heroImageKey")
-        val targetDate = data.optLong("targetDate").takeIf { it > 0 }
-        val statusMessage = data.optString("statusMessage")
-        val expiredMessage = data.optStringNonEmpty("expiredMessage")
+        val title = data.optString(CountdownTimerFields.TITLE)
+        val heroImageKey = data.optStringNonEmpty(CountdownTimerFields.HERO_IMAGE_KEY)
+        val targetDate = data.optLong(CountdownTimerFields.TARGET_DATE).takeIf { it > 0 }
+        val statusMessage = data.optString(CountdownTimerFields.STATUS_MESSAGE)
+        val expiredMessage = data.optStringNonEmpty(CountdownTimerFields.EXPIRED_MESSAGE)
 
         val now = System.currentTimeMillis()
         val isPostTarget = targetDate != null && now >= targetDate

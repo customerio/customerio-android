@@ -22,14 +22,14 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val orderId = data.optString("orderId")
-        val recipientName = data.optStringNonEmpty("recipientName")
-        val statusMessage = data.optString("statusMessage")
-        val statusImageKey = data.optStringNonEmpty("statusImageKey")
-        val stepCurrent = data.optInt("stepCurrent", 0)
-        val stepTotal = data.optInt("stepTotal", 1).coerceAtLeast(1)
-        val estimatedArrival = data.optLong("estimatedArrival").takeIf { it > 0 }
-        val driverName = data.optStringNonEmpty("driverName")
+        val orderId = data.optString(DeliveryTrackingFields.ORDER_ID)
+        val recipientName = data.optStringNonEmpty(DeliveryTrackingFields.RECIPIENT_NAME)
+        val statusMessage = data.optString(DeliveryTrackingFields.STATUS_MESSAGE)
+        val statusImageKey = data.optStringNonEmpty(DeliveryTrackingFields.STATUS_IMAGE_KEY)
+        val stepCurrent = data.optInt(DeliveryTrackingFields.STEP_CURRENT, 0)
+        val stepTotal = data.optInt(DeliveryTrackingFields.STEP_TOTAL, 1).coerceAtLeast(1)
+        val estimatedArrival = data.optLong(DeliveryTrackingFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
+        val driverName = data.optStringNonEmpty(DeliveryTrackingFields.DRIVER_NAME)
 
         val title = recipientName?.let { "Delivery for $it" } ?: "Order #$orderId"
         val subText = when {

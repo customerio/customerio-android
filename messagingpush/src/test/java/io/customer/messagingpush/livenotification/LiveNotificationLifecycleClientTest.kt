@@ -46,6 +46,26 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
     }
 
     @Test
+    fun registerInstance_buildsPutPushTokenWithActivityType() = runTest {
+        val params = slot<HttpRequestParams>()
+        coEvery { httpClient.request(capture(params)) } returns Result.success("")
+
+        client.registerInstance(
+            activityId = "act-9",
+            activityType = "io.customer.liveactivities.deliverytracking",
+            token = "tok",
+            userId = "user"
+        )
+
+        params.captured.method shouldBeEqualTo HttpMethod.PUT
+        params.captured.path shouldBeEqualTo "/v1/live_activities/act-9/push_token"
+        val body = params.captured.body!!
+        body shouldContain "\"activity_type\":\"io.customer.liveactivities.deliverytracking\""
+        body shouldContain "\"os\":\"android\""
+        body shouldContain "\"transport\":\"fcm\""
+    }
+
+    @Test
     fun reportDismissed_buildsDeleteWithEmptyBody() = runTest {
         val params = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(params)) } returns Result.success("")

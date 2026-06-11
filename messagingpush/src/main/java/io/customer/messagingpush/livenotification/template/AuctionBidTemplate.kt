@@ -29,15 +29,15 @@ internal object AuctionBidTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val itemTitle = data.optString("itemTitle")
-        val itemImageKey = data.optStringNonEmpty("itemImageKey")
-        val currencySymbol = data.optStringNonEmpty("currencySymbol") ?: "$"
-        val currentBid = data.optString("currentBid")
-        val bidCount = data.optInt("bidCount", 0)
-        val endTime = data.optLong("endTime").takeIf { it > 0 }
-        val statusMessage = data.optString("statusMessage")
-        val isUserHighBidder = data.optBoolean("isUserHighBidder", false)
-        val userBidAmount = data.optStringNonEmpty("userBidAmount")
+        val itemTitle = data.optString(AuctionBidFields.ITEM_TITLE)
+        val itemImageKey = data.optStringNonEmpty(AuctionBidFields.ITEM_IMAGE_KEY)
+        val currencySymbol = data.optStringNonEmpty(AuctionBidFields.CURRENCY_SYMBOL) ?: "$"
+        val currentBid = data.optString(AuctionBidFields.CURRENT_BID)
+        val bidCount = data.optInt(AuctionBidFields.BID_COUNT, 0)
+        val endTime = data.optLong(AuctionBidFields.END_TIME).takeIf { it > 0 }
+        val statusMessage = data.optString(AuctionBidFields.STATUS_MESSAGE)
+        val isUserHighBidder = data.optBoolean(AuctionBidFields.IS_USER_HIGH_BIDDER, false)
+        val userBidAmount = data.optStringNonEmpty(AuctionBidFields.USER_BID_AMOUNT)
 
         val body = "$statusMessage · $currencySymbol$currentBid"
         val subText = userBidAmount

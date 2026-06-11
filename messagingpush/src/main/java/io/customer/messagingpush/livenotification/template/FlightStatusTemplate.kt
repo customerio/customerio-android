@@ -25,21 +25,21 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val flightNumber = data.optString("flightNumber")
-        val origin = data.optJSONObject("origin")
-        val destination = data.optJSONObject("destination")
-        val originCode = origin?.optString("code").orEmpty()
-        val destinationCode = destination?.optString("code").orEmpty()
+        val flightNumber = data.optString(FlightStatusFields.FLIGHT_NUMBER)
+        val origin = data.optJSONObject(FlightStatusFields.ORIGIN)
+        val destination = data.optJSONObject(FlightStatusFields.DESTINATION)
+        val originCode = origin?.optString(AirportFields.CODE).orEmpty()
+        val destinationCode = destination?.optString(AirportFields.CODE).orEmpty()
 
-        val statusMessage = data.optString("statusMessage")
-        val gate = data.optStringNonEmpty("gate")
-        val terminal = data.optStringNonEmpty("terminal")
-        val scheduledDeparture = data.optLong("scheduledDeparture").takeIf { it > 0 }
-        val estimatedArrival = data.optLong("estimatedArrival").takeIf { it > 0 }
+        val statusMessage = data.optString(FlightStatusFields.STATUS_MESSAGE)
+        val gate = data.optStringNonEmpty(FlightStatusFields.GATE)
+        val terminal = data.optStringNonEmpty(FlightStatusFields.TERMINAL)
+        val scheduledDeparture = data.optLong(FlightStatusFields.SCHEDULED_DEPARTURE).takeIf { it > 0 }
+        val estimatedArrival = data.optLong(FlightStatusFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
         val progressFractionRaw =
-            if (data.has("progressFraction")) data.optDouble("progressFraction") else Double.NaN
+            if (data.has(FlightStatusFields.PROGRESS_FRACTION)) data.optDouble(FlightStatusFields.PROGRESS_FRACTION) else Double.NaN
         val progressFraction = progressFractionRaw.takeIf { !it.isNaN() }
-        val delayMinutes = data.optInt("delayMinutes", 0).takeIf { it > 0 }
+        val delayMinutes = data.optInt(FlightStatusFields.DELAY_MINUTES, 0).takeIf { it > 0 }
 
         val title = "$flightNumber · $originCode → $destinationCode"
         val subText = "Gate ${gate ?: "TBA"} · Terminal ${terminal ?: "TBA"}"

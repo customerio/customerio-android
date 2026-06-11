@@ -5,10 +5,10 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `flight_status` template — flight progress with optional in-flight progress bar.
+ * `flightstatus` template — flight progress with optional in-flight progress bar.
  *
- * Static: flightNumber, origin{code, city}, destination{code, city}.
- * Dynamic: statusMessage (req), gate (opt), terminal (opt),
+ * Fields: flightNumber, origin{code, city}, destination{code, city},
+ * statusMessage (req), gate (opt), terminal (opt),
  * scheduledDeparture/estimatedArrival (req, epoch ms), progressFraction (opt, 0–1),
  * delayMinutes (opt).
  */
@@ -20,27 +20,26 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        attributes: JSONObject,
-        contentState: JSONObject,
+        data: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val flightNumber = attributes.optString("flightNumber")
-        val origin = attributes.optJSONObject("origin")
-        val destination = attributes.optJSONObject("destination")
+        val flightNumber = data.optString("flightNumber")
+        val origin = data.optJSONObject("origin")
+        val destination = data.optJSONObject("destination")
         val originCode = origin?.optString("code").orEmpty()
         val destinationCode = destination?.optString("code").orEmpty()
 
-        val statusMessage = contentState.optString("statusMessage")
-        val gate = contentState.optString("gate").takeIf { it.isNotEmpty() }
-        val terminal = contentState.optString("terminal").takeIf { it.isNotEmpty() }
-        val scheduledDeparture = contentState.optLong("scheduledDeparture").takeIf { it > 0 }
-        val estimatedArrival = contentState.optLong("estimatedArrival").takeIf { it > 0 }
+        val statusMessage = data.optString("statusMessage")
+        val gate = data.optStringNonEmpty("gate")
+        val terminal = data.optStringNonEmpty("terminal")
+        val scheduledDeparture = data.optLong("scheduledDeparture").takeIf { it > 0 }
+        val estimatedArrival = data.optLong("estimatedArrival").takeIf { it > 0 }
         val progressFractionRaw =
-            if (contentState.has("progressFraction")) contentState.optDouble("progressFraction") else Double.NaN
+            if (data.has("progressFraction")) data.optDouble("progressFraction") else Double.NaN
         val progressFraction = progressFractionRaw.takeIf { !it.isNaN() }
-        val delayMinutes = contentState.optInt("delayMinutes", 0).takeIf { it > 0 }
+        val delayMinutes = data.optInt("delayMinutes", 0).takeIf { it > 0 }
 
         val title = "$flightNumber · $originCode → $destinationCode"
         val subText = "Gate ${gate ?: "TBA"} · Terminal ${terminal ?: "TBA"}"

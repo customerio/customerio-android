@@ -7,18 +7,18 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.extensions.getDrawableByName
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
+import io.customer.messagingpush.livenotification.template.TemplateAssets
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
+import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.core.di.SDKComponent
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -28,10 +28,11 @@ import org.json.JSONObject
  * Live notifications are ongoing notifications that can be updated in-place
  * (the Android counterpart of iOS Live Activities). Each push declares an
  * `activity_type` (one of the closed set in [TemplateRegistry], prefixed with
- * `io.customer.live.`) plus two JSON objects: `attributes` for static fields
- * and `content_state` for dynamic fields. Pushes share a stable
- * [ACTIVITY_ID_KEY] so successive updates replace the previous notification
- * rather than creating new ones.
+ * `io.customer.liveactivities.`). Unlike iOS, Android does not split static
+ * `attributes` from dynamic `content-state`: all template fields arrive
+ * flattened at the envelope top level. Pushes share a stable [ACTIVITY_ID_KEY]
+ * so successive updates replace the previous notification rather than creating
+ * new ones.
  */
 internal class LiveNotificationHandler(
     private val bundle: Bundle
@@ -41,12 +42,30 @@ internal class LiveNotificationHandler(
         const val ACTIVITY_ID_KEY = "activity_id"
         const val EVENT_KEY = "event"
         const val ACTIVITY_TYPE_KEY = "activity_type"
-        const val ATTRIBUTES_KEY = "attributes"
-        const val CONTENT_STATE_KEY = "content_state"
+        const val TIMESTAMP_KEY = "timestamp"
+        const val DISMISSAL_DATE_KEY = "dismissal_date"
 
         private const val EVENT_END = "end"
 
-        private const val DEFAULT_DISMISS_DELAY_MS = 3000L
+        /**
+         * Live-notification envelope keys that are never template fields.
+         * Everything else in the bundle is flattened into the template `data`
+         * object.
+         *
+         * Note: standard-push keys (`title`, `body`, `image`, `link`, …) are
+         * intentionally NOT reserved here — they are not part of the live
+         * envelope, and reserving them would shadow legitimate template fields
+         * of the same name (e.g. CountdownTimer's `title`).
+         */
+        private val RESERVED_KEYS = setOf(
+            ACTIVITY_ID_KEY,
+            EVENT_KEY,
+            ACTIVITY_TYPE_KEY,
+            TIMESTAMP_KEY,
+            DISMISSAL_DATE_KEY,
+            PushTrackingUtil.DELIVERY_ID_KEY,
+            PushTrackingUtil.DELIVERY_TOKEN_KEY
+        )
     }
 
     fun handle(
@@ -69,6 +88,13 @@ internal class LiveNotificationHandler(
         }
 
         val activityId = bundle.getString(ACTIVITY_ID_KEY) ?: return
+        val event = bundle.getString(EVENT_KEY)
+        if (event == null) {
+            SDKComponent.logger.error(
+                "Live notification push for activity '$activityId' is missing '$EVENT_KEY'; dropping."
+            )
+            return
+        }
         val activityType = bundle.getString(ACTIVITY_TYPE_KEY)
         val template = TemplateRegistry.find(activityType)
         if (template == null) {
@@ -78,22 +104,19 @@ internal class LiveNotificationHandler(
             return
         }
 
-        val attributes = parseJson(bundle.getString(ATTRIBUTES_KEY))
-        val contentState = parseJson(bundle.getString(CONTENT_STATE_KEY))
+        val data = extractData(bundle)
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
         val effectiveSmallIcon = resolveSmallIcon(context, branding, smallIcon)
 
         val result = template.render(
             context = context,
-            attributes = attributes,
-            contentState = contentState,
+            data = data,
             branding = branding,
             smallIcon = effectiveSmallIcon,
             fallbackTintColor = tintColor
         )
 
         val notifId = activityId.hashCode() and 0x7FFFFFFF
-        val event = bundle.getString(EVENT_KEY) ?: "update"
 
         if (result.cancelImmediately) {
             notificationManager.cancel(activityId, notifId)
@@ -160,19 +183,39 @@ internal class LiveNotificationHandler(
         notificationManager.notify(activityId, notifId, notification)
 
         if (event == EVENT_END) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                notificationManager.cancel(activityId, notifId)
-            }, DEFAULT_DISMISS_DELAY_MS)
+            // Without a dismissal_date the activity is removed immediately.
+            // Scheduled dismissal via dismissal_date is added with lifecycle reporting.
+            notificationManager.cancel(activityId, notifId)
         }
     }
 
-    private fun parseJson(raw: String?): JSONObject {
-        if (raw.isNullOrEmpty()) return JSONObject()
+    /**
+     * Collects the flattened template fields from the FCM envelope: every
+     * top-level bundle key that is not a [RESERVED_KEYS] envelope key. String
+     * values that look like JSON objects/arrays (e.g. `origin`, `homeTeam`) are
+     * parsed so templates can read them as nested structures; scalar strings
+     * are kept verbatim and coerced on read by `JSONObject.optInt`/`optLong`/etc.
+     */
+    private fun extractData(bundle: Bundle): JSONObject {
+        val data = JSONObject()
+        for (key in bundle.keySet()) {
+            if (key in RESERVED_KEYS) continue
+            val raw = bundle.getString(key) ?: continue
+            data.put(key, coerceJsonValue(raw))
+        }
+        return data
+    }
+
+    private fun coerceJsonValue(raw: String): Any {
+        val trimmed = raw.trim()
         return try {
-            JSONObject(raw)
+            when {
+                trimmed.startsWith("{") -> JSONObject(trimmed)
+                trimmed.startsWith("[") -> JSONArray(trimmed)
+                else -> raw
+            }
         } catch (e: JSONException) {
-            SDKComponent.logger.error("Failed to parse live notification JSON: ${e.message}")
-            JSONObject()
+            raw
         }
     }
 
@@ -182,9 +225,8 @@ internal class LiveNotificationHandler(
         branding: LiveNotificationBranding?,
         fallback: Int
     ): Int {
-        val key = branding?.logoDrawableName?.takeIf { it.isNotEmpty() } ?: return fallback
-        val normalized = key.replace('-', '_')
-        return context.getDrawableByName(normalized) ?: fallback
+        // Reuses TemplateAssets' kebab→snake normalization + drawable lookup.
+        return TemplateAssets.resolveDrawable(context, branding?.logoDrawableName) ?: fallback
     }
 
     private fun createIntentForNotificationClick(

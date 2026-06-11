@@ -2,11 +2,11 @@ package io.customer.messagingpush.livenotification.template
 
 internal object TemplateRegistry {
 
-    const val DELIVERY_TRACKING = "io.customer.live.delivery_tracking"
-    const val FLIGHT_STATUS = "io.customer.live.flight_status"
-    const val LIVE_SCORE = "io.customer.live.live_score"
-    const val COUNTDOWN_TIMER = "io.customer.live.countdown_timer"
-    const val AUCTION_BID = "io.customer.live.auction_bid"
+    const val DELIVERY_TRACKING = "io.customer.liveactivities.deliverytracking"
+    const val FLIGHT_STATUS = "io.customer.liveactivities.flightstatus"
+    const val LIVE_SCORE = "io.customer.liveactivities.livescore"
+    const val COUNTDOWN_TIMER = "io.customer.liveactivities.countdowntimer"
+    const val AUCTION_BID = "io.customer.liveactivities.auctionbid"
 
     fun find(name: String?): LiveNotificationTemplate? = when (name) {
         DELIVERY_TRACKING -> DeliveryTrackingTemplate

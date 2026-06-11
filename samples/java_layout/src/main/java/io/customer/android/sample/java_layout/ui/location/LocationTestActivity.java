@@ -96,7 +96,12 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     //   `granted` flag — re-check actual permission state to cover both paths.
     private final ActivityResultLauncher<String> backgroundLocationLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-                if (!hasBackgroundLocation()) {
+                if (hasBackgroundLocation()) {
+                    // Permission granted at runtime — kick off a fetch so geofences register now.
+                    // The SDK's auto-fetch lifecycle hook fires once per process and has already
+                    // run, so an explicit request is needed after a runtime grant.
+                    ModuleLocation.instance().getLocationServices().requestLocationUpdate();
+                } else {
                     // OS silently denied (no dialog shown) — route the user to Settings.
                     openAppDetailsSettings();
                 }

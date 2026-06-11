@@ -208,7 +208,9 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     }
 
     private boolean hasBackgroundLocation() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true;
+        // Pre-Q has no separate background permission — background access is implicit
+        // only when fine is granted, so gate the early return on hasFineLocation().
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return hasFineLocation();
         return ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }

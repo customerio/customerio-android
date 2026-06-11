@@ -38,13 +38,15 @@ internal class LiveNotificationManager(
 
     private fun buildBundle(activityId: String, activityType: String, fields: Map<String, Any?>): Bundle =
         Bundle().apply {
+            // Write template fields first so the reserved envelope keys below always
+            // win if a field key collides with one (e.g. a field named "timestamp").
+            for ((key, value) in fields) {
+                if (value != null) putString(key, value.toString())
+            }
             putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
             putString(LiveNotificationHandler.EVENT_KEY, EVENT_START)
             putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
             putString(LiveNotificationHandler.TIMESTAMP_KEY, System.currentTimeMillis().toString())
-            for ((key, value) in fields) {
-                if (value != null) putString(key, value.toString())
-            }
         }
 
     private fun renderLocally(bundle: Bundle) {

@@ -10,6 +10,10 @@ import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.PushDeliveryTracker
 import io.customer.messagingpush.PushDeliveryTrackerImpl
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClient
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl
+import io.customer.messagingpush.livenotification.LiveNotificationRegistrar
+import io.customer.messagingpush.livenotification.LiveNotificationStore
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.network.HttpClient
 import io.customer.messagingpush.network.HttpClientImpl
@@ -75,6 +79,17 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
 
 internal val SDKComponent.httpClient: HttpClient
     get() = singleton<HttpClient> { HttpClientImpl() }
+
+internal val SDKComponent.liveNotificationStore: LiveNotificationStore
+    get() = singleton<LiveNotificationStore> { LiveNotificationStore(android().applicationContext) }
+
+internal val SDKComponent.liveNotificationLifecycleClient: LiveNotificationLifecycleClient
+    get() = singleton<LiveNotificationLifecycleClient> { LiveNotificationLifecycleClientImpl() }
+
+internal val SDKComponent.liveNotificationRegistrar: LiveNotificationRegistrar
+    get() = singleton<LiveNotificationRegistrar> {
+        LiveNotificationRegistrar(liveNotificationLifecycleClient, liveNotificationStore)
+    }
 
 internal val SDKComponent.pushDeliveryTracker: PushDeliveryTracker
     get() = singleton<PushDeliveryTracker> { PushDeliveryTrackerImpl() }

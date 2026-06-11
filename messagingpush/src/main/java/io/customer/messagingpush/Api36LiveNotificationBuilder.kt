@@ -41,6 +41,7 @@ internal data class Api36LiveNotificationParams(
     @DrawableRes val endIconRes: Int?,
     @DrawableRes val trackerIconRes: Int?,
     val pendingIntent: PendingIntent?,
+    val deleteIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
     val showProgress: Boolean
@@ -137,6 +138,7 @@ internal object Api36LiveNotificationBuilder {
         params.subText?.let { builder.setSubText(it) }
         params.accentColor?.let { builder.setColor(it) }
         params.pendingIntent?.let { builder.setContentIntent(it) }
+        params.deleteIntent?.let { builder.setDeleteIntent(it) }
 
         return builder.build()
     }

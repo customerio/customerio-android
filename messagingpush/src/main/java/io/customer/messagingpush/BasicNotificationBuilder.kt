@@ -37,6 +37,7 @@ internal data class BasicNotificationParams(
     val progress: Int,
     val progressMax: Int,
     val pendingIntent: PendingIntent?,
+    val deleteIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
     val showProgress: Boolean
@@ -86,6 +87,7 @@ internal object BasicNotificationBuilder {
             builder.setColorized(true)
         }
         params.pendingIntent?.let { builder.setContentIntent(it) }
+        params.deleteIntent?.let { builder.setDeleteIntent(it) }
 
         return builder.build()
     }

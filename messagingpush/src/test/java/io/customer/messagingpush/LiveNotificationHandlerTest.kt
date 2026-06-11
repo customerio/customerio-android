@@ -15,6 +15,7 @@ import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowLooper
 
 /**
  * Tests for [LiveNotificationHandler] focused on envelope parsing and dispatch:
@@ -40,12 +41,16 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         activityId: String? = "live-act-1",
         event: String? = "start",
         activityType: String? = TemplateRegistry.DELIVERY_TRACKING,
-        data: JSONObject = JSONObject()
+        data: JSONObject = JSONObject(),
+        timestamp: Long? = null,
+        dismissalDate: Long? = null
     ): Bundle {
         val bundle = Bundle()
         if (activityId != null) bundle.putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
         if (event != null) bundle.putString(LiveNotificationHandler.EVENT_KEY, event)
         if (activityType != null) bundle.putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
+        if (timestamp != null) bundle.putString(LiveNotificationHandler.TIMESTAMP_KEY, timestamp.toString())
+        if (dismissalDate != null) bundle.putString(LiveNotificationHandler.DISMISSAL_DATE_KEY, dismissalDate.toString())
         // Template fields ride flattened at the top level, as the backend delivers them.
         for (key in data.keys()) bundle.putString(key, data.get(key).toString())
         return bundle
@@ -236,6 +241,62 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             notificationManager.notify(activityId, expectedNotifId, any<Notification>())
         }
         assertCalledNever {
+            notificationManager.cancel(activityId, expectedNotifId)
+        }
+    }
+
+    // --- Out-of-order / duplicate guard ---
+
+    @Test
+    fun handle_givenOlderTimestamp_dropsTheStalePush() {
+        val activityId = "ooo-activity"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        // Arrives late and is older than what was already rendered: must be dropped.
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 50L)))
+
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenNewerTimestamp_rendersBoth() {
+        val activityId = "in-order-activity"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 200L)))
+
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    // --- dismissal_date scheduling on end ---
+
+    @Test
+    fun handle_givenEndWithFutureDismissalDate_cancelsOnlyAfterDelay() {
+        val activityId = "scheduled-end"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+        val bundle = newBundle(
+            activityId = activityId,
+            event = "end",
+            dismissalDate = System.currentTimeMillis() + 60_000L
+        )
+
+        invoke(handlerFor(bundle))
+
+        // Posted now, but not cancelled until the dismissal_date is reached.
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
+        }
+        assertCalledNever {
+            notificationManager.cancel(activityId, expectedNotifId)
+        }
+
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+        verify(exactly = 1) {
             notificationManager.cancel(activityId, expectedNotifId)
         }
     }

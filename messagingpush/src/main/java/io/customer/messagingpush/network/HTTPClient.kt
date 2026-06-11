@@ -9,20 +9,36 @@ import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
 
+internal enum class HttpMethod { GET, POST, PUT, DELETE }
+
 internal data class HttpRequestParams(
     val path: String,
+    val method: HttpMethod = HttpMethod.POST,
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null
 )
 
+/**
+ * IOException carrying the HTTP [statusCode] for non-2xx responses ([statusCode]
+ * is null for transport-level failures). Lets callers apply status-aware retry
+ * (e.g. retry 5xx, skip 4xx) without parsing the message.
+ */
+internal class HttpRequestException(
+    val statusCode: Int?,
+    message: String,
+    cause: Throwable? = null
+) : IOException(message, cause)
+
 internal interface HttpClient {
     /**
-     * Performs a POST request to [params.path] with [params.headers] and [params.body].
+     * Performs an HTTP request to [params.path] using [params.method], with
+     * [params.headers] and [params.body].
      *
-     * @param params The request parameters (path, headers, body).
+     * @param params The request parameters (path, method, headers, body).
      * @return A `Result<String>`:
      *   - `Result.success(responseBody)` for 2xx response codes
      *   - `Result.failure(exception)` for network errors or non-2xx codes
+     *     (an [HttpRequestException] for non-2xx, carrying the status code)
      */
     suspend fun request(params: HttpRequestParams): Result<String>
 }
@@ -62,7 +78,7 @@ internal class HttpClientImpl : HttpClient {
             // Configure the connection
             connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = readTimeoutMs
-            connection.requestMethod = "POST"
+            connection.requestMethod = params.method.name
             connection.setRequestProperty("User-Agent", client.toString())
 
             // Authorization: Basic <base64("writeKey:")>
@@ -97,7 +113,7 @@ internal class HttpClientImpl : HttpClient {
             if (responseCode in 200..299) {
                 Result.success(responseBody)
             } else {
-                Result.failure(IOException("HTTP $responseCode: $responseBody"))
+                Result.failure(HttpRequestException(responseCode, "HTTP $responseCode: $responseBody"))
             }
         } catch (e: IOException) {
             Result.failure(e)

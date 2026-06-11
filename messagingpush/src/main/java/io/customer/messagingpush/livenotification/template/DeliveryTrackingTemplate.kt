@@ -5,11 +5,11 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `delivery_tracking` template — segmented progress bar over delivery stages.
+ * `deliverytracking` template — segmented progress bar over delivery stages.
  *
- * Static: orderId (req), recipientName (opt).
- * Dynamic: statusMessage (req), statusImageKey (opt), stepCurrent/stepTotal (req),
- * estimatedArrival (opt, epoch ms), driverName (opt).
+ * Fields: orderId (req), recipientName (opt), statusMessage (req),
+ * statusImageKey (opt), stepCurrent/stepTotal (req), estimatedArrival (opt,
+ * epoch ms), driverName (opt).
  */
 internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
 
@@ -17,20 +17,19 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
 
     override fun render(
         context: Context,
-        attributes: JSONObject,
-        contentState: JSONObject,
+        data: JSONObject,
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult {
-        val orderId = attributes.optString("orderId")
-        val recipientName = attributes.optString("recipientName").takeIf { it.isNotEmpty() }
-        val statusMessage = contentState.optString("statusMessage")
-        val statusImageKey = contentState.optString("statusImageKey").takeIf { it.isNotEmpty() }
-        val stepCurrent = contentState.optInt("stepCurrent", 0)
-        val stepTotal = contentState.optInt("stepTotal", 1).coerceAtLeast(1)
-        val estimatedArrival = contentState.optLong("estimatedArrival").takeIf { it > 0 }
-        val driverName = contentState.optString("driverName").takeIf { it.isNotEmpty() }
+        val orderId = data.optString("orderId")
+        val recipientName = data.optStringNonEmpty("recipientName")
+        val statusMessage = data.optString("statusMessage")
+        val statusImageKey = data.optStringNonEmpty("statusImageKey")
+        val stepCurrent = data.optInt("stepCurrent", 0)
+        val stepTotal = data.optInt("stepTotal", 1).coerceAtLeast(1)
+        val estimatedArrival = data.optLong("estimatedArrival").takeIf { it > 0 }
+        val driverName = data.optStringNonEmpty("driverName")
 
         val title = recipientName?.let { "Delivery for $it" } ?: "Order #$orderId"
         val subText = when {

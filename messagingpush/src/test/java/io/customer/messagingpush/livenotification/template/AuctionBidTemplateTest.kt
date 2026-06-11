@@ -26,8 +26,7 @@ internal class AuctionBidTemplateTest : IntegrationTest() {
         contentState: JSONObject = JSONObject()
     ): TemplateRenderResult = AuctionBidTemplate.render(
         context = contextMock,
-        attributes = attributes,
-        contentState = contentState,
+        data = flatten(attributes, contentState),
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
@@ -156,42 +155,5 @@ internal class AuctionBidTemplateTest : IntegrationTest() {
         val result = render(baseAttributes(), contentState)
 
         (result.countdownUntil == null).shouldBeTrue()
-    }
-
-    // --- Strict-slotting regression guards ---
-
-    @Test
-    fun render_isUserHighBidderInAttributes_isIgnored() {
-        val attributes = baseAttributes().apply {
-            put("isUserHighBidder", true) // wrong slot
-        }
-        val contentState = JSONObject().apply {
-            put("currentBid", "1,000")
-            put("bidCount", 1)
-            put("statusMessage", "x")
-            // Note: no isUserHighBidder here, so it defaults to false → red.
-        }
-
-        val result = render(attributes, contentState)
-
-        result.accentColor shouldBeEqualTo outbidRed
-    }
-
-    @Test
-    fun render_currencySymbolInContentState_isIgnoredAndDefaultsApply() {
-        val attributes = JSONObject().apply {
-            put("itemTitle", "x") // no currencySymbol in attributes
-        }
-        val contentState = JSONObject().apply {
-            put("currencySymbol", "€") // wrong slot
-            put("currentBid", "1")
-            put("bidCount", 1)
-            put("statusMessage", "x")
-        }
-
-        val result = render(attributes, contentState)
-
-        // The misplaced currency symbol must be ignored; default `$` is applied.
-        result.body shouldBeEqualTo "x · $1"
     }
 }

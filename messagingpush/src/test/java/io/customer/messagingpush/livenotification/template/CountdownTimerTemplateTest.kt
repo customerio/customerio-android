@@ -27,8 +27,7 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
         contentState: JSONObject = JSONObject()
     ): TemplateRenderResult = CountdownTimerTemplate.render(
         context = contextMock,
-        attributes = attributes,
-        contentState = contentState,
+        data = flatten(attributes, contentState),
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
@@ -113,38 +112,5 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
         val result = render(attributes, contentState)
 
         result.largeIcon.shouldBeNull()
-    }
-
-    // --- Strict-slotting regression guards ---
-
-    @Test
-    fun render_titleInContentState_isIgnored() {
-        val attributes = JSONObject() // intentionally empty: no title
-        val contentState = JSONObject().apply {
-            put("title", "MISPLACED")
-            put("targetDate", System.currentTimeMillis() + 60_000L)
-            put("statusMessage", "msg")
-        }
-
-        val result = render(attributes, contentState)
-
-        result.title shouldBeEqualTo "" // empty, because the misplaced value is ignored
-    }
-
-    @Test
-    fun render_targetDateInAttributes_isIgnored() {
-        val past = System.currentTimeMillis() - 60_000L
-        val attributes = titleAttributes().apply {
-            put("targetDate", past) // wrong slot
-        }
-        val contentState = JSONObject().apply {
-            put("statusMessage", "Pre-sale")
-        }
-
-        val result = render(attributes, contentState)
-
-        // No targetDate seen by the template ⇒ treated as pre-target with statusMessage.
-        result.body shouldBeEqualTo "Pre-sale"
-        result.cancelImmediately.shouldBeFalse()
     }
 }

@@ -143,15 +143,22 @@
     <string name="location_not_available">Could not get device location</string>
     <string name="label_location_test_activity">LocationTestActivity</string>
 
-    <!-- Geofence permissions section -->
-    <string name="geofence_permissions_section">Geofence permissions</string>
-    <string name="grant_background_location">Grant background location</string>
-    <string name="background_location_description">Required on Android 10+ for geofence transitions to fire while the app is backgrounded. Without it, transitions only fire while the app is in the foreground.</string>
-    <string name="background_location_already_granted">Background location is already granted</string>
-    <string name="background_location_not_required_pre_q">Background location permission is not required on this Android version</string>
-    <string name="background_location_needs_fine_first">Grant fine location first, then re-tap this button</string>
-    <string name="background_location_rationale_message">Background location is required so geofence transitions can fire while the app isn\'t running. On the next screen, choose \"Allow all the time\" for location.</string>
+    <!-- Background-location section -->
+    <string name="bg_perm_section_title">BACKGROUND LOCATION</string>
+    <string name="bg_perm_rationale_title">Allow background location?</string>
+    <string name="background_location_description">Geofence background delivery requires the \"Allow all the time\" location authorization. Grant foreground access first; on Android 11+ the system routes the upgrade through Settings instead of showing a dialog.</string>
+    <string name="background_location_rationale_message">Geofence transitions only fire while the app is backgrounded if you grant \"Allow all the time\". On Android 11+ the system routes this through Settings instead of showing a dialog — use \"Open Settings\" below if no prompt appears.</string>
     <string name="background_location_continue">Continue</string>
+
+    <!-- Background-location permission button states -->
+    <string name="bg_perm_button_not_determined">Grant location access</string>
+    <string name="bg_perm_button_foreground_only">Allow all the time</string>
+    <string name="bg_perm_button_background_granted">Background — granted</string>
+    <string name="bg_perm_button_denied">Open Settings</string>
+    <string name="bg_perm_status_not_determined">Not determined. Tap to grant foreground access first.</string>
+    <string name="bg_perm_status_foreground_only">Foreground granted. Background geofence delivery requires \"Allow all the time\".</string>
+    <string name="bg_perm_status_background_granted">Background granted. Background geofence delivery is enabled.</string>
+    <string name="bg_perm_status_denied">Denied. Enable location access in Settings.</string>
 
     <!-- Inbox Messages -->
     <string name="inbox_messages">Inbox Messages</string>

@@ -14,6 +14,7 @@ import android.provider.Settings;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -39,26 +40,53 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
             "New York", "London", "Tokyo", "Sydney", "Sao Paulo", "0, 0"
     };
 
+    private enum BgPermissionState {
+        NOT_DETERMINED,    // Fine location not yet granted, never permanently denied.
+        FOREGROUND_ONLY,   // Fine granted; background (API 29+) not yet granted.
+        BACKGROUND_GRANTED, // Both granted (or pre-Q where background is implicit).
+        DENIED              // Fine denied with "don't ask again".
+    }
+
     private LocationManager locationManager;
     private LocationListener locationListener;
     private boolean userRequestedCurrentLocation = false;
     private boolean userRequestedSdkLocation = false;
+    private boolean userRequestedBackgroundUpgrade = false;
+    private boolean wasFineDeniedPermanently = false;
 
     private final ActivityResultLauncher<String[]> locationPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
                 boolean fineGranted = Boolean.TRUE.equals(permissions.get(Manifest.permission.ACCESS_FINE_LOCATION));
                 boolean coarseGranted = Boolean.TRUE.equals(permissions.get(Manifest.permission.ACCESS_COARSE_LOCATION));
-                if (fineGranted || coarseGranted) {
+                boolean anyGranted = fineGranted || coarseGranted;
+
+                if (anyGranted) {
+                    wasFineDeniedPermanently = false;
                     if (userRequestedCurrentLocation) {
                         userRequestedCurrentLocation = false;
                         fetchDeviceLocation();
                     } else if (userRequestedSdkLocation) {
                         userRequestedSdkLocation = false;
                         performSdkLocationRequest();
+                    } else if (userRequestedBackgroundUpgrade) {
+                        userRequestedBackgroundUpgrade = false;
+                        // Foreground just granted via the background-upgrade flow:
+                        // surface the rationale and request the background step next.
+                        showBackgroundLocationRationale();
                     }
                 } else {
-                    showPermissionDeniedAlert();
+                    // shouldShowRequestPermissionRationale returns false after "don't ask again"
+                    // (and on first-ever request, but here we've already requested at least once).
+                    wasFineDeniedPermanently = !ActivityCompat.shouldShowRequestPermissionRationale(
+                            this, Manifest.permission.ACCESS_FINE_LOCATION);
+                    if (userRequestedCurrentLocation || userRequestedSdkLocation) {
+                        userRequestedCurrentLocation = false;
+                        userRequestedSdkLocation = false;
+                        showPermissionDeniedAlert();
+                    }
+                    userRequestedBackgroundUpgrade = false;
                 }
+                refreshGrantBackgroundLocationUI();
             });
 
     // Launcher behavior varies by API:
@@ -68,13 +96,11 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     //   `granted` flag — re-check actual permission state to cover both paths.
     private final ActivityResultLauncher<String> backgroundLocationLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-                if (hasBackgroundLocation()) {
-                    showSnackbar(getString(R.string.background_location_already_granted));
-                } else {
-                    // Rationale was already shown before launch. If the OS silently
-                    // denied (didn't route to settings), take the user there now.
+                if (!hasBackgroundLocation()) {
+                    // OS silently denied (no dialog shown) — route the user to Settings.
                     openAppDetailsSettings();
                 }
+                refreshGrantBackgroundLocationUI();
             });
 
     @Override
@@ -97,34 +123,77 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     }
 
     private void setupBackgroundPermissionButton() {
-        binding.grantBackgroundLocation.setOnClickListener(v -> requestBackgroundLocation());
+        binding.grantBackgroundLocation.setOnClickListener(v -> handleGrantBackgroundLocationTap());
+        refreshGrantBackgroundLocationUI();
     }
 
-    private void requestBackgroundLocation() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            showSnackbar(getString(R.string.background_location_not_required_pre_q));
-            return;
+    private BgPermissionState computeBgPermissionState() {
+        if (hasBackgroundLocation()) return BgPermissionState.BACKGROUND_GRANTED;
+        if (hasFineLocation()) return BgPermissionState.FOREGROUND_ONLY;
+        if (wasFineDeniedPermanently) return BgPermissionState.DENIED;
+        return BgPermissionState.NOT_DETERMINED;
+    }
+
+    private void refreshGrantBackgroundLocationUI() {
+        BgPermissionState state = computeBgPermissionState();
+        switch (state) {
+            case NOT_DETERMINED:
+                binding.grantBackgroundLocation.setText(R.string.bg_perm_button_not_determined);
+                binding.grantBackgroundLocation.setEnabled(true);
+                binding.grantBackgroundLocation.setAlpha(1.0f);
+                binding.grantBackgroundStatusLabel.setText(R.string.bg_perm_status_not_determined);
+                break;
+            case FOREGROUND_ONLY:
+                binding.grantBackgroundLocation.setText(R.string.bg_perm_button_foreground_only);
+                binding.grantBackgroundLocation.setEnabled(true);
+                binding.grantBackgroundLocation.setAlpha(1.0f);
+                binding.grantBackgroundStatusLabel.setText(R.string.bg_perm_status_foreground_only);
+                break;
+            case BACKGROUND_GRANTED:
+                binding.grantBackgroundLocation.setText(R.string.bg_perm_button_background_granted);
+                binding.grantBackgroundLocation.setEnabled(false);
+                binding.grantBackgroundLocation.setAlpha(0.6f);
+                binding.grantBackgroundStatusLabel.setText(R.string.bg_perm_status_background_granted);
+                break;
+            case DENIED:
+                binding.grantBackgroundLocation.setText(R.string.bg_perm_button_denied);
+                binding.grantBackgroundLocation.setEnabled(true);
+                binding.grantBackgroundLocation.setAlpha(1.0f);
+                binding.grantBackgroundStatusLabel.setText(R.string.bg_perm_status_denied);
+                break;
         }
-        if (!hasFineLocation()) {
-            showSnackbar(getString(R.string.background_location_needs_fine_first));
-            return;
+    }
+
+    private void handleGrantBackgroundLocationTap() {
+        switch (computeBgPermissionState()) {
+            case NOT_DETERMINED:
+                // Two-step: request fine first; on success the launcher callback prompts for background.
+                userRequestedBackgroundUpgrade = true;
+                locationPermissionLauncher.launch(new String[]{
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                });
+                break;
+            case FOREGROUND_ONLY:
+                showBackgroundLocationRationale();
+                break;
+            case BACKGROUND_GRANTED:
+                // No-op; button is disabled.
+                break;
+            case DENIED:
+                openAppDetailsSettings();
+                break;
         }
-        if (hasBackgroundLocation()) {
-            showSnackbar(getString(R.string.background_location_already_granted));
-            return;
-        }
-        // Show the rationale first — "Allow all the time" is not obvious in
-        // either the API 29 runtime dialog or the API 30+ settings page.
-        showBackgroundLocationRationale();
     }
 
     private void showBackgroundLocationRationale() {
         new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.geofence_permissions_section)
+                .setTitle(R.string.bg_perm_rationale_title)
                 .setMessage(R.string.background_location_rationale_message)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.background_location_continue, (dialog, which) ->
                         backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+                .setNeutralButton(R.string.open_settings, (dialog, which) -> openAppDetailsSettings())
                 .show();
     }
 
@@ -279,6 +348,13 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
 
     private void showSnackbar(String message) {
         Snackbar.make(binding.getRoot(), message, Snackbar.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Permission may have been toggled in Settings while we were in the background.
+        refreshGrantBackgroundLocationUI();
     }
 
     @Override

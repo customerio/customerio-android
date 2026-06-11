@@ -21,6 +21,12 @@ import org.json.JSONObject
 internal interface LiveNotificationLifecycleClient {
     suspend fun registerForActivityType(activityType: String, token: String, userId: String): Result<Unit>
 
+    /**
+     * Registers a specific locally-started activity instance so the backend can
+     * push updates to it.
+     */
+    suspend fun registerInstance(activityId: String, activityType: String, token: String, userId: String): Result<Unit>
+
     suspend fun reportDismissed(activityId: String): Result<Unit>
 }
 
@@ -42,6 +48,29 @@ internal class LiveNotificationLifecycleClientImpl(
         return send(
             HttpRequestParams(
                 path = "/v1/live_activities/registration/$activityType",
+                method = HttpMethod.PUT,
+                headers = JSON_HEADERS,
+                body = body.toString()
+            )
+        )
+    }
+
+    override suspend fun registerInstance(
+        activityId: String,
+        activityType: String,
+        token: String,
+        userId: String
+    ): Result<Unit> {
+        val body = JSONObject().apply {
+            put("token", token)
+            put("activity_type", activityType)
+            put("os", OS_ANDROID)
+            put("transport", TRANSPORT_FCM)
+            put("userId", userId)
+        }
+        return send(
+            HttpRequestParams(
+                path = "/v1/live_activities/$activityId/push_token",
                 method = HttpMethod.PUT,
                 headers = JSON_HEADERS,
                 body = body.toString()

@@ -27,9 +27,12 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
-        // Start before requesting the token so the registrar observes the resulting
-        // RegisterDeviceTokenEvent and registers the built-in live-notification types.
-        SDKComponent.liveNotificationRegistrar.start()
+        // Live notifications are opt-in: only wire up registration when the host app
+        // enabled at least one activity type. Start before requesting the token so the
+        // registrar observes the resulting RegisterDeviceTokenEvent.
+        if (moduleConfig.liveNotificationTypes.isNotEmpty()) {
+            SDKComponent.liveNotificationRegistrar.start()
+        }
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
     }

@@ -9,7 +9,7 @@ import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
-import io.customer.messagingpush.livenotification.template.TemplateRegistry
+import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.mockk.every
 import io.mockk.mockk
@@ -34,7 +34,8 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         ModuleMessagingPushFCM(
             MessagingPushModuleConfig.Builder().apply {
                 callback?.let { setNotificationCallback(it) }
-                registerLiveNotificationTypes(customType)
+                // Enable a built-in type (for the override test) and the custom type.
+                setLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING, customType)
             }.build()
         ).attachToSDKComponent()
     }
@@ -47,9 +48,9 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     private fun appNotification(title: String): Notification =
         NotificationCompat.Builder(contextMock, "channel").setSmallIcon(0).setContentTitle(title).build()
 
-    private fun bundle(activityType: String): Bundle = Bundle().apply {
+    private fun bundle(activityType: String, event: String = "start"): Bundle = Bundle().apply {
         putString(LiveNotificationHandler.ACTIVITY_ID_KEY, "act-cb")
-        putString(LiveNotificationHandler.EVENT_KEY, "start")
+        putString(LiveNotificationHandler.EVENT_KEY, event)
         putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
     }
 
@@ -70,7 +71,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         val posted = slot<Notification>()
         every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
 
-        invoke(bundle(TemplateRegistry.DELIVERY_TRACKING))
+        invoke(bundle(LiveNotificationType.DELIVERY_TRACKING))
 
         posted.captured shouldBeEqualTo custom
     }
@@ -89,12 +90,26 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
 
     @Test
     fun customType_withoutCallback_isDropped() {
-        attach(callback = null) // registered type, but no renderer
+        attach(callback = null) // enabled type, but no renderer
 
         invoke(bundle(customType))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun customType_endWithoutRenderer_stillCancels() {
+        // Even with no notification to post (custom type, no callback), an `end` must
+        // still cancel/clean up the existing notification.
+        attach(callback = null)
+        val expectedNotifId = "act-cb".hashCode() and 0x7FFFFFFF
+
+        invoke(bundle(customType, event = "end"))
+
+        verify(exactly = 1) {
+            notificationManager.cancel("act-cb", expectedNotifId)
         }
     }
 }

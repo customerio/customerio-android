@@ -3,7 +3,10 @@ package io.customer.messagingpush
 import android.app.Notification
 import android.app.NotificationManager
 import android.os.Bundle
+import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
+import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.mockk.every
@@ -36,6 +39,20 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     private val notificationManager: NotificationManager = mockk(relaxed = true)
     private val channelId = "live-notifications"
+
+    override fun setup(testConfig: TestConfig) {
+        super.setup(testConfig)
+        // Live notifications are opt-in; enable all built-in types so the dispatch tests run.
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder().setLiveNotificationTypes(
+                LiveNotificationType.DELIVERY_TRACKING,
+                LiveNotificationType.FLIGHT_STATUS,
+                LiveNotificationType.LIVE_SCORE,
+                LiveNotificationType.COUNTDOWN_TIMER,
+                LiveNotificationType.AUCTION_BID
+            ).build()
+        ).attachToSDKComponent()
+    }
 
     private fun newBundle(
         activityId: String? = "live-act-1",
@@ -298,6 +315,37 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
         verify(exactly = 1) {
             notificationManager.cancel(activityId, expectedNotifId)
+        }
+    }
+
+    @Test
+    fun handle_givenStaleEndTimestamp_stillCancels() {
+        // `end` is terminal and bypasses the out-of-order guard, so it always cancels
+        // even if its timestamp is not newer than the last update.
+        val activityId = "stale-end"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 50L)))
+
+        verify(exactly = 1) {
+            notificationManager.cancel(activityId, expectedNotifId)
+        }
+    }
+
+    @Test
+    fun handle_givenStaleUpdateAfterEnd_isDropped() {
+        // `end` records its timestamp as the high-water mark (not cleared), so a delayed
+        // older update arriving after `end` is dropped rather than resurrecting it.
+        val activityId = "update-after-end"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 200L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 150L)))
+
+        // Only the first update and the end posted; the stale 150 update was dropped.
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }
     }
 }

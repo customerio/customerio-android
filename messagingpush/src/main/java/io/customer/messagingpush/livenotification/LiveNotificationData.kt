@@ -1,13 +1,20 @@
 package io.customer.messagingpush.livenotification
 
-import io.customer.messagingpush.livenotification.template.TemplateRegistry
+import io.customer.messagingpush.livenotification.template.AirportFields
+import io.customer.messagingpush.livenotification.template.AuctionBidFields
+import io.customer.messagingpush.livenotification.template.CountdownTimerFields
+import io.customer.messagingpush.livenotification.template.DeliveryTrackingFields
+import io.customer.messagingpush.livenotification.template.FlightStatusFields
+import io.customer.messagingpush.livenotification.template.LiveScoreFields
+import io.customer.messagingpush.livenotification.template.TeamFields
 import org.json.JSONObject
 
 /**
  * Typed payload for starting a built-in live notification locally via
  * `ModuleMessagingPushFCM.startLiveNotification`. Each subtype knows its
  * [activityType] and flattens itself into the envelope fields the templates
- * read (the same flattened shape the backend delivers).
+ * read (the same flattened shape the backend delivers). Field names come from
+ * the shared `*Fields` constants so local-start and push-render stay in sync.
  *
  * For customer-defined activity types, use the `Map` overload of
  * `startLiveNotification` instead.
@@ -28,16 +35,16 @@ sealed interface LiveNotificationData {
         val stepTotal: Int? = null,
         val estimatedArrival: Long? = null
     ) : LiveNotificationData {
-        override val activityType = TemplateRegistry.DELIVERY_TRACKING
+        override val activityType = LiveNotificationType.DELIVERY_TRACKING
         override fun fields() = mapOf(
-            "orderId" to orderId,
-            "statusMessage" to statusMessage,
-            "recipientName" to recipientName,
-            "driverName" to driverName,
-            "statusImageKey" to statusImageKey,
-            "stepCurrent" to stepCurrent,
-            "stepTotal" to stepTotal,
-            "estimatedArrival" to estimatedArrival
+            DeliveryTrackingFields.ORDER_ID to orderId,
+            DeliveryTrackingFields.STATUS_MESSAGE to statusMessage,
+            DeliveryTrackingFields.RECIPIENT_NAME to recipientName,
+            DeliveryTrackingFields.DRIVER_NAME to driverName,
+            DeliveryTrackingFields.STATUS_IMAGE_KEY to statusImageKey,
+            DeliveryTrackingFields.STEP_CURRENT to stepCurrent,
+            DeliveryTrackingFields.STEP_TOTAL to stepTotal,
+            DeliveryTrackingFields.ESTIMATED_ARRIVAL to estimatedArrival
         )
     }
 
@@ -53,18 +60,18 @@ sealed interface LiveNotificationData {
         val progressFraction: Double? = null,
         val delayMinutes: Int? = null
     ) : LiveNotificationData {
-        override val activityType = TemplateRegistry.FLIGHT_STATUS
+        override val activityType = LiveNotificationType.FLIGHT_STATUS
         override fun fields() = mapOf(
-            "flightNumber" to flightNumber,
-            "origin" to origin.toJson(),
-            "destination" to destination.toJson(),
-            "statusMessage" to statusMessage,
-            "gate" to gate,
-            "terminal" to terminal,
-            "scheduledDeparture" to scheduledDeparture,
-            "estimatedArrival" to estimatedArrival,
-            "progressFraction" to progressFraction,
-            "delayMinutes" to delayMinutes
+            FlightStatusFields.FLIGHT_NUMBER to flightNumber,
+            FlightStatusFields.ORIGIN to origin.toJson(),
+            FlightStatusFields.DESTINATION to destination.toJson(),
+            FlightStatusFields.STATUS_MESSAGE to statusMessage,
+            FlightStatusFields.GATE to gate,
+            FlightStatusFields.TERMINAL to terminal,
+            FlightStatusFields.SCHEDULED_DEPARTURE to scheduledDeparture,
+            FlightStatusFields.ESTIMATED_ARRIVAL to estimatedArrival,
+            FlightStatusFields.PROGRESS_FRACTION to progressFraction,
+            FlightStatusFields.DELAY_MINUTES to delayMinutes
         )
     }
 
@@ -79,17 +86,17 @@ sealed interface LiveNotificationData {
         val sport: String? = null,
         val leagueLogoKey: String? = null
     ) : LiveNotificationData {
-        override val activityType = TemplateRegistry.LIVE_SCORE
+        override val activityType = LiveNotificationType.LIVE_SCORE
         override fun fields() = mapOf(
-            "homeTeam" to homeTeam.toJson(),
-            "awayTeam" to awayTeam.toJson(),
-            "period" to period,
-            "homeScore" to homeScore,
-            "awayScore" to awayScore,
-            "clock" to clock,
-            "statusMessage" to statusMessage,
-            "sport" to sport,
-            "leagueLogoKey" to leagueLogoKey
+            LiveScoreFields.HOME_TEAM to homeTeam.toJson(),
+            LiveScoreFields.AWAY_TEAM to awayTeam.toJson(),
+            LiveScoreFields.PERIOD to period,
+            LiveScoreFields.HOME_SCORE to homeScore,
+            LiveScoreFields.AWAY_SCORE to awayScore,
+            LiveScoreFields.CLOCK to clock,
+            LiveScoreFields.STATUS_MESSAGE to statusMessage,
+            LiveScoreFields.SPORT to sport,
+            LiveScoreFields.LEAGUE_LOGO_KEY to leagueLogoKey
         )
     }
 
@@ -100,13 +107,13 @@ sealed interface LiveNotificationData {
         val expiredMessage: String? = null,
         val heroImageKey: String? = null
     ) : LiveNotificationData {
-        override val activityType = TemplateRegistry.COUNTDOWN_TIMER
+        override val activityType = LiveNotificationType.COUNTDOWN_TIMER
         override fun fields() = mapOf(
-            "title" to title,
-            "targetDate" to targetDate,
-            "statusMessage" to statusMessage,
-            "expiredMessage" to expiredMessage,
-            "heroImageKey" to heroImageKey
+            CountdownTimerFields.TITLE to title,
+            CountdownTimerFields.TARGET_DATE to targetDate,
+            CountdownTimerFields.STATUS_MESSAGE to statusMessage,
+            CountdownTimerFields.EXPIRED_MESSAGE to expiredMessage,
+            CountdownTimerFields.HERO_IMAGE_KEY to heroImageKey
         )
     }
 
@@ -121,31 +128,31 @@ sealed interface LiveNotificationData {
         val itemImageKey: String? = null,
         val currencySymbol: String? = null
     ) : LiveNotificationData {
-        override val activityType = TemplateRegistry.AUCTION_BID
+        override val activityType = LiveNotificationType.AUCTION_BID
         override fun fields() = mapOf(
-            "itemTitle" to itemTitle,
-            "currentBid" to currentBid,
-            "bidCount" to bidCount,
-            "statusMessage" to statusMessage,
-            "isUserHighBidder" to isUserHighBidder,
-            "endTime" to endTime,
-            "userBidAmount" to userBidAmount,
-            "itemImageKey" to itemImageKey,
-            "currencySymbol" to currencySymbol
+            AuctionBidFields.ITEM_TITLE to itemTitle,
+            AuctionBidFields.CURRENT_BID to currentBid,
+            AuctionBidFields.BID_COUNT to bidCount,
+            AuctionBidFields.STATUS_MESSAGE to statusMessage,
+            AuctionBidFields.IS_USER_HIGH_BIDDER to isUserHighBidder,
+            AuctionBidFields.END_TIME to endTime,
+            AuctionBidFields.USER_BID_AMOUNT to userBidAmount,
+            AuctionBidFields.ITEM_IMAGE_KEY to itemImageKey,
+            AuctionBidFields.CURRENCY_SYMBOL to currencySymbol
         )
     }
 
     /** Airport endpoint for [FlightStatus]. */
     data class Airport(val code: String, val city: String? = null) {
-        internal fun toJson(): JSONObject = JSONObject().put("code", code).apply {
-            city?.let { put("city", it) }
+        internal fun toJson(): JSONObject = JSONObject().put(AirportFields.CODE, code).apply {
+            city?.let { put(AirportFields.CITY, it) }
         }
     }
 
     /** Team for [LiveScore]. */
     data class Team(val name: String, val logoKey: String? = null) {
-        internal fun toJson(): JSONObject = JSONObject().put("name", name).apply {
-            logoKey?.let { put("logoKey", it) }
+        internal fun toJson(): JSONObject = JSONObject().put(TeamFields.NAME, name).apply {
+            logoKey?.let { put(TeamFields.LOGO_KEY, it) }
         }
     }
 }

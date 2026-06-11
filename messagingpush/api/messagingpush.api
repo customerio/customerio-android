@@ -25,7 +25,7 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig : io/cust
 	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/util/Set;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAutoTrackPushEvents ()Z
 	public final fun getLiveNotificationBranding ()Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
-	public final fun getLiveNotificationCustomTypes ()Ljava/util/Set;
+	public final fun getLiveNotificationTypes ()Ljava/util/Set;
 	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
 	public final fun getPushClickBehavior ()Lio/customer/messagingpush/config/PushClickBehavior;
 	public fun toString ()Ljava/lang/String;
@@ -35,9 +35,9 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder :
 	public fun <init> ()V
 	public fun build ()Lio/customer/messagingpush/MessagingPushModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
-	public final fun registerLiveNotificationTypes ([Ljava/lang/String;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setLiveNotificationBranding (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+	public final fun setLiveNotificationTypes ([Ljava/lang/String;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setPushClickBehavior (Lio/customer/messagingpush/config/PushClickBehavior;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 }
@@ -330,6 +330,15 @@ public final class io/customer/messagingpush/livenotification/LiveNotificationDi
 }
 
 public final class io/customer/messagingpush/livenotification/LiveNotificationDismissReceiver$Companion {
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationType {
+	public static final field AUCTION_BID Ljava/lang/String;
+	public static final field COUNTDOWN_TIMER Ljava/lang/String;
+	public static final field DELIVERY_TRACKING Ljava/lang/String;
+	public static final field FLIGHT_STATUS Ljava/lang/String;
+	public static final field INSTANCE Lio/customer/messagingpush/livenotification/LiveNotificationType;
+	public static final field LIVE_SCORE Ljava/lang/String;
 }
 
 public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {

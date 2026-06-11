@@ -8,7 +8,6 @@ import androidx.annotation.DrawableRes
 import io.customer.messagingpush.LiveNotificationHandler
 import io.customer.messagingpush.extensions.getColorOrNull
 import io.customer.messagingpush.extensions.getMetaDataResource
-import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
@@ -27,7 +26,6 @@ import kotlinx.coroutines.launch
 internal class LiveNotificationManager(
     private val lifecycleClient: LiveNotificationLifecycleClient,
     private val registrar: LiveNotificationRegistrar,
-    private val fcmTokenProvider: DeviceTokenProvider,
     private val notificationChannelCreator: NotificationChannelCreator = NotificationChannelCreator()
 ) {
     private val context: Context
@@ -80,11 +78,17 @@ internal class LiveNotificationManager(
     }
 
     private fun registerInstance(activityId: String, activityType: String) {
-        fcmTokenProvider.getCurrentToken { token ->
-            if (token == null) return@getCurrentToken
-            CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
-                lifecycleClient.registerInstance(activityId, activityType, token, registrar.currentUserId())
-            }
+        // Reuse the token the registrar already tracks (fetched once in ModuleMessagingPushFCM)
+        // instead of requesting it again.
+        val token = registrar.currentToken()
+        if (token == null) {
+            SDKComponent.logger.debug(
+                "No FCM token available yet; skipping instance registration for live notification '$activityId'."
+            )
+            return
+        }
+        CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
+            lifecycleClient.registerInstance(activityId, activityType, token, registrar.currentUserId())
         }
     }
 

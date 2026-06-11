@@ -21,14 +21,14 @@ class MessagingPushModuleConfig private constructor(
     val notificationCallback: CustomerIOPushNotificationCallback?,
     val pushClickBehavior: PushClickBehavior,
     val liveNotificationBranding: LiveNotificationBranding?,
-    val liveNotificationCustomTypes: Set<String>
+    val liveNotificationTypes: Set<String>
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var pushClickBehavior: PushClickBehavior = ACTIVITY_PREVENT_RESTART
         private var liveNotificationBranding: LiveNotificationBranding? = null
-        private var liveNotificationCustomTypes: Set<String> = emptySet()
+        private var liveNotificationTypes: Set<String> = emptySet()
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -74,17 +74,20 @@ class MessagingPushModuleConfig private constructor(
         }
 
         /**
-         * Registers customer-defined live-notification activity types (in
-         * addition to the SDK's built-in templates). Registered types are
-         * registered with Customer.io so the backend can push updates for them,
-         * and incoming/locally-started notifications of these types are rendered
-         * by [CustomerIOPushNotificationCallback.createLiveNotification] — there
-         * is no built-in template, so that callback must be provided.
+         * Enables live notifications for the given activity types. **This is
+         * required to use live notifications** — until at least one type is
+         * enabled the feature is a no-op (nothing is registered with Customer.io
+         * and pushes for non-enabled types are ignored).
          *
-         * @param types reverse-DNS activity type identifiers.
+         * Pass built-in types from [io.customer.messagingpush.livenotification.LiveNotificationType]
+         * (rendered by the SDK's templates) and/or your own custom type strings
+         * (rendered by [CustomerIOPushNotificationCallback.createLiveNotification],
+         * which must be provided for custom types).
+         *
+         * @param types reverse-DNS activity type identifiers to enable.
          */
-        fun registerLiveNotificationTypes(vararg types: String): Builder {
-            this.liveNotificationCustomTypes = this.liveNotificationCustomTypes + types
+        fun setLiveNotificationTypes(vararg types: String): Builder {
+            this.liveNotificationTypes = types.toSet()
             return this
         }
 
@@ -94,13 +97,13 @@ class MessagingPushModuleConfig private constructor(
                 notificationCallback = notificationCallback,
                 pushClickBehavior = pushClickBehavior,
                 liveNotificationBranding = liveNotificationBranding,
-                liveNotificationCustomTypes = liveNotificationCustomTypes
+                liveNotificationTypes = liveNotificationTypes
             )
         }
     }
 
     override fun toString(): String {
-        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationCustomTypes=$liveNotificationCustomTypes)"
+        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes)"
     }
 
     companion object {

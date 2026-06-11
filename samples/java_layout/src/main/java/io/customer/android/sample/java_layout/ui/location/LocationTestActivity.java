@@ -47,11 +47,13 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         DENIED              // Fine denied with "don't ask again".
     }
 
+    // Why the user tapped the fine-location permission prompt — read in the launcher
+    // callback to dispatch the right follow-up. Mutually exclusive; NONE between launches.
+    private enum PendingPermissionPurpose { NONE, CURRENT_LOCATION, SDK_LOCATION, BACKGROUND_UPGRADE }
+
     private LocationManager locationManager;
     private LocationListener locationListener;
-    private boolean userRequestedCurrentLocation = false;
-    private boolean userRequestedSdkLocation = false;
-    private boolean userRequestedBackgroundUpgrade = false;
+    private PendingPermissionPurpose pendingPurpose = PendingPermissionPurpose.NONE;
     private boolean wasFineDeniedPermanently = false;
 
     private final ActivityResultLauncher<String[]> locationPermissionLauncher =
@@ -59,32 +61,41 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                 boolean fineGranted = Boolean.TRUE.equals(permissions.get(Manifest.permission.ACCESS_FINE_LOCATION));
                 boolean coarseGranted = Boolean.TRUE.equals(permissions.get(Manifest.permission.ACCESS_COARSE_LOCATION));
                 boolean anyGranted = fineGranted || coarseGranted;
+                PendingPermissionPurpose purpose = pendingPurpose;
+                pendingPurpose = PendingPermissionPurpose.NONE;
 
                 if (anyGranted) {
                     wasFineDeniedPermanently = false;
-                    if (userRequestedCurrentLocation) {
-                        userRequestedCurrentLocation = false;
-                        fetchDeviceLocation();
-                    } else if (userRequestedSdkLocation) {
-                        userRequestedSdkLocation = false;
-                        performSdkLocationRequest();
-                    } else if (userRequestedBackgroundUpgrade) {
-                        userRequestedBackgroundUpgrade = false;
-                        // Foreground just granted via the background-upgrade flow:
-                        // surface the rationale and request the background step next.
-                        showBackgroundLocationRationale();
+                    switch (purpose) {
+                        case CURRENT_LOCATION:
+                            fetchDeviceLocation();
+                            break;
+                        case SDK_LOCATION:
+                            performSdkLocationRequest();
+                            break;
+                        case BACKGROUND_UPGRADE:
+                            if (hasBackgroundLocation()) {
+                                // Pre-Q: fine granted is implicitly background. No second permission
+                                // to request — trigger the post-grant SDK fetch directly (same as the
+                                // backgroundLocationLauncher path).
+                                ModuleLocation.instance().getLocationServices().requestLocationUpdate();
+                            } else {
+                                // API 29+: foreground just granted; rationale → background prompt.
+                                showBackgroundLocationRationale();
+                            }
+                            break;
+                        case NONE:
+                            break;
                     }
                 } else {
                     // shouldShowRequestPermissionRationale returns false after "don't ask again"
                     // (and on first-ever request, but here we've already requested at least once).
                     wasFineDeniedPermanently = !ActivityCompat.shouldShowRequestPermissionRationale(
                             this, Manifest.permission.ACCESS_FINE_LOCATION);
-                    if (userRequestedCurrentLocation || userRequestedSdkLocation) {
-                        userRequestedCurrentLocation = false;
-                        userRequestedSdkLocation = false;
+                    if (purpose == PendingPermissionPurpose.CURRENT_LOCATION
+                            || purpose == PendingPermissionPurpose.SDK_LOCATION) {
                         showPermissionDeniedAlert();
                     }
-                    userRequestedBackgroundUpgrade = false;
                 }
                 refreshGrantBackgroundLocationUI();
             });
@@ -173,7 +184,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         switch (computeBgPermissionState()) {
             case NOT_DETERMINED:
                 // Two-step: request fine first; on success the launcher callback prompts for background.
-                userRequestedBackgroundUpgrade = true;
+                pendingPurpose = PendingPermissionPurpose.BACKGROUND_UPGRADE;
                 locationPermissionLauncher.launch(new String[]{
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION
@@ -281,7 +292,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         if (isLocationPermissionGranted()) {
             performSdkLocationRequest();
         } else {
-            userRequestedSdkLocation = true;
+            pendingPurpose = PendingPermissionPurpose.SDK_LOCATION;
             locationPermissionLauncher.launch(new String[]{
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION
@@ -299,7 +310,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         if (isLocationPermissionGranted()) {
             fetchDeviceLocation();
         } else {
-            userRequestedCurrentLocation = true;
+            pendingPurpose = PendingPermissionPurpose.CURRENT_LOCATION;
             locationPermissionLauncher.launch(new String[]{
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION

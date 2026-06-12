@@ -43,6 +43,19 @@ public final class io/customer/sdk/communication/Event$GeofenceTransitionEvent :
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/customer/sdk/communication/Event$LocationAcquired : io/customer/sdk/communication/Event {
+	public fun <init> (DD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun copy (DD)Lio/customer/sdk/communication/Event$LocationAcquired;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$LocationAcquired;DDILjava/lang/Object;)Lio/customer/sdk/communication/Event$LocationAcquired;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLatitude ()D
+	public final fun getLongitude ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;

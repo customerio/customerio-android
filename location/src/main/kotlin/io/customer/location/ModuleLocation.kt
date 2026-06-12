@@ -84,7 +84,7 @@ class ModuleLocation @JvmOverloads constructor(
         val locationSyncFilter = LocationSyncFilter(
             LocationSyncStoreImpl(context, logger)
         )
-        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
+        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, eventBus, logger)
 
         val locationProvider = FusedLocationProvider(context)
         val orchestrator = LocationOrchestrator(
@@ -114,8 +114,8 @@ class ModuleLocation @JvmOverloads constructor(
         // Recover from a first-run race where identify lands before the first
         // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
         // and re-triggers a refresh when a fresh fix arrives.
-        locationTracker.onLocationReceivedListener = { lat, lng ->
-            SDKComponent.android().geofenceServices.onLocationAcquired(lat, lng)
+        eventBus.subscribe<Event.LocationAcquired> {
+            SDKComponent.android().geofenceServices.onLocationAcquired(it.latitude, it.longitude)
         }
 
         // Register as IdentifyHook so location is added to identify event context
@@ -138,7 +138,7 @@ class ModuleLocation @JvmOverloads constructor(
 
                 // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
                 // wipes lastLocation on logout — a subsequent identify in the same process
-                // needs a fresh fetch. The onLocationReceivedListener above re-triggers the
+                // needs a fresh fetch. The LocationAcquired subscriber above re-triggers the
                 // geofence refresh once the fix arrives. MANUAL deliberately doesn't auto-fetch.
                 if (location == null && moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
                     services.requestLocationUpdate()

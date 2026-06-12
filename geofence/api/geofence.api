@@ -1,0 +1,19 @@
+public final class io/customer/geofence/GeofenceModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
+}
+
+public final class io/customer/geofence/GeofenceModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
+	public fun <init> ()V
+	public fun build ()Lio/customer/geofence/GeofenceModuleConfig;
+	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+}
+
+public final class io/customer/geofence/ModuleGeofence : io/customer/sdk/core/module/CustomerIOModule {
+	public fun <init> ()V
+	public fun <init> (Lio/customer/geofence/GeofenceModuleConfig;)V
+	public synthetic fun <init> (Lio/customer/geofence/GeofenceModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getModuleConfig ()Lio/customer/geofence/GeofenceModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public fun initialize ()V
+}
+

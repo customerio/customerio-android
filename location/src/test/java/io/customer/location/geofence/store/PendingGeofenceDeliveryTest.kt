@@ -1,6 +1,7 @@
 package io.customer.location.geofence.store
 
 import io.customer.sdk.communication.Event
+import java.util.Date
 import kotlinx.serialization.json.Json
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
@@ -72,6 +73,21 @@ class PendingGeofenceDeliveryTest {
         props["latitude"] shouldBeEqualTo 1.5
         props["longitude"] shouldBeEqualTo 2.5
         props["timestamp"] shouldBeEqualTo 50L
+    }
+
+    @Test
+    fun toGeofenceTransitionEvent_givenSecondsTimestamp_expectEventTimestampInMillis() {
+        // `timestamp` is unix seconds; `Event.timestamp` is a `Date` (millis).
+        // The conversion lives on the data class so no caller can hand-roll
+        // `Date(entry.timestamp)` and silently produce a January 1970 instant.
+        val entry = PendingGeofenceDelivery("biz-t", Event.GeofenceTransition.ENTER, 1.0, 2.0, 1_700_000_000L, "user-A")
+
+        val event = entry.toGeofenceTransitionEvent()
+
+        event.timestamp shouldBeEqualTo Date(1_700_000_000_000L)
+        event.geofenceId shouldBeEqualTo "biz-t"
+        event.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+        event.userId shouldBeEqualTo "user-A"
     }
 
     @Test

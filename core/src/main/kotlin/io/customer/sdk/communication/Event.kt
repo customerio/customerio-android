@@ -65,11 +65,16 @@ sealed class Event {
      * subscriber must attribute the resulting track event to this userId (not whoever is identified
      * at flush time), so a sign-out + sign-in between queue and delivery cannot reattribute. Null
      * means anonymous at queue time; the subscriber falls back to the pipeline's anonymousId path.
+     *
+     * [timestamp] is the moment the transition fired (captured at receiver time), not the publish
+     * time. Subscribers stamp this onto the outgoing CDP event so a delayed flush still attributes
+     * the transition to when it happened, not when it was sent.
      */
     data class GeofenceTransitionEvent(
         val geofenceId: String,
         val transition: GeofenceTransition,
         val properties: Map<String, Any>,
-        val userId: String?
+        val userId: String?,
+        override val timestamp: Date
     ) : Event()
 }

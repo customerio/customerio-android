@@ -38,5 +38,13 @@ internal class SegmentInstantFormatter {
             date.time = TimeUnit.SECONDS.toMillis(unixTimestamp)
             return formatter.format(date).replace("UTC", "Z")
         }.getOrNull()
+
+        /**
+         * Same as [from(Long)] but for a [Date] input — preserves millisecond precision.
+         */
+        fun from(date: Date): String? = runCatching {
+            val formatter = formatters.get() ?: return null
+            return formatter.format(date).replace("UTC", "Z")
+        }.getOrNull()
     }
 }

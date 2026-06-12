@@ -5,19 +5,21 @@ import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import java.util.Date
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
 
 /**
  * Verifies the EventBus subscription wired up in CustomerIO.subscribeToJourneyEvents
- * correctly maps Event.GeofenceTransitionEvent → analytics track event with the right
- * EventNames constant ("GeoFence Entered" / "GeoFence Exited") and forwards the properties.
+ * correctly maps Event.GeofenceTransitionEvent → "Geofence Entered/Exited" track event
+ * and forwards the properties.
  *
  * Captures the subscription handler with a mock EventBus at SDK init time, then invokes
  * the captured handler directly so we exercise the mapping logic without depending on
@@ -52,33 +54,35 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
     }
 
     @Test
-    fun handler_givenEnterTransition_expectTrackWithGeoFenceEnteredEventName() = runTest {
+    fun handler_givenEnterTransition_expectTrackWithGeofenceEnteredEventName() = runTest {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-1",
             transition = Event.GeofenceTransition.ENTER,
             properties = mapOf("geofence_id" to "biz-1", "transition_type" to "enter"),
-            userId = "user-A"
+            userId = "user-A",
+            timestamp = Date()
         )
 
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "GeoFence Entered"
+        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "CIO Geofence Entered"
     }
 
     @Test
-    fun handler_givenExitTransition_expectTrackWithGeoFenceExitedEventName() = runTest {
+    fun handler_givenExitTransition_expectTrackWithGeofenceExitedEventName() = runTest {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-2",
             transition = Event.GeofenceTransition.EXIT,
             properties = mapOf("geofence_id" to "biz-2", "transition_type" to "exit"),
-            userId = "user-A"
+            userId = "user-A",
+            timestamp = Date()
         )
 
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "GeoFence Exited"
+        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "CIO Geofence Exited"
     }
 
     @Test
@@ -90,7 +94,8 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
             geofenceId = "biz-3",
             transition = Event.GeofenceTransition.ENTER,
             properties = mapOf("geofence_id" to "biz-3"),
-            userId = "user-pinned-A"
+            userId = "user-pinned-A",
+            timestamp = Date()
         )
 
         handlerSlot.captured.invoke(event)
@@ -107,11 +112,30 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
             geofenceId = "biz-4",
             transition = Event.GeofenceTransition.ENTER,
             properties = mapOf("geofence_id" to "biz-4"),
-            userId = null
+            userId = null,
+            timestamp = Date()
         )
 
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.last().userId shouldBeEqualTo "user-current"
+    }
+
+    @Test
+    fun handler_givenPastTransitionTimestamp_expectTrackStampedWithTransitionTime() = runTest {
+        // A delayed flush must attribute the event to when the transition fired, not when
+        // the flush ran — the subscriber stamps BaseEvent.timestamp from the transition time.
+        val transitionTime = Date(1_700_000_000_000L) // 2023-11-14T22:13:20.000Z
+        val event = Event.GeofenceTransitionEvent(
+            geofenceId = "biz-5",
+            transition = Event.GeofenceTransition.ENTER,
+            properties = mapOf("geofence_id" to "biz-5"),
+            userId = "user-A",
+            timestamp = transitionTime
+        )
+
+        handlerSlot.captured.invoke(event)
+
+        outputReaderPlugin.trackEvents.last().timestamp shouldBeEqualTo SegmentInstantFormatter.from(transitionTime)
     }
 }

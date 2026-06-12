@@ -7,8 +7,8 @@ channels — the **WorkManager worker** (direct HTTP `/track`, survives process
 death) or the **foreground flush** (analytics pipeline) — arbitrated by an
 atomic `claim()`.
 
-> **Core invariant for every case:** each geofence transition (`GeoFence
-> Entered` / `GeoFence Exited`) reaches Customer.io **exactly once** — never
+> **Core invariant for every case:** each geofence transition (`CIO Geofence
+> Entered` / `CIO Geofence Exited`) reaches Customer.io **exactly once** — never
 > zero, never twice. Before the refactor both channels fired in parallel, so a
 > transition observed while the app was alive was sent **twice**; this plan
 > verifies that's now collapsed to one.
@@ -70,7 +70,7 @@ adb shell am force-stop $PKG                                # kill process
 ### Portal check
 
 Workspace → **Data & Integrations → Activity Logs**, filter for the
-`GeoFence Entered` / `GeoFence Exited` event and confirm the **count** for a
+`CIO Geofence Entered` / `CIO Geofence Exited` event and confirm the **count** for a
 given transition.
 
 ### Log hallmarks (message text after the `[Geofence]` prefix)
@@ -106,7 +106,7 @@ _(No `published to analytics pipeline via foreground flush` for this transition 
 
 **Expected store:** `[]` (worker claimed + delivered).
 
-**Expected portal:** ✅ `GeoFence Entered` = **1** for `<id>`.
+**Expected portal:** ✅ `CIO Geofence Entered` = **1** for `<id>`.
 
 ---
 
@@ -147,7 +147,7 @@ _(no `delivered via WorkManager` — the worker's CONNECTED constraint is unmet 
 
 **Expected store after step 5:** `[]`
 
-**Expected portal:** ✅ `GeoFence Entered` = **1** for `<id>`, via the analytics
+**Expected portal:** ✅ `CIO Geofence Entered` = **1** for `<id>`, via the analytics
 pipeline — **not** the worker.
 
 ---
@@ -167,7 +167,7 @@ transition at any point after the flush.
 
 **Expected store:** `[]` (stays empty).
 
-**Expected portal:** ✅ `GeoFence Entered` = **exactly 1** for `<id>` — **not 2**.
+**Expected portal:** ✅ `CIO Geofence Entered` = **exactly 1** for `<id>` — **not 2**.
 (The headline guarantee — pre-refactor this was 2.)
 
 ---
@@ -199,7 +199,7 @@ _(Or, if WorkManager runs first on relaunch: `delivered via WorkManager ...` and
 
 **Expected store after step 6:** `[]`
 
-**Expected portal:** ✅ `GeoFence Entered` = **1** for `<id>` after relaunch.
+**Expected portal:** ✅ `CIO Geofence Entered` = **1** for `<id>` after relaunch.
 
 ---
 
@@ -230,7 +230,7 @@ _(no `cancelled`, no `published`, no `flush complete`.)_
 
 **Steps:** Repeat TC1 (or TC2) but cross **out** of the geofence.
 
-**Expected:** identical logs/store/portal with `EXIT` / `GeoFence Exited` = **1**.
+**Expected:** identical logs/store/portal with `EXIT` / `CIO Geofence Exited` = **1**.
 
 ---
 

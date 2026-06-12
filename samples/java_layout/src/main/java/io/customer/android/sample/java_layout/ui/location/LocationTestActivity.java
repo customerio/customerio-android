@@ -55,6 +55,10 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     private LocationListener locationListener;
     private PendingPermissionPurpose pendingPurpose = PendingPermissionPurpose.NONE;
     private boolean wasFineDeniedPermanently = false;
+    // Whether requestLocationUpdate() has been called for the current BACKGROUND_GRANTED
+    // session. Prevents redundant SDK fetches when onResume fires after a launcher callback
+    // already triggered one; cleared if permission is revoked so we re-arm for the next grant.
+    private boolean bgGrantHandled = false;
 
     private final ActivityResultLauncher<String[]> locationPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
@@ -78,7 +82,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                                 // Pre-Q: fine granted is implicitly background. No second permission
                                 // to request — trigger the post-grant SDK fetch directly (same as the
                                 // backgroundLocationLauncher path).
-                                ModuleLocation.instance().getLocationServices().requestLocationUpdate();
+                                triggerPostGrantSdkFetch();
                             } else {
                                 // API 29+: foreground just granted; rationale → background prompt.
                                 showBackgroundLocationRationale();
@@ -111,7 +115,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                     // Permission granted at runtime — kick off a fetch so geofences register now.
                     // The SDK's auto-fetch lifecycle hook fires once per process and has already
                     // run, so an explicit request is needed after a runtime grant.
-                    ModuleLocation.instance().getLocationServices().requestLocationUpdate();
+                    triggerPostGrantSdkFetch();
                 } else {
                     // OS silently denied (no dialog shown) — route the user to Settings.
                     openAppDetailsSettings();
@@ -136,6 +140,16 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         setupDeviceLocationButton();
         setupManualEntrySection();
         setupBackgroundPermissionButton();
+
+        // SDK lifecycle handles the initial-launch fetch if permission was already granted
+        // at process start. Seed so onResume only fires on transitions occurring while this
+        // activity is alive.
+        bgGrantHandled = (computeBgPermissionState() == BgPermissionState.BACKGROUND_GRANTED);
+    }
+
+    private void triggerPostGrantSdkFetch() {
+        bgGrantHandled = true;
+        ModuleLocation.instance().getLocationServices().requestLocationUpdate();
     }
 
     private void setupBackgroundPermissionButton() {
@@ -377,6 +391,16 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
         if (wasFineDeniedPermanently && !hasFineLocation()
                 && ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
             wasFineDeniedPermanently = false;
+        }
+        if (computeBgPermissionState() == BgPermissionState.BACKGROUND_GRANTED) {
+            if (!bgGrantHandled) {
+                // Settings round-trip granted background while we were away — fire the same
+                // post-grant SDK fetch the launcher callbacks do, so geofences register without
+                // waiting for the next process start.
+                triggerPostGrantSdkFetch();
+            }
+        } else {
+            bgGrantHandled = false; // permission revoked — re-arm for the next grant cycle
         }
         refreshGrantBackgroundLocationUI();
     }

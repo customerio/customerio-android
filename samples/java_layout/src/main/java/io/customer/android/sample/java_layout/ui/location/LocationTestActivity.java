@@ -106,20 +106,19 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
 
     // Launcher behavior varies by API:
     // - API 29: shows the runtime dialog with "Allow all the time".
-    // - API 30+: OS may route directly to the app's location permission page
-    //   (recent Pixel/Samsung) or silently deny (others). Don't trust the
-    //   `granted` flag — re-check actual permission state to cover both paths.
+    // - API 30+: OS may route to Settings (recent Pixel/Samsung) or silently no-op (others).
+    //   Don't trust the `granted` flag — re-check actual permission state.
     private final ActivityResultLauncher<String> backgroundLocationLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                 if (hasBackgroundLocation()) {
-                    // Permission granted at runtime — kick off a fetch so geofences register now.
-                    // The SDK's auto-fetch lifecycle hook fires once per process and has already
-                    // run, so an explicit request is needed after a runtime grant.
+                    // Granted — kick off a fetch so geofences register now. The SDK's auto-fetch
+                    // lifecycle hook fires once per process and has already run, so an explicit
+                    // request is needed after a runtime grant.
                     triggerPostGrantSdkFetch();
-                } else {
-                    // OS silently denied (no dialog shown) — route the user to Settings.
-                    openAppDetailsSettings();
                 }
+                // Not granted: respect the user's choice (API 29 dialog declined, API 30+ silent
+                // deny, or backed out of Settings). The next tap re-shows the rationale dialog,
+                // which has an explicit "Open Settings" action for recovery.
                 refreshGrantBackgroundLocationUI();
             });
 

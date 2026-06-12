@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Public API for the Location module.
@@ -49,4 +50,12 @@ interface LocationServices {
      * runtime permissions and only call this when permission is granted.
      */
     fun requestLocationUpdate()
+
+    /**
+     * Returns the most recent location observed by the SDK (set via
+     * [setLastKnownLocation] or captured by [requestLocationUpdate]), or null if
+     * none yet. Internal API for other SDK modules to read cached location.
+     */
+    @InternalCustomerIOApi
+    fun getLastKnownLocation(): LocationCoordinates?
 }

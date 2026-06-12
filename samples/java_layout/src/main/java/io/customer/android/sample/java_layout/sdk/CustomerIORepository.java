@@ -11,6 +11,7 @@ import io.customer.android.sample.java_layout.data.PreferencesDataStore;
 import io.customer.android.sample.java_layout.data.model.CustomerIOSDKConfig;
 import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
+import io.customer.geofence.ModuleGeofence;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.location.LocationModuleConfig;
@@ -46,6 +47,9 @@ public class CustomerIORepository {
                         .setLocationTrackingMode(sdkConfig.getLocationTrackingMode())
                         .build()
         ));
+
+        // Enables on-device geofence monitoring (depends on ModuleLocation)
+        builder.addCustomerIOModule(new ModuleGeofence());
 
         // Enables in-app messages
         if (sdkConfig.isInAppMessagingEnabled()) {

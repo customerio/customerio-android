@@ -2,11 +2,7 @@ package io.customer.location
 
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
-import io.customer.location.geofence.di.geofenceCooldownFilter
-import io.customer.location.geofence.di.geofenceDeliveryFlusher
-import io.customer.location.geofence.di.geofenceLogger
-import io.customer.location.geofence.di.geofenceServices
-import io.customer.location.geofence.store.PendingGeofenceDelivery
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -20,7 +16,6 @@ import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.MainThreadPoster
-import io.customer.sdk.data.store.PendingDeliveryFlusher
 
 /**
  * Location module for Customer.io SDK.
@@ -111,13 +106,6 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
-        // Recover from a first-run race where identify lands before the first
-        // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
-        // and re-triggers a refresh when a fresh fix arrives.
-        eventBus.subscribe<Event.LocationAcquired> {
-            SDKComponent.android().geofenceServices.onLocationAcquired(it.latitude, it.longitude)
-        }
-
         // Register as IdentifyHook so location is added to identify event context
         // and cleared synchronously during analytics.reset(). This ensures every
         // identify() call carries the device's current location in the event context —
@@ -130,43 +118,16 @@ class ModuleLocation @JvmOverloads constructor(
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
                 locationTracker.onUserIdentified()
-                val location = locationTracker.lastLocation
-                SDKComponent.android().geofenceServices.onUserIdentified(
-                    latitude = location?.latitude,
-                    longitude = location?.longitude
-                )
 
                 // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
                 // wipes lastLocation on logout — a subsequent identify in the same process
-                // needs a fresh fetch. The LocationAcquired subscriber above re-triggers the
-                // geofence refresh once the fix arrives. MANUAL deliberately doesn't auto-fetch.
-                if (location == null && moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START) {
+                // needs a fresh fetch. MANUAL deliberately doesn't auto-fetch.
+                if (locationTracker.lastLocation == null &&
+                    moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START
+                ) {
                     services.requestLocationUpdate()
                 }
             }
-        }
-
-        // Sign-out: clear geofence state and cooldown so the next user (or anonymous
-        // session) doesn't inherit anything from the previous identity. ResetEvent
-        // fires from `clearIdentify()` before `UserChangedEvent(null)`, so it's the
-        // explicit "wipe user state" signal — analogous to analytics.reset().
-        eventBus.subscribe<Event.ResetEvent> {
-            SDKComponent.android().geofenceServices.onUserSignedOut()
-            SDKComponent.android().geofenceCooldownFilter.clearAll()
-        }
-
-        // Defensive sync trigger at module init: if a user identified in a previous
-        // session is still persisted, kick off a geofence refresh now. The repository's
-        // freshness threshold makes this a cheap no-op when identify also fires shortly
-        // after init (the common case), so it only does work when the host app doesn't
-        // call identify on this launch and the last sync is stale.
-        val existingUserId = SDKComponent.android().secureUserStore.getUserId()
-        if (!existingUserId.isNullOrEmpty()) {
-            val cachedLocation = locationTracker.lastLocation
-            SDKComponent.android().geofenceServices.onAppLaunch(
-                latitude = cachedLocation?.latitude,
-                longitude = cachedLocation?.longitude
-            )
         }
 
         // Register lifecycle observer for background cancellation and ON_APP_START.
@@ -179,37 +140,9 @@ class ModuleLocation @JvmOverloads constructor(
             ProcessLifecycleOwner.get().lifecycle.addObserver(
                 LocationLifecycleObserver(
                     locationServices = services,
-                    trackingMode = moduleConfig.trackingMode,
-                    onForeground = { flushPendingGeofenceDeliveries() }
+                    trackingMode = moduleConfig.trackingMode
                 )
             )
-        }
-    }
-
-    /**
-     * Hand off pending geofence transitions to the analytics pipeline on app
-     * foreground. The shared [PendingDeliveryFlusher] cancels each transition's
-     * WorkManager delivery and atomically claims it, so it can't be delivered
-     * twice (once here via the pipeline, once by the worker via direct HTTP).
-     * The entry's snapshotted userId rides through on [Event.GeofenceTransitionEvent]
-     * so the pipeline subscriber attributes the track event to it.
-     */
-    private fun flushPendingGeofenceDeliveries() {
-        val eventBus = SDKComponent.eventBus
-        val logger = SDKComponent.geofenceLogger
-        SDKComponent.android().geofenceDeliveryFlusher.flush(
-            callbacks = object : PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>() {
-                override fun onSnapshot(count: Int) = logger.logForegroundFlushSnapshot(count)
-                override fun onWorkCancelled(entry: PendingGeofenceDelivery) =
-                    logger.logForegroundFlushCancelledWorkManager(entry.geofenceId, entry.transition.name)
-                override fun onPublished(entry: PendingGeofenceDelivery) =
-                    logger.logForegroundFlushPublished(entry.geofenceId, entry.transition.name)
-                override fun onEntryFailed(entry: PendingGeofenceDelivery, cause: Throwable) =
-                    logger.logForegroundFlushEntryFailed(entry.geofenceId, entry.transition.name, cause.message)
-                override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
-            }
-        ) { entry ->
-            eventBus.publish(entry.toGeofenceTransitionEvent())
         }
     }
 
@@ -247,4 +180,10 @@ private class UninitializedLocationServices(
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
     override fun requestLocationUpdate() = logNotInitialized()
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun getLastKnownLocation(): LocationCoordinates? {
+        logNotInitialized()
+        return null
+    }
 }

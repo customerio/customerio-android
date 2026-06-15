@@ -185,7 +185,9 @@
     <string name="live_notification_section_campaign">Trigger via Campaign</string>
     <string name="live_notification_campaign_hint">Template (activity_type)</string>
     <string name="live_notification_campaign_trigger">Send trigger_live event</string>
+    <string name="live_notification_campaign_trigger_all">Trigger all 5 via campaign</string>
     <string name="live_notification_campaign_event_sent">Tracked trigger_live: %1$s</string>
+    <string name="live_notification_campaign_all_sent">Triggered %1$d campaigns</string>
     <string name="live_notification_section_debug">Debug</string>
     <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
     <string name="live_notification_debug_start_via_api">Start via startLiveNotification() API</string>

@@ -102,6 +102,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
         setupCampaignDropdown();
         binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
+        binding.campaignTriggerAllButton.setOnClickListener(v -> triggerAllCampaigns());
 
         binding.typeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (isActive) {
@@ -127,7 +128,11 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     }
 
     private int getStepCount() {
-        switch (getSelectedTemplate()) {
+        return stepCountFor(getSelectedTemplate());
+    }
+
+    private int stepCountFor(TemplateChoice template) {
+        switch (template) {
             // Delivery: ordered → preparing → out-for-delivery → delivered
             case DELIVERY_TRACKING: return 4;
             // Flight: pre-departure → boarding → in-flight → arrived → delay-red variant
@@ -195,7 +200,11 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     // --- Push construction ---
 
     private void sendPush(String event, int step) {
-        switch (getSelectedTemplate()) {
+        sendFor(getSelectedTemplate(), event, step);
+    }
+
+    private void sendFor(TemplateChoice template, String event, int step) {
+        switch (template) {
             case DELIVERY_TRACKING: sendDeliveryTracking(event, step); break;
             case FLIGHT_STATUS: sendFlightStatus(event, step); break;
             case LIVE_SCORE: sendLiveScore(event, step); break;
@@ -448,16 +457,38 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
      */
     private void triggerCampaign() {
         String activityType = CAMPAIGN_ACTIVITY_TYPES[selectedCampaignIndex];
-        Map<String, String> properties = new HashMap<>();
-        properties.put("activity_type", activityType);
-        // Unique per trigger; used by the campaign to build a fresh activity_id via Liquid.
-        properties.put("timestamp", String.valueOf(System.currentTimeMillis()));
-        customerIORepository.trackEvent(CAMPAIGN_EVENT, properties);
+        fireCampaign(activityType, System.currentTimeMillis());
         Snackbar.make(
                 binding.campaignTriggerButton,
                 getString(R.string.live_notification_campaign_event_sent, activityType),
                 Snackbar.LENGTH_SHORT
         ).show();
+    }
+
+    /**
+     * Fires {@link #CAMPAIGN_EVENT} once for every campaign activity type so the backend
+     * campaign drives all five flows at once. Each gets a distinct {@code timestamp} so the
+     * Liquid-built {@code activity_id} is unique per type/run.
+     */
+    private void triggerAllCampaigns() {
+        long base = System.currentTimeMillis();
+        for (int i = 0; i < CAMPAIGN_ACTIVITY_TYPES.length; i++) {
+            fireCampaign(CAMPAIGN_ACTIVITY_TYPES[i], base + i);
+        }
+        Snackbar.make(
+                binding.campaignTriggerAllButton,
+                getString(R.string.live_notification_campaign_all_sent, CAMPAIGN_ACTIVITY_TYPES.length),
+                Snackbar.LENGTH_SHORT
+        ).show();
+    }
+
+    /** Tracks the campaign trigger event with the given type + a unique timestamp. */
+    private void fireCampaign(String activityType, long timestamp) {
+        Map<String, String> properties = new HashMap<>();
+        properties.put("activity_type", activityType);
+        // Unique per trigger; the campaign injects it into a fresh activity_id via Liquid.
+        properties.put("timestamp", String.valueOf(timestamp));
+        customerIORepository.trackEvent(CAMPAIGN_EVENT, properties);
     }
 
     private void sendUnknownActivityType() {

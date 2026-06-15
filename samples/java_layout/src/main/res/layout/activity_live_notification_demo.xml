@@ -178,6 +178,14 @@
             android:layout_marginTop="@dimen/margin_default"
             android:text="@string/live_notification_campaign_trigger" />
 
+        <Button
+            android:id="@+id/campaign_trigger_all_button"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_campaign_trigger_all" />
+
         <!-- Debug controls -->
         <TextView
             android:layout_width="match_parent"

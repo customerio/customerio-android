@@ -58,13 +58,18 @@ public class CustomerIORepository {
                                 Color.parseColor("#1B5E20"),
                                 null
                         ))
-                        // Live notifications are opt-in: enable the built-in template types.
+                        // App-rendered custom types go through this callback.
+                        .setNotificationCallback(new LiveNotificationCallback())
+                        // Live notifications are opt-in: enable the built-in template
+                        // types plus our two custom (app-rendered) types.
                         .setLiveNotificationTypes(
                                 LiveNotificationType.DELIVERY_TRACKING,
                                 LiveNotificationType.FLIGHT_STATUS,
                                 LiveNotificationType.LIVE_SCORE,
                                 LiveNotificationType.COUNTDOWN_TIMER,
-                                LiveNotificationType.AUCTION_BID
+                                LiveNotificationType.AUCTION_BID,
+                                LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE,
+                                LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT
                         )
                         .build()
         );

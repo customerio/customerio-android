@@ -3,17 +3,22 @@ package io.customer.android.sample.java_layout.ui.livenotification;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.ArrayAdapter;
 
+import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.messaging.RemoteMessage;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityLiveNotificationDemoBinding;
 import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
+import io.customer.android.sample.java_layout.sdk.LiveNotificationCallback;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
@@ -34,7 +39,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationType;
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
     private static final String DEMO_DELIVERY_TOKEN = "demo-token-live";
-    private static final long AUTO_STEP_DELAY_MS = 2000;
+    private static final long AUTO_STEP_DELAY_MS = 5000;
 
     private static final String EVENT_START = "start";
     private static final String EVENT_UPDATE = "update";
@@ -47,19 +52,41 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private static final String ACTIVITY_TYPE_COUNTDOWN_TIMER = "io.customer.liveactivities.countdowntimer";
     private static final String ACTIVITY_TYPE_AUCTION_BID = "io.customer.liveactivities.auctionbid";
     private static final String ACTIVITY_TYPE_UNKNOWN = "io.customer.liveactivities.bogus";
+    // Custom (app-rendered) types — rendered by LiveNotificationCallback, not an SDK template.
+    private static final String ACTIVITY_TYPE_RIDESHARE = LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE;
+    private static final String ACTIVITY_TYPE_WORKOUT = LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT;
 
     private enum TemplateChoice {
-        DELIVERY_TRACKING, FLIGHT_STATUS, LIVE_SCORE, COUNTDOWN_TIMER, AUCTION_BID
+        DELIVERY_TRACKING, FLIGHT_STATUS, LIVE_SCORE, COUNTDOWN_TIMER, AUCTION_BID,
+        CUSTOM_RIDESHARE, CUSTOM_WORKOUT
     }
+
+    // Event the backend campaign listens for; its `activity_type` property selects the template.
+    private static final String CAMPAIGN_EVENT = "trigger_live";
+    // Dropdown order must match CAMPAIGN_TEMPLATE_LABELS below.
+    private static final String[] CAMPAIGN_ACTIVITY_TYPES = {
+            ACTIVITY_TYPE_DELIVERY_TRACKING,
+            ACTIVITY_TYPE_FLIGHT_STATUS,
+            ACTIVITY_TYPE_LIVE_SCORE,
+            ACTIVITY_TYPE_COUNTDOWN_TIMER,
+            ACTIVITY_TYPE_AUCTION_BID
+    };
 
     private int currentStep = 0;
     private boolean isActive = false;
     private final Handler autoHandler = new Handler(Looper.getMainLooper());
     private boolean isAutoRunning = false;
+    private int selectedCampaignIndex = 0;
+    private CustomerIORepository customerIORepository;
 
     @Override
     protected ActivityLiveNotificationDemoBinding inflateViewBinding() {
         return ActivityLiveNotificationDemoBinding.inflate(getLayoutInflater());
+    }
+
+    @Override
+    protected void injectDependencies() {
+        customerIORepository = applicationGraph.getCustomerIORepository();
     }
 
     @Override
@@ -72,6 +99,9 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.autoButton.setOnClickListener(v -> autoRun());
         binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
         binding.apiStartButton.setOnClickListener(v -> startViaApi());
+
+        setupCampaignDropdown();
+        binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
 
         binding.typeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (isActive) {
@@ -91,13 +121,15 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         if (checkedId == R.id.radio_live_score) return TemplateChoice.LIVE_SCORE;
         if (checkedId == R.id.radio_countdown_timer) return TemplateChoice.COUNTDOWN_TIMER;
         if (checkedId == R.id.radio_auction_bid) return TemplateChoice.AUCTION_BID;
+        if (checkedId == R.id.radio_custom_rideshare) return TemplateChoice.CUSTOM_RIDESHARE;
+        if (checkedId == R.id.radio_custom_workout) return TemplateChoice.CUSTOM_WORKOUT;
         return TemplateChoice.DELIVERY_TRACKING;
     }
 
     private int getStepCount() {
         switch (getSelectedTemplate()) {
-            // Delivery: ordered → preparing → out-for-delivery → delivered → missing-asset edge case
-            case DELIVERY_TRACKING: return 5;
+            // Delivery: ordered → preparing → out-for-delivery → delivered
+            case DELIVERY_TRACKING: return 4;
             // Flight: pre-departure → boarding → in-flight → arrived → delay-red variant
             case FLIGHT_STATUS: return 5;
             case LIVE_SCORE: return 4;
@@ -105,6 +137,10 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             case COUNTDOWN_TIMER: return 4;
             // Auction: outbid → winning → outbid again → ended → no-userBidAmount variant
             case AUCTION_BID: return 5;
+            // Rideshare (custom RemoteViews): en route → arriving → in trip → dropoff
+            case CUSTOM_RIDESHARE: return 4;
+            // Workout (builder API): warmup → running → final push → cooldown
+            case CUSTOM_WORKOUT: return 4;
             default: return 1;
         }
     }
@@ -165,6 +201,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             case LIVE_SCORE: sendLiveScore(event, step); break;
             case COUNTDOWN_TIMER: sendCountdownTimer(event, step); break;
             case AUCTION_BID: sendAuctionBid(event, step); break;
+            case CUSTOM_RIDESHARE: sendCustomRideshare(event, step); break;
+            case CUSTOM_WORKOUT: sendCustomWorkout(event, step); break;
         }
     }
 
@@ -173,17 +211,14 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 "Your order has been placed",
                 "Your order is being prepared",
                 "Your order is out for delivery",
-                "Your order has been delivered",
-                "Asset key missing — design-for-absence path"
+                "Your order has been delivered"
         };
-        // Step 4 intentionally points to a key the host app has not bundled, exercising
-        // TemplateAssets.resolveDrawable's "did not resolve" branch.
+        // Distinct icon per step: ordered → preparing → out-for-delivery → delivered.
         String[] imageKeys = {
-                "delivery_warehouse",
-                "delivery_warehouse",
+                "delivery_ordered",
+                "delivery_preparing",
                 "delivery_truck",
-                "delivery_door",
-                "unknown_key"
+                "delivery_delivered"
         };
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
@@ -307,6 +342,60 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         fire(buildBundle("demo-auction-bid", event, ACTIVITY_TYPE_AUCTION_BID, attributes, contentState));
     }
 
+    // --- Custom (app-rendered) types: rendered by LiveNotificationCallback, not an SDK template ---
+
+    /**
+     * Custom type rendered by the host app through a completely custom RemoteViews
+     * layout (see {@link LiveNotificationCallback}). The SDK has no template for it.
+     */
+    private void sendCustomRideshare(String event, int step) {
+        String[] statuses = {
+                "Heading to your pickup",
+                "Arriving now — look for the car",
+                "On the way to your destination",
+                "You've arrived"
+        };
+        String[] etas = {"6 min", "1 min", "12 min", "Now"};
+        // progress across the 4 stops
+        int[] progress = {15, 40, 80, 100};
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        try {
+            attributes.put("driverName", "Alex");
+            attributes.put("vehicle", "Toyota Prius");
+            attributes.put("plate", "7XYZ123");
+
+            contentState.put("statusMessage", statuses[step]);
+            contentState.put("etaText", etas[step]);
+            contentState.put("step", step);
+            contentState.put("progress", progress[step]);
+        } catch (JSONException ignored) { }
+        fire(buildBundle("demo-rideshare", event, ACTIVITY_TYPE_RIDESHARE, attributes, contentState));
+    }
+
+    /**
+     * Custom type rendered by the host app via the standard NotificationCompat builder
+     * API (determinate progress + BigTextStyle + action), requesting promoted-ongoing.
+     */
+    private void sendCustomWorkout(String event, int step) {
+        String[] distances = {"0.4 km", "2.4 km", "4.1 km", "5.0 km"};
+        String[] durations = {"02:10", "14:32", "24:48", "30:15"};
+        String[] paces = {"5'25\"/km", "6'03\"/km", "6'02\"/km", "6'03\"/km"};
+        int[] progress = {8, 48, 82, 100};
+        JSONObject attributes = new JSONObject();
+        JSONObject contentState = new JSONObject();
+        try {
+            attributes.put("workoutTitle", "Morning Run");
+
+            contentState.put("distance", distances[step]);
+            contentState.put("duration", durations[step]);
+            contentState.put("pace", paces[step]);
+            contentState.put("step", step);
+            contentState.put("progress", progress[step]);
+        } catch (JSONException ignored) { }
+        fire(buildBundle("demo-workout", event, ACTIVITY_TYPE_WORKOUT, attributes, contentState));
+    }
+
     /**
      * Exercises the public local-start API: the SDK generates the activity id, renders
      * the notification immediately, and registers the instance with the backend.
@@ -325,6 +414,50 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         data.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
         String activityId = module.startLiveNotification(LiveNotificationType.DELIVERY_TRACKING, data);
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + activityId, 1));
+    }
+
+    // --- Campaign trigger ---
+
+    private void setupCampaignDropdown() {
+        String[] labels = {
+                getString(R.string.live_notification_type_delivery_tracking),
+                getString(R.string.live_notification_type_flight_status),
+                getString(R.string.live_notification_type_live_score),
+                getString(R.string.live_notification_type_countdown_timer),
+                getString(R.string.live_notification_type_auction_bid)
+        };
+        ArrayAdapter<String> adapter =
+                new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
+        binding.campaignTemplateDropdown.setAdapter(adapter);
+        binding.campaignTemplateDropdown.setText(labels[selectedCampaignIndex], false);
+        binding.campaignTemplateDropdown.setOnItemClickListener(
+                (parent, view, position, id) -> selectedCampaignIndex = position);
+    }
+
+    /**
+     * Tracks the {@code trigger_live} event with the selected {@code activity_type} and a
+     * unique {@code timestamp}. A backend campaign listening for this event then pushes the
+     * real start/update/end lifecycle through the live-notification path — no synthetic local
+     * push here.
+     * <p>
+     * The {@code timestamp} property is meant to be injected into the {@code activity_id} of
+     * every payload via Liquid (e.g. {@code "activity_id": "order-{{ event.timestamp }}"}) so
+     * each campaign run gets a fresh activity id. Reusing an activity id across runs would hit
+     * the SDK's out-of-order guard (a prior {@code end} freezes that id's high-water timestamp),
+     * and the new pushes would be dropped as stale.
+     */
+    private void triggerCampaign() {
+        String activityType = CAMPAIGN_ACTIVITY_TYPES[selectedCampaignIndex];
+        Map<String, String> properties = new HashMap<>();
+        properties.put("activity_type", activityType);
+        // Unique per trigger; used by the campaign to build a fresh activity_id via Liquid.
+        properties.put("timestamp", String.valueOf(System.currentTimeMillis()));
+        customerIORepository.trackEvent(CAMPAIGN_EVENT, properties);
+        Snackbar.make(
+                binding.campaignTriggerButton,
+                getString(R.string.live_notification_campaign_event_sent, activityType),
+                Snackbar.LENGTH_SHORT
+        ).show();
     }
 
     private void sendUnknownActivityType() {

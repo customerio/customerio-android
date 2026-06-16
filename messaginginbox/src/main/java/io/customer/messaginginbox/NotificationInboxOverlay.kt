@@ -23,8 +23,11 @@ import androidx.compose.material.Badge
 import androidx.compose.material.BadgedBox
 import androidx.compose.material.Divider
 import androidx.compose.material.FloatingActionButton
+import androidx.compose.material.Icon
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,10 +38,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.gist.data.model.InboxMessage
+import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
 
 /**
@@ -56,6 +62,14 @@ import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
  * This is a Milestone 1 placeholder UI: rows are plain text derived from [InboxMessage]
  * fields. There is no Jist rendering or real templating yet.
  *
+ * Mount it once near the top of your Compose hierarchy so it overlays your content:
+ * ```
+ * Box(modifier = Modifier.fillMaxSize()) {
+ *     AppContent()
+ *     NotificationInboxOverlay()
+ * }
+ * ```
+ *
  * @param modifier Modifier applied to the root overlay container.
  * @param topic Optional topic filter forwarded to the headless inbox API.
  */
@@ -64,10 +78,26 @@ fun NotificationInboxOverlay(
     modifier: Modifier = Modifier,
     topic: String? = null
 ) {
+    NotificationInboxOverlay(
+        modifier = modifier,
+        topic = topic,
+        inbox = remember { ModuleMessagingInApp.instance().inbox() }
+    )
+}
+
+/**
+ * Internal overload that accepts the [NotificationInbox] dependency directly so it can be
+ * exercised by Compose UI tests with a fake inbox. The public [NotificationInboxOverlay]
+ * delegates here after resolving the real inbox from the headless API.
+ */
+@Composable
+internal fun NotificationInboxOverlay(
+    modifier: Modifier = Modifier,
+    topic: String? = null,
+    inbox: NotificationInbox
+) {
     var messages by remember { mutableStateOf<List<InboxMessage>>(emptyList()) }
     var panelExpanded by remember { mutableStateOf(false) }
-
-    val inbox = remember { ModuleMessagingInApp.instance().inbox() }
 
     // Initial fetch of the current inbox state.
     LaunchedEffect(topic) {
@@ -92,7 +122,7 @@ fun NotificationInboxOverlay(
         return
     }
 
-    val unreadCount = messages.count { !it.opened }
+    val unreadCount = unreadInboxCount(messages)
 
     Box(modifier = modifier.fillMaxWidth().fillMaxHeight()) {
         // Slide-out panel listing the messages as placeholder rows.
@@ -112,7 +142,13 @@ fun NotificationInboxOverlay(
         BadgedBox(
             badge = {
                 if (unreadCount > 0) {
-                    Badge { Text(text = unreadCount.toString()) }
+                    Badge(
+                        modifier = Modifier.semantics {
+                            contentDescription = "$unreadCount unread notifications"
+                        }
+                    ) {
+                        Text(text = unreadCount.toString())
+                    }
                 }
             },
             modifier = Modifier
@@ -120,7 +156,10 @@ fun NotificationInboxOverlay(
                 .padding(16.dp)
         ) {
             FloatingActionButton(onClick = { panelExpanded = !panelExpanded }) {
-                Text(text = "Inbox")
+                Icon(
+                    imageVector = Icons.Filled.Notifications,
+                    contentDescription = "Notifications inbox"
+                )
             }
         }
     }
@@ -180,6 +219,9 @@ private fun InboxMessageRow(message: InboxMessage) {
         Box(
             modifier = Modifier
                 .size(8.dp)
+                .semantics {
+                    contentDescription = if (message.opened) "Read" else "Unread"
+                }
                 .background(
                     color = if (message.opened) Color.Transparent else Color(0xFF2962FF),
                     shape = CircleShape
@@ -196,10 +238,16 @@ private fun InboxMessageRow(message: InboxMessage) {
 }
 
 /**
+ * Number of unread (unopened) messages, used to drive the unread badge. Extracted as a plain
+ * function so the badge logic can be unit-tested without a Compose runtime.
+ */
+internal fun unreadInboxCount(messages: List<InboxMessage>): Int = messages.count { !it.opened }
+
+/**
  * Derives a human-readable title for the placeholder row from the message properties,
  * falling back to identifiers when no title-like property is present.
  */
-private fun InboxMessage.inboxTitle(): String {
+internal fun InboxMessage.inboxTitle(): String {
     val titleKeys = listOf("title", "subject", "headline", "name")
     val titleValue = titleKeys
         .firstNotNullOfOrNull { key -> properties[key]?.toString()?.takeIf { it.isNotBlank() } }

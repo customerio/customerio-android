@@ -39,10 +39,15 @@ dependencies {
     // Main dependencies
     api project(":messaginginapp")  // This module builds on top of the messaginginapp module
 
-    // Compose: only the runtime is required for this skeleton (the Compose compiler needs it on
-    // the classpath). The UI artifacts (ui, foundation, material, …) land with the visual inbox UI.
+    // Compose dependencies
     implementation platform(Dependencies.composeBom)
+    implementation Dependencies.composeUi
+    implementation Dependencies.composeUiGraphics
+    implementation Dependencies.composeFoundation
+    implementation Dependencies.composeMaterial
+    implementation "androidx.compose.material:material-icons-core"
     implementation Dependencies.composeRuntime
+    implementation Dependencies.coroutinesAndroid
 
     // Testing
     testImplementation project(":common-test")

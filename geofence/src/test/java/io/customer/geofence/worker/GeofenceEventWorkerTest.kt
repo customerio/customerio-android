@@ -46,18 +46,16 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     private fun seed(
         geofenceId: String,
         transition: Event.GeofenceTransition,
-        latitude: Double? = 0.0,
-        longitude: Double? = 0.0,
         timestamp: Long = 0L,
         userId: String? = "user-42"
     ): PendingGeofenceDelivery =
-        PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp, userId)
+        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId)
             .also { store.append(it) }
 
     @Test
     fun doWork_givenClaimableEntry_expectSuccessTrackerCalledAndEntryRemoved() = runTest {
-        val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 1.0, 2.0, 99L)
-        val inputData = buildInputData("biz-1", "ENTER", 1.0, 2.0, 99L, "user-42")
+        val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
+        val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42")
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
 
         val result = createWorker(inputData).doWork()
@@ -71,22 +69,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     fun doWork_givenValidExitInput_expectExitTransitionPassed() = runTest {
         val entry = seed("biz-2", Event.GeofenceTransition.EXIT, timestamp = 0L)
         val inputData = buildInputData("biz-2", "EXIT", timestamp = 0L)
-        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
-
-        createWorker(inputData).doWork()
-
-        coVerify(exactly = 1) { tracker.trackEvent(entry) }
-    }
-
-    @Test
-    fun doWork_givenMissingLatLng_expectEntryWithNullLatLngPassed() = runTest {
-        val entry = seed("biz-3", Event.GeofenceTransition.ENTER, latitude = null, longitude = null, timestamp = 0L)
-        val inputData = Data.Builder()
-            .putString("geofence_id", "biz-3")
-            .putString("transition", "ENTER")
-            .putLong("timestamp", 0L)
-            .putString("user_id", "user-42")
-            .build()
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
 
         createWorker(inputData).doWork()
@@ -181,14 +163,10 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     private fun buildInputData(
         geofenceId: String?,
         transition: String?,
-        latitude: Double = 0.0,
-        longitude: Double = 0.0,
         timestamp: Long = 0L,
         userId: String? = "user-42"
     ): Data {
         val builder = Data.Builder()
-            .putDouble("latitude", latitude)
-            .putDouble("longitude", longitude)
             .putLong("timestamp", timestamp)
         geofenceId?.let { builder.putString("geofence_id", it) }
         transition?.let { builder.putString("transition", it) }

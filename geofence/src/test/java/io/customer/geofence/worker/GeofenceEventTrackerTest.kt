@@ -35,11 +35,9 @@ class GeofenceEventTrackerTest : RobolectricTest() {
     private fun entry(
         geofenceId: String = "biz-geofence-1",
         transition: Event.GeofenceTransition = Event.GeofenceTransition.ENTER,
-        latitude: Double? = 37.7749,
-        longitude: Double? = -122.4194,
         timestamp: Long = 1_234_567_890L,
         userId: String? = "user-42"
-    ) = PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp, userId)
+    ) = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId)
 
     @Test
     fun trackEvent_givenEnterTransition_expectPostToTrackWithCorrectBody() = runTest {
@@ -50,15 +48,15 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         capturedParams.captured.path shouldBeEqualTo "/track"
-        val body = JSONObject(capturedParams.captured.body)
+        val body = JSONObject(capturedParams.captured.body.shouldNotBeNull())
         body.getString("event") shouldBeEqualTo "CIO Geofence Entered"
         body.getString("userId") shouldBeEqualTo "user-42"
         val props = body.getJSONObject("properties")
         props.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
         props.getString("transition_type") shouldBeEqualTo "enter"
-        props.getDouble("latitude") shouldBeEqualTo 37.7749
-        props.getDouble("longitude") shouldBeEqualTo -122.4194
         props.getLong("timestamp") shouldBeEqualTo 1_234_567_890L
+        props.has("latitude") shouldBeEqualTo false
+        props.has("longitude") shouldBeEqualTo false
     }
 
     @Test
@@ -68,21 +66,9 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
         tracker.trackEvent(entry(transition = Event.GeofenceTransition.EXIT))
 
-        val body = JSONObject(capturedParams.captured.body)
+        val body = JSONObject(capturedParams.captured.body.shouldNotBeNull())
         body.getString("event") shouldBeEqualTo "CIO Geofence Exited"
         body.getJSONObject("properties").getString("transition_type") shouldBeEqualTo "exit"
-    }
-
-    @Test
-    fun trackEvent_givenNullLatLng_expectBodyWithoutLatLng() = runTest {
-        val capturedParams = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
-
-        tracker.trackEvent(entry(latitude = null, longitude = null))
-
-        val props = JSONObject(capturedParams.captured.body).getJSONObject("properties")
-        props.has("latitude") shouldBeEqualTo false
-        props.has("longitude") shouldBeEqualTo false
     }
 
     @Test

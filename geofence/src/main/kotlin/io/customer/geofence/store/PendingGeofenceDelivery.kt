@@ -20,8 +20,6 @@ import kotlinx.serialization.Serializable
 internal data class PendingGeofenceDelivery(
     val geofenceId: String,
     val transition: Event.GeofenceTransition,
-    val latitude: Double?,
-    val longitude: Double?,
     /** Unix epoch **seconds** at receiver time. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
     val userId: String?
@@ -36,8 +34,6 @@ internal data class PendingGeofenceDelivery(
     fun toEventProperties(): Map<String, Any> = buildMap {
         put("geofence_id", geofenceId)
         put("transition_type", transition.name.lowercase())
-        latitude?.let { put("latitude", it) }
-        longitude?.let { put("longitude", it) }
         put("timestamp", timestamp)
     }
 

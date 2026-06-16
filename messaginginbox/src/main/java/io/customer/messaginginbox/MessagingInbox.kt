@@ -7,6 +7,6 @@ package io.customer.messaginginbox
  * slide-out panel) on top of the existing headless inbox API exposed by
  * `CustomerIO.instance().inAppMessaging().inbox()`.
  *
- * No public UI is committed yet; the mountable Compose view lands in the next change.
+ * The mountable Compose view is exposed as [NotificationInboxView].
  */
 internal object MessagingInbox

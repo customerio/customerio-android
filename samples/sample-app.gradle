@@ -128,6 +128,8 @@ dependencies {
         implementation(project(":messaginginapp"))
         // messaginginapp-compose adds messaginginapp transitively
         implementation(project(":messaginginapp-compose"))
+        // messaginginbox adds messaginginapp transitively
+        implementation(project(":messaginginbox"))
         implementation(project(":location"))
     } else {
         // Stable releases dependency, use published versions directly
@@ -136,6 +138,8 @@ dependencies {
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
         // messaginginapp-compose adds messaginginapp transitively
         implementation "io.customer.android:messaging-in-app-compose:$cioSDKVersion"
+        // messaginginbox adds messaginginapp transitively
+        implementation "io.customer.android:messaging-inbox:$cioSDKVersion"
         implementation "io.customer.android:location:$cioSDKVersion"
     }
     

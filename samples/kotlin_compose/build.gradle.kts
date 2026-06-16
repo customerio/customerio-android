@@ -57,9 +57,6 @@ val navigationVersion = "2.9.5"
 val roomVersion = "2.8.2"
 
 dependencies {
-    // Opt-in visual notification inbox Compose module (renders on top of the headless inbox API)
-    implementation(project(":messaginginbox"))
-
     // Compose dependencies are included from sample-app.gradle
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")

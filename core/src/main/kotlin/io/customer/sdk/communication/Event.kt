@@ -50,6 +50,15 @@ sealed class Event {
         val token: String
     ) : Event()
 
+    /**
+     * Published by the location module on every fresh location fix. Other modules
+     * subscribe to react to location updates without depending on its internals.
+     */
+    data class LocationAcquired(
+        val latitude: Double,
+        val longitude: Double
+    ) : Event()
+
     class DeleteDeviceTokenEvent : Event()
 
     enum class GeofenceTransition {

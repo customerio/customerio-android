@@ -1,3 +1,9 @@
+// Local dev override: resolve io.customer.android:android-publish from a sibling mobile-ci-tools
+// checkout instead of Maven Central. Enable with -PuseLocalPublishPlugin=true.
+if (providers.gradleProperty("useLocalPublishPlugin").getOrNull() == "true") {
+    includeBuild("../mobile-ci-tools/gradle-plugins/android-publish")
+}
+
 rootProject.name = "Customer.io SDK"
 include ':base'
 include ':messagingpush'

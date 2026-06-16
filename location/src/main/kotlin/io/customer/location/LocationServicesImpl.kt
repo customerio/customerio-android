@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -58,6 +59,9 @@ internal class LocationServicesImpl(
             }
         }
     }
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun getLastKnownLocation(): LocationCoordinates? = locationTracker.lastLocation
 
     /**
      * Cancels any in-flight location request.

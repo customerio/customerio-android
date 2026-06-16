@@ -10,4 +10,22 @@
         not using geofencing.
     -->
 
+    <application>
+        <!-- Disabled by default; dynamically enabled by GeofenceManager when geofences are registered -->
+        <receiver
+            android:name="io.customer.geofence.GeofenceBroadcastReceiver"
+            android:enabled="false"
+            android:exported="false" />
+
+        <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->
+        <receiver
+            android:name="io.customer.geofence.GeofenceBootReceiver"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
 </manifest>

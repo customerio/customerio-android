@@ -1,5 +1,6 @@
 package io.customer.location
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.location.store.LocationPreferenceStore
 import io.customer.location.sync.LocationSyncFilter
 import io.customer.sdk.communication.Event
@@ -145,9 +146,11 @@ internal class LocationTracker(
 }
 
 /**
- * Internal location coordinate holder, replacing the cross-module Event.LocationData.
+ * Last-known device location, exposed for cross-module reads via
+ * [LocationServices.getLastKnownLocation].
  */
-internal data class LocationCoordinates(
+@InternalCustomerIOApi
+data class LocationCoordinates(
     val latitude: Double,
     val longitude: Double
 )

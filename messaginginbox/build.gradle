@@ -38,8 +38,6 @@ android {
 dependencies {
     // Main dependencies
     api project(":messaginginapp")  // This module builds on top of the messaginginapp module
-    // datapipelines provides the public CustomerIO.instance() entry point used to reach the headless inbox API
-    implementation project(":datapipelines")
 
     // Compose: only the runtime is required for this skeleton (the Compose compiler needs it on
     // the classpath). The UI artifacts (ui, foundation, material, …) land with the visual inbox UI.

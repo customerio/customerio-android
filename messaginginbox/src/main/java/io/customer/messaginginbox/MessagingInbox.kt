@@ -5,7 +5,7 @@ package io.customer.messaginginbox
  *
  * This opt-in Compose module renders a visual inbox (floating button, unread badge,
  * slide-out panel) on top of the existing headless inbox API exposed by
- * `CustomerIO.instance().inAppMessaging().inbox()`.
+ * `ModuleMessagingInApp.instance().inbox()`.
  *
  * The mountable Compose view is exposed as [NotificationInboxView].
  */

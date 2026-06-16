@@ -37,14 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.customer.messaginginapp.di.inAppMessaging
+import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
-import io.customer.sdk.CustomerIO
 
 /**
  * Opt-in Compose view that renders a visual notification inbox on top of the existing
- * headless inbox API (`CustomerIO.instance().inAppMessaging().inbox()`).
+ * headless inbox API (`ModuleMessagingInApp.instance().inbox()`).
  *
  * The view renders a floating action button with an unread badge. Tapping the button
  * toggles a slide-out panel that lists the current inbox messages as placeholder rows.
@@ -68,7 +67,7 @@ fun NotificationInboxView(
     var messages by remember { mutableStateOf<List<InboxMessage>>(emptyList()) }
     var panelExpanded by remember { mutableStateOf(false) }
 
-    val inbox = remember { CustomerIO.instance().inAppMessaging().inbox() }
+    val inbox = remember { ModuleMessagingInApp.instance().inbox() }
 
     // Initial fetch of the current inbox state.
     LaunchedEffect(topic) {

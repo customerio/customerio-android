@@ -33,7 +33,7 @@ import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecy
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesNavigationActivity
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesTabbedActivity
-import io.customer.messaginginbox.NotificationInboxView
+import io.customer.messaginginbox.NotificationInboxOverlay
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -109,7 +109,7 @@ fun DashboardScreen(
         )
         // Overlay visual notification inbox (floating button + slide-out panel) rendered
         // on top of the dashboard. Hidden automatically when there are no inbox messages.
-        NotificationInboxView()
+        NotificationInboxOverlay()
     }
 }
 

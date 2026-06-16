@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -42,10 +42,10 @@ import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
 
 /**
- * Opt-in Compose view that renders a visual notification inbox on top of the existing
+ * Opt-in Compose overlay that renders a visual notification inbox on top of the existing
  * headless inbox API (`ModuleMessagingInApp.instance().inbox()`).
  *
- * The view renders a floating action button with an unread badge. Tapping the button
+ * The overlay renders a floating action button with an unread badge. Tapping the button
  * toggles a slide-out panel that lists the current inbox messages as placeholder rows.
  *
  * Inbox state is read from the headless API: an initial fetch via `getMessages()` plus
@@ -60,7 +60,7 @@ import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
  * @param topic Optional topic filter forwarded to the headless inbox API.
  */
 @Composable
-fun NotificationInboxView(
+fun NotificationInboxOverlay(
     modifier: Modifier = Modifier,
     topic: String? = null
 ) {
@@ -132,9 +132,15 @@ private fun InboxPanel(
     onClose: () -> Unit
 ) {
     Surface(
+        // Fill the available width minus a horizontal margin on each side, capped at a max
+        // width on large screens (tablets). On phones this is screen-width-minus-margins;
+        // on tablets it stops at 480dp. The padding is applied outside the Surface so the
+        // slide-out animation still translates the full panel (Surface + margins) off-screen.
         modifier = Modifier
             .fillMaxHeight()
-            .width(300.dp),
+            .fillMaxWidth()
+            .widthIn(max = 480.dp)
+            .padding(horizontal = 16.dp),
         elevation = 8.dp
     ) {
         Column(modifier = Modifier.fillMaxHeight()) {

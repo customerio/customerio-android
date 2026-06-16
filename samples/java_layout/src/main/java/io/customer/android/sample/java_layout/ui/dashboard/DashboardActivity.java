@@ -163,6 +163,8 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         binding.logoutButton.setOnClickListener(view -> {
             authViewModel.clearLoggedInUser();
         });
+        // Mount the Compose-based visual notification inbox overlay on top of the dashboard.
+        NotificationInboxOverlayView.mount(binding.notificationInboxOverlay);
     }
 
     private void setupObservers() {

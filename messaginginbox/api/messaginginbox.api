@@ -1,10 +1,10 @@
-public final class io/customer/messaginginbox/ComposableSingletons$NotificationInboxViewKt {
-	public static final field INSTANCE Lio/customer/messaginginbox/ComposableSingletons$NotificationInboxViewKt;
+public final class io/customer/messaginginbox/ComposableSingletons$NotificationInboxOverlayKt {
+	public static final field INSTANCE Lio/customer/messaginginbox/ComposableSingletons$NotificationInboxOverlayKt;
 	public fun <init> ()V
-	public final fun getLambda$-2138595068$messaginginbox_release ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$-2140671264$messaginginbox_release ()Lkotlin/jvm/functions/Function2;
 }
 
-public final class io/customer/messaginginbox/NotificationInboxViewKt {
-	public static final fun NotificationInboxView (Landroidx/compose/ui/Modifier;Ljava/lang/String;Landroidx/compose/runtime/Composer;II)V
+public final class io/customer/messaginginbox/NotificationInboxOverlayKt {
+	public static final fun NotificationInboxOverlay (Landroidx/compose/ui/Modifier;Ljava/lang/String;Landroidx/compose/runtime/Composer;II)V
 }
 

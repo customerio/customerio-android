@@ -6,6 +6,7 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
@@ -15,11 +16,10 @@ import kotlinx.coroutines.sync.withLock
 /**
  * Geofence sync pipeline. Two public entry points:
  *
- * - [refresh] — for identify / app-launch. A recent successful sync within the
- *   freshness window short-circuits the API call.
- * - [handleMovement] — for movement-trigger EXIT. Two-tier dispatch: re-rank cached regions
- *   when within `remoteFetchRefreshTriggerRadius` of the last API anchor, otherwise hit
- *   the API for fresh data.
+ * - [refresh] — for identify / app-launch. Reuses the cached set within the freshness window
+ *   (re-registering locally or skipping); otherwise fetches fresh from the API.
+ * - [handleMovement] — for movement-trigger EXIT. Re-ranks the cached regions for the new
+ *   location; in NEARBY mode a large enough move instead triggers a fresh API fetch.
  */
 internal interface GeofenceRepository {
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
@@ -58,7 +58,8 @@ internal class GeofenceRepositoryImpl(
     private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore,
     private val clock: Clock,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val syncMode: GeofenceSyncMode = GeofenceSyncMode.active
 ) : GeofenceRepository {
 
     // Dedup gate shared by refresh() and handleMovement(). If either is already running,
@@ -82,35 +83,55 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("no identified user")
                 return Result.success(Unit)
             }
-            val lastSync = store.getLastSyncTimestamp()
-            if (lastSync != null) {
-                // Time-fresh alone isn't enough: if the app was killed while the
-                // user travelled far, no movement EXIT fired to update the cache.
-                // Null anchor (never fetched) treats distance as 0 → time-only check.
-                val effectiveConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
-                val timeSinceLastSync = clock.currentTimeMillis() - lastSync
-                val distanceFromAnchor = store.getLastApiFetchLocation()
-                    ?.distanceTo(latitude, longitude) ?: 0f
-                val withinFreshness = timeSinceLastSync < effectiveConfig.remoteFetchRefreshExpiry &&
-                    distanceFromAnchor < effectiveConfig.remoteFetchRefreshTriggerRadius
-                if (withinFreshness) {
-                    // Cache fresh — if OS regs were wiped on sign-out, re-
-                    // register from cache instead of skipping; otherwise the
-                    // new user has no geofences until stale-window expiry.
-                    val cachedRegions = store.getCachedRegions()
-                    val registered = store.getRegisteredIds()
-                    if (cachedRegions.isNotEmpty() && registered.isEmpty()) {
-                        return performLocalRefresh(userId, latitude, longitude, effectiveConfig)
-                    }
+
+            val config = store.getCachedConfig() ?: GeofenceConfig.fallback()
+            return when (refreshAction(LocationCoordinates(latitude, longitude), config)) {
+                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
+                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
+                RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
-                    return Result.success(Unit)
+                    Result.success(Unit)
                 }
             }
-            return performRemoteRefresh(userId, latitude, longitude)
         } finally {
             refreshInProgress.set(false)
         }
     }
+
+    // Decision table for identify/launch refresh. Only the re-fetch question depends on the sync
+    // mode; staleness in time, staleness of the ranking, and OS-registration gaps are mode-agnostic.
+    private fun refreshAction(location: LocationCoordinates, config: GeofenceConfig): RefreshAction {
+        // Each distance is measured from its own reference: re-fetch from the last API fetch, re-rank
+        // from the last registration (the movement-trigger center). Null (never set) → 0 → within radius.
+        val distanceFromLastFetch = store.getLastApiFetchLocation()
+            ?.distanceTo(location.latitude, location.longitude) ?: 0f
+        val distanceFromLastRegistration = store.getLastMovementTriggerLocation()
+            ?.distanceTo(location.latitude, location.longitude) ?: 0f
+
+        return when {
+            isStaleInTime(config) -> RefreshAction.REMOTE
+            syncMode.movementRequiresRemoteFetch(distanceFromLastFetch, config) -> RefreshAction.REMOTE
+            isRankingStale(distanceFromLastRegistration, config) -> RefreshAction.LOCAL
+            hasUnregisteredCache() -> RefreshAction.LOCAL
+            else -> RefreshAction.SKIP
+        }
+    }
+
+    // Cache aged out of its freshness window (or was never fetched).
+    private fun isStaleInTime(config: GeofenceConfig): Boolean {
+        val lastSync = store.getLastSyncTimestamp() ?: return true
+        return clock.currentTimeMillis() - lastSync >= config.remoteFetchRefreshExpiry
+    }
+
+    // The device has left the trigger radius since the nearest-N was last ranked, so the registered
+    // set no longer reflects the closest geofences — re-rank locally (no network). This is exactly the
+    // condition the live movement trigger fires on; refresh() catches an EXIT missed while app was dead.
+    private fun isRankingStale(distanceFromLastRegistration: Float, config: GeofenceConfig): Boolean =
+        distanceFromLastRegistration >= config.localRefreshTriggerRadius
+
+    /** Cache holds regions but none are registered with the OS (e.g. regs lost on sign-out) → re-register. */
+    private fun hasUnregisteredCache(): Boolean =
+        store.getCachedRegions().isNotEmpty() && store.getRegisteredIds().isEmpty()
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
@@ -124,18 +145,18 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("no identified user")
                 return Result.success(Unit)
             }
+
             val anchor = store.getLastApiFetchLocation()
-            val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
-            // Tier B (remote fetch) when:
-            // - no anchor yet (first EXIT after install / clearAll / sign-out), OR
-            // - we've moved beyond the API threshold from the last fetch.
-            // Otherwise Tier A: re-rank the cached regions for the new location.
+            val config = store.getCachedConfig() ?: GeofenceConfig.fallback()
+            val distanceFromAnchor = anchor?.distanceTo(latitude, longitude) ?: 0f
+            // No anchor yet (first EXIT after install / clearAll / sign-out) bootstraps from the server.
+            // Otherwise, a non-remote move always re-ranks locally — that's the floor for any EXIT.
             val needsRemoteFetch = anchor == null ||
-                anchor.distanceTo(latitude, longitude) >= cachedConfig.remoteFetchRefreshTriggerRadius
+                syncMode.movementRequiresRemoteFetch(distanceFromAnchor, config)
             return if (needsRemoteFetch) {
                 performRemoteRefresh(userId, latitude, longitude)
             } else {
-                performLocalRefresh(userId, latitude, longitude, cachedConfig)
+                performLocalRefresh(userId, latitude, longitude, config)
             }
         } finally {
             refreshInProgress.set(false)
@@ -181,36 +202,44 @@ internal class GeofenceRepositoryImpl(
         userId: String,
         latitude: Double,
         longitude: Double
-    ): Result<Unit> = apiService.fetchGeofences(latitude, longitude).fold(
-        onSuccess = { response ->
-            val regions = response.toDomainRegions()
-            // Config preference: server-shipped > last cached > constants.
-            val parsedConfig = response.toDomainConfig()
-            val config = parsedConfig
-                ?: store.getCachedConfig()
-                ?: GeofenceConfig.fallback()
-            registerNearestAndPersist(
-                userId = userId,
-                latitude = latitude,
-                longitude = longitude,
-                regions = regions,
-                config = config,
-                // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
-                // Skip the config save when backend didn't ship one this response —
-                // a null parse must not clobber a previously cached value.
-                onRegistered = {
-                    store.saveCachedRegions(regions)
-                    parsedConfig?.let { store.saveCachedConfig(it) }
-                    store.saveLastApiFetchLocation(GeofenceLocation(latitude, longitude))
-                    store.setLastSyncTimestamp(clock.currentTimeMillis())
-                }
-            )
-        },
-        onFailure = { error ->
-            logger.logSyncFailed(error.message)
-            Result.failure(error)
+    ): Result<Unit> {
+        // FETCH_ALL sends no location; NEARBY sends it (coarsened at the API boundary). Either way
+        // the precise lat/lng below drive on-device ranking and the anchor — they never leave here.
+        val fetchResult = when (syncMode) {
+            GeofenceSyncMode.FETCH_ALL -> apiService.fetchGeofences()
+            GeofenceSyncMode.NEARBY -> apiService.fetchGeofences(latitude, longitude)
         }
-    )
+        return fetchResult.fold(
+            onSuccess = { response ->
+                val regions = response.toDomainRegions()
+                // Config preference: server-shipped > last cached > constants.
+                val parsedConfig = response.toDomainConfig()
+                val config = parsedConfig
+                    ?: store.getCachedConfig()
+                    ?: GeofenceConfig.fallback()
+                registerNearestAndPersist(
+                    userId = userId,
+                    latitude = latitude,
+                    longitude = longitude,
+                    regions = regions,
+                    config = config,
+                    // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
+                    // Skip the config save when backend didn't ship one this response —
+                    // a null parse must not clobber a previously cached value.
+                    onRegistered = {
+                        store.saveCachedRegions(regions)
+                        parsedConfig?.let { store.saveCachedConfig(it) }
+                        store.saveLastApiFetchLocation(GeofenceLocation(latitude, longitude))
+                        store.setLastSyncTimestamp(clock.currentTimeMillis())
+                    }
+                )
+            },
+            onFailure = { error ->
+                logger.logSyncFailed(error.message)
+                Result.failure(error)
+            }
+        )
+    }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
     private suspend fun performLocalRefresh(

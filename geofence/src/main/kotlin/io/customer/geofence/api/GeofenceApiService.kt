@@ -25,8 +25,8 @@ internal class GeofenceApiServiceImpl(
             path = ENDPOINT_PATH,
             method = HttpMethod.GET,
             queryParams = mapOf(
-                "latitude" to latitude.toString(),
-                "longitude" to longitude.toString()
+                "latitude" to GeofenceCoordinateCoarsener.coarsen(latitude).toString(),
+                "longitude" to GeofenceCoordinateCoarsener.coarsen(longitude).toString()
             )
         )
 

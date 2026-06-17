@@ -8,11 +8,11 @@ internal object GeofenceConstants {
 
     // Fallback for the movement trigger's OS geofence radius (meters). API field:
     // `local_refresh_trigger_radius`.
-    const val FALLBACK_LOCAL_REFRESH_RADIUS_METERS = 1_000f
+    const val FALLBACK_LOCAL_REFRESH_RADIUS_METERS = 3_000f
 
     // Fallback for the distance from the last API anchor at which an EXIT escalates
     // to a fresh API fetch (meters). API field: `remote_fetch_refresh_trigger_radius`.
-    const val FALLBACK_REMOTE_FETCH_RADIUS_METERS = 5_000f
+    const val FALLBACK_REMOTE_FETCH_RADIUS_METERS = 20_000f
 
     // Fallback for `maxBusinessGeofences` from the API config. Matches the
     // historical cap so customers aren't punished by a misconfigured backend.

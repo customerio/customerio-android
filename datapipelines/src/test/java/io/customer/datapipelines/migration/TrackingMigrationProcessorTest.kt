@@ -18,8 +18,8 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.serializedName
@@ -51,7 +51,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
 
     private val mockedDate: Date = Date()
     private val mockedTimestamp: Long = mockedDate.getUnixTimestamp()
-    private val mockedTimestampFormatted: String = SegmentInstantFormatter.from(mockedTimestamp).shouldNotBeNull()
+    private val mockedTimestampFormatted: String = Iso8601TimestampFormatter.fromUnixSeconds(mockedTimestamp).shouldNotBeNull()
 
     override fun setup(testConfig: TestConfig) {
         // Keep setup empty to avoid calling super.setup() as it will initialize the SDK

@@ -5,9 +5,9 @@ import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
+import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -136,6 +136,6 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
 
         handlerSlot.captured.invoke(event)
 
-        outputReaderPlugin.trackEvents.last().timestamp shouldBeEqualTo SegmentInstantFormatter.from(transitionTime)
+        outputReaderPlugin.trackEvents.last().timestamp shouldBeEqualTo Iso8601TimestampFormatter.fromDate(transitionTime)
     }
 }

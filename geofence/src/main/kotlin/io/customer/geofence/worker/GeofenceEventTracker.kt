@@ -6,6 +6,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.data.store.claimSendRestore
 import io.customer.sdk.util.EventNames
@@ -46,6 +47,7 @@ internal class GeofenceEventTrackerImpl(
 
         val bodyJson = JSONObject().apply {
             put("properties", JSONObject(entry.toEventProperties()))
+            Iso8601TimestampFormatter.fromUnixSeconds(entry.timestamp)?.let { put("timestamp", it) }
             put("event", eventName)
             put("userId", userId)
         }

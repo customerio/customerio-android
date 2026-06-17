@@ -27,7 +27,6 @@ import io.customer.datapipelines.plugins.ContextPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.IdentifyContextPlugin
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
-import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
@@ -36,6 +35,7 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Settings
@@ -184,7 +184,7 @@ class CustomerIO private constructor(
             val pinnedUserId = geofenceEvent.userId?.takeIf { it.isNotEmpty() }
             // Transition time, not flush time — a delayed flush still attributes the event to
             // when the transition fired.
-            val transitionTimestamp = SegmentInstantFormatter.from(geofenceEvent.timestamp)
+            val transitionTimestamp = Iso8601TimestampFormatter.fromDate(geofenceEvent.timestamp)
             val enrichment: EnrichmentClosure = { event ->
                 event?.apply {
                     pinnedUserId?.let { userId = it }

@@ -51,6 +51,7 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         val body = JSONObject(capturedParams.captured.body.shouldNotBeNull())
         body.getString("event") shouldBeEqualTo "CIO Geofence Entered"
         body.getString("userId") shouldBeEqualTo "user-42"
+        body.getString("timestamp") shouldBeEqualTo "2009-02-13T23:31:30.000Z"
         val props = body.getJSONObject("properties")
         props.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
         props.getString("transition_type") shouldBeEqualTo "enter"

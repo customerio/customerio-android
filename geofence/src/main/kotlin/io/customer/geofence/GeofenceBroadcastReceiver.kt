@@ -146,8 +146,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             val entry = PendingGeofenceDelivery(
                 geofenceId = geofenceId,
                 transition = transition,
-                latitude = latitude,
-                longitude = longitude,
                 timestamp = timestamp,
                 userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
             )

@@ -55,8 +55,6 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
             PendingGeofenceDelivery(
                 geofenceId = "biz-geofence-1",
                 transition = Event.GeofenceTransition.ENTER,
-                latitude = 37.7749,
-                longitude = -122.4194,
                 timestamp = 1_234L,
                 userId = "user-42"
             )
@@ -74,36 +72,14 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         val input = workRequestSlot.captured.workSpec.input
         input.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
         input.getString("transition") shouldBeEqualTo "ENTER"
-        input.getDouble("latitude", -1.0) shouldBeEqualTo 37.7749
-        input.getDouble("longitude", -1.0) shouldBeEqualTo -122.4194
         input.getLong("timestamp", -1L) shouldBeEqualTo 1_234L
         input.getString("user_id") shouldBeEqualTo "user-42"
+        input.hasKeyWithValueOfType("latitude", Double::class.javaObjectType) shouldBeEqualTo false
+        input.hasKeyWithValueOfType("longitude", Double::class.javaObjectType) shouldBeEqualTo false
 
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
         constraints.requiredNetworkType shouldBeEqualTo NetworkType.CONNECTED
-    }
-
-    @Test
-    fun schedule_givenNullLatLng_expectInputDataWithoutLatLngKeys() = runTest {
-        every { workManagerProvider.getWorkManager() } returns workManager
-        val workRequestSlot = slot<OneTimeWorkRequest>()
-
-        scheduler.schedule(
-            PendingGeofenceDelivery(
-                geofenceId = "biz-geofence-2",
-                transition = Event.GeofenceTransition.EXIT,
-                latitude = null,
-                longitude = null,
-                timestamp = 99L,
-                userId = "user-42"
-            )
-        )
-
-        verify { workManager.enqueueUniqueWork(any(), any(), capture(workRequestSlot)) }
-        val input = workRequestSlot.captured.workSpec.input
-        input.hasKeyWithValueOfType("latitude", Double::class.javaObjectType) shouldBeEqualTo false
-        input.hasKeyWithValueOfType("longitude", Double::class.javaObjectType) shouldBeEqualTo false
     }
 
     @Test
@@ -116,8 +92,6 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
             PendingGeofenceDelivery(
                 geofenceId = "biz-anon",
                 transition = Event.GeofenceTransition.ENTER,
-                latitude = 1.0,
-                longitude = 2.0,
                 timestamp = 5L,
                 userId = null
             )
@@ -134,8 +108,6 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         val entry = PendingGeofenceDelivery(
             geofenceId = "biz-geofence-3",
             transition = Event.GeofenceTransition.ENTER,
-            latitude = 1.0,
-            longitude = 2.0,
             timestamp = 42L,
             userId = "user-42"
         )

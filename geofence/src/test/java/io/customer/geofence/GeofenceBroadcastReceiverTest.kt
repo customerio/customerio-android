@@ -121,7 +121,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun handleGeofencingEvent_givenNullTriggeringLocation_expectEntryQueuedWithoutLatLng() = runTest {
+    fun handleGeofencingEvent_givenNullTriggeringLocation_expectEntryStillQueued() = runTest {
+        // Business-geofence delivery doesn't depend on a triggering location, so
+        // a null location must still queue the transition.
         val event = buildGeofencingEvent(
             transition = Geofence.GEOFENCE_TRANSITION_ENTER,
             geofenceIds = listOf("biz-1"),
@@ -132,12 +134,10 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         val entry = pendingStore.loadAll().single()
         entry.geofenceId shouldBeEqualTo "biz-1"
-        entry.latitude.shouldBeNull()
-        entry.longitude.shouldBeNull()
     }
 
     @Test
-    fun handleGeofencingEvent_givenValidEnterEvent_expectEntryQueuedWithLatLng() = runTest {
+    fun handleGeofencingEvent_givenValidEnterEvent_expectEntryQueued() = runTest {
         val event = buildGeofencingEvent(
             transition = Geofence.GEOFENCE_TRANSITION_ENTER,
             geofenceIds = listOf("biz-1"),
@@ -147,9 +147,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         receiver.handleGeofencingEvent(event)
 
         val entry = pendingStore.loadAll().single()
+        entry.geofenceId shouldBeEqualTo "biz-1"
         entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
-        entry.latitude shouldBeEqualTo 37.7749
-        entry.longitude shouldBeEqualTo -122.4194
     }
 
     @Test
@@ -167,8 +166,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         val scheduled = entrySlot.captured
         scheduled.geofenceId shouldBeEqualTo "biz-geofence-1"
         scheduled.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
-        scheduled.latitude shouldBeEqualTo 37.7749
-        scheduled.longitude shouldBeEqualTo -122.4194
         scheduled.toEventProperties()["transition_type"] shouldBeEqualTo "enter"
         scheduled.timestamp.shouldNotBeNull()
 
@@ -290,7 +287,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenMissingLatLng_expectEntryScheduledWithNullLatLng() = runTest {
+    fun dispatchTransition_givenMissingLocation_expectEntryStillScheduled() = runTest {
+        // A missing triggering location can't block a business-geofence
+        // transition from being scheduled for delivery.
         val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
@@ -301,8 +300,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
-        entrySlot.captured.latitude.shouldBeNull()
-        entrySlot.captured.longitude.shouldBeNull()
         entrySlot.captured.geofenceId shouldBeEqualTo "biz-geofence"
     }
 

@@ -57,7 +57,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logTransitionWithoutLocation() {
-        logger.debug("Geofence transition fired but OS provided no location; emitting event with lat/lng omitted from properties", tag = TAG)
+        logger.debug("Geofence transition fired but OS provided no triggering location; a movement-trigger refresh cannot run without it", tag = TAG)
     }
 
     fun logMovementTriggerIgnoredNonExit(transitionName: String) {

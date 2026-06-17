@@ -22,8 +22,6 @@ import io.customer.sdk.data.store.claimSendRestore
 
 private const val KEY_GEOFENCE_ID = "geofence_id"
 private const val KEY_TRANSITION = "transition"
-private const val KEY_LATITUDE = "latitude"
-private const val KEY_LONGITUDE = "longitude"
 private const val KEY_TIMESTAMP = "timestamp"
 private const val KEY_USER_ID = "user_id"
 
@@ -41,8 +39,6 @@ internal class GeofenceEventScheduler(
             .putString(KEY_TRANSITION, entry.transition.name)
             .putLong(KEY_TIMESTAMP, entry.timestamp)
             .apply {
-                entry.latitude?.let { putDouble(KEY_LATITUDE, it) }
-                entry.longitude?.let { putDouble(KEY_LONGITUDE, it) }
                 entry.userId?.let { putString(KEY_USER_ID, it) }
             }
             .build()
@@ -90,8 +86,6 @@ internal class GeofenceEventWorker(
         val logger = SDKComponent.geofenceLogger
         val geofenceId = inputData.getString(KEY_GEOFENCE_ID)
         val transitionName = inputData.getString(KEY_TRANSITION)
-        val latitude = if (inputData.hasKeyWithValueOfType(KEY_LATITUDE, Double::class.javaObjectType)) inputData.getDouble(KEY_LATITUDE, 0.0) else null
-        val longitude = if (inputData.hasKeyWithValueOfType(KEY_LONGITUDE, Double::class.javaObjectType)) inputData.getDouble(KEY_LONGITUDE, 0.0) else null
         val timestamp = inputData.getLong(KEY_TIMESTAMP, 0L)
 
         if (geofenceId.isNullOrEmpty() || transitionName.isNullOrEmpty()) {
@@ -110,7 +104,7 @@ internal class GeofenceEventWorker(
 
         val userId = inputData.getString(KEY_USER_ID)
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
-        val entry = PendingGeofenceDelivery(geofenceId, transition, latitude, longitude, timestamp, userId)
+        val entry = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId)
 
         // No identified user at queue time — direct HTTP needs a userId, so
         // leave the entry in the store for the foreground flush instead.

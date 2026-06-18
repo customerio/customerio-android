@@ -57,7 +57,8 @@ import io.customer.messaginginapp.inbox.NotificationInboxChangeListener
  * Inbox state is read from the headless API: an initial fetch via `getMessages()` plus
  * live updates through a [NotificationInboxChangeListener] that is removed on dispose.
  *
- * When there are no messages the entire chrome (button and panel) is hidden.
+ * The floating button is always shown so the inbox is reachable even when empty; the unread
+ * badge only appears when there are unread messages, and an empty inbox opens to an empty panel.
  *
  * This is a Milestone 1 placeholder UI: rows are plain text derived from [InboxMessage]
  * fields. There is no Jist rendering or real templating yet.
@@ -115,11 +116,6 @@ internal fun NotificationInboxOverlay(
         onDispose {
             inbox.removeChangeListener(listener)
         }
-    }
-
-    // No messages means no visible chrome at all.
-    if (messages.isEmpty()) {
-        return
     }
 
     val unreadCount = unreadInboxCount(messages)

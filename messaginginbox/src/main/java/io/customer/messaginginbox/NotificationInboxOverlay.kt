@@ -26,8 +26,6 @@ import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -153,7 +152,7 @@ internal fun NotificationInboxOverlay(
         ) {
             FloatingActionButton(onClick = { panelExpanded = !panelExpanded }) {
                 Icon(
-                    imageVector = Icons.Filled.Notifications,
+                    painter = painterResource(id = R.drawable.cio_inbox_notifications),
                     contentDescription = "Notifications inbox"
                 )
             }

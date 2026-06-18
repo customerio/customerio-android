@@ -45,7 +45,6 @@ dependencies {
     implementation Dependencies.composeUiGraphics
     implementation Dependencies.composeFoundation
     implementation Dependencies.composeMaterial
-    implementation "androidx.compose.material:material-icons-core"
     implementation Dependencies.composeRuntime
     implementation Dependencies.coroutinesAndroid
 

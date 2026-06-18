@@ -176,7 +176,7 @@ internal class LiveNotificationHandler(
             activityId = activityId
         )
         val pendingIntent = createIntentForNotificationClick(context, notifId, parsedPayload)
-        val deletePendingIntent = createDeleteIntent(context, notifId, activityId)
+        val deletePendingIntent = createDeleteIntent(context, notifId, activityId, activityType)
 
         // The host app may fully render the notification; otherwise fall back to the
         // SDK template. Custom (template-less) types must be rendered by the callback.
@@ -293,10 +293,14 @@ internal class LiveNotificationHandler(
     private fun createDeleteIntent(
         context: Context,
         requestCode: Int,
-        activityId: String
+        activityId: String,
+        activityType: String
     ): PendingIntent {
+        // Carry the fields the `end` track event needs so the dismiss receiver can
+        // report it without re-deriving them (the FCM token is read at dismiss time).
         val intent = Intent(context, LiveNotificationDismissReceiver::class.java).apply {
             putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_ID, activityId)
+            putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_TYPE, activityType)
         }
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

@@ -12,6 +12,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -67,6 +68,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
                                 every { subscribe(any()) } just Runs
                             }
                         )
+                        overrideDependency(mockk<PollingLifecycleManager>(relaxed = true))
                         overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
                     }
                 }
@@ -81,11 +83,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
         gistProvider = GistSdk(
             siteId = moduleConfig.siteId,
             dataCenter = gistDataCenter,
-            environment = gistEnvironment,
-            // No-op poster keeps the process-lifecycle polling wiring inert in this test; message
-            // flows are driven manually via dispatched actions below.
-            processLifecycleOwner = mockk(relaxed = true),
-            mainThreadPoster = mockk(relaxed = true)
+            environment = gistEnvironment
         ).also { SDKComponent.overrideDependency<GistProvider>(it) }
 
         messagingManager = spyk(SDKComponent.inAppMessagingManager)

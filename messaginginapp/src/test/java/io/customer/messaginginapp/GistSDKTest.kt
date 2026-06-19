@@ -1,7 +1,5 @@
 package io.customer.messaginginapp
 
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledOnce
@@ -13,6 +11,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -21,14 +20,9 @@ import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.util.MainThreadPoster
-import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
-import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -43,12 +37,6 @@ class GistSDKTest : JUnitTest() {
     private lateinit var mockGistQueue: GistQueue
     private lateinit var testState: InAppMessagingState
 
-    // Process lifecycle doubles. The default instance uses a no-op main thread poster so the
-    // lifecycle observer is never registered and the app is treated as not-foregrounded, keeping
-    // these tests isolated from polling. Tests that need foregrounding build their own instance.
-    private val mockProcessLifecycleOwner = mockk<LifecycleOwner>(relaxed = true)
-    private val noOpMainThreadPoster = mockk<MainThreadPoster>(relaxed = true)
-
     override fun setup(testConfig: TestConfig) {
         super.setup(
             testConfigurationDefault {
@@ -57,11 +45,10 @@ class GistSDKTest : JUnitTest() {
                         overrideDependency(mockk<InAppMessagingManager>(relaxed = true))
                         overrideDependency(mockk<InAppPreferenceStore>(relaxed = true))
                         overrideDependency(mockk<GistQueue>(relaxed = true))
-                        overrideDependency(
-                            mockk<CustomerIOActivityLifecycleCallbacks>(relaxed = true) {
-                                every { subscribe(any()) } just Runs
-                            }
-                        )
+                        // GistSdk is now a thin facade; polling/SSE live in their own lifecycle
+                        // managers, mocked here so constructing GistSdk does not touch real
+                        // process-lifecycle wiring.
+                        overrideDependency(mockk<PollingLifecycleManager>(relaxed = true))
                         overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
                     }
                 }
@@ -81,64 +68,7 @@ class GistSDKTest : JUnitTest() {
 
         every { mockInAppMessagingManager.getCurrentState() } returns testState
 
-        gistSdk = GistSdk(
-            siteId = String.random,
-            dataCenter = String.random,
-            processLifecycleOwner = mockProcessLifecycleOwner,
-            mainThreadPoster = noOpMainThreadPoster
-        )
-    }
-
-    /**
-     * Builds a GistSdk whose process lifecycle reports [foregrounded] and whose main thread poster
-     * runs synchronously, so lifecycle wiring executes inline during construction.
-     */
-    private fun buildGistSdkWithLifecycle(foregrounded: Boolean): GistSdk {
-        val lifecycle = mockk<Lifecycle>(relaxed = true) {
-            every { currentState } returns if (foregrounded) Lifecycle.State.STARTED else Lifecycle.State.CREATED
-        }
-        val processOwner = mockk<LifecycleOwner>(relaxed = true) {
-            every { this@mockk.lifecycle } returns lifecycle
-        }
-        val synchronousPoster = mockk<MainThreadPoster> {
-            val postSlot = slot<() -> Unit>()
-            every { post(capture(postSlot)) } answers { postSlot.captured.invoke() }
-        }
-        return GistSdk(
-            siteId = String.random,
-            dataCenter = String.random,
-            processLifecycleOwner = processOwner,
-            mainThreadPoster = synchronousPoster
-        )
-    }
-
-    @Test
-    fun appForegrounded_whenSseNotActive_expectPollingStartedAndMessagesFetched() = runTest {
-        // testState has sseEnabled=false and userId=null, so shouldUseSse is false.
-        buildGistSdkWithLifecycle(foregrounded = true)
-
-        // Foregrounding the process (not a specific activity) starts polling, which fetches messages.
-        verify(timeout = 2000) { mockGistQueue.fetchUserMessages() }
-    }
-
-    @Test
-    fun appForegrounded_whenSseActive_expectPollingNotStarted() = runTest {
-        // Make SSE active: enabled flag + identified user.
-        testState = testState.copy(sseEnabled = true, userId = "identified-user")
-        every { mockInAppMessagingManager.getCurrentState() } returns testState
-
-        buildGistSdkWithLifecycle(foregrounded = true)
-
-        // SSE owns delivery while foregrounded; polling must not fetch.
-        verify(exactly = 0) { mockGistQueue.fetchUserMessages() }
-    }
-
-    @Test
-    fun appNotForegrounded_expectPollingNotStarted() = runTest {
-        buildGistSdkWithLifecycle(foregrounded = false)
-
-        // Process is only CREATED (not STARTED), so polling must not start.
-        verify(exactly = 0) { mockGistQueue.fetchUserMessages() }
+        gistSdk = GistSdk(siteId = String.random, dataCenter = String.random)
     }
 
     @Test

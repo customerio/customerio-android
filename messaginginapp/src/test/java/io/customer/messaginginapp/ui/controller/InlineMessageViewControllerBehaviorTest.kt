@@ -87,7 +87,10 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         gistProvider = GistSdk(
             siteId = moduleConfig.siteId,
             dataCenter = gistDataCenter,
-            environment = gistEnvironment
+            environment = gistEnvironment,
+            // No-op poster keeps the process-lifecycle polling wiring inert in this test.
+            processLifecycleOwner = mockk(relaxed = true),
+            mainThreadPoster = mockk(relaxed = true)
         ).also { SDKComponent.overrideDependency<GistProvider>(it) }
         messagingManager = spyk(SDKComponent.inAppMessagingManager)
             .also { SDKComponent.overrideDependency<InAppMessagingManager>(it) }

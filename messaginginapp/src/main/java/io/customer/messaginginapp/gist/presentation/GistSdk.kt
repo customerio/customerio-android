@@ -1,6 +1,8 @@
 package io.customer.messaginginapp.gist.presentation
 
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppMessagingManager
@@ -13,9 +15,11 @@ import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.HandlerMainThreadPoster
+import io.customer.sdk.core.util.MainThreadPoster
 import java.util.Timer
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.timer
-import kotlinx.coroutines.flow.filter
 
 internal interface GistProvider {
     fun setCurrentRoute(route: String)
@@ -29,7 +33,11 @@ internal interface GistProvider {
 internal class GistSdk(
     siteId: String,
     dataCenter: String,
-    environment: GistEnvironment = GistEnvironment.PROD
+    environment: GistEnvironment = GistEnvironment.PROD,
+    // Injected for testability; mirrors SseLifecycleManager so polling and SSE share the same
+    // process-level lifecycle source.
+    private val processLifecycleOwner: LifecycleOwner = ProcessLifecycleOwner.get(),
+    private val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
 ) : GistProvider {
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
@@ -42,21 +50,49 @@ internal class GistSdk(
     private val gistQueue = SDKComponent.gistQueue
     private val sseLifecycleManager = SDKComponent.sseLifecycleManager
 
-    private val isAppForegrounded: Boolean
-        get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+    // Tracks process foreground state. Polling is scoped to the *process* lifecycle (matching
+    // SseLifecycleManager), not to individual activities, so a single polling timer survives
+    // activity navigation and the display/dismissal of our own GistModalActivity.
+    private val isForegrounded = AtomicBoolean(false)
+
+    private val lifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onStart(owner: LifecycleOwner) {
+            onAppForegrounded()
+        }
+
+        override fun onStop(owner: LifecycleOwner) {
+            onAppBackgrounded()
+        }
+    }
 
     private fun resetTimer() {
         timer?.cancel()
         timer = null
     }
 
-    private fun onActivityResumed() {
-        logger.debug("GistSdk Activity resumed")
-        fetchInAppMessages(state.pollInterval)
+    private fun onAppForegrounded() {
+        if (!isForegrounded.compareAndSet(false, true)) {
+            logger.debug("[Polling] App foreground event ignored - already foregrounded")
+            return
+        }
+
+        val currentState = state
+        logger.debug("[Polling] App foregrounded (shouldUseSse=${currentState.shouldUseSse}, sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified})")
+        if (currentState.shouldUseSse) {
+            // SSE is active; SseLifecycleManager owns fetching/connection while foregrounded.
+            logger.debug("[Polling] Not starting polling on foreground - SSE is active")
+            return
+        }
+        // Start polling with an immediate catch-up fetch for messages received while backgrounded.
+        fetchInAppMessages(duration = currentState.pollInterval)
     }
 
-    private fun onActivityPaused() {
-        logger.debug("Activity paused, stopping polling")
+    private fun onAppBackgrounded() {
+        if (!isForegrounded.compareAndSet(true, false)) {
+            logger.debug("[Polling] App background event ignored - already backgrounded")
+            return
+        }
+        logger.debug("[Polling] App backgrounded - stopping polling")
         resetTimer()
     }
 
@@ -85,36 +121,32 @@ internal class GistSdk(
             return
         }
 
-        logger.debug("GistSdk starting polling (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified}, interval=${duration}ms)")
+        logger.debug("[Polling] Starting polling (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified}, interval=${duration}ms, initialDelay=${initialDelay}ms)")
         timer?.cancel()
         // create a timer to run the task after the initial run
         timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
+            logger.debug("[Polling] Poll tick - fetching user messages")
             gistQueue.fetchUserMessages()
         }
     }
 
     private fun subscribeToEvents() {
-        SDKComponent.activityLifecycleCallbacks.subscribe { events ->
-            events
-                .filter { state ->
-                    state.event == Lifecycle.Event.ON_RESUME || state.event == Lifecycle.Event.ON_PAUSE
-                }
-                .filter { state ->
-                    // ignore events from GistModalActivity to prevent polling/stopping polling when the in-app is displayed
-                    state.activity.get() != null && state.activity.get() !is GistModalActivity
-                }
-                .collect { state ->
-                    when (state.event) {
-                        Lifecycle.Event.ON_RESUME -> onActivityResumed()
-                        Lifecycle.Event.ON_PAUSE -> onActivityPaused()
-                        else -> {}
-                    }
-                }
+        // Scope polling to the *process* foreground lifecycle (foreground/background) rather than
+        // individual activity resume/pause. This keeps a single polling timer alive across
+        // activity navigation and while our own GistModalActivity is shown, and removes the
+        // immediate refetch that previously fired whenever the host activity resumed after a
+        // modal closed (the source of the tight retry loop when a modal failed to load).
+        // Mirrors SseLifecycleManager. Lifecycle registration must happen on the main thread.
+        mainThreadPoster.post {
+            processLifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+            if (processLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                onAppForegrounded()
+            }
         }
 
         inAppMessagingManager.subscribeToAttribute({ it.pollInterval }) { interval ->
             // Only manage polling when app is foregrounded
-            if (!isAppForegrounded) {
+            if (!isForegrounded.get()) {
                 return@subscribeToAttribute
             }
 
@@ -122,41 +154,35 @@ internal class GistSdk(
             if (currentState.shouldUseSse) {
                 return@subscribeToAttribute
             }
+            logger.debug("[Polling] Poll interval changed to ${interval}ms - restarting polling")
             fetchInAppMessages(duration = interval, initialDelay = interval)
         }
 
-        // Subscribe to SSE flag changes - only manage timer state, not triggering fetches
-        // Fetches are controlled by ModuleMessagingInApp event handlers and onActivityResumed()
+        // Keep the poll timer in sync with SSE availability while foregrounded: stop polling when
+        // SSE becomes active, resume polling when it is no longer active (e.g. SSE flag disabled
+        // or the user becomes anonymous).
         inAppMessagingManager.subscribeToAttribute({ it.sseEnabled }) { _ ->
-            // Only manage polling when app is foregrounded
-            if (!isAppForegrounded) {
-                return@subscribeToAttribute
-            }
-
-            val currentState = state
-            if (currentState.shouldUseSse) {
-                // SSE is now active - stop polling
-                logger.debug("SSE enabled for identified user, stopping polling")
-                resetTimer()
-            }
-            // Note: Starting polling is handled by onActivityResumed() or event handlers
+            updatePollingForSseAvailability(reason = "SSE flag changed")
         }
 
-        // Subscribe to user identification changes - only manage timer state, not triggering fetches
-        // Fetches are controlled by ModuleMessagingInApp event handlers and onActivityResumed()
         inAppMessagingManager.subscribeToAttribute({ it.isUserIdentified }) { _ ->
-            // Only manage polling when app is foregrounded
-            if (!isAppForegrounded) {
-                return@subscribeToAttribute
-            }
+            updatePollingForSseAvailability(reason = "user identification changed")
+        }
+    }
 
-            val currentState = state
-            if (currentState.shouldUseSse) {
-                // SSE is now active - stop polling
-                logger.debug("User identified with SSE enabled, stopping polling")
-                resetTimer()
-            }
-            // Note: Starting polling is handled by onActivityResumed() or event handlers
+    private fun updatePollingForSseAvailability(reason: String) {
+        // Only manage polling when app is foregrounded
+        if (!isForegrounded.get()) {
+            return
+        }
+
+        val currentState = state
+        if (currentState.shouldUseSse) {
+            logger.debug("[Polling] $reason - SSE now active, stopping polling")
+            resetTimer()
+        } else {
+            logger.debug("[Polling] $reason - SSE not active, ensuring polling is running")
+            fetchInAppMessages(duration = currentState.pollInterval)
         }
     }
 

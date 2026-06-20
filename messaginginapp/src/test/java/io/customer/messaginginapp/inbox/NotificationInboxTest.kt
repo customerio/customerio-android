@@ -246,10 +246,14 @@ class NotificationInboxTest : IntegrationTest() {
     fun addChangeListener_givenNoTopicFilter_expectListenerReceivesAllMessages() = runTest {
         initializeAndSetUser()
 
-        // Create test messages with different topics
-        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"))
-        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"))
-        val message3 = createInboxMessage(deliveryId = "msg3", topics = listOf("promotions", "special"))
+        // Create test messages with different topics and distinct, decreasing sentAt values.
+        // The inbox delivers messages sorted newest-first (sentAt descending), so explicit
+        // timestamps make the expected order deterministic. With the default sentAt = Date(),
+        // the three messages can straddle a millisecond boundary and reorder, flaking the
+        // order-sensitive assertion below.
+        val message1 = createInboxMessage(deliveryId = "msg1", topics = listOf("promotions"), sentAt = dateNow())
+        val message2 = createInboxMessage(deliveryId = "msg2", topics = listOf("updates"), sentAt = dateHoursAgo(1))
+        val message3 = createInboxMessage(deliveryId = "msg3", topics = listOf("promotions", "special"), sentAt = dateHoursAgo(2))
         val allMessages = listOf(message1, message2, message3)
 
         // Use a real recording listener instead of a mockk + verify pair. MockK's

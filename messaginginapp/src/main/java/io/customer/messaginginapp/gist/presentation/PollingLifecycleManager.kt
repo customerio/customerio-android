@@ -29,7 +29,16 @@ internal class PollingLifecycleManager(
     private val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
 ) {
     private val isForegrounded = AtomicBoolean(false)
+
+    // @Volatile for cross-thread visibility: written on the main thread (foreground/background) and
+    // read from the attribute-subscription coroutines that guard against redundant restarts.
+    @Volatile
     private var timer: Timer? = null
+
+    // Guards the poll-interval subscription's initial replay emission. The initial/foreground start
+    // is owned by handleForegrounded()/fetchInAppMessages(); reacting to the replay would race with
+    // and could cancel that catch-up fetch. Only genuine interval changes should restart polling.
+    private val pollIntervalInitialized = AtomicBoolean(false)
 
     private val state: InAppMessagingState
         get() = inAppMessagingManager.getCurrentState()
@@ -120,6 +129,12 @@ internal class PollingLifecycleManager(
 
     private fun subscribeToPollIntervalChanges() {
         inAppMessagingManager.subscribeToAttribute({ it.pollInterval }) { interval ->
+            // Skip the initial replay emission; the initial start is owned by
+            // handleForegrounded()/fetchInAppMessages(). Only react to genuine interval changes.
+            if (pollIntervalInitialized.compareAndSet(false, true)) {
+                return@subscribeToAttribute
+            }
+
             // Only manage polling when app is foregrounded
             if (!isForegrounded.get()) {
                 return@subscribeToAttribute
@@ -159,9 +174,16 @@ internal class PollingLifecycleManager(
         if (currentState.shouldUseSse) {
             logger.debug("[Polling] $reason - SSE now active, stopping polling")
             resetTimer()
-        } else {
-            logger.debug("[Polling] $reason - SSE not active, ensuring polling is running")
+        } else if (timer == null) {
+            // Resume polling only when it isn't already running, i.e. we're transitioning away
+            // from SSE (which had stopped the timer). When polling is already active this branch
+            // would otherwise cause a redundant restart + duplicate fetch on every identification
+            // or SSE-flag flip that leaves shouldUseSse false (e.g. anon->identified with SSE off,
+            // where ModuleMessagingInApp already fetches, or an sseEnabled flip while anonymous).
+            logger.debug("[Polling] $reason - SSE not active and polling stopped, starting polling")
             startPolling(duration = currentState.pollInterval)
+        } else {
+            logger.debug("[Polling] $reason - SSE not active and polling already running, no action")
         }
     }
 }

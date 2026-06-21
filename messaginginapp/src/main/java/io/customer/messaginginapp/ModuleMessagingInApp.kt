@@ -1,12 +1,15 @@
 package io.customer.messaginginapp
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.di.notificationInbox
+import io.customer.messaginginapp.di.visualInbox
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.inbox.NotificationInbox
+import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -32,6 +35,18 @@ class ModuleMessagingInApp(
      */
     fun inbox(): NotificationInbox {
         return SDKComponent.notificationInbox
+    }
+
+    /**
+     * Access the visual notification inbox data layer used by the inbox overlay.
+     * Exposes the enablement gate, selected/sorted/typed (Jist) message list, raw
+     * templates JSON and branding. Internal API consumed by the overlay module.
+     *
+     * @return [VisualInbox] data-layer facade
+     */
+    @InternalCustomerIOApi
+    fun visualInbox(): VisualInbox {
+        return SDKComponent.visualInbox
     }
 
     fun dismissMessage() {

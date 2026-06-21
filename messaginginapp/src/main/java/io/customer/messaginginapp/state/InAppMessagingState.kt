@@ -18,7 +18,10 @@ internal data class InAppMessagingState(
     val messagesInQueue: Set<Message> = emptySet(),
     val inboxMessages: Set<InboxMessage> = emptySet(),
     val shownMessageQueueIds: Set<String> = emptySet(),
-    val sseEnabled: Boolean = false
+    val sseEnabled: Boolean = false,
+    // Visual inbox enablement gate, driven by the X-CIO-Inbox-Enabled response header.
+    // The UI observes this flag to decide whether to surface the visual inbox.
+    val isInboxEnabled: Boolean = false
 ) {
     /**
      * Returns true if the user is identified (has a non-empty userId set).
@@ -54,7 +57,8 @@ internal data class InAppMessagingState(
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
         append("inboxMessages=${inboxMessages.map(InboxMessage::deliveryId)},\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
-        append("sseEnabled=$sseEnabled)")
+        append("sseEnabled=$sseEnabled,\n")
+        append("isInboxEnabled=$isInboxEnabled)")
     }
 
     fun diff(other: InAppMessagingState): Map<String, Pair<Any?, Any?>> {
@@ -73,6 +77,7 @@ internal data class InAppMessagingState(
             if (inboxMessages != other.inboxMessages) put("inboxMessages", inboxMessages to other.inboxMessages)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
             if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
+            if (isInboxEnabled != other.isInboxEnabled) put("isInboxEnabled", isInboxEnabled to other.isInboxEnabled)
         }
     }
 }

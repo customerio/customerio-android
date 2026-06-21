@@ -105,6 +105,12 @@ internal class PollingLifecycleManager(
         resetTimer()
     }
 
+    // @Synchronized so the cancel-then-assign is atomic. startPolling is reachable concurrently
+    // (main-thread foreground handler, redux/event-bus fetchInAppMessages, and the attribute
+    // subscription coroutines); without serialization two calls could each create a Timer while
+    // only the last is retained in `timer`, orphaning the other so it keeps polling forever and
+    // resetTimer() can never cancel it.
+    @Synchronized
     private fun startPolling(duration: Long, initialDelay: Long = 0) {
         val currentState = state
         // Only skip polling if SSE should be used (both flag enabled AND user identified)
@@ -122,6 +128,7 @@ internal class PollingLifecycleManager(
         }
     }
 
+    @Synchronized
     private fun resetTimer() {
         timer?.cancel()
         timer = null

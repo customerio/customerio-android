@@ -16,6 +16,8 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.atomic.AtomicInteger
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -188,6 +190,29 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         verify { logger.debug(match { it.contains("polling already running, no action") }) }
         verify(exactly = 0) { logger.debug(match { it.contains("starting polling") }) }
+    }
+
+    @Test
+    fun startPolling_underConcurrentCalls_leavesNoOrphanTimerAfterReset() {
+        // Regression for the orphaned-timer leak: concurrent startPolling calls (main-thread
+        // foreground + subscription coroutines + dismiss/identify fetch) must not leave any
+        // Timer alive after reset(). A fast interval surfaces orphans quickly.
+        val fetchCount = AtomicInteger(0)
+        every { gistQueue.fetchUserMessages() } answers { fetchCount.incrementAndGet() }
+        state = InAppMessagingState(pollInterval = 30L)
+        val manager = createManager()
+
+        val threads = (1..8).map { Thread { repeat(25) { manager.fetchInAppMessages() } } }
+        threads.forEach(Thread::start)
+        threads.forEach(Thread::join)
+
+        // Stop polling; after a settle window no further ticks should occur if exactly one timer
+        // existed (without the fix, orphaned timers keep firing every 30ms).
+        manager.reset()
+        Thread.sleep(100) // let any in-flight tick + cancellation settle
+        val countAfterReset = fetchCount.get()
+        Thread.sleep(300) // ~10 periods would elapse if an orphan timer were still alive
+        assertEquals(countAfterReset, fetchCount.get(), "Polling continued after reset - orphaned timer leak")
     }
 
     @Test

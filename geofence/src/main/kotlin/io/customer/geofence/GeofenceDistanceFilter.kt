@@ -19,8 +19,10 @@ internal class GeofenceDistanceFilter {
     ): List<GeofenceRegion> {
         if (max <= 0 || regions.isEmpty()) return emptyList()
         return regions
-            .filter { it.distanceTo(latitude, longitude) <= maxDistanceMeters }
-            .sortedBy { it.distanceTo(latitude, longitude) }
+            .map { it to it.distanceTo(latitude, longitude) }
+            .filter { (_, distance) -> distance <= maxDistanceMeters }
+            .sortedBy { (_, distance) -> distance }
             .take(max)
+            .map { (region, _) -> region }
     }
 }

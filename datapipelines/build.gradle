@@ -1,4 +1,3 @@
-import io.customer.android.Configurations
 import io.customer.android.Dependencies
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
@@ -9,12 +8,11 @@ plugins {
 }
 
 
-ext {
-    PUBLISH_GROUP_ID = Configurations.artifactGroup
-    PUBLISH_ARTIFACT_ID = "datapipelines"
-}
+apply plugin: 'io.customer.android.publish-module'
 
-apply from: "${rootDir}/scripts/publish-module.gradle"
+customerIoPublish {
+    artifactId = "datapipelines"
+}
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"

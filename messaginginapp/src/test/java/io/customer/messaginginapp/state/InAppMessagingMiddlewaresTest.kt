@@ -5,7 +5,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.presentation.GistListener
-import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
@@ -32,7 +32,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     private val mockGistQueue: GistQueue = mockk(relaxed = true)
     private val mockGistListener: GistListener = mockk(relaxed = true)
     private val mockLogger: Logger = mockk(relaxed = true)
-    private val mockGistSdk: GistSdk = mockk(relaxed = true)
+    private val mockPollingLifecycleManager: PollingLifecycleManager = mockk(relaxed = true)
     private val mockEventBus: EventBus = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
@@ -46,7 +46,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
                     sdk {
                         overrideDependency<GistQueue>(mockGistQueue)
                         overrideDependency<Logger>(mockLogger)
-                        overrideDependency<GistSdk>(mockGistSdk)
+                        overrideDependency<PollingLifecycleManager>(mockPollingLifecycleManager)
                         overrideDependency<EventBus>(mockEventBus)
                     }
                 }
@@ -389,7 +389,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         verify { mockGistQueue.logView(message) }
 
         // Verify that fetchInAppMessages was called
-        verify { mockGistSdk.fetchInAppMessages() }
+        verify { mockPollingLifecycleManager.fetchInAppMessages() }
 
         // Verify next action was called
         verify { nextFn(action) }
@@ -408,7 +408,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
 
         // Should not log view or fetch messages since shouldMarkMessageAsShown() returns false for this case
         verify(exactly = 0) { mockGistQueue.logView(message) }
-        verify(exactly = 0) { mockGistSdk.fetchInAppMessages() }
+        verify(exactly = 0) { mockPollingLifecycleManager.fetchInAppMessages() }
 
         // Verify next action was called
         verify { nextFn(action) }
@@ -426,7 +426,7 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
 
         // Should not log view or fetch messages since viaCloseAction is false
         verify(exactly = 0) { mockGistQueue.logView(message) }
-        verify(exactly = 0) { mockGistSdk.fetchInAppMessages() }
+        verify(exactly = 0) { mockPollingLifecycleManager.fetchInAppMessages() }
 
         // Verify next action was called
         verify { nextFn(action) }

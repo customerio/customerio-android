@@ -16,6 +16,7 @@ import io.customer.messaginginapp.gist.data.sse.SseRetryHelper
 import io.customer.messaginginapp.gist.data.sse.SseService
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
@@ -48,9 +49,14 @@ internal val SDKComponent.inAppPreferenceStore: InAppPreferenceStore
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
 
-internal val SDKComponent.gistSdk: GistSdk
-    get() = singleton<GistSdk> {
-        GistSdk(siteId = inAppModuleConfig.siteId, dataCenter = inAppModuleConfig.region.code)
+internal val SDKComponent.pollingLifecycleManager: PollingLifecycleManager
+    get() = singleton<PollingLifecycleManager> {
+        PollingLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = ProcessLifecycleOwner.get(),
+            gistQueue = gistQueue,
+            logger = logger
+        )
     }
 
 internal val SDKComponent.modalMessageParser: ModalMessageParser

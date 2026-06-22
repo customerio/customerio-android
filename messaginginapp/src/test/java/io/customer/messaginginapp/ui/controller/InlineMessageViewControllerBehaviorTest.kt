@@ -19,6 +19,7 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
@@ -76,6 +77,7 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
                                 every { subscribe(any()) } just Runs
                             }
                         )
+                        overrideDependency(mockk<PollingLifecycleManager>(relaxed = true))
                         overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
                     }
                 }

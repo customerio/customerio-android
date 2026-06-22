@@ -1,3 +1,9 @@
+## [4.18.2](https://github.com/customerio/customerio-android/compare/4.18.1...4.18.2) (2026-06-22)
+
+### Bug Fixes
+
+* scope in-app polling to process lifecycle instead of per-activity ([#746](https://github.com/customerio/customerio-android/issues/746)) ([5d30ba1](https://github.com/customerio/customerio-android/commit/5d30ba19f412884ca109539486d14bae9b843e9e))
+
 ## [4.18.1](https://github.com/customerio/customerio-android/compare/4.18.0...4.18.1) (2026-06-15)
 
 ### Bug Fixes

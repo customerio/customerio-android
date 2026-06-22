@@ -31,6 +31,7 @@ object Dependencies {
         "com.google.gms:google-services:${Versions.GOOGLE_SERVICES_PLUGIN}"
     const val gradleNexusPublishPlugin =
         "io.github.gradle-nexus:publish-plugin:${Versions.GRADLE_NEXUS_PUBLISH_PLUGIN}"
+
     // Shared Customer.io publishing convention plugin (customerio/mobile-ci-tools).
     const val androidPublishPlugin =
         "io.customer.android:android-publish:${Versions.ANDROID_PUBLISH_PLUGIN}"

@@ -110,6 +110,7 @@ internal class LiveNotificationLifecycleClientImpl(
         const val PROP_INSTANCE_UUID = "instanceUUID"
         const val PROP_DEVICE_ID = "deviceId"
         const val PROP_PLATFORM = "platform"
+
         // Wire key is `notificationType` (the CDP/edge "live activity → live notification"
         // rename); the Android-side parameters keep the `activityType` domain name.
         const val PROP_NOTIFICATION_TYPE = "notificationType"

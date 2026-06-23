@@ -178,6 +178,39 @@
             android:layout_marginTop="@dimen/margin_default"
             android:text="@string/live_notification_campaign_trigger" />
 
+        <!-- On-demand push-to-start registration: registers a single selected type
+             via ModuleMessagingPushFCM.registerLiveNotificationToken(activityType),
+             in addition to the automatic registration of all enabled types at login. -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/live_notification_section_register"
+            android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/register_type_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:hint="@string/live_notification_register_hint">
+
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/register_type_dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <Button
+            android:id="@+id/register_token_button"
+            style="?attr/materialButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_register_button" />
+
         <!-- Debug controls -->
         <TextView
             android:layout_width="match_parent"

@@ -54,6 +54,7 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V
+	public final fun registerLiveNotificationToken (Ljava/lang/String;)Z
 	public final fun startLiveNotification (Lio/customer/messagingpush/livenotification/LiveNotificationData;)Ljava/lang/String;
 	public final fun startLiveNotification (Ljava/lang/String;Ljava/util/Map;)Ljava/lang/String;
 }

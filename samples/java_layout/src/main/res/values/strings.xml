@@ -186,6 +186,11 @@
     <string name="live_notification_campaign_hint">Template (activity_type)</string>
     <string name="live_notification_campaign_trigger">Send trigger_live event</string>
     <string name="live_notification_campaign_event_sent">Tracked trigger_live: %1$s</string>
+    <string name="live_notification_section_register">Register Push-to-Start Token</string>
+    <string name="live_notification_register_hint">Activity type</string>
+    <string name="live_notification_register_button">Register on demand</string>
+    <string name="live_notification_register_success">Registered push_to_start: %1$s</string>
+    <string name="live_notification_register_failed">Registration skipped (needs login + device token): %1$s</string>
     <string name="live_notification_section_debug">Debug</string>
     <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
     <string name="live_notification_debug_start_via_api">Start via startLiveNotification() API</string>

@@ -12,12 +12,15 @@
         was launched recently from earlier notification.
         * launchMode="singleTop" does not work well with ACTIVITY_NO_FLAGS if customer app also has launchMode="singleTop"
         (e.g. Flutter apps) and have multiple instances launched from notifications in one session.
+        * exported="false" because this activity is only ever launched internally via the notification's
+        PendingIntent (an explicit-component intent dispatched with the host app's identity). It has no
+        intent-filter and is never started by other apps, so it does not need to be exported.
 
         -->
         <activity
             android:name=".activity.NotificationClickReceiverActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTask"
             android:noHistory="true"
             android:taskAffinity=""

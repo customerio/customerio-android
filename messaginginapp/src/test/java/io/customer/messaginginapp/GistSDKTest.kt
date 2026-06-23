@@ -11,6 +11,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistSdk
+import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -19,11 +20,8 @@ import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
-import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -47,11 +45,10 @@ class GistSDKTest : JUnitTest() {
                         overrideDependency(mockk<InAppMessagingManager>(relaxed = true))
                         overrideDependency(mockk<InAppPreferenceStore>(relaxed = true))
                         overrideDependency(mockk<GistQueue>(relaxed = true))
-                        overrideDependency(
-                            mockk<CustomerIOActivityLifecycleCallbacks>(relaxed = true) {
-                                every { subscribe(any()) } just Runs
-                            }
-                        )
+                        // GistSdk is now a thin facade; polling/SSE live in their own lifecycle
+                        // managers, mocked here so constructing GistSdk does not touch real
+                        // process-lifecycle wiring.
+                        overrideDependency(mockk<PollingLifecycleManager>(relaxed = true))
                         overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
                     }
                 }

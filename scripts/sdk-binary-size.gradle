@@ -116,9 +116,24 @@ tasks.register('compareSdkSizeReports') {
         output << '| Module | Last Recorded Size | Current Size | Change in Size |\n'
         output << '| ------ | ------------------ | ------------ | -------------- |\n'
 
-        // Closure to parse size string and extract the number
+        // Closure to parse a size string (e.g. "628 B", "16.11 KB", "1.3 MB") into a number of KB,
+        // so values that apkscale reports in different units still compare correctly. apkscale emits
+        // bytes for very small artifacts (e.g. an empty/placeholder module), which the previous
+        // KB-only parser could not handle and crashed on (`For input string: "628 B"`).
         Closure<Float> parseSize = { sizeStr ->
-            sizeStr.replace(sdkSizeUnit, '').trim() as float
+            def matcher = (sizeStr =~ /([0-9.]+)\s*([KMGT]?B)/)
+            if (!matcher.find()) {
+                return 0f
+            }
+            float value = matcher.group(1) as float
+            switch (matcher.group(2)) {
+                case 'B': return value / 1024f
+                case 'KB': return value
+                case 'MB': return value * 1024f
+                case 'GB': return value * 1024f * 1024f
+                case 'TB': return value * 1024f * 1024f * 1024f
+                default: return value
+            }
         }
 
         // Closure to compare the sizes of a module and variant

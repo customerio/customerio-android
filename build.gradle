@@ -1,9 +1,11 @@
 import io.customer.android.Dependencies
 
-apply plugin: 'io.github.gradle-nexus.publish-plugin'
 apply plugin: 'binary-compatibility-validator'
-apply plugin: 'org.jetbrains.dokka'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+// Shared Customer.io publishing convention (from customerio/mobile-ci-tools). Configures the
+// Sonatype Central Portal staging repo on the root project; it bundles the gradle-nexus and
+// dokka plugins, so they no longer need to be applied here. Modules apply publish-module.
+apply plugin: 'io.customer.android.publish-root'
 
 buildscript {
 
@@ -18,8 +20,8 @@ buildscript {
         classpath Dependencies.kotlinGradlePlugin
         classpath Dependencies.kotlinSerialization
         classpath Dependencies.kotlinBinaryValidator
-        classpath Dependencies.gradleNexusPublishPlugin
-        classpath Dependencies.dokka
+        // Shared publishing plugin; transitively brings the gradle-nexus + dokka plugins.
+        classpath Dependencies.androidPublishPlugin
         classpath Dependencies.composeCompilerGradlePlugin
 
         // if you have a Gradle plugin dependency in the classpath of the root project,
@@ -73,5 +75,4 @@ apiValidation {
     ignoredClasses.add("io.customer.sdk.BuildConfig")
 }
 
-apply from: "${rootDir}/scripts/publish-root.gradle"
 apply from: "${rootDir}/scripts/sdk-binary-size.gradle"

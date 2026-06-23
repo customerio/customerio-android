@@ -23,6 +23,7 @@ object Versions {
     internal const val ESPRESSO = "3.7.0"
     internal const val FIREBASE_MESSAGING = "24.1.2"
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "2.0.0"
+    internal const val ANDROID_PUBLISH_PLUGIN = "0.1.0"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "18.7.2"
     internal const val GOOGLE_SERVICES_PLUGIN = "4.4.2"
     internal const val KLUENT = "1.73"

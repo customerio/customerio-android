@@ -4,8 +4,8 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
-import io.customer.messaginginapp.di.gistSdk
 import io.customer.messaginginapp.di.inAppSseLogger
+import io.customer.messaginginapp.di.pollingLifecycleManager
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
@@ -73,7 +73,7 @@ private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingSt
         logger.debug("Fetching in-app messages after message dismissal")
 
         // When SSE is enabled, this won't fetch messages
-        SDKComponent.gistSdk.fetchInAppMessages()
+        SDKComponent.pollingLifecycleManager.fetchInAppMessages()
     } else {
         logger.debug("Message dismissed, not logging view for message: ${action.message}, shouldLog: ${action.shouldLog}, viaCloseAction: ${action.viaCloseAction}")
     }

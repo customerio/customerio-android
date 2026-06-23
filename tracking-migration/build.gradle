@@ -1,4 +1,3 @@
-import io.customer.android.Configurations
 
 plugins {
     id 'com.android.library'
@@ -6,12 +5,11 @@ plugins {
 }
 
 
-ext {
-    PUBLISH_GROUP_ID = Configurations.artifactGroup
-    PUBLISH_ARTIFACT_ID = "tracking-migration"
-}
+apply plugin: 'io.customer.android.publish-module'
 
-apply from: "${rootDir}/scripts/publish-module.gradle"
+customerIoPublish {
+    artifactId = "tracking-migration"
+}
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"

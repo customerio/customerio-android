@@ -21,6 +21,8 @@ import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParserDefault
 import io.customer.messaginginapp.inbox.NotificationInbox
+import io.customer.messaginginapp.inbox.VisualInbox
+import io.customer.messaginginapp.inbox.data.InboxRepository
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
@@ -146,6 +148,26 @@ internal val SDKComponent.notificationInbox: NotificationInbox
             logger = logger,
             coroutineScope = scopeProvider.inAppLifecycleScope,
             dispatchersProvider = dispatchersProvider,
+            inAppMessagingManager = inAppMessagingManager
+        )
+    }
+
+/**
+ * Provides the visual-inbox data-layer repository (caching + fetch orchestration).
+ */
+internal val SDKComponent.inboxRepository: InboxRepository
+    get() = singleton {
+        InboxRepository(inAppMessagingManager = inAppMessagingManager)
+    }
+
+/**
+ * Provides the [VisualInbox] data-layer facade consumed by the inbox overlay.
+ */
+internal val SDKComponent.visualInbox: VisualInbox
+    get() = singleton {
+        VisualInbox(
+            notificationInbox = notificationInbox,
+            repository = inboxRepository,
             inAppMessagingManager = inAppMessagingManager
         )
     }

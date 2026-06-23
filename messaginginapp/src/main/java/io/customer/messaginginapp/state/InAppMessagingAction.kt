@@ -9,6 +9,7 @@ internal sealed class InAppMessagingAction {
     data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment) : InAppMessagingAction()
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
     data class SetSseEnabled(val enabled: Boolean) : InAppMessagingAction()
+    data class SetInboxEnabled(val enabled: Boolean) : InAppMessagingAction()
     data class SetPageRoute(val route: String) : InAppMessagingAction()
     data class LoadMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()
     data class EmbedMessages(val messages: List<Message>) : InAppMessagingAction()

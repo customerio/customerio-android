@@ -69,8 +69,6 @@ import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 
 /**
  * Drop-in Compose overlay that shows the Customer.io Visual Notification Inbox on top of your app.
@@ -96,7 +94,13 @@ fun NotificationInboxOverlay(
     modifier: Modifier = Modifier
 ) {
     val controller = remember {
-        VisualInboxController(ModuleMessagingInApp.instance().visualInbox())
+        val module = ModuleMessagingInApp.instance()
+        VisualInboxController(
+            visualInbox = module.visualInbox(),
+            // Host-registered inbox action listener (item 13), mirroring the in-app eventListener;
+            // resolved from the same module config the host built. Null when none was registered.
+            inboxEventListener = module.moduleConfig.inboxEventListener
+        )
     }
     NotificationInboxOverlay(modifier = modifier, controller = controller)
 }
@@ -112,6 +116,7 @@ internal fun NotificationInboxOverlay(
     controller: VisualInboxController
 ) {
     var panelExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     // Reactive state: re-derived automatically on every relevant store change (see uiStateFlow),
     // so the bell/panel/badge update with no recomposition or user navigation required.
@@ -205,7 +210,12 @@ internal fun NotificationInboxOverlay(
                 textColorPrimary = textColorPrimary,
                 dividerColor = dividerColor,
                 onMessageAction = { message, event ->
-                    handleInboxAction(controller, state.visibility, message, event)
+                    // Controller resolves the action (dismiss / track+intercept / default nav) and
+                    // returns a navigation instruction; the overlay (which owns the Context) runs it.
+                    when (val nav = controller.handleAction(state.visibility, message, event)) {
+                        is InboxNavigation.OpenUrl -> openUrlInBrowser(context, nav.url)
+                        InboxNavigation.None -> Unit
+                    }
                 }
             )
         }
@@ -390,49 +400,20 @@ private fun InboxMessageList(
 }
 
 /**
- * Maps a Jist action to an inbox behavior. Web parity: a "dismiss" action removes (deletes) the
- * message. The live inbox templates emit the action as `name = "messageAction"` with the message's
- * `properties.messageAction = { behavior: "dismiss" }`, so the dismiss signal we match is
- * **`data.behavior == "dismiss"`**. We also accept the Jist-demo sentinels (`name == "dismiss"` or
- * `data.url == "#dismiss"`) as a fallback. Any other action (a real url / other behavior) is a
- * no-op for now — real-url/deep-link navigation is deferred (scope item 12); we log it so it's
- * visible during bring-up.
+ * Default navigation for a resolved openUrl action (item 12): open [url] in the system browser via
+ * an ACTION_VIEW intent. `FLAG_ACTIVITY_NEW_TASK` is set so it works when launched from a non-Activity
+ * context (the overlay may be hosted in an application/service context). Robust to a malformed url or
+ * a device with no browser: any failure is logged, never crashes.
  */
-private fun handleInboxAction(
-    controller: VisualInboxController,
-    visibility: io.customer.messaginginapp.inbox.data.InboxVisibility,
-    message: JistInboxMessage,
-    event: JistActionEvent
-) {
-    val isDismiss = actionBehavior(event) == DISMISS_BEHAVIOR ||
-        event.name == DISMISS_ACTION_NAME ||
-        actionUrl(event) == DISMISS_URL
-    if (isDismiss) {
-        controller.dismissMessage(visibility, message.queueId)
-        return
+private fun openUrlInBrowser(context: android.content.Context, url: String) {
+    try {
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    } catch (ex: Exception) {
+        SDKComponent.logger.error("$INBOX_LOG_TAG failed to open url '$url' in browser: ${ex.message}")
     }
-    // TODO (item 12 — deferred): real-url / deep-link navigation. TODO (item 13 — deferred): host
-    // action callback API. For now, non-dismiss actions are a no-op.
-    SDKComponent.logger.debug(
-        "$INBOX_LOG_TAG action '${event.name}' (behavior=${actionBehavior(event)}, url=${actionUrl(event)}) " +
-            "on ${message.queueId}: navigation deferred, no-op"
-    )
 }
-
-/**
- * Extracts the `url` string from a Jist action event's data object, or null if absent / not a
- * string. Safe casts throughout: a non-object `data` or non-primitive `url` yields null rather
- * than throwing.
- */
-private fun actionUrl(event: JistActionEvent): String? =
-    ((event.data as? JsonObject)?.get("url") as? JsonPrimitive)?.contentOrNull
-
-/**
- * Extracts the `behavior` string from a Jist action event's data object (e.g. the live inbox's
- * `messageAction = { behavior: "dismiss" }`), or null if absent / not a string. Safe casts.
- */
-private fun actionBehavior(event: JistActionEvent): String? =
-    ((event.data as? JsonObject)?.get("behavior") as? JsonPrimitive)?.contentOrNull
 
 @Composable
 private fun LoadingState(
@@ -537,12 +518,6 @@ private fun rememberThemeColor(attrResId: Int, fallbackColor: Color): Color {
 
 /** Consistent, greppable prefix for visual-inbox overlay log lines (matches the data layer's). */
 private const val INBOX_LOG_TAG = "[CIO-Inbox]"
-
-/** Jist action signals that mean "dismiss this message". `behavior` is the live inbox contract
- *  (`messageAction.behavior == "dismiss"`); `name`/`url` are Jist-demo fallbacks. */
-private const val DISMISS_BEHAVIOR = "dismiss"
-private const val DISMISS_ACTION_NAME = "dismiss"
-private const val DISMISS_URL = "#dismiss"
 
 /** Hovering-panel margins: 16dp top/horizontal; a larger bottom inset clears the floating bell. */
 private val PANEL_MARGIN = 16.dp

@@ -72,6 +72,9 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.SetSseEnabled ->
             state.copy(sseEnabled = action.enabled)
 
+        is InAppMessagingAction.SetInboxEnabled ->
+            state.copy(isInboxEnabled = action.enabled)
+
         is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.withMessageDismissed(
             message = action.message,
             shouldMarkAsShown = false
@@ -90,7 +93,8 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             messagesInQueue = emptySet(),
             inboxMessages = emptySet(),
             shownMessageQueueIds = emptySet(),
-            sseEnabled = false
+            sseEnabled = false,
+            isInboxEnabled = false
         )
 
         is InAppMessagingAction.EmbedMessages -> {

@@ -5,6 +5,7 @@ import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
 import io.customer.messaginginapp.di.inAppSseLogger
+import io.customer.messaginginapp.di.inboxRepository
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.InboxMessage
@@ -53,6 +54,16 @@ internal interface GistQueue {
     fun logView(message: Message)
     fun logOpenedStatus(message: InboxMessage, opened: Boolean)
     fun logDeleted(message: InboxMessage)
+
+    /**
+     * The shared gist OkHttp client (HTTP cache + 304/network-response interceptor +
+     * common auth headers). The visual-inbox templates/branding GETs reuse this so
+     * they get the same workspace-scoped, URL-keyed HTTP caching as the queue poll.
+     */
+    val httpClient: OkHttpClient
+
+    /** Base URL for the gist queue API (workspace/environment scoped). */
+    val baseUrl: String
 }
 
 internal class Queue : GistQueue {
@@ -69,16 +80,27 @@ internal class Queue : GistQueue {
     private val anonymousMessageManager: AnonymousMessageManager
         get() = SDKComponent.anonymousMessageManager
 
+    // Visual-inbox data layer: templates/branding fetch orchestration.
+    private val inboxRepository
+        get() = SDKComponent.inboxRepository
+
     private val cacheSize = 10 * 1024 * 1024 // 10 MB
     private val cacheDirectory by lazy { File(application.cacheDir, "http_cache") }
     private val cache by lazy { Cache(cacheDirectory, cacheSize.toLong()) }
+
+    // Shared gist client: HTTP cache + 304/network-response interceptor + auth headers.
+    // The visual-inbox templates/branding GETs reuse this (see [GistQueue.httpClient]).
+    override val httpClient: OkHttpClient by lazy { createHttpClient() }
+
+    override val baseUrl: String
+        get() = state.environment.getGistQueueApiUrl()
 
     private val gistQueueService by lazy {
         createGistQueueService()
     }
 
-    private fun createGistQueueService(): GistQueueService {
-        val httpClient = OkHttpClient.Builder()
+    private fun createHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
             .cache(cache)
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
@@ -90,9 +112,11 @@ internal class Queue : GistQueue {
                 interceptResponse(chain.proceed(finalRequest), originalRequest)
             }
             .build()
+    }
 
+    private fun createGistQueueService(): GistQueueService {
         return Retrofit.Builder()
-            .baseUrl(state.environment.getGistQueueApiUrl())
+            .baseUrl(baseUrl)
             .addConverterFactory(GsonConverterFactory.create())
             .client(httpClient)
             .build()
@@ -152,6 +176,7 @@ internal class Queue : GistQueue {
 
                 updatePollingInterval(latestMessagesResponse.headers())
                 updateSseFlag(latestMessagesResponse.headers())
+                updateInboxFlag(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 logger.debug("Error fetching messages: ${e.message}")
             }
@@ -212,6 +237,8 @@ internal class Queue : GistQueue {
                 logger.debug("Filtered out ${inboxMessages.size - inboxMessagesMapped.size} invalid inbox message(s)")
             }
             inAppMessagingManager.dispatch(InAppMessagingAction.ProcessInboxMessages(inboxMessagesMapped))
+            // Visual-inbox messages are read straight from state.inboxMessages on demand;
+            // the headless store keeps the last set across a failed poll (serve-stale).
         }
     }
 
@@ -239,6 +266,55 @@ internal class Queue : GistQueue {
         if (sseEnabled != state.sseEnabled) {
             SDKComponent.inAppSseLogger.logSseFlagChangedFromTo(state.sseEnabled, sseEnabled)
             inAppMessagingManager.dispatch(InAppMessagingAction.SetSseEnabled(sseEnabled))
+        }
+    }
+
+    // Reads the X-CIO-Inbox-Enabled response header and updates the visual-inbox
+    // enablement gate in state. Mirrors updateSseFlag so the flag flows through
+    // InAppMessagingAction/State consistently; state holds the live value the UI
+    // observes.
+    private fun updateInboxFlag(headers: Headers) {
+        val inboxHeaderValue = headers[HEADER_INBOX_ENABLED]
+        val inboxEnabled = inboxHeaderValue?.lowercase()?.toBooleanStrictOrNull() ?: false
+        val wasEnabled = state.isInboxEnabled
+
+        logger.debug("$INBOX_LOG_TAG enablement header '$HEADER_INBOX_ENABLED'=${inboxHeaderValue ?: "<absent>"} -> $inboxEnabled (current=$wasEnabled)")
+
+        val isTransitionToEnabled = inboxEnabled && !wasEnabled
+        if (inboxEnabled != wasEnabled) {
+            logger.info("$INBOX_LOG_TAG enablement transition: $wasEnabled -> $inboxEnabled")
+            inAppMessagingManager.dispatch(InAppMessagingAction.SetInboxEnabled(inboxEnabled))
+        }
+
+        if (!inboxEnabled) return
+
+        // Trigger the templates/branding fetch when:
+        //  - enablement just flipped false -> true (initial load), OR
+        //  - enabled but the fresh cache is missing/expired (fetch-if-missing).
+        // The repository's fetch-if-missing short-circuits on a fresh cache and an
+        // in-flight guard prevents overlapping polls from launching duplicate fetches.
+        val cacheMiss = inboxRepository.needsTemplatesOrBrandingFetch()
+        when {
+            isTransitionToEnabled -> triggerInboxFetch(reason = "enablement transition")
+            cacheMiss -> triggerInboxFetch(reason = "cache-miss (enabled, templates/branding missing or expired)")
+            else -> logger.debug("$INBOX_LOG_TAG fetch not triggered: enabled and templates/branding cache fresh")
+        }
+    }
+
+    // Launches the templates/branding fetch on the existing in-app/queue lifecycle
+    // scope (the same scope the queue poll runs on). Never GlobalScope.
+    private fun triggerInboxFetch(reason: String) {
+        if (inboxRepository.isFetchInFlight) {
+            logger.debug("$INBOX_LOG_TAG fetch already in-flight; skip trigger ($reason)")
+            return
+        }
+        logger.info("$INBOX_LOG_TAG fetch triggered: $reason")
+        scope.launch {
+            try {
+                inboxRepository.loadTemplatesAndBranding()
+            } catch (e: Exception) {
+                logger.error("$INBOX_LOG_TAG fetch launch failed: ${e.message}")
+            }
         }
     }
 
@@ -295,5 +371,12 @@ internal class Queue : GistQueue {
     companion object {
         // Custom header to distinguish 304 responses (converted to 200) from genuine 200 responses
         private const val HEADER_FROM_CACHE = "X-CIO-MOBILE-SDK-Cache"
+
+        // Server-driven enablement gate for the visual notification inbox.
+        private const val HEADER_INBOX_ENABLED = "X-CIO-Inbox-Enabled"
+
+        // Consistent, greppable prefix for visual-inbox log lines (matches the
+        // data-layer InboxRepository.LOG_TAG).
+        private const val INBOX_LOG_TAG = "[CIO-Inbox]"
     }
 }

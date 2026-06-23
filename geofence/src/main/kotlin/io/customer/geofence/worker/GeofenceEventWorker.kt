@@ -21,6 +21,7 @@ import io.customer.sdk.data.store.PendingDeliveryResult
 import io.customer.sdk.data.store.claimSendRestore
 
 private const val KEY_GEOFENCE_ID = "geofence_id"
+private const val KEY_GEOFENCE_NAME = "geofence_name"
 private const val KEY_TRANSITION = "transition"
 private const val KEY_TIMESTAMP = "timestamp"
 private const val KEY_USER_ID = "user_id"
@@ -40,6 +41,7 @@ internal class GeofenceEventScheduler(
             .putLong(KEY_TIMESTAMP, entry.timestamp)
             .apply {
                 entry.userId?.let { putString(KEY_USER_ID, it) }
+                entry.geofenceName?.let { putString(KEY_GEOFENCE_NAME, it) }
             }
             .build()
 
@@ -104,7 +106,13 @@ internal class GeofenceEventWorker(
 
         val userId = inputData.getString(KEY_USER_ID)
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
-        val entry = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId)
+        val entry = PendingGeofenceDelivery(
+            geofenceId = geofenceId,
+            transition = transition,
+            timestamp = timestamp,
+            userId = userId,
+            geofenceName = inputData.getString(KEY_GEOFENCE_NAME)
+        )
 
         // No identified user at queue time — direct HTTP needs a userId, so
         // leave the entry in the store for the foreground flush instead.

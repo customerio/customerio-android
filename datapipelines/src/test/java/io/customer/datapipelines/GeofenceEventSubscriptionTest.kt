@@ -66,7 +66,7 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "CIO Geofence Entered"
+        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "geofence_entered"
     }
 
     @Test
@@ -82,7 +82,7 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "CIO Geofence Exited"
+        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "geofence_exited"
     }
 
     @Test

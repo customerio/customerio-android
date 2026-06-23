@@ -1,4 +1,3 @@
-import io.customer.android.Configurations
 import io.customer.android.Dependencies
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
@@ -8,12 +7,11 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
-ext {
-    PUBLISH_GROUP_ID = Configurations.artifactGroup
-    PUBLISH_ARTIFACT_ID = "geofence"
+apply plugin: 'io.customer.android.publish-module'
+customerIoPublish {
+    artifactId = "geofence"
 }
 
-apply from: "${rootDir}/scripts/publish-module.gradle"
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"

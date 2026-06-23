@@ -22,10 +22,10 @@ import kotlinx.coroutines.sync.withLock
  *   location.
  */
 internal interface GeofenceRepository {
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun refresh(latitude: Double, longitude: Double): Result<Unit>
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
 
     /**
@@ -35,7 +35,7 @@ internal interface GeofenceRepository {
      * during boot. Skips silently when there's nothing to restore — no user,
      * no anchor, or no cached config.
      */
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun restoreFromCache(): Result<Unit>
 
     /**
@@ -71,7 +71,7 @@ internal class GeofenceRepositoryImpl(
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
         if (!refreshInProgress.compareAndSet(false, true)) {
             logger.logSyncSkipped("refresh already in progress")
@@ -113,6 +113,9 @@ internal class GeofenceRepositoryImpl(
             syncMode.movementRequiresRemoteFetch(distanceFromLastFetch, config) -> RefreshAction.REMOTE
             isRankingStale(distanceFromLastRegistration, config) -> RefreshAction.LOCAL
             hasUnregisteredCache() -> RefreshAction.LOCAL
+            // Without this a fresh-cache launch after a reboot would SKIP — registeredIds survive the
+            // reboot but GMS doesn't, leaving nothing monitored. Re-rank locally to re-register.
+            osStateWipedByReboot() -> RefreshAction.LOCAL
             else -> RefreshAction.SKIP
         }
     }
@@ -133,7 +136,16 @@ internal class GeofenceRepositoryImpl(
     private fun hasUnregisteredCache(): Boolean =
         store.getCachedRegions().isNotEmpty() && store.getRegisteredIds().isEmpty()
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    /**
+     * Uptime regressed since the last registration → the device rebooted, which wipes GMS geofences
+     * even though registeredIds survive. Covers a missed BOOT_COMPLETED (stopped state, OEM battery
+     * managers, emulator). Read by both [refreshAction] (force re-register over SKIP) and
+     * [registerWithBusinessDiff] (re-register all rather than trust registeredIds).
+     */
+    private fun osStateWipedByReboot(): Boolean =
+        store.getLastRegistrationUptime()?.let { clock.elapsedRealtime() < it } ?: false
+
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
         if (!refreshInProgress.compareAndSet(false, true)) {
             logger.logSyncSkipped("refresh already in progress")
@@ -163,7 +175,7 @@ internal class GeofenceRepositoryImpl(
         }
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun restoreFromCache(): Result<Unit> {
         // Bypasses the in-flight gate: after a reboot, app-launch refresh's
         // registerWithBusinessDiff would see persisted registeredIds matching
@@ -197,7 +209,7 @@ internal class GeofenceRepositoryImpl(
         )
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun performRemoteRefresh(
         userId: String,
         latitude: Double,
@@ -238,7 +250,7 @@ internal class GeofenceRepositoryImpl(
         )
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun performLocalRefresh(
         userId: String,
         latitude: Double,
@@ -260,21 +272,27 @@ internal class GeofenceRepositoryImpl(
      * param drift forces a re-register so GMS doesn't keep stale values.
      * Boot restore bypasses this; OS state is empty after reboot.
      */
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun registerWithBusinessDiff(regions: List<GeofenceRegion>): Result<Unit> {
-        val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
-        val cachedById = store.getCachedRegions().associateBy { it.id }
-        val existingBusinessIds = regions
-            .filter { it.id in registeredBusinessIds && cachedById[it.id] == it }
-            .map { it.id }
-            .toSet()
+        // After a reboot GMS is empty, so re-register everything rather than trust the surviving
+        // registeredIds (which would otherwise be skipped as "unchanged").
+        val existingBusinessIds = if (osStateWipedByReboot()) {
+            emptySet()
+        } else {
+            val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+            val cachedById = store.getCachedRegions().associateBy { it.id }
+            regions
+                .filter { it.id in registeredBusinessIds && cachedById[it.id] == it }
+                .map { it.id }
+                .toSet()
+        }
         return manager.replaceGeofences(
             regions = regions,
             existingBusinessIds = existingBusinessIds
         )
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun registerNearestAndPersist(
         userId: String,
         latitude: Double,
@@ -329,6 +347,9 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // Stamp device uptime so the next refresh can detect a reboot (which wipes OS
+                    // geofences) and force a full re-register instead of trusting registeredIds.
+                    store.setLastRegistrationUptime(clock.elapsedRealtime())
                     // Track the user's location at each successful registration so boot restore can
                     // re-center close to their real position. Clear only when nothing is registered
                     // (no geofences / kill switch) — the trigger, and thus its location, is gone.

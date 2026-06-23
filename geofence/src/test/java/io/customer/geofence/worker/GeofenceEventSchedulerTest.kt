@@ -56,7 +56,8 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 geofenceId = "biz-geofence-1",
                 transition = Event.GeofenceTransition.ENTER,
                 timestamp = 1_234L,
-                userId = "user-42"
+                userId = "user-42",
+                geofenceName = "Coffee Shop"
             )
         )
 
@@ -74,6 +75,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         input.getString("transition") shouldBeEqualTo "ENTER"
         input.getLong("timestamp", -1L) shouldBeEqualTo 1_234L
         input.getString("user_id") shouldBeEqualTo "user-42"
+        input.getString("geofence_name") shouldBeEqualTo "Coffee Shop"
         input.hasKeyWithValueOfType("latitude", Double::class.javaObjectType) shouldBeEqualTo false
         input.hasKeyWithValueOfType("longitude", Double::class.javaObjectType) shouldBeEqualTo false
 
@@ -100,6 +102,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         verify { workManager.enqueueUniqueWork(any(), any(), capture(workRequestSlot)) }
         val input = workRequestSlot.captured.workSpec.input
         input.hasKeyWithValueOfType("user_id", String::class.java) shouldBeEqualTo false
+        input.hasKeyWithValueOfType("geofence_name", String::class.java) shouldBeEqualTo false
     }
 
     @Test

@@ -45,7 +45,7 @@ internal class GeofenceManager(
      * can fire spurious EXIT events; skipping the overlap avoids that.
      * Default `emptySet()` means "OS state unknown, register everything".
      */
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceGeofences(
         regions: List<GeofenceRegion>,
         existingBusinessIds: Set<String> = emptySet()
@@ -62,11 +62,11 @@ internal class GeofenceManager(
      * while the device was off, EXIT fires immediately and the next
      * handleMovement self-heals with real coordinates.
      */
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
         replaceGeofencesInternal(regions, movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT)
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun replaceGeofencesInternal(
         regions: List<GeofenceRegion>,
         movementInitialTrigger: Int,
@@ -123,7 +123,7 @@ internal class GeofenceManager(
         return Result.success(Unit)
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION])
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun registerBatch(
         regions: List<GeofenceRegion>,
         initialTrigger: Int

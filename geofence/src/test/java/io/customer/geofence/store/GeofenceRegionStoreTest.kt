@@ -114,7 +114,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             remoteFetchRefreshTriggerRadius = 5_000f,
             remoteFetchRefreshExpiry = 86_400_000L,
             duplicateEventsExpiry = 3_600_000L,
-            maxBusinessGeofences = 19
+            maxBusinessGeofences = 19,
+            maxMonitoringDistance = 1_000_000f
         )
 
         store.saveCachedConfig(config)
@@ -226,7 +227,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
                 remoteFetchRefreshTriggerRadius = 5_000f,
                 remoteFetchRefreshExpiry = 1L,
                 duplicateEventsExpiry = 1L,
-                maxBusinessGeofences = 1
+                maxBusinessGeofences = 1,
+                maxMonitoringDistance = 1_000_000f
             )
         )
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
@@ -253,7 +255,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             remoteFetchRefreshTriggerRadius = 5_000f,
             remoteFetchRefreshExpiry = 86_400_000L,
             duplicateEventsExpiry = 3_600_000L,
-            maxBusinessGeofences = 19
+            maxBusinessGeofences = 19,
+            maxMonitoringDistance = 1_000_000f
         )
         store.saveCachedRegions(regions)
         store.saveCachedConfig(config)
@@ -312,7 +315,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
                 remoteFetchRefreshTriggerRadius = 5_000f,
                 remoteFetchRefreshExpiry = 86_400_000L,
                 duplicateEventsExpiry = 3_600_000L,
-                maxBusinessGeofences = 19
+                maxBusinessGeofences = 19,
+                maxMonitoringDistance = 1_000_000f
             )
         )
 
@@ -322,7 +326,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             "remoteFetchRefreshTriggerRadius",
             "remoteFetchRefreshExpiry",
             "duplicateEventsExpiry",
-            "maxBusinessGeofences"
+            "maxBusinessGeofences",
+            "maxMonitoringDistance"
         ).forEach { key -> raw shouldContain "\"$key\"" }
     }
 
@@ -372,6 +377,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
               "remoteFetchRefreshExpiry": 86400000,
               "duplicateEventsExpiry": 3600000,
               "maxBusinessGeofences": 19,
+              "maxMonitoringDistance": 1000000.0,
               "future_field_we_dont_know": "ignore me"
             }
             """.trimIndent()
@@ -382,7 +388,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             remoteFetchRefreshTriggerRadius = 5_000f,
             remoteFetchRefreshExpiry = 86_400_000L,
             duplicateEventsExpiry = 3_600_000L,
-            maxBusinessGeofences = 19
+            maxBusinessGeofences = 19,
+            maxMonitoringDistance = 1_000_000f
         )
     }
 

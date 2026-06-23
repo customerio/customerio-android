@@ -34,6 +34,8 @@ internal data class GeofenceApiConfig(
     val remoteFetchRefreshExpiryTime: Long? = null,
     @SerialName("duplicate_events_expiry_time")
     val duplicateEventsExpiryTime: Long? = null,
+    @SerialName("max_monitoring_distance")
+    val maxMonitoringDistance: Float? = null,
     @SerialName("android")
     val android: GeofenceApiPlatformConfig? = null
 )
@@ -72,20 +74,47 @@ internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig? =
 internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> =
     geofences.map { it.toDomain() }
 
-private fun GeofenceApiConfig.toDomain(): GeofenceConfig = GeofenceConfig(
-    localRefreshTriggerRadius = localRefreshTriggerRadius?.takeIf { it > 0 }
-        ?: GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
-    remoteFetchRefreshTriggerRadius = remoteFetchRefreshTriggerRadius?.takeIf { it > 0 }
-        ?: GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
-    remoteFetchRefreshExpiry = remoteFetchRefreshExpiryTime?.takeIf { it > 0 }
-        ?: GeofenceConstants.STALE_THRESHOLD_MS,
-    duplicateEventsExpiry = duplicateEventsExpiryTime?.takeIf { it > 0 }
-        ?: GeofenceConstants.DEDUPE_COOLDOWN_MS,
-    // Range is 0..99: zero is a valid server-side kill switch; 99 leaves one
-    // OS slot for the movement trigger. Out-of-range values fall back.
-    maxBusinessGeofences = android?.maxBusinessGeofence?.takeIf { it in 0..99 }
-        ?: GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
-)
+// Coerces raw server values into sane bounds so a misconfigured backend can't push the SDK into a
+// pathological state: non-positive values fall back; positive out-of-range values clamp.
+private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
+    val coercedLocalRefresh = localRefreshTriggerRadius?.takeIf { it > 0 }
+        ?.coerceIn(
+            GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS,
+            GeofenceConstants.MAX_LOCAL_REFRESH_RADIUS_METERS
+        )
+        ?: GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS
+    // null → default cap; 0 → explicitly disabled (no cap). A positive value below the trigger
+    // radius would create a dead-zone (a geofence inside the trigger but beyond the cap never gets
+    // re-ranked), so fall back to the default.
+    val coercedMaxMonitoringDistance = when {
+        maxMonitoringDistance == null -> GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
+        maxMonitoringDistance == 0f -> GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
+        maxMonitoringDistance < coercedLocalRefresh -> GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
+        else -> maxMonitoringDistance
+    }
+    return GeofenceConfig(
+        localRefreshTriggerRadius = coercedLocalRefresh,
+        remoteFetchRefreshTriggerRadius = remoteFetchRefreshTriggerRadius?.takeIf { it > 0 }
+            ?: GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
+        remoteFetchRefreshExpiry = remoteFetchRefreshExpiryTime?.takeIf { it > 0 }
+            ?.coerceIn(
+                GeofenceConstants.MIN_REMOTE_FETCH_REFRESH_EXPIRY_MS,
+                GeofenceConstants.MAX_REMOTE_FETCH_REFRESH_EXPIRY_MS
+            )
+            ?: GeofenceConstants.STALE_THRESHOLD_MS,
+        duplicateEventsExpiry = duplicateEventsExpiryTime?.takeIf { it > 0 }
+            ?.coerceIn(
+                GeofenceConstants.MIN_DUPLICATE_EVENTS_EXPIRY_MS,
+                GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
+            )
+            ?: GeofenceConstants.DEDUPE_COOLDOWN_MS,
+        // Range is 0..99: zero is a valid server-side kill switch; 99 leaves one
+        // OS slot for the movement trigger. Out-of-range values fall back.
+        maxBusinessGeofences = android?.maxBusinessGeofence?.takeIf { it in 0..99 }
+            ?: GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES,
+        maxMonitoringDistance = coercedMaxMonitoringDistance
+    )
+}
 
 private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(
     id = id,

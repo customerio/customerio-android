@@ -236,6 +236,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
                 "remote_fetch_refresh_trigger_radius": 7500,
                 "remote_fetch_refresh_expiry_time": 86400000,
                 "duplicate_events_expiry_time": 3600000,
+                "max_monitoring_distance": 500000,
                 "android": { "max_business_geofence": 25 }
               },
               "geofences": []
@@ -248,7 +249,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
             remoteFetchRefreshTriggerRadius = 7500f,
             remoteFetchRefreshExpiry = 86_400_000L,
             duplicateEventsExpiry = 3_600_000L,
-            maxBusinessGeofences = 25
+            maxBusinessGeofences = 25,
+            maxMonitoringDistance = 500_000f
         )
     }
 
@@ -258,6 +260,32 @@ class GeofenceApiResponseTest : RobolectricTest() {
         val response = parseResponse("""{ "config": {}, "geofences": [] }""")
 
         response.toDomainConfig() shouldBeEqualTo fallbackConfig()
+    }
+
+    @Test
+    fun toDomainConfig_givenPartialConfig_expectPresentFieldsUsedAndRestFallback() {
+        // Backend rolling fields out gradually: present fields are used (and coerced), each absent
+        // field falls back independently.
+        val response = parseResponse(
+            """
+            {
+              "config": {
+                "local_refresh_trigger_radius": 2000,
+                "android": { "max_business_geofence": 10 }
+              },
+              "geofences": []
+            }
+            """.trimIndent()
+        )
+
+        response.toDomainConfig() shouldBeEqualTo GeofenceConfig(
+            localRefreshTriggerRadius = 2000f,
+            remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
+            remoteFetchRefreshExpiry = GeofenceConstants.STALE_THRESHOLD_MS,
+            duplicateEventsExpiry = GeofenceConstants.DEDUPE_COOLDOWN_MS,
+            maxBusinessGeofences = 10,
+            maxMonitoringDistance = GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
+        )
     }
 
     @Test
@@ -272,6 +300,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
                 "remote_fetch_refresh_trigger_radius": 0,
                 "remote_fetch_refresh_expiry_time": -100,
                 "duplicate_events_expiry_time": 0,
+                "max_monitoring_distance": -1,
                 "android": { "max_business_geofence": -5 }
               },
               "geofences": []
@@ -300,6 +329,67 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
         atLimit?.maxBusinessGeofences shouldBeEqualTo GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
         above?.maxBusinessGeofences shouldBeEqualTo GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
+    }
+
+    @Test
+    fun toDomainConfig_givenLocalRefreshRadiusOutOfRange_expectClampedToBounds() {
+        // Positive but absurd radii clamp to the sane bounds instead of being used as-is.
+        val belowMin = parseResponse("""{ "config": { "local_refresh_trigger_radius": 10 }, "geofences": [] }""")
+        val aboveMax = parseResponse("""{ "config": { "local_refresh_trigger_radius": 999999 }, "geofences": [] }""")
+
+        belowMin.toDomainConfig()?.localRefreshTriggerRadius shouldBeEqualTo
+            GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS
+        aboveMax.toDomainConfig()?.localRefreshTriggerRadius shouldBeEqualTo
+            GeofenceConstants.MAX_LOCAL_REFRESH_RADIUS_METERS
+    }
+
+    @Test
+    fun toDomainConfig_givenExpiriesOutOfRange_expectClampedToBounds() {
+        val response = parseResponse(
+            """
+            {
+              "config": {
+                "remote_fetch_refresh_expiry_time": 1,
+                "duplicate_events_expiry_time": 999999999999
+              },
+              "geofences": []
+            }
+            """.trimIndent()
+        )
+
+        val config = response.toDomainConfig()
+        config?.remoteFetchRefreshExpiry shouldBeEqualTo GeofenceConstants.MIN_REMOTE_FETCH_REFRESH_EXPIRY_MS
+        config?.duplicateEventsExpiry shouldBeEqualTo GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
+    }
+
+    @Test
+    fun toDomainConfig_givenMaxMonitoringDistanceBelowTriggerRadius_expectFallback() {
+        // A cap below the trigger radius would create a dead-zone, so it falls back to the default.
+        val response = parseResponse(
+            """
+            {
+              "config": {
+                "local_refresh_trigger_radius": 3000,
+                "max_monitoring_distance": 1000
+              },
+              "geofences": []
+            }
+            """.trimIndent()
+        )
+
+        response.toDomainConfig()?.maxMonitoringDistance shouldBeEqualTo
+            GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
+    }
+
+    @Test
+    fun toDomainConfig_givenMaxMonitoringDistanceZero_expectNoCap() {
+        // 0 is the explicit "disable the cap" signal — register regardless of distance.
+        val response = parseResponse(
+            """{ "config": { "max_monitoring_distance": 0 }, "geofences": [] }"""
+        )
+
+        response.toDomainConfig()?.maxMonitoringDistance shouldBeEqualTo
+            GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
     }
 
     // ---------- helpers ----------
@@ -340,6 +430,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
         remoteFetchRefreshExpiry = GeofenceConstants.STALE_THRESHOLD_MS,
         duplicateEventsExpiry = GeofenceConstants.DEDUPE_COOLDOWN_MS,
-        maxBusinessGeofences = GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES
+        maxBusinessGeofences = GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES,
+        maxMonitoringDistance = GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
     )
 }

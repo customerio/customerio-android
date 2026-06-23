@@ -58,7 +58,10 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         activityId: String? = "live-act-1",
         event: String? = "start",
         activityType: String? = TemplateRegistry.DELIVERY_TRACKING,
-        data: JSONObject = JSONObject(),
+        // Minimal renderable content: every built-in template treats statusMessage as usable
+        // content, so envelope/ordering tests post a notification rather than being dropped by
+        // the "no usable content" guard (which is exercised separately).
+        data: JSONObject = JSONObject().apply { put("statusMessage", "Status") },
         timestamp: Long? = null,
         dismissalDate: Long? = null
     ): Bundle {
@@ -191,6 +194,25 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     fun handle_givenMissingEvent_dropsAndDoesNotNotify() {
         // event is required — there is no implicit "update" default.
         invoke(handlerFor(newBundle(event = null)))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenStartWithNoContentFields_doesNotPostEmptyNotification() {
+        // Enabled type + valid envelope, but the template fields never arrived (e.g. content
+        // wasn't flattened). The template can't render anything meaningful, so we must NOT post
+        // a blank notification.
+        val bundle = newBundle(
+            activityId = "no-content",
+            event = "start",
+            activityType = TemplateRegistry.DELIVERY_TRACKING,
+            data = JSONObject()
+        )
+
+        invoke(handlerFor(bundle))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())

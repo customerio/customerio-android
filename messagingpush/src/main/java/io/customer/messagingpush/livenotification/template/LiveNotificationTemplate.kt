@@ -25,11 +25,18 @@ import org.json.JSONObject
 internal sealed interface LiveNotificationTemplate {
     val name: String
 
+    /**
+     * Renders [data] into a [TemplateRenderResult], or returns `null` when the
+     * payload is missing the fields this template needs to show anything
+     * meaningful (e.g. content arrived nested/empty rather than flattened). The
+     * handler treats `null` as "don't post" and logs an error instead of showing
+     * a blank notification.
+     */
     fun render(
         context: Context,
         data: JSONObject,
         branding: LiveNotificationBranding?,
         @DrawableRes smallIcon: Int,
         @ColorInt fallbackTintColor: Int?
-    ): TemplateRenderResult
+    ): TemplateRenderResult?
 }

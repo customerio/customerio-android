@@ -31,7 +31,7 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
-    )
+    )!!
 
     private fun titleAttributes(title: String = "Flash Sale") = JSONObject().apply {
         put("title", title)

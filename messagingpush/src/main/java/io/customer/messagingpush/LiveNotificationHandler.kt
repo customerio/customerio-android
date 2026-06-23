@@ -190,9 +190,15 @@ internal class LiveNotificationHandler(
             notification != null -> notificationManager.notify(activityId, notifId, notification)
             // An `end` with no renderer still falls through to cancel the existing notification.
             !isEnd -> {
+                // template != null but result == null ⇒ the payload lacked the fields the
+                // template needs (e.g. content not flattened); we refuse to post a blank one.
+                val reason = if (template != null) {
+                    "required content fields are missing (payload not flattened, or empty)"
+                } else {
+                    "no built-in template and createLiveNotification returned null"
+                }
                 SDKComponent.logger.error(
-                    "No renderer for live notification type '$activityType': no built-in template and " +
-                        "createLiveNotification returned null; dropping activity '$activityId'."
+                    "Not posting live notification '$activityId' (type '$activityType'): $reason."
                 )
                 return
             }

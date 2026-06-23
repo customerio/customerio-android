@@ -33,6 +33,8 @@ import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecy
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesNavigationActivity
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesTabbedActivity
+import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messaginginbox.NotificationInboxOverlay
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -66,6 +68,7 @@ fun DashboardRoute(
     )
 }
 
+@OptIn(InternalCustomerIOApi::class)
 @Composable
 fun DashboardScreen(
     userState: State<User>,
@@ -106,6 +109,10 @@ fun DashboardScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+        // Overlay visual notification inbox (floating bell + slide-out panel) rendered on top of
+        // the dashboard. The floating bell shows only when the inbox data layer reports the
+        // inbox as visible.
+        NotificationInboxOverlay()
     }
 }
 

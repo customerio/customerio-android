@@ -114,12 +114,17 @@ android {
         }
     }
     compileOptions {
+        // Required by :messaginginbox -> local :jist module, which desugars java.time. TODO: revisit once Jist is published.
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
+    // Required by :messaginginbox -> local :jist module, which desugars java.time. TODO: revisit once Jist is published.
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
+
     def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
         // Add local dependency for SDK modules, helpful for debugging
@@ -128,6 +133,8 @@ dependencies {
         implementation(project(":messaginginapp"))
         // messaginginapp-compose adds messaginginapp transitively
         implementation(project(":messaginginapp-compose"))
+        // messaginginbox adds messaginginapp transitively
+        implementation(project(":messaginginbox"))
         implementation(project(":location"))
     } else {
         // Stable releases dependency, use published versions directly
@@ -136,6 +143,8 @@ dependencies {
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
         // messaginginapp-compose adds messaginginapp transitively
         implementation "io.customer.android:messaging-in-app-compose:$cioSDKVersion"
+        // messaginginbox adds messaginginapp transitively
+        implementation "io.customer.android:messaging-inbox:$cioSDKVersion"
         implementation "io.customer.android:location:$cioSDKVersion"
     }
     

@@ -14,6 +14,9 @@ import io.customer.sdk.core.util.Logger
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Orchestrates the visual-inbox data layer: a thin layer over the headless inbox.
@@ -82,6 +85,25 @@ internal class InboxRepository(
         get() = fetchInFlight.get()
 
     /**
+     * Fetch-completion signal. Emits [Unit] once whenever a [loadTemplatesAndBranding] cycle that
+     * actually ran the fetch path FINISHES (any terminal outcome). This is the reactive edge the
+     * overlay needs: a fetch triggered by an enablement flip populates the templates/branding
+     * cache WITHOUT changing `isInboxEnabled` or `inboxMessages`, so the store-keyed
+     * `observeInboxChanges` never re-emits. Observers re-read the now-warm cached visibility and
+     * transition Hidden -> Visible. Mirrors iOS's repository `loadStateChanges()` edge.
+     *
+     * `replay = 0` because it is a pure edge (not state); `extraBufferCapacity` lets the
+     * non-suspending `tryEmit` from the fetch coroutine never block or drop.
+     */
+    private val contentChanges = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 8)
+
+    /**
+     * Observe [contentChanges]: fires when a templates/branding fetch cycle completes.
+     * Carries no payload — observers re-read cached visibility via [computeVisibility].
+     */
+    fun observeContentChanges(): Flow<Unit> = contentChanges.asSharedFlow()
+
+    /**
      * Whether a templates/branding fetch is warranted right now: true when either
      * required render input is missing from the HTTP-cache-backed store. Used by the
      * live poll to decide whether to trigger a fetch-if-missing.
@@ -119,6 +141,10 @@ internal class InboxRepository(
             return doLoadTemplatesAndBranding()
         } finally {
             fetchInFlight.set(false)
+            // Signal completion after the cache has been populated. Only the path that actually
+            // ran the fetch reaches here (the in-flight short-circuit above returns early without
+            // emitting). tryEmit is non-suspending and cannot block/deadlock here.
+            contentChanges.tryEmit(Unit)
         }
     }
 

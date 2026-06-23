@@ -24,6 +24,11 @@ android {
         consumerProguardFiles "consumer-rules.pro"
     }
 
+    // Core library desugaring: required because Jist (io.customer.android:jist) uses java.time.
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -39,10 +44,25 @@ dependencies {
     // Main dependencies
     api project(":messaginginapp")  // This module builds on top of the messaginginapp module
 
-    // Compose: only the runtime is required for this skeleton (the Compose compiler needs it on
-    // the classpath). The UI artifacts (ui, foundation, material, …) land with the visual inbox UI.
+    // Required because Jist (io.customer.android:jist) uses java.time (see compileOptions above).
+    coreLibraryDesugaring Dependencies.coreLibraryDesugaring
+
+    // Jist rendering engine (published Maven Central artifact). The overlay decodes the data
+    // layer's raw JSON into Jist's serialization types and renders messages with `JistView`.
+    implementation Dependencies.jist
+
+    // kotlinx.serialization JSON: the overlay decodes the data layer's raw templates JSON,
+    // message properties, and branding theme into Jist's kotlinx.serialization types.
+    implementation Dependencies.kotlinxSerializationJson
+
+    // Compose dependencies
     implementation platform(Dependencies.composeBom)
+    implementation Dependencies.composeUi
+    implementation Dependencies.composeUiGraphics
+    implementation Dependencies.composeFoundation
+    implementation Dependencies.composeMaterial
     implementation Dependencies.composeRuntime
+    implementation Dependencies.coroutinesAndroid
 
     // Testing
     testImplementation project(":common-test")

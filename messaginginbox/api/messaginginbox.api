@@ -1,0 +1,6 @@
+public final class io/customer/messaginginbox/ComposableSingletons$NotificationInboxOverlayKt {
+	public static final field INSTANCE Lio/customer/messaginginbox/ComposableSingletons$NotificationInboxOverlayKt;
+	public fun <init> ()V
+	public final fun getLambda$-952362317$messaginginbox_release ()Lkotlin/jvm/functions/Function2;
+}
+

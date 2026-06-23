@@ -1,16 +1,17 @@
 package io.customer.messaginginbox
 
-import org.amshove.kluent.shouldNotBeNull
-import org.junit.jupiter.api.Test
+import org.amshove.kluent.shouldBeEqualTo
+import org.junit.Test
 
 /**
- * Placeholder unit test that keeps the `:messaginginbox` module in the unit-test CI matrix while
- * it is an empty opt-in skeleton (no public API yet). The real test suite lands alongside the
- * visual inbox UI in a follow-up.
+ * Placeholder unit test that keeps the `:messaginginbox` module in the unit-test CI matrix on the
+ * overlay PR (the module's tests would otherwise be empty here, since the full suite — decoder and
+ * controller tests — lands in the stacked tests PR). Exercises pure data-layer logic only; no
+ * Compose runtime.
  */
 class MessagingInboxModuleTest {
     @Test
-    fun moduleSkeleton_isAccessible() {
-        MessagingInbox.shouldNotBeNull()
+    fun unopenedInboxCount_emptyList_isZero() {
+        unopenedInboxCount(emptyList()) shouldBeEqualTo 0
     }
 }

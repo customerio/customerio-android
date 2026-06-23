@@ -267,4 +267,12 @@
 
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <!-- Overlay visual notification inbox (floating bell + slide-out panel) rendered on top of
+         the dashboard. Content is set in DashboardActivity. The floating bell shows only when
+         the inbox data layer reports the inbox as visible. -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/notification_inbox_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

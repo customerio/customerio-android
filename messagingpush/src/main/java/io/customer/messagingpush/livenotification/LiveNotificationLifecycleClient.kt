@@ -54,7 +54,7 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_INSTANCE_UUID, instanceUUID)
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
-                put(PROP_ACTIVITY_TYPE, activityType)
+                put(PROP_NOTIFICATION_TYPE, activityType)
                 // `payload` is the activity's content; optional per the contract.
                 if (payload.isNotEmpty()) put(PROP_PAYLOAD, payload)
             }
@@ -69,7 +69,7 @@ internal class LiveNotificationLifecycleClientImpl(
                 PROP_INSTANCE_UUID to instanceUUID,
                 PROP_DEVICE_ID to deviceId,
                 PROP_PLATFORM to PLATFORM_ANDROID,
-                PROP_ACTIVITY_TYPE to activityType
+                PROP_NOTIFICATION_TYPE to activityType
             )
         )
     }
@@ -79,7 +79,7 @@ internal class LiveNotificationLifecycleClientImpl(
             event = EVENT_LIVE_NOTIFICATION_TOKEN,
             properties = mapOf(
                 PROP_REGISTRATION_TYPE to REGISTRATION_TYPE_PUSH_TO_START,
-                PROP_ACTIVITY_TYPE to activityType,
+                PROP_NOTIFICATION_TYPE to activityType,
                 PROP_PLATFORM to PLATFORM_ANDROID,
                 PROP_DEVICE_ID to deviceId,
                 PROP_PUSH_TO_START_TOKEN to deviceId
@@ -110,7 +110,9 @@ internal class LiveNotificationLifecycleClientImpl(
         const val PROP_INSTANCE_UUID = "instanceUUID"
         const val PROP_DEVICE_ID = "deviceId"
         const val PROP_PLATFORM = "platform"
-        const val PROP_ACTIVITY_TYPE = "activityType"
+        // Wire key is `notificationType` (the CDP/edge "live activity → live notification"
+        // rename); the Android-side parameters keep the `activityType` domain name.
+        const val PROP_NOTIFICATION_TYPE = "notificationType"
         const val PROP_PAYLOAD = "payload"
         const val PROP_PUSH_TO_START_TOKEN = "pushToStartToken"
 

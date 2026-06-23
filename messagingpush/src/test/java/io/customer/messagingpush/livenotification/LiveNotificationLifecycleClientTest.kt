@@ -6,10 +6,10 @@ import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClien
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_END
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_START
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PLATFORM_ANDROID
-import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_ACTIVITY_TYPE
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_DEVICE_ID
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_EVENT_TYPE
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_INSTANCE_UUID
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_NOTIFICATION_TYPE
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_PAYLOAD
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_PLATFORM
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_PUSH_TO_START_TOKEN
@@ -58,7 +58,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
         props.captured[PROP_INSTANCE_UUID] shouldBeEqualTo "inst-1"
         props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
         props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
-        props.captured[PROP_ACTIVITY_TYPE] shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
         @Suppress("UNCHECKED_CAST")
         (props.captured[PROP_PAYLOAD] as Map<String, Any?>)["status"] shouldBeEqualTo "preparing"
     }
@@ -86,7 +86,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
         name.captured shouldBeEqualTo EVENT_LIVE_NOTIFICATION
         props.captured[PROP_EVENT_TYPE] shouldBeEqualTo EVENT_TYPE_END
         props.captured[PROP_INSTANCE_UUID] shouldBeEqualTo "inst-9"
-        props.captured[PROP_ACTIVITY_TYPE] shouldBeEqualTo "type-x"
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "type-x"
         props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
         props.captured.containsKey(PROP_PAYLOAD).shouldBeFalse()
     }

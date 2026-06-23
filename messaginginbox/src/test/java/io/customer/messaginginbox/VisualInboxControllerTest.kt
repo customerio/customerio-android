@@ -307,4 +307,50 @@ class VisualInboxControllerTest {
 
         verify(exactly = 0) { visualInbox.markMessageOpened(any()) }
     }
+
+    @Test
+    fun dismissMessage_givenVisibleMatch_expectMarkedDeletedOnce() {
+        val messages = listOf(message("a"), message("b"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+
+        VisualInboxController(visualInbox).dismissMessage(visible(messages), "b")
+
+        // The queueId resolves against visible.messages (the same InboxMessage set the UI renders),
+        // so the delete reuses the data-layer plumbing for that exact message.
+        verify(exactly = 1) { visualInbox.markMessageDeleted(match { it.queueId == "b" }) }
+        verify(exactly = 0) { visualInbox.markMessageDeleted(match { it.queueId == "a" }) }
+    }
+
+    @Test
+    fun dismissMessage_calledTwiceSameId_expectDeletedOnce() {
+        val messages = listOf(message("a"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        val controller = VisualInboxController(visualInbox)
+
+        // A duplicate action event (e.g. double-tap before the store removes the row) must not
+        // issue a second delete (dedupe guard).
+        controller.dismissMessage(visible(messages), "a")
+        controller.dismissMessage(visible(messages), "a")
+
+        verify(exactly = 1) { visualInbox.markMessageDeleted(any()) }
+    }
+
+    @Test
+    fun dismissMessage_givenUnknownId_expectNoOp() {
+        val messages = listOf(message("a"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+
+        VisualInboxController(visualInbox).dismissMessage(visible(messages), "missing")
+
+        verify(exactly = 0) { visualInbox.markMessageDeleted(any()) }
+    }
+
+    @Test
+    fun dismissMessage_givenHidden_expectNoOp() {
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+
+        VisualInboxController(visualInbox).dismissMessage(InboxVisibility.Hidden("x"), "a")
+
+        verify(exactly = 0) { visualInbox.markMessageDeleted(any()) }
+    }
 }

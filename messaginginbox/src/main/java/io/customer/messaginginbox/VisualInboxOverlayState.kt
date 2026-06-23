@@ -56,6 +56,12 @@ internal class VisualInboxController(
     private val markedOpenedQueueIds = HashSet<String>()
     private val markInFlight = AtomicBoolean(false)
 
+    // Dedupe guard for dismiss (mark-deleted), mirroring the mark-opened guards above: queueIds
+    // already dismissed in this session, plus an in-flight flag so a duplicate action event (e.g. a
+    // double-tap before the store re-emits and removes the row) does not issue a second delete.
+    private val deletedQueueIds = HashSet<String>()
+    private val deleteInFlight = AtomicBoolean(false)
+
     /**
      * Reactive stream of UI snapshots. Merges two sources, distinguished by whether the emission
      * may FETCH:
@@ -146,6 +152,29 @@ internal class VisualInboxController(
                 }
         } finally {
             markInFlight.set(false)
+        }
+    }
+
+    /**
+     * Dismiss (remove) a single message in response to a Jist `dismiss` action, exactly once.
+     * Mirrors [markOpenMessagesOpened]: the [queueId] is resolved against the data layer's
+     * [InboxVisibility.Visible.messages] — the same [io.customer.messaginginapp.gist.data.model.InboxMessage]
+     * set the UI renders — so there is no Jist re-correlation, and the delete reuses the existing
+     * NotificationInbox plumbing via [VisualInbox.markMessageDeleted]. Guarded by [deleteInFlight]
+     * (no re-entry while a dismiss runs) and [deletedQueueIds] (a message dismissed in this session
+     * is never re-deleted, e.g. on a duplicate action event before the row is removed). Removing the
+     * last message empties the list, which the overlay reacts to by auto-closing the panel.
+     */
+    fun dismissMessage(visibility: InboxVisibility, queueId: String) {
+        val visible = visibility as? InboxVisibility.Visible ?: return
+        if (queueId in deletedQueueIds) return
+        if (!deleteInFlight.compareAndSet(false, true)) return
+        try {
+            val message = visible.messages.firstOrNull { it.queueId == queueId } ?: return
+            deletedQueueIds.add(queueId)
+            visualInbox.markMessageDeleted(message)
+        } finally {
+            deleteInFlight.set(false)
         }
     }
 }

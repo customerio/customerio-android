@@ -147,7 +147,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 geofenceId = geofenceId,
                 transition = transition,
                 timestamp = timestamp,
-                userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+                userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() },
+                geofenceName = androidComponent.geofenceRegionStore.getCachedRegionName(geofenceId)
             )
             androidComponent.pendingGeofenceDeliveryStore.append(entry)
             // Anonymous entries can only be delivered via the foreground flush —

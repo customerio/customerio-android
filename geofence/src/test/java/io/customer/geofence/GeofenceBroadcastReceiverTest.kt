@@ -304,6 +304,22 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenCachedRegionName_expectNameOnEntry() = runTest {
+        every { mockStore.getCachedRegionName("biz-geofence") } returns "Coffee Shop"
+        val entrySlot = slot<PendingGeofenceDelivery>()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.geofenceName shouldBeEqualTo "Coffee Shop"
+    }
+
+    @Test
     fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduled() = runTest {
         every { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) } returns false
 

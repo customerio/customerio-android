@@ -568,6 +568,75 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenDeviceRebootedSinceLastRegistration_expectAllBusinessReRegistered() = runTest {
+        // Uptime regressed => device rebooted => GMS dropped every geofence. Re-register all
+        // business (empty existing set) even though registeredIds still lists them, covering the
+        // case where the BOOT_COMPLETED receiver never fired.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getLastRegistrationUptime() } returns 10_000L
+        every { clock.elapsedRealtime() } returns 5_000L
+        coEvery { apiService.fetchGeofences() } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured.shouldBeEmpty()
+    }
+
+    @Test
+    fun refresh_givenNoRebootAndBusinessUnchanged_expectBusinessKept() = runTest {
+        // Uptime advanced normally => no reboot => trust registeredIds and keep the unchanged
+        // business geofence (skip re-upsert).
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getLastRegistrationUptime() } returns 5_000L
+        every { clock.elapsedRealtime() } returns 10_000L
+        coEvery { apiService.fetchGeofences() } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refresh_givenFreshCacheButRebooted_expectLocalReRegisterInsteadOfSkip() = runTest {
+        // Reboot after a fresh-cache launch: time-fresh + ranking-fresh + registeredIds intact would
+        // normally SKIP, but GMS was wiped by the reboot. Uptime regression forces a LOCAL re-register
+        // (no network) instead of leaving nothing monitored.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getLastRegistrationUptime() } returns 10_000L
+        every { clock.elapsedRealtime() } returns 5_000L
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { apiService.fetchGeofences() }
+        coVerify(exactly = 1) { manager.replaceGeofences(any(), any()) }
+        existingSlot.captured.shouldBeEmpty()
+    }
+
+    @Test
     fun refresh_givenAddSucceedsButStaleRemovalFails_expectUnremovedStalePreserved() = runTest {
         // Order: add succeeds, then stale removal fails. The new batch is registered
         // and we treat the sync as successful — but we must preserve the unremoved

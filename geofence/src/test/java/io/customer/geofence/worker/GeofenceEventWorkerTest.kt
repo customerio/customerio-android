@@ -47,9 +47,10 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         geofenceId: String,
         transition: Event.GeofenceTransition,
         timestamp: Long = 0L,
-        userId: String? = "user-42"
+        userId: String? = "user-42",
+        geofenceName: String? = null
     ): PendingGeofenceDelivery =
-        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId)
+        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, geofenceName)
             .also { store.append(it) }
 
     @Test
@@ -63,6 +64,17 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 1) { tracker.trackEvent(entry) }
         store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun doWork_givenGeofenceNameInInput_expectNameOnTrackedEntry() = runTest {
+        val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L, geofenceName = "Coffee Shop")
+        val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42", geofenceName = "Coffee Shop")
+        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
+
+        createWorker(inputData).doWork()
+
+        coVerify(exactly = 1) { tracker.trackEvent(entry) }
     }
 
     @Test
@@ -164,13 +176,15 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         geofenceId: String?,
         transition: String?,
         timestamp: Long = 0L,
-        userId: String? = "user-42"
+        userId: String? = "user-42",
+        geofenceName: String? = null
     ): Data {
         val builder = Data.Builder()
             .putLong("timestamp", timestamp)
         geofenceId?.let { builder.putString("geofence_id", it) }
         transition?.let { builder.putString("transition", it) }
         userId?.let { builder.putString("user_id", it) }
+        geofenceName?.let { builder.putString("geofence_name", it) }
         return builder.build()
     }
 

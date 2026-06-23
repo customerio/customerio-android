@@ -67,6 +67,20 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun getCachedRegionName_givenCachedId_expectName() {
+        store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee")))
+
+        store.getCachedRegionName("biz-1") shouldBeEqualTo "Coffee"
+    }
+
+    @Test
+    fun getCachedRegionName_givenUnknownId_expectNull() {
+        store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee")))
+
+        store.getCachedRegionName("biz-missing") shouldBeEqualTo null
+    }
+
+    @Test
     fun saveCachedRegions_givenSubsequentSave_expectOverwrite() {
         store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 0.0, 0.0, 50f)))
         val replacement = listOf(GeofenceRegion("biz-2", 1.0, 2.0, 75f))
@@ -98,6 +112,18 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveRegisteredIds(emptySet())
 
         store.getRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun getLastRegistrationUptime_givenNothingStored_expectNull() {
+        store.getLastRegistrationUptime().shouldBeNull()
+    }
+
+    @Test
+    fun setLastRegistrationUptime_thenGet_expectRoundTrip() {
+        store.setLastRegistrationUptime(123_456L)
+
+        store.getLastRegistrationUptime() shouldBeEqualTo 123_456L
     }
 
     // --- Cached config ---
@@ -263,6 +289,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveRegisteredIds(setOf("biz-1"))
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
+        store.setLastRegistrationUptime(99_999L)
         store.setLastSyncTimestamp(12_345L)
 
         store.clearUserScopedState()
@@ -271,6 +298,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getRegisteredIds().shouldBeEmpty()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
+        store.getLastRegistrationUptime().shouldBeNull()
         // Workspace-level: preserved.
         store.getCachedRegions() shouldBeEqualTo regions
         store.getCachedConfig() shouldBeEqualTo config

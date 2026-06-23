@@ -48,8 +48,15 @@ internal interface GeofenceRegionStore {
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
 
+    /** Name of the cached region with [id], or null if it isn't cached. */
+    fun getCachedRegionName(id: String): String? = getCachedRegions().find { it.id == id }?.name
+
     fun saveRegisteredIds(ids: Set<String>)
     fun getRegisteredIds(): Set<String>
+
+    /** Device uptime at the last successful OS registration; null if never registered. Drives reboot detection. */
+    fun getLastRegistrationUptime(): Long?
+    fun setLastRegistrationUptime(uptimeMs: Long)
 
     fun saveCachedConfig(config: GeofenceConfig)
     fun getCachedConfig(): GeofenceConfig?
@@ -98,6 +105,14 @@ internal class GeofenceRegionStoreImpl(
     override fun getRegisteredIds(): Set<String> =
         readJson(KEY_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
+    override fun getLastRegistrationUptime(): Long? = prefs.read {
+        if (contains(KEY_LAST_REGISTRATION_UPTIME)) getLong(KEY_LAST_REGISTRATION_UPTIME, 0L) else null
+    }
+
+    override fun setLastRegistrationUptime(uptimeMs: Long) {
+        prefs.edit { putLong(KEY_LAST_REGISTRATION_UPTIME, uptimeMs) }
+    }
+
     override fun saveCachedConfig(config: GeofenceConfig) =
         writeJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer(), config)
 
@@ -133,6 +148,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_LAST_API_FETCH_LOCATION)
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             remove(KEY_REGISTERED_IDS)
+            remove(KEY_LAST_REGISTRATION_UPTIME)
         }
     }
 
@@ -183,6 +199,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"
         const val KEY_LAST_SYNC = "last_sync_timestamp"
+        const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
         const val CRYPTO_KEY_ALIAS = "cio_geofence_location_key"
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())

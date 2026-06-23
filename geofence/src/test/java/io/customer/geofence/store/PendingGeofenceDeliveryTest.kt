@@ -63,6 +63,21 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
+    fun toEventProperties_givenGeofenceName_expectNamePresent() {
+        val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 50L, "user-A", geofenceName = "Ferry Building")
+
+        entry.toEventProperties()["geofence_name"] shouldBeEqualTo "Ferry Building"
+    }
+
+    @Test
+    fun toEventProperties_givenNullGeofenceName_expectNameOmitted() {
+        // Region not in the cached set => omit the property rather than send a synthetic value.
+        val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 50L, "user-A", geofenceName = null)
+
+        entry.toEventProperties().keys shouldNotContain "geofence_name"
+    }
+
+    @Test
     fun toGeofenceTransitionEvent_givenSecondsTimestamp_expectEventTimestampInMillis() {
         // `timestamp` is unix seconds; `Event.timestamp` is a `Date` (millis).
         // The conversion lives on the data class so no caller can hand-roll

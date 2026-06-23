@@ -22,7 +22,9 @@ internal data class PendingGeofenceDelivery(
     val transition: Event.GeofenceTransition,
     /** Unix epoch **seconds** at receiver time. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
-    val userId: String?
+    val userId: String?,
+    /** Null when the fired geofence isn't in the cached region set. */
+    val geofenceName: String? = null
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String get() = "${geofenceId}_${transition.name}_$timestamp"
 
@@ -32,6 +34,7 @@ internal data class PendingGeofenceDelivery(
      * flush all build an identical property set.
      */
     fun toEventProperties(): Map<String, Any> = buildMap {
+        geofenceName?.let { put("geofence_name", it) }
         put("geofence_id", geofenceId)
         put("transition_type", transition.name.lowercase())
         put("timestamp", timestamp)

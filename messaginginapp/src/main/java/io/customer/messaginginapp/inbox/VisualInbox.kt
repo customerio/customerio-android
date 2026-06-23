@@ -9,6 +9,9 @@ import io.customer.messaginginapp.inbox.data.InboxVisibility
 import io.customer.messaginginapp.inbox.jist.JistInboxAdapter
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
 import io.customer.messaginginapp.state.InAppMessagingManager
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * Data-layer entry point that the visual notification inbox overlay reads from.
@@ -37,6 +40,29 @@ class VisualInbox internal constructor(
     val isEnabled: Boolean
         get() = inAppMessagingManager.getCurrentState().isInboxEnabled
 
+    /**
+     * Reactive signal that fires on each distinct change to a store input that can alter the
+     * inbox's visibility or unread count: the enablement gate or the inbox message set
+     * (including opened-state changes). Backed by the store's StateFlow, so it emits the
+     * current value immediately on collection (a late-mounting overlay still gets latest state).
+     * The overlay maps each emission to a fresh read of CACHED state via [getVisibility] /
+     * [getSelectedMessages]; this never triggers a network fetch.
+     */
+    fun observeInboxChanges(): Flow<Unit> =
+        inAppMessagingManager.state
+            .map { state -> InboxStateKey(state.isInboxEnabled, state.inboxMessages) }
+            .distinctUntilChanged()
+            .map { }
+
+    /**
+     * Companion to [observeInboxChanges] that fires when a templates/branding fetch cycle
+     * completes. It closes a reactive gap: a fetch populates the cache WITHOUT changing
+     * `isInboxEnabled` or `inboxMessages`, so [observeInboxChanges] would not re-emit and an
+     * overlay that computed Hidden on the enablement flip would stay Hidden. Re-reading cached
+     * state on this emission lets it transition Hidden -> Visible. Does NOT trigger a fetch.
+     */
+    fun observeContentChanges(): Flow<Unit> = repository.observeContentChanges()
+
     val isInboxVisible: Boolean
         get() = repository.isInboxVisible
 
@@ -61,3 +87,13 @@ class VisualInbox internal constructor(
     fun trackMessageClicked(message: InboxMessage, actionName: String? = null) =
         notificationInbox.trackMessageClicked(message, actionName)
 }
+
+/**
+ * Equality key for [VisualInbox.observeInboxChanges]: the store inputs whose change can alter
+ * the visual inbox's visibility or unread count. Used with `distinctUntilChanged` so the overlay
+ * only re-reads cached state when something it cares about actually changed.
+ */
+private data class InboxStateKey(
+    val isInboxEnabled: Boolean,
+    val inboxMessages: Set<InboxMessage>
+)

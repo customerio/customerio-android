@@ -7,6 +7,13 @@ object Dependencies {
     const val androidxTestRunner = "androidx.test:runner:${Versions.ANDROIDX_TEST_RUNNER}"
     const val androidxTestRules = "androidx.test:rules:${Versions.ANDROIDX_TEST_RULES}"
 
+    // Core library desugaring: required because Jist (io.customer.android:jist) uses java.time.
+    const val coreLibraryDesugaring =
+        "com.android.tools:desugar_jdk_libs:${Versions.DESUGAR_JDK_LIBS}"
+
+    // Jist rendering engine (published Maven Central artifact).
+    const val jist = "io.customer.android:jist:${Versions.JIST}"
+
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"

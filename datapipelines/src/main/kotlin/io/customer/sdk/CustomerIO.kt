@@ -146,13 +146,13 @@ class CustomerIO private constructor(
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
         // republish profile/anonymous events for late-added modules
-        postUserIdentificationEvents()
+        publishUserChanged(analytics.userId())
     }
 
-    private fun postUserIdentificationEvents() {
-        val userId = analytics.userId()
-        val anonymousId = analytics.anonymousId()
-        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId))
+    /** Persists the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
+    private fun publishUserChanged(userId: String?) {
+        secureUserStore.saveUserId(userId)
+        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
     }
 
     private fun subscribeToJourneyEvents() {
@@ -164,11 +164,6 @@ class CustomerIO private constructor(
         }
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
-        }
-        // Cache user identity encrypted for direct API calls (WorkManager workers,
-        // BroadcastReceivers) that run without full SDK initialization.
-        eventBus.subscribe<Event.UserChangedEvent> {
-            secureUserStore.saveUserId(it.userId)
         }
         eventBus.subscribe<Event.ResetEvent> {
             secureUserStore.clearAll()
@@ -307,10 +302,9 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
-        // publish event to EventBus for other modules to consume
-        // Must come after analytics.identify() so that analytics.userId() returns the
-        // new userId when downstream subscribers (e.g. location resync) gate on it.
-        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
+        // Publish for other modules. Must come after analytics.identify() so analytics.userId()
+        // returns the new userId for subscribers that gate on it (e.g. location resync).
+        publishUserChanged(userId)
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")

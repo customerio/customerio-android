@@ -372,11 +372,12 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }
-        // Clear OS-side FIRST, then wipe user-specific store state. On
+        // Clear OS-side FIRST, then wipe user-scoped store state. On
         // manager.clearAll failure preserve everything so the next refresh's
         // stale-cleanup diff retries removal — without it, unremoved OS regs
-        // orphan with no record to drive cleanup. Workspace cache (regions,
-        // config, lastSync) is always preserved.
+        // orphan with no record to drive cleanup. Cached regions/config are
+        // kept; the freshness timestamp is dropped (in clearUserScopedState)
+        // so the next login re-fetches.
         manager.clearAll().also { result ->
             if (result.isSuccess) {
                 store.clearUserScopedState()

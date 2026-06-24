@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -56,6 +57,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -65,6 +67,7 @@ import io.customer.jist.JistMode
 import io.customer.jist.JistView
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.inbox.VisualInbox
+import io.customer.messaginginapp.inbox.data.Branding
 import io.customer.messaginginapp.inbox.data.InboxVisibility
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
 import io.customer.sdk.core.di.SDKComponent
@@ -96,7 +99,7 @@ fun NotificationInboxBell(
 
     InboxBellContent(
         unopenedCount = state.unopenedCount,
-        colors = rememberInboxColors(),
+        colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding),
         onClick = onClick,
         modifier = modifier
     )
@@ -118,9 +121,13 @@ fun NotificationInboxView(
     modifier: Modifier = Modifier
 ) {
     val controller = rememberInboxController()
+    // Collect state for branding-driven chrome colors (the bell/overlay do the same); InboxListContent
+    // collects its own state for the message list.
+    val state by remember(controller) { controller.uiStateFlow() }
+        .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
     InboxListContent(
         controller = controller,
-        colors = rememberInboxColors(),
+        colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding),
         modifier = modifier.fillMaxSize()
     )
 }
@@ -185,7 +192,7 @@ internal fun NotificationInboxOverlay(
         return
     }
 
-    val colors = rememberInboxColors()
+    val colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding)
 
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -212,7 +219,7 @@ internal fun NotificationInboxOverlay(
 
         // Slide-out hovering panel: a floating card (margins on all sides, rounded corners) wrapping
         // the inbox list. Aligned top-end so its top margin is honored.
-        val panelShape = RoundedCornerShape(PANEL_CORNER_RADIUS)
+        val panelShape = RoundedCornerShape(colors.cornerRadius)
         AnimatedVisibility(
             visible = panelExpanded,
             enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
@@ -279,7 +286,7 @@ private fun InboxBellContent(
             Image(
                 painter = painterResource(id = R.drawable.cio_inbox_notifications),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(Color.White)
+                colorFilter = ColorFilter.tint(colors.bellIconColor)
             )
         }
 
@@ -510,35 +517,110 @@ private fun rememberInboxController(): VisualInboxController = remember {
     )
 }
 
-/** Chrome colors resolved from the host app theme (with dark-mode-aware fallbacks). */
+/** Resolved chrome colors for the overlay. See [rememberInboxColors] for the resolution order. */
 private data class InboxColors(
     val bellColor: Color,
+    val bellIconColor: Color,
     val panelColor: Color,
     val textColorPrimary: Color,
     val dividerColor: Color,
-    val badgeColor: Color
+    val badgeColor: Color,
+    val cornerRadius: Dp
 )
 
+/**
+ * Resolves the overlay's chrome colors, driven by backend branding so they are configurable per
+ * workspace across all consumer apps. Every value is resolved in this priority order, with the
+ * literals serving only as a last-resort floor:
+ *   1. `patterns.modes.dark.inbox.*` — dark mode only, AND only when the workspace configured a
+ *      dark palette (`patterns.modes.dark` is OPTIONAL; absent in many workspaces),
+ *   2. `patterns.inbox.*` — the workspace's configured (light) inbox chrome,
+ *   3. the host app's Android theme attr (`colorAccent` / `colorBackground` / `textColor*`),
+ *   4. a literal default.
+ */
 @Composable
-private fun rememberInboxColors(): InboxColors {
+private fun rememberInboxColors(branding: Branding? = null): InboxColors {
     val isDarkTheme = isSystemInDarkTheme()
+    // Tier 3 (host theme) fallbacks, used when the workspace has not configured the branding token.
+    val accent = rememberThemeColor(android.R.attr.colorAccent, Color(0xFF3451FF))
+    val surface = rememberThemeColor(
+        android.R.attr.colorBackground,
+        if (isDarkTheme) Color(0xFF121212) else Color.White
+    )
+    val textPrimary = rememberThemeColor(
+        android.R.attr.textColorPrimary,
+        if (isDarkTheme) Color.White else Color.Black
+    )
     val textColorSecondary = rememberThemeColor(
         android.R.attr.textColorSecondary,
         if (isDarkTheme) Color.LightGray else Color.DarkGray
     )
-    return InboxColors(
-        bellColor = rememberThemeColor(android.R.attr.colorAccent, Color(0xFF3451FF)),
-        panelColor = rememberThemeColor(
-            android.R.attr.colorBackground,
-            if (isDarkTheme) Color(0xFF121212) else Color.White
-        ),
-        textColorPrimary = rememberThemeColor(
-            android.R.attr.textColorPrimary,
-            if (isDarkTheme) Color.White else Color.Black
-        ),
-        dividerColor = textColorSecondary.copy(alpha = 0.12f),
-        badgeColor = Color(0xFFE53935)
-    )
+
+    return remember(branding, isDarkTheme, accent, surface, textPrimary, textColorSecondary) {
+        val light = branding?.inboxChrome
+        // Dark overrides are an OPTIONAL raw map (shape mirrors patterns.inbox, nested under
+        // modes.dark.inbox). Only consulted in dark mode; absent workspaces fall through to `light`.
+        val dark: Map<*, *>? =
+            if (isDarkTheme) branding?.patterns?.modes?.dark?.get("inbox") as? Map<*, *> else null
+
+        val bellColor = dark.childStr("floatingIcon", "background").toColorOrNull()
+            ?: light?.floatingIcon?.background.toColorOrNull()
+            ?: accent
+        val bellIconColor = dark.childStr("floatingIcon", "color").toColorOrNull()
+            ?: light?.floatingIcon?.color.toColorOrNull()
+            // Final fallback: contrast against the resolved bell so a light accent (e.g. Samsung One
+            // UI resolves colorAccent to white) never yields a white icon on a white bell.
+            ?: if (bellColor.luminance() > 0.5f) Color.Black else Color.White
+        val panelColor = dark.str("background").toColorOrNull()
+            ?: light?.background.toColorOrNull()
+            ?: surface
+        val dividerColor = (dark.str("dividerColor") ?: dark.str("borderColor")).toColorOrNull()
+            ?: (light?.dividerColor ?: light?.borderColor).toColorOrNull()
+            ?: textColorSecondary.copy(alpha = 0.12f)
+        val badgeColor = dark.childStr("unreadIndicator", "background").toColorOrNull()
+            ?: light?.unreadIndicator?.background.toColorOrNull()
+            ?: Color(0xFFE53935)
+        val cornerRadius = light?.cornerRadius?.dp ?: PANEL_CORNER_RADIUS
+
+        InboxColors(
+            bellColor = bellColor,
+            bellIconColor = bellIconColor,
+            panelColor = panelColor,
+            textColorPrimary = textPrimary,
+            dividerColor = dividerColor,
+            badgeColor = badgeColor,
+            cornerRadius = cornerRadius
+        )
+    }
+}
+
+/** Reads a top-level String value from a raw branding (dark-mode override) map, or null. */
+private fun Map<*, *>?.str(key: String): String? = this?.get(key) as? String
+
+/** Reads a String from a nested child object of a raw branding (dark-mode override) map, or null. */
+private fun Map<*, *>?.childStr(child: String, key: String): String? =
+    (this?.get(child) as? Map<*, *>)?.get(key) as? String
+
+/**
+ * Parses a branding hex color string (`#RRGGBB` or `#RRGGBBAA`, CSS byte order) into a Compose
+ * [Color], or null when the value is absent / malformed so callers fall through to the next tier.
+ */
+private fun String?.toColorOrNull(): Color? {
+    val hex = this?.trim()?.removePrefix("#") ?: return null
+    return try {
+        when (hex.length) {
+            6 -> Color(0xFF000000L or hex.toLong(16))
+            8 -> {
+                val rgba = hex.toLong(16)
+                val alpha = rgba and 0xFF
+                val rgb = rgba ushr 8
+                Color((alpha shl 24) or rgb)
+            }
+            else -> null
+        }
+    } catch (_: NumberFormatException) {
+        null
+    }
 }
 
 @Composable

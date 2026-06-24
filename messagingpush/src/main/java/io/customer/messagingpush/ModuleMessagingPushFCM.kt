@@ -75,7 +75,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     /**
      * Starts a live notification locally for a customer-defined [activityType]
-     * (one registered via [MessagingPushModuleConfig.Builder.registerLiveNotificationTypes]).
+     * (one enabled via [MessagingPushModuleConfig.Builder.enableLiveNotificationTypes]).
      * Custom types have no built-in template, so a
      * [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification]
      * must render them.
@@ -88,21 +88,6 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         SDKComponent.liveNotificationManager.start(activityId, activityType, data)
         return activityId
     }
-
-    /**
-     * Registers a push-to-start token for [activityType] on demand so Customer.io
-     * can remotely start a live notification of that type.
-     *
-     * The SDK already auto-registers every type enabled via
-     * [MessagingPushModuleConfig.Builder.setLiveNotificationTypes] whenever the
-     * user or device token changes; this lets the host app (re)register a single
-     * type explicitly. Registration requires an identified user and an available
-     * device token.
-     *
-     * @return true if the registration event was emitted.
-     */
-    fun registerLiveNotificationToken(activityType: String): Boolean =
-        SDKComponent.liveNotificationRegistrar.register(activityType)
 
     private fun subscribeToLifecycleEvents() {
         activityLifecycleCallbacks.subscribe { events ->

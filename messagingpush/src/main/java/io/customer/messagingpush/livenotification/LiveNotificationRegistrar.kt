@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Sends `register_push_to_start` track events for the live-notification activity
- * types the host app enabled via `MessagingPushModuleConfig.setLiveNotificationTypes`.
+ * types the host app enabled via `MessagingPushModuleConfig.enableLiveNotificationTypes`.
  * No types enabled ⇒ nothing is registered.
  *
  * Registration is (re)attempted whenever the device token rotates
@@ -73,28 +73,6 @@ internal class LiveNotificationRegistrar(
             identified = false
             store.clearRegistrations()
         }
-    }
-
-    /**
-     * Registers [activityType] immediately on-demand, independent of the
-     * auto-registration dedup (the host app explicitly asked). Uses the freshest
-     * device token (the registrar's, falling back to the persisted token).
-     * Returns true if the `register_push_to_start` event was emitted (a token is
-     * available and the user is identified).
-     */
-    fun register(activityType: String): Boolean {
-        val currentToken = token ?: SDKComponent.android().globalPreferenceStore.getDeviceToken()
-        if (currentToken.isNullOrBlank()) {
-            SDKComponent.logger.debug(
-                "No FCM token available yet; cannot register live notification type '$activityType'."
-            )
-            return false
-        }
-        val emitted = client.registerPushToStart(activityType, currentToken)
-        if (emitted) {
-            store.setRegistrationSignature(activityType, "$currentToken|$userId")
-        }
-        return emitted
     }
 
     /**

@@ -35,9 +35,9 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder :
 	public fun <init> ()V
 	public fun build ()Lio/customer/messagingpush/MessagingPushModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public final fun enableLiveNotificationTypes ([Ljava/lang/String;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setLiveNotificationBranding (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
-	public final fun setLiveNotificationTypes ([Ljava/lang/String;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setPushClickBehavior (Lio/customer/messagingpush/config/PushClickBehavior;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 }
@@ -54,7 +54,6 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V
-	public final fun registerLiveNotificationToken (Ljava/lang/String;)Z
 	public final fun startLiveNotification (Lio/customer/messagingpush/livenotification/LiveNotificationData;)Ljava/lang/String;
 	public final fun startLiveNotification (Ljava/lang/String;Ljava/util/Map;)Ljava/lang/String;
 }

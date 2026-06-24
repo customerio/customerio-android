@@ -35,7 +35,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
             MessagingPushModuleConfig.Builder().apply {
                 callback?.let { setNotificationCallback(it) }
                 // Enable a built-in type (for the override test) and the custom type.
-                setLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING, customType)
+                enableLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING, customType)
             }.build()
         ).attachToSDKComponent()
     }

@@ -86,7 +86,7 @@ class MessagingPushModuleConfig private constructor(
          *
          * @param types reverse-DNS activity type identifiers to enable.
          */
-        fun setLiveNotificationTypes(vararg types: String): Builder {
+        fun enableLiveNotificationTypes(vararg types: String): Builder {
             this.liveNotificationTypes = types.toSet()
             return this
         }

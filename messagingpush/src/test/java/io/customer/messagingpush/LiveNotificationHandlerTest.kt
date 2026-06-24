@@ -44,7 +44,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         super.setup(testConfig)
         // Live notifications are opt-in; enable all built-in types so the dispatch tests run.
         ModuleMessagingPushFCM(
-            MessagingPushModuleConfig.Builder().setLiveNotificationTypes(
+            MessagingPushModuleConfig.Builder().enableLiveNotificationTypes(
                 LiveNotificationType.DELIVERY_TRACKING,
                 LiveNotificationType.FLIGHT_STATUS,
                 LiveNotificationType.LIVE_SCORE,

@@ -77,20 +77,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private final Handler autoHandler = new Handler(Looper.getMainLooper());
     private boolean isAutoRunning = false;
     private int selectedCampaignIndex = 0;
-    private int selectedRegisterIndex = 0;
     private CustomerIORepository customerIORepository;
-
-    // Every type the SDK was configured to support (see CustomerIORepository), offered for
-    // on-demand push-to-start registration. Order must match the register dropdown labels.
-    private static final String[] REGISTER_ACTIVITY_TYPES = {
-            ACTIVITY_TYPE_DELIVERY_TRACKING,
-            ACTIVITY_TYPE_FLIGHT_STATUS,
-            ACTIVITY_TYPE_LIVE_SCORE,
-            ACTIVITY_TYPE_COUNTDOWN_TIMER,
-            ACTIVITY_TYPE_AUCTION_BID,
-            ACTIVITY_TYPE_RIDESHARE,
-            ACTIVITY_TYPE_WORKOUT
-    };
 
     @Override
     protected ActivityLiveNotificationDemoBinding inflateViewBinding() {
@@ -115,9 +102,6 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
         setupCampaignDropdown();
         binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
-
-        setupRegisterDropdown();
-        binding.registerTokenButton.setOnClickListener(v -> registerSelectedType());
 
         binding.typeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (isActive) {
@@ -433,45 +417,6 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     }
 
     // --- On-demand push-to-start registration ---
-
-    private void setupRegisterDropdown() {
-        String[] labels = {
-                getString(R.string.live_notification_type_delivery_tracking),
-                getString(R.string.live_notification_type_flight_status),
-                getString(R.string.live_notification_type_live_score),
-                getString(R.string.live_notification_type_countdown_timer),
-                getString(R.string.live_notification_type_auction_bid),
-                getString(R.string.live_notification_type_rideshare),
-                getString(R.string.live_notification_type_workout)
-        };
-        ArrayAdapter<String> adapter =
-                new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
-        binding.registerTypeDropdown.setAdapter(adapter);
-        binding.registerTypeDropdown.setText(labels[selectedRegisterIndex], false);
-        binding.registerTypeDropdown.setOnItemClickListener(
-                (parent, view, position, id) -> selectedRegisterIndex = position);
-    }
-
-    /**
-     * Registers a push-to-start token for the selected activity type via the public
-     * {@link ModuleMessagingPushFCM#registerLiveNotificationToken(String)} API. This is on top
-     * of the automatic registration of every enabled type the SDK performs at login / token
-     * refresh — it lets you (re)register a single type on demand.
-     */
-    private void registerSelectedType() {
-        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
-        if (module == null) return;
-        String activityType = REGISTER_ACTIVITY_TYPES[selectedRegisterIndex];
-        boolean emitted = module.registerLiveNotificationToken(activityType);
-        int message = emitted
-                ? R.string.live_notification_register_success
-                : R.string.live_notification_register_failed;
-        Snackbar.make(
-                binding.registerTokenButton,
-                getString(message, activityType),
-                Snackbar.LENGTH_SHORT
-        ).show();
-    }
 
     // --- Campaign trigger ---
 

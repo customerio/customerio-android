@@ -158,7 +158,7 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
 
     companion object {
         // Custom activity types (not built-in). Must also be passed to
-        // MessagingPushModuleConfig.Builder.setLiveNotificationTypes(...) to be enabled.
+        // MessagingPushModuleConfig.Builder.enableLiveNotificationTypes(...) to be enabled.
         const val ACTIVITY_TYPE_RIDESHARE = "io.customer.liveactivities.custom.rideshare"
         const val ACTIVITY_TYPE_WORKOUT = "io.customer.liveactivities.custom.workout"
 

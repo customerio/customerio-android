@@ -50,14 +50,15 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
-    fun toEventProperties_expectOnlyGeofenceTransitionAndTimestamp() {
+    fun toEventProperties_expectTransitionAndGeofenceIdNoTimestamp() {
         val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 50L, "user-A")
 
         val props = entry.toEventProperties()
 
-        props["geofence_id"] shouldBeEqualTo "biz-4"
-        props["transition_type"] shouldBeEqualTo "enter"
-        props["timestamp"] shouldBeEqualTo 50L
+        props["geofenceId"] shouldBeEqualTo "biz-4"
+        props["transition"] shouldBeEqualTo "enter"
+        // Timestamp rides the event envelope, not the properties.
+        props.keys shouldNotContain "timestamp"
         props.keys shouldNotContain "latitude"
         props.keys shouldNotContain "longitude"
     }
@@ -66,7 +67,7 @@ class PendingGeofenceDeliveryTest {
     fun toEventProperties_givenGeofenceName_expectNamePresent() {
         val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 50L, "user-A", geofenceName = "Ferry Building")
 
-        entry.toEventProperties()["geofence_name"] shouldBeEqualTo "Ferry Building"
+        entry.toEventProperties()["geofenceName"] shouldBeEqualTo "Ferry Building"
     }
 
     @Test
@@ -74,7 +75,7 @@ class PendingGeofenceDeliveryTest {
         // Region not in the cached set => omit the property rather than send a synthetic value.
         val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 50L, "user-A", geofenceName = null)
 
-        entry.toEventProperties().keys shouldNotContain "geofence_name"
+        entry.toEventProperties().keys shouldNotContain "geofenceName"
     }
 
     @Test

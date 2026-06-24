@@ -49,27 +49,28 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         capturedParams.captured.path shouldBeEqualTo "/track"
         val body = JSONObject(capturedParams.captured.body.shouldNotBeNull())
-        body.getString("event") shouldBeEqualTo "geofence_entered"
+        body.getString("event") shouldBeEqualTo "Geofence Transition"
         body.getString("userId") shouldBeEqualTo "user-42"
         body.getString("timestamp") shouldBeEqualTo "2009-02-13T23:31:30.000Z"
         val props = body.getJSONObject("properties")
-        props.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
-        props.getString("transition_type") shouldBeEqualTo "enter"
-        props.getLong("timestamp") shouldBeEqualTo 1_234_567_890L
+        props.getString("geofenceId") shouldBeEqualTo "biz-geofence-1"
+        props.getString("transition") shouldBeEqualTo "enter"
+        // Timestamp lives on the envelope (asserted above), not in properties.
+        props.has("timestamp") shouldBeEqualTo false
         props.has("latitude") shouldBeEqualTo false
         props.has("longitude") shouldBeEqualTo false
     }
 
     @Test
-    fun trackEvent_givenExitTransition_expectExitedEventName() = runTest {
+    fun trackEvent_givenExitTransition_expectExitTransitionProperty() = runTest {
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
 
         tracker.trackEvent(entry(transition = Event.GeofenceTransition.EXIT))
 
         val body = JSONObject(capturedParams.captured.body.shouldNotBeNull())
-        body.getString("event") shouldBeEqualTo "geofence_exited"
-        body.getJSONObject("properties").getString("transition_type") shouldBeEqualTo "exit"
+        body.getString("event") shouldBeEqualTo "Geofence Transition"
+        body.getJSONObject("properties").getString("transition") shouldBeEqualTo "exit"
     }
 
     @Test

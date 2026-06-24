@@ -2,7 +2,6 @@ package io.customer.geofence.worker
 
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.store.PendingGeofenceDelivery
-import io.customer.sdk.communication.Event
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
@@ -40,15 +39,10 @@ internal class GeofenceEventTrackerImpl(
             )
         }
 
-        val eventName = when (entry.transition) {
-            Event.GeofenceTransition.ENTER -> EventNames.GEOFENCE_ENTERED
-            Event.GeofenceTransition.EXIT -> EventNames.GEOFENCE_EXITED
-        }
-
         val bodyJson = JSONObject().apply {
             put("properties", JSONObject(entry.toEventProperties()))
             Iso8601TimestampFormatter.fromUnixSeconds(entry.timestamp)?.let { put("timestamp", it) }
-            put("event", eventName)
+            put("event", EventNames.GEOFENCE_TRANSITION)
             put("userId", userId)
         }
 

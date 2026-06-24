@@ -1,0 +1,6 @@
+public final class io/customer/messaginginbox/NotificationInboxOverlayKt {
+	public static final fun NotificationInboxBell (Lkotlin/jvm/functions/Function0;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+	public static final fun NotificationInboxOverlay (Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+	public static final fun NotificationInboxView (Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+}
+

@@ -276,6 +276,15 @@ public final class io/customer/messaginginapp/type/InboxActionMessage {
 
 public abstract interface class io/customer/messaginginapp/type/InboxEventListener {
 	public abstract fun messageActionTaken (Lio/customer/messaginginapp/type/InboxActionMessage;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun messageDismissed (Lio/customer/messaginginapp/type/InboxActionMessage;)V
+	public abstract fun messageOpened (Lio/customer/messaginginapp/type/InboxActionMessage;)V
+	public abstract fun messageShown (Lio/customer/messaginginapp/type/InboxActionMessage;)V
+}
+
+public final class io/customer/messaginginapp/type/InboxEventListener$DefaultImpls {
+	public static fun messageDismissed (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/InboxActionMessage;)V
+	public static fun messageOpened (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/InboxActionMessage;)V
+	public static fun messageShown (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/InboxActionMessage;)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InlineMessageActionListener {

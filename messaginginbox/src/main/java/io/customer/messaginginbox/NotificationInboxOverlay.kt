@@ -60,23 +60,76 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.jist.JistActionEvent
 import io.customer.jist.JistMode
 import io.customer.jist.JistView
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.inbox.VisualInbox
+import io.customer.messaginginapp.inbox.data.InboxVisibility
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.json.JsonObject
 
 /**
- * Drop-in Compose overlay that shows the Customer.io Visual Notification Inbox on top of your app.
+ * Floating notification **bell** (with unread badge) you can place anywhere in your Compose UI —
+ * e.g. a top app bar, a tab, or a corner. The bell appears only when the inbox has something to
+ * show and updates reactively as messages arrive or are read; it renders nothing otherwise.
  *
- * It renders a floating notification bell with an unread badge. Tapping the bell slides out a
- * panel listing the user's inbox messages; tapping outside the panel dismisses it. The bell only
- * appears when there is something to show, and it updates automatically as messages arrive or are
- * read — you do not need to refresh or re-navigate.
+ * Pair it with [NotificationInboxView] (which you present however you like — a sheet, a screen, a
+ * popup) by toggling your own visibility state from [onClick]. For the ready-made floating bell +
+ * slide-out panel, use [NotificationInboxOverlay] instead.
+ *
+ * @param onClick invoked when the user taps the bell (e.g. to show/hide your inbox view).
+ * @param modifier Modifier applied to the bell.
+ */
+@Composable
+fun NotificationInboxBell(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val controller = rememberInboxController()
+    val state by remember(controller) { controller.uiStateFlow() }
+        .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
+
+    // Only show the bell when the data layer reports the inbox renderable (enabled + has messages).
+    if (!state.isVisible) return
+
+    InboxBellContent(
+        unopenedCount = state.unopenedCount,
+        colors = rememberInboxColors(),
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+/**
+ * The Visual Notification Inbox **message list** — the Jist-rendered messages — that you can embed
+ * directly in your own screen (or present in a sheet/dialog). It fills the [modifier] you give it
+ * and brings no surrounding chrome (no card/scrim), so you control the placement and container.
+ *
+ * Showing this view marks the currently-unread messages as opened (mirroring the panel-open
+ * behavior); tapping a message dismisses it or runs its action. For the ready-made floating bell +
+ * slide-out panel, use [NotificationInboxOverlay]; to drive your own bell, use [NotificationInboxBell].
+ *
+ * @param modifier Modifier applied to the list container.
+ */
+@Composable
+fun NotificationInboxView(
+    modifier: Modifier = Modifier
+) {
+    val controller = rememberInboxController()
+    InboxListContent(
+        controller = controller,
+        colors = rememberInboxColors(),
+        modifier = modifier.fillMaxSize()
+    )
+}
+
+/**
+ * Drop-in Compose overlay that shows the Customer.io Visual Notification Inbox on top of your app:
+ * a floating [NotificationInboxBell] pinned bottom-end that slides out a [NotificationInboxView]
+ * panel; tapping outside the panel dismisses it. The bell only appears when there is something to
+ * show, and everything updates automatically as messages arrive or are read.
  *
  * Mount it once near the top of your Compose hierarchy so it overlays the rest of your content:
  * ```
@@ -85,30 +138,22 @@ import kotlinx.serialization.json.JsonObject
  *     NotificationInboxOverlay()
  * }
  * ```
+ * For custom placement (e.g. a bell in your toolbar, or the list embedded in a screen), use
+ * [NotificationInboxBell] and [NotificationInboxView] directly instead.
  *
  * @param modifier Modifier applied to the root overlay container.
  */
-@InternalCustomerIOApi
 @Composable
 fun NotificationInboxOverlay(
     modifier: Modifier = Modifier
 ) {
-    val controller = remember {
-        val module = ModuleMessagingInApp.instance()
-        VisualInboxController(
-            visualInbox = module.visualInbox(),
-            // Host-registered inbox action listener (item 13), mirroring the in-app eventListener;
-            // resolved from the same module config the host built. Null when none was registered.
-            inboxEventListener = module.moduleConfig.inboxEventListener
-        )
-    }
+    val controller = rememberInboxController()
     NotificationInboxOverlay(modifier = modifier, controller = controller)
 }
 
 /**
- * Internal overload that accepts the [VisualInboxController] directly so Compose UI tests can
- * drive the overlay with a fake [VisualInbox]. The public entry point delegates here after
- * resolving the real data layer from the SDK component.
+ * Internal overload that accepts the [VisualInboxController] directly so Compose UI tests can drive
+ * the overlay with a fake [VisualInbox], and so the bell + panel share a single controller/state.
  */
 @Composable
 internal fun NotificationInboxOverlay(
@@ -116,60 +161,31 @@ internal fun NotificationInboxOverlay(
     controller: VisualInboxController
 ) {
     var panelExpanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     // Reactive state: re-derived automatically on every relevant store change (see uiStateFlow),
     // so the bell/panel/badge update with no recomposition or user navigation required.
     // Build the Flow once per controller (not on every recomposition) so collection is stable.
     // collectAsStateWithLifecycle pauses collection while the host is STOPPED (backgrounded / overlay
     // off-screen) and resumes on start, avoiding wasted work when the inbox isn't visible.
-    val uiStateFlow = remember(controller) { controller.uiStateFlow() }
-    val state by uiStateFlow.collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
+    val state by remember(controller) { controller.uiStateFlow() }
+        .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
 
-    // Whether any selected message can actually render (its `type` has a decoded template). A message
-    // whose type has no template is skipped by the list, so when NONE are renderable there is nothing
-    // to show — chrome is hidden (below) rather than left as a bell over a blank panel.
-    val renderTemplates = remember(state.templatesJson) {
-        InboxJistDecoder.decodeTemplates(state.templatesJson)
-    }
-    val hasRenderableMessages = remember(state.messages, renderTemplates) {
-        state.messages.any { it.type in renderTemplates }
-    }
-
-    // When the panel opens, auto-mark the currently-selected unopened messages as opened (exactly
-    // once, via the controller's dedupe + in-flight guard). The mark dispatches a store change,
-    // which re-emits through uiStateFlow above so the messages and unread badge update reactively.
-    LaunchedEffect(panelExpanded, state.visibility) {
-        if (!panelExpanded) return@LaunchedEffect
-        controller.markOpenMessagesOpened(state.visibility)
-    }
-
-    // Auto-close the panel + hide the bell when the inbox is no longer renderable. This matches the
-    // web/iOS model: dismissing the last message empties the list -> the data layer reports the
-    // inbox no longer Visible (or messages becomes empty) -> the panel collapses and the bell
-    // unmounts (see the `isVisible && panelExpanded` guard below). Without this, the panel would
-    // stay open over an empty list after the final dismiss.
-    LaunchedEffect(state.isVisible, hasRenderableMessages) {
-        if (!state.isVisible || !hasRenderableMessages) {
+    // Auto-close the panel + hide the bell when the inbox is no longer renderable. Dismissing the
+    // last message empties the list -> the data layer reports the inbox no longer Visible -> the
+    // panel collapses and the bell unmounts (see the guard below).
+    LaunchedEffect(state.isVisible, state.messages.isEmpty()) {
+        if (!state.isVisible || state.messages.isEmpty()) {
             panelExpanded = false
         }
     }
 
-    // The bell only appears when the inbox is renderable: enabled+Visible per the data layer AND at
-    // least one message has a template to render. When the panel is open we keep the overlay mounted
-    // regardless so the close animation can play out.
-    val canShowChrome = state.isVisible && hasRenderableMessages
-    if (!canShowChrome && !panelExpanded) {
+    // The bell only appears when the inbox is renderable per the data layer. When the panel is open
+    // we keep the overlay mounted regardless so the close animation can play out.
+    if (!state.isVisible && !panelExpanded) {
         return
     }
 
-    val isDarkTheme = isSystemInDarkTheme()
-    val bellColor = rememberThemeColor(android.R.attr.colorAccent, Color(0xFF3451FF))
-    val panelColor = rememberThemeColor(android.R.attr.colorBackground, if (isDarkTheme) Color(0xFF121212) else Color.White)
-    val textColorPrimary = rememberThemeColor(android.R.attr.textColorPrimary, if (isDarkTheme) Color.White else Color.Black)
-    val textColorSecondary = rememberThemeColor(android.R.attr.textColorSecondary, if (isDarkTheme) Color.LightGray else Color.DarkGray)
-    val dividerColor = textColorSecondary.copy(alpha = 0.12f)
-    val badgeColor = Color(0xFFE53935)
+    val colors = rememberInboxColors()
 
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -178,14 +194,13 @@ internal fun NotificationInboxOverlay(
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
         ) {
+            // Full-bleed scrim: dims + captures touches so nothing falls through to host content
+            // behind the open panel; a tap dismisses the panel. No ripple/indication so it doesn't
+            // flash on tap. Dim 0.32 black, matched to iOS.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    // Scrim dim matched to iOS: 0.32 black (was ~0.6) so both platforms dim equally.
                     .background(Color.Black.copy(alpha = 0.32f))
-                    // Full-bleed scrim captures touches so nothing falls through to host content
-                    // behind the open panel; a tap dismisses the panel. No ripple/indication so
-                    // the scrim does not flash on tap.
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -195,99 +210,124 @@ internal fun NotificationInboxOverlay(
             )
         }
 
-        // Slide-out hovering panel. Aligned to the top so its top margin is honored; the panel
-        // itself applies the all-sides margins (it is a floating card, not a full-height sheet).
+        // Slide-out hovering panel: a floating card (margins on all sides, rounded corners) wrapping
+        // the inbox list. Aligned top-end so its top margin is honored.
+        val panelShape = RoundedCornerShape(PANEL_CORNER_RADIUS)
         AnimatedVisibility(
             visible = panelExpanded,
             enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
             exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
-            InboxPanel(
-                state = state,
-                bellColor = bellColor,
-                panelColor = panelColor,
-                textColorPrimary = textColorPrimary,
-                dividerColor = dividerColor,
-                onMessageAction = { message, event ->
-                    // Controller resolves the action (dismiss / track+intercept / default nav) and
-                    // returns a navigation instruction; the overlay (which owns the Context) runs it.
-                    when (val nav = controller.handleAction(state.visibility, message, event)) {
-                        is InboxNavigation.OpenUrl -> openUrlInBrowser(context, nav.url)
-                        InboxNavigation.None -> Unit
-                    }
-                }
+            InboxListContent(
+                controller = controller,
+                colors = colors,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = PANEL_MARGIN,
+                        end = PANEL_MARGIN,
+                        top = PANEL_MARGIN,
+                        bottom = PANEL_BOTTOM_MARGIN
+                    )
+                    .widthIn(max = 480.dp)
+                    .shadow(8.dp, panelShape)
+                    .clip(panelShape)
+                    .background(colors.panelColor)
+                    // Absorb taps inside the card so they don't fall through to the dismiss scrim
+                    // (only the scrim closes the inbox). Tap-only absorber: unlike pointerInput,
+                    // clickable does not eat scroll/drag, so the list still scrolls.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
             )
         }
 
-        // Floating bell button with unread badge.
-        Box(
+        // Floating bell, pinned bottom-end. Tapping toggles the panel.
+        InboxBellContent(
+            unopenedCount = state.unopenedCount,
+            colors = colors,
+            onClick = { panelExpanded = !panelExpanded },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
+        )
+    }
+}
+
+/** The bell circle + unread badge. Pure UI — no data access; callers supply [unopenedCount]. */
+@Composable
+private fun InboxBellContent(
+    unopenedCount: Int,
+    colors: InboxColors,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(56.dp)
+                .shadow(6.dp, CircleShape)
+                .clip(CircleShape)
+                .background(colors.bellColor)
+                .semantics { contentDescription = "Notifications inbox" }
+                .clickable(role = Role.Button, onClick = onClick)
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.cio_inbox_notifications),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(Color.White)
+            )
+        }
+
+        if (unopenedCount > 0) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(56.dp)
-                    .shadow(6.dp, CircleShape)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .semantics { contentDescription = "$unopenedCount unread notifications" }
+                    .heightIn(min = 16.dp)
+                    .widthIn(min = 16.dp)
                     .clip(CircleShape)
-                    .background(bellColor)
-                    .semantics { contentDescription = "Notifications inbox" }
-                    .clickable(
-                        role = Role.Button,
-                        onClick = { panelExpanded = !panelExpanded }
-                    )
+                    .background(colors.badgeColor)
+                    .padding(horizontal = 4.dp)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.cio_inbox_notifications),
-                    contentDescription = null,
-                    colorFilter = ColorFilter.tint(Color.White)
+                BasicText(
+                    text = unopenedCount.toString(),
+                    style = TextStyle(color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 )
-            }
-
-            if (state.unopenedCount > 0) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 4.dp, y = (-4).dp)
-                        .semantics {
-                            contentDescription = "${state.unopenedCount} unread notifications"
-                        }
-                        .heightIn(min = 16.dp)
-                        .widthIn(min = 16.dp)
-                        .clip(CircleShape)
-                        .background(badgeColor)
-                        .padding(horizontal = 4.dp)
-                ) {
-                    BasicText(
-                        text = state.unopenedCount.toString(),
-                        style = TextStyle(
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                }
             }
         }
     }
 }
 
+/**
+ * The inbox content (loading / empty / Jist-rendered list), shared by [NotificationInboxView] and
+ * the [NotificationInboxOverlay] panel. Collects state from [controller], marks shown messages
+ * opened, reports per-message "shown", and routes message actions (dismiss / nav). Fills [modifier]
+ * and brings no card chrome of its own.
+ */
 @Composable
-private fun InboxPanel(
-    state: VisualInboxUiState,
-    bellColor: Color,
-    panelColor: Color,
-    textColorPrimary: Color,
-    dividerColor: Color,
-    onMessageAction: (JistInboxMessage, JistActionEvent) -> Unit,
+private fun InboxListContent(
+    controller: VisualInboxController,
+    colors: InboxColors,
     modifier: Modifier = Modifier
 ) {
-    // Decode the raw render inputs once per visibility change. Templates + theme are stable for
-    // the duration the panel shows a given snapshot.
-    val visible = state.visibility as? io.customer.messaginginapp.inbox.data.InboxVisibility.Visible
+    val context = LocalContext.current
+    val state by remember(controller) { controller.uiStateFlow() }
+        .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
+
+    // While the inbox content is shown, mark the currently-unread messages opened (deduped in the
+    // controller). For the overlay this fires when the panel opens; for a standalone view, on appear.
+    LaunchedEffect(state.visibility) {
+        controller.markOpenMessagesOpened(state.visibility)
+    }
+
+    val visible = state.visibility as? InboxVisibility.Visible
     val templates = remember(state.templatesJson) {
         InboxJistDecoder.decodeTemplates(state.templatesJson)
     }
@@ -295,52 +335,27 @@ private fun InboxPanel(
         InboxJistDecoder.toJsonObject(visible?.branding?.theme)
     }
 
-    val panelShape = RoundedCornerShape(PANEL_CORNER_RADIUS)
-    Box(
-        // Hovering card (matches iOS): margins on ALL sides — 16dp top/horizontal and a larger
-        // bottom inset that clears the floating bell — capped at a max width on large screens, with
-        // rounded corners. Margins are applied outside the shaped panel so the slide-out animation still
-        // translates the full card (corners included) off-screen.
-        modifier = modifier
-            .fillMaxSize()
-            .padding(
-                start = PANEL_MARGIN,
-                end = PANEL_MARGIN,
-                top = PANEL_MARGIN,
-                bottom = PANEL_BOTTOM_MARGIN
+    Column(modifier = modifier) {
+        when {
+            state.loading -> LoadingState(color = colors.bellColor)
+            // Render the list only when fully renderable (Visible + has messages); otherwise empty,
+            // so the list is never fed null templates/theme.
+            visible == null || state.messages.isEmpty() -> EmptyState(textColor = colors.textColorPrimary)
+            else -> InboxMessageList(
+                messages = state.messages,
+                templates = templates,
+                theme = theme,
+                dividerColor = colors.dividerColor,
+                onMessageShown = controller::notifyMessageShown,
+                onMessageAction = { message, event ->
+                    // Controller resolves the action (dismiss / track+intercept / default nav) and
+                    // returns a nav instruction; we (owning the Context) run it.
+                    when (val nav = controller.handleAction(state.visibility, message, event)) {
+                        is InboxNavigation.OpenUrl -> openUrlInBrowser(context, nav.url)
+                        InboxNavigation.None -> Unit
+                    }
+                }
             )
-            .widthIn(max = 480.dp)
-            .shadow(8.dp, panelShape)
-            .clip(panelShape)
-            .background(panelColor)
-            // Absorb taps inside the panel so they don't fall through to the dismiss scrim behind it
-            // (a tap on the panel must NOT close the inbox — only a tap on the scrim does). This is a
-            // tap-only absorber: unlike an all-consuming pointerInput, clickable does NOT eat
-            // scroll/drag gestures, so the LazyColumn below still scrolls. No ripple/indication so
-            // the panel does not flash on tap.
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {}
-            )
-    ) {
-        // No header (title / close button) — matches web. The panel closes via the scrim tap or by
-        // tapping the bell again.
-        Column(modifier = Modifier.fillMaxSize()) {
-            when {
-                state.loading -> LoadingState(bellColor = bellColor)
-                // Render the list only when the inbox is fully renderable (Visible) and has
-                // messages. Anything else (Hidden, or visible-but-no-messages) shows empty so the
-                // list is never fed null templates/theme.
-                visible == null || state.messages.isEmpty() -> EmptyState(textColorPrimary = textColorPrimary)
-                else -> InboxMessageList(
-                    messages = state.messages,
-                    templates = templates,
-                    theme = theme,
-                    dividerColor = dividerColor,
-                    onMessageAction = onMessageAction
-                )
-            }
         }
     }
 }
@@ -351,12 +366,12 @@ private fun InboxMessageList(
     templates: Map<String, List<io.customer.jist.JistTemplate>>,
     theme: JsonObject,
     dividerColor: Color,
+    onMessageShown: (JistInboxMessage) -> Unit,
     onMessageAction: (JistInboxMessage, JistActionEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // No-template fallback (item 16): a message whose `type` has no decoded template can't be
-    // rendered — skip it (do NOT render a blank row) and log so it's diagnosable. Filtering here
-    // (rather than in the data layer) keeps the renderer the single owner of "is this renderable".
+    // rendered — skip it (do NOT render a blank row) and log so it's diagnosable.
     val renderable = remember(messages, templates) {
         messages.filter { message ->
             (message.type in templates).also { hasTemplate ->
@@ -371,12 +386,13 @@ private fun InboxMessageList(
     }
     LazyColumn(modifier = modifier.fillMaxWidth()) {
         items(renderable, key = { it.queueId }) { message ->
+            // Report "shown" once when the row enters composition (controller dedupes per session).
+            LaunchedEffect(message.queueId) { onMessageShown(message) }
             // Decode the per-row Jist data once per message (not on every recomposition).
             val data = remember(message) { InboxJistDecoder.decodeData(message) }
-            // Render each message with Jist: `name` selects the template by message type, `data`
-            // is the message's typed properties, `templates`/`theme` come from the data layer.
-            // `mode = Auto` lets Jist pick light/dark content per the system setting. `formatDate`
-            // turns the decoder's raw ISO dates into web-aligned relative time.
+            // Render with Jist: `name` selects the template by message type, `data` is the typed
+            // properties, `templates`/`theme` come from the data layer, `mode = Auto` follows the
+            // system light/dark setting, `formatDate` renders web-aligned relative time.
             JistView(
                 name = message.type,
                 templates = templates,
@@ -401,9 +417,8 @@ private fun InboxMessageList(
 
 /**
  * Default navigation for a resolved openUrl action (item 12): open [url] in the system browser via
- * an ACTION_VIEW intent. `FLAG_ACTIVITY_NEW_TASK` is set so it works when launched from a non-Activity
- * context (the overlay may be hosted in an application/service context). Robust to a malformed url or
- * a device with no browser: any failure is logged, never crashes.
+ * an ACTION_VIEW intent. `FLAG_ACTIVITY_NEW_TASK` is set so it works from a non-Activity context.
+ * Robust to a malformed url or a device with no browser: any failure is logged, never crashes.
  */
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
     try {
@@ -417,7 +432,7 @@ private fun openUrlInBrowser(context: android.content.Context, url: String) {
 
 @Composable
 private fun LoadingState(
-    bellColor: Color,
+    color: Color,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -427,7 +442,7 @@ private fun LoadingState(
         contentAlignment = Alignment.Center
     ) {
         CustomCircularProgressIndicator(
-            color = bellColor,
+            color = color,
             modifier = Modifier.semantics {
                 contentDescription = "Loading inbox"
                 progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
@@ -438,7 +453,7 @@ private fun LoadingState(
 
 @Composable
 private fun EmptyState(
-    textColorPrimary: Color,
+    textColor: Color,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -449,11 +464,7 @@ private fun EmptyState(
     ) {
         BasicText(
             text = "No notifications yet",
-            style = TextStyle(
-                color = textColorPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Normal
-            ),
+            style = TextStyle(color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Normal),
             modifier = Modifier.semantics { contentDescription = "Inbox empty" }
         )
     }
@@ -475,22 +486,59 @@ private fun CustomCircularProgressIndicator(
         label = "RotationVal"
     )
 
-    Canvas(
-        modifier = modifier
-            .size(40.dp)
-    ) {
+    Canvas(modifier = modifier.size(40.dp)) {
         val strokeWidth = 4.dp.toPx()
         drawArc(
             color = color,
             startAngle = rotation,
             sweepAngle = 270f,
             useCenter = false,
-            style = Stroke(
-                width = strokeWidth,
-                cap = StrokeCap.Round
-            )
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
         )
     }
+}
+
+/** Builds a [VisualInboxController] wired to the SDK data layer + the host's inbox event listener. */
+@Composable
+private fun rememberInboxController(): VisualInboxController = remember {
+    val module = ModuleMessagingInApp.instance()
+    VisualInboxController(
+        visualInbox = module.visualInbox(),
+        // Host-registered inbox action/event listener (items 13/14), mirroring the in-app
+        // eventListener; resolved from the same module config the host built. Null when none set.
+        inboxEventListener = module.moduleConfig.inboxEventListener
+    )
+}
+
+/** Chrome colors resolved from the host app theme (with dark-mode-aware fallbacks). */
+private data class InboxColors(
+    val bellColor: Color,
+    val panelColor: Color,
+    val textColorPrimary: Color,
+    val dividerColor: Color,
+    val badgeColor: Color
+)
+
+@Composable
+private fun rememberInboxColors(): InboxColors {
+    val isDarkTheme = isSystemInDarkTheme()
+    val textColorSecondary = rememberThemeColor(
+        android.R.attr.textColorSecondary,
+        if (isDarkTheme) Color.LightGray else Color.DarkGray
+    )
+    return InboxColors(
+        bellColor = rememberThemeColor(android.R.attr.colorAccent, Color(0xFF3451FF)),
+        panelColor = rememberThemeColor(
+            android.R.attr.colorBackground,
+            if (isDarkTheme) Color(0xFF121212) else Color.White
+        ),
+        textColorPrimary = rememberThemeColor(
+            android.R.attr.textColorPrimary,
+            if (isDarkTheme) Color.White else Color.Black
+        ),
+        dividerColor = textColorSecondary.copy(alpha = 0.12f),
+        badgeColor = Color(0xFFE53935)
+    )
 }
 
 @Composable

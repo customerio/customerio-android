@@ -24,6 +24,32 @@ interface InboxEventListener {
      * to let the SDK apply its default handling.
      */
     fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String): Boolean
+
+    /**
+     * Observational callback fired when a message is first shown/rendered in the inbox view. Fired
+     * once per message (deduped) while the view is displayed. Purely informational — it does not
+     * affect SDK behavior. Default no-op so the interface stays source-compatible.
+     *
+     * @param message identity of the inbox message that was shown.
+     */
+    fun messageShown(message: InboxActionMessage) {}
+
+    /**
+     * Observational callback fired when a message is marked opened (the inbox panel opening
+     * auto-marks the currently-shown unopened messages). Purely informational. Default no-op so the
+     * interface stays source-compatible.
+     *
+     * @param message identity of the inbox message that was opened.
+     */
+    fun messageOpened(message: InboxActionMessage) {}
+
+    /**
+     * Observational callback fired when a message is dismissed/removed from the inbox. Purely
+     * informational. Default no-op so the interface stays source-compatible.
+     *
+     * @param message identity of the inbox message that was dismissed.
+     */
+    fun messageDismissed(message: InboxActionMessage) {}
 }
 
 /**

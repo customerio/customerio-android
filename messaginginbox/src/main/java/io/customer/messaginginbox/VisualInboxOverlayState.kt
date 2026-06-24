@@ -1,6 +1,7 @@
 package io.customer.messaginginbox
 
 import io.customer.jist.JistActionEvent
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.data.InboxVisibility
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
@@ -164,6 +165,8 @@ internal class VisualInboxController(
                 .forEach { message ->
                     markedOpenedQueueIds.add(message.queueId)
                     visualInbox.markMessageOpened(message)
+                    // Observational host callback (item 14): a message was marked opened.
+                    notifyListener { messageOpened(message.toActionMessage()) }
                 }
         } finally {
             markInFlight.set(false)
@@ -188,6 +191,8 @@ internal class VisualInboxController(
             val message = visible.messages.firstOrNull { it.queueId == queueId } ?: return
             deletedQueueIds.add(queueId)
             visualInbox.markMessageDeleted(message)
+            // Observational host callback (item 14): a message was dismissed/removed.
+            notifyListener { messageDismissed(message.toActionMessage()) }
         } finally {
             deleteInFlight.set(false)
         }
@@ -253,6 +258,19 @@ internal class VisualInboxController(
         }
     }
 
+    /**
+     * Observational host callback (item 14): notify that [message] was first shown/rendered in the
+     * inbox view. Deduped per queueId so the host is notified exactly once per message for the life
+     * of this controller (the view may recompose/re-render the same row many times). Safe to call
+     * from the renderer on every render.
+     */
+    fun notifyMessageShown(message: JistInboxMessage) {
+        if (!shownQueueIds.add(message.queueId)) return
+        notifyListener {
+            messageShown(InboxActionMessage(messageId = message.queueId, deliveryId = message.deliveryId))
+        }
+    }
+
     /** Track a clicked metric for [message], once per queueId. Reuses [VisualInbox.trackMessageClicked]. */
     private fun trackClicked(visibility: InboxVisibility, message: JistInboxMessage, actionName: String?) {
         val visible = visibility as? InboxVisibility.Visible ?: return
@@ -277,13 +295,35 @@ internal class VisualInboxController(
         }
     }
 
+    /**
+     * Invoke an observational callback (shown / opened / dismissed) on the host listener (if any).
+     * A throwing host listener must never break the SDK, so any exception is caught and logged.
+     * Resolved from the same [inboxEventListener] (MessagingInAppModuleConfig.inboxEventListener) as
+     * [messageActionTaken]; a null listener is a no-op.
+     */
+    private inline fun notifyListener(block: InboxEventListener.() -> Unit) {
+        val listener = inboxEventListener ?: return
+        try {
+            listener.block()
+        } catch (ex: Exception) {
+            logger.error("$INBOX_LOG_TAG inbox event listener threw: ${ex.message}")
+        }
+    }
+
     private companion object {
         const val INBOX_LOG_TAG = "[CIO-Inbox]"
     }
 
     // Dedupe guard for click tracking: a message clicked in this session is tracked once.
     private val clickedQueueIds = HashSet<String>()
+
+    // Dedupe guard for the observational messageShown callback: notified once per queueId.
+    private val shownQueueIds = HashSet<String>()
 }
+
+/** Build the public [InboxActionMessage] identity handed to [InboxEventListener] from an [InboxMessage]. */
+private fun InboxMessage.toActionMessage(): InboxActionMessage =
+    InboxActionMessage(messageId = queueId, deliveryId = deliveryId)
 
 /**
  * The SDK's resolved interpretation of a Jist inbox action, derived from the action's

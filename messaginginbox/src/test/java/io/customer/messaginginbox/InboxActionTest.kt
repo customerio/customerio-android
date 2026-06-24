@@ -241,4 +241,56 @@ class InboxActionTest {
 
         verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any()) }
     }
+
+    // --- observe callbacks (item 14): shown / opened / dismissed ---
+
+    private class RecordingListener : InboxEventListener {
+        val shown = mutableListOf<String>()
+        val opened = mutableListOf<String>()
+        val dismissed = mutableListOf<String>()
+        override fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String) = false
+        override fun messageShown(message: InboxActionMessage) { shown.add(message.messageId) }
+        override fun messageOpened(message: InboxActionMessage) { opened.add(message.messageId) }
+        override fun messageDismissed(message: InboxActionMessage) { dismissed.add(message.messageId) }
+    }
+
+    @Test
+    fun markOpenMessagesOpened_givenUnopened_expectMessageOpenedFired() {
+        val messages = listOf(message("a"), message("b"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        val listener = RecordingListener()
+        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+
+        controller.markOpenMessagesOpened(visible(messages))
+
+        listener.opened shouldBeEqualTo listOf("a", "b")
+        verify(exactly = 1) { visualInbox.markMessageOpened(match { it.queueId == "a" }) }
+        verify(exactly = 1) { visualInbox.markMessageOpened(match { it.queueId == "b" }) }
+    }
+
+    @Test
+    fun dismissMessage_expectMessageDismissedFired() {
+        val messages = listOf(message("a"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        val listener = RecordingListener()
+        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+
+        controller.dismissMessage(visible(messages), "a")
+
+        listener.dismissed shouldBeEqualTo listOf("a")
+        verify(exactly = 1) { visualInbox.markMessageDeleted(match { it.queueId == "a" }) }
+    }
+
+    @Test
+    fun notifyMessageShown_calledTwiceSameMessage_expectShownFiredOnce() {
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        val listener = RecordingListener()
+        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+        val jist = JistInboxAdapter.toJist(message("a"))
+
+        controller.notifyMessageShown(jist)
+        controller.notifyMessageShown(jist)
+
+        listener.shown shouldBeEqualTo listOf("a")
+    }
 }

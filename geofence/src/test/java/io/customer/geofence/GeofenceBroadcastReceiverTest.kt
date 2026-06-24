@@ -166,7 +166,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         val scheduled = entrySlot.captured
         scheduled.geofenceId shouldBeEqualTo "biz-geofence-1"
         scheduled.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
-        scheduled.toEventProperties()["transition_type"] shouldBeEqualTo "enter"
+        scheduled.toEventProperties()["transition"] shouldBeEqualTo "enter"
         scheduled.timestamp.shouldNotBeNull()
 
         // Durably recorded for the foreground flush, and not published inline:
@@ -239,7 +239,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
         entrySlot.captured.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
-        entrySlot.captured.toEventProperties()["transition_type"] shouldBeEqualTo "exit"
+        entrySlot.captured.toEventProperties()["transition"] shouldBeEqualTo "exit"
     }
 
     @Test

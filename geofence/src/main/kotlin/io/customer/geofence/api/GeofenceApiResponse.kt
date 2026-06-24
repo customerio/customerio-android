@@ -48,7 +48,7 @@ internal data class GeofenceApiPlatformConfig(
 
 @Serializable
 internal data class GeofenceApiRegion(
-    // Used as the OS request ID and the `geofence_id` key on transition events.
+    // Used as the OS request ID and the `geofenceId` key on transition events.
     @SerialName("id")
     val id: String,
     @SerialName("name")

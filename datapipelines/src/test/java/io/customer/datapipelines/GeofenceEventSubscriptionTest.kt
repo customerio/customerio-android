@@ -3,6 +3,7 @@ package io.customer.datapipelines
 import io.customer.commontest.config.TestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.datapipelines.testutils.extensions.encodeToJsonValue
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.communication.Event
@@ -14,11 +15,12 @@ import io.mockk.slot
 import java.util.Date
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldContain
 import org.junit.jupiter.api.Test
 
 /**
  * Verifies the EventBus subscription wired up in CustomerIO.subscribeToJourneyEvents
- * correctly maps Event.GeofenceTransitionEvent → "Geofence Entered/Exited" track event
+ * maps Event.GeofenceTransitionEvent → the "Geofence Transition" track event
  * and forwards the properties.
  *
  * Captures the subscription handler with a mock EventBus at SDK init time, then invokes
@@ -54,11 +56,11 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
     }
 
     @Test
-    fun handler_givenEnterTransition_expectTrackWithGeofenceEnteredEventName() = runTest {
+    fun handler_givenEnterTransition_expectTrackWithGeofenceTransitionEventName() = runTest {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-1",
             transition = Event.GeofenceTransition.ENTER,
-            properties = mapOf("geofence_id" to "biz-1", "transition_type" to "enter"),
+            properties = mapOf("geofenceId" to "biz-1", "transition" to "enter"),
             userId = "user-A",
             timestamp = Date()
         )
@@ -66,15 +68,17 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "geofence_entered"
+        val tracked = outputReaderPlugin.trackEvents.last()
+        tracked.event shouldBeEqualTo "Geofence Transition"
+        tracked.properties shouldContain ("transition" to "enter").encodeToJsonValue()
     }
 
     @Test
-    fun handler_givenExitTransition_expectTrackWithGeofenceExitedEventName() = runTest {
+    fun handler_givenExitTransition_expectTrackWithGeofenceTransitionEventName() = runTest {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-2",
             transition = Event.GeofenceTransition.EXIT,
-            properties = mapOf("geofence_id" to "biz-2", "transition_type" to "exit"),
+            properties = mapOf("geofenceId" to "biz-2", "transition" to "exit"),
             userId = "user-A",
             timestamp = Date()
         )
@@ -82,7 +86,9 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         handlerSlot.captured.invoke(event)
 
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 1
-        outputReaderPlugin.trackEvents.last().event shouldBeEqualTo "geofence_exited"
+        val tracked = outputReaderPlugin.trackEvents.last()
+        tracked.event shouldBeEqualTo "Geofence Transition"
+        tracked.properties shouldContain ("transition" to "exit").encodeToJsonValue()
     }
 
     @Test
@@ -93,7 +99,7 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-3",
             transition = Event.GeofenceTransition.ENTER,
-            properties = mapOf("geofence_id" to "biz-3"),
+            properties = mapOf("geofenceId" to "biz-3"),
             userId = "user-pinned-A",
             timestamp = Date()
         )
@@ -111,7 +117,7 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-4",
             transition = Event.GeofenceTransition.ENTER,
-            properties = mapOf("geofence_id" to "biz-4"),
+            properties = mapOf("geofenceId" to "biz-4"),
             userId = null,
             timestamp = Date()
         )
@@ -129,7 +135,7 @@ class GeofenceEventSubscriptionTest : JUnitTest() {
         val event = Event.GeofenceTransitionEvent(
             geofenceId = "biz-5",
             transition = Event.GeofenceTransition.ENTER,
-            properties = mapOf("geofence_id" to "biz-5"),
+            properties = mapOf("geofenceId" to "biz-5"),
             userId = "user-A",
             timestamp = transitionTime
         )

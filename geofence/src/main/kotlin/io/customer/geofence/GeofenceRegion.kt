@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
  * A geographic region to monitor for enter/exit transitions.
  *
  * `id` is the OS request ID — derived from the backend's numeric geofence ID
- * so it stays stable and matches the `geofence_id` key on transition events.
+ * so it stays stable and matches the `geofenceId` key on transition events.
  */
 @Serializable
 internal data class GeofenceRegion(

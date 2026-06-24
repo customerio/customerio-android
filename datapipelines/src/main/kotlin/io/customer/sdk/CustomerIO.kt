@@ -170,10 +170,6 @@ class CustomerIO private constructor(
             secureUserStore.clearAll()
         }
         eventBus.subscribe<Event.GeofenceTransitionEvent> { geofenceEvent ->
-            val eventName = when (geofenceEvent.transition) {
-                Event.GeofenceTransition.ENTER -> EventNames.GEOFENCE_ENTERED
-                Event.GeofenceTransition.EXIT -> EventNames.GEOFENCE_EXITED
-            }
             // Snapshotted userId (if any) overrides current SDK identity for this one event so a
             // sign-out + sign-in between queue and flush cannot reattribute. Null snapshot → no
             // override → natural anonymousId path.
@@ -188,7 +184,7 @@ class CustomerIO private constructor(
                 }
             }
             track(
-                name = eventName,
+                name = EventNames.GEOFENCE_TRANSITION,
                 properties = geofenceEvent.properties.sanitizeForJson(),
                 serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
                 enrichment = enrichment

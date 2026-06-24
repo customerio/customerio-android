@@ -29,15 +29,15 @@ internal data class PendingGeofenceDelivery(
     override val key: String get() = "${geofenceId}_${transition.name}_$timestamp"
 
     /**
-     * Properties carried on the tracked "Geofence Entered/Exited" event. Kept
-     * here so the producer, the worker's direct-HTTP send, and the foreground
-     * flush all build an identical property set.
+     * Properties carried on the tracked "Geofence Transition" event. Kept here
+     * so the worker's direct-HTTP send and the foreground flush build an
+     * identical property set. Timestamp is not a property — each delivery path
+     * sets it on the event envelope from [timestamp].
      */
     fun toEventProperties(): Map<String, Any> = buildMap {
-        geofenceName?.let { put("geofence_name", it) }
-        put("geofence_id", geofenceId)
-        put("transition_type", transition.name.lowercase())
-        put("timestamp", timestamp)
+        put("transition", transition.name.lowercase())
+        put("geofenceId", geofenceId)
+        geofenceName?.let { put("geofenceName", it) }
     }
 
     /**

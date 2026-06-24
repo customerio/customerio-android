@@ -4,30 +4,23 @@ import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
- * Sends `register_push_to_start` track events for the live-notification activity
- * types the host app enabled via `MessagingPushModuleConfig.enableLiveNotificationTypes`.
- * No types enabled ⇒ nothing is registered.
+ * Emits `register_push_to_start` track events for the enabled live-notification
+ * types so Customer.io can remotely start them.
  *
- * Registration is (re)attempted whenever the device token rotates
- * ([Event.RegisterDeviceTokenEvent]) or the user changes
- * ([Event.UserChangedEvent]), and is deduped per activity type via
- * [LiveNotificationStore] (signature = `token|userId`). The signature is only
- * stored when the event is actually emitted, so a type left unregistered re-fires
- * on the next attempt. Token deletion / reset clears the stored signatures so the
- * next token re-registers.
+ * Registration is a CDP track event, so the data pipeline owns batching, retry
+ * and delivery — this type does not retry itself. It only decides WHEN to emit:
+ * whenever the device token ([Event.RegisterDeviceTokenEvent]) or user
+ * ([Event.UserChangedEvent]) changes, for each enabled type whose
+ * `token|userId` signature isn't already registered ([LiveNotificationStore]).
  *
- * Live notifications are auth-only. We track identification from
- * [Event.UserChangedEvent] rather than gating on the pipeline alone, and
- * [registerAll] retries a few times: the underlying track event drops while the
- * user isn't yet identified, and the pipeline's identified state can lag the
- * [Event.UserChangedEvent] that triggered registration by a few ms.
+ * The signature dedup means re-identifying the same user with the same token —
+ * e.g. on every app launch — does NOT re-send the same registrations. A new
+ * token or a new user yields a new signature and re-registers. Live
+ * notifications are auth-only: events for anonymous users are dropped by
+ * [LiveNotificationLifecycleClient] (no signature stored), so a registration
+ * skipped while anonymous re-fires once the user is identified.
  */
 internal class LiveNotificationRegistrar(
     private val client: LiveNotificationLifecycleClient,
@@ -40,15 +33,6 @@ internal class LiveNotificationRegistrar(
     @Volatile
     private var userId: String = ""
 
-    @Volatile
-    private var identified: Boolean = false
-
-    private val scope = CoroutineScope(SDKComponent.dispatchersProvider.background)
-
-    // Serialises registration passes so the token and user-changed events can't run two
-    // concurrent loops against the shared dedup store (which would double-emit).
-    private val registerMutex = Mutex()
-
     private val enabledTypes: Set<String>
         get() = SDKComponent.pushModuleConfig.liveNotificationTypes
 
@@ -58,59 +42,28 @@ internal class LiveNotificationRegistrar(
 
         eventBus.subscribe(Event.RegisterDeviceTokenEvent::class) { event ->
             token = event.token
-            if (identified) registerAll()
+            registerAll()
         }
         eventBus.subscribe(Event.UserChangedEvent::class) { event ->
-            identified = event.userId != null
             userId = event.userId ?: event.anonymousId
-            if (identified) registerAll()
+            registerAll()
         }
         eventBus.subscribe(Event.DeleteDeviceTokenEvent::class) {
+            // No token ⇒ nothing to register; a new token re-registers via its own signature.
+            // We deliberately do NOT clear stored signatures here: doing so made the routine
+            // delete+re-register token cycle on identify re-send every registration on each launch.
             token = null
-            store.clearRegistrations()
-        }
-        eventBus.subscribe(Event.ResetEvent::class) {
-            identified = false
-            store.clearRegistrations()
         }
     }
 
-    /**
-     * Registers every enabled type not already registered for the current
-     * `token|userId`, retrying with backoff so registration survives the brief
-     * window where the pipeline hasn't yet applied the identify that triggered it.
-     */
     private fun registerAll() {
-        scope.launch {
-            registerMutex.withLock {
-                var attempt = 0
-                while (attempt < MAX_ATTEMPTS) {
-                    attempt++
-                    val currentToken = token ?: return@withLock
-                    val signature = "$currentToken|$userId"
-                    val pending = enabledTypes.filter { store.registrationSignature(it) != signature }
-                    if (pending.isEmpty()) return@withLock
-
-                    for (activityType in pending) {
-                        if (client.registerPushToStart(activityType, currentToken)) {
-                            store.setRegistrationSignature(activityType, signature)
-                        }
-                    }
-                    // Stop as soon as everything registered; otherwise wait for the
-                    // identify/token state to settle and retry the stragglers.
-                    if (enabledTypes.all { store.registrationSignature(it) == signature }) return@withLock
-                    if (attempt < MAX_ATTEMPTS) delay(RETRY_DELAY_MS)
-                }
-                SDKComponent.logger.debug(
-                    "Live notification registration incomplete after $MAX_ATTEMPTS attempts; " +
-                        "will retry on next token/user change."
-                )
+        val currentToken = token ?: return
+        val signature = "$currentToken|$userId"
+        for (activityType in enabledTypes) {
+            if (store.registrationSignature(activityType) == signature) continue
+            if (client.registerPushToStart(activityType, currentToken)) {
+                store.setRegistrationSignature(activityType, signature)
             }
         }
-    }
-
-    companion object {
-        private const val MAX_ATTEMPTS = 5
-        private const val RETRY_DELAY_MS = 500L
     }
 }

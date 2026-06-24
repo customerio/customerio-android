@@ -38,8 +38,9 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
         )
     }
 
-    companion object {
-        const val EXTRA_ACTIVITY_ID = "io.customer.messagingpush.EXTRA_LIVE_ACTIVITY_ID"
-        const val EXTRA_ACTIVITY_TYPE = "io.customer.messagingpush.EXTRA_LIVE_ACTIVITY_TYPE"
+    internal companion object {
+        // Internal: only the SDK sets these (on the delete PendingIntent) and reads them here.
+        internal const val EXTRA_ACTIVITY_ID = "io.customer.messagingpush.EXTRA_LIVE_ACTIVITY_ID"
+        internal const val EXTRA_ACTIVITY_TYPE = "io.customer.messagingpush.EXTRA_LIVE_ACTIVITY_TYPE"
     }
 }

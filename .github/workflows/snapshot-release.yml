@@ -155,4 +155,8 @@ jobs:
           gradle-version: ${{ matrix.gradle-version }}
 
       - name: Building ${{ matrix.sample-app }} with AGP version ${{ matrix.agp-version }}
-        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"
+        # The snapshot version string is branch-named and mutable (e.g. <branch>-SNAPSHOT), so a
+        # cached copy from a previous commit can shadow the just-published one (Gradle's changing-
+        # module cache). --refresh-dependencies forces resolution of the freshly published snapshot
+        # so sample builds compile against the SDK version from THIS commit.
+        run: ./gradlew --refresh-dependencies ":samples:${{ matrix.sample-app }}:assembleRelease"

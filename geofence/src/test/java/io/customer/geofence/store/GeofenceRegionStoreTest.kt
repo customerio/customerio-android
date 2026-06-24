@@ -272,9 +272,9 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun clearUserScopedState_expectUserKeysRemovedAndWorkspaceCachePreserved() {
-        // Sign-out path: drop user-specific state but keep workspace-level
-        // cache so a quick re-login skips a redundant API call.
+    fun clearUserScopedState_expectUserKeysAndFreshnessRemovedButCachePreserved() {
+        // Sign-out path: drop user-scoped state and the freshness timestamp
+        // (so the next login re-fetches) but keep cached regions/config.
         val regions = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 50f))
         val config = GeofenceConfig(
             localRefreshTriggerRadius = 1_000f,
@@ -299,10 +299,11 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()
-        // Workspace-level: preserved.
+        // Freshness throttle: wiped so the next login re-fetches.
+        store.getLastSyncTimestamp().shouldBeNull()
+        // Cached regions/config: preserved.
         store.getCachedRegions() shouldBeEqualTo regions
         store.getCachedConfig() shouldBeEqualTo config
-        store.getLastSyncTimestamp() shouldBeEqualTo 12_345L
     }
 
     // --- Schema-drift / corruption safety ---

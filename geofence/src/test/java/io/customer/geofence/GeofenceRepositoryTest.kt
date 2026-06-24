@@ -77,10 +77,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
     @Test
     fun refresh_givenFreshCacheButOsRegsWiped_expectLocalRefreshFromCache() = runTest {
-        // Sign-out → sign-in within the freshness window: workspace cache
-        // survived but OS regs + registeredIds were wiped. Must re-register
-        // from cache instead of skipping, otherwise the new user has no OS
-        // geofences until the next stale-window expiry.
+        // Safety net: cache is still time-fresh but no OS regs are live
+        // (registeredIds empty) — re-register from cache rather than skip, else
+        // nothing is monitored until the stale window expires. (Sign-out clears
+        // the freshness timestamp, so the sign-out path takes REMOTE, not this
+        // branch.)
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
@@ -865,10 +866,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
     @Test
     fun reset_givenManagerSucceeds_expectUserScopedStateClearedAndWorkspaceCachePreserved() = runTest {
-        // Sign-out cleanup: drop OS registrations + wipe user-specific state
-        // (anchor, movement-trigger location, registered IDs). Workspace
-        // cache (regions, config, last-sync) survives so a quick re-login
-        // skips a redundant API hit.
+        // Sign-out cleanup: drop OS registrations + wipe user-scoped state
+        // (anchor, movement-trigger location, registered IDs, freshness
+        // timestamp). Cached regions/config survive; the dropped timestamp
+        // makes the next login re-fetch.
         every { secureUserStore.getUserId() } returns null
         coEvery { manager.clearAll() } returns Result.success(Unit)
 

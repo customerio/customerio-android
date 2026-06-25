@@ -274,8 +274,10 @@ internal class VisualInboxController(
     /** Track a clicked metric for [message], once per queueId. Reuses [VisualInbox.trackMessageClicked]. */
     private fun trackClicked(visibility: InboxVisibility, message: JistInboxMessage, actionName: String?) {
         val visible = visibility as? InboxVisibility.Visible ?: return
-        if (!clickedQueueIds.add(message.queueId)) return
         val tracked = visible.messages.firstOrNull { it.queueId == message.queueId } ?: return
+        // Reserve only AFTER confirming the message exists, so a failed lookup never permanently
+        // dedupes (blocks) the click metric for later taps on the same message.
+        if (!clickedQueueIds.add(message.queueId)) return
         visualInbox.trackMessageClicked(tracked, actionName)
     }
 

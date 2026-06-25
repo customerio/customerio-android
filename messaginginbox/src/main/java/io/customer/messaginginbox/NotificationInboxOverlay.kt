@@ -202,7 +202,10 @@ internal fun NotificationInboxOverlay(
 
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedVisibility(
-            visible = panelExpanded,
+            // Gate on canShowChrome too (matches iOS): if the inbox empties while the panel is open
+            // (dismissing the last message -> Hidden), hide the scrim/panel immediately rather than
+            // waiting on the panelExpanded reset, so the panel auto-dismisses with the inbox.
+            visible = panelExpanded && canShowChrome,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -227,7 +230,7 @@ internal fun NotificationInboxOverlay(
         // the inbox list. Aligned top-end so its top margin is honored.
         val panelShape = RoundedCornerShape(colors.cornerRadius)
         AnimatedVisibility(
-            visible = panelExpanded,
+            visible = panelExpanded && canShowChrome,
             enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
             exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.TopEnd)

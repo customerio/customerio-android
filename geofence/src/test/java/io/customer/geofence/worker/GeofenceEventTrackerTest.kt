@@ -74,6 +74,17 @@ class GeofenceEventTrackerTest : RobolectricTest() {
     }
 
     @Test
+    fun trackEvent_givenNumericGeofenceId_expectUnquotedNumberOnWire() = runTest {
+        val capturedParams = slot<HttpRequestParams>()
+        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
+
+        tracker.trackEvent(entry(geofenceId = "12345"))
+
+        // Backend prefers a number — the wire body must carry it unquoted.
+        capturedParams.captured.body.shouldNotBeNull() shouldContain "\"geofenceId\":12345"
+    }
+
+    @Test
     fun trackEvent_givenHttpFailure_expectFailureResult() = runTest {
         val error = RuntimeException("boom")
         coEvery { httpClient.request(any()) } returns Result.failure(error)

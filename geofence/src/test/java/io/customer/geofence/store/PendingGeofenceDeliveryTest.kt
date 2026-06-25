@@ -55,12 +55,21 @@ class PendingGeofenceDeliveryTest {
 
         val props = entry.toEventProperties()
 
+        // Non-numeric id falls back to the raw string.
         props["geofenceId"] shouldBeEqualTo "biz-4"
         props["transition"] shouldBeEqualTo "enter"
         // Timestamp rides the event envelope, not the properties.
         props.keys shouldNotContain "timestamp"
         props.keys shouldNotContain "latitude"
         props.keys shouldNotContain "longitude"
+    }
+
+    @Test
+    fun toEventProperties_givenNumericGeofenceId_expectEmittedAsNumber() {
+        // Backend prefers a numeric geofenceId — a parseable id is sent as a Long, not a string.
+        val entry = PendingGeofenceDelivery("12345", Event.GeofenceTransition.ENTER, 50L, "user-A")
+
+        entry.toEventProperties()["geofenceId"] shouldBeEqualTo 12345L
     }
 
     @Test

@@ -36,7 +36,9 @@ internal data class PendingGeofenceDelivery(
      */
     fun toEventProperties(): Map<String, Any> = buildMap {
         put("transition", transition.name.lowercase())
-        put("geofenceId", geofenceId)
+        // Backend prefers a numeric geofenceId; emit a number when it parses, else the raw
+        // string. Long (not Int) so large backend ids don't silently fall back to a string.
+        put("geofenceId", geofenceId.toLongOrNull() ?: geofenceId)
         geofenceName?.let { put("geofenceName", it) }
     }
 

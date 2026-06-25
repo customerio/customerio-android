@@ -24,7 +24,7 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
-    ): TemplateRenderResult {
+    ): TemplateRenderResult? {
         val flightNumber = data.optString(FlightStatusFields.FLIGHT_NUMBER)
         val origin = data.optJSONObject(FlightStatusFields.ORIGIN)
         val destination = data.optJSONObject(FlightStatusFields.DESTINATION)
@@ -40,6 +40,11 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
             if (data.has(FlightStatusFields.PROGRESS_FRACTION)) data.optDouble(FlightStatusFields.PROGRESS_FRACTION) else Double.NaN
         val progressFraction = progressFractionRaw.takeIf { !it.isNaN() }
         val delayMinutes = data.optInt(FlightStatusFields.DELAY_MINUTES, 0).takeIf { it > 0 }
+
+        // No usable content (fields missing / not flattened): don't render a blank notification.
+        if (flightNumber.isBlank() && statusMessage.isBlank() && originCode.isBlank() && destinationCode.isBlank()) {
+            return null
+        }
 
         val title = "$flightNumber · $originCode → $destinationCode"
         val subText = "Gate ${gate ?: "TBA"} · Terminal ${terminal ?: "TBA"}"

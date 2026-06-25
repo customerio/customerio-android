@@ -6,16 +6,21 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
 
 /**
- * Registers the device's FCM token with the backend for the live-notification
- * activity types the host app enabled via
- * `MessagingPushModuleConfig.setLiveNotificationTypes` (the Android analogue of
- * iOS push-to-start registration). No types enabled ⇒ nothing is registered.
+ * Emits `register_push_to_start` track events for the enabled live-notification
+ * types so Customer.io can remotely start them.
  *
- * Registration is (re)attempted whenever the device token rotates
- * ([Event.RegisterDeviceTokenEvent]) or the user changes
- * ([Event.UserChangedEvent]), and is deduped per activity type via
- * [LiveNotificationStore] (signature = `token|userId`). Token deletion / reset
- * clears the stored signatures so the next token re-registers.
+ * Registration is a CDP track event, so the data pipeline owns batching, retry
+ * and delivery — this type does not retry itself. It only decides WHEN to emit:
+ * whenever the device token ([Event.RegisterDeviceTokenEvent]) or user
+ * ([Event.UserChangedEvent]) changes, for each enabled type whose
+ * `token|userId` signature isn't already registered ([LiveNotificationStore]).
+ *
+ * The signature dedup means re-identifying the same user with the same token —
+ * e.g. on every app launch — does NOT re-send the same registrations. A new
+ * token or a new user yields a new signature and re-registers. Live
+ * notifications are auth-only: events for anonymous users are dropped by
+ * [LiveNotificationLifecycleClient] (no signature stored), so a registration
+ * skipped while anonymous re-fires once the user is identified.
  */
 internal class LiveNotificationRegistrar(
     private val client: LiveNotificationLifecycleClient,
@@ -27,12 +32,6 @@ internal class LiveNotificationRegistrar(
 
     @Volatile
     private var userId: String = ""
-
-    /** The current FCM token, or null if not yet received. */
-    fun currentToken(): String? = token
-
-    /** The current resolved user identity (identified userId, else anonymousId). */
-    fun currentUserId(): String = userId
 
     private val enabledTypes: Set<String>
         get() = SDKComponent.pushModuleConfig.liveNotificationTypes
@@ -50,26 +49,20 @@ internal class LiveNotificationRegistrar(
             registerAll()
         }
         eventBus.subscribe(Event.DeleteDeviceTokenEvent::class) {
+            // No token ⇒ nothing to register; a new token re-registers via its own signature.
+            // We deliberately do NOT clear stored signatures here: doing so made the routine
+            // delete+re-register token cycle on identify re-send every registration on each launch.
             token = null
-            store.clearRegistrations()
-        }
-        eventBus.subscribe(Event.ResetEvent::class) {
-            store.clearRegistrations()
         }
     }
 
-    private suspend fun registerAll() {
+    private fun registerAll() {
         val currentToken = token ?: return
         val signature = "$currentToken|$userId"
         for (activityType in enabledTypes) {
             if (store.registrationSignature(activityType) == signature) continue
-            val result = client.registerForActivityType(activityType, currentToken, userId)
-            if (result.isSuccess) {
+            if (client.registerPushToStart(activityType, currentToken)) {
                 store.setRegistrationSignature(activityType, signature)
-            } else {
-                SDKComponent.logger.debug(
-                    "Live notification registration failed for '$activityType'; will retry on next token/user change."
-                )
             }
         }
     }

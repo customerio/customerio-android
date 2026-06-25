@@ -21,7 +21,7 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
-    ): TemplateRenderResult {
+    ): TemplateRenderResult? {
         val orderId = data.optString(DeliveryTrackingFields.ORDER_ID)
         val recipientName = data.optStringNonEmpty(DeliveryTrackingFields.RECIPIENT_NAME)
         val statusMessage = data.optString(DeliveryTrackingFields.STATUS_MESSAGE)
@@ -30,6 +30,11 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
         val stepTotal = data.optInt(DeliveryTrackingFields.STEP_TOTAL, 1).coerceAtLeast(1)
         val estimatedArrival = data.optLong(DeliveryTrackingFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
         val driverName = data.optStringNonEmpty(DeliveryTrackingFields.DRIVER_NAME)
+
+        // No usable content (fields missing / not flattened): don't render a blank notification.
+        if (orderId.isBlank() && statusMessage.isBlank() && recipientName == null && driverName == null) {
+            return null
+        }
 
         val title = recipientName?.let { "Delivery for $it" } ?: "Order #$orderId"
         val subText = when {

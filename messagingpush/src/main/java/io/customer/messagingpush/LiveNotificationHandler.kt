@@ -33,13 +33,12 @@ import org.json.JSONObject
  * Dispatches templated live notifications.
  *
  * Live notifications are ongoing notifications that can be updated in-place
- * (the Android counterpart of iOS Live Activities). Each push declares an
- * `activity_type` (one of the closed set in [TemplateRegistry], prefixed with
- * `io.customer.liveactivities.`). Unlike iOS, Android does not split static
- * `attributes` from dynamic `content-state`: all template fields arrive
- * flattened at the envelope top level. Pushes share a stable [ACTIVITY_ID_KEY]
- * so successive updates replace the previous notification rather than creating
- * new ones.
+ * (the Android counterpart of iOS Live Activities). Each push declares a
+ * `notification_type` (one of the closed set in [TemplateRegistry], prefixed
+ * with `io.customer.liveactivities.`). Template fields arrive either flattened
+ * at the envelope top level or nested under a `payload` object ([extractData]
+ * handles both). Pushes share a stable [ACTIVITY_ID_KEY] so successive updates
+ * replace the previous notification rather than creating new ones.
  */
 internal class LiveNotificationHandler(
     private val bundle: Bundle
@@ -48,9 +47,13 @@ internal class LiveNotificationHandler(
     companion object {
         const val ACTIVITY_ID_KEY = "activity_id"
         const val EVENT_KEY = "event"
-        const val ACTIVITY_TYPE_KEY = "activity_type"
+        const val NOTIFICATION_TYPE_KEY = "notification_type"
         const val TIMESTAMP_KEY = "timestamp"
         const val DISMISSAL_DATE_KEY = "dismissal_date"
+
+        // The backend nests the template fields under a `payload` object; [extractData]
+        // unwraps it. (Local-start still delivers them flattened at the top level.)
+        const val PAYLOAD_KEY = "payload"
 
         private const val EVENT_END = "end"
 
@@ -67,9 +70,10 @@ internal class LiveNotificationHandler(
         private val RESERVED_KEYS = setOf(
             ACTIVITY_ID_KEY,
             EVENT_KEY,
-            ACTIVITY_TYPE_KEY,
+            NOTIFICATION_TYPE_KEY,
             TIMESTAMP_KEY,
             DISMISSAL_DATE_KEY,
+            PAYLOAD_KEY,
             PushTrackingUtil.DELIVERY_ID_KEY,
             PushTrackingUtil.DELIVERY_TOKEN_KEY
         )
@@ -109,7 +113,7 @@ internal class LiveNotificationHandler(
         }
 
         // Live notifications are opt-in: only handle activity types the host app enabled.
-        val activityType = bundle.getString(ACTIVITY_TYPE_KEY)
+        val activityType = bundle.getString(NOTIFICATION_TYPE_KEY)
         if (activityType == null || activityType !in SDKComponent.pushModuleConfig.liveNotificationTypes) {
             SDKComponent.logger.debug(
                 "Live notification type '$activityType' is not enabled; ignoring activity '$activityId'."
@@ -176,7 +180,7 @@ internal class LiveNotificationHandler(
             activityId = activityId
         )
         val pendingIntent = createIntentForNotificationClick(context, notifId, parsedPayload)
-        val deletePendingIntent = createDeleteIntent(context, notifId, activityId)
+        val deletePendingIntent = createDeleteIntent(context, notifId, activityId, activityType)
 
         // The host app may fully render the notification; otherwise fall back to the
         // SDK template. Custom (template-less) types must be rendered by the callback.
@@ -190,9 +194,15 @@ internal class LiveNotificationHandler(
             notification != null -> notificationManager.notify(activityId, notifId, notification)
             // An `end` with no renderer still falls through to cancel the existing notification.
             !isEnd -> {
+                // template != null but result == null ⇒ the payload lacked the fields the
+                // template needs (e.g. content not flattened); we refuse to post a blank one.
+                val reason = if (template != null) {
+                    "required content fields are missing (payload not flattened, or empty)"
+                } else {
+                    "no built-in template and createLiveNotification returned null"
+                }
                 SDKComponent.logger.error(
-                    "No renderer for live notification type '$activityType': no built-in template and " +
-                        "createLiveNotification returned null; dropping activity '$activityId'."
+                    "Not posting live notification '$activityId' (type '$activityType'): $reason."
                 )
                 return
             }
@@ -293,10 +303,14 @@ internal class LiveNotificationHandler(
     private fun createDeleteIntent(
         context: Context,
         requestCode: Int,
-        activityId: String
+        activityId: String,
+        activityType: String
     ): PendingIntent {
+        // Carry the fields the `end` track event needs so the dismiss receiver can
+        // report it without re-deriving them (the FCM token is read at dismiss time).
         val intent = Intent(context, LiveNotificationDismissReceiver::class.java).apply {
             putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_ID, activityId)
+            putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_TYPE, activityType)
         }
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -315,10 +329,19 @@ internal class LiveNotificationHandler(
      */
     private fun extractData(bundle: Bundle): JSONObject {
         val data = JSONObject()
+        // Flattened template fields at the envelope top level (local-start shape).
         for (key in bundle.keySet()) {
             if (key in RESERVED_KEYS) continue
             val raw = bundle.getString(key) ?: continue
             data.put(key, coerceJsonValue(raw))
+        }
+        // Backend push nests the template fields under a `payload` object; merge them in.
+        // Nested values take precedence over any top-level field of the same name.
+        val payload = bundle.getString(PAYLOAD_KEY)?.let { coerceJsonValue(it) as? JSONObject }
+        if (payload != null) {
+            for (key in payload.keys()) {
+                data.put(key, payload.get(key))
+            }
         }
         return data
     }

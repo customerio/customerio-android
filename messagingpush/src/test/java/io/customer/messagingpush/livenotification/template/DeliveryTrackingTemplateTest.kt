@@ -28,7 +28,22 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
-    )
+    )!!
+
+    @Test
+    fun render_givenNoUsableContent_returnsNull() {
+        // Payload arrived without the fields the template needs (e.g. content not flattened):
+        // render returns null so the handler skips posting instead of showing a blank notification.
+        val result = DeliveryTrackingTemplate.render(
+            context = contextMock,
+            data = JSONObject(),
+            branding = null,
+            smallIcon = 0,
+            fallbackTintColor = null
+        )
+
+        result.shouldBeNull()
+    }
 
     @Test
     fun render_givenAllFields_producesTitleBodySubTextAndProgress() {

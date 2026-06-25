@@ -25,7 +25,7 @@ internal object LiveScoreTemplate : LiveNotificationTemplate {
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
-    ): TemplateRenderResult {
+    ): TemplateRenderResult? {
         val homeTeam = data.optJSONObject(LiveScoreFields.HOME_TEAM)
         val awayTeam = data.optJSONObject(LiveScoreFields.AWAY_TEAM)
         val homeName = homeTeam?.optString(TeamFields.NAME).orEmpty()
@@ -36,6 +36,11 @@ internal object LiveScoreTemplate : LiveNotificationTemplate {
         val clock = data.optStringNonEmpty(LiveScoreFields.CLOCK)
         val statusMessage = data.optStringNonEmpty(LiveScoreFields.STATUS_MESSAGE)
         val leagueLogoKey = data.optStringNonEmpty(LiveScoreFields.LEAGUE_LOGO_KEY)
+
+        // No usable content (fields missing / not flattened): don't render a blank notification.
+        if (homeName.isBlank() && awayName.isBlank() && statusMessage == null && period.isBlank() && clock == null) {
+            return null
+        }
 
         val title = "$homeName $homeScore - $awayScore $awayName"
         val body = statusMessage

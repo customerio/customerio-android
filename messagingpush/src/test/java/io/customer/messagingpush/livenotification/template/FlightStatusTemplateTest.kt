@@ -34,7 +34,7 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
-    )
+    )!!
 
     private fun baseAttributes() = JSONObject().apply {
         put("flightNumber", "AA1234")

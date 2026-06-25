@@ -30,7 +30,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationType;
  * <p>
  * Each scenario builds a templated FCM data bundle that matches the
  * cross-platform live-activity envelope: top-level lifecycle keys
- * ({@code activity_id}, {@code event}, {@code activity_type}) plus the
+ * ({@code activity_id}, {@code event}, {@code notification_type}) plus the
  * template fields flattened alongside them (Android does not split static
  * {@code attributes} from dynamic {@code content_state}). The static branding
  * bundle lives in {@code MessagingPushModuleConfig} and is registered once at
@@ -416,6 +416,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + activityId, 1));
     }
 
+    // --- On-demand push-to-start registration ---
+
     // --- Campaign trigger ---
 
     private void setupCampaignDropdown() {
@@ -486,7 +488,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         bundle.putString("CIO-Delivery-Token", DEMO_DELIVERY_TOKEN);
         bundle.putString("activity_id", activityId);
         bundle.putString("event", event);
-        bundle.putString("activity_type", activityType);
+        bundle.putString("notification_type", activityType);
         // The backend sends template fields flattened at the envelope top level.
         putFlattened(bundle, attributes);
         putFlattened(bundle, contentState);

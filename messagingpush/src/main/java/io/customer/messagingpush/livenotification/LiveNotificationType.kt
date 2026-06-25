@@ -5,7 +5,7 @@ package io.customer.messagingpush.livenotification
  * the iOS Live Activity identifiers).
  *
  * Pass these — and/or your own custom type strings — to
- * [io.customer.messagingpush.MessagingPushModuleConfig.Builder.setLiveNotificationTypes]
+ * [io.customer.messagingpush.MessagingPushModuleConfig.Builder.enableLiveNotificationTypes]
  * to enable live notifications. The feature is a no-op until at least one type
  * is enabled: nothing is registered with the backend and pushes for
  * non-enabled types are ignored.

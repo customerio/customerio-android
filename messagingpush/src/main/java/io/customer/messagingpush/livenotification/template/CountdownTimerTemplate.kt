@@ -22,12 +22,18 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
-    ): TemplateRenderResult {
+    ): TemplateRenderResult? {
         val title = data.optString(CountdownTimerFields.TITLE)
         val heroImageKey = data.optStringNonEmpty(CountdownTimerFields.HERO_IMAGE_KEY)
         val targetDate = data.optLong(CountdownTimerFields.TARGET_DATE).takeIf { it > 0 }
         val statusMessage = data.optString(CountdownTimerFields.STATUS_MESSAGE)
         val expiredMessage = data.optStringNonEmpty(CountdownTimerFields.EXPIRED_MESSAGE)
+
+        // No usable content (fields missing / not flattened): don't render a blank notification.
+        // A real countdown always carries a targetDate, so this never blocks a post-target hide.
+        if (title.isBlank() && statusMessage.isBlank() && expiredMessage == null && targetDate == null) {
+            return null
+        }
 
         val now = System.currentTimeMillis()
         val isPostTarget = targetDate != null && now >= targetDate

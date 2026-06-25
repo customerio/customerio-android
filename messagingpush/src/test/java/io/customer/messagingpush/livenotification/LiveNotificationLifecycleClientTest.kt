@@ -1,112 +1,130 @@
 package io.customer.messagingpush.livenotification
 
+import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_LIVE_NOTIFICATION
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_LIVE_NOTIFICATION_TOKEN
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_END
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_START
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PLATFORM_ANDROID
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_DEVICE_ID
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_EVENT_TYPE
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_INSTANCE_UUID
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_NOTIFICATION_TYPE
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_PAYLOAD
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_PLATFORM
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_PUSH_TO_START_TOKEN
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_REGISTRATION_TYPE
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.REGISTRATION_TYPE_PUSH_TO_START
 import io.customer.messagingpush.testutils.core.IntegrationTest
-import io.customer.sdk.core.network.CustomerIOHttpClient
-import io.customer.sdk.core.network.HttpMethod
-import io.customer.sdk.core.network.HttpRequestException
-import io.customer.sdk.core.network.HttpRequestParams
-import io.mockk.coEvery
-import io.mockk.coVerify
+import io.customer.sdk.core.pipeline.DataPipeline
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import kotlinx.coroutines.test.runTest
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
-import org.amshove.kluent.shouldContain
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
+@OptIn(InternalCustomerIOApi::class)
 @RunWith(RobolectricTestRunner::class)
 internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
 
-    private val httpClient: CustomerIOHttpClient = mockk()
-    private val client = LiveNotificationLifecycleClientImpl(httpClient)
+    private val pipeline: DataPipeline = mockk(relaxed = true)
+    private val client = LiveNotificationLifecycleClientImpl(dataPipelineProvider = { pipeline })
+
+    private fun identified() {
+        every { pipeline.isUserIdentified } returns true
+    }
 
     @Test
-    fun register_buildsPutWithAndroidFcmBody() = runTest {
-        val params = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(params)) } returns Result.success("")
+    fun reportStart_emitsLiveNotificationWithStartProperties() {
+        identified()
+        val name = slot<String>()
+        val props = slot<Map<String, Any?>>()
+        every { pipeline.track(capture(name), capture(props)) } returns Unit
 
-        val result = client.registerForActivityType(
+        client.reportStart(
+            instanceUUID = "inst-1",
             activityType = "io.customer.liveactivities.deliverytracking",
-            token = "tok-1",
-            userId = "user-1"
+            deviceId = "fcm-tok",
+            payload = mapOf("orderId" to "A1", "status" to "preparing")
         )
 
-        result.isSuccess.shouldBeTrue()
-        params.captured.method shouldBeEqualTo HttpMethod.PUT
-        params.captured.path shouldBeEqualTo
-            "/v1/live_activities/registration/io.customer.liveactivities.deliverytracking"
-        val body = params.captured.body!!
-        body shouldContain "tok-1"
-        body shouldContain "\"os\":\"android\""
-        body shouldContain "\"transport\":\"fcm\""
-        body shouldContain "user-1"
+        name.captured shouldBeEqualTo EVENT_LIVE_NOTIFICATION
+        props.captured[PROP_EVENT_TYPE] shouldBeEqualTo EVENT_TYPE_START
+        props.captured[PROP_INSTANCE_UUID] shouldBeEqualTo "inst-1"
+        props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
+        props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+        @Suppress("UNCHECKED_CAST")
+        (props.captured[PROP_PAYLOAD] as Map<String, Any?>)["status"] shouldBeEqualTo "preparing"
     }
 
     @Test
-    fun registerInstance_buildsPutPushTokenWithActivityType() = runTest {
-        val params = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(params)) } returns Result.success("")
+    fun reportStart_omitsPayloadWhenEmpty() {
+        identified()
+        val props = slot<Map<String, Any?>>()
+        every { pipeline.track(any(), capture(props)) } returns Unit
 
-        client.registerInstance(
-            activityId = "act-9",
-            activityType = "io.customer.liveactivities.deliverytracking",
-            token = "tok",
-            userId = "user"
-        )
+        client.reportStart("inst-1", "type", "fcm-tok", payload = emptyMap())
 
-        params.captured.method shouldBeEqualTo HttpMethod.PUT
-        params.captured.path shouldBeEqualTo "/v1/live_activities/act-9/push_token"
-        val body = params.captured.body!!
-        body shouldContain "\"activity_type\":\"io.customer.liveactivities.deliverytracking\""
-        body shouldContain "\"os\":\"android\""
-        body shouldContain "\"transport\":\"fcm\""
+        props.captured.containsKey(PROP_PAYLOAD).shouldBeFalse()
     }
 
     @Test
-    fun reportDismissed_buildsDeleteWithEmptyBody() = runTest {
-        val params = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(params)) } returns Result.success("")
+    fun reportEnd_emitsLiveNotificationWithEndProperties() {
+        identified()
+        val name = slot<String>()
+        val props = slot<Map<String, Any?>>()
+        every { pipeline.track(capture(name), capture(props)) } returns Unit
 
-        client.reportDismissed("act-123")
+        client.reportEnd(instanceUUID = "inst-9", activityType = "type-x", deviceId = "fcm-tok")
 
-        params.captured.method shouldBeEqualTo HttpMethod.DELETE
-        params.captured.path shouldBeEqualTo "/v1/live_activities/act-123"
-        params.captured.body shouldBeEqualTo "{}"
+        name.captured shouldBeEqualTo EVENT_LIVE_NOTIFICATION
+        props.captured[PROP_EVENT_TYPE] shouldBeEqualTo EVENT_TYPE_END
+        props.captured[PROP_INSTANCE_UUID] shouldBeEqualTo "inst-9"
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "type-x"
+        props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
+        props.captured.containsKey(PROP_PAYLOAD).shouldBeFalse()
     }
 
     @Test
-    fun send_retriesOn5xxUpToThreeAttempts() = runTest {
-        coEvery { httpClient.request(any()) } returns Result.failure(HttpRequestException(503, "boom"))
+    fun registerPushToStart_emitsTokenEventWithFcmAsBothIds() {
+        identified()
+        val name = slot<String>()
+        val props = slot<Map<String, Any?>>()
+        every { pipeline.track(capture(name), capture(props)) } returns Unit
 
-        val result = client.reportDismissed("act-1")
+        val emitted = client.registerPushToStart(activityType = "type-x", deviceId = "fcm-tok")
 
-        result.isFailure.shouldBeTrue()
-        coVerify(exactly = 3) { httpClient.request(any()) }
+        emitted.shouldBeTrue()
+        name.captured shouldBeEqualTo EVENT_LIVE_NOTIFICATION_TOKEN
+        props.captured[PROP_REGISTRATION_TYPE] shouldBeEqualTo REGISTRATION_TYPE_PUSH_TO_START
+        props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
+        props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
+        props.captured[PROP_PUSH_TO_START_TOKEN] shouldBeEqualTo "fcm-tok"
     }
 
     @Test
-    fun send_doesNotRetryOn4xx() = runTest {
-        coEvery { httpClient.request(any()) } returns Result.failure(HttpRequestException(400, "bad request"))
+    fun events_areDroppedForAnonymousUser() {
+        every { pipeline.isUserIdentified } returns false
 
-        val result = client.reportDismissed("act-1")
+        client.reportStart("inst-1", "type", "fcm-tok", emptyMap())
+        val emitted = client.registerPushToStart("type", "fcm-tok")
 
-        result.isFailure.shouldBeTrue()
-        coVerify(exactly = 1) { httpClient.request(any()) }
+        emitted.shouldBeFalse()
+        verify(exactly = 0) { pipeline.track(any(), any()) }
     }
 
     @Test
-    fun send_succeedsAfterTransientFailure() = runTest {
-        coEvery { httpClient.request(any()) } returnsMany listOf(
-            Result.failure(HttpRequestException(500, "x")),
-            Result.success("")
-        )
+    fun events_areDroppedWhenPipelineUnavailable() {
+        val noPipeline = LiveNotificationLifecycleClientImpl(dataPipelineProvider = { null })
 
-        val result = client.reportDismissed("act-1")
+        val emitted = noPipeline.registerPushToStart("type", "fcm-tok")
 
-        result.isSuccess.shouldBeTrue()
-        coVerify(exactly = 2) { httpClient.request(any()) }
+        emitted.shouldBeFalse()
     }
 }

@@ -28,7 +28,7 @@ internal object AuctionBidTemplate : LiveNotificationTemplate {
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
-    ): TemplateRenderResult {
+    ): TemplateRenderResult? {
         val itemTitle = data.optString(AuctionBidFields.ITEM_TITLE)
         val itemImageKey = data.optStringNonEmpty(AuctionBidFields.ITEM_IMAGE_KEY)
         val currencySymbol = data.optStringNonEmpty(AuctionBidFields.CURRENCY_SYMBOL) ?: "$"
@@ -38,6 +38,11 @@ internal object AuctionBidTemplate : LiveNotificationTemplate {
         val statusMessage = data.optString(AuctionBidFields.STATUS_MESSAGE)
         val isUserHighBidder = data.optBoolean(AuctionBidFields.IS_USER_HIGH_BIDDER, false)
         val userBidAmount = data.optStringNonEmpty(AuctionBidFields.USER_BID_AMOUNT)
+
+        // No usable content (fields missing / not flattened): don't render a blank notification.
+        if (itemTitle.isBlank() && statusMessage.isBlank() && currentBid.isBlank()) {
+            return null
+        }
 
         val body = "$statusMessage · $currencySymbol$currentBid"
         val subText = userBidAmount

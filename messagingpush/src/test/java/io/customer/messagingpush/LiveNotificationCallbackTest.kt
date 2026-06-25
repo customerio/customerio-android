@@ -35,7 +35,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
             MessagingPushModuleConfig.Builder().apply {
                 callback?.let { setNotificationCallback(it) }
                 // Enable a built-in type (for the override test) and the custom type.
-                setLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING, customType)
+                enableLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING, customType)
             }.build()
         ).attachToSDKComponent()
     }
@@ -51,7 +51,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     private fun bundle(activityType: String, event: String = "start"): Bundle = Bundle().apply {
         putString(LiveNotificationHandler.ACTIVITY_ID_KEY, "act-cb")
         putString(LiveNotificationHandler.EVENT_KEY, event)
-        putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
+        putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
     }
 
     private fun invoke(b: Bundle) = LiveNotificationHandler(b).handle(

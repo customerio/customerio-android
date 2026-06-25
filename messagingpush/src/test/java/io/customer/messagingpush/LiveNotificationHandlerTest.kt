@@ -23,11 +23,11 @@ import org.robolectric.shadows.ShadowLooper
 /**
  * Tests for [LiveNotificationHandler] focused on envelope parsing and dispatch:
  *
- * - top-level wire keys (`activity_id`, `event`, `activity_type`, `timestamp`,
+ * - top-level wire keys (`activity_id`, `event`, `notification_type`, `timestamp`,
  *   `dismissal_date`) are read from the [Bundle];
- * - template fields arrive flattened at the envelope top level (no
- *   `attributes` / `content_state` split);
- * - missing `activity_id`, `event`, or unknown `activity_type` are dropped
+ * - template fields arrive flattened at the envelope top level or nested under
+ *   a `payload` object;
+ * - missing `activity_id`, `event`, or unknown `notification_type` are dropped
  *   without posting a notification;
  * - `event = "end"` cancels the notification immediately.
  *
@@ -44,7 +44,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         super.setup(testConfig)
         // Live notifications are opt-in; enable all built-in types so the dispatch tests run.
         ModuleMessagingPushFCM(
-            MessagingPushModuleConfig.Builder().setLiveNotificationTypes(
+            MessagingPushModuleConfig.Builder().enableLiveNotificationTypes(
                 LiveNotificationType.DELIVERY_TRACKING,
                 LiveNotificationType.FLIGHT_STATUS,
                 LiveNotificationType.LIVE_SCORE,
@@ -58,14 +58,17 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         activityId: String? = "live-act-1",
         event: String? = "start",
         activityType: String? = TemplateRegistry.DELIVERY_TRACKING,
-        data: JSONObject = JSONObject(),
+        // Minimal renderable content: every built-in template treats statusMessage as usable
+        // content, so envelope/ordering tests post a notification rather than being dropped by
+        // the "no usable content" guard (which is exercised separately).
+        data: JSONObject = JSONObject().apply { put("statusMessage", "Status") },
         timestamp: Long? = null,
         dismissalDate: Long? = null
     ): Bundle {
         val bundle = Bundle()
         if (activityId != null) bundle.putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
         if (event != null) bundle.putString(LiveNotificationHandler.EVENT_KEY, event)
-        if (activityType != null) bundle.putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
+        if (activityType != null) bundle.putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
         if (timestamp != null) bundle.putString(LiveNotificationHandler.TIMESTAMP_KEY, timestamp.toString())
         if (dismissalDate != null) bundle.putString(LiveNotificationHandler.DISMISSAL_DATE_KEY, dismissalDate.toString())
         // Template fields ride flattened at the top level, as the backend delivers them.
@@ -95,7 +98,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         // Failure to update both the SDK and CIO backend would silently break live notifications.
         LiveNotificationHandler.ACTIVITY_ID_KEY shouldBeEqualTo "activity_id"
         LiveNotificationHandler.EVENT_KEY shouldBeEqualTo "event"
-        LiveNotificationHandler.ACTIVITY_TYPE_KEY shouldBeEqualTo "activity_type"
+        LiveNotificationHandler.NOTIFICATION_TYPE_KEY shouldBeEqualTo "notification_type"
         LiveNotificationHandler.TIMESTAMP_KEY shouldBeEqualTo "timestamp"
         LiveNotificationHandler.DISMISSAL_DATE_KEY shouldBeEqualTo "dismissal_date"
     }
@@ -132,6 +135,31 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             put("stepTotal", 4)
         }
         val bundle = newBundle(activityId = activityId, data = data)
+
+        invoke(handlerFor(bundle))
+
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenTemplateFieldsNestedUnderPayload_unwrapsAndPosts() {
+        // Backend delivers template fields nested under a `payload` object (JSON string),
+        // not flattened. The handler must unwrap them so the template renders.
+        val activityId = "payload-nested"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+        val bundle = newBundle(activityId = activityId, data = JSONObject()).apply {
+            putString(
+                LiveNotificationHandler.PAYLOAD_KEY,
+                JSONObject().apply {
+                    put("orderId", "abc-123")
+                    put("statusMessage", "preparing")
+                    put("stepCurrent", "1")
+                    put("stepTotal", "4")
+                }.toString()
+            )
+        }
 
         invoke(handlerFor(bundle))
 
@@ -191,6 +219,25 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     fun handle_givenMissingEvent_dropsAndDoesNotNotify() {
         // event is required — there is no implicit "update" default.
         invoke(handlerFor(newBundle(event = null)))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenStartWithNoContentFields_doesNotPostEmptyNotification() {
+        // Enabled type + valid envelope, but the template fields never arrived (e.g. content
+        // wasn't flattened). The template can't render anything meaningful, so we must NOT post
+        // a blank notification.
+        val bundle = newBundle(
+            activityId = "no-content",
+            event = "start",
+            activityType = TemplateRegistry.DELIVERY_TRACKING,
+            data = JSONObject()
+        )
+
+        invoke(handlerFor(bundle))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())

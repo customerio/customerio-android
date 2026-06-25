@@ -30,7 +30,7 @@ internal class AuctionBidTemplateTest : IntegrationTest() {
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
-    )
+    )!!
 
     private fun baseAttributes() = JSONObject().apply {
         put("itemTitle", "Vintage Camera")

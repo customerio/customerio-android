@@ -62,7 +62,7 @@ public class CustomerIORepository {
                         .setNotificationCallback(new LiveNotificationCallback())
                         // Live notifications are opt-in: enable the built-in template
                         // types plus our two custom (app-rendered) types.
-                        .setLiveNotificationTypes(
+                        .enableLiveNotificationTypes(
                                 LiveNotificationType.DELIVERY_TRACKING,
                                 LiveNotificationType.FLIGHT_STATUS,
                                 LiveNotificationType.LIVE_SCORE,

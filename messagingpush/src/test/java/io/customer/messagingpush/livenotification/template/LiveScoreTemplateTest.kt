@@ -27,7 +27,7 @@ internal class LiveScoreTemplateTest : IntegrationTest() {
         branding = null,
         smallIcon = 0,
         fallbackTintColor = null
-    )
+    )!!
 
     private fun teamsAttributes() = JSONObject().apply {
         put("homeTeam", JSONObject().put("name", "Lakers"))

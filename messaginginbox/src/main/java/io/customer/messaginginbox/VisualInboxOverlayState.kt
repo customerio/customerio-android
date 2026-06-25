@@ -224,38 +224,51 @@ internal class VisualInboxController(
             return InboxNavigation.None
         }
 
+        // Auto-dismiss-on-click: an action message can carry `data.dismiss == true` alongside its
+        // behavior (e.g. performAction), meaning "run the action AND remove the message". Captured
+        // before any early-return so it applies whether or not the host intercepts the action.
+        val dismissAfterAction = actionDismissFlag(event)
         val url = resolution.url
         // Track the click against the same InboxMessage the UI renders (resolved from the visible
         // set), reusing the existing track-clicked plumbing. Deduped per queueId so a repeated tap
         // before the row updates does not double-count.
         trackClicked(visibility, message, event.name)
 
-        // Host interception (item 13): true => host handled it, SDK does nothing further.
-        if (notifyHostHandled(message, event.name, url.orEmpty())) {
-            return InboxNavigation.None
+        // Host interception (item 13): true => host handled it, SDK runs no default nav (but still
+        // honors the dismiss flag below).
+        val handledByHost = notifyHostHandled(message, event.name, url.orEmpty())
+
+        // SDK default navigation (item 12), unless the host handled it.
+        val navigation = if (handledByHost) {
+            InboxNavigation.None
+        } else {
+            when (resolution) {
+                is InboxAction.OpenUrl -> InboxNavigation.OpenUrl(resolution.url)
+                is InboxAction.Deeplink -> {
+                    logger.debug(
+                        "$INBOX_LOG_TAG deeplink '${resolution.url}' on ${message.queueId} not handled by host; " +
+                            "SDK cannot resolve app routes, no-op"
+                    )
+                    InboxNavigation.None
+                }
+
+                is InboxAction.Unknown -> {
+                    logger.debug(
+                        "$INBOX_LOG_TAG action '${event.name}' (behavior=${actionBehavior(event)}, url=${actionUrl(event)}) " +
+                            "on ${message.queueId}: no resolvable url/behavior, no-op"
+                    )
+                    InboxNavigation.None
+                }
+
+                is InboxAction.Dismiss -> InboxNavigation.None // unreachable; handled above
+            }
         }
 
-        // SDK default navigation (item 12).
-        return when (resolution) {
-            is InboxAction.OpenUrl -> InboxNavigation.OpenUrl(resolution.url)
-            is InboxAction.Deeplink -> {
-                logger.debug(
-                    "$INBOX_LOG_TAG deeplink '${resolution.url}' on ${message.queueId} not handled by host; " +
-                        "SDK cannot resolve app routes, no-op"
-                )
-                InboxNavigation.None
-            }
-
-            is InboxAction.Unknown -> {
-                logger.debug(
-                    "$INBOX_LOG_TAG action '${event.name}' (behavior=${actionBehavior(event)}, url=${actionUrl(event)}) " +
-                        "on ${message.queueId}: no resolvable url/behavior, no-op"
-                )
-                InboxNavigation.None
-            }
-
-            is InboxAction.Dismiss -> InboxNavigation.None // unreachable; handled above
+        // Honor `data.dismiss == true` after running the action (regardless of host handling / nav).
+        if (dismissAfterAction) {
+            dismissMessage(visibility, message.queueId)
         }
+        return navigation
     }
 
     /**
@@ -409,6 +422,13 @@ private fun actionUrl(event: JistActionEvent): String? =
  */
 private fun actionBehavior(event: JistActionEvent): String? =
     ((event.data as? JsonObject)?.get("behavior") as? JsonPrimitive)?.contentOrNull
+
+/**
+ * True when the action carries `data.dismiss == true` — "auto dismiss on click": remove the message
+ * after running its (non-dismiss) action. Matches both a JSON boolean `true` and the string `"true"`.
+ */
+private fun actionDismissFlag(event: JistActionEvent): Boolean =
+    ((event.data as? JsonObject)?.get("dismiss") as? JsonPrimitive)?.contentOrNull == "true"
 
 /** Jist action `behavior` / sentinel constants matched by [resolveInboxAction] (compared lowercase). */
 private const val DISMISS_BEHAVIOR = "dismiss"

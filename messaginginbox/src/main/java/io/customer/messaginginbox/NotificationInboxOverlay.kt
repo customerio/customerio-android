@@ -119,6 +119,16 @@ internal fun NotificationInboxOverlay(
     val uiStateFlow = remember(controller) { controller.uiStateFlow() }
     val state by uiStateFlow.collectAsState(initial = VisualInboxUiState(loading = true))
 
+    // Whether any selected message can actually render (its `type` has a decoded template). A message
+    // whose type has no template is skipped by the list, so when NONE are renderable there is nothing
+    // to show — chrome is hidden (below) rather than left as a bell over a blank panel.
+    val renderTemplates = remember(state.templatesJson) {
+        InboxJistDecoder.decodeTemplates(state.templatesJson)
+    }
+    val hasRenderableMessages = remember(state.messages, renderTemplates) {
+        state.messages.any { it.type in renderTemplates }
+    }
+
     // When the panel opens, auto-mark the currently-selected unopened messages as opened (exactly
     // once, via the controller's dedupe + in-flight guard). The mark dispatches a store change,
     // which re-emits through uiStateFlow above so the messages and unread badge update reactively.
@@ -132,15 +142,17 @@ internal fun NotificationInboxOverlay(
     // inbox no longer Visible (or messages becomes empty) -> the panel collapses and the bell
     // unmounts (see the `isVisible && panelExpanded` guard below). Without this, the panel would
     // stay open over an empty list after the final dismiss.
-    LaunchedEffect(state.isVisible, state.messages.isEmpty()) {
-        if (!state.isVisible || state.messages.isEmpty()) {
+    LaunchedEffect(state.isVisible, hasRenderableMessages) {
+        if (!state.isVisible || !hasRenderableMessages) {
             panelExpanded = false
         }
     }
 
-    // The bell only appears when the inbox is renderable per the data layer. When the panel is
-    // open we keep the overlay mounted regardless so the close animation can play out.
-    if (!state.isVisible && !panelExpanded) {
+    // The bell only appears when the inbox is renderable: enabled+Visible per the data layer AND at
+    // least one message has a template to render. When the panel is open we keep the overlay mounted
+    // regardless so the close animation can play out.
+    val canShowChrome = state.isVisible && hasRenderableMessages
+    if (!canShowChrome && !panelExpanded) {
         return
     }
 

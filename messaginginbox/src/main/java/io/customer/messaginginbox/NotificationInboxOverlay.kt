@@ -94,8 +94,11 @@ fun NotificationInboxBell(
     val state by remember(controller) { controller.uiStateFlow() }
         .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
 
-    // Only show the bell when the data layer reports the inbox renderable (enabled + has messages).
-    if (!state.isVisible) return
+    // Only show the bell when the inbox is renderable: enabled+Visible AND at least one message has a
+    // template to render (a message whose type has no template is skipped by the list, so if none can
+    // render there is nothing to show).
+    val hasRenderableMessages = rememberHasRenderableMessages(state)
+    if (!state.isVisible || !hasRenderableMessages) return
 
     InboxBellContent(
         unopenedCount = state.unopenedCount,
@@ -180,15 +183,18 @@ internal fun NotificationInboxOverlay(
     // Auto-close the panel + hide the bell when the inbox is no longer renderable. Dismissing the
     // last message empties the list -> the data layer reports the inbox no longer Visible -> the
     // panel collapses and the bell unmounts (see the guard below).
-    LaunchedEffect(state.isVisible, state.messages.isEmpty()) {
-        if (!state.isVisible || state.messages.isEmpty()) {
+    val hasRenderableMessages = rememberHasRenderableMessages(state)
+    LaunchedEffect(state.isVisible, hasRenderableMessages) {
+        if (!state.isVisible || !hasRenderableMessages) {
             panelExpanded = false
         }
     }
 
-    // The bell only appears when the inbox is renderable per the data layer. When the panel is open
-    // we keep the overlay mounted regardless so the close animation can play out.
-    if (!state.isVisible && !panelExpanded) {
+    // The bell only appears when the inbox is renderable: enabled+Visible AND at least one message has
+    // a template. When the panel is open we keep the overlay mounted regardless so the close animation
+    // can play out.
+    val canShowChrome = state.isVisible && hasRenderableMessages
+    if (!canShowChrome && !panelExpanded) {
         return
     }
 
@@ -515,6 +521,21 @@ private fun rememberInboxController(): VisualInboxController = remember {
         // eventListener; resolved from the same module config the host built. Null when none set.
         inboxEventListener = module.moduleConfig.inboxEventListener
     )
+}
+
+/**
+ * Whether any selected message can actually render — its `type` has a decoded template. A message
+ * whose type has no template is skipped by the list, so when none are renderable there is nothing to
+ * show and the overlay hides all chrome rather than leaving a bell over a blank panel.
+ */
+@Composable
+private fun rememberHasRenderableMessages(state: VisualInboxUiState): Boolean {
+    val templates = remember(state.templatesJson) {
+        InboxJistDecoder.decodeTemplates(state.templatesJson)
+    }
+    return remember(state.messages, templates) {
+        state.messages.any { it.type in templates }
+    }
 }
 
 /** Resolved chrome colors for the overlay. See [rememberInboxColors] for the resolution order. */

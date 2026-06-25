@@ -45,7 +45,7 @@ internal class LiveNotificationManager(
             }
             putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
             putString(LiveNotificationHandler.EVENT_KEY, EVENT_START)
-            putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
+            putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
             putString(LiveNotificationHandler.TIMESTAMP_KEY, System.currentTimeMillis().toString())
         }
 

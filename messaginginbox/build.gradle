@@ -24,7 +24,10 @@ android {
         consumerProguardFiles "consumer-rules.pro"
     }
 
-    // Core library desugaring: required because Jist (io.customer.android:jist) uses java.time.
+    // Core library desugaring: Jist (io.customer.android:jist) uses java.time, which is only
+    // available natively on API 26+. Because this module (and the SDK) support minSdk < 26, desugaring
+    // is required so Jist's java.time usage works on older devices in customer apps. It stays until
+    // Jist drops java.time or this module's minSdk is raised to 26 — it is NOT a local-build artifact.
     compileOptions {
         coreLibraryDesugaringEnabled true
     }
@@ -61,6 +64,7 @@ dependencies {
     implementation Dependencies.composeUiGraphics
     implementation Dependencies.composeFoundation
     implementation Dependencies.composeRuntime
+    implementation Dependencies.androidxLifecycleRuntimeCompose
     implementation Dependencies.coroutinesAndroid
 
     // Testing

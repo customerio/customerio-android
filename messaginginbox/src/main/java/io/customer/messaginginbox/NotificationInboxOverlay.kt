@@ -35,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.jist.JistActionEvent
 import io.customer.jist.JistMode
@@ -116,8 +116,10 @@ internal fun NotificationInboxOverlay(
     // Reactive state: re-derived automatically on every relevant store change (see uiStateFlow),
     // so the bell/panel/badge update with no recomposition or user navigation required.
     // Build the Flow once per controller (not on every recomposition) so collection is stable.
+    // collectAsStateWithLifecycle pauses collection while the host is STOPPED (backgrounded / overlay
+    // off-screen) and resumes on start, avoiding wasted work when the inbox isn't visible.
     val uiStateFlow = remember(controller) { controller.uiStateFlow() }
-    val state by uiStateFlow.collectAsState(initial = VisualInboxUiState(loading = true))
+    val state by uiStateFlow.collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
 
     // Whether any selected message can actually render (its `type` has a decoded template). A message
     // whose type has no template is skipped by the list, so when NONE are renderable there is nothing

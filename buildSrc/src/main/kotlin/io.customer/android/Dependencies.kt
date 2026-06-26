@@ -18,6 +18,11 @@ object Dependencies {
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
     const val androidxProcessLifecycle = "androidx.lifecycle:lifecycle-process:${Versions.ANDROIDX_LIFECYCLE_PROCESS}"
+
+    // Lifecycle-aware Compose state collection (`collectAsStateWithLifecycle`) so the overlay pauses
+    // flow collection while the host is backgrounded / the overlay is off-screen. Shares the lifecycle
+    // release version with lifecycle-process above.
+    const val androidxLifecycleRuntimeCompose = "androidx.lifecycle:lifecycle-runtime-compose:${Versions.ANDROIDX_LIFECYCLE_PROCESS}"
     const val androidxAnnotations =
         "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
     const val coroutinesCore =

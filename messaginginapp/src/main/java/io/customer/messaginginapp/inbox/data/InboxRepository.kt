@@ -279,7 +279,7 @@ internal class InboxRepository(
      * Tolerant of any shape: returns the top-level key count, or -1 if unparseable.
      */
     private fun templateNamesCount(rawJson: String): Int = runCatching {
-        Gson().fromJson(rawJson, JsonObject::class.java).keySet().size
+        gson.fromJson(rawJson, JsonObject::class.java).keySet().size
     }.getOrDefault(-1)
 
     /**

@@ -9,6 +9,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
@@ -159,5 +160,32 @@ class InboxJistDecoderTest {
         // isn't exercised in plain JVM unit tests. We verify the parse-failure fallback, which
         // returns the raw input before ever touching DateUtils.
         InboxJistDecoder.formatRelativeDate("not-a-date", name = "sentAt", now = now) shouldBeEqualTo "not-a-date"
+    }
+
+    // --- parseIsoToMillis (permissiveness restored after dropping Instant.parse) ---
+
+    @Test
+    fun parseIsoToMillis_givenFractionalSecondsBeyondMillis_expectClampedNotRejected() {
+        // Micros clamp to millis; both forms resolve to the same instant (and neither falls back).
+        InboxJistDecoder.parseIsoToMillis("2026-06-26T12:00:00.123456Z") shouldBeEqualTo
+            InboxJistDecoder.parseIsoToMillis("2026-06-26T12:00:00.123Z")
+    }
+
+    @Test
+    fun parseIsoToMillis_givenNumericOffset_expectAppliedRelativeToUtc() {
+        // +01:00 is one hour ahead of UTC, so the same wall clock is one hour earlier in epoch terms.
+        InboxJistDecoder.parseIsoToMillis("2026-06-26T12:00:00+01:00") shouldBeEqualTo
+            InboxJistDecoder.parseIsoToMillis("2026-06-26T11:00:00Z")
+    }
+
+    @Test
+    fun parseIsoToMillis_givenNoDesignator_expectTreatedAsUtc() {
+        InboxJistDecoder.parseIsoToMillis("2026-06-26T12:00:00") shouldBeEqualTo
+            InboxJistDecoder.parseIsoToMillis("2026-06-26T12:00:00Z")
+    }
+
+    @Test
+    fun parseIsoToMillis_givenUnparseable_expectNull() {
+        InboxJistDecoder.parseIsoToMillis("not-a-date").shouldBeNull()
     }
 }

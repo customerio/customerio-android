@@ -112,15 +112,37 @@ internal object InboxJistDecoder {
         isoFormatter.get()?.format(this) ?: toString()
     }.getOrElse { toString() }
 
+    /** Fractional-seconds group, e.g. the `123456` in `…:11.123456Z`. */
+    private val fractionalSeconds = Regex("\\.(\\d+)")
+
+    /** Trailing numeric UTC offset, e.g. `+05:30`, `-0800` (the colon is optional). */
+    private val trailingOffset = Regex("([+-])(\\d{2}):?(\\d{2})$")
+
     /**
-     * Parses an ISO-8601 instant (UTC, optional fractional seconds, optional trailing "Z") to epoch
-     * millis without java.time. Returns null if no supported pattern matches.
+     * Parses an ISO-8601 instant to epoch millis WITHOUT java.time, matching the permissiveness the
+     * inbox relied on before (`Instant.parse`): fractional seconds of any length, a trailing `Z`, and
+     * numeric `±HH:MM` / `±HHMM` offsets (a value with no designator is treated as UTC). Returns null
+     * if the date/time core still doesn't match. SimpleDateFormat only understands 3-digit millis and
+     * has no minSdk-21-safe offset token, so the offset/fraction are normalized here first.
      */
-    private fun parseIsoToMillis(iso: String): Long? {
+    internal fun parseIsoToMillis(iso: String): Long? {
         val parsers = isoParsers.get() ?: return null
-        val normalized = iso.trim().removeSuffix("Z")
+        // Clamp fractional seconds to 3 digits (millis), so more/fewer digits than `.SSS` still parse.
+        var s = fractionalSeconds.replace(iso.trim()) { "." + it.groupValues[1].take(3).padEnd(3, '0') }
+        // Resolve + strip the timezone designator to a UTC offset; absent designator ⇒ assume UTC.
+        var offsetMillis = 0L
+        if (s.endsWith("Z")) {
+            s = s.dropLast(1)
+        } else {
+            trailingOffset.find(s)?.let { match ->
+                val sign = if (match.groupValues[1] == "-") -1 else 1
+                offsetMillis = sign * (match.groupValues[2].toLong() * 3_600_000L + match.groupValues[3].toLong() * 60_000L)
+                s = s.substring(0, match.range.first)
+            }
+        }
+        // Parse the offset-free time as UTC, then subtract the offset to get the true epoch millis.
         for (parser in parsers) {
-            runCatching { parser.parse(normalized)?.time }.getOrNull()?.let { return it }
+            runCatching { parser.parse(s)?.time }.getOrNull()?.let { return it - offsetMillis }
         }
         return null
     }

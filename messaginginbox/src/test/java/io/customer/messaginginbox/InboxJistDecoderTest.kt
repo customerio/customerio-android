@@ -1,7 +1,6 @@
 package io.customer.messaginginbox
 
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
-import java.time.Instant
 import java.util.Date
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -150,7 +149,9 @@ class InboxJistDecoderTest {
 
     // --- formatRelativeDate (Jist formatDate hook) ---
 
-    private val now: Instant = Instant.parse("2026-06-20T12:00:00Z")
+    // Epoch millis for 2026-06-20T12:00:00Z (value is irrelevant: this test exercises the
+    // parse-failure fallback, which returns before DateUtils/now is used).
+    private val now: Long = 1_781_006_400_000L
 
     @Test
     fun formatRelativeDate_givenUnparseable_expectRawValueReturned() {

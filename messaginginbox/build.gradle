@@ -24,14 +24,6 @@ android {
         consumerProguardFiles "consumer-rules.pro"
     }
 
-    // Core library desugaring: Jist (io.customer.android:jist) uses java.time, which is only
-    // available natively on API 26+. Because this module (and the SDK) support minSdk < 26, desugaring
-    // is required so Jist's java.time usage works on older devices in customer apps. It stays until
-    // Jist drops java.time or this module's minSdk is raised to 26 — it is NOT a local-build artifact.
-    compileOptions {
-        coreLibraryDesugaringEnabled true
-    }
-
     buildTypes {
         release {
             minifyEnabled false
@@ -46,9 +38,6 @@ android {
 dependencies {
     // Main dependencies
     api project(":messaginginapp")  // This module builds on top of the messaginginapp module
-
-    // Required because Jist (io.customer.android:jist) uses java.time (see compileOptions above).
-    coreLibraryDesugaring Dependencies.coreLibraryDesugaring
 
     // Jist rendering engine (published Maven Central artifact). The overlay decodes the data
     // layer's raw JSON into Jist's serialization types and renders messages with `JistView`.

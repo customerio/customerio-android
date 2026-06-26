@@ -9,6 +9,7 @@ import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceTestConfigOverrides
 import io.customer.geofence.GeofenceTransitionType
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
@@ -31,6 +32,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
                 argument(ApplicationArgument(applicationMock))
             }
         )
+        // Assert real config resolution, not the geofence-testing client-side overrides.
+        GeofenceTestConfigOverrides.enabled = false
         store = GeofenceRegionStoreImpl(
             context = applicationMock,
             jsonSerializer = GeofenceJsonSerializer(),

@@ -143,12 +143,24 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             // Snapshot userId so a sign-out + sign-in before delivery can't
             // reattribute this transition. Empty userId is treated as "not
             // identified" per the SDK's `isUserIdentified` convention.
+            val cachedRegion = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
+            // Testing-only (geofence-testing branch): straight-line distance from the
+            // triggering location to the geofence center, for distance-vs-radius checks.
+            val distanceMeters = if (latitude != null && longitude != null) {
+                cachedRegion?.distanceTo(latitude, longitude)?.toDouble()
+            } else {
+                null
+            }
             val entry = PendingGeofenceDelivery(
                 geofenceId = geofenceId,
                 transition = transition,
                 timestamp = timestamp,
                 userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() },
-                geofenceName = androidComponent.geofenceRegionStore.getCachedRegionName(geofenceId)
+                geofenceName = cachedRegion?.name,
+                triggerLatitude = latitude,
+                triggerLongitude = longitude,
+                distanceMeters = distanceMeters,
+                geofenceRadius = cachedRegion?.radius?.toDouble()
             )
             androidComponent.pendingGeofenceDeliveryStore.append(entry)
             // Anonymous entries can only be delivered via the foreground flush —

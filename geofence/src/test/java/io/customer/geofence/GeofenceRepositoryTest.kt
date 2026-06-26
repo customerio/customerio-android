@@ -44,6 +44,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
+        // Assert real config resolution, not the geofence-testing client-side overrides.
+        GeofenceTestConfigOverrides.enabled = false
         // Default: mirror real time so tests using relative timestamps work
         // without churn. Override for deterministic timing.
         every { clock.currentTimeMillis() } answers { System.currentTimeMillis() }

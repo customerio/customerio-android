@@ -3,6 +3,7 @@ package io.customer.geofence.api
 import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceTestConfigOverrides
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.di.geofenceLogger
 import io.customer.sdk.core.di.SDKComponent
@@ -92,7 +93,7 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
         maxMonitoringDistance < coercedLocalRefresh -> GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
         else -> maxMonitoringDistance
     }
-    return GeofenceConfig(
+    val resolved = GeofenceConfig(
         localRefreshTriggerRadius = coercedLocalRefresh,
         remoteFetchRefreshTriggerRadius = remoteFetchRefreshTriggerRadius?.takeIf { it > 0 }
             ?: GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
@@ -114,6 +115,8 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
             ?: GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES,
         maxMonitoringDistance = coercedMaxMonitoringDistance
     )
+    // Testing-only (geofence-testing branch): force client-side config values.
+    return GeofenceTestConfigOverrides.apply(resolved)
 }
 
 private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(

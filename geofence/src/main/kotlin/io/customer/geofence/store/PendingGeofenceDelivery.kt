@@ -24,7 +24,13 @@ internal data class PendingGeofenceDelivery(
     val timestamp: Long,
     val userId: String?,
     /** Null when the fired geofence isn't in the cached region set. */
-    val geofenceName: String? = null
+    val geofenceName: String? = null,
+    // --- Testing-only (geofence-testing branch): trigger context so the tester
+    // can verify distance vs radius on the dashboard. Not present on feature/main.
+    val triggerLatitude: Double? = null,
+    val triggerLongitude: Double? = null,
+    val distanceMeters: Double? = null,
+    val geofenceRadius: Double? = null
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String get() = "${geofenceId}_${transition.name}_$timestamp"
 
@@ -38,6 +44,13 @@ internal data class PendingGeofenceDelivery(
         put("transition", transition.name.lowercase())
         put("geofenceId", geofenceId)
         geofenceName?.let { put("geofenceName", it) }
+        // Testing-only (geofence-testing branch): trigger location, timestamp,
+        // and distance-vs-radius so they're visible on the dashboard payload.
+        put("timestamp", timestamp)
+        triggerLatitude?.let { put("triggerLatitude", it) }
+        triggerLongitude?.let { put("triggerLongitude", it) }
+        distanceMeters?.let { put("distanceMeters", it) }
+        geofenceRadius?.let { put("geofenceRadius", it) }
     }
 
     /**

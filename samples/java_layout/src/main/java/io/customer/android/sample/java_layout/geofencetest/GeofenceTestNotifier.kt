@@ -36,11 +36,20 @@ object GeofenceTestNotifier {
     }
 
     private fun postNotification(context: Context, event: Event.GeofenceTransitionEvent) {
-        val title = when (event.transition) {
-            Event.GeofenceTransition.ENTER -> "Geofence ENTER"
-            Event.GeofenceTransition.EXIT -> "Geofence EXIT"
+        val direction = when (event.transition) {
+            Event.GeofenceTransition.ENTER -> "ENTER"
+            Event.GeofenceTransition.EXIT -> "EXIT"
         }
-        val text = "id=${event.geofenceId}"
+        val name = event.properties["geofenceName"] as? String
+        val title = "Geofence $direction" + (name?.let { " · $it" } ?: "")
+        // distanceMeters / geofenceRadius are the testing-only props (geofence-testing branch),
+        // surfaced here so distance-vs-radius can be eyeballed without the dashboard.
+        val distance = event.properties["distanceMeters"]
+        val radius = event.properties["geofenceRadius"]
+        val text = buildString {
+            append("id=${event.geofenceId}")
+            if (distance != null && radius != null) append(" · ${distance}m / r=${radius}m")
+        }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_map)
             .setContentTitle(title)

@@ -32,13 +32,15 @@ internal data class GeofenceConfig(
         // Used when the cached server config is missing. Today that's the
         // common case (backend doesn't ship `config` yet); long-term it
         // covers cold-start / first-launch.
-        fun fallback(): GeofenceConfig = GeofenceConfig(
-            localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
-            remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
-            remoteFetchRefreshExpiry = GeofenceConstants.STALE_THRESHOLD_MS,
-            duplicateEventsExpiry = GeofenceConstants.DEDUPE_COOLDOWN_MS,
-            maxBusinessGeofences = GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES,
-            maxMonitoringDistance = GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
+        fun fallback(): GeofenceConfig = GeofenceTestConfigOverrides.apply(
+            GeofenceConfig(
+                localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
+                remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,
+                remoteFetchRefreshExpiry = GeofenceConstants.STALE_THRESHOLD_MS,
+                duplicateEventsExpiry = GeofenceConstants.DEDUPE_COOLDOWN_MS,
+                maxBusinessGeofences = GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES,
+                maxMonitoringDistance = GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
+            )
         )
     }
 }

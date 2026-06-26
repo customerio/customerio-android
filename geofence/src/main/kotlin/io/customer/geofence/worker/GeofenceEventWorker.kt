@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.await
+import androidx.work.hasKeyWithValueOfType
 import io.customer.geofence.di.geofenceEventTracker
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
@@ -26,6 +27,12 @@ private const val KEY_TRANSITION = "transition"
 private const val KEY_TIMESTAMP = "timestamp"
 private const val KEY_USER_ID = "user_id"
 
+// Testing-only (geofence-testing branch): trigger context carried through the worker path.
+private const val KEY_TRIGGER_LAT = "trigger_latitude"
+private const val KEY_TRIGGER_LNG = "trigger_longitude"
+private const val KEY_DISTANCE = "distance_meters"
+private const val KEY_RADIUS = "geofence_radius"
+
 /**
  * Schedules a [GeofenceEventWorker] for guaranteed delivery of a geofence transition event.
  * Falls back to in-process async HTTP if WorkManager is unavailable (does not survive death).
@@ -42,6 +49,11 @@ internal class GeofenceEventScheduler(
             .apply {
                 entry.userId?.let { putString(KEY_USER_ID, it) }
                 entry.geofenceName?.let { putString(KEY_GEOFENCE_NAME, it) }
+                // Testing-only (geofence-testing branch).
+                entry.triggerLatitude?.let { putDouble(KEY_TRIGGER_LAT, it) }
+                entry.triggerLongitude?.let { putDouble(KEY_TRIGGER_LNG, it) }
+                entry.distanceMeters?.let { putDouble(KEY_DISTANCE, it) }
+                entry.geofenceRadius?.let { putDouble(KEY_RADIUS, it) }
             }
             .build()
 
@@ -111,7 +123,12 @@ internal class GeofenceEventWorker(
             transition = transition,
             timestamp = timestamp,
             userId = userId,
-            geofenceName = inputData.getString(KEY_GEOFENCE_NAME)
+            geofenceName = inputData.getString(KEY_GEOFENCE_NAME),
+            // Testing-only (geofence-testing branch).
+            triggerLatitude = inputData.getDoubleOrNull(KEY_TRIGGER_LAT),
+            triggerLongitude = inputData.getDoubleOrNull(KEY_TRIGGER_LNG),
+            distanceMeters = inputData.getDoubleOrNull(KEY_DISTANCE),
+            geofenceRadius = inputData.getDoubleOrNull(KEY_RADIUS)
         )
 
         // No identified user at queue time — direct HTTP needs a userId, so
@@ -149,3 +166,8 @@ internal class GeofenceEventWorker(
         }
     }
 }
+
+// Testing-only (geofence-testing branch): Data has no nullable getter, so distinguish
+// "absent" from a real 0.0 via the typed key check.
+private fun androidx.work.Data.getDoubleOrNull(key: String): Double? =
+    if (hasKeyWithValueOfType<Double>(key)) getDouble(key, 0.0) else null

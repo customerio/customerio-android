@@ -8,6 +8,7 @@ import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceTestConfigOverrides
 import io.customer.geofence.GeofenceTransitionType
 import io.mockk.mockk
 import io.mockk.verify
@@ -33,6 +34,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
                 }
             }
         )
+        // Assert real config resolution, not the geofence-testing client-side overrides.
+        GeofenceTestConfigOverrides.enabled = false
     }
 
     // ---------- region shape ----------

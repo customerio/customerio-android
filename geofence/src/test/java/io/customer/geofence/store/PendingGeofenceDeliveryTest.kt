@@ -50,17 +50,40 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
-    fun toEventProperties_expectTransitionAndGeofenceIdNoTimestamp() {
-        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 50L, "user-A")
+    fun toEventProperties_expectTransitionGeofenceIdAndTestingExtras() {
+        val entry = PendingGeofenceDelivery(
+            "biz-4",
+            Event.GeofenceTransition.ENTER,
+            50L,
+            "user-A",
+            triggerLatitude = 31.5,
+            triggerLongitude = 74.3,
+            distanceMeters = 42.0,
+            geofenceRadius = 100.0
+        )
 
         val props = entry.toEventProperties()
 
         props["geofenceId"] shouldBeEqualTo "biz-4"
         props["transition"] shouldBeEqualTo "enter"
-        // Timestamp rides the event envelope, not the properties.
-        props.keys shouldNotContain "timestamp"
-        props.keys shouldNotContain "latitude"
-        props.keys shouldNotContain "longitude"
+        // Testing-only (geofence-testing branch): trigger context surfaced in properties.
+        props["timestamp"] shouldBeEqualTo 50L
+        props["triggerLatitude"] shouldBeEqualTo 31.5
+        props["triggerLongitude"] shouldBeEqualTo 74.3
+        props["distanceMeters"] shouldBeEqualTo 42.0
+        props["geofenceRadius"] shouldBeEqualTo 100.0
+    }
+
+    @Test
+    fun toEventProperties_givenNoTriggerContext_expectExtrasOmitted() {
+        val entry = PendingGeofenceDelivery("biz-4b", Event.GeofenceTransition.ENTER, 50L, "user-A")
+
+        val props = entry.toEventProperties()
+
+        props.keys shouldNotContain "triggerLatitude"
+        props.keys shouldNotContain "triggerLongitude"
+        props.keys shouldNotContain "distanceMeters"
+        props.keys shouldNotContain "geofenceRadius"
     }
 
     @Test

@@ -6,6 +6,7 @@ import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceTestConfigOverrides
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.PreferenceCrypto
 import io.customer.sdk.data.store.PreferenceStore
@@ -50,8 +51,11 @@ internal interface GeofenceRegionStore {
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
 
+    /** Full cached region with [id], or null if it isn't cached. */
+    fun getCachedRegion(id: String): GeofenceRegion? = getCachedRegions().find { it.id == id }
+
     /** Name of the cached region with [id], or null if it isn't cached. */
-    fun getCachedRegionName(id: String): String? = getCachedRegions().find { it.id == id }?.name
+    fun getCachedRegionName(id: String): String? = getCachedRegion(id)?.name
 
     fun saveRegisteredIds(ids: Set<String>)
     fun getRegisteredIds(): Set<String>
@@ -119,7 +123,8 @@ internal class GeofenceRegionStoreImpl(
         writeJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer(), config)
 
     override fun getCachedConfig(): GeofenceConfig? =
-        readJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer())
+        // Testing-only (geofence-testing branch): force client-side config values when present.
+        readJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer())?.let { GeofenceTestConfigOverrides.apply(it) }
 
     override fun saveLastApiFetchLocation(location: GeofenceLocation) =
         writeEncryptedJson(KEY_LAST_API_FETCH_LOCATION, GeofenceLocation.serializer(), location)

@@ -55,8 +55,8 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         val props = body.getJSONObject("properties")
         props.getString("geofenceId") shouldBeEqualTo "biz-geofence-1"
         props.getString("transition") shouldBeEqualTo "enter"
-        // Timestamp lives on the envelope (asserted above), not in properties.
-        props.has("timestamp") shouldBeEqualTo false
+        // Testing-only (geofence-testing branch): timestamp also surfaced in properties (unix seconds).
+        props.getLong("timestamp") shouldBeEqualTo 1_234_567_890L
         props.has("latitude") shouldBeEqualTo false
         props.has("longitude") shouldBeEqualTo false
     }

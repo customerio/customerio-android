@@ -304,8 +304,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenCachedRegionName_expectNameOnEntry() = runTest {
-        every { mockStore.getCachedRegionName("biz-geofence") } returns "Coffee Shop"
+    fun dispatchTransition_givenCachedRegion_expectNameAndTriggerContextOnEntry() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion(id = "biz-geofence", latitude = 0.0, longitude = 0.0, radius = 100f, name = "Coffee Shop")
         val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
@@ -317,6 +318,11 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
         entrySlot.captured.geofenceName shouldBeEqualTo "Coffee Shop"
+        // Testing-only (geofence-testing branch): trigger context populated from the cached region.
+        entrySlot.captured.triggerLatitude shouldBeEqualTo 0.0
+        entrySlot.captured.triggerLongitude shouldBeEqualTo 0.0
+        entrySlot.captured.geofenceRadius shouldBeEqualTo 100.0
+        entrySlot.captured.distanceMeters shouldBeEqualTo 0.0
     }
 
     @Test

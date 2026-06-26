@@ -142,7 +142,14 @@ internal class VisualInboxController(
         } else {
             emptyList()
         }
-        reconcileDedupeGuards(messages)
+        // Only reconcile dedupe guards against an AUTHORITATIVE message set (Visible == enabled +
+        // templates + branding + >=1 message). On a transient non-Visible state (loading, templates
+        // not ready yet, or Hidden) `messages` is forced empty above and is NOT the true present-set,
+        // so reconciling there would wipe every guard — a later Hidden→Visible transition could then
+        // double-fire host callbacks or lose one-shot dismiss/click/opened guards for the same ids.
+        if (visibility is InboxVisibility.Visible) {
+            reconcileDedupeGuards(messages)
+        }
         return VisualInboxUiState(
             loading = false,
             visibility = visibility,

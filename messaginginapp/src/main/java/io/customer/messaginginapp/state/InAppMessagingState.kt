@@ -17,6 +17,11 @@ internal data class InAppMessagingState(
     val queuedInlineMessagesState: QueuedInlineMessagesState = QueuedInlineMessagesState(),
     val messagesInQueue: Set<Message> = emptySet(),
     val inboxMessages: Set<InboxMessage> = emptySet(),
+    // Client-side tombstones: queueIds of inbox messages the user dismissed locally. A subsequent
+    // poll's /queue response can still echo a just-deleted message (eventual consistency / cached
+    // queue), which would otherwise resurrect it. We filter incoming messages against this set, and
+    // prune a tombstone once the server list no longer contains it (server has caught up).
+    val deletedInboxMessageIds: Set<String> = emptySet(),
     val shownMessageQueueIds: Set<String> = emptySet(),
     val sseEnabled: Boolean = false,
     // Visual inbox enablement gate, driven by the X-CIO-Inbox-Enabled response header.
@@ -56,6 +61,7 @@ internal data class InAppMessagingState(
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
         append("inboxMessages=${inboxMessages.map(InboxMessage::deliveryId)},\n")
+        append("deletedInboxMessageIds=$deletedInboxMessageIds,\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
         append("sseEnabled=$sseEnabled,\n")
         append("isInboxEnabled=$isInboxEnabled)")
@@ -75,6 +81,7 @@ internal data class InAppMessagingState(
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
             if (inboxMessages != other.inboxMessages) put("inboxMessages", inboxMessages to other.inboxMessages)
+            if (deletedInboxMessageIds != other.deletedInboxMessageIds) put("deletedInboxMessageIds", deletedInboxMessageIds to other.deletedInboxMessageIds)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
             if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
             if (isInboxEnabled != other.isInboxEnabled) put("isInboxEnabled", isInboxEnabled to other.isInboxEnabled)

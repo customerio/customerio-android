@@ -342,6 +342,82 @@ class InAppMessageReducerTest : JUnitTest() {
         assertTrue(resultState.inboxMessages.any { it.queueId == "queue-789" })
     }
 
+    @Test
+    fun deleteInboxMessage_expectQueueIdRecordedAsTombstone() {
+        val queueId = "queue-123"
+        val message1 = createInboxMessage(deliveryId = "inbox1", queueId = queueId, opened = false)
+
+        val startingState = initialState.copy(inboxMessages = setOf(message1))
+
+        val resultState = inAppMessagingReducer(
+            startingState,
+            InAppMessagingAction.InboxAction.DeleteMessage(message1)
+        )
+
+        assertTrue(resultState.inboxMessages.isEmpty())
+        assertTrue(resultState.deletedInboxMessageIds.contains(queueId))
+    }
+
+    @Test
+    fun processInboxMessages_givenTombstonedMessageStillEchoedByServer_expectMessageStaysGone() {
+        val deletedQueueId = "queue-123"
+        val keptQueueId = "queue-456"
+        val deletedMessage = createInboxMessage(deliveryId = "inbox1", queueId = deletedQueueId, opened = false)
+        val keptMessage = createInboxMessage(deliveryId = "inbox2", queueId = keptQueueId, opened = false)
+
+        // User already dismissed deletedQueueId (tombstone present, message removed locally).
+        val startingState = initialState.copy(
+            inboxMessages = setOf(keptMessage),
+            deletedInboxMessageIds = setOf(deletedQueueId)
+        )
+
+        // Server poll STILL echoes the just-deleted message (eventual consistency / cached queue).
+        val resultState = inAppMessagingReducer(
+            startingState,
+            InAppMessagingAction.ProcessInboxMessages(listOf(deletedMessage, keptMessage))
+        )
+
+        // The tombstoned message must NOT resurrect; the other message is processed normally.
+        assertFalse(resultState.inboxMessages.any { it.queueId == deletedQueueId })
+        assertTrue(resultState.inboxMessages.any { it.queueId == keptQueueId })
+        // Server still has it -> tombstone is retained for the next poll.
+        assertTrue(resultState.deletedInboxMessageIds.contains(deletedQueueId))
+    }
+
+    @Test
+    fun processInboxMessages_givenServerNoLongerEchoesTombstonedMessage_expectTombstonePruned() {
+        val deletedQueueId = "queue-123"
+        val keptQueueId = "queue-456"
+        val keptMessage = createInboxMessage(deliveryId = "inbox2", queueId = keptQueueId, opened = false)
+
+        val startingState = initialState.copy(
+            inboxMessages = setOf(keptMessage),
+            deletedInboxMessageIds = setOf(deletedQueueId)
+        )
+
+        // Server has caught up: the poll no longer contains the deleted message.
+        val resultState = inAppMessagingReducer(
+            startingState,
+            InAppMessagingAction.ProcessInboxMessages(listOf(keptMessage))
+        )
+
+        // Tombstone is safe to forget so a future legitimate re-delivery is not suppressed.
+        assertFalse(resultState.deletedInboxMessageIds.contains(deletedQueueId))
+        assertTrue(resultState.deletedInboxMessageIds.isEmpty())
+        assertTrue(resultState.inboxMessages.any { it.queueId == keptQueueId })
+    }
+
+    @Test
+    fun reset_givenExistingTombstones_expectTombstonesCleared() {
+        val startingState = initialState.copy(
+            deletedInboxMessageIds = setOf("queue-123", "queue-456")
+        )
+
+        val resultState = inAppMessagingReducer(startingState, InAppMessagingAction.Reset)
+
+        assertTrue(resultState.deletedInboxMessageIds.isEmpty())
+    }
+
     /**
      * Helper method to create a test message with customizable persistence
      */

@@ -25,7 +25,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
 
         is InAppMessagingAction.ClearMessageQueue ->
             if (action.isContentEmpty) {
-                state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet())
+                state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet(), deletedInboxMessageIds = emptySet())
             } else {
                 // Only clear the message queue, keep inbox messages until explicitly cleared to show cached content if needed
                 state.copy(messagesInQueue = emptySet())
@@ -34,8 +34,21 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.ProcessMessageQueue ->
             state.copy(messagesInQueue = action.messages.toSet())
 
-        is InAppMessagingAction.ProcessInboxMessages ->
-            state.copy(inboxMessages = action.messages.toSet())
+        is InAppMessagingAction.ProcessInboxMessages -> {
+            // Drop any server-echoed message the user already dismissed locally (eventual
+            // consistency / cached /queue can resurrect a just-deleted message). At the same time,
+            // prune tombstones the server has caught up on: a tombstoned id that is NOT in the
+            // incoming list is safe to forget, so a future legitimate re-delivery is not suppressed.
+            val incomingIds = action.messages.mapTo(HashSet()) { it.queueId }
+            val retainedTombstones = state.deletedInboxMessageIds.intersect(incomingIds)
+            val filteredMessages = action.messages
+                .filterNot { it.queueId in retainedTombstones }
+                .toSet()
+            state.copy(
+                inboxMessages = filteredMessages,
+                deletedInboxMessageIds = retainedTombstones
+            )
+        }
 
         is InAppMessagingAction.InboxAction.UpdateOpened -> {
             // Update opened status for given message
@@ -51,12 +64,16 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         }
 
         is InAppMessagingAction.InboxAction.DeleteMessage -> {
-            // Remove deleted message from state
+            // Remove deleted message from state and record a tombstone so a subsequent poll whose
+            // /queue response still echoes this (already deleted) message cannot resurrect it.
             val queueId = action.message.queueId
             val updatedMessages = state.inboxMessages.filterNot {
                 it.queueId == queueId
             }.toSet()
-            state.copy(inboxMessages = updatedMessages)
+            state.copy(
+                inboxMessages = updatedMessages,
+                deletedInboxMessageIds = state.deletedInboxMessageIds + queueId
+            )
         }
 
         is InAppMessagingAction.InboxAction.TrackClicked ->
@@ -88,6 +105,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),
             inboxMessages = emptySet(),
+            deletedInboxMessageIds = emptySet(),
             shownMessageQueueIds = emptySet(),
             sseEnabled = false,
             isInboxEnabled = false

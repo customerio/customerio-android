@@ -142,12 +142,30 @@ internal class VisualInboxController(
         } else {
             emptyList()
         }
+        reconcileDedupeGuards(messages)
         return VisualInboxUiState(
             loading = false,
             visibility = visibility,
             messages = messages,
             unopenedCount = unopenedInboxCount(messages)
         )
+    }
+
+    /**
+     * Release per-session dedupe guards for queueIds that are no longer present in the data layer's
+     * current message list. The data layer now suppresses a dismissed message from resurrecting
+     * (client-side tombstone in InAppMessagingState.deletedInboxMessageIds), and prunes that
+     * tombstone once the server's list no longer echoes it. After that prune the server may
+     * legitimately re-deliver the same queueId; without releasing these guards that row would stay
+     * permanently un-dismissable / un-clickable / never re-marked-opened. Reconciling against the
+     * live set keeps guards only for messages still on screen and frees the rest.
+     */
+    private fun reconcileDedupeGuards(messages: List<JistInboxMessage>) {
+        val present = messages.mapTo(HashSet()) { it.queueId }
+        deletedQueueIds.retainAll(present)
+        clickedQueueIds.retainAll(present)
+        markedOpenedQueueIds.retainAll(present)
+        shownQueueIds.retainAll(present)
     }
 
     /**

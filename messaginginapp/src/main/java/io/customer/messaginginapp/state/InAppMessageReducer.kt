@@ -40,7 +40,15 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             // prune tombstones the server has caught up on: a tombstoned id that is NOT in the
             // incoming list is safe to forget, so a future legitimate re-delivery is not suppressed.
             val incomingIds = action.messages.mapTo(HashSet()) { it.queueId }
-            val retainedTombstones = state.deletedInboxMessageIds.intersect(incomingIds)
+            // Only a NON-EMPTY poll is authoritative enough to prune tombstones. An empty/transient
+            // response (momentary empty, cache miss) carries no "server forgot this id" signal, so
+            // keep all tombstones then — otherwise a later poll re-echoing a dismissed id would
+            // resurrect it (the very bug the tombstone prevents).
+            val retainedTombstones = if (incomingIds.isEmpty()) {
+                state.deletedInboxMessageIds
+            } else {
+                state.deletedInboxMessageIds.intersect(incomingIds)
+            }
             val filteredMessages = action.messages
                 .filterNot { it.queueId in retainedTombstones }
                 .toSet()

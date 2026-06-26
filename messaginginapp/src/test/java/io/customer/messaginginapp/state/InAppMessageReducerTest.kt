@@ -408,6 +408,23 @@ class InAppMessageReducerTest : JUnitTest() {
     }
 
     @Test
+    fun processInboxMessages_givenEmptyPoll_expectTombstonesRetained() {
+        val deletedQueueId = "queue-123"
+        val startingState = initialState.copy(
+            deletedInboxMessageIds = setOf(deletedQueueId)
+        )
+
+        // An empty/transient poll is NOT authoritative — it must not prune tombstones, otherwise a
+        // later poll that re-echoes the dismissed id would resurrect it.
+        val resultState = inAppMessagingReducer(
+            startingState,
+            InAppMessagingAction.ProcessInboxMessages(emptyList())
+        )
+
+        assertTrue(resultState.deletedInboxMessageIds.contains(deletedQueueId))
+    }
+
+    @Test
     fun reset_givenExistingTombstones_expectTombstonesCleared() {
         val startingState = initialState.copy(
             deletedInboxMessageIds = setOf("queue-123", "queue-456")

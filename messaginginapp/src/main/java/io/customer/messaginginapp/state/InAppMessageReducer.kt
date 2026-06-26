@@ -25,7 +25,10 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
 
         is InAppMessagingAction.ClearMessageQueue ->
             if (action.isContentEmpty) {
-                state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet(), deletedInboxMessageIds = emptySet())
+                // A no-content (HTTP 204) response clears the visible lists but is NOT authoritative
+                // about dismissals — keep tombstones so a later cached/stale poll can't resurrect a
+                // message the user already dismissed. Tombstones clear only on Reset (logout).
+                state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet())
             } else {
                 // Only clear the message queue, keep inbox messages until explicitly cleared to show cached content if needed
                 state.copy(messagesInQueue = emptySet())

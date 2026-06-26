@@ -142,37 +142,17 @@ internal class VisualInboxController(
         } else {
             emptyList()
         }
-        // Only reconcile dedupe guards against an AUTHORITATIVE message set (Visible == enabled +
-        // templates + branding + >=1 message). On a transient non-Visible state (loading, templates
-        // not ready yet, or Hidden) `messages` is forced empty above and is NOT the true present-set,
-        // so reconciling there would wipe every guard — a later Hidden→Visible transition could then
-        // double-fire host callbacks or lose one-shot dismiss/click/opened guards for the same ids.
-        if (visibility is InboxVisibility.Visible) {
-            reconcileDedupeGuards(messages)
-        }
+        // The per-session dedupe guards (shown/opened/clicked/deleted queueIds) are intentionally NOT
+        // reconciled against the live list: the data-layer tombstone (deletedInboxMessageIds) prevents
+        // a dismissed message from resurrecting and queueIds are never reused, so a guard never needs
+        // releasing within a session. Reconciling here only re-introduced edge cases (guards wiped on
+        // a transient non-Visible state, or stuck after the last row is dismissed → Hidden).
         return VisualInboxUiState(
             loading = false,
             visibility = visibility,
             messages = messages,
             unopenedCount = unopenedInboxCount(messages)
         )
-    }
-
-    /**
-     * Release per-session dedupe guards for queueIds that are no longer present in the data layer's
-     * current message list. The data layer now suppresses a dismissed message from resurrecting
-     * (client-side tombstone in InAppMessagingState.deletedInboxMessageIds), and prunes that
-     * tombstone once the server's list no longer echoes it. After that prune the server may
-     * legitimately re-deliver the same queueId; without releasing these guards that row would stay
-     * permanently un-dismissable / un-clickable / never re-marked-opened. Reconciling against the
-     * live set keeps guards only for messages still on screen and frees the rest.
-     */
-    private fun reconcileDedupeGuards(messages: List<JistInboxMessage>) {
-        val present = messages.mapTo(HashSet()) { it.queueId }
-        deletedQueueIds.retainAll(present)
-        clickedQueueIds.retainAll(present)
-        markedOpenedQueueIds.retainAll(present)
-        shownQueueIds.retainAll(present)
     }
 
     /**

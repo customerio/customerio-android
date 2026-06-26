@@ -425,6 +425,24 @@ class InAppMessageReducerTest : JUnitTest() {
     }
 
     @Test
+    fun clearMessageQueue_givenNoContent_expectTombstonesRetained() {
+        val deletedQueueId = "queue-123"
+        val startingState = initialState.copy(
+            deletedInboxMessageIds = setOf(deletedQueueId)
+        )
+
+        // A no-content (204) clear empties the visible lists but is NOT authoritative about
+        // dismissals — tombstones must survive so a later stale poll can't resurrect the message.
+        val resultState = inAppMessagingReducer(
+            startingState,
+            InAppMessagingAction.ClearMessageQueue(isContentEmpty = true)
+        )
+
+        assertTrue(resultState.inboxMessages.isEmpty())
+        assertTrue(resultState.deletedInboxMessageIds.contains(deletedQueueId))
+    }
+
+    @Test
     fun reset_givenExistingTombstones_expectTombstonesCleared() {
         val startingState = initialState.copy(
             deletedInboxMessageIds = setOf("queue-123", "queue-456")

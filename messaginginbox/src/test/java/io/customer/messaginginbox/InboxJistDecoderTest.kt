@@ -1,6 +1,7 @@
 package io.customer.messaginginbox
 
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
+import java.time.Instant
 import java.util.Date
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -145,5 +146,17 @@ class InboxJistDecoderTest {
                 jistMessage(queueId = "c", opened = false)
             )
         ) shouldBeEqualTo 2
+    }
+
+    // --- formatRelativeDate (Jist formatDate hook) ---
+
+    private val now: Instant = Instant.parse("2026-06-20T12:00:00Z")
+
+    @Test
+    fun formatRelativeDate_givenUnparseable_expectRawValueReturned() {
+        // Valid timestamps are formatted by android.text.format.DateUtils (system-localized), which
+        // isn't exercised in plain JVM unit tests. We verify the parse-failure fallback, which
+        // returns the raw input before ever touching DateUtils.
+        InboxJistDecoder.formatRelativeDate("not-a-date", name = "sentAt", now = now) shouldBeEqualTo "not-a-date"
     }
 }

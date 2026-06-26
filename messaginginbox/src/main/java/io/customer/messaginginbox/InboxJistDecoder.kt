@@ -1,8 +1,10 @@
 package io.customer.messaginginbox
 
+import android.text.format.DateUtils
 import io.customer.jist.JistJson
 import io.customer.jist.JistTemplate
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
+import java.time.Instant
 import java.util.Date
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -83,6 +85,24 @@ internal object InboxJistDecoder {
     private fun Date.toInstantString(): String = runCatching {
         java.time.Instant.ofEpochMilli(time).toString()
     }.getOrElse { toString() }
+
+    /**
+     * Jist `formatDate` hook: turns a raw ISO-8601 instant (the decoder feeds dates as ISO strings
+     * via [toInstantString]) into a SYSTEM-LOCALIZED relative-time label ("2 hours ago",
+     * "yesterday", …) via [DateUtils.getRelativeTimeSpanString] — the platform equivalent of web's
+     * `Intl.RelativeTimeFormat`. Localized by the OS, so the inbox is i18n/translation-ready without
+     * us hand-rolling or translating strings. Unparseable input falls back to the raw value.
+     *
+     * `name` is the Jist date-node name (unused here; the same format applies to every inbox date).
+     */
+    fun formatRelativeDate(iso: String, @Suppress("UNUSED_PARAMETER") name: String, now: Instant = Instant.now()): String {
+        val instant = runCatching { Instant.parse(iso) }.getOrNull() ?: return iso
+        return DateUtils.getRelativeTimeSpanString(
+            instant.toEpochMilli(),
+            now.toEpochMilli(),
+            DateUtils.MINUTE_IN_MILLIS
+        ).toString()
+    }
 }
 
 /**

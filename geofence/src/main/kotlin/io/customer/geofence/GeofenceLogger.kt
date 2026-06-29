@@ -108,6 +108,20 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence receiver skipped: $reason", tag = TAG)
     }
 
+    // Testing-only (geofence-testing branch): prove whether the OS actually invoked the receiver and
+    // what it delivered, so "OS never called" can be told apart from "called but SDK filtered/dropped".
+    fun logReceiverInvoked() {
+        logger.debug("BroadcastReceiver invoked by OS", tag = TAG)
+    }
+
+    fun logReceiverNullEvent() {
+        logger.debug("BroadcastReceiver invoked but GeofencingEvent.fromIntent returned null (unparseable/non-geofence intent)", tag = TAG)
+    }
+
+    fun logReceiverEvent(hasError: Boolean, transitionType: Int, triggeringIds: List<String>, hasLocation: Boolean) {
+        logger.debug("BroadcastReceiver event: hasError=$hasError, transition=$transitionType, ids=$triggeringIds, hasLocation=$hasLocation", tag = TAG)
+    }
+
     fun logEventDeliveryRetryable(geofenceId: String, transitionName: String, message: String?) {
         logger.debug("Geofence '$geofenceId' $transitionName: HTTP delivery hit network error ($message); WorkManager will retry", tag = TAG)
     }

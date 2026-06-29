@@ -33,6 +33,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         try {
             SDKComponent.setupAndroidComponent(context = context)
+            // Testing-only (geofence-testing branch): proves the OS woke us at all.
+            SDKComponent.geofenceLogger.logReceiverInvoked()
             val scope = SDKComponent.scopeProvider.geofenceScope
             launchTransitionHandler(scope, intent, pendingResult)
         } catch (e: Throwable) {
@@ -63,8 +65,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     @VisibleForTesting
     internal suspend fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
-        if (geofencingEvent == null) return
         val logger = SDKComponent.geofenceLogger
+        if (geofencingEvent == null) {
+            // Testing-only (geofence-testing branch): previously a silent drop.
+            logger.logReceiverNullEvent()
+            return
+        }
+
+        // Testing-only (geofence-testing branch): record exactly what GMS delivered before any filtering.
+        logger.logReceiverEvent(
+            hasError = geofencingEvent.hasError(),
+            transitionType = geofencingEvent.geofenceTransition,
+            triggeringIds = geofencingEvent.triggeringGeofences?.map { it.requestId } ?: emptyList(),
+            hasLocation = geofencingEvent.triggeringLocation != null
+        )
 
         if (geofencingEvent.hasError()) {
             logger.logGeofencingError(geofencingEvent.errorCode)

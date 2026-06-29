@@ -140,10 +140,13 @@ public class InternalSettingsActivity extends BaseActivity<ActivityInternalSetti
 
         try {
             Uri uri = Uri.parse(url);
-            // Since SDK does not support custom schemes, we manually append http:// to the URL
-            // So the URL is considered invalid if it ends with a slash, contains a scheme, query or fragment
+            // The SDK prepends the scheme (https://) itself, so the host must be entered
+            // without a scheme. The URL is considered invalid if it ends with a slash, or
+            // contains a scheme, query or fragment.
+            // Note: a "host:port" value such as localhost:8080 is valid, but Uri.parse treats
+            // the host as the scheme, so a real scheme is detected via "://" instead of getScheme().
             return url.endsWith("/")
-                    || !TextUtils.isEmpty(uri.getScheme())
+                    || url.contains("://")
                     || !TextUtils.isEmpty(uri.getQuery())
                     || !TextUtils.isEmpty(uri.getFragment());
         } catch (Exception ex) {

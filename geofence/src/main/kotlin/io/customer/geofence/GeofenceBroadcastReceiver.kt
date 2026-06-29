@@ -18,6 +18,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
@@ -148,6 +149,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 transition = transition,
                 timestamp = timestamp,
                 userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() },
+                // Minted once here so every delivery attempt for this transition carries the same id.
+                transitionId = UUID.randomUUID().toString(),
                 geofenceName = androidComponent.geofenceRegionStore.getCachedRegionName(geofenceId)
             )
             androidComponent.pendingGeofenceDeliveryStore.append(entry)

@@ -48,9 +48,10 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         transition: Event.GeofenceTransition,
         timestamp: Long = 0L,
         userId: String? = "user-42",
+        transitionId: String = "tid-seed",
         geofenceName: String? = null
     ): PendingGeofenceDelivery =
-        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, geofenceName)
+        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId, geofenceName)
             .also { store.append(it) }
 
     @Test
@@ -177,12 +178,14 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         transition: String?,
         timestamp: Long = 0L,
         userId: String? = "user-42",
+        transitionId: String? = "tid-seed",
         geofenceName: String? = null
     ): Data {
         val builder = Data.Builder()
             .putLong("timestamp", timestamp)
         geofenceId?.let { builder.putString("geofence_id", it) }
         transition?.let { builder.putString("transition", it) }
+        transitionId?.let { builder.putString("transition_id", it) }
         userId?.let { builder.putString("user_id", it) }
         geofenceName?.let { builder.putString("geofence_name", it) }
         return builder.build()

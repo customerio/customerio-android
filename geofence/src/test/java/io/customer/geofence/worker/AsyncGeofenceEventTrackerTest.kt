@@ -47,7 +47,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     fun trackEvent_givenClaimWonAndSuccess_expectTrackerCalledWithEntryAndUserId() = runTest {
         every { mockStore.claim(any()) } returns true
         coEvery { mockTracker.trackEvent(any()) } returns Result.success(Unit)
-        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 42L, "user-42")
+        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 42L, "user-42", transitionId = "tid-1")
 
         asyncTracker.trackEvent(entry)
 
@@ -62,7 +62,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     fun trackEvent_givenClaimLost_expectNoSend() = runTest {
         // Foreground flush already claimed + delivered this entry: do not double-send.
         every { mockStore.claim(any()) } returns false
-        val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, 7L, "user-42")
+        val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, 7L, "user-42", transitionId = "tid-3")
 
         asyncTracker.trackEvent(entry)
 
@@ -74,7 +74,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
         every { mockStore.claim(any()) } returns true
         coEvery { mockTracker.trackEvent(any()) } returns
             Result.failure(IOException("network down"))
-        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 9L, "user-42")
+        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 9L, "user-42", transitionId = "tid-4")
 
         asyncTracker.trackEvent(entry)
 
@@ -86,7 +86,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     fun trackEvent_givenNullUserId_expectNoClaimAndNoSend() = runTest {
         // Anonymous session: HTTP needs a userId, so we leave the entry in
         // the store for the foreground flush to publish via anonymousId.
-        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 11L, userId = null)
+        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 11L, userId = null, transitionId = "tid-anon")
 
         asyncTracker.trackEvent(entry)
 

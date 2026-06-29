@@ -61,3 +61,38 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
         }
     }
 }
+
+/**
+ * At-least-once counterpart to [claimSendRestore] for channels whose payload carries a stable
+ * backend dedup id (geofence: `transitionId`).
+ *
+ * Unlike [claimSendRestore], the entry is **not** removed before sending — it stays in the store
+ * until [send] is confirmed. So a process death mid-send leaves the row for a later retry or the
+ * foreground flush instead of dropping it, closing the claim-then-send miss window. The trade-off
+ * is that a concurrent channel — or a retry after an ambiguous success (server committed, caller saw
+ * a failure) — can deliver the same entry twice; that is safe only because the backend deduplicates
+ * on the stable id.
+ *
+ * The presence check is best-effort: it is not atomic with [send], so it only trims needless
+ * duplicates when another channel already delivered and removed the entry — it does not guarantee
+ * exactly-once. On any failure the row is left in place (no [append] needed, since it was never
+ * removed) so the next attempt can deliver it.
+ */
+@InternalCustomerIOApi
+suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore<T>.sendRemoveOnSuccess(
+    entry: T,
+    isRetryable: (Throwable?) -> Boolean = { it is IOException },
+    send: suspend () -> Result<Unit>
+): PendingDeliveryResult {
+    if (loadAll().none { it.key == entry.key }) return PendingDeliveryResult.AlreadyClaimed
+
+    val result = send()
+    return when {
+        result.isSuccess -> {
+            remove(entry.key)
+            PendingDeliveryResult.Delivered
+        }
+        isRetryable(result.exceptionOrNull()) -> PendingDeliveryResult.Retryable(result.exceptionOrNull())
+        else -> PendingDeliveryResult.Failed(result.exceptionOrNull())
+    }
+}

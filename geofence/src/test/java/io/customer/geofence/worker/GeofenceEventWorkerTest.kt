@@ -41,7 +41,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         store.removeAll()
     }
 
-    // The worker claims its entry from the shared store before sending, so seed the
+    // The worker only delivers an entry that's still in the shared store, so seed the
     // store with the matching entry to model "this transition is still pending".
     private fun seed(
         geofenceId: String,
@@ -55,7 +55,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
             .also { store.append(it) }
 
     @Test
-    fun doWork_givenClaimableEntry_expectSuccessTrackerCalledAndEntryRemoved() = runTest {
+    fun doWork_givenPendingEntry_expectSuccessTrackerCalledAndEntryRemoved() = runTest {
         val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
         val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42")
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
@@ -90,9 +90,9 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenClaimLost_expectSuccessWithoutTracking() = runTest {
-        // No matching entry in the store (the foreground flush already delivered it):
-        // the worker's claim fails, so it must not send a duplicate.
+    fun doWork_givenEntryAlreadyDelivered_expectSuccessWithoutTracking() = runTest {
+        // No matching entry in the store (the foreground flush already delivered + removed it):
+        // the worker sees it's gone, so it must not send a duplicate.
         val inputData = buildInputData("biz-already-delivered", "ENTER", timestamp = 0L, userId = "user-42")
 
         val result = createWorker(inputData).doWork()
@@ -159,7 +159,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenNullUserId_expectDeferredWithoutClaimingOrTracking() = runTest {
+    fun doWork_givenNullUserId_expectDeferredWithoutTracking() = runTest {
         // Anonymous-at-queue-time path: HTTP needs a userId so we leave the
         // entry intact for the foreground flush (analytics pipeline + anonymousId).
         seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)

@@ -98,4 +98,75 @@ class PendingDeliveryClaimTest : RobolectricTest() {
         result shouldBeInstanceOf PendingDeliveryResult.Retryable::class
         store.loadAll() shouldBeEqualTo listOf(entry)
     }
+
+    @Test
+    fun sendRemoveOnSuccess_givenEntryNotPresent_expectAlreadyClaimedAndSendNotInvoked() = runBlocking<Unit> {
+        val store = newStore()
+        val entry = TestEntry("absent")
+        var sendInvoked = false
+
+        val result = store.sendRemoveOnSuccess(entry) {
+            sendInvoked = true
+            Result.success(Unit)
+        }
+
+        result shouldBeEqualTo PendingDeliveryResult.AlreadyClaimed
+        sendInvoked shouldBeEqualTo false
+    }
+
+    @Test
+    fun sendRemoveOnSuccess_givenSendSucceeds_expectDeliveredAndEntryRemoved() = runBlocking<Unit> {
+        val store = newStore()
+        val entry = TestEntry("ok")
+        store.append(entry)
+
+        val result = store.sendRemoveOnSuccess(entry) { Result.success(Unit) }
+
+        result shouldBeEqualTo PendingDeliveryResult.Delivered
+        store.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun sendRemoveOnSuccess_whileSending_expectEntryStillPresentUntilSuccess() = runBlocking<Unit> {
+        // The core difference from claimSendRestore: the row is NOT removed before the send, so a
+        // process death mid-send leaves it for a retry/flush instead of dropping it.
+        val store = newStore()
+        val entry = TestEntry("in-flight")
+        store.append(entry)
+
+        store.sendRemoveOnSuccess(entry) {
+            store.loadAll() shouldBeEqualTo listOf(entry)
+            Result.success(Unit)
+        }
+
+        store.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun sendRemoveOnSuccess_givenIOException_expectRetryableAndEntryKept() = runBlocking<Unit> {
+        val store = newStore()
+        val entry = TestEntry("retry")
+        store.append(entry)
+        val cause = IOException("network down")
+
+        val result = store.sendRemoveOnSuccess(entry) { Result.failure(cause) }
+
+        result shouldBeInstanceOf PendingDeliveryResult.Retryable::class
+        (result as PendingDeliveryResult.Retryable).cause shouldBeEqualTo cause
+        store.loadAll() shouldBeEqualTo listOf(entry)
+    }
+
+    @Test
+    fun sendRemoveOnSuccess_givenNonRetryableError_expectFailedAndEntryKept() = runBlocking<Unit> {
+        val store = newStore()
+        val entry = TestEntry("fail")
+        store.append(entry)
+        val cause = IllegalStateException("400 bad request")
+
+        val result = store.sendRemoveOnSuccess(entry) { Result.failure(cause) }
+
+        result shouldBeInstanceOf PendingDeliveryResult.Failed::class
+        (result as PendingDeliveryResult.Failed).cause shouldBeEqualTo cause
+        store.loadAll() shouldBeEqualTo listOf(entry)
+    }
 }

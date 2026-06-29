@@ -11,25 +11,28 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun key_expectGeofenceIdTransitionTimestampComposite() {
-        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1_234L, "user-A")
+        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1_234L, "user-A", transitionId = "tid-1")
 
         // Doubles as the WorkManager unique-work name so the flush can cancel by key.
+        // transitionId is intentionally NOT part of the key.
         entry.key shouldBeEqualTo "biz-1_ENTER_1234"
     }
 
     @Test
     fun serialization_givenRoundTrip_expectEqualEntry() {
-        val entry = PendingGeofenceDelivery("biz-2", Event.GeofenceTransition.EXIT, 99L, "user-A")
+        val entry = PendingGeofenceDelivery("biz-2", Event.GeofenceTransition.EXIT, 99L, "user-A", transitionId = "tid-2")
 
         val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
         val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
 
         restored shouldBeEqualTo entry
+        // The minted id must survive persistence so retries reuse it.
+        restored.transitionId shouldBeEqualTo "tid-2"
     }
 
     @Test
     fun serialization_givenUserIdSnapshot_expectRoundTripPreservesIt() {
-        val entry = PendingGeofenceDelivery("biz-u", Event.GeofenceTransition.ENTER, 3L, "user-A")
+        val entry = PendingGeofenceDelivery("biz-u", Event.GeofenceTransition.ENTER, 3L, "user-A", transitionId = "tid-u")
 
         val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
         val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
@@ -40,7 +43,7 @@ class PendingGeofenceDeliveryTest {
     @Test
     fun serialization_givenNullUserId_expectRoundTripPreservesNull() {
         // Anonymous entries are queued by the receiver for the foreground flush.
-        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 5L, userId = null)
+        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 5L, userId = null, transitionId = "tid-anon")
 
         val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
         val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
@@ -50,12 +53,13 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
-    fun toEventProperties_expectTransitionGeofenceIdAndTestingExtras() {
+    fun toEventProperties_expectTransitionGeofenceIdTransitionIdAndTestingExtras() {
         val entry = PendingGeofenceDelivery(
             "biz-4",
             Event.GeofenceTransition.ENTER,
             50L,
             "user-A",
+            transitionId = "tid-4",
             triggerLatitude = 31.5,
             triggerLongitude = 74.3,
             distanceMeters = 42.0,
@@ -66,6 +70,7 @@ class PendingGeofenceDeliveryTest {
 
         props["geofenceId"] shouldBeEqualTo "biz-4"
         props["transition"] shouldBeEqualTo "enter"
+        props["transitionId"] shouldBeEqualTo "tid-4"
         // Testing-only (geofence-testing branch): trigger context surfaced in properties.
         props["timestamp"] shouldBeEqualTo 50L
         props["triggerLatitude"] shouldBeEqualTo 31.5
@@ -76,7 +81,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun toEventProperties_givenNoTriggerContext_expectExtrasOmitted() {
-        val entry = PendingGeofenceDelivery("biz-4b", Event.GeofenceTransition.ENTER, 50L, "user-A")
+        val entry = PendingGeofenceDelivery("biz-4b", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-4b")
 
         val props = entry.toEventProperties()
 
@@ -88,7 +93,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun toEventProperties_givenGeofenceName_expectNamePresent() {
-        val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 50L, "user-A", geofenceName = "Ferry Building")
+        val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-5", geofenceName = "Ferry Building")
 
         entry.toEventProperties()["geofenceName"] shouldBeEqualTo "Ferry Building"
     }
@@ -96,7 +101,7 @@ class PendingGeofenceDeliveryTest {
     @Test
     fun toEventProperties_givenNullGeofenceName_expectNameOmitted() {
         // Region not in the cached set => omit the property rather than send a synthetic value.
-        val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 50L, "user-A", geofenceName = null)
+        val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-6", geofenceName = null)
 
         entry.toEventProperties().keys shouldNotContain "geofenceName"
     }
@@ -106,7 +111,7 @@ class PendingGeofenceDeliveryTest {
         // `timestamp` is unix seconds; `Event.timestamp` is a `Date` (millis).
         // The conversion lives on the data class so no caller can hand-roll
         // `Date(entry.timestamp)` and silently produce a January 1970 instant.
-        val entry = PendingGeofenceDelivery("biz-t", Event.GeofenceTransition.ENTER, 1_700_000_000L, "user-A")
+        val entry = PendingGeofenceDelivery("biz-t", Event.GeofenceTransition.ENTER, 1_700_000_000L, "user-A", transitionId = "tid-t")
 
         val event = entry.toGeofenceTransitionEvent()
 
@@ -114,5 +119,7 @@ class PendingGeofenceDeliveryTest {
         event.geofenceId shouldBeEqualTo "biz-t"
         event.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
         event.userId shouldBeEqualTo "user-A"
+        // transitionId travels in properties on the EventBus path too.
+        event.properties["transitionId"] shouldBeEqualTo "tid-t"
     }
 }

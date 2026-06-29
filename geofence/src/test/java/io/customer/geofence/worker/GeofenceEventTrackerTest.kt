@@ -36,8 +36,9 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         geofenceId: String = "biz-geofence-1",
         transition: Event.GeofenceTransition = Event.GeofenceTransition.ENTER,
         timestamp: Long = 1_234_567_890L,
-        userId: String? = "user-42"
-    ) = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId)
+        userId: String? = "user-42",
+        transitionId: String = "transition-99"
+    ) = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId)
 
     @Test
     fun trackEvent_givenEnterTransition_expectPostToTrackWithCorrectBody() = runTest {
@@ -55,6 +56,7 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         val props = body.getJSONObject("properties")
         props.getString("geofenceId") shouldBeEqualTo "biz-geofence-1"
         props.getString("transition") shouldBeEqualTo "enter"
+        props.getString("transitionId") shouldBeEqualTo "transition-99"
         // Testing-only (geofence-testing branch): timestamp also surfaced in properties (unix seconds).
         props.getLong("timestamp") shouldBeEqualTo 1_234_567_890L
         props.has("latitude") shouldBeEqualTo false

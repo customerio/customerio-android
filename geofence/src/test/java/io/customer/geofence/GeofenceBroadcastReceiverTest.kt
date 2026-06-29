@@ -25,6 +25,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeBlank
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -168,6 +169,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         scheduled.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
         scheduled.toEventProperties()["transition"] shouldBeEqualTo "enter"
         scheduled.timestamp.shouldNotBeNull()
+        // A unique id is minted at capture and carried in properties.
+        scheduled.transitionId.shouldNotBeBlank()
+        scheduled.toEventProperties()["transitionId"] shouldBeEqualTo scheduled.transitionId
 
         // Durably recorded for the foreground flush, and not published inline:
         // exactly-once is now arbitrated by the store, not a double-send.

@@ -23,6 +23,12 @@ internal data class PendingGeofenceDelivery(
     /** Unix epoch **seconds** at receiver time. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
     val userId: String?,
+    /**
+     * Stable unique id for this transition, minted once at capture and persisted on the row, so
+     * every delivery attempt (worker retry or foreground flush) reuses it. Lets the backend dedupe
+     * the duplicate that an ambiguous-success retry can otherwise produce. Not part of [key].
+     */
+    val transitionId: String,
     /** Null when the fired geofence isn't in the cached region set. */
     val geofenceName: String? = null,
     // --- Testing-only (geofence-testing branch): trigger context so the tester
@@ -43,6 +49,7 @@ internal data class PendingGeofenceDelivery(
     fun toEventProperties(): Map<String, Any> = buildMap {
         put("transition", transition.name.lowercase())
         put("geofenceId", geofenceId)
+        put("transitionId", transitionId)
         geofenceName?.let { put("geofenceName", it) }
         // Testing-only (geofence-testing branch): trigger location, timestamp,
         // and distance-vs-radius so they're visible on the dashboard payload.

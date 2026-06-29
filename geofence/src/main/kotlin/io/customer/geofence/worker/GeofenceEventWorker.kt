@@ -20,10 +20,12 @@ import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryResult
 import io.customer.sdk.data.store.claimSendRestore
+import java.util.UUID
 
 private const val KEY_GEOFENCE_ID = "geofence_id"
 private const val KEY_GEOFENCE_NAME = "geofence_name"
 private const val KEY_TRANSITION = "transition"
+private const val KEY_TRANSITION_ID = "transition_id"
 private const val KEY_TIMESTAMP = "timestamp"
 private const val KEY_USER_ID = "user_id"
 
@@ -45,6 +47,7 @@ internal class GeofenceEventScheduler(
         val input = Data.Builder()
             .putString(KEY_GEOFENCE_ID, entry.geofenceId)
             .putString(KEY_TRANSITION, entry.transition.name)
+            .putString(KEY_TRANSITION_ID, entry.transitionId)
             .putLong(KEY_TIMESTAMP, entry.timestamp)
             .apply {
                 entry.userId?.let { putString(KEY_USER_ID, it) }
@@ -123,6 +126,8 @@ internal class GeofenceEventWorker(
             transition = transition,
             timestamp = timestamp,
             userId = userId,
+            // Always set by the scheduler; fall back to a fresh id so an unexpected miss still delivers.
+            transitionId = inputData.getString(KEY_TRANSITION_ID) ?: UUID.randomUUID().toString(),
             geofenceName = inputData.getString(KEY_GEOFENCE_NAME),
             // Testing-only (geofence-testing branch).
             triggerLatitude = inputData.getDoubleOrNull(KEY_TRIGGER_LAT),

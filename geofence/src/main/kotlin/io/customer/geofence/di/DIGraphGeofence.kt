@@ -59,7 +59,8 @@ internal val AndroidSDKComponent.geofenceEventTracker: GeofenceEventTracker
     }
 
 // Shared by the WorkManager worker, the async fallback, and the foreground flush
-// so all three coordinate exactly-once delivery over one lock/file.
+// so all three coordinate delivery over one lock/file (at-least-once, deduped
+// downstream by transitionId).
 internal val AndroidSDKComponent.pendingGeofenceDeliveryStore: PendingDeliveryStore<PendingGeofenceDelivery>
     get() = singleton {
         PendingDeliveryStore(

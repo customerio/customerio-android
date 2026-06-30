@@ -37,7 +37,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logTransitionEmitting(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: queued for exactly-once delivery (WorkManager now, analytics pipeline on next foreground)", tag = TAG)
+        logger.debug("Geofence '$geofenceId' $transitionName: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)", tag = TAG)
     }
 
     fun logTransitionSuppressed(geofenceId: String, transitionName: String) {
@@ -129,7 +129,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logEventDeliverySkippedAlreadyDelivered(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: worker skipped — already delivered via the analytics pipeline (claim lost)", tag = TAG)
+        logger.debug("Geofence '$geofenceId' $transitionName: worker skipped — entry no longer in store (already delivered via the analytics pipeline)", tag = TAG)
     }
 
     fun logForegroundFlushSnapshot(count: Int) {

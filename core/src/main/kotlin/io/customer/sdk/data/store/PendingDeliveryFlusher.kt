@@ -10,16 +10,20 @@ import kotlinx.coroutines.launch
 
 /**
  * Drains a [PendingDeliveryStore] through an opportunistic in-process channel
- * (typically an app-foreground handoff), guaranteeing exactly-once delivery
- * against the durable WorkManager channel that also consumes the same store.
+ * (typically an app-foreground handoff), coordinating with the durable
+ * WorkManager channel that also consumes the same store.
  *
  * For each pending entry it: cancels that entry's WorkManager unique work — so
  * the worker can't also deliver — then atomically
  * [claims][PendingDeliveryStore.claim] it and hands it to the caller's
  * [publish] block. Cancel happens before the claim on purpose: an `ENQUEUED`
  * or running worker flips to `CANCELLED` immediately, narrowing the window in
- * which both channels could race. The claim is what actually guarantees
- * exactly-once — cancellation is best-effort and can lose across process death.
+ * which both channels could race. Cancellation is best-effort and can lose
+ * across process death, so the claim is what makes this flush deliver each
+ * entry at most once. Whether the *system* is exactly- or at-least-once depends
+ * on the paired worker: one that also claims before sending (push) is
+ * exactly-once; one that sends-then-removes (geofence) is at-least-once and
+ * relies on a stable id in the payload for downstream dedupe.
  *
  * Entries are processed in isolation: one failed cancel/publish does not abort
  * the batch, and an unclaimed or failed entry survives for the next flush. The
@@ -77,11 +81,12 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                             workManager.cancelUniqueWork(entry.key).await()
                             callbacks.onWorkCancelled(entry)
                         }
-                        // Atomically claim before publishing so the worker (which
-                        // also claims before sending) cannot deliver the same entry.
-                        // Claiming per-entry here, rather than batching a remove at
-                        // the end, also means a mid-loop CancellationException can't
-                        // strand an already-published entry for re-publish next flush.
+                        // Atomically claim before publishing so this flush delivers
+                        // each entry at most once (and a worker that also claims —
+                        // push — can't deliver the same entry). Claiming per-entry
+                        // here, rather than batching a remove at the end, also means a
+                        // mid-loop CancellationException can't strand an already-
+                        // published entry for re-publish next flush.
                         if (!store.claim(entry.key)) return@forEach
                         publish(entry)
                         callbacks.onPublished(entry)

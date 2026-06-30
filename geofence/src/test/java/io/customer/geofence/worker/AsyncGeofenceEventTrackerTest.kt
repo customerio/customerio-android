@@ -44,53 +44,52 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     }
 
     @Test
-    fun trackEvent_givenClaimWonAndSuccess_expectTrackerCalledWithEntryAndUserId() = runTest {
-        every { mockStore.claim(any()) } returns true
+    fun trackEvent_givenPendingEntryAndSuccess_expectSentThenRemoved() = runTest {
+        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 42L, "user-42", transitionId = "tid-1")
+        every { mockStore.loadAll() } returns listOf(entry)
         coEvery { mockTracker.trackEvent(any()) } returns Result.success(Unit)
-        val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 42L, "user-42")
 
         asyncTracker.trackEvent(entry)
 
-        // Claim before send (shared exactly-once contract), then deliver with the snapshotted entry.
-        verify(exactly = 1) { mockStore.claim("biz-1_ENTER_42") }
+        // At-least-once contract: send with the snapshotted entry, remove only after success.
         coVerify(exactly = 1) { mockTracker.trackEvent(entry) }
-        // claim() already removed it; success must not re-append.
-        verify(exactly = 0) { mockStore.append(any()) }
+        verify(exactly = 1) { mockStore.remove("biz-1_ENTER_42") }
     }
 
     @Test
-    fun trackEvent_givenClaimLost_expectNoSend() = runTest {
-        // Foreground flush already claimed + delivered this entry: do not double-send.
-        every { mockStore.claim(any()) } returns false
-        val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, 7L, "user-42")
+    fun trackEvent_givenEntryAlreadyDelivered_expectNoSend() = runTest {
+        // Foreground flush already delivered + removed this entry: do not re-send.
+        every { mockStore.loadAll() } returns emptyList()
+        val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, 7L, "user-42", transitionId = "tid-3")
 
         asyncTracker.trackEvent(entry)
 
         coVerify(exactly = 0) { mockTracker.trackEvent(any()) }
+        verify(exactly = 0) { mockStore.remove(any()) }
     }
 
     @Test
-    fun trackEvent_givenFailure_expectEntryRestoredForFlush() = runTest {
-        every { mockStore.claim(any()) } returns true
+    fun trackEvent_givenFailure_expectEntryKeptForFlush() = runTest {
+        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 9L, "user-42", transitionId = "tid-4")
+        every { mockStore.loadAll() } returns listOf(entry)
         coEvery { mockTracker.trackEvent(any()) } returns
             Result.failure(IOException("network down"))
-        val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 9L, "user-42")
 
         asyncTracker.trackEvent(entry)
 
-        // Restored so the foreground flush can still deliver it.
-        verify(exactly = 1) { mockStore.append(entry) }
+        // Never removed, so the foreground flush can still deliver it.
+        verify(exactly = 0) { mockStore.remove(any()) }
     }
 
     @Test
-    fun trackEvent_givenNullUserId_expectNoClaimAndNoSend() = runTest {
+    fun trackEvent_givenNullUserId_expectNoLoadAndNoSend() = runTest {
         // Anonymous session: HTTP needs a userId, so we leave the entry in
         // the store for the foreground flush to publish via anonymousId.
-        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 11L, userId = null)
+        val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 11L, userId = null, transitionId = "tid-anon")
 
         asyncTracker.trackEvent(entry)
 
-        verify(exactly = 0) { mockStore.claim(any()) }
+        verify(exactly = 0) { mockStore.loadAll() }
         coVerify(exactly = 0) { mockTracker.trackEvent(any()) }
         verify { mockLogger.logEventDeliveryDeferredAnonymous("biz-anon", "ENTER") }
     }

@@ -7,7 +7,7 @@ import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.data.store.PendingDeliveryStore
-import io.customer.sdk.data.store.claimSendRestore
+import io.customer.sdk.data.store.sendRemoveOnSuccess
 import io.customer.sdk.util.EventNames
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -58,10 +58,11 @@ internal class GeofenceEventTrackerImpl(
 
 /**
  * Async fallback when WorkManager is unavailable. Fire-and-forget; does not
- * survive process death. Uses the same [claimSendRestore] contract as the
- * worker — claim before sending — so that if the foreground flush fires while
- * this HTTP call is in flight, only one channel delivers: a lost claim skips
- * the send, and a failed send restores the entry for the flush to retry.
+ * survive process death. Uses the same [sendRemoveOnSuccess] contract as the
+ * worker — the entry stays in the store until the send is confirmed, so a
+ * failed send (or a death mid-request) leaves it for the foreground flush to
+ * retry rather than dropping it. The duplicate this can produce (overlap with
+ * the flush) is deduped backend-side via the stable transitionId.
  *
  * Entries with a null [PendingGeofenceDelivery.userId] are left untouched here;
  * the foreground flush handles them via the analytics pipeline's anonymousId.
@@ -78,7 +79,7 @@ internal class AsyncGeofenceEventTracker(
             return
         }
         CoroutineScope(dispatcher.background).launch {
-            pendingStore.claimSendRestore(entry) {
+            pendingStore.sendRemoveOnSuccess(entry) {
                 tracker.trackEvent(entry)
             }
         }

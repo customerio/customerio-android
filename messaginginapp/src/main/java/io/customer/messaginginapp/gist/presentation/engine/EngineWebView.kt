@@ -157,7 +157,8 @@ internal class EngineWebView @JvmOverloads constructor(
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun setup(configuration: EngineWebConfiguration) {
-        lastResolvedColorScheme = configuration.colorScheme
+        val initialColorScheme = configuration.colorScheme
+        lastResolvedColorScheme = initialColorScheme
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
@@ -187,9 +188,9 @@ internal class EngineWebView @JvmOverloads constructor(
                         // Post the JSON message to the current frame's listeners
                         // Ensures internal JavaScript communication via window.addEventListener('message') remains functional
                         window.postMessage($jsonString, '*');
-                        
+
                         // Override window.parent.postMessage to route messages to the native Android interface
-                        // This is necessary only for legacy message because WebView can only attach one native interface 
+                        // This is necessary only for legacy message because WebView can only attach one native interface
                         // and we have already added it as ${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.
                         window.parent.postMessage = function(message) {
                             window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message));
@@ -197,6 +198,13 @@ internal class EngineWebView @JvmOverloads constructor(
                     """.trim()
                     view.evaluateJavascript(script) { result ->
                         logger.debug("JavaScript execution result: $result")
+                    }
+                    // If color scheme changed during page load (e.g. system theme toggled
+                    // between loadUrl and onPageFinished), send the current value so it
+                    // overrides the stale one baked into the initial options JSON.
+                    val currentScheme = lastResolvedColorScheme
+                    if (currentScheme != null && currentScheme != initialColorScheme) {
+                        updateColorScheme(currentScheme)
                     }
                 }
 

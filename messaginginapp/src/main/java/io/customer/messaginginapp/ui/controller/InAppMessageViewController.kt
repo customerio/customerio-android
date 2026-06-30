@@ -100,7 +100,9 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @UiThread
     internal fun loadMessage(message: Message) {
         val store = inAppMessagingManager.getCurrentState()
-        val uiMode = SDKComponent.android().applicationContext.resources.configuration.uiMode
+        val viewContext = engineWebViewDelegate?.getView()?.context
+        val uiMode = (viewContext ?: SDKComponent.android().applicationContext)
+            .resources.configuration.uiMode
         val config = EngineWebConfiguration(
             siteId = store.siteId,
             dataCenter = store.dataCenter,

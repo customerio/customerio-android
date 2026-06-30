@@ -6,6 +6,7 @@ import com.segment.analytics.kotlin.core.Settings
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.plugins.CUSTOMER_IO_DATA_PIPELINES
+import io.customer.datapipelines.plugins.SchemeAwareRequestFactory
 import kotlinx.serialization.json.buildJsonObject
 
 /**
@@ -33,5 +34,7 @@ internal fun updateAnalyticsConfig(
     this.trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
     this.apiHost = moduleConfig.apiHost
     this.cdnHost = moduleConfig.cdnHost
+    // Honor an explicit scheme in the configured host instead of always forcing https://
+    this.requestFactory = SchemeAwareRequestFactory()
     this.errorHandler = errorHandler
 }

@@ -51,7 +51,13 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
 
         // Ensure we have exactly one slash
         val cleanedPath = if (params.path.startsWith("/")) params.path else "/${params.path}"
-        val urlString = "https://$apiHost$cleanedPath"
+        // Default to https, but honor an explicit scheme in the configured host (e.g. an
+        // http:// endpoint used for local/non-production testing) instead of forcing https.
+        val urlString = if (apiHost.startsWith("http://") || apiHost.startsWith("https://")) {
+            "$apiHost$cleanedPath"
+        } else {
+            "https://$apiHost$cleanedPath"
+        }
 
         val connection = try {
             val urlObj = URL(urlString)

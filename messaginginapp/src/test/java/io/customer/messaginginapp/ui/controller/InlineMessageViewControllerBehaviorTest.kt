@@ -480,15 +480,14 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             colorScheme = moduleConfig.colorScheme.resolve(uiMode)
         )
         verifyOrder {
-
-        elapsedTimer.start(any())
-        viewCallback.onLoadingStarted()
-        viewDelegate.createEngineWebViewInstance()
-        engineWebViewDelegate.setAlpha(0.0F)
-        engineWebViewDelegate.listener = controller
-        viewDelegate.addView(engineWebViewDelegate)
-        viewDelegate.isVisible = true
-        engineWebViewDelegate.setup(expectedConfig)
+            elapsedTimer.start(any())
+            viewCallback.onLoadingStarted()
+            viewDelegate.createEngineWebViewInstance()
+            engineWebViewDelegate.setAlpha(0.0F)
+            engineWebViewDelegate.listener = controller
+            viewDelegate.addView(engineWebViewDelegate)
+            viewDelegate.isVisible = true
+            engineWebViewDelegate.setup(expectedConfig)
         }
     }
 

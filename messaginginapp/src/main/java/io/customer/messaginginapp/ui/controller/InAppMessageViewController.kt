@@ -100,6 +100,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @UiThread
     internal fun loadMessage(message: Message) {
         val store = inAppMessagingManager.getCurrentState()
+        val uiMode = SDKComponent.android().applicationContext.resources.configuration.uiMode
         val config = EngineWebConfiguration(
             siteId = store.siteId,
             dataCenter = store.dataCenter,
@@ -107,7 +108,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             instanceId = message.instanceId,
             endpoint = store.environment.getEngineApiUrl(),
             properties = message.properties,
-            customAttributes = SDKComponent.gistCustomAttributes.toMap()
+            customAttributes = SDKComponent.gistCustomAttributes.toMap(),
+            colorScheme = store.colorScheme.resolve(uiMode)
         )
 
         currentMessage = message

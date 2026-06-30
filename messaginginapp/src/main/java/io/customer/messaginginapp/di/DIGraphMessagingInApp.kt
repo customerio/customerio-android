@@ -39,7 +39,8 @@ internal val SDKComponent.gistProvider: GistProvider
     get() = singleton<GistProvider> {
         GistSdk(
             siteId = inAppModuleConfig.siteId,
-            dataCenter = inAppModuleConfig.region.code
+            dataCenter = inAppModuleConfig.region.code,
+            colorScheme = inAppModuleConfig.colorScheme
         )
     }
 

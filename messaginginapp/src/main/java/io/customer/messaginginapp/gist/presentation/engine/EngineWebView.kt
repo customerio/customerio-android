@@ -2,6 +2,7 @@ package io.customer.messaginginapp.gist.presentation.engine
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
@@ -21,6 +22,7 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
@@ -38,6 +40,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
+    private var lastResolvedColorScheme: String? = null
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -135,8 +138,26 @@ internal class EngineWebView @JvmOverloads constructor(
         bootstrapped()
     }
 
+    override fun updateColorScheme(scheme: String) {
+        lastResolvedColorScheme = scheme
+        val json = Gson().toJson(mapOf("action" to "updateColorScheme", "colorScheme" to scheme))
+        webView?.evaluateJavascript("window.postMessage($json, '*');", null)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val colorSchemeMode = state.colorScheme
+        if (colorSchemeMode != ColorScheme.AUTO) return
+
+        val resolved = colorSchemeMode.resolve(newConfig.uiMode)
+        if (resolved != lastResolvedColorScheme) {
+            updateColorScheme(resolved)
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun setup(configuration: EngineWebConfiguration) {
+        lastResolvedColorScheme = configuration.colorScheme
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)

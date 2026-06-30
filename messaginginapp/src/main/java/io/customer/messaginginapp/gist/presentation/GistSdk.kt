@@ -10,6 +10,7 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
+import io.customer.messaginginapp.type.ColorScheme
 import io.customer.sdk.core.di.SDKComponent
 
 internal interface GistProvider {
@@ -24,7 +25,8 @@ internal interface GistProvider {
 internal class GistSdk(
     siteId: String,
     dataCenter: String,
-    environment: GistEnvironment = GistEnvironment.PROD
+    environment: GistEnvironment = GistEnvironment.PROD,
+    colorScheme: ColorScheme = ColorScheme.AUTO
 ) : GistProvider {
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
@@ -39,7 +41,7 @@ internal class GistSdk(
     private val sseLifecycleManager = SDKComponent.sseLifecycleManager
 
     init {
-        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment))
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme))
     }
 
     override fun reset() {

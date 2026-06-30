@@ -14,6 +14,7 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createGistAction
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
@@ -440,6 +441,7 @@ class InAppMessageViewControllerTest : JUnitTest() {
         controller.loadMessage(givenMessage)
 
         controller.currentMessage shouldBeEqualTo givenMessage
+        val uiMode = SDKComponent.android().applicationContext.resources.configuration.uiMode
         val expectedConfig = EngineWebConfiguration(
             siteId = givenStoreState.siteId,
             dataCenter = givenStoreState.dataCenter,
@@ -447,7 +449,8 @@ class InAppMessageViewControllerTest : JUnitTest() {
             instanceId = givenMessage.instanceId,
             endpoint = givenStoreState.environment.getEngineApiUrl(),
             properties = givenMessage.properties,
-            customAttributes = SDKComponent.gistCustomAttributes.toMap()
+            customAttributes = SDKComponent.gistCustomAttributes.toMap(),
+            colorScheme = givenStoreState.colorScheme.resolve(uiMode)
         )
         assertCalledOnce { engineWebViewDelegate.setup(expectedConfig) }
     }

@@ -135,6 +135,8 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun stopLoading() {
         webView?.stopLoading()
+        colorSchemeJob?.cancel()
+        colorSchemeJob = null
         // remove lifecycle observer to stop receiving further lifecycle events
         onLifecyclePaused()
         viewLifecycleOwner?.removeObserver(this)

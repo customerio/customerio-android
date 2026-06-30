@@ -4,6 +4,7 @@
     <application>
         <activity
             android:name=".gist.presentation.GistModalActivity"
+            android:configChanges="uiMode"
             android:exported="false"
             android:theme="@style/GistActivityTheme" />
     </application>

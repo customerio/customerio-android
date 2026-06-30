@@ -31,6 +31,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public final fun setColorScheme (Lio/customer/messaginginapp/type/ColorScheme;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {

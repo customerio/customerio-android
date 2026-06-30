@@ -2,11 +2,14 @@ package io.customer.messaginginapp
 
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.notificationInbox
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.inbox.NotificationInbox
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -36,6 +39,10 @@ class ModuleMessagingInApp(
 
     fun dismissMessage() {
         gistProvider.dismissMessage()
+    }
+
+    fun setColorScheme(colorScheme: ColorScheme) {
+        SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.SetColorScheme(colorScheme))
     }
 
     private fun setCustomAttribute(key: String, value: Any) {

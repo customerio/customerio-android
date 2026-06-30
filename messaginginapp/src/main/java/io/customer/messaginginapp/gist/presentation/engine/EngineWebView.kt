@@ -27,6 +27,7 @@ import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
+import kotlinx.coroutines.Job
 
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
@@ -41,6 +42,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
     private var lastResolvedColorScheme: String? = null
+    private var colorSchemeJob: Job? = null
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -98,6 +100,8 @@ internal class EngineWebView @JvmOverloads constructor(
      * It stops loading WebView, removes JavaScript interface, and clears reference to WebView.
      */
     override fun releaseResources() {
+        colorSchemeJob?.cancel()
+        colorSchemeJob = null
         try {
             val view = webView ?: return
             logger.debug("Cleaning up EngineWebView")
@@ -158,10 +162,23 @@ internal class EngineWebView @JvmOverloads constructor(
         }
     }
 
+    private fun subscribeToColorSchemeChanges() {
+        colorSchemeJob?.cancel()
+        colorSchemeJob = inAppMessagingManager.subscribeToAttribute(
+            selector = { it.colorScheme }
+        ) { colorScheme ->
+            val resolved = colorScheme.resolve(context.resources.configuration.uiMode)
+            if (resolved != lastResolvedColorScheme) {
+                post { updateColorScheme(resolved) }
+            }
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun setup(configuration: EngineWebConfiguration) {
         val initialColorScheme = configuration.colorScheme
         lastResolvedColorScheme = initialColorScheme
+        subscribeToColorSchemeChanges()
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)

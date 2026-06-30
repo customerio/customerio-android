@@ -15,6 +15,9 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
                 sessionId = UUID.randomUUID().toString()
             )
 
+        is InAppMessagingAction.SetColorScheme ->
+            state.copy(colorScheme = action.colorScheme)
+
         is InAppMessagingAction.SetPageRoute ->
             state.copy(currentRoute = action.route)
 

@@ -141,7 +141,10 @@ internal class EngineWebView @JvmOverloads constructor(
     override fun updateColorScheme(scheme: String) {
         lastResolvedColorScheme = scheme
         val json = Gson().toJson(mapOf("action" to "updateColorScheme", "colorScheme" to scheme))
-        webView?.evaluateJavascript("window.postMessage($json, '*');", null)
+        webView?.evaluateJavascript(
+            "window.dispatchEvent(new MessageEvent('message', { data: $json }));",
+            null
+        )
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

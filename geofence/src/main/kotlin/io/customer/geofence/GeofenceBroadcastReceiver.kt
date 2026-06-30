@@ -136,11 +136,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             logger.logTransitionEmitting(geofenceId, transition.name)
 
             // Record the transition durably before scheduling. Two channels then
-            // race to deliver it exactly once, arbitrated by the shared store's
-            // atomic claim: the WorkManager worker (direct HTTP, survives process
-            // death) and the foreground flush (analytics pipeline). Append first
-            // so a WorkManager scheduling failure still leaves the entry for the
-            // flush; isolate the scheduler so it can't abandon the rest of the batch.
+            // deliver it at least once, deduped downstream by transitionId: the
+            // WorkManager worker (direct HTTP, survives process death) and the
+            // foreground flush (analytics pipeline). Append first so a WorkManager
+            // scheduling failure still leaves the entry for the flush; isolate the
+            // scheduler so it can't abandon the rest of the batch.
             // Snapshot userId so a sign-out + sign-in before delivery can't
             // reattribute this transition. Empty userId is treated as "not
             // identified" per the SDK's `isUserIdentified` convention.

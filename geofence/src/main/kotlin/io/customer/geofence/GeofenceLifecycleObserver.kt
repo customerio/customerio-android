@@ -15,8 +15,9 @@ import io.customer.sdk.data.store.PendingDeliveryFlusher
  * transitions delivered.
  *
  * The shared [PendingDeliveryFlusher] cancels each transition's WorkManager
- * delivery and atomically claims it, so it can't be delivered twice (once here
- * via the pipeline, once by the worker via direct HTTP). The entry's
+ * delivery and atomically claims it before publishing here, so this path stays
+ * the primary deliverer; the worker (send-then-remove) can still race a
+ * duplicate via direct HTTP, deduped downstream by transitionId. The entry's
  * snapshotted userId rides through on [io.customer.sdk.communication.Event.GeofenceTransitionEvent]
  * so the pipeline subscriber attributes the track event to it.
  *

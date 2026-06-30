@@ -123,7 +123,8 @@ class ModuleGeofence @JvmOverloads constructor(
         val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
         mainThreadPoster.post {
             // Flush pending OS-delivered transitions to the analytics pipeline on
-            // every foreground entry (exactly-once against the WorkManager worker).
+            // every foreground entry (at-least-once with the WorkManager worker,
+            // deduped downstream by transitionId).
             ProcessLifecycleOwner.get().lifecycle.addObserver(
                 GeofenceLifecycleObserver(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,

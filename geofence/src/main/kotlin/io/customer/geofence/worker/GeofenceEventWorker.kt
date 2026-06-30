@@ -18,7 +18,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryResult
-import io.customer.sdk.data.store.claimSendRestore
+import io.customer.sdk.data.store.sendRemoveOnSuccess
 import java.util.UUID
 
 private const val KEY_GEOFENCE_ID = "geofence_id"
@@ -126,12 +126,12 @@ internal class GeofenceEventWorker(
             return Result.success()
         }
 
-        // Shared exactly-once decision: claim before sending so we don't double
-        // deliver against the foreground flush (which also claims before
-        // publishing), and restore the entry on failure so a retry or the flush
-        // can deliver it later.
+        // At-least-once delivery: keep the row until the send is confirmed, so a process death
+        // mid-request leaves it for a WorkManager retry or the foreground flush rather than
+        // dropping it. The duplicate this can produce (overlap with the flush, or a retry after
+        // an ambiguous success) is deduped backend-side via the stable transitionId.
         return when (
-            val outcome = store.claimSendRestore(entry) {
+            val outcome = store.sendRemoveOnSuccess(entry) {
                 SDKComponent.android().geofenceEventTracker.trackEvent(entry)
             }
         ) {

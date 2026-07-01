@@ -170,8 +170,10 @@ internal class EngineWebView @JvmOverloads constructor(
             selector = { it.colorScheme }
         ) { colorScheme ->
             val resolved = colorScheme.resolve(context.resources.configuration.uiMode)
-            if (resolved != lastResolvedColorScheme) {
-                post { updateColorScheme(resolved) }
+            post {
+                if (resolved != lastResolvedColorScheme) {
+                    updateColorScheme(resolved)
+                }
             }
         }
     }

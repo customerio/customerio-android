@@ -1,7 +1,9 @@
-# There are some re-usable functions in other Fastfile files in the org we can re-use. 
+# There are some re-usable functions in other Fastfile files in the org we can re-use.
+# Pinned to a customerio-ios release tag so changes to the shared Fastfile roll out
+# here deliberately instead of the moment they land on that repo's main branch.
 import_from_git(
-  url: "https://github.com/customerio/customerio-ios.git", 
-  branch: "main",
+  url: "https://github.com/customerio/customerio-ios.git",
+  branch: "4.5.3", # git tag on customerio-ios; file verified identical to main as of 2026-07-01
   path: "Apps/fastlane/Fastfile"
 )
 

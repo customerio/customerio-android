@@ -1,5 +1,6 @@
 package io.customer.messagingpush.livenotification
 
+import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
@@ -53,6 +54,14 @@ internal class LiveNotificationRegistrar(
             // We deliberately do NOT clear stored signatures here: doing so made the routine
             // delete+re-register token cycle on identify re-send every registration on each launch.
             token = null
+        }
+        eventBus.subscribe(Event.ResetEvent::class) {
+            // Logout: remove the user's live notifications (no `end` event is sent) so they
+            // don't linger for the next user, and clear registrations so the next identified
+            // user re-registers. ResetEvent only fires on explicit clearIdentify, so unlike the
+            // routine token cycle above it's safe to clear signatures here.
+            SDKComponent.liveNotificationManager.cancelAllActivities()
+            store.clearRegistrations()
         }
     }
 

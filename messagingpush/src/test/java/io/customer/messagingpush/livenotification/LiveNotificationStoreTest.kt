@@ -1,8 +1,10 @@
 package io.customer.messagingpush.livenotification
 
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -63,6 +65,21 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
 
         store.clearActivityType("act-1")
         store.activityType("act-1").shouldBeNull()
+    }
+
+    @Test
+    fun trackedActivityIds_andClearAllActivities() {
+        store.setActivityType("a1", "type.a")
+        store.setActivityType("a2", "type.b")
+        store.setLastTimestamp("a1", 5L)
+
+        store.trackedActivityIds() shouldContainSame setOf("a1", "a2")
+
+        store.clearAllActivities()
+
+        store.trackedActivityIds().shouldBeEmpty()
+        store.activityType("a1").shouldBeNull()
+        store.lastTimestamp("a1").shouldBeNull()
     }
 
     @Test

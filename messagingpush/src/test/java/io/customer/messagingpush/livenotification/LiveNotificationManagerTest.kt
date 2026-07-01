@@ -5,6 +5,7 @@ import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
 import io.mockk.mockk
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -85,6 +86,20 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
 
         manager.end("act-unknown")
 
+        verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any()) }
+    }
+
+    @Test
+    fun cancelAllActivities_clearsTrackedStateWithoutReporting() {
+        saveToken()
+        val store = SDKComponent.liveNotificationStore
+        store.setActivityType("act-1", type)
+        store.setActivityType("act-2", type)
+
+        manager.cancelAllActivities()
+
+        store.trackedActivityIds().shouldBeEmpty()
+        // Logout must NOT emit end events.
         verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any()) }
     }
 }

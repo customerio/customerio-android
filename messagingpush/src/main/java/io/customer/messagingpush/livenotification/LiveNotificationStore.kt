@@ -87,6 +87,22 @@ internal class LiveNotificationStore(context: Context) {
         prefs.edit { remove(TYPE_PREFIX + activityId) }
     }
 
+    /** Every activity id the SDK currently tracks (rendered and not yet ended). */
+    fun trackedActivityIds(): Set<String> =
+        prefs.all.keys
+            .filter { it.startsWith(TYPE_PREFIX) }
+            .map { it.removePrefix(TYPE_PREFIX) }
+            .toSet()
+
+    /** Clears all per-activity state (timestamps + types). Used on logout/reset. */
+    fun clearAllActivities() {
+        prefs.edit {
+            prefs.all.keys
+                .filter { it.startsWith(TS_PREFIX) || it.startsWith(TYPE_PREFIX) }
+                .forEach { remove(it) }
+        }
+    }
+
     companion object {
         private const val PREFS_NAME = "io.customer.messagingpush.live_notifications"
         private const val REG_PREFIX = "reg:"

@@ -72,6 +72,26 @@ internal class LiveNotificationManager(
         store.clearActivityType(activityId)
     }
 
+    /**
+     * Cancels every live notification the SDK is tracking and clears their
+     * stored state, WITHOUT reporting `end` events. Called on logout (reset):
+     * the activities belong to the now-cleared user's session and must not
+     * linger for the next user. No `end` is reported — the user is being
+     * de-identified (so the event would be dropped anyway), and per product we
+     * intentionally don't signal end on logout.
+     */
+    fun cancelAllActivities() {
+        val store = SDKComponent.liveNotificationStore
+        val ids = store.trackedActivityIds()
+        if (ids.isNotEmpty()) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            for (activityId in ids) {
+                notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
+            }
+        }
+        store.clearAllActivities()
+    }
+
     private fun buildBundle(
         activityId: String,
         activityType: String,

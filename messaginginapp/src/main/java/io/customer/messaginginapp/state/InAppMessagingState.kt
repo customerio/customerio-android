@@ -3,11 +3,13 @@ package io.customer.messaginginapp.state
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.type.ColorScheme
 
 internal data class InAppMessagingState(
     val siteId: String = "",
     val dataCenter: String = "",
     val environment: GistEnvironment = GistEnvironment.PROD,
+    val colorScheme: ColorScheme = ColorScheme.AUTO,
     val pollInterval: Long = 600_000L,
     val userId: String? = null,
     val anonymousId: String? = null,
@@ -44,6 +46,7 @@ internal data class InAppMessagingState(
         append("siteId='$siteId',\n")
         append("dataCenter='$dataCenter',\n")
         append("environment=$environment,\n")
+        append("colorScheme=$colorScheme,\n")
         append("pollInterval=$pollInterval,\n")
         append("userId=$userId,\n")
         append("anonymousId=$anonymousId,\n")
@@ -62,6 +65,7 @@ internal data class InAppMessagingState(
             if (siteId != other.siteId) put("siteId", siteId to other.siteId)
             if (dataCenter != other.dataCenter) put("dataCenter", dataCenter to other.dataCenter)
             if (environment != other.environment) put("environment", environment to other.environment)
+            if (colorScheme != other.colorScheme) put("colorScheme", colorScheme to other.colorScheme)
             if (pollInterval != other.pollInterval) put("pollInterval", pollInterval to other.pollInterval)
             if (userId != other.userId) put("userId", userId to other.userId)
             if (anonymousId != other.anonymousId) put("anonymousId", anonymousId to other.anonymousId)

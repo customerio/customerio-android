@@ -440,6 +440,7 @@ class InAppMessageViewControllerTest : JUnitTest() {
         controller.loadMessage(givenMessage)
 
         controller.currentMessage shouldBeEqualTo givenMessage
+        val uiMode = SDKComponent.android().applicationContext.resources.configuration.uiMode
         val expectedConfig = EngineWebConfiguration(
             siteId = givenStoreState.siteId,
             dataCenter = givenStoreState.dataCenter,
@@ -447,7 +448,8 @@ class InAppMessageViewControllerTest : JUnitTest() {
             instanceId = givenMessage.instanceId,
             endpoint = givenStoreState.environment.getEngineApiUrl(),
             properties = givenMessage.properties,
-            customAttributes = SDKComponent.gistCustomAttributes.toMap()
+            customAttributes = SDKComponent.gistCustomAttributes.toMap(),
+            colorScheme = givenStoreState.colorScheme.resolve(uiMode)
         )
         assertCalledOnce { engineWebViewDelegate.setup(expectedConfig) }
     }

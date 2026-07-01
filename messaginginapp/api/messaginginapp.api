@@ -1,5 +1,6 @@
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
-	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Lio/customer/messaginginapp/type/InAppEventListener;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Lio/customer/messaginginapp/type/InAppEventListener;Lio/customer/messaginginapp/type/ColorScheme;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getColorScheme ()Lio/customer/messaginginapp/type/ColorScheme;
 	public final fun getEventListener ()Lio/customer/messaginginapp/type/InAppEventListener;
 	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
 	public final fun getSiteId ()Ljava/lang/String;
@@ -9,6 +10,7 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder
 	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;)V
 	public fun build ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public final fun setColorScheme (Lio/customer/messaginginapp/type/ColorScheme;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 	public final fun setEventListener (Lio/customer/messaginginapp/type/InAppEventListener;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 }
 
@@ -29,6 +31,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public final fun setColorScheme (Lio/customer/messaginginapp/type/ColorScheme;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
@@ -227,6 +230,17 @@ public final class io/customer/messaginginapp/inbox/NotificationInbox {
 
 public abstract interface class io/customer/messaginginapp/inbox/NotificationInboxChangeListener {
 	public abstract fun onMessagesChanged (Ljava/util/List;)V
+}
+
+public final class io/customer/messaginginapp/type/ColorScheme : java/lang/Enum {
+	public static final field AUTO Lio/customer/messaginginapp/type/ColorScheme;
+	public static final field DARK Lio/customer/messaginginapp/type/ColorScheme;
+	public static final field LIGHT Lio/customer/messaginginapp/type/ColorScheme;
+	public static final field RENDERER_DARK Ljava/lang/String;
+	public static final field RENDERER_LIGHT Ljava/lang/String;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/type/ColorScheme;
+	public static fun values ()[Lio/customer/messaginginapp/type/ColorScheme;
 }
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {

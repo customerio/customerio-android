@@ -10,24 +10,31 @@ package io.customer.geofence
 internal enum class RefreshAction { REMOTE, LOCAL, SKIP }
 
 /**
- * How the SDK fetches a user's geofences. Only [FETCH_ALL] ships: the backend returns the full
- * (capped) set and the SDK never sends device location.
+ * How the SDK fetches a user's geofences.
  *
- * A location-based "nearby" mode is deliberately absent so there's no code path that transmits
- * device location; re-introducing it needs backend support and a deliberate SDK release (never a
- * runtime/server toggle). Kept as a single-value enum so re-introduction stays a localized change.
- * Prior implementation is in git history.
+ * - [FETCH_ALL] — the backend returns the full (capped) set and the SDK sends no device location.
+ * - [NEARBY]    — the SDK sends a coarsened device location and the backend returns the nearby set;
+ *   it then re-fetches once the device moves beyond [GeofenceConfig.remoteFetchRefreshTriggerRadius].
+ *
+ * The active mode is a deliberate SDK-release decision ([active]), never a runtime/server toggle —
+ * [NEARBY] is the only mode that transmits device location, so enabling it must be explicit.
  */
 internal enum class GeofenceSyncMode {
-    FETCH_ALL;
+    FETCH_ALL {
+        // FETCH_ALL holds the full set, so movement never triggers a re-fetch — only a local re-rank.
+        override fun movementRequiresRemoteFetch(distanceFromAnchor: Float, config: GeofenceConfig): Boolean = false
+    },
+    NEARBY {
+        // The cached set only covers the area around the last fetch; once the device moves past the
+        // fetch radius the set is no longer "nearby", so re-fetch from the server.
+        override fun movementRequiresRemoteFetch(distanceFromAnchor: Float, config: GeofenceConfig): Boolean =
+            distanceFromAnchor >= config.remoteFetchRefreshTriggerRadius
+    };
 
-    /**
-     * FETCH_ALL holds the full set, so movement never triggers a re-fetch. A location-bound mode
-     * would re-fetch once the device moved beyond its fetch radius (see class doc).
-     */
-    fun movementRequiresRemoteFetch(distanceFromAnchor: Float, config: GeofenceConfig): Boolean = false
+    /** Whether a movement that far from the last-fetch anchor warrants a fresh server fetch. */
+    abstract fun movementRequiresRemoteFetch(distanceFromAnchor: Float, config: GeofenceConfig): Boolean
 
     companion object {
-        val active: GeofenceSyncMode = FETCH_ALL
+        val active: GeofenceSyncMode = NEARBY
     }
 }

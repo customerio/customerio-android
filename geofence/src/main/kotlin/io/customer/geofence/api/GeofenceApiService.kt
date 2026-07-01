@@ -1,13 +1,19 @@
 package io.customer.geofence.api
 
 import io.customer.geofence.GeofenceJsonSerializer
+import io.customer.geofence.GeofenceLocation
+import io.customer.geofence.coarsened
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpMethod
 import io.customer.sdk.core.network.HttpRequestParams
 
 internal interface GeofenceApiService {
-    /** Returns the full (capped) set with no location sent. */
-    suspend fun fetchGeofences(): Result<GeofenceApiResponse>
+    /**
+     * Fetches geofences. When [location] is null (FETCH_ALL) the backend returns the full (capped)
+     * set and no location is sent. When non-null (NEARBY) the backend returns the nearby set; the
+     * location is coarsened before it leaves the device.
+     */
+    suspend fun fetchGeofences(location: GeofenceLocation? = null): Result<GeofenceApiResponse>
 }
 
 internal class GeofenceApiServiceImpl(
@@ -15,11 +21,16 @@ internal class GeofenceApiServiceImpl(
     private val jsonSerializer: GeofenceJsonSerializer
 ) : GeofenceApiService {
 
-    override suspend fun fetchGeofences(): Result<GeofenceApiResponse> {
+    override suspend fun fetchGeofences(location: GeofenceLocation?): Result<GeofenceApiResponse> {
+        // Coarsen at the transmission boundary so a precise position can never leave the device,
+        // regardless of what the caller passes in.
+        val queryParams = location?.coarsened()
+            ?.let { mapOf("latitude" to it.latitude.toString(), "longitude" to it.longitude.toString()) }
+            ?: emptyMap()
         val params = HttpRequestParams(
             path = ENDPOINT_PATH,
             method = HttpMethod.GET,
-            queryParams = emptyMap()
+            queryParams = queryParams
         )
         return httpClient.request(params).mapCatching { responseBody ->
             // Lenient at the wire boundary so the SDK doesn't pin a specific

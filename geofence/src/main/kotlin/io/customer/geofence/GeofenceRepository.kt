@@ -215,9 +215,11 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double
     ): Result<Unit> {
-        // No location is sent to fetch. The precise lat/lng below drive on-device ranking and the
-        // anchor only — they never leave here.
-        val fetchResult = apiService.fetchGeofences()
+        // NEARBY sends the device location so the backend can return the nearby set (coarsened at the
+        // API boundary); FETCH_ALL sends none. Precise lat/lng stay here for on-device ranking and the
+        // anchor.
+        val fetchLocation = if (syncMode == GeofenceSyncMode.NEARBY) GeofenceLocation(latitude, longitude) else null
+        val fetchResult = apiService.fetchGeofences(fetchLocation)
         return fetchResult.fold(
             onSuccess = { response ->
                 val regions = response.toDomainRegions()

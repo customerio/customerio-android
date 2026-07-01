@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <application>
         <!-- Transparent activity for push interactions 
@@ -46,6 +47,15 @@
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
             </intent-filter>
         </receiver>
+
+        <!--
+        Receives the delete intent fired when a user dismisses a live notification,
+        so the SDK can report the dismissal to Customer.io. Triggered via an explicit
+        PendingIntent only, so it does not need to be exported.
+        -->
+        <receiver
+            android:name=".livenotification.LiveNotificationDismissReceiver"
+            android:exported="false" />
     </application>
 
     <queries>

@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
@@ -21,16 +20,13 @@ import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
+import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
-import java.net.URL
 import kotlin.math.abs
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 
 /**
  * Class to handle PushNotification.
@@ -117,9 +113,6 @@ internal class CustomerIOPushNotificationHandler(
         pushLogger.logShowingPushNotification(remoteMessage)
 
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
-        val requestCode = abs(System.currentTimeMillis().toInt())
-
-        bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
 
         val appMetaData = context.applicationMetaData()
 
@@ -150,6 +143,33 @@ internal class CustomerIOPushNotificationHandler(
             appMetaData = appMetaData,
             notificationManager = notificationManager
         )
+
+        // Check if this is a live notification
+        val activityId = bundle.getString(LiveNotificationHandler.ACTIVITY_ID_KEY)
+        if (activityId != null) {
+            val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
+                context = context,
+                applicationName = applicationName,
+                appMetaData = appMetaData,
+                notificationManager = notificationManager
+            )
+            // onNotificationComposed is intentionally not called for live notifications —
+            // their layout is SDK-controlled and cannot be safely modified by host apps.
+            LiveNotificationHandler(bundle).handle(
+                context = context,
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken,
+                smallIcon = smallIcon,
+                tintColor = tintColor,
+                channelId = liveChannelId,
+                notificationManager = notificationManager
+            )
+            return
+        }
+
+        val requestCode = abs(System.currentTimeMillis().toInt())
+        bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
+
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)
@@ -226,19 +246,11 @@ internal class CustomerIOPushNotificationHandler(
         builder: NotificationCompat.Builder,
         body: String,
         defaultLargeIcon: Bitmap? = null
-    ) = runBlocking {
+    ) {
         val style = NotificationCompat.BigPictureStyle()
             .bigLargeIcon(defaultLargeIcon)
             .setSummaryText(body)
-        val url = URL(imageUrl)
-        withContext(Dispatchers.IO) {
-            try {
-                val input = url.openStream()
-                BitmapFactory.decodeStream(input)
-            } catch (e: Exception) {
-                null
-            }
-        }?.let { bitmap ->
+        BitmapDownloader.download(imageUrl)?.let { bitmap ->
             style.bigPicture(bitmap)
             builder.setLargeIcon(bitmap)
             builder.setStyle(style)

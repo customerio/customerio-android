@@ -16,7 +16,12 @@ import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.location.LocationModuleConfig;
 import io.customer.location.LocationTrackingMode;
 import io.customer.location.ModuleLocation;
+import android.graphics.Color;
+
+import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.livenotification.LiveNotificationBranding;
+import io.customer.messagingpush.livenotification.LiveNotificationType;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOConfig;
 import io.customer.sdk.CustomerIOConfigBuilder;
@@ -25,6 +30,13 @@ import io.customer.sdk.CustomerIOConfigBuilder;
  * Repository class to hold all Customer.io related operations at single place
  */
 public class CustomerIORepository {
+
+    /**
+     * The push module instance, retained so the live-notification demo screen can call
+     * {@link ModuleMessagingPushFCM#startLiveNotification} (the public local-start API).
+     */
+    public static ModuleMessagingPushFCM messagingPushModule;
+
     public void initializeSdk(SampleApplication application) {
         ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
@@ -38,8 +50,30 @@ public class CustomerIORepository {
         configureSdk(builder, sdkConfig);
 
         // Enable optional features of the SDK by adding desired modules.
-        // Enables push notification
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+        // Enables push notification with live-notification branding registered once at init.
+        messagingPushModule = new ModuleMessagingPushFCM(
+                new MessagingPushModuleConfig.Builder()
+                        .setLiveNotificationBranding(new LiveNotificationBranding(
+                                "Customer.io Sample",
+                                Color.parseColor("#1B5E20"),
+                                null
+                        ))
+                        // App-rendered custom types go through this callback.
+                        .setNotificationCallback(new LiveNotificationCallback())
+                        // Live notifications are opt-in: enable the built-in template
+                        // types plus our two custom (app-rendered) types.
+                        .setLiveNotificationTypes(
+                                LiveNotificationType.DELIVERY_TRACKING,
+                                LiveNotificationType.FLIGHT_STATUS,
+                                LiveNotificationType.LIVE_SCORE,
+                                LiveNotificationType.COUNTDOWN_TIMER,
+                                LiveNotificationType.AUCTION_BID,
+                                LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE,
+                                LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT
+                        )
+                        .build()
+        );
+        builder.addCustomerIOModule(messagingPushModule);
 
         // Enables location tracking
         builder.addCustomerIOModule(new ModuleLocation(

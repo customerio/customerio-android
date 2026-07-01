@@ -81,6 +81,7 @@ class UnitTestDelegate(
             androidSDKComponent.overrideDependency<GlobalPreferenceStore>(instance)
         }
         every { globalPreferenceStore.getDeviceToken() } returns null
+        every { globalPreferenceStore.getInstallationId() } returns null
         // Mock device store to avoid reading/writing to device store
         // Spy on the stub to provide custom implementation for the test
         val deviceStoreStub = DeviceStoreStub().getDeviceStore(androidSDKComponent.client)

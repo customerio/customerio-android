@@ -22,8 +22,10 @@ public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService$
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
 	public static final field Companion Lio/customer/messagingpush/MessagingPushModuleConfig$Companion;
-	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/util/Set;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAutoTrackPushEvents ()Z
+	public final fun getLiveNotificationBranding ()Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
+	public final fun getLiveNotificationTypes ()Ljava/util/Set;
 	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
 	public final fun getPushClickBehavior ()Lio/customer/messagingpush/config/PushClickBehavior;
 	public fun toString ()Ljava/lang/String;
@@ -34,6 +36,8 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder :
 	public fun build ()Lio/customer/messagingpush/MessagingPushModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+	public final fun setLiveNotificationBranding (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
+	public final fun setLiveNotificationTypes ([Ljava/lang/String;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setPushClickBehavior (Lio/customer/messagingpush/config/PushClickBehavior;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 }
@@ -50,6 +54,8 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
 	public fun initialize ()V
+	public final fun startLiveNotification (Lio/customer/messagingpush/livenotification/LiveNotificationData;)Ljava/lang/String;
+	public final fun startLiveNotification (Ljava/lang/String;Ljava/util/Map;)Ljava/lang/String;
 }
 
 public final class io/customer/messagingpush/ModuleMessagingPushFCM$Companion {
@@ -75,18 +81,21 @@ public final class io/customer/messagingpush/config/PushClickBehavior : java/lan
 }
 
 public abstract interface class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback {
+	public abstract fun createLiveNotification (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/content/Context;)Landroid/app/Notification;
 	public abstract fun onNotificationClicked (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/content/Context;)Lkotlin/Unit;
 	public abstract fun onNotificationComposed (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
 }
 
 public final class io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback$DefaultImpls {
+	public static fun createLiveNotification (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/content/Context;)Landroid/app/Notification;
 	public static fun onNotificationClicked (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/content/Context;)Lkotlin/Unit;
 	public static fun onNotificationComposed (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroidx/core/app/NotificationCompat$Builder;)V
 }
 
 public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayload : android/os/Parcelable {
 	public static final field CREATOR Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload$CREATOR;
-	public fun <init> (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Landroid/os/Parcel;)V
 	public final fun component1 ()Landroid/os/Bundle;
 	public final fun component2 ()Ljava/lang/String;
@@ -94,10 +103,12 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 	public final fun component4 ()Ljava/lang/String;
 	public final fun component5 ()Ljava/lang/String;
 	public final fun component6 ()Ljava/lang/String;
-	public final fun copy (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
-	public static synthetic fun copy$default (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun copy (Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;Landroid/os/Bundle;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/data/model/CustomerIOParsedPushPayload;
 	public fun describeContents ()I
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActivityId ()Ljava/lang/String;
 	public final fun getBody ()Ljava/lang/String;
 	public final fun getCioDeliveryId ()Ljava/lang/String;
 	public final fun getCioDeliveryToken ()Ljava/lang/String;
@@ -118,6 +129,216 @@ public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayl
 
 public final class io/customer/messagingpush/di/DiGraphMessagingPushKt {
 	public static final fun getPushModuleConfig (Lio/customer/sdk/core/di/SDKComponent;)Lio/customer/messagingpush/MessagingPushModuleConfig;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationBranding {
+	public fun <init> (Ljava/lang/String;ILjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;ILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;ILjava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/lang/String;ILjava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccentColor ()I
+	public final fun getCompanyName ()Ljava/lang/String;
+	public final fun getLogoDrawableName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/messagingpush/livenotification/LiveNotificationData {
+	public abstract fun fields ()Ljava/util/Map;
+	public abstract fun getActivityType ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$Airport {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCity ()Ljava/lang/String;
+	public final fun getCode ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$AuctionBid : io/customer/messagingpush/livenotification/LiveNotificationData {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZLjava/lang/Long;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZLjava/lang/Long;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Z
+	public final fun component6 ()Ljava/lang/Long;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZLjava/lang/Long;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationData$AuctionBid;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$AuctionBid;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;ZLjava/lang/Long;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$AuctionBid;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun fields ()Ljava/util/Map;
+	public fun getActivityType ()Ljava/lang/String;
+	public final fun getBidCount ()I
+	public final fun getCurrencySymbol ()Ljava/lang/String;
+	public final fun getCurrentBid ()Ljava/lang/String;
+	public final fun getEndTime ()Ljava/lang/Long;
+	public final fun getItemImageKey ()Ljava/lang/String;
+	public final fun getItemTitle ()Ljava/lang/String;
+	public final fun getStatusMessage ()Ljava/lang/String;
+	public final fun getUserBidAmount ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isUserHighBidder ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$CountdownTimer : io/customer/messagingpush/livenotification/LiveNotificationData {
+	public fun <init> (Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()J
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationData$CountdownTimer;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$CountdownTimer;Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$CountdownTimer;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun fields ()Ljava/util/Map;
+	public fun getActivityType ()Ljava/lang/String;
+	public final fun getExpiredMessage ()Ljava/lang/String;
+	public final fun getHeroImageKey ()Ljava/lang/String;
+	public final fun getStatusMessage ()Ljava/lang/String;
+	public final fun getTargetDate ()J
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$DeliveryTracking : io/customer/messagingpush/livenotification/LiveNotificationData {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Long;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/Integer;
+	public final fun component7 ()Ljava/lang/Integer;
+	public final fun component8 ()Ljava/lang/Long;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Long;)Lio/customer/messagingpush/livenotification/LiveNotificationData$DeliveryTracking;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$DeliveryTracking;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Long;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$DeliveryTracking;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun fields ()Ljava/util/Map;
+	public fun getActivityType ()Ljava/lang/String;
+	public final fun getDriverName ()Ljava/lang/String;
+	public final fun getEstimatedArrival ()Ljava/lang/Long;
+	public final fun getOrderId ()Ljava/lang/String;
+	public final fun getRecipientName ()Ljava/lang/String;
+	public final fun getStatusImageKey ()Ljava/lang/String;
+	public final fun getStatusMessage ()Ljava/lang/String;
+	public final fun getStepCurrent ()Ljava/lang/Integer;
+	public final fun getStepTotal ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$FlightStatus : io/customer/messagingpush/livenotification/LiveNotificationData {
+	public fun <init> (Ljava/lang/String;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Double;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Double;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/lang/Integer;
+	public final fun component2 ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;
+	public final fun component3 ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/Long;
+	public final fun component8 ()Ljava/lang/Long;
+	public final fun component9 ()Ljava/lang/Double;
+	public final fun copy (Ljava/lang/String;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Double;Ljava/lang/Integer;)Lio/customer/messagingpush/livenotification/LiveNotificationData$FlightStatus;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$FlightStatus;Ljava/lang/String;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Double;Ljava/lang/Integer;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$FlightStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun fields ()Ljava/util/Map;
+	public fun getActivityType ()Ljava/lang/String;
+	public final fun getDelayMinutes ()Ljava/lang/Integer;
+	public final fun getDestination ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;
+	public final fun getEstimatedArrival ()Ljava/lang/Long;
+	public final fun getFlightNumber ()Ljava/lang/String;
+	public final fun getGate ()Ljava/lang/String;
+	public final fun getOrigin ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Airport;
+	public final fun getProgressFraction ()Ljava/lang/Double;
+	public final fun getScheduledDeparture ()Ljava/lang/Long;
+	public final fun getStatusMessage ()Ljava/lang/String;
+	public final fun getTerminal ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$LiveScore : io/customer/messagingpush/livenotification/LiveNotificationData {
+	public fun <init> (Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;
+	public final fun component2 ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationData$LiveScore;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$LiveScore;Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$LiveScore;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun fields ()Ljava/util/Map;
+	public fun getActivityType ()Ljava/lang/String;
+	public final fun getAwayScore ()I
+	public final fun getAwayTeam ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;
+	public final fun getClock ()Ljava/lang/String;
+	public final fun getHomeScore ()I
+	public final fun getHomeTeam ()Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;
+	public final fun getLeagueLogoKey ()Ljava/lang/String;
+	public final fun getPeriod ()Ljava/lang/String;
+	public final fun getSport ()Ljava/lang/String;
+	public final fun getStatusMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationData$Team {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationData$Team;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLogoKey ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationDismissReceiver : android/content/BroadcastReceiver {
+	public static final field Companion Lio/customer/messagingpush/livenotification/LiveNotificationDismissReceiver$Companion;
+	public static final field EXTRA_ACTIVITY_ID Ljava/lang/String;
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationDismissReceiver$Companion {
+}
+
+public final class io/customer/messagingpush/livenotification/LiveNotificationType {
+	public static final field AUCTION_BID Ljava/lang/String;
+	public static final field COUNTDOWN_TIMER Ljava/lang/String;
+	public static final field DELIVERY_TRACKING Ljava/lang/String;
+	public static final field FLIGHT_STATUS Ljava/lang/String;
+	public static final field INSTANCE Lio/customer/messagingpush/livenotification/LiveNotificationType;
+	public static final field LIVE_SCORE Ljava/lang/String;
 }
 
 public final class io/customer/messagingpush/processor/PushMessageProcessor$Companion {

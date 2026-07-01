@@ -12,8 +12,10 @@ import kotlinx.serialization.json.Json
 interface GlobalPreferenceStore {
     fun saveDeviceToken(token: String)
     fun saveSettings(value: Settings)
+    fun saveInstallationId(value: String)
     fun getDeviceToken(): String?
     fun getSettings(): Settings?
+    fun getInstallationId(): String?
     fun removeDeviceToken()
     fun clear(key: String)
     fun clearAll()
@@ -35,6 +37,10 @@ internal class GlobalPreferenceStoreImpl(
         putString(KEY_CONFIG_SETTINGS, Json.encodeToString(Settings.serializer(), value))
     }
 
+    override fun saveInstallationId(value: String) = prefs.edit {
+        putString(KEY_INSTALLATION_ID, value)
+    }
+
     override fun getDeviceToken(): String? = prefs.read {
         getString(KEY_DEVICE_TOKEN, null)
     }
@@ -48,10 +54,15 @@ internal class GlobalPreferenceStoreImpl(
         }.getOrNull()
     }
 
+    override fun getInstallationId(): String? = prefs.read {
+        getString(KEY_INSTALLATION_ID, null)
+    }
+
     override fun removeDeviceToken() = clear(KEY_DEVICE_TOKEN)
 
     companion object {
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_CONFIG_SETTINGS = "config_settings"
+        private const val KEY_INSTALLATION_ID = "installation_id"
     }
 }

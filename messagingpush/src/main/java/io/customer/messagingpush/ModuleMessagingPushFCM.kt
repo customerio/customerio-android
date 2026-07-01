@@ -9,9 +9,12 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.WorkManager
 import androidx.work.await
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.liveNotificationManager
+import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
+import io.customer.messagingpush.livenotification.LiveNotificationData
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
@@ -23,6 +26,7 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -48,9 +52,41 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
+        // Live notifications are opt-in: only wire up registration when the host app
+        // enabled at least one activity type. Start before requesting the token so the
+        // registrar observes the resulting RegisterDeviceTokenEvent.
+        if (moduleConfig.liveNotificationTypes.isNotEmpty()) {
+            SDKComponent.liveNotificationRegistrar.start()
+        }
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
+    }
+
+    /**
+     * Starts a live notification locally for a built-in template type. The SDK
+     * generates a unique activity id, renders the notification immediately, and
+     * registers the instance with Customer.io so the backend can push updates.
+     *
+     * @return the generated `activity_id`, used to correlate subsequent updates.
+     */
+    fun startLiveNotification(data: LiveNotificationData): String =
+        startLiveNotification(data.activityType, data.fields())
+
+    /**
+     * Starts a live notification locally for a customer-defined [activityType]
+     * (one registered via [MessagingPushModuleConfig.Builder.registerLiveNotificationTypes]).
+     * Custom types have no built-in template, so a
+     * [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification]
+     * must render them.
+     *
+     * @param data flattened fields delivered to the renderer.
+     * @return the generated `activity_id`.
+     */
+    fun startLiveNotification(activityType: String, data: Map<String, Any?>): String {
+        val activityId = UUID.randomUUID().toString()
+        SDKComponent.liveNotificationManager.start(activityId, activityType, data)
+        return activityId
     }
 
     private fun subscribeToLifecycleEvents() {

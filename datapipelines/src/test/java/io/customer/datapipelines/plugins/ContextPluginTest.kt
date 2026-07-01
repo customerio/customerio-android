@@ -12,14 +12,19 @@ import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
+import io.customer.datapipelines.testutils.extensions.installationId
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
+import io.mockk.slot
+import io.mockk.verify
+import java.util.UUID
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldHaveSingleItem
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
 class ContextPluginTest : JUnitTest() {
@@ -96,6 +101,84 @@ class ContextPluginTest : JUnitTest() {
         val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         result.event shouldBeEqualTo givenEventName
         result.context.deviceToken.shouldBeNull()
+    }
+
+    @Test
+    fun process_givenInstallationIdExists_expectAttachedToDeviceContext() {
+        val givenInstallationId = UUID.randomUUID().toString()
+        setupWithConfig(
+            testConfiguration {
+                diGraph {
+                    android {
+                        every { globalPreferenceStore.getInstallationId() } returns givenInstallationId
+                    }
+                }
+            }
+        )
+
+        val givenEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, givenEventName))
+
+        val result = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        result.event shouldBeEqualTo givenEventName
+        result.context.installationId shouldBeEqualTo givenInstallationId
+    }
+
+    @Test
+    fun process_givenNoInstallationIdStored_expectGeneratedAndPersisted() {
+        val savedIdSlot = slot<String>()
+        setupWithConfig(
+            testConfiguration {
+                diGraph {
+                    android {
+                        every { globalPreferenceStore.getInstallationId() } returns null
+                        every { globalPreferenceStore.saveInstallationId(capture(savedIdSlot)) } returns Unit
+                    }
+                }
+            }
+        )
+
+        verify(exactly = 1) { globalPreferenceStore.saveInstallationId(any()) }
+        val persistedId = savedIdSlot.captured
+        // Ensure it parses as a valid UUID
+        UUID.fromString(persistedId).shouldNotBeNull()
+
+        val firstEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, firstEventName))
+        val secondEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, secondEventName))
+
+        val events = outputReaderPlugin.trackEvents
+        events[0].context.installationId shouldBeEqualTo persistedId
+        events[1].context.installationId shouldBeEqualTo persistedId
+    }
+
+    @Test
+    fun process_acrossClearIdentify_expectInstallationIdUnchanged() {
+        val givenInstallationId = UUID.randomUUID().toString()
+        setupWithConfig(
+            testConfiguration {
+                diGraph {
+                    android {
+                        every { globalPreferenceStore.getInstallationId() } returns givenInstallationId
+                    }
+                }
+            }
+        )
+
+        val firstEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, firstEventName))
+        val installationIdBefore = outputReaderPlugin.trackEvents.last().context.installationId
+        outputReaderPlugin.reset()
+
+        sdkInstance.clearIdentify()
+
+        val secondEventName = String.random
+        analytics.process(TrackEvent(emptyJsonObject, secondEventName))
+        val installationIdAfter = outputReaderPlugin.trackEvents.last().context.installationId
+
+        installationIdBefore shouldBeEqualTo givenInstallationId
+        installationIdAfter shouldBeEqualTo installationIdBefore
     }
 }
 

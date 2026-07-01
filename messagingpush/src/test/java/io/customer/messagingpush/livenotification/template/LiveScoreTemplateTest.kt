@@ -1,7 +1,12 @@
 package io.customer.messagingpush.livenotification.template
 
+import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeNull
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,6 +96,31 @@ internal class LiveScoreTemplateTest : IntegrationTest() {
         val result = render(teamsAttributes(), contentState)
 
         result.body shouldBeEqualTo "1st"
+    }
+
+    @Test
+    fun render_noLeagueLogo_fallsBackToTeamLogo() {
+        // Single native image slot: with no league logo, a team logo fills it.
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .registerLiveNotificationAsset("home-logo", byteArrayOf(1, 2, 3))
+                .build()
+        ).attachToSDKComponent()
+        val attributes = JSONObject().apply {
+            put("homeTeam", JSONObject().put("name", "Lakers").put("logoKey", "home-logo"))
+            put("awayTeam", JSONObject().put("name", "Celtics"))
+        }
+
+        val result = render(attributes, JSONObject().put("period", "1st"))
+
+        result.largeIcon.shouldNotBeNull()
+    }
+
+    @Test
+    fun render_noLogosAtAll_largeIconIsNull() {
+        val result = render(teamsAttributes(), JSONObject().put("period", "1st"))
+
+        result.largeIcon.shouldBeNull()
     }
 
     @Test

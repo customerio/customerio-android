@@ -144,6 +144,21 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     }
 
     @Test
+    fun handle_givenUpdateEvent_postsNotificationInPlace() {
+        // A server-pushed `update` re-renders the activity (same id) rather than being dropped.
+        // It is NOT reported as a lifecycle event — the backend initiated it, so it already knows.
+        val activityId = "live-activity-update"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+        val bundle = newBundle(activityId = activityId, event = "update")
+
+        invoke(handlerFor(bundle))
+
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
+        }
+    }
+
+    @Test
     fun handle_givenTemplateFieldsNestedUnderPayload_unwrapsAndPosts() {
         // Backend delivers template fields nested under a `payload` object (JSON string),
         // not flattened. The handler must unwrap them so the template renders.

@@ -22,7 +22,7 @@ import io.customer.android.sample.java_layout.sdk.LiveNotificationCallback;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
-import io.customer.messagingpush.livenotification.LiveNotificationType;
+import io.customer.messagingpush.livenotification.LiveNotificationData;
 
 /**
  * Demo activity that simulates templated live-notification updates by sending
@@ -78,6 +78,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private boolean isAutoRunning = false;
     private int selectedCampaignIndex = 0;
     private CustomerIORepository customerIORepository;
+    private String lastApiActivityId = null;
 
     @Override
     protected ActivityLiveNotificationDemoBinding inflateViewBinding() {
@@ -99,6 +100,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.autoButton.setOnClickListener(v -> autoRun());
         binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
         binding.apiStartButton.setOnClickListener(v -> startViaApi());
+        binding.apiUpdateButton.setOnClickListener(v -> updateViaApi());
+        binding.apiEndButton.setOnClickListener(v -> endViaApi());
 
         setupCampaignDropdown();
         binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
@@ -400,20 +403,54 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
      * Exercises the public local-start API: the SDK generates the activity id, renders
      * the notification immediately, and registers the instance with the backend.
      */
+    /** Demonstrates the typed local-start API: {@code startLiveNotification(LiveNotificationData)}. */
     private void startViaApi() {
         ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
         if (module == null) return;
-        java.util.Map<String, Object> data = new java.util.HashMap<>();
-        data.put("orderId", "API-1001");
-        data.put("recipientName", "Mahmoud");
-        data.put("statusMessage", "Out for delivery (started via API)");
-        data.put("statusImageKey", "delivery_truck");
-        data.put("stepCurrent", 3);
-        data.put("stepTotal", 4);
-        data.put("driverName", "Sara");
-        data.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
-        String activityId = module.startLiveNotification(LiveNotificationType.DELIVERY_TRACKING, data);
+        LiveNotificationData.DeliveryTracking data = new LiveNotificationData.DeliveryTracking(
+                /* orderId */ "API-1001",
+                /* statusMessage */ "Out for delivery (started via API)",
+                /* recipientName */ "Mahmoud",
+                /* driverName */ "Sara",
+                /* statusImageKey */ "delivery_truck",
+                /* stepCurrent */ 3,
+                /* stepTotal */ 4,
+                /* estimatedArrival */ System.currentTimeMillis() + 30L * 60 * 1000
+        );
+        String activityId = module.startLiveNotification(data);
+        lastApiActivityId = activityId;
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + activityId, 1));
+    }
+
+    /**
+     * Demonstrates the typed local-update API:
+     * {@code updateLiveNotification(activityId, LiveNotificationData)} against the activity
+     * started via {@link #startViaApi()}.
+     */
+    private void updateViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null || lastApiActivityId == null) return;
+        LiveNotificationData.DeliveryTracking data = new LiveNotificationData.DeliveryTracking(
+                /* orderId */ "API-1001",
+                /* statusMessage */ "Arriving now (updated via API)",
+                /* recipientName */ "Mahmoud",
+                /* driverName */ "Sara",
+                /* statusImageKey */ "delivery_door",
+                /* stepCurrent */ 4,
+                /* stepTotal */ 4,
+                /* estimatedArrival */ null
+        );
+        module.updateLiveNotification(lastApiActivityId, data);
+        binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + lastApiActivityId, 2));
+    }
+
+    /** Demonstrates the local-end API: {@code endLiveNotification(activityId)}. */
+    private void endViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null || lastApiActivityId == null) return;
+        module.endLiveNotification(lastApiActivityId);
+        binding.statusTextView.setText(R.string.live_notification_status_ended);
+        lastApiActivityId = null;
     }
 
     // --- On-demand push-to-start registration ---

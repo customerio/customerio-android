@@ -54,14 +54,52 @@ internal class LiveNotificationStore(context: Context) {
         prefs.edit { remove(TS_PREFIX + activityId) }
     }
 
-    /** Removes timestamp entries recorded longer than [ttlMs] ago. Intended to run on app launch. */
+    /** Removes timestamp entries (and their paired activity types) recorded longer than [ttlMs] ago. Intended to run on app launch. */
     fun trimStaleTimestamps(ttlMs: Long = DEFAULT_TS_TTL_MS, now: Long = System.currentTimeMillis()) {
-        val staleKeys = prefs.all.entries.filter { (key, value) ->
+        val staleActivityIds = prefs.all.entries.filter { (key, value) ->
             key.startsWith(TS_PREFIX) &&
                 ((value as? String)?.substringAfter('|', "")?.toLongOrNull()?.let { now - it > ttlMs } ?: true)
-        }.map { it.key }
-        if (staleKeys.isNotEmpty()) {
-            prefs.edit { staleKeys.forEach { remove(it) } }
+        }.map { it.key.removePrefix(TS_PREFIX) }
+        if (staleActivityIds.isNotEmpty()) {
+            prefs.edit {
+                staleActivityIds.forEach {
+                    remove(TS_PREFIX + it)
+                    remove(TYPE_PREFIX + it)
+                }
+            }
+        }
+    }
+
+    // --- Activity type (per activity_id) ---
+    // Remembered when an activity is rendered so the host can end it later with
+    // just its id: the `end` CDP event needs the `notificationType`, and the SDK
+    // already saw it — the host shouldn't have to supply it again.
+
+    /** The activity type last rendered for [activityId], or null if unknown. */
+    fun activityType(activityId: String): String? =
+        prefs.getString(TYPE_PREFIX + activityId, null)
+
+    fun setActivityType(activityId: String, activityType: String) {
+        prefs.edit { putString(TYPE_PREFIX + activityId, activityType) }
+    }
+
+    fun clearActivityType(activityId: String) {
+        prefs.edit { remove(TYPE_PREFIX + activityId) }
+    }
+
+    /** Every activity id the SDK currently tracks (rendered and not yet ended). */
+    fun trackedActivityIds(): Set<String> =
+        prefs.all.keys
+            .filter { it.startsWith(TYPE_PREFIX) }
+            .map { it.removePrefix(TYPE_PREFIX) }
+            .toSet()
+
+    /** Clears all per-activity state (timestamps + types). Used on logout/reset. */
+    fun clearAllActivities() {
+        prefs.edit {
+            prefs.all.keys
+                .filter { it.startsWith(TS_PREFIX) || it.startsWith(TYPE_PREFIX) }
+                .forEach { remove(it) }
         }
     }
 
@@ -69,6 +107,7 @@ internal class LiveNotificationStore(context: Context) {
         private const val PREFS_NAME = "io.customer.messagingpush.live_notifications"
         private const val REG_PREFIX = "reg:"
         private const val TS_PREFIX = "ts:"
+        private const val TYPE_PREFIX = "type:"
         private val DEFAULT_TS_TTL_MS = TimeUnit.DAYS.toMillis(7)
     }
 }

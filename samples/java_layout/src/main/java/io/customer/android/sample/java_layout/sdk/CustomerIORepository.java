@@ -18,6 +18,7 @@ import io.customer.location.LocationTrackingMode;
 import io.customer.location.ModuleLocation;
 import android.graphics.Color;
 
+import io.customer.android.sample.java_layout.R;
 import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
 import io.customer.messagingpush.livenotification.LiveNotificationBranding;
@@ -56,18 +57,26 @@ public class CustomerIORepository {
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",
                                 Color.parseColor("#1B5E20"),
-                                null
+                                // logoDrawableName: drawable-only small icon (status bar glyph).
+                                null,
+                                // logoAssetKey: color large-icon fallback, resolved through the
+                                // asset pipeline (here a registered asset key, below).
+                                "brand-logo"
                         ))
+                        // Register an image asset addressable by key from templates/branding.
+                        .registerLiveNotificationAsset("brand-logo", R.drawable.flash_sale_hero)
                         // App-rendered custom types go through this callback.
                         .setNotificationCallback(new LiveNotificationCallback())
-                        // Live notifications are opt-in: enable the built-in template
-                        // types plus our two custom (app-rendered) types.
+                        // Live notifications are opt-in: enable the built-in template types...
                         .enableLiveNotificationTypes(
                                 LiveNotificationType.DELIVERY_TRACKING,
                                 LiveNotificationType.FLIGHT_STATUS,
                                 LiveNotificationType.LIVE_SCORE,
                                 LiveNotificationType.COUNTDOWN_TIMER,
-                                LiveNotificationType.AUCTION_BID,
+                                LiveNotificationType.AUCTION_BID
+                        )
+                        // ...plus our two custom (app-rendered) types.
+                        .enableCustomLiveNotificationTypes(
                                 LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE,
                                 LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT
                         )

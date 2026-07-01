@@ -1,8 +1,10 @@
 package io.customer.messagingpush.livenotification
 
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -52,5 +54,44 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
 
         store.lastTimestamp("old").shouldBeNull()
         store.lastTimestamp("fresh") shouldBeEqualTo 2L
+    }
+
+    @Test
+    fun activityType_setGetClear() {
+        store.activityType("act-1").shouldBeNull()
+
+        store.setActivityType("act-1", "io.customer.liveactivities.deliverytracking")
+        store.activityType("act-1") shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+
+        store.clearActivityType("act-1")
+        store.activityType("act-1").shouldBeNull()
+    }
+
+    @Test
+    fun trackedActivityIds_andClearAllActivities() {
+        store.setActivityType("a1", "type.a")
+        store.setActivityType("a2", "type.b")
+        store.setLastTimestamp("a1", 5L)
+
+        store.trackedActivityIds() shouldContainSame setOf("a1", "a2")
+
+        store.clearAllActivities()
+
+        store.trackedActivityIds().shouldBeEmpty()
+        store.activityType("a1").shouldBeNull()
+        store.lastTimestamp("a1").shouldBeNull()
+    }
+
+    @Test
+    fun trimStaleTimestamps_alsoRemovesPairedActivityType() {
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.setLastTimestamp("old", 1L, now = now - ttl - 1)
+        store.setActivityType("old", "io.customer.liveactivities.livescore")
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.activityType("old").shouldBeNull()
     }
 }

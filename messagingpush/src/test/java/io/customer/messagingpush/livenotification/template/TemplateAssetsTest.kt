@@ -5,6 +5,9 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.every
@@ -115,5 +118,20 @@ internal class TemplateAssetsTest : IntegrationTest() {
         val result = TemplateAssets.resolveBitmap(contextMock, "no_such_drawable_in_test_app")
 
         result.shouldBeNull()
+    }
+
+    @Test
+    fun resolveBitmap_hostRegisteredBytesAsset_resolvesByKey() {
+        // A key the host app registered via registerLiveNotificationAsset resolves
+        // ahead of the drawable-name lookup.
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .registerLiveNotificationAsset("brand-logo", byteArrayOf(1, 2, 3, 4))
+                .build()
+        ).attachToSDKComponent()
+
+        val result = TemplateAssets.resolveBitmap(contextMock, "brand-logo")
+
+        result.shouldNotBeNull()
     }
 }

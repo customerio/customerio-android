@@ -75,7 +75,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     /**
      * Starts a live notification locally for a customer-defined [activityType]
-     * (one enabled via [MessagingPushModuleConfig.Builder.enableLiveNotificationTypes]).
+     * (one enabled via [MessagingPushModuleConfig.Builder.enableCustomLiveNotificationTypes]).
      * Custom types have no built-in template, so a
      * [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification]
      * must render them.
@@ -87,6 +87,38 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         val activityId = UUID.randomUUID().toString()
         SDKComponent.liveNotificationManager.start(activityId, activityType, data)
         return activityId
+    }
+
+    /**
+     * Updates a live notification previously started via [startLiveNotification]
+     * for a built-in template type: re-renders it in place and reports an
+     * `update` event to Customer.io.
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     */
+    fun updateLiveNotification(activityId: String, data: LiveNotificationData) =
+        updateLiveNotification(activityId, data.activityType, data.fields())
+
+    /**
+     * Updates a live notification previously started via [startLiveNotification]
+     * for a customer-defined [activityType].
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     * @param data flattened fields delivered to the renderer.
+     */
+    fun updateLiveNotification(activityId: String, activityType: String, data: Map<String, Any?>) {
+        SDKComponent.liveNotificationManager.update(activityId, activityType, data)
+    }
+
+    /**
+     * Ends a live notification previously started via [startLiveNotification]:
+     * removes it and reports an `end` event. Only the [activityId] returned by
+     * [startLiveNotification] is needed — the SDK remembers the activity type.
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     */
+    fun endLiveNotification(activityId: String) {
+        SDKComponent.liveNotificationManager.end(activityId)
     }
 
     private fun subscribeToLifecycleEvents() {

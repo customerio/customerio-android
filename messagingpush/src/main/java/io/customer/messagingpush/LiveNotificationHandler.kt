@@ -58,6 +58,13 @@ internal class LiveNotificationHandler(
         private const val EVENT_END = "end"
 
         /**
+         * Deterministic notification id for an [activityId] so successive
+         * events (and an explicit end) address the same notification. Shared
+         * with [io.customer.messagingpush.livenotification.LiveNotificationManager].
+         */
+        internal fun notificationId(activityId: String): Int = activityId.hashCode() and 0x7FFFFFFF
+
+        /**
          * Live-notification envelope keys that are never template fields.
          * Everything else in the bundle is flattened into the template `data`
          * object.
@@ -160,9 +167,20 @@ internal class LiveNotificationHandler(
             branding = branding,
             smallIcon = effectiveSmallIcon,
             fallbackTintColor = tintColor
-        )
+        )?.let { rendered ->
+            // The brand logo fills the color large-icon slot when the active template
+            // didn't set one of its own. (The small icon is handled separately above
+            // via the drawable-only logoDrawableName.) Skip when the activity is about
+            // to be cancelled so we don't resolve/download a logo for nothing.
+            val brandingLogoKey = branding?.logoAssetKey
+            if (!rendered.cancelImmediately && rendered.largeIcon == null && !brandingLogoKey.isNullOrBlank()) {
+                rendered.copy(largeIcon = TemplateAssets.resolveBitmap(context, brandingLogoKey))
+            } else {
+                rendered
+            }
+        }
 
-        val notifId = activityId.hashCode() and 0x7FFFFFFF
+        val notifId = notificationId(activityId)
 
         if (result?.cancelImmediately == true) {
             notificationManager.cancel(activityId, notifId)
@@ -191,7 +209,11 @@ internal class LiveNotificationHandler(
         }
 
         when {
-            notification != null -> notificationManager.notify(activityId, notifId, notification)
+            notification != null -> {
+                notificationManager.notify(activityId, notifId, notification)
+                // Remember the type so the host can later end this activity with just its id.
+                store.setActivityType(activityId, activityType)
+            }
             // An `end` with no renderer still falls through to cancel the existing notification.
             !isEnd -> {
                 // template != null but result == null ⇒ the payload lacked the fields the
@@ -208,7 +230,12 @@ internal class LiveNotificationHandler(
             }
         }
 
+        // Note: pushes are server-initiated, so the backend already knows about this
+        // `start`/`update`/`end` — the handler never reports a lifecycle event. Only
+        // on-device-initiated changes are reported: local start/update (via
+        // LiveNotificationManager) and user dismissal (via LiveNotificationDismissReceiver).
         if (isEnd) {
+            store.clearActivityType(activityId)
             scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
         }
     }

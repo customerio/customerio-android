@@ -5,11 +5,11 @@ import io.customer.messagingpush.livenotification.LiveNotificationType
 internal object TemplateRegistry {
 
     // Aliases to the public identifiers (single source of truth: LiveNotificationType).
-    const val DELIVERY_TRACKING = LiveNotificationType.DELIVERY_TRACKING
-    const val FLIGHT_STATUS = LiveNotificationType.FLIGHT_STATUS
-    const val LIVE_SCORE = LiveNotificationType.LIVE_SCORE
-    const val COUNTDOWN_TIMER = LiveNotificationType.COUNTDOWN_TIMER
-    const val AUCTION_BID = LiveNotificationType.AUCTION_BID
+    val DELIVERY_TRACKING = LiveNotificationType.DELIVERY_TRACKING.identifier
+    val FLIGHT_STATUS = LiveNotificationType.FLIGHT_STATUS.identifier
+    val LIVE_SCORE = LiveNotificationType.LIVE_SCORE.identifier
+    val COUNTDOWN_TIMER = LiveNotificationType.COUNTDOWN_TIMER.identifier
+    val AUCTION_BID = LiveNotificationType.AUCTION_BID.identifier
 
     fun find(name: String?): LiveNotificationTemplate? = when (name) {
         DELIVERY_TRACKING -> DeliveryTrackingTemplate

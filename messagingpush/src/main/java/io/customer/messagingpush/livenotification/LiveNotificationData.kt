@@ -35,7 +35,7 @@ sealed interface LiveNotificationData {
         val stepTotal: Int? = null,
         val estimatedArrival: Long? = null
     ) : LiveNotificationData {
-        override val activityType = LiveNotificationType.DELIVERY_TRACKING
+        override val activityType = LiveNotificationType.DELIVERY_TRACKING.identifier
         override fun fields() = mapOf(
             DeliveryTrackingFields.ORDER_ID to orderId,
             DeliveryTrackingFields.STATUS_MESSAGE to statusMessage,
@@ -60,7 +60,7 @@ sealed interface LiveNotificationData {
         val progressFraction: Double? = null,
         val delayMinutes: Int? = null
     ) : LiveNotificationData {
-        override val activityType = LiveNotificationType.FLIGHT_STATUS
+        override val activityType = LiveNotificationType.FLIGHT_STATUS.identifier
         override fun fields() = mapOf(
             FlightStatusFields.FLIGHT_NUMBER to flightNumber,
             FlightStatusFields.ORIGIN to origin.toJson(),
@@ -86,7 +86,7 @@ sealed interface LiveNotificationData {
         val sport: String? = null,
         val leagueLogoKey: String? = null
     ) : LiveNotificationData {
-        override val activityType = LiveNotificationType.LIVE_SCORE
+        override val activityType = LiveNotificationType.LIVE_SCORE.identifier
         override fun fields() = mapOf(
             LiveScoreFields.HOME_TEAM to homeTeam.toJson(),
             LiveScoreFields.AWAY_TEAM to awayTeam.toJson(),
@@ -107,7 +107,7 @@ sealed interface LiveNotificationData {
         val expiredMessage: String? = null,
         val heroImageKey: String? = null
     ) : LiveNotificationData {
-        override val activityType = LiveNotificationType.COUNTDOWN_TIMER
+        override val activityType = LiveNotificationType.COUNTDOWN_TIMER.identifier
         override fun fields() = mapOf(
             CountdownTimerFields.TITLE to title,
             CountdownTimerFields.TARGET_DATE to targetDate,
@@ -128,7 +128,7 @@ sealed interface LiveNotificationData {
         val itemImageKey: String? = null,
         val currencySymbol: String? = null
     ) : LiveNotificationData {
-        override val activityType = LiveNotificationType.AUCTION_BID
+        override val activityType = LiveNotificationType.AUCTION_BID.identifier
         override fun fields() = mapOf(
             AuctionBidFields.ITEM_TITLE to itemTitle,
             AuctionBidFields.CURRENT_BID to currentBid,

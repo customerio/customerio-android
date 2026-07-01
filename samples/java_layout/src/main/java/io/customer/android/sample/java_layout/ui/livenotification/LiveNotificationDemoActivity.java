@@ -78,6 +78,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private boolean isAutoRunning = false;
     private int selectedCampaignIndex = 0;
     private CustomerIORepository customerIORepository;
+    private String lastApiActivityId = null;
 
     @Override
     protected ActivityLiveNotificationDemoBinding inflateViewBinding() {
@@ -99,6 +100,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.autoButton.setOnClickListener(v -> autoRun());
         binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
         binding.apiStartButton.setOnClickListener(v -> startViaApi());
+        binding.apiUpdateButton.setOnClickListener(v -> updateViaApi());
 
         setupCampaignDropdown();
         binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
@@ -412,8 +414,25 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         data.put("stepTotal", 4);
         data.put("driverName", "Sara");
         data.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
-        String activityId = module.startLiveNotification(LiveNotificationType.DELIVERY_TRACKING, data);
+        String activityId = module.startLiveNotification(LiveNotificationType.DELIVERY_TRACKING.getIdentifier(), data);
+        lastApiActivityId = activityId;
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + activityId, 1));
+    }
+
+    /** Demonstrates the local-update API against the activity started via {@link #startViaApi()}. */
+    private void updateViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null || lastApiActivityId == null) return;
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("orderId", "API-1001");
+        data.put("recipientName", "Mahmoud");
+        data.put("statusMessage", "Arriving now (updated via API)");
+        data.put("statusImageKey", "delivery_door");
+        data.put("stepCurrent", 4);
+        data.put("stepTotal", 4);
+        data.put("driverName", "Sara");
+        module.updateLiveNotification(lastApiActivityId, LiveNotificationType.DELIVERY_TRACKING.getIdentifier(), data);
+        binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + lastApiActivityId, 2));
     }
 
     // --- On-demand push-to-start registration ---

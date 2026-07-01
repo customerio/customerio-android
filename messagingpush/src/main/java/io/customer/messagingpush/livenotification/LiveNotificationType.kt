@@ -1,19 +1,23 @@
 package io.customer.messagingpush.livenotification
 
 /**
- * Built-in live-notification activity type identifiers (reverse-DNS, matching
+ * Built-in live-notification activity types (reverse-DNS [identifier]s matching
  * the iOS Live Activity identifiers).
  *
- * Pass these — and/or your own custom type strings — to
+ * Pass these to
  * [io.customer.messagingpush.MessagingPushModuleConfig.Builder.enableLiveNotificationTypes]
- * to enable live notifications. The feature is a no-op until at least one type
- * is enabled: nothing is registered with the backend and pushes for
- * non-enabled types are ignored.
+ * to enable the SDK's built-in templates. For customer-defined types (rendered
+ * by [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification])
+ * use [io.customer.messagingpush.MessagingPushModuleConfig.Builder.enableCustomLiveNotificationTypes]
+ * instead.
+ *
+ * The feature is a no-op until at least one type is enabled: nothing is
+ * registered with the backend and pushes for non-enabled types are ignored.
  */
-object LiveNotificationType {
-    const val DELIVERY_TRACKING = "io.customer.liveactivities.deliverytracking"
-    const val FLIGHT_STATUS = "io.customer.liveactivities.flightstatus"
-    const val LIVE_SCORE = "io.customer.liveactivities.livescore"
-    const val COUNTDOWN_TIMER = "io.customer.liveactivities.countdowntimer"
-    const val AUCTION_BID = "io.customer.liveactivities.auctionbid"
+enum class LiveNotificationType(val identifier: String) {
+    DELIVERY_TRACKING("io.customer.liveactivities.deliverytracking"),
+    FLIGHT_STATUS("io.customer.liveactivities.flightstatus"),
+    LIVE_SCORE("io.customer.liveactivities.livescore"),
+    COUNTDOWN_TIMER("io.customer.liveactivities.countdowntimer"),
+    AUCTION_BID("io.customer.liveactivities.auctionbid")
 }

@@ -8,7 +8,7 @@ import io.customer.sdk.core.pipeline.DataPipeline
  * Reports live-notification lifecycle to Customer.io as CDP track events.
  *
  * Replaces the former direct REST client: every edge operation is expressed as
- * one of two track events — [EVENT_LIVE_NOTIFICATION] (start/end) and
+ * one of two track events — [EVENT_LIVE_NOTIFICATION] (start/update/end) and
  * [EVENT_LIVE_NOTIFICATION_TOKEN] (push-to-start registration) — with the
  * contract fields carried under the event's `properties` (the mobile SDKs can
  * only attach custom data there; the edge reads them from `properties`). The
@@ -23,6 +23,13 @@ import io.customer.sdk.core.pipeline.DataPipeline
 internal interface LiveNotificationLifecycleClient {
     /** `start` edge op: a live activity was started locally on this device. */
     fun reportStart(instanceUUID: String, activityType: String, deviceId: String, payload: Map<String, Any?>)
+
+    /**
+     * `update` edge op: the activity's content changed — either an `update` push
+     * arrived from the server or the host app called `updateLiveNotification`.
+     * Carries the new content as [payload].
+     */
+    fun reportUpdate(instanceUUID: String, activityType: String, deviceId: String, payload: Map<String, Any?>)
 
     /** `end` edge op: the user dismissed the live notification. */
     fun reportEnd(instanceUUID: String, activityType: String, deviceId: String)
@@ -56,6 +63,26 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
                 // `payload` is the activity's content; optional per the contract.
+                if (payload.isNotEmpty()) put(PROP_PAYLOAD, payload)
+            }
+        )
+    }
+
+    override fun reportUpdate(
+        instanceUUID: String,
+        activityType: String,
+        deviceId: String,
+        payload: Map<String, Any?>
+    ) {
+        track(
+            event = EVENT_LIVE_NOTIFICATION,
+            properties = buildMap {
+                put(PROP_EVENT_TYPE, EVENT_TYPE_UPDATE)
+                put(PROP_INSTANCE_UUID, instanceUUID)
+                put(PROP_DEVICE_ID, deviceId)
+                put(PROP_PLATFORM, PLATFORM_ANDROID)
+                put(PROP_NOTIFICATION_TYPE, activityType)
+                // `payload` is the activity's new content; optional per the contract.
                 if (payload.isNotEmpty()) put(PROP_PAYLOAD, payload)
             }
         )
@@ -102,7 +129,7 @@ internal class LiveNotificationLifecycleClientImpl(
     }
 
     companion object {
-        const val EVENT_LIVE_NOTIFICATION = "Live Notification"
+        const val EVENT_LIVE_NOTIFICATION = "Live Notification Event"
         const val EVENT_LIVE_NOTIFICATION_TOKEN = "Live Notification Token"
 
         const val PROP_EVENT_TYPE = "eventType"
@@ -118,6 +145,7 @@ internal class LiveNotificationLifecycleClientImpl(
         const val PROP_PUSH_TO_START_TOKEN = "pushToStartToken"
 
         const val EVENT_TYPE_START = "start"
+        const val EVENT_TYPE_UPDATE = "update"
         const val EVENT_TYPE_END = "end"
         const val REGISTRATION_TYPE_PUSH_TO_START = "push_to_start"
         const val PLATFORM_ANDROID = "android"

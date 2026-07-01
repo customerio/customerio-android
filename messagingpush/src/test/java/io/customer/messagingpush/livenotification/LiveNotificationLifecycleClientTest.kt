@@ -5,6 +5,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClien
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_LIVE_NOTIFICATION_TOKEN
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_END
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_START
+import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_UPDATE
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PLATFORM_ANDROID
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_DEVICE_ID
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_EVENT_TYPE
@@ -70,6 +71,41 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
         every { pipeline.track(any(), capture(props)) } returns Unit
 
         client.reportStart("inst-1", "type", "fcm-tok", payload = emptyMap())
+
+        props.captured.containsKey(PROP_PAYLOAD).shouldBeFalse()
+    }
+
+    @Test
+    fun reportUpdate_emitsLiveNotificationWithUpdateProperties() {
+        identified()
+        val name = slot<String>()
+        val props = slot<Map<String, Any?>>()
+        every { pipeline.track(capture(name), capture(props)) } returns Unit
+
+        client.reportUpdate(
+            instanceUUID = "inst-2",
+            activityType = "io.customer.liveactivities.deliverytracking",
+            deviceId = "fcm-tok",
+            payload = mapOf("status" to "arriving")
+        )
+
+        name.captured shouldBeEqualTo EVENT_LIVE_NOTIFICATION
+        props.captured[PROP_EVENT_TYPE] shouldBeEqualTo EVENT_TYPE_UPDATE
+        props.captured[PROP_INSTANCE_UUID] shouldBeEqualTo "inst-2"
+        props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
+        props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+        @Suppress("UNCHECKED_CAST")
+        (props.captured[PROP_PAYLOAD] as Map<String, Any?>)["status"] shouldBeEqualTo "arriving"
+    }
+
+    @Test
+    fun reportUpdate_omitsPayloadWhenEmpty() {
+        identified()
+        val props = slot<Map<String, Any?>>()
+        every { pipeline.track(any(), capture(props)) } returns Unit
+
+        client.reportUpdate("inst-2", "type", "fcm-tok", payload = emptyMap())
 
         props.captured.containsKey(PROP_PAYLOAD).shouldBeFalse()
     }

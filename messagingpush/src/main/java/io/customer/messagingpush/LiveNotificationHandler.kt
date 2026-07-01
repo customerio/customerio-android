@@ -160,7 +160,18 @@ internal class LiveNotificationHandler(
             branding = branding,
             smallIcon = effectiveSmallIcon,
             fallbackTintColor = tintColor
-        )
+        )?.let { rendered ->
+            // The brand logo fills the color large-icon slot when the active template
+            // didn't set one of its own. (The small icon is handled separately above
+            // via the drawable-only logoDrawableName.) Skip when the activity is about
+            // to be cancelled so we don't resolve/download a logo for nothing.
+            val brandingLogoKey = branding?.logoAssetKey
+            if (!rendered.cancelImmediately && rendered.largeIcon == null && !brandingLogoKey.isNullOrBlank()) {
+                rendered.copy(largeIcon = TemplateAssets.resolveBitmap(context, brandingLogoKey))
+            } else {
+                rendered
+            }
+        }
 
         val notifId = activityId.hashCode() and 0x7FFFFFFF
 
@@ -208,6 +219,10 @@ internal class LiveNotificationHandler(
             }
         }
 
+        // Note: pushes are server-initiated, so the backend already knows about this
+        // `start`/`update`/`end` — the handler never reports a lifecycle event. Only
+        // on-device-initiated changes are reported: local start/update (via
+        // LiveNotificationManager) and user dismissal (via LiveNotificationDismissReceiver).
         if (isEnd) {
             scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
         }

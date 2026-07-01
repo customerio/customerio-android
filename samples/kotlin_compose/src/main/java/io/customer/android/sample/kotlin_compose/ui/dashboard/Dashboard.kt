@@ -6,14 +6,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -34,7 +40,8 @@ import io.customer.android.sample.kotlin_compose.ui.components.VersionText
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesNavigationActivity
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesTabbedActivity
 import io.customer.base.internal.InternalCustomerIOApi
-import io.customer.messaginginbox.NotificationInboxOverlay
+import io.customer.messaginginbox.NotificationInboxBell
+import io.customer.messaginginbox.NotificationInboxView
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
 
@@ -68,7 +75,7 @@ fun DashboardRoute(
     )
 }
 
-@OptIn(InternalCustomerIOApi::class)
+@OptIn(InternalCustomerIOApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     userState: State<User>,
@@ -109,10 +116,28 @@ fun DashboardScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
-        // Overlay visual notification inbox (floating bell + slide-out panel) rendered on top of
-        // the dashboard. The floating bell shows only when the inbox data layer reports the
-        // inbox as visible.
-        NotificationInboxOverlay()
+        // Granular Visual Notification Inbox composition (vs the drop-in NotificationInboxOverlay
+        // used by the java_layout sample): the host places the bell where it wants and presents the
+        // message list itself. This is the same composition the wrapper SDKs (React Native / Flutter)
+        // build on. Here the bell is pinned bottom-end and opens the Jist-rendered list in a modal
+        // bottom sheet. Both the bell and the list render only when the data layer reports the inbox
+        // visible (enabled + at least one renderable message).
+        var showInboxSheet by remember { mutableStateOf(false) }
+        NotificationInboxBell(
+            onClick = { showInboxSheet = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        )
+        if (showInboxSheet) {
+            ModalBottomSheet(onDismissRequest = { showInboxSheet = false }) {
+                NotificationInboxView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(480.dp)
+                )
+            }
+        }
     }
 }
 

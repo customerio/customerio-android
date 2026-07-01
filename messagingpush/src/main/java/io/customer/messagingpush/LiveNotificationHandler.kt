@@ -58,6 +58,13 @@ internal class LiveNotificationHandler(
         private const val EVENT_END = "end"
 
         /**
+         * Deterministic notification id for an [activityId] so successive
+         * events (and an explicit end) address the same notification. Shared
+         * with [io.customer.messagingpush.livenotification.LiveNotificationManager].
+         */
+        internal fun notificationId(activityId: String): Int = activityId.hashCode() and 0x7FFFFFFF
+
+        /**
          * Live-notification envelope keys that are never template fields.
          * Everything else in the bundle is flattened into the template `data`
          * object.
@@ -173,7 +180,7 @@ internal class LiveNotificationHandler(
             }
         }
 
-        val notifId = activityId.hashCode() and 0x7FFFFFFF
+        val notifId = notificationId(activityId)
 
         if (result?.cancelImmediately == true) {
             notificationManager.cancel(activityId, notifId)
@@ -202,7 +209,11 @@ internal class LiveNotificationHandler(
         }
 
         when {
-            notification != null -> notificationManager.notify(activityId, notifId, notification)
+            notification != null -> {
+                notificationManager.notify(activityId, notifId, notification)
+                // Remember the type so the host can later end this activity with just its id.
+                store.setActivityType(activityId, activityType)
+            }
             // An `end` with no renderer still falls through to cancel the existing notification.
             !isEnd -> {
                 // template != null but result == null ⇒ the payload lacked the fields the
@@ -224,6 +235,7 @@ internal class LiveNotificationHandler(
         // on-device-initiated changes are reported: local start/update (via
         // LiveNotificationManager) and user dismissal (via LiveNotificationDismissReceiver).
         if (isEnd) {
+            store.clearActivityType(activityId)
             scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
         }
     }

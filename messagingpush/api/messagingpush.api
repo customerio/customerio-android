@@ -55,6 +55,7 @@ public final class io/customer/messagingpush/ModuleMessagingPushFCM : io/custome
 	public fun <init> ()V
 	public fun <init> (Lio/customer/messagingpush/MessagingPushModuleConfig;)V
 	public synthetic fun <init> (Lio/customer/messagingpush/MessagingPushModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun endLiveNotification (Ljava/lang/String;)V
 	public fun getModuleConfig ()Lio/customer/messagingpush/MessagingPushModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;

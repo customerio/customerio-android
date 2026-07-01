@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import io.customer.messagingpush.LiveNotificationHandler
+import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.extensions.getColorOrNull
 import io.customer.messagingpush.extensions.getMetaDataResource
 import io.customer.messagingpush.util.NotificationChannelCreator
@@ -46,6 +47,29 @@ internal class LiveNotificationManager(
     fun update(activityId: String, activityType: String, fields: Map<String, Any?>) {
         renderLocally(buildBundle(activityId, activityType, fields, EVENT_UPDATE))
         reportUpdate(activityId, activityType, fields)
+    }
+
+    /**
+     * Ends a live notification the host app previously started (same
+     * [activityId]): removes the notification and reports an `end` event. The
+     * activity's type — needed for the event — is the one the SDK recorded when
+     * it rendered the activity, so the host only needs the [activityId].
+     */
+    fun end(activityId: String) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
+
+        val store = SDKComponent.liveNotificationStore
+        val activityType = store.activityType(activityId)
+        if (activityType == null) {
+            SDKComponent.logger.debug(
+                "No known live notification for '$activityId'; canceled without reporting an end event."
+            )
+        } else {
+            reportEnd(activityId, activityType)
+        }
+        store.clearTimestamp(activityId)
+        store.clearActivityType(activityId)
     }
 
     private fun buildBundle(
@@ -125,6 +149,21 @@ internal class LiveNotificationManager(
             activityType = activityType,
             deviceId = deviceId,
             payload = fields.toJsonSafePayload()
+        )
+    }
+
+    private fun reportEnd(activityId: String, activityType: String) {
+        val deviceId = SDKComponent.android().globalPreferenceStore.getDeviceToken()
+        if (deviceId.isNullOrBlank()) {
+            SDKComponent.logger.debug(
+                "No FCM token available yet; skipping end event for live notification '$activityId'."
+            )
+            return
+        }
+        lifecycleClient.reportEnd(
+            instanceUUID = activityId,
+            activityType = activityType,
+            deviceId = deviceId
         )
     }
 

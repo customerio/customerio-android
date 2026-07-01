@@ -53,4 +53,28 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
         store.lastTimestamp("old").shouldBeNull()
         store.lastTimestamp("fresh") shouldBeEqualTo 2L
     }
+
+    @Test
+    fun activityType_setGetClear() {
+        store.activityType("act-1").shouldBeNull()
+
+        store.setActivityType("act-1", "io.customer.liveactivities.deliverytracking")
+        store.activityType("act-1") shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+
+        store.clearActivityType("act-1")
+        store.activityType("act-1").shouldBeNull()
+    }
+
+    @Test
+    fun trimStaleTimestamps_alsoRemovesPairedActivityType() {
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.setLastTimestamp("old", 1L, now = now - ttl - 1)
+        store.setActivityType("old", "io.customer.liveactivities.livescore")
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.activityType("old").shouldBeNull()
+    }
 }

@@ -210,6 +210,14 @@
             android:layout_marginTop="@dimen/margin_default"
             android:text="@string/live_notification_debug_update_via_api" />
 
+        <Button
+            android:id="@+id/api_end_button"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_debug_end_via_api" />
+
     </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

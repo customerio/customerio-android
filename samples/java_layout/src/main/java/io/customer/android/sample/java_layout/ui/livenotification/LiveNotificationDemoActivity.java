@@ -101,6 +101,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
         binding.apiStartButton.setOnClickListener(v -> startViaApi());
         binding.apiUpdateButton.setOnClickListener(v -> updateViaApi());
+        binding.apiEndButton.setOnClickListener(v -> endViaApi());
 
         setupCampaignDropdown();
         binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
@@ -441,6 +442,15 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         );
         module.updateLiveNotification(lastApiActivityId, data);
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + lastApiActivityId, 2));
+    }
+
+    /** Demonstrates the local-end API: {@code endLiveNotification(activityId)}. */
+    private void endViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null || lastApiActivityId == null) return;
+        module.endLiveNotification(lastApiActivityId);
+        binding.statusTextView.setText(R.string.live_notification_status_ended);
+        lastApiActivityId = null;
     }
 
     // --- On-demand push-to-start registration ---

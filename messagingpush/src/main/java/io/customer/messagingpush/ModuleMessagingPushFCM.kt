@@ -110,6 +110,17 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         SDKComponent.liveNotificationManager.update(activityId, activityType, data)
     }
 
+    /**
+     * Ends a live notification previously started via [startLiveNotification]:
+     * removes it and reports an `end` event. Only the [activityId] returned by
+     * [startLiveNotification] is needed — the SDK remembers the activity type.
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     */
+    fun endLiveNotification(activityId: String) {
+        SDKComponent.liveNotificationManager.end(activityId)
+    }
+
     private fun subscribeToLifecycleEvents() {
         activityLifecycleCallbacks.subscribe { events ->
             events

@@ -190,5 +190,6 @@
     <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
     <string name="live_notification_debug_start_via_api">Start via startLiveNotification() API</string>
     <string name="live_notification_debug_update_via_api">Update via updateLiveNotification() API</string>
+    <string name="live_notification_debug_end_via_api">End via endLiveNotification() API</string>
 
 </resources>

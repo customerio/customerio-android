@@ -35,6 +35,7 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.Settings
@@ -71,6 +72,7 @@ class CustomerIO private constructor(
     private val logger: Logger = SDKComponent.logger
     private val dataPipelinesLogger: DataPipelinesLogger = SDKComponent.dataPipelinesLogger
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
+    private val secureUserStore = androidSDKComponent.secureUserStore
     private val deviceStore = androidSDKComponent.deviceStore
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
@@ -144,12 +146,13 @@ class CustomerIO private constructor(
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
         // republish profile/anonymous events for late-added modules
-        postUserIdentificationEvents()
+        publishUserChanged()
     }
 
-    private fun postUserIdentificationEvents() {
-        val userId = analytics.userId()
+    /** Persists the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
+    private fun publishUserChanged(userId: String? = analytics.userId()) {
         val anonymousId = analytics.anonymousId()
+        secureUserStore.saveUserId(userId)
         eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId))
     }
 
@@ -162,6 +165,30 @@ class CustomerIO private constructor(
         }
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
+        }
+        eventBus.subscribe<Event.ResetEvent> {
+            secureUserStore.clearAll()
+        }
+        eventBus.subscribe<Event.GeofenceTransitionEvent> { geofenceEvent ->
+            // Snapshotted userId (if any) overrides current SDK identity for this one event so a
+            // sign-out + sign-in between queue and flush cannot reattribute. Null snapshot → no
+            // override → natural anonymousId path.
+            val pinnedUserId = geofenceEvent.userId?.takeIf { it.isNotEmpty() }
+            // Transition time, not flush time — a delayed flush still attributes the event to
+            // when the transition fired.
+            val transitionTimestamp = Iso8601TimestampFormatter.fromDate(geofenceEvent.timestamp)
+            val enrichment: EnrichmentClosure = { event ->
+                event?.apply {
+                    pinnedUserId?.let { userId = it }
+                    transitionTimestamp?.let { timestamp = it }
+                }
+            }
+            track(
+                name = EventNames.GEOFENCE_TRANSITION,
+                properties = geofenceEvent.properties.sanitizeForJson(),
+                serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+                enrichment = enrichment
+            )
         }
     }
 
@@ -272,10 +299,9 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
-        // publish event to EventBus for other modules to consume
-        // Must come after analytics.identify() so that analytics.userId() returns the
-        // new userId when downstream subscribers (e.g. location resync) gate on it.
-        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = analytics.anonymousId()))
+        // Publish for other modules. Must come after analytics.identify() so analytics.userId()
+        // returns the new userId for subscribers that gate on it (e.g. location resync).
+        publishUserChanged(userId)
 
         if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")

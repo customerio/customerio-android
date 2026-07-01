@@ -10,9 +10,9 @@ import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.datapipelines.extensions.toJsonObject
-import io.customer.datapipelines.util.SegmentInstantFormatter
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationAssistant
@@ -248,7 +248,7 @@ internal class TrackingMigrationProcessor(
             // Update event with task identifier and timestamp at the end to
             // make sure these properties are not overridden by any other plugin.
             event.userId = task.identifier
-            SegmentInstantFormatter.from(task.timestamp)?.let { timestamp ->
+            Iso8601TimestampFormatter.fromUnixSeconds(task.timestamp)?.let { timestamp ->
                 event.timestamp = timestamp
             }
             logger.debug("forwarding migrated event: $event")

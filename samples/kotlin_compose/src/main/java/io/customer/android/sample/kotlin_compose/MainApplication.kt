@@ -4,6 +4,7 @@ import android.app.Application
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
 import io.customer.android.sample.kotlin_compose.di.ServiceLocator
+import io.customer.geofence.ModuleGeofence
 import io.customer.location.ModuleLocation
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
@@ -39,6 +40,7 @@ class MainApplication : Application() {
             )
             .addCustomerIOModule(ModuleMessagingPushFCM())
             .addCustomerIOModule(ModuleLocation())
+            .addCustomerIOModule(ModuleGeofence())
         configuration.setValuesFromBuilder(builder)
 
         CustomerIO.initialize(builder.build())

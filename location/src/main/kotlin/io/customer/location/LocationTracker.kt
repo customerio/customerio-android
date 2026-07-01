@@ -1,7 +1,10 @@
 package io.customer.location
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.location.store.LocationPreferenceStore
 import io.customer.location.sync.LocationSyncFilter
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
@@ -34,6 +37,7 @@ internal class LocationTracker(
     dataPipeline: DataPipeline?,
     private val locationPreferenceStore: LocationPreferenceStore,
     private val locationSyncFilter: LocationSyncFilter,
+    private val eventBus: EventBus,
     private val logger: Logger
 ) : IdentifyHook {
 
@@ -44,7 +48,8 @@ internal class LocationTracker(
     private val dataPipelineRef = WeakReference(dataPipeline)
 
     @Volatile
-    private var lastLocation: LocationCoordinates? = null
+    internal var lastLocation: LocationCoordinates? = null
+        private set
 
     override fun getIdentifyContext(): Map<String, Any> {
         val location = lastLocation ?: return emptyMap()
@@ -91,6 +96,7 @@ internal class LocationTracker(
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
         trySendLocationTrack(latitude, longitude)
+        eventBus.publish(Event.LocationAcquired(latitude = latitude, longitude = longitude))
     }
 
     /**
@@ -140,9 +146,11 @@ internal class LocationTracker(
 }
 
 /**
- * Internal location coordinate holder, replacing the cross-module Event.LocationData.
+ * Last-known device location, exposed for cross-module reads via
+ * [LocationServices.getLastKnownLocation].
  */
-internal data class LocationCoordinates(
+@InternalCustomerIOApi
+data class LocationCoordinates(
     val latitude: Double,
     val longitude: Double
 )

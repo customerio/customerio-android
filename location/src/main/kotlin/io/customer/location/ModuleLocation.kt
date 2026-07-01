@@ -2,6 +2,7 @@ package io.customer.location
 
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -78,7 +79,7 @@ class ModuleLocation @JvmOverloads constructor(
         val locationSyncFilter = LocationSyncFilter(
             LocationSyncStoreImpl(context, logger)
         )
-        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
+        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, eventBus, logger)
 
         val locationProvider = FusedLocationProvider(context)
         val orchestrator = LocationOrchestrator(
@@ -117,6 +118,15 @@ class ModuleLocation @JvmOverloads constructor(
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
                 locationTracker.onUserIdentified()
+
+                // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
+                // wipes lastLocation on logout — a subsequent identify in the same process
+                // needs a fresh fetch. MANUAL deliberately doesn't auto-fetch.
+                if (locationTracker.lastLocation == null &&
+                    moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START
+                ) {
+                    services.requestLocationUpdate()
+                }
             }
         }
 
@@ -128,7 +138,10 @@ class ModuleLocation @JvmOverloads constructor(
         val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
         mainThreadPoster.post {
             ProcessLifecycleOwner.get().lifecycle.addObserver(
-                LocationLifecycleObserver(services, moduleConfig.trackingMode)
+                LocationLifecycleObserver(
+                    locationServices = services,
+                    trackingMode = moduleConfig.trackingMode
+                )
             )
         }
     }
@@ -167,4 +180,10 @@ private class UninitializedLocationServices(
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
     override fun requestLocationUpdate() = logNotInitialized()
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun getLastKnownLocation(): LocationCoordinates? {
+        logNotInitialized()
+        return null
+    }
 }

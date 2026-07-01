@@ -10,11 +10,8 @@ object Versions {
     // and script: update-gradle-compatibility as needed.
     internal const val ANDROID_GRADLE_PLUGIN = "8.9.3"
 
-    // Desugaring version for java.time (Jist requires it).
-    internal const val DESUGAR_JDK_LIBS = "2.1.4"
-
     // Jist rendering engine — published Maven Central artifact (io.customer.android:jist).
-    internal const val JIST = "0.1.0-alpha01"
+    internal const val JIST = "0.1.0-alpha03"
     internal const val ANDROIDX_TEST_JUNIT = "1.3.0"
     internal const val ANDROIDX_TEST_RUNNER = "1.7.0"
     internal const val ANDROIDX_TEST_RULES = "1.7.0"

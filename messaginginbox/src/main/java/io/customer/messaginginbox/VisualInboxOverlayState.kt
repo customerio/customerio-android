@@ -142,6 +142,11 @@ internal class VisualInboxController(
         } else {
             emptyList()
         }
+        // The per-session dedupe guards (shown/opened/clicked/deleted queueIds) are intentionally NOT
+        // reconciled against the live list: the data-layer tombstone (deletedInboxMessageIds) prevents
+        // a dismissed message from resurrecting and queueIds are never reused, so a guard never needs
+        // releasing within a session. Reconciling here only re-introduced edge cases (guards wiped on
+        // a transient non-Visible state, or stuck after the last row is dismissed → Hidden).
         return VisualInboxUiState(
             loading = false,
             visibility = visibility,

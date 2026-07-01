@@ -1,15 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <!--
-      The local Jist module declares minSdk 24, but the Customer.io SDK targets minSdk 21.
-      Jist's only API-26+ usage is java.time, which is covered by core library desugaring
-      enabled in this module and in consuming apps. Override the merge so this module (and
-      apps consuming it) can keep minSdk 21.
-      TODO: remove once the published Jist artifact aligns its minSdk with the SDK.
-    -->
-    <uses-sdk tools:overrideLibrary="io.customer.jist" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application />
 </manifest>

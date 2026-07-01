@@ -230,7 +230,13 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
     when (action) {
         is InAppMessagingAction.ProcessInboxMessages -> {
             if (action.messages.isNotEmpty()) {
-                // Deduplicate by queueId - keep first occurrence of each unique queueId
+                // Deduplicate by queueId - keep first occurrence of each unique queueId.
+                // NOTE: tombstone filtering (suppressing server-echoed, just-dismissed messages) and
+                // tombstone pruning (forgetting a tombstone once the server's list no longer contains
+                // it) are intentionally NOT done here — both decisions need the RAW incoming list
+                // compared against prior state, so they live solely in the reducer
+                // (InAppMessageReducer.kt). Filtering here would hide tombstoned ids from the reducer
+                // and cause it to prune tombstones prematurely.
                 val uniqueMessages = action.messages.distinctBy(InboxMessage::queueId)
                 next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
             } else {

@@ -114,17 +114,12 @@ android {
         }
     }
     compileOptions {
-        // Required by :messaginginbox -> local :jist module, which desugars java.time. TODO: revisit once Jist is published.
-        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
-    // Required by :messaginginbox -> local :jist module, which desugars java.time. TODO: revisit once Jist is published.
-    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
-
     def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
         // Add local dependency for SDK modules, helpful for debugging

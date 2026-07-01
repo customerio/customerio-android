@@ -4,8 +4,10 @@ import android.text.format.DateUtils
 import io.customer.jist.JistJson
 import io.customer.jist.JistTemplate
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
-import java.time.Instant
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -82,9 +84,68 @@ internal object InboxJistDecoder {
         else -> JsonPrimitive(value.toString())
     }
 
+    // ISO-8601 date helpers WITHOUT java.time, so the SDK needs no core-library desugaring on
+    // minSdk < 26 (mirrors Jist's own approach). SimpleDateFormat is expensive to construct and is
+    // NOT thread-safe, so cache one per thread. The classic initialValue() override is intentional —
+    // ThreadLocal.withInitial is a Java 8 default method that WOULD re-introduce the desugaring need.
+
+    /** Per-thread ISO-8601 (UTC, millis) formatter used to render Date leaves as strings. */
+    private val isoFormatter = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat =
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+    }
+
+    /** Per-thread ISO-8601 parsers (UTC, with and without fractional seconds). */
+    private val isoParsers = object : ThreadLocal<List<SimpleDateFormat>>() {
+        override fun initialValue(): List<SimpleDateFormat> =
+            listOf("yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss").map { pattern ->
+                SimpleDateFormat(pattern, Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                    isLenient = false
+                }
+            }
+    }
+
     private fun Date.toInstantString(): String = runCatching {
-        java.time.Instant.ofEpochMilli(time).toString()
+        isoFormatter.get()?.format(this) ?: toString()
     }.getOrElse { toString() }
+
+    /** Fractional-seconds group, e.g. the `123456` in `…:11.123456Z`. */
+    private val fractionalSeconds = Regex("\\.(\\d+)")
+
+    /** Trailing numeric UTC offset, e.g. `+05:30`, `-0800` (the colon is optional). */
+    private val trailingOffset = Regex("([+-])(\\d{2}):?(\\d{2})$")
+
+    /**
+     * Parses an ISO-8601 instant to epoch millis WITHOUT java.time, matching the permissiveness the
+     * inbox relied on before (`Instant.parse`): fractional seconds of any length, a trailing `Z`, and
+     * numeric `±HH:MM` / `±HHMM` offsets (a value with no designator is treated as UTC). Returns null
+     * if the date/time core still doesn't match. SimpleDateFormat only understands 3-digit millis and
+     * has no minSdk-21-safe offset token, so the offset/fraction are normalized here first.
+     */
+    internal fun parseIsoToMillis(iso: String): Long? {
+        val parsers = isoParsers.get() ?: return null
+        // Clamp fractional seconds to 3 digits (millis), so more/fewer digits than `.SSS` still parse.
+        var s = fractionalSeconds.replace(iso.trim()) { "." + it.groupValues[1].take(3).padEnd(3, '0') }
+        // Resolve + strip the timezone designator to a UTC offset; absent designator ⇒ assume UTC.
+        var offsetMillis = 0L
+        if (s.endsWith("Z")) {
+            s = s.dropLast(1)
+        } else {
+            trailingOffset.find(s)?.let { match ->
+                val sign = if (match.groupValues[1] == "-") -1 else 1
+                offsetMillis = sign * (match.groupValues[2].toLong() * 3_600_000L + match.groupValues[3].toLong() * 60_000L)
+                s = s.substring(0, match.range.first)
+            }
+        }
+        // Parse the offset-free time as UTC, then subtract the offset to get the true epoch millis.
+        for (parser in parsers) {
+            runCatching { parser.parse(s)?.time }.getOrNull()?.let { return it - offsetMillis }
+        }
+        return null
+    }
 
     /**
      * Jist `formatDate` hook: turns a raw ISO-8601 instant (the decoder feeds dates as ISO strings
@@ -95,11 +156,11 @@ internal object InboxJistDecoder {
      *
      * `name` is the Jist date-node name (unused here; the same format applies to every inbox date).
      */
-    fun formatRelativeDate(iso: String, @Suppress("UNUSED_PARAMETER") name: String, now: Instant = Instant.now()): String {
-        val instant = runCatching { Instant.parse(iso) }.getOrNull() ?: return iso
+    fun formatRelativeDate(iso: String, @Suppress("UNUSED_PARAMETER") name: String, now: Long = System.currentTimeMillis()): String {
+        val millis = parseIsoToMillis(iso) ?: return iso
         return DateUtils.getRelativeTimeSpanString(
-            instant.toEpochMilli(),
-            now.toEpochMilli(),
+            millis,
+            now,
             DateUtils.MINUTE_IN_MILLIS
         ).toString()
     }

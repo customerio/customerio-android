@@ -2,7 +2,6 @@ package io.customer.geofence.api
 
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
-import io.customer.geofence.coarsened
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpMethod
 import io.customer.sdk.core.network.HttpRequestParams
@@ -10,8 +9,9 @@ import io.customer.sdk.core.network.HttpRequestParams
 internal interface GeofenceApiService {
     /**
      * Fetches geofences. When [location] is null (FETCH_ALL) the backend returns the full (capped)
-     * set and no location is sent. When non-null (NEARBY) the backend returns the nearby set; the
-     * location is coarsened before it leaves the device.
+     * set and no location is sent. When non-null (NEARBY) the location is sent so the backend
+     * returns the nearby set. The request carries no user identity, so the location is not
+     * attributable to a user.
      */
     suspend fun fetchGeofences(location: GeofenceLocation? = null): Result<GeofenceApiResponse>
 }
@@ -22,9 +22,7 @@ internal class GeofenceApiServiceImpl(
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(location: GeofenceLocation?): Result<GeofenceApiResponse> {
-        // Coarsen at the transmission boundary so a precise position can never leave the device,
-        // regardless of what the caller passes in.
-        val queryParams = location?.coarsened()
+        val queryParams = location
             ?.let { mapOf("latitude" to it.latitude.toString(), "longitude" to it.longitude.toString()) }
             ?: emptyMap()
         val params = HttpRequestParams(

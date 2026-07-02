@@ -13,7 +13,7 @@ internal enum class RefreshAction { REMOTE, LOCAL, SKIP }
  * How the SDK fetches a user's geofences.
  *
  * - [FETCH_ALL] — the backend returns the full (capped) set and the SDK sends no device location.
- * - [NEARBY]    — the SDK sends a coarsened device location and the backend returns the nearby set;
+ * - [NEARBY]    — the SDK sends the device location and the backend returns the nearby set;
  *   it then re-fetches once the device moves beyond [GeofenceConfig.remoteFetchRefreshTriggerRadius].
  *
  * The active mode is a deliberate SDK-release decision ([active]), never a runtime/server toggle —

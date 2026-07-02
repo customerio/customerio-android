@@ -28,14 +28,13 @@ class GeofenceApiServiceTest {
     }
 
     @Test
-    fun fetchGeofences_givenLocation_expectCoarsenedCoordinatesOnTheWire() = runTest {
+    fun fetchGeofences_givenLocation_expectCoordinatesOnTheWire() = runTest {
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("{}")
 
-        // Precise input is snapped to the ~500 m grid and trimmed to clean 6 dp before it's sent.
         service.fetchGeofences(GeofenceLocation(latitude = 37.7749295, longitude = -122.4194155))
 
-        capturedParams.captured.queryParams["latitude"] shouldBeEqualTo "37.773985"
-        capturedParams.captured.queryParams["longitude"] shouldBeEqualTo "-122.417457"
+        capturedParams.captured.queryParams["latitude"] shouldBeEqualTo "37.7749295"
+        capturedParams.captured.queryParams["longitude"] shouldBeEqualTo "-122.4194155"
     }
 }

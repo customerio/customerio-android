@@ -210,7 +210,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 37.7749, longitude = -122.4194)
 
-        // NEARBY sends the precise device location to the API; it's coarsened at the service boundary.
+        // NEARBY sends the device location to the API.
         coVerify { apiService.fetchGeofences(GeofenceLocation(37.7749, -122.4194)) }
     }
 

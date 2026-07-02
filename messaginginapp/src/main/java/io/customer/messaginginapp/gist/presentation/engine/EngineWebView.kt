@@ -2,6 +2,7 @@ package io.customer.messaginginapp.gist.presentation.engine
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.http.SslError
 import android.util.AttributeSet
@@ -21,10 +22,12 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
+import kotlinx.coroutines.Job
 
 internal class EngineWebView @JvmOverloads constructor(
     context: Context,
@@ -38,6 +41,8 @@ internal class EngineWebView @JvmOverloads constructor(
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
     private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
+    private var lastResolvedColorScheme: String? = null
+    private var colorSchemeJob: Job? = null
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -95,6 +100,8 @@ internal class EngineWebView @JvmOverloads constructor(
      * It stops loading WebView, removes JavaScript interface, and clears reference to WebView.
      */
     override fun releaseResources() {
+        colorSchemeJob?.cancel()
+        colorSchemeJob = null
         try {
             val view = webView ?: return
             logger.debug("Cleaning up EngineWebView")
@@ -128,6 +135,8 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun stopLoading() {
         webView?.stopLoading()
+        colorSchemeJob?.cancel()
+        colorSchemeJob = null
         // remove lifecycle observer to stop receiving further lifecycle events
         onLifecyclePaused()
         viewLifecycleOwner?.removeObserver(this)
@@ -135,8 +144,45 @@ internal class EngineWebView @JvmOverloads constructor(
         bootstrapped()
     }
 
+    override fun updateColorScheme(scheme: String) {
+        lastResolvedColorScheme = scheme
+        val json = Gson().toJson(mapOf("action" to "updateColorScheme", "colorScheme" to scheme))
+        webView?.evaluateJavascript(
+            "window.dispatchEvent(new MessageEvent('message', { data: $json }));",
+            null
+        )
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val colorSchemeMode = state.colorScheme
+        if (colorSchemeMode != ColorScheme.AUTO) return
+
+        val resolved = colorSchemeMode.resolve(newConfig.uiMode)
+        if (resolved != lastResolvedColorScheme) {
+            updateColorScheme(resolved)
+        }
+    }
+
+    private fun subscribeToColorSchemeChanges() {
+        colorSchemeJob?.cancel()
+        colorSchemeJob = inAppMessagingManager.subscribeToAttribute(
+            selector = { it.colorScheme }
+        ) { colorScheme ->
+            val resolved = colorScheme.resolve(context.resources.configuration.uiMode)
+            post {
+                if (resolved != lastResolvedColorScheme) {
+                    updateColorScheme(resolved)
+                }
+            }
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun setup(configuration: EngineWebConfiguration) {
+        val initialColorScheme = configuration.colorScheme
+        lastResolvedColorScheme = initialColorScheme
+        subscribeToColorSchemeChanges()
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
@@ -166,9 +212,9 @@ internal class EngineWebView @JvmOverloads constructor(
                         // Post the JSON message to the current frame's listeners
                         // Ensures internal JavaScript communication via window.addEventListener('message') remains functional
                         window.postMessage($jsonString, '*');
-                        
+
                         // Override window.parent.postMessage to route messages to the native Android interface
-                        // This is necessary only for legacy message because WebView can only attach one native interface 
+                        // This is necessary only for legacy message because WebView can only attach one native interface
                         // and we have already added it as ${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.
                         window.parent.postMessage = function(message) {
                             window.${EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME}.postMessage(JSON.stringify(message));
@@ -176,6 +222,13 @@ internal class EngineWebView @JvmOverloads constructor(
                     """.trim()
                     view.evaluateJavascript(script) { result ->
                         logger.debug("JavaScript execution result: $result")
+                    }
+                    // If color scheme changed during page load (e.g. system theme toggled
+                    // between loadUrl and onPageFinished), send the current value so it
+                    // overrides the stale one baked into the initial options JSON.
+                    val currentScheme = lastResolvedColorScheme
+                    if (currentScheme != null && currentScheme != initialColorScheme) {
+                        updateColorScheme(currentScheme)
                     }
                 }
 

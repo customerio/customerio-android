@@ -1,3 +1,5 @@
+## [4.19.0](https://github.com/customerio/customerio-android/compare/4.18.2...4.19.0) (2026-07-01)
+
 ## [4.18.2](https://github.com/customerio/customerio-android/compare/4.18.1...4.18.2) (2026-06-22)
 
 ### Bug Fixes

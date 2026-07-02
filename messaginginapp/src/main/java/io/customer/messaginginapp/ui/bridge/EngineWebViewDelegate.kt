@@ -20,4 +20,5 @@ internal interface EngineWebViewDelegate {
     fun getView(): View
     fun setAlpha(alpha: Float)
     fun bringToFront()
+    fun updateColorScheme(scheme: String)
 }

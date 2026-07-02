@@ -8,5 +8,6 @@ internal data class EngineWebConfiguration(
     val endpoint: String,
     val livePreview: Boolean = false,
     val properties: Map<String, Any?>? = null,
-    val customAttributes: Map<String, Any>? = null
+    val customAttributes: Map<String, Any>? = null,
+    val colorScheme: String? = null
 )

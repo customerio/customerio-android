@@ -467,7 +467,8 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller: InlineInAppMessageViewController,
         viewCallback: InlineInAppMessageViewCallback,
         expectedMessage: Message
-    ) = verifyOrder {
+    ) {
+        val uiMode = SDKComponent.android().applicationContext.resources.configuration.uiMode
         val expectedConfig = EngineWebConfiguration(
             siteId = moduleConfig.siteId,
             dataCenter = gistDataCenter,
@@ -475,17 +476,19 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             instanceId = expectedMessage.instanceId,
             endpoint = gistEnvironment.getEngineApiUrl(),
             properties = expectedMessage.properties,
-            customAttributes = SDKComponent.gistCustomAttributes.toMap()
+            customAttributes = SDKComponent.gistCustomAttributes.toMap(),
+            colorScheme = moduleConfig.colorScheme.resolve(uiMode)
         )
-
-        elapsedTimer.start(any())
-        viewCallback.onLoadingStarted()
-        viewDelegate.createEngineWebViewInstance()
-        engineWebViewDelegate.setAlpha(0.0F)
-        engineWebViewDelegate.listener = controller
-        viewDelegate.addView(engineWebViewDelegate)
-        viewDelegate.isVisible = true
-        engineWebViewDelegate.setup(expectedConfig)
+        verifyOrder {
+            elapsedTimer.start(any())
+            viewCallback.onLoadingStarted()
+            viewDelegate.createEngineWebViewInstance()
+            engineWebViewDelegate.setAlpha(0.0F)
+            engineWebViewDelegate.listener = controller
+            viewDelegate.addView(engineWebViewDelegate)
+            viewDelegate.isVisible = true
+            engineWebViewDelegate.setup(expectedConfig)
+        }
     }
 
     private fun assertMessageDisplayedCalls(

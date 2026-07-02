@@ -4,9 +4,11 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.type.ColorScheme
 
 internal sealed class InAppMessagingAction {
-    data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment) : InAppMessagingAction()
+    data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment, val colorScheme: ColorScheme = ColorScheme.AUTO) : InAppMessagingAction()
+    data class SetColorScheme(val colorScheme: ColorScheme) : InAppMessagingAction()
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
     data class SetSseEnabled(val enabled: Boolean) : InAppMessagingAction()
     data class SetPageRoute(val route: String) : InAppMessagingAction()

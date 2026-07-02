@@ -47,12 +47,20 @@ internal class LocationTracker(
     // as the SDK is initialized, the weak ref is valid.
     private val dataPipelineRef = WeakReference(dataPipeline)
 
+    // Analytics location: enriches identify context, gates the ON_APP_START re-fetch,
+    // and is persisted. Set only by the tracking path, so silent fixes stay out of analytics.
     @Volatile
-    internal var lastLocation: LocationCoordinates? = null
+    internal var trackedLocation: LocationCoordinates? = null
+        private set
+
+    // Latest fix from any source (incl. silent geofence fixes), for cross-module reads
+    // via [LocationServices.getLastKnownLocation]. In-memory only; never analytics.
+    @Volatile
+    internal var lastKnownLocation: LocationCoordinates? = null
         private set
 
     override fun getIdentifyContext(): Map<String, Any> {
-        val location = lastLocation ?: return emptyMap()
+        val location = trackedLocation ?: return emptyMap()
         return mapOf(
             "location_latitude" to location.latitude,
             "location_longitude" to location.longitude
@@ -67,7 +75,8 @@ internal class LocationTracker(
      * guaranteeing no stale data is available for a subsequent identify().
      */
     override fun resetContext() {
-        lastLocation = null
+        trackedLocation = null
+        lastKnownLocation = null
         locationPreferenceStore.clearCachedLocation()
         locationSyncFilter.clearSyncedData()
         logger.debug("Location state reset")
@@ -81,7 +90,9 @@ internal class LocationTracker(
     fun restorePersistedLocation() {
         val lat = locationPreferenceStore.getCachedLatitude() ?: return
         val lng = locationPreferenceStore.getCachedLongitude() ?: return
-        lastLocation = LocationCoordinates(latitude = lat, longitude = lng)
+        val restored = LocationCoordinates(latitude = lat, longitude = lng)
+        trackedLocation = restored
+        lastKnownLocation = restored
         logger.debug("Restored persisted location: lat=$lat, lng=$lng")
     }
 
@@ -92,10 +103,24 @@ internal class LocationTracker(
     fun onLocationReceived(latitude: Double, longitude: Double) {
         logger.debug("Location update received: lat=$latitude, lng=$longitude")
 
-        lastLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
+        val location = LocationCoordinates(latitude = latitude, longitude = longitude)
+        trackedLocation = location
+        lastKnownLocation = location
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
         trySendLocationTrack(latitude, longitude)
+        eventBus.publish(Event.LocationAcquired(latitude = latitude, longitude = longitude))
+    }
+
+    /**
+     * Like [onLocationReceived] but with no analytics side effects: no track event and
+     * [trackedLocation]/persistence are left untouched, so it never reaches identify
+     * context. Updates [lastKnownLocation] so geofencing can read it back.
+     */
+    fun onLocationReceivedWithoutTracking(latitude: Double, longitude: Double) {
+        logger.debug("Location update received (geofence-only, not tracked): lat=$latitude, lng=$longitude")
+
+        lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
         eventBus.publish(Event.LocationAcquired(latitude = latitude, longitude = longitude))
     }
 

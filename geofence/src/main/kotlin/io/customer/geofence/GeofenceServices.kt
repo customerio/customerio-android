@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import android.annotation.SuppressLint
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
@@ -37,10 +38,19 @@ internal interface GeofenceServices {
     fun onUserSignedOut()
 
     /**
+     * Arms a host-initiated refresh so the next acquired fix drives a sync even without
+     * a prior no-location skip. The fetch itself is kicked by
+     * [ModuleGeofence.refreshFromCurrentLocation] — kept out of this broadcast-reachable
+     * facade, which must not depend on the location module.
+     */
+    fun onRefreshRequested()
+
+    /**
      * Re-attempts a refresh when a fresh GPS fix arrives after a prior sync was
-     * skipped for not-yet-available location. On fresh install identify can race
-     * ahead of the first fix; without this hook the SDK would self-heal only on
-     * sign-out / next cold launch.
+     * skipped for not-yet-available location, or after a host-initiated
+     * [onRefreshRequested]. On fresh install identify can race ahead of the first
+     * fix; without this hook the SDK would self-heal only on sign-out / next cold
+     * launch.
      */
     fun onLocationAcquired(latitude: Double, longitude: Double)
 }
@@ -48,6 +58,7 @@ internal interface GeofenceServices {
 internal class GeofenceServicesImpl(
     private val repository: GeofenceRepository,
     private val secureUserStore: SecureUserStore,
+    private val regionStore: GeofenceRegionStore,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
     private val permissionChecker: GeofencePermissionChecker
@@ -57,6 +68,10 @@ internal class GeofenceServicesImpl(
     // successful trigger. onLocationAcquired only fires when this is set,
     // so streamed location updates don't cause repeated refreshes.
     private val lastSkippedForNoLocation = AtomicBoolean(false)
+
+    // Set by a host-initiated refresh; the next acquired fix drives a sync
+    // regardless of the no-location rearm flag.
+    private val explicitRefreshRequested = AtomicBoolean(false)
 
     override fun onMovementTriggerExit(latitude: Double?, longitude: Double?) {
         triggerSync(
@@ -85,17 +100,34 @@ internal class GeofenceServicesImpl(
         )
     }
 
+    override fun onRefreshRequested() {
+        explicitRefreshRequested.set(true)
+    }
+
     override fun onLocationAcquired(latitude: Double, longitude: Double) {
-        // Only act on the rising edge of a no-location skip; otherwise this
-        // becomes a per-update refresh storm on hosts that stream locations.
-        if (!lastSkippedForNoLocation.compareAndSet(true, false)) return
+        // Act on a host-initiated refresh or the rising edge of a no-location skip;
+        // otherwise this becomes a per-update refresh storm on hosts that stream
+        // locations. Clear both flags so a single fix is consumed once.
+        val requested = explicitRefreshRequested.compareAndSet(true, false)
+        val rearmed = lastSkippedForNoLocation.compareAndSet(true, false)
+        if (!requested && !rearmed) return
         val userId = secureUserStore.getUserId()
-        // No user: a future identify catches the now-cached location.
+        // No user yet: skip; a later identify re-triggers.
         if (userId.isNullOrEmpty()) return
         onUserIdentified(latitude, longitude)
     }
 
     override fun onUserSignedOut() {
+        // Drop any pending refresh intent so a previous user's request can't drive a
+        // sync for the next user — sign-out wipes user-scoped session state.
+        explicitRefreshRequested.set(false)
+        lastSkippedForNoLocation.set(false)
+        // Clear the registration-center anchor synchronously: repository.reset() also
+        // clears it but runs on `scope`, so an in-process re-login (ResetEvent then
+        // UserChangedEvent) would read the previous user's center and rank the new
+        // user's geofences around it. Clearing it now makes the next identify fall
+        // back to a no-location skip and acquire a fresh fix instead.
+        regionStore.clearLastMovementTriggerLocation()
         // Snapshot the userId synchronously — the datapipelines `ResetEvent`
         // subscriber races to clear `secureUserStore`, so a deferred read
         // inside `reset()` could see null and misclassify a normal sign-out

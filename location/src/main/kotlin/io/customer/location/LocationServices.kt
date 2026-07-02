@@ -52,9 +52,23 @@ interface LocationServices {
     fun requestLocationUpdate()
 
     /**
-     * Returns the most recent location observed by the SDK (set via
-     * [setLastKnownLocation] or captured by [requestLocationUpdate]), or null if
-     * none yet. Internal API for other SDK modules to read cached location.
+     * Requests a single location update for internal consumers (e.g. geofencing) with
+     * no analytics side effects: no "CIO Location Update" track event, and the fix is
+     * not persisted or added to identify context. It is readable via
+     * [getLastKnownLocation].
+     *
+     * Requires location permission like [requestLocationUpdate], but fetches regardless
+     * of the tracking mode — geofencing needs a fix even when tracking is OFF.
+     * Internal API for other SDK modules.
+     */
+    @InternalCustomerIOApi
+    fun requestLocationUpdateSilently()
+
+    /**
+     * Returns the most recent location the SDK observed from any source — host
+     * [setLastKnownLocation], [requestLocationUpdate], or a silent
+     * [requestLocationUpdateSilently] fix — or null if none yet. Internal API for
+     * other SDK modules.
      */
     @InternalCustomerIOApi
     fun getLastKnownLocation(): LocationCoordinates?

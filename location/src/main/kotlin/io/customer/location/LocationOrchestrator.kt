@@ -18,7 +18,26 @@ internal class LocationOrchestrator(
 ) {
 
     suspend fun requestLocationUpdate() {
-        if (!config.isEnabled) {
+        acquireLocation(forceFetch = false, onAcquired = locationTracker::onLocationReceived)
+    }
+
+    /**
+     * Like [requestLocationUpdate] but skips the "CIO Location Update" track event and fetches
+     * regardless of tracking mode: geofencing needs a fix even when location tracking is OFF.
+     */
+    suspend fun requestLocationUpdateSilently() {
+        acquireLocation(forceFetch = true, onAcquired = locationTracker::onLocationReceivedWithoutTracking)
+    }
+
+    /**
+     * @param forceFetch when true, bypasses the tracking-mode (OFF) gate so an internal caller
+     *   can still get a fix; the location permission check below always applies.
+     */
+    private suspend fun acquireLocation(
+        forceFetch: Boolean,
+        onAcquired: (Double, Double) -> Unit
+    ) {
+        if (!forceFetch && !config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring requestLocationUpdate.")
             return
         }
@@ -34,7 +53,7 @@ internal class LocationOrchestrator(
                 granularity = LocationGranularity.DEFAULT
             )
             logger.debug("Tracking location: lat=${snapshot.latitude}, lng=${snapshot.longitude}")
-            locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude)
+            onAcquired(snapshot.latitude, snapshot.longitude)
         } catch (e: CancellationException) {
             logger.debug("Location request was cancelled.")
             throw e

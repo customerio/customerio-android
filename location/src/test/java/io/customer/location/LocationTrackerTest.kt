@@ -13,6 +13,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -93,6 +94,28 @@ class LocationTrackerTest {
         captured.captured shouldBeEqualTo Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
     }
 
+    // -- onLocationReceivedWithoutTracking --
+
+    @Test
+    fun givenLocationReceivedWithoutTracking_expectNoAnalyticsSideEffects() {
+        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194)
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+        verify(exactly = 0) { store.saveCachedLocation(any(), any()) }
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    @Test
+    fun givenLocationReceivedWithoutTracking_expectPublishedAndReadableViaLastKnownLocation() {
+        val captured = slot<Event.LocationAcquired>()
+
+        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194)
+
+        verify { mockEventBus.publish(capture(captured)) }
+        captured.captured shouldBeEqualTo Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
+    }
+
     // -- syncCachedLocationIfNeeded --
 
     @Test
@@ -143,6 +166,8 @@ class LocationTrackerTest {
         context.shouldNotBeEmpty()
         context["location_latitude"] shouldBeEqualTo 37.7749
         context["location_longitude"] shouldBeEqualTo -122.4194
+        // Also seeds the cross-module field so geofencing has a fix at cold start.
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
     }
 
     @Test
@@ -236,8 +261,9 @@ class LocationTrackerTest {
 
         tracker.resetContext()
 
-        // In-memory location cleared — no stale data for next identify
+        // Both in-memory fields cleared — no stale data for next identify
         tracker.getIdentifyContext().shouldBeEmpty()
+        tracker.lastKnownLocation.shouldBeNull()
         // Persistence and sync filter also cleared synchronously
         verify { store.clearCachedLocation() }
         verify { syncFilter.clearSyncedData() }

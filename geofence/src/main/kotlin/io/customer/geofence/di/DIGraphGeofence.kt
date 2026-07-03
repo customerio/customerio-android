@@ -141,6 +141,7 @@ internal val AndroidSDKComponent.geofenceServices: GeofenceServices
         GeofenceServicesImpl(
             repository = geofenceRepository,
             secureUserStore = secureUserStore,
+            regionStore = geofenceRegionStore,
             scope = SDKComponent.scopeProvider.geofenceScope,
             logger = SDKComponent.geofenceLogger,
             permissionChecker = geofencePermissionChecker

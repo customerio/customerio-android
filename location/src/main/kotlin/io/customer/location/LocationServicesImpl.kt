@@ -44,12 +44,21 @@ internal class LocationServicesImpl(
     }
 
     override fun requestLocationUpdate() {
+        launchLocationRequest(orchestrator::requestLocationUpdate)
+    }
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun requestLocationUpdateSilently() {
+        launchLocationRequest(orchestrator::requestLocationUpdateSilently)
+    }
+
+    private fun launchLocationRequest(request: suspend () -> Unit) {
         // If a request is already in flight, ignore the new call
         if (currentLocationJob?.isActive == true) return
 
         currentLocationJob = scope.launch {
             try {
-                orchestrator.requestLocationUpdate()
+                request()
             } finally {
                 // Only clear if this is still the current job — prevents
                 // a cancelled job's finally from nulling a newer job's reference
@@ -61,7 +70,7 @@ internal class LocationServicesImpl(
     }
 
     @OptIn(InternalCustomerIOApi::class)
-    override fun getLastKnownLocation(): LocationCoordinates? = locationTracker.lastLocation
+    override fun getLastKnownLocation(): LocationCoordinates? = locationTracker.lastKnownLocation
 
     /**
      * Cancels any in-flight location request.

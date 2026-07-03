@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -22,6 +23,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
     private val repository: GeofenceRepository = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val regionStore: GeofenceRegionStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val permissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
         every { hasRequiredLocationPermissions() } returns true
@@ -32,6 +34,7 @@ class GeofenceServicesTest : RobolectricTest() {
         GeofenceServicesImpl(
             repository = repository,
             secureUserStore = secureUserStore,
+            regionStore = regionStore,
             scope = scope,
             logger = logger,
             permissionChecker = permissionChecker
@@ -131,6 +134,36 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onLocationAcquired_givenExplicitRefreshRequested_expectRefreshWithoutPriorSkip() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        // Host-initiated refresh arms the pipeline; the returning fix drives the sync
+        // even without any prior no-location skip.
+        services.onRefreshRequested()
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(12.0, 34.0) }
+    }
+
+    @Test
+    fun onLocationAcquired_givenExplicitRefreshRequested_expectConsumedOnce() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onRefreshRequested()
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        services.onLocationAcquired(latitude = 56.0, longitude = 78.0)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refresh(56.0, 78.0) }
+    }
+
+    @Test
     fun onLocationAcquired_givenNoPriorSkip_expectNoOp() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
         val services = servicesWith(this)
@@ -171,6 +204,38 @@ class GeofenceServicesTest : RobolectricTest() {
         // Only the initial identify call should reach the repository.
         coVerify(exactly = 1) { repository.refresh(any(), any()) }
         coVerify(exactly = 0) { repository.refresh(3.0, 4.0) }
+    }
+
+    @Test
+    fun onLocationAcquired_afterSignOut_expectNoRefreshFromStaleRefreshFlag() = runTest(StandardTestDispatcher()) {
+        // A pending refresh from the previous session must not survive sign-out and
+        // drive a sync for the next user's first fix.
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.reset(any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onRefreshRequested()
+        services.onUserSignedOut()
+        advanceUntilIdle()
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+    }
+
+    @Test
+    fun onUserSignedOut_expectRegistrationAnchorClearedSynchronously() = runTest(StandardTestDispatcher()) {
+        // The persisted registration center is user-scoped. It must be dropped
+        // synchronously on sign-out — before repository.reset() runs on the scope —
+        // so an in-process re-login can't rank the next user's geofences around the
+        // previous user's location.
+        coEvery { repository.reset(any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserSignedOut()
+
+        verify { regionStore.clearLastMovementTriggerLocation() }
     }
 
     @Test

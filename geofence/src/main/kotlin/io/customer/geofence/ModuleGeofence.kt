@@ -1,10 +1,12 @@
 package io.customer.geofence
 
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceCooldownFilter
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.location.LocationCoordinates
 import io.customer.location.ModuleLocation
@@ -26,12 +28,11 @@ private const val MODULE_NAME = "Geofence"
  * geofences are registered with the OS, transitions are persisted and forwarded
  * to the CDP, and the local set is refreshed when the user moves far enough.
  *
- * Requires [ModuleLocation] to be registered alongside it — geofencing reacts
- * to location fixes published by the location module. Customers wanting only
- * the geofencing feature should still register [ModuleLocation] (any tracking
- * mode other than OFF) and feed it location either by calling
- * `setLastKnownLocation` from the host app or letting `ON_APP_START` capture
- * fixes automatically.
+ * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
+ * location provider regardless of the location tracking mode, and works even when
+ * location tracking is OFF (geofence fixes never emit analytics). With the default
+ * [GeofenceLocationMode.AUTOMATIC] the SDK acquires the location it needs on its own;
+ * with [GeofenceLocationMode.MANUAL] the host drives it via [refreshFromCurrentLocation].
  *
  * Usage:
  * ```
@@ -68,6 +69,41 @@ class ModuleGeofence @JvmOverloads constructor(
     }
 
     /**
+     * Requests a one-shot location fix and refreshes the nearby geofence set from
+     * it, without emitting a "CIO Location Update" analytics event. Works
+     * regardless of [GeofenceModuleConfig.locationMode].
+     *
+     * Call this after the host app has been granted location permission — the
+     * primary way to drive geofencing when [GeofenceLocationMode.MANUAL] is set.
+     */
+    @OptIn(InternalCustomerIOApi::class)
+    fun refreshFromCurrentLocation() {
+        val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
+        if (locationModule == null) {
+            SDKComponent.geofenceLogger.logMissingLocationModule()
+            return
+        }
+        // Arm first so the returning fix drives a sync even without a prior
+        // no-location skip, then request a silent (no-analytics) fix.
+        SDKComponent.android().geofenceServices.onRefreshRequested()
+        locationModule.locationServices.requestLocationUpdateSilently()
+    }
+
+    /**
+     * In [GeofenceLocationMode.AUTOMATIC], acquires a silent (no-analytics) fix when none is
+     * available; the returning fix drives the sync via [GeofenceServices.onLocationAcquired].
+     * MANUAL leaves it to the host. Lives here (not [GeofenceServices]) as it needs [ModuleLocation].
+     */
+    @VisibleForTesting
+    @OptIn(InternalCustomerIOApi::class)
+    internal fun autoAcquireIfNeeded(locationModule: ModuleLocation, currentLocation: LocationCoordinates?) {
+        if (currentLocation != null) return
+        if (moduleConfig.locationMode != GeofenceLocationMode.AUTOMATIC) return
+        // No-ops without location permission.
+        locationModule.locationServices.requestLocationUpdateSilently()
+    }
+
+    /**
      * Subscribe to the SDK-wide events geofencing reacts to: fresh location fixes,
      * identify (prime the new user's nearby set), and sign-out (wipe user state).
      */
@@ -83,15 +119,16 @@ class ModuleGeofence @JvmOverloads constructor(
             sdkAndroid.geofenceServices.onLocationAcquired(it.latitude, it.longitude)
         }
 
-        // On identify, snapshot the current location and prime the geofence
-        // pipeline so the new user's session has its nearby set fetched.
+        // On identify, prime the geofence pipeline so the new user's session has its
+        // nearby set fetched, anchored at the current registration center.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                val location = locationModule.lastKnownLocationOrNull()
+                val anchor = refreshAnchor(sdkAndroid, locationModule)
                 sdkAndroid.geofenceServices.onUserIdentified(
-                    latitude = location?.latitude,
-                    longitude = location?.longitude
+                    latitude = anchor?.latitude,
+                    longitude = anchor?.longitude
                 )
+                autoAcquireIfNeeded(locationModule, anchor)
             }
         }
 
@@ -133,19 +170,48 @@ class ModuleGeofence @JvmOverloads constructor(
                 )
             )
 
-            // Defensive sync at launch: if a user identified in a previous session is
-            // still persisted, kick off a geofence refresh now. The repository's
-            // freshness threshold makes this a cheap no-op when identify also fires
-            // shortly after init (the common case), so it only does work when the host
-            // app doesn't call identify on this launch and the last sync is stale.
+            // Defensive sync at launch: if a user identified in a previous session is still
+            // persisted, kick off a geofence refresh now (anchored at the registration center).
+            // The repository's freshness threshold makes this a cheap no-op when identify also
+            // fires shortly after init (the common case).
             val existingUserId = sdkAndroid.secureUserStore.getUserId()
             if (!existingUserId.isNullOrEmpty()) {
-                val cachedLocation = locationModule.lastKnownLocationOrNull()
+                val anchor = refreshAnchor(sdkAndroid, locationModule)
                 sdkAndroid.geofenceServices.onAppLaunch(
-                    latitude = cachedLocation?.latitude,
-                    longitude = cachedLocation?.longitude
+                    latitude = anchor?.latitude,
+                    longitude = anchor?.longitude
                 )
+                autoAcquireIfNeeded(locationModule, anchor)
             }
+        }
+    }
+
+    private fun refreshAnchor(sdkAndroid: AndroidSDKComponent, locationModule: ModuleLocation): LocationCoordinates? =
+        resolveAnchor(
+            registrationCenter = sdkAndroid.geofenceRegionStore.getLastMovementTriggerLocation(),
+            lastKnown = locationModule.lastKnownLocationOrNull()
+        )
+
+    /**
+     * Location to anchor an identify/launch refresh at: the last registration center (walked by
+     * background movement EXITs) if set, else the location cache. Movement never updates the cache,
+     * so on relaunch it can be stale — ranking a refresh from it after the device moved while the
+     * app was dead would clobber the good registration with a set ranked around a stale position.
+     */
+    @VisibleForTesting
+    internal fun resolveAnchor(registrationCenter: GeofenceLocation?, lastKnown: LocationCoordinates?): LocationCoordinates? =
+        registrationCenter?.let { LocationCoordinates(latitude = it.latitude, longitude = it.longitude) } ?: lastKnown
+
+    companion object {
+        /**
+         * Returns the initialized [ModuleGeofence] instance.
+         *
+         * @throws IllegalStateException if the module hasn't been registered with the SDK
+         */
+        @JvmStatic
+        fun instance(): ModuleGeofence {
+            return SDKComponent.modules[MODULE_NAME] as? ModuleGeofence
+                ?: throw IllegalStateException("ModuleGeofence not initialized. Add ModuleGeofence to CustomerIOConfigBuilder before calling CustomerIO.initialize().")
         }
     }
 }

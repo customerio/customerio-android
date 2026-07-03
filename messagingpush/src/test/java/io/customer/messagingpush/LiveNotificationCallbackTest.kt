@@ -101,15 +101,16 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     }
 
     @Test
-    fun customType_endWithoutRenderer_stillCancels() {
-        // Even with no notification to post (custom type, no callback), an `end` must
-        // still cancel/clean up the existing notification.
+    fun customType_endWithoutRendererAndNoDismissalDate_doesNotCancel() {
+        // Custom type, no callback, so there is no end-state to post. Without a
+        // dismissal_date the SDK no longer force-cancels on `end`: the end-state (if any
+        // was rendered by the host) stays visible for the user to dismiss.
         attach(callback = null)
         val expectedNotifId = "act-cb".hashCode() and 0x7FFFFFFF
 
         invoke(bundle(customType, event = "end"))
 
-        verify(exactly = 1) {
+        assertCalledNever {
             notificationManager.cancel("act-cb", expectedNotifId)
         }
     }

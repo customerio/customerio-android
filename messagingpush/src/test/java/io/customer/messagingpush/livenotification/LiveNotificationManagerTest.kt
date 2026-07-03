@@ -31,19 +31,29 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     private fun saveToken() = SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
 
     @Test
-    fun start_reportsStartEvent() {
+    fun start_reportsStartEventWithAttributesAndContentState() {
         saveToken()
 
-        manager.start("act-1", type, mapOf("statusMessage" to "Preparing"))
+        manager.start(
+            "act-1",
+            type,
+            attributes = mapOf("header" to "Order update"),
+            contentState = mapOf("title" to "Preparing")
+        )
 
-        verify { lifecycleClient.reportStart("act-1", type, "fcm-tok", any()) }
+        verify { lifecycleClient.reportStart("act-1", type, "fcm-tok", any(), any()) }
     }
 
     @Test
-    fun update_reportsUpdateEvent() {
+    fun update_reportsUpdateEventWithContentState() {
         saveToken()
 
-        manager.update("act-1", type, mapOf("statusMessage" to "Arriving"))
+        manager.update(
+            "act-1",
+            type,
+            attributes = emptyMap(),
+            contentState = mapOf("title" to "Arriving")
+        )
 
         verify { lifecycleClient.reportUpdate("act-1", type, "fcm-tok", any()) }
     }
@@ -52,7 +62,12 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     fun update_withoutFcmToken_doesNotReport() {
         SDKComponent.android().globalPreferenceStore.removeDeviceToken()
 
-        manager.update("act-1", type, mapOf("statusMessage" to "Arriving"))
+        manager.update(
+            "act-1",
+            type,
+            attributes = emptyMap(),
+            contentState = mapOf("title" to "Arriving")
+        )
 
         verify(exactly = 0) { lifecycleClient.reportUpdate(any(), any(), any(), any()) }
     }

@@ -5,29 +5,49 @@ package io.customer.messagingpush.livenotification.template
  * the push-render path (each `*Template.render` reading the flattened payload)
  * and the local-start path (`LiveNotificationData.fields()`), so the two can't
  * drift apart.
+ *
+ * Naming follows the finalized cross-platform field contract: freeform text
+ * slots (`header`/`title`/`subtitle`/`status`) the SDK renders verbatim (never
+ * composes), typed fields only where rendering needs structure (images, live
+ * timers, progress, scores, color). Asset refs drop the `Key` suffix
+ * (`image`/`logo`); the value may be a bundle name, asset key, or URL.
+ * `statusColor` is a hex string (e.g. `#36AE3F`) parsed to an `@ColorInt`.
  */
+
+/** Freeform slots shared by every template that carries them. */
+internal object CommonFields {
+    const val HEADER = "header"
+    const val TITLE = "title"
+    const val SUBTITLE = "subtitle"
+    const val STATUS_COLOR = "statusColor"
+    const val STALE_MESSAGE = "staleMessage"
+    const val IMAGE = "image"
+}
+
 internal object DeliveryTrackingFields {
-    const val ORDER_ID = "orderId"
-    const val RECIPIENT_NAME = "recipientName"
-    const val STATUS_MESSAGE = "statusMessage"
-    const val STATUS_IMAGE_KEY = "statusImageKey"
+    const val HEADER = CommonFields.HEADER
+    const val TITLE = CommonFields.TITLE
+    const val SUBTITLE = CommonFields.SUBTITLE
+    const val IMAGE = CommonFields.IMAGE
     const val STEP_CURRENT = "stepCurrent"
     const val STEP_TOTAL = "stepTotal"
     const val ESTIMATED_ARRIVAL = "estimatedArrival"
-    const val DRIVER_NAME = "driverName"
+    const val STATUS_COLOR = CommonFields.STATUS_COLOR
+    const val STALE_MESSAGE = CommonFields.STALE_MESSAGE
 }
 
 internal object FlightStatusFields {
-    const val FLIGHT_NUMBER = "flightNumber"
+    const val HEADER = CommonFields.HEADER
+    const val STATUS = "status"
+    const val TITLE = CommonFields.TITLE
+    const val SUBTITLE = CommonFields.SUBTITLE
     const val ORIGIN = "origin"
     const val DESTINATION = "destination"
-    const val STATUS_MESSAGE = "statusMessage"
-    const val GATE = "gate"
-    const val TERMINAL = "terminal"
     const val SCHEDULED_DEPARTURE = "scheduledDeparture"
     const val ESTIMATED_ARRIVAL = "estimatedArrival"
     const val PROGRESS_FRACTION = "progressFraction"
-    const val DELAY_MINUTES = "delayMinutes"
+    const val STATUS_COLOR = CommonFields.STATUS_COLOR
+    const val STALE_MESSAGE = CommonFields.STALE_MESSAGE
 }
 
 internal object LiveScoreFields {
@@ -35,31 +55,34 @@ internal object LiveScoreFields {
     const val AWAY_TEAM = "awayTeam"
     const val HOME_SCORE = "homeScore"
     const val AWAY_SCORE = "awayScore"
-    const val PERIOD = "period"
-    const val CLOCK = "clock"
-    const val STATUS_MESSAGE = "statusMessage"
-    const val SPORT = "sport"
-    const val LEAGUE_LOGO_KEY = "leagueLogoKey"
+    const val SUBTITLE = CommonFields.SUBTITLE
+    const val IMAGE = CommonFields.IMAGE
+    const val STATUS_COLOR = CommonFields.STATUS_COLOR
+    const val STALE_MESSAGE = CommonFields.STALE_MESSAGE
 }
 
 internal object CountdownTimerFields {
-    const val TITLE = "title"
-    const val HERO_IMAGE_KEY = "heroImageKey"
+    const val HEADER = CommonFields.HEADER
+    const val TITLE = CommonFields.TITLE
+    const val SUBTITLE = CommonFields.SUBTITLE
+    const val IMAGE = CommonFields.IMAGE
     const val TARGET_DATE = "targetDate"
-    const val STATUS_MESSAGE = "statusMessage"
     const val EXPIRED_MESSAGE = "expiredMessage"
+    const val STATUS_COLOR = CommonFields.STATUS_COLOR
+    const val STALE_MESSAGE = CommonFields.STALE_MESSAGE
 }
 
 internal object AuctionBidFields {
-    const val ITEM_TITLE = "itemTitle"
-    const val ITEM_IMAGE_KEY = "itemImageKey"
+    const val HEADER = CommonFields.HEADER
+    const val TITLE = CommonFields.TITLE
+    const val SUBTITLE = CommonFields.SUBTITLE
+    const val STATUS_MESSAGE = "statusMessage"
+    const val IMAGE = CommonFields.IMAGE
     const val CURRENCY_SYMBOL = "currencySymbol"
     const val CURRENT_BID = "currentBid"
-    const val BID_COUNT = "bidCount"
     const val END_TIME = "endTime"
-    const val STATUS_MESSAGE = "statusMessage"
-    const val IS_USER_HIGH_BIDDER = "isUserHighBidder"
-    const val USER_BID_AMOUNT = "userBidAmount"
+    const val STATUS_COLOR = CommonFields.STATUS_COLOR
+    const val STALE_MESSAGE = CommonFields.STALE_MESSAGE
 }
 
 /** Nested object sub-fields shared by templates that embed them. */
@@ -70,5 +93,5 @@ internal object AirportFields {
 
 internal object TeamFields {
     const val NAME = "name"
-    const val LOGO_KEY = "logoKey"
+    const val LOGO = "logo"
 }

@@ -12,9 +12,17 @@ import org.json.JSONObject
 /**
  * Typed payload for starting a built-in live notification locally via
  * `ModuleMessagingPushFCM.startLiveNotification`. Each subtype knows its
- * [activityType] and flattens itself into the envelope fields the templates
- * read (the same flattened shape the backend delivers). Field names come from
- * the shared `*Fields` constants so local-start and push-render stay in sync.
+ * [activityType] and exposes its fields three ways:
+ *  - [fields] — the flat map the local device-render path reads (the same
+ *    flattened shape the backend delivers to the templates);
+ *  - [attributes] — the STATIC subset (iOS `attributes`); and
+ *  - [contentState] — the DYNAMIC subset (iOS `contentState`).
+ *
+ * The static/dynamic split mirrors the finalized cross-platform field contract
+ * so the CDP lifecycle event can carry `attributes` + `contentState` separately
+ * (matching iOS's ActivityKit envelope) instead of a single merged payload.
+ * Field names come from the shared `*Fields` constants so local-start and
+ * push-render stay in sync.
  *
  * For customer-defined activity types, use the `Map` overload of
  * `startLiveNotification` instead.
@@ -25,121 +33,167 @@ sealed interface LiveNotificationData {
     /** Flattened template fields; null values are omitted by the caller. */
     fun fields(): Map<String, Any?>
 
+    /** Static fields (iOS `attributes`); null values are omitted by the caller. */
+    fun attributes(): Map<String, Any?>
+
+    /** Dynamic fields (iOS `contentState`); null values are omitted by the caller. */
+    fun contentState(): Map<String, Any?>
+
     data class DeliveryTracking(
-        val orderId: String,
-        val statusMessage: String,
-        val recipientName: String? = null,
-        val driverName: String? = null,
-        val statusImageKey: String? = null,
+        val title: String,
+        val header: String? = null,
+        val subtitle: String? = null,
+        val image: String? = null,
         val stepCurrent: Int? = null,
         val stepTotal: Int? = null,
-        val estimatedArrival: Long? = null
+        val estimatedArrival: Long? = null,
+        val statusColor: String? = null,
+        val staleMessage: String? = null
     ) : LiveNotificationData {
         override val activityType = LiveNotificationType.DELIVERY_TRACKING.identifier
-        override fun fields() = mapOf(
-            DeliveryTrackingFields.ORDER_ID to orderId,
-            DeliveryTrackingFields.STATUS_MESSAGE to statusMessage,
-            DeliveryTrackingFields.RECIPIENT_NAME to recipientName,
-            DeliveryTrackingFields.DRIVER_NAME to driverName,
-            DeliveryTrackingFields.STATUS_IMAGE_KEY to statusImageKey,
+
+        override fun attributes() = mapOf(
+            DeliveryTrackingFields.HEADER to header
+        )
+
+        override fun contentState() = mapOf(
+            DeliveryTrackingFields.TITLE to title,
+            DeliveryTrackingFields.SUBTITLE to subtitle,
+            DeliveryTrackingFields.IMAGE to image,
             DeliveryTrackingFields.STEP_CURRENT to stepCurrent,
             DeliveryTrackingFields.STEP_TOTAL to stepTotal,
-            DeliveryTrackingFields.ESTIMATED_ARRIVAL to estimatedArrival
+            DeliveryTrackingFields.ESTIMATED_ARRIVAL to estimatedArrival,
+            DeliveryTrackingFields.STATUS_COLOR to statusColor,
+            DeliveryTrackingFields.STALE_MESSAGE to staleMessage
         )
+
+        override fun fields() = attributes() + contentState()
     }
 
     data class FlightStatus(
-        val flightNumber: String,
+        val title: String,
         val origin: Airport,
         val destination: Airport,
-        val statusMessage: String,
-        val gate: String? = null,
-        val terminal: String? = null,
+        val header: String? = null,
+        val status: String? = null,
+        val subtitle: String? = null,
         val scheduledDeparture: Long? = null,
         val estimatedArrival: Long? = null,
         val progressFraction: Double? = null,
-        val delayMinutes: Int? = null
+        val statusColor: String? = null,
+        val staleMessage: String? = null
     ) : LiveNotificationData {
         override val activityType = LiveNotificationType.FLIGHT_STATUS.identifier
-        override fun fields() = mapOf(
-            FlightStatusFields.FLIGHT_NUMBER to flightNumber,
+
+        override fun attributes() = mapOf(
+            FlightStatusFields.HEADER to header,
             FlightStatusFields.ORIGIN to origin.toJson(),
-            FlightStatusFields.DESTINATION to destination.toJson(),
-            FlightStatusFields.STATUS_MESSAGE to statusMessage,
-            FlightStatusFields.GATE to gate,
-            FlightStatusFields.TERMINAL to terminal,
+            FlightStatusFields.DESTINATION to destination.toJson()
+        )
+
+        override fun contentState() = mapOf(
+            FlightStatusFields.TITLE to title,
+            FlightStatusFields.STATUS to status,
+            FlightStatusFields.SUBTITLE to subtitle,
             FlightStatusFields.SCHEDULED_DEPARTURE to scheduledDeparture,
             FlightStatusFields.ESTIMATED_ARRIVAL to estimatedArrival,
             FlightStatusFields.PROGRESS_FRACTION to progressFraction,
-            FlightStatusFields.DELAY_MINUTES to delayMinutes
+            FlightStatusFields.STATUS_COLOR to statusColor,
+            FlightStatusFields.STALE_MESSAGE to staleMessage
         )
+
+        override fun fields() = attributes() + contentState()
     }
 
     data class LiveScore(
         val homeTeam: Team,
         val awayTeam: Team,
-        val period: String,
-        val homeScore: Int = 0,
-        val awayScore: Int = 0,
-        val clock: String? = null,
-        val statusMessage: String? = null,
-        val sport: String? = null,
-        val leagueLogoKey: String? = null
+        val homeScore: Int? = null,
+        val awayScore: Int? = null,
+        val subtitle: String? = null,
+        val image: String? = null,
+        val statusColor: String? = null,
+        val staleMessage: String? = null
     ) : LiveNotificationData {
         override val activityType = LiveNotificationType.LIVE_SCORE.identifier
-        override fun fields() = mapOf(
+
+        override fun attributes() = mapOf(
             LiveScoreFields.HOME_TEAM to homeTeam.toJson(),
             LiveScoreFields.AWAY_TEAM to awayTeam.toJson(),
-            LiveScoreFields.PERIOD to period,
+            LiveScoreFields.IMAGE to image
+        )
+
+        override fun contentState() = mapOf(
             LiveScoreFields.HOME_SCORE to homeScore,
             LiveScoreFields.AWAY_SCORE to awayScore,
-            LiveScoreFields.CLOCK to clock,
-            LiveScoreFields.STATUS_MESSAGE to statusMessage,
-            LiveScoreFields.SPORT to sport,
-            LiveScoreFields.LEAGUE_LOGO_KEY to leagueLogoKey
+            LiveScoreFields.SUBTITLE to subtitle,
+            LiveScoreFields.STATUS_COLOR to statusColor,
+            LiveScoreFields.STALE_MESSAGE to staleMessage
         )
+
+        override fun fields() = attributes() + contentState()
     }
 
     data class CountdownTimer(
         val title: String,
         val targetDate: Long,
-        val statusMessage: String,
+        val subtitle: String,
+        val header: String? = null,
         val expiredMessage: String? = null,
-        val heroImageKey: String? = null
+        val image: String? = null,
+        val statusColor: String? = null,
+        val staleMessage: String? = null
     ) : LiveNotificationData {
         override val activityType = LiveNotificationType.COUNTDOWN_TIMER.identifier
-        override fun fields() = mapOf(
+
+        override fun attributes() = mapOf(
+            CountdownTimerFields.HEADER to header,
             CountdownTimerFields.TITLE to title,
-            CountdownTimerFields.TARGET_DATE to targetDate,
-            CountdownTimerFields.STATUS_MESSAGE to statusMessage,
-            CountdownTimerFields.EXPIRED_MESSAGE to expiredMessage,
-            CountdownTimerFields.HERO_IMAGE_KEY to heroImageKey
+            CountdownTimerFields.IMAGE to image
         )
+
+        override fun contentState() = mapOf(
+            CountdownTimerFields.SUBTITLE to subtitle,
+            CountdownTimerFields.TARGET_DATE to targetDate,
+            CountdownTimerFields.EXPIRED_MESSAGE to expiredMessage,
+            CountdownTimerFields.STATUS_COLOR to statusColor,
+            CountdownTimerFields.STALE_MESSAGE to staleMessage
+        )
+
+        override fun fields() = attributes() + contentState()
     }
 
     data class AuctionBid(
-        val itemTitle: String,
+        val title: String,
         val currentBid: String,
-        val bidCount: Int,
         val statusMessage: String,
-        val isUserHighBidder: Boolean,
+        val currencySymbol: String,
+        val header: String? = null,
+        val subtitle: String? = null,
         val endTime: Long? = null,
-        val userBidAmount: String? = null,
-        val itemImageKey: String? = null,
-        val currencySymbol: String? = null
+        val image: String? = null,
+        val statusColor: String? = null,
+        val staleMessage: String? = null
     ) : LiveNotificationData {
         override val activityType = LiveNotificationType.AUCTION_BID.identifier
-        override fun fields() = mapOf(
-            AuctionBidFields.ITEM_TITLE to itemTitle,
-            AuctionBidFields.CURRENT_BID to currentBid,
-            AuctionBidFields.BID_COUNT to bidCount,
-            AuctionBidFields.STATUS_MESSAGE to statusMessage,
-            AuctionBidFields.IS_USER_HIGH_BIDDER to isUserHighBidder,
-            AuctionBidFields.END_TIME to endTime,
-            AuctionBidFields.USER_BID_AMOUNT to userBidAmount,
-            AuctionBidFields.ITEM_IMAGE_KEY to itemImageKey,
-            AuctionBidFields.CURRENCY_SYMBOL to currencySymbol
+
+        override fun attributes() = mapOf(
+            AuctionBidFields.HEADER to header,
+            AuctionBidFields.TITLE to title,
+            AuctionBidFields.CURRENCY_SYMBOL to currencySymbol,
+            AuctionBidFields.IMAGE to image
         )
+
+        override fun contentState() = mapOf(
+            AuctionBidFields.SUBTITLE to subtitle,
+            AuctionBidFields.STATUS_MESSAGE to statusMessage,
+            AuctionBidFields.CURRENT_BID to currentBid,
+            AuctionBidFields.END_TIME to endTime,
+            AuctionBidFields.STATUS_COLOR to statusColor,
+            AuctionBidFields.STALE_MESSAGE to staleMessage
+        )
+
+        override fun fields() = attributes() + contentState()
     }
 
     /** Airport endpoint for [FlightStatus]. */
@@ -150,9 +204,9 @@ sealed interface LiveNotificationData {
     }
 
     /** Team for [LiveScore]. */
-    data class Team(val name: String, val logoKey: String? = null) {
+    data class Team(val name: String, val logo: String? = null) {
         internal fun toJson(): JSONObject = JSONObject().put(TeamFields.NAME, name).apply {
-            logoKey?.let { put(TeamFields.LOGO_KEY, it) }
+            logo?.let { put(TeamFields.LOGO, it) }
         }
     }
 }

@@ -226,15 +226,15 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
-            attributes.put("orderId", "ABC-1234");
-            attributes.put("recipientName", "Mahmoud");
+            attributes.put("header", "Order #ABC-1234");
 
-            contentState.put("statusMessage", statuses[step]);
-            contentState.put("statusImageKey", imageKeys[step]);
+            contentState.put("title", statuses[step]);
+            contentState.put("subtitle", "For Mahmoud");
+            contentState.put("image", imageKeys[step]);
             contentState.put("stepCurrent", step + 1);
             contentState.put("stepTotal", statuses.length);
             contentState.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
-            if (step == 2) contentState.put("driverName", "Sam");
+            if (step == 2) contentState.put("subtitle", "Driver: Sam");
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-delivery-tracking", event, ACTIVITY_TYPE_DELIVERY_TRACKING, attributes, contentState));
     }
@@ -242,8 +242,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private void sendFlightStatus(String event, int step) {
         String[] statuses = {"On time", "Boarding now", "In flight", "Arrived", "Delayed at gate"};
         Double[] progress = {null, null, 0.55, 1.0, null};
-        // Step 4 exercises the delay-red accent branch.
-        int[] delayMinutes = {0, 0, 0, 0, 25};
+        // Step 4 exercises the statusColor (delay-red) accent branch.
+        String[] statusColors = {null, null, null, null, "#CC3330"};
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
@@ -254,17 +254,17 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             destination.put("code", "LAX");
             destination.put("city", "Los Angeles");
 
-            attributes.put("flightNumber", "AA1234");
+            attributes.put("header", "Flight AA1234");
             attributes.put("origin", origin);
             attributes.put("destination", destination);
 
-            contentState.put("statusMessage", statuses[step]);
-            contentState.put("gate", step >= 1 ? "B12" : JSONObject.NULL);
-            contentState.put("terminal", step >= 1 ? "4" : JSONObject.NULL);
+            contentState.put("title", "JFK → LAX");
+            contentState.put("status", statuses[step]);
+            contentState.put("subtitle", step >= 1 ? "Gate B12 · Terminal 4" : JSONObject.NULL);
             contentState.put("scheduledDeparture", System.currentTimeMillis() + 45L * 60 * 1000);
             contentState.put("estimatedArrival", System.currentTimeMillis() + 6L * 60 * 60 * 1000);
             if (progress[step] != null) contentState.put("progressFraction", progress[step]);
-            if (delayMinutes[step] > 0) contentState.put("delayMinutes", delayMinutes[step]);
+            if (statusColors[step] != null) contentState.put("statusColor", statusColors[step]);
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-flight-status", event, ACTIVITY_TYPE_FLIGHT_STATUS, attributes, contentState));
     }
@@ -272,8 +272,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private void sendLiveScore(String event, int step) {
         int[] homeScores = {0, 14, 21, 28};
         int[] awayScores = {0, 7, 21, 24};
-        String[] periods = {"1st Quarter", "2nd Quarter", "3rd Quarter", "FT"};
-        String[] clocks = {"12:00", "5:30", "0:42", null};
+        // Freeform bottom-label rendered verbatim (period/clock combined by the sender, not the SDK).
+        String[] subtitles = {"1st Quarter · 12:00", "2nd Quarter · 5:30", "3rd Quarter · 0:42", "Final Score"};
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
@@ -284,13 +284,11 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
             attributes.put("homeTeam", homeTeam);
             attributes.put("awayTeam", awayTeam);
-            attributes.put("sport", "basketball");
-            attributes.put("leagueLogoKey", "league_nba");
+            attributes.put("image", "league_nba");
 
             contentState.put("homeScore", homeScores[step]);
             contentState.put("awayScore", awayScores[step]);
-            contentState.put("period", periods[step]);
-            if (clocks[step] != null) contentState.put("clock", clocks[step]);
+            contentState.put("subtitle", subtitles[step]);
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-live-score", event, ACTIVITY_TYPE_LIVE_SCORE, attributes, contentState));
     }
@@ -300,14 +298,14 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         JSONObject contentState = new JSONObject();
         try {
             attributes.put("title", "Flash Sale");
-            attributes.put("heroImageKey", "flash_sale_hero");
+            attributes.put("image", "flash_sale_hero");
 
             // Step 0: 5 min out. Step 1: 30s out. Step 2: post-target with expired message.
             // Step 3: post-target with NO expiredMessage — exercises cancelImmediately path.
             long now = System.currentTimeMillis();
             long[] offsets = {5 * 60 * 1000L, 30 * 1000L, -1, -1};
             contentState.put("targetDate", offsets[step] >= 0 ? now + offsets[step] : now - 1000);
-            contentState.put("statusMessage", "Sale starts in");
+            contentState.put("subtitle", "Sale starts in");
             if (step == 2) contentState.put("expiredMessage", "Sale is live!");
             // step == 3: deliberately omit expiredMessage
         } catch (JSONException ignored) { }
@@ -316,10 +314,11 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     private void sendAuctionBid(String event, int step) {
         // Step 0: outbid, step 1: winning, step 2: outbid again, step 3: ended
-        // Step 4: user has no bid in flight — exercises subtext "no user bid" branch.
-        boolean[] highBidder = {false, true, false, false, false};
+        // Step 4: user has no bid in flight. Winning/outbid is now conveyed via statusColor
+        // (server-sent) rather than an SDK-derived boolean.
+        String[] statusColors = {"#CC3330", "#36AE3F", "#CC3330", null, "#CC3330"};
         String[] currentBids = {"1,200", "1,250", "1,300", "1,300", "1,300"};
-        String[] userBids = {"1,150", "1,250", "1,250", "1,250", null};
+        String[] subtitles = {"Your bid: $1,150 · 7 bids", "Your bid: $1,250 · 8 bids", "Your bid: $1,250 · 9 bids", "9 bids", "9 bids"};
         String[] statuses = {
                 "You've been outbid",
                 "You're winning",
@@ -327,20 +326,18 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 "Auction ended",
                 "You haven't bid yet"
         };
-        int[] bidCounts = {7, 8, 9, 9, 9};
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
-            attributes.put("itemTitle", "Vintage Camera");
-            attributes.put("itemImageKey", "auction_camera");
+            attributes.put("title", "Vintage Camera");
+            attributes.put("image", "auction_camera");
             attributes.put("currencySymbol", "$");
 
             contentState.put("currentBid", currentBids[step]);
-            contentState.put("bidCount", bidCounts[step]);
+            contentState.put("subtitle", subtitles[step]);
             contentState.put("endTime", System.currentTimeMillis() + 10L * 60 * 1000);
             contentState.put("statusMessage", statuses[step]);
-            contentState.put("isUserHighBidder", highBidder[step]);
-            if (userBids[step] != null) contentState.put("userBidAmount", userBids[step]);
+            if (statusColors[step] != null) contentState.put("statusColor", statusColors[step]);
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-auction-bid", event, ACTIVITY_TYPE_AUCTION_BID, attributes, contentState));
     }
@@ -408,14 +405,15 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
         if (module == null) return;
         LiveNotificationData.DeliveryTracking data = new LiveNotificationData.DeliveryTracking(
-                /* orderId */ "API-1001",
-                /* statusMessage */ "Out for delivery (started via API)",
-                /* recipientName */ "Mahmoud",
-                /* driverName */ "Sara",
-                /* statusImageKey */ "delivery_truck",
+                /* title */ "Out for delivery (started via API)",
+                /* header */ "Order #API-1001",
+                /* subtitle */ "Driver: Sara",
+                /* image */ "delivery_truck",
                 /* stepCurrent */ 3,
                 /* stepTotal */ 4,
-                /* estimatedArrival */ System.currentTimeMillis() + 30L * 60 * 1000
+                /* estimatedArrival */ System.currentTimeMillis() + 30L * 60 * 1000,
+                /* statusColor */ null,
+                /* staleMessage */ null
         );
         String activityId = module.startLiveNotification(data);
         lastApiActivityId = activityId;
@@ -431,14 +429,15 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
         if (module == null || lastApiActivityId == null) return;
         LiveNotificationData.DeliveryTracking data = new LiveNotificationData.DeliveryTracking(
-                /* orderId */ "API-1001",
-                /* statusMessage */ "Arriving now (updated via API)",
-                /* recipientName */ "Mahmoud",
-                /* driverName */ "Sara",
-                /* statusImageKey */ "delivery_door",
+                /* title */ "Arriving now (updated via API)",
+                /* header */ "Order #API-1001",
+                /* subtitle */ "Driver: Sara",
+                /* image */ "delivery_door",
                 /* stepCurrent */ 4,
                 /* stepTotal */ 4,
-                /* estimatedArrival */ null
+                /* estimatedArrival */ null,
+                /* statusColor */ null,
+                /* staleMessage */ null
         );
         module.updateLiveNotification(lastApiActivityId, data);
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + lastApiActivityId, 2));

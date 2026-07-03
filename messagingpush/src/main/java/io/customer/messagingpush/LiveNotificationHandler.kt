@@ -205,7 +205,9 @@ internal class LiveNotificationHandler(
         val appNotification = SDKComponent.pushModuleConfig.notificationCallback
             ?.createLiveNotification(parsedPayload, context)
         val notification = appNotification ?: result?.let {
-            buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent)
+            // On `end`, the final state must stay posted and be user-dismissible (a swipe
+            // removes it): render it non-ongoing with auto-cancel. Live updates are ongoing.
+            buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent, ongoing = !isEnd)
         }
 
         when {
@@ -246,7 +248,8 @@ internal class LiveNotificationHandler(
         @DrawableRes effectiveSmallIcon: Int,
         result: TemplateRenderResult,
         pendingIntent: PendingIntent,
-        deletePendingIntent: PendingIntent
+        deletePendingIntent: PendingIntent,
+        ongoing: Boolean
     ): Notification = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {
             Api36LiveNotificationBuilder.build(
@@ -269,7 +272,8 @@ internal class LiveNotificationHandler(
                     deleteIntent = deletePendingIntent,
                     countdownUntil = result.countdownUntil,
                     largeIcon = result.largeIcon,
-                    showProgress = result.showProgress
+                    showProgress = result.showProgress,
+                    ongoing = ongoing
                 )
             )
         }
@@ -290,17 +294,19 @@ internal class LiveNotificationHandler(
                     deleteIntent = deletePendingIntent,
                     countdownUntil = result.countdownUntil,
                     largeIcon = result.largeIcon,
-                    showProgress = result.showProgress
+                    showProgress = result.showProgress,
+                    ongoing = ongoing
                 )
             )
         }
     }
 
     /**
-     * On `end`, removes the notification at the server-provided `dismissal_date`
-     * (epoch ms). When absent, the activity is removed immediately — there is no
-     * invented default delay. (Best-effort: a long delay does not survive
-     * process death.)
+     * On `end`, schedules removal of the notification at the server-provided
+     * `dismissal_date` (epoch ms). When absent, the SDK does NOT remove it: the
+     * final end-state stays posted (rendered non-ongoing + auto-cancel above) so
+     * the user can read it and dismiss it with a swipe. (Best-effort: a scheduled
+     * delay does not survive process death.)
      */
     private fun scheduleEndDismissal(
         bundle: Bundle,
@@ -308,11 +314,8 @@ internal class LiveNotificationHandler(
         activityId: String,
         notifId: Int
     ) {
-        val dismissAtMs = bundle.getString(DISMISSAL_DATE_KEY)?.toLongOrNull()
-        if (dismissAtMs == null) {
-            notificationManager.cancel(activityId, notifId)
-            return
-        }
+        // No dismissal_date: leave the end-state visible for the user to dismiss.
+        val dismissAtMs = bundle.getString(DISMISSAL_DATE_KEY)?.toLongOrNull() ?: return
         val delayMs = (dismissAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
         val task = Runnable {
             notificationManager.cancel(activityId, notifId)

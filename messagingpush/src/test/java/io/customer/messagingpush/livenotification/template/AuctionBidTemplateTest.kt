@@ -1,7 +1,9 @@
 package io.customer.messagingpush.livenotification.template
 
+import android.graphics.Color
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.json.JSONObject
 import org.junit.Test
@@ -11,15 +13,13 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Tests for [AuctionBidTemplate].
  *
- * Locks the two visual-state branches that templates lean on for state
- * differentiation: high-bidder (green) vs outbid (red), and the user-bid-amount
- * subtext toggle.
+ * Freeform slots (`title`/`subtitle`/`statusMessage`) are rendered verbatim.
+ * `statusColor` (hex, server-sent) drives the winning/outbid differentiation
+ * instead of the SDK deriving green/red. The typed price (`currencySymbol` +
+ * `currentBid`) fills subText only when no freeform `subtitle` was supplied.
  */
 @RunWith(RobolectricTestRunner::class)
 internal class AuctionBidTemplateTest : IntegrationTest() {
-
-    private val winningGreen = -0xc951c1 // #36AE3F
-    private val outbidRed = -0x33ccd0 // #CC3330
 
     private fun render(
         attributes: JSONObject = JSONObject(),
@@ -33,121 +33,83 @@ internal class AuctionBidTemplateTest : IntegrationTest() {
     )!!
 
     private fun baseAttributes() = JSONObject().apply {
-        put("itemTitle", "Vintage Camera")
-        put("itemImageKey", "auction_camera")
+        put("title", "Vintage Camera")
+        put("image", "auction_camera")
         put("currencySymbol", "$")
     }
 
     @Test
-    fun render_userIsHighBidder_setsGreenAccent() {
+    fun render_givenStatusColor_setsAccentAndColorized() {
         val contentState = JSONObject().apply {
             put("currentBid", "1,250")
-            put("bidCount", 8)
-            put("endTime", 1700000000000L)
             put("statusMessage", "You're winning")
-            put("isUserHighBidder", true)
-            put("userBidAmount", "1,250")
+            put("statusColor", "#36AE3F")
         }
 
         val result = render(baseAttributes(), contentState)
 
-        result.accentColor shouldBeEqualTo winningGreen
+        result.accentColor shouldBeEqualTo Color.parseColor("#36AE3F")
         result.colorized.shouldBeTrue()
     }
 
     @Test
-    fun render_userIsNotHighBidder_setsRedAccent() {
+    fun render_noStatusColor_isNotColorized() {
         val contentState = JSONObject().apply {
             put("currentBid", "1,200")
-            put("bidCount", 7)
             put("statusMessage", "You've been outbid")
-            put("isUserHighBidder", false)
-            put("userBidAmount", "1,150")
         }
 
         val result = render(baseAttributes(), contentState)
 
-        result.accentColor shouldBeEqualTo outbidRed
+        result.colorized.shouldBeFalse()
     }
 
     @Test
-    fun render_withUserBidAmount_subTextIncludesBidAndCount() {
+    fun render_freeformSlotsRenderedVerbatim() {
         val contentState = JSONObject().apply {
             put("currentBid", "1,200")
-            put("bidCount", 7)
+            put("subtitle", "47 bids")
             put("statusMessage", "You've been outbid")
-            put("userBidAmount", "1,150")
         }
 
         val result = render(baseAttributes(), contentState)
 
-        result.subText shouldBeEqualTo "Your bid: $1,150 · 7 bids"
+        result.title shouldBeEqualTo "Vintage Camera"
+        result.body shouldBeEqualTo "You've been outbid"
+        result.subText shouldBeEqualTo "47 bids"
     }
 
     @Test
-    fun render_withoutUserBidAmount_subTextIsBidCountOnly() {
+    fun render_noSubtitle_subTextIsTypedPrice() {
         val contentState = JSONObject().apply {
             put("currentBid", "1,200")
-            put("bidCount", 7)
             put("statusMessage", "Auction live")
         }
 
         val result = render(baseAttributes(), contentState)
 
-        result.subText shouldBeEqualTo "7 bids"
-    }
-
-    @Test
-    fun render_emptyUserBidAmount_subTextIsBidCountOnly() {
-        // Empty string is treated as absent by the template (takeIf isNotEmpty).
-        val contentState = JSONObject().apply {
-            put("currentBid", "1,200")
-            put("bidCount", 9)
-            put("statusMessage", "x")
-            put("userBidAmount", "")
-        }
-
-        val result = render(baseAttributes(), contentState)
-
-        result.subText shouldBeEqualTo "9 bids"
+        result.subText shouldBeEqualTo "$1,200"
     }
 
     @Test
     fun render_defaultsCurrencySymbolToDollar() {
         val attributes = JSONObject().apply {
-            put("itemTitle", "Vintage Camera")
+            put("title", "Vintage Camera")
         }
         val contentState = JSONObject().apply {
             put("currentBid", "100")
-            put("bidCount", 1)
             put("statusMessage", "Start")
         }
 
         val result = render(attributes, contentState)
 
-        result.body shouldBeEqualTo "Start · $100"
-    }
-
-    @Test
-    fun render_bodyComposesStatusMessageAndCurrentBid() {
-        val contentState = JSONObject().apply {
-            put("currentBid", "1,300")
-            put("bidCount", 9)
-            put("statusMessage", "You've been outbid")
-            put("isUserHighBidder", false)
-            put("userBidAmount", "1,250")
-        }
-
-        val result = render(baseAttributes(), contentState)
-
-        result.body shouldBeEqualTo "You've been outbid · $1,300"
+        result.subText shouldBeEqualTo "$100"
     }
 
     @Test
     fun render_endTimeNonPositive_countdownUntilIsNull() {
         val contentState = JSONObject().apply {
             put("currentBid", "1")
-            put("bidCount", 0)
             put("statusMessage", "x")
             put("endTime", 0L)
         }

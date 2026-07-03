@@ -21,18 +21,38 @@ import io.customer.sdk.core.pipeline.DataPipeline
  * as the `pushToStartToken` on registration.
  */
 internal interface LiveNotificationLifecycleClient {
-    /** `start` edge op: a live activity was started locally on this device. */
-    fun reportStart(instanceUUID: String, activityType: String, deviceId: String, payload: Map<String, Any?>)
+    /**
+     * `start` edge op: a live activity was started locally on this device.
+     * Carries the static [attributes] and dynamic [contentState] as separate
+     * event properties (matching iOS's ActivityKit envelope).
+     */
+    fun reportStart(
+        instanceUUID: String,
+        activityType: String,
+        deviceId: String,
+        attributes: Map<String, Any?>,
+        contentState: Map<String, Any?>
+    )
 
     /**
      * `update` edge op: the activity's content changed — either an `update` push
      * arrived from the server or the host app called `updateLiveNotification`.
-     * Carries the new content as [payload].
+     * Carries only the new dynamic content as [contentState] (attributes are
+     * static and set at start).
      */
-    fun reportUpdate(instanceUUID: String, activityType: String, deviceId: String, payload: Map<String, Any?>)
+    fun reportUpdate(instanceUUID: String, activityType: String, deviceId: String, contentState: Map<String, Any?>)
 
-    /** `end` edge op: the user dismissed the live notification. */
-    fun reportEnd(instanceUUID: String, activityType: String, deviceId: String)
+    /**
+     * `end` edge op: the user dismissed the live notification. May carry a final
+     * dynamic [contentState] (the backend supports an end content-state); omitted
+     * when empty.
+     */
+    fun reportEnd(
+        instanceUUID: String,
+        activityType: String,
+        deviceId: String,
+        contentState: Map<String, Any?> = emptyMap()
+    )
 
     /**
      * `register_push_to_start` edge op. On Android the FCM token is sent as both
@@ -52,7 +72,8 @@ internal class LiveNotificationLifecycleClientImpl(
         instanceUUID: String,
         activityType: String,
         deviceId: String,
-        payload: Map<String, Any?>
+        attributes: Map<String, Any?>,
+        contentState: Map<String, Any?>
     ) {
         track(
             event = EVENT_LIVE_NOTIFICATION,
@@ -62,8 +83,10 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
-                // `payload` is the activity's content; optional per the contract.
-                if (payload.isNotEmpty()) put(PROP_PAYLOAD, payload)
+                // Start carries both the static `attributes` and dynamic `contentState`;
+                // both optional per the contract (omitted when empty).
+                if (attributes.isNotEmpty()) put(PROP_ATTRIBUTES, attributes)
+                if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
             }
         )
     }
@@ -72,7 +95,7 @@ internal class LiveNotificationLifecycleClientImpl(
         instanceUUID: String,
         activityType: String,
         deviceId: String,
-        payload: Map<String, Any?>
+        contentState: Map<String, Any?>
     ) {
         track(
             event = EVENT_LIVE_NOTIFICATION,
@@ -82,22 +105,29 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
-                // `payload` is the activity's new content; optional per the contract.
-                if (payload.isNotEmpty()) put(PROP_PAYLOAD, payload)
+                // Update carries only the new dynamic `contentState`; optional per the contract.
+                if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
             }
         )
     }
 
-    override fun reportEnd(instanceUUID: String, activityType: String, deviceId: String) {
+    override fun reportEnd(
+        instanceUUID: String,
+        activityType: String,
+        deviceId: String,
+        contentState: Map<String, Any?>
+    ) {
         track(
             event = EVENT_LIVE_NOTIFICATION,
-            properties = mapOf(
-                PROP_EVENT_TYPE to EVENT_TYPE_END,
-                PROP_INSTANCE_UUID to instanceUUID,
-                PROP_DEVICE_ID to deviceId,
-                PROP_PLATFORM to PLATFORM_ANDROID,
-                PROP_NOTIFICATION_TYPE to activityType
-            )
+            properties = buildMap {
+                put(PROP_EVENT_TYPE, EVENT_TYPE_END)
+                put(PROP_INSTANCE_UUID, instanceUUID)
+                put(PROP_DEVICE_ID, deviceId)
+                put(PROP_PLATFORM, PLATFORM_ANDROID)
+                put(PROP_NOTIFICATION_TYPE, activityType)
+                // End may carry an optional final dynamic `contentState`.
+                if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
+            }
         )
     }
 
@@ -141,7 +171,8 @@ internal class LiveNotificationLifecycleClientImpl(
         // Wire key is `notificationType` (the CDP/edge "live activity → live notification"
         // rename); the Android-side parameters keep the `activityType` domain name.
         const val PROP_NOTIFICATION_TYPE = "notificationType"
-        const val PROP_PAYLOAD = "payload"
+        const val PROP_ATTRIBUTES = "attributes"
+        const val PROP_CONTENT_STATE = "contentState"
         const val PROP_PUSH_TO_START_TOKEN = "pushToStartToken"
 
         const val EVENT_TYPE_START = "start"

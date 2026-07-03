@@ -7,20 +7,21 @@ import org.json.JSONObject
 /**
  * `auctionbid` template — current bid + winning/outbid state.
  *
- * Fields: itemTitle (req), itemImageKey (opt), currencySymbol (default `$`),
- * currentBid (req, preformatted string), bidCount (req, int),
- * endTime (req, epoch ms), statusMessage (req), isUserHighBidder (req, bool),
- * userBidAmount (opt, preformatted string).
+ * Freeform slots (rendered verbatim, never composed): `header` (opt),
+ * `title` (req — item), `subtitle` (opt — "47 bids"/your bid),
+ * `statusMessage` (req — winning/outbid/ended).
+ * Typed: `currentBid` (req, preformatted string) + `currencySymbol` (req),
+ * `endTime` (req, epoch ms), `image` (opt), `statusColor` (opt, hex),
+ * `staleMessage` (opt).
  *
- * Strong visual differentiation between winning (green) and outbid (red) states
- * is conveyed via accent color + colorized notification on pre-API-36.
+ * `statusColor` (sent by the server) drives the winning/outbid differentiation
+ * instead of the SDK deriving green/red; when absent, branding/default is used.
+ * The price (`currencySymbol` + `currentBid`) is a typed value shown as subText
+ * when no freeform `subtitle` was provided.
  */
 internal object AuctionBidTemplate : LiveNotificationTemplate {
 
     override val name: String = TemplateRegistry.AUCTION_BID
-
-    private const val WINNING_GREEN: Int = -0xc951c1 // #36AE3F
-    private const val OUTBID_RED: Int = -0x33ccd0 // #CC3330
 
     override fun render(
         context: Context,
@@ -29,34 +30,35 @@ internal object AuctionBidTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult? {
-        val itemTitle = data.optString(AuctionBidFields.ITEM_TITLE)
-        val itemImageKey = data.optStringNonEmpty(AuctionBidFields.ITEM_IMAGE_KEY)
-        val currencySymbol = data.optStringNonEmpty(AuctionBidFields.CURRENCY_SYMBOL) ?: "$"
-        val currentBid = data.optString(AuctionBidFields.CURRENT_BID)
-        val bidCount = data.optInt(AuctionBidFields.BID_COUNT, 0)
-        val endTime = data.optLong(AuctionBidFields.END_TIME).takeIf { it > 0 }
+        val title = data.optString(AuctionBidFields.TITLE)
+        val header = data.optStringNonEmpty(AuctionBidFields.HEADER)
+        val subtitle = data.optStringNonEmpty(AuctionBidFields.SUBTITLE)
         val statusMessage = data.optString(AuctionBidFields.STATUS_MESSAGE)
-        val isUserHighBidder = data.optBoolean(AuctionBidFields.IS_USER_HIGH_BIDDER, false)
-        val userBidAmount = data.optStringNonEmpty(AuctionBidFields.USER_BID_AMOUNT)
+        val image = data.optStringNonEmpty(AuctionBidFields.IMAGE)
+        val currencySymbol = data.optStringNonEmpty(AuctionBidFields.CURRENCY_SYMBOL) ?: "$"
+        val currentBid = data.optStringNonEmpty(AuctionBidFields.CURRENT_BID)
+        val endTime = data.optLong(AuctionBidFields.END_TIME).takeIf { it > 0 }
+        val statusColor = data.optColorInt(AuctionBidFields.STATUS_COLOR)
+        val staleMessage = data.optStringNonEmpty(AuctionBidFields.STALE_MESSAGE)
 
-        // No usable content (fields missing / not flattened): don't render a blank notification.
-        if (itemTitle.isBlank() && statusMessage.isBlank() && currentBid.isBlank()) {
+        // No usable content (required `title` missing / not flattened): don't render a blank notification.
+        if (title.isBlank()) {
             return null
         }
 
-        val body = "$statusMessage · $currencySymbol$currentBid"
-        val subText = userBidAmount
-            ?.let { "Your bid: $currencySymbol$it · $bidCount bids" }
-            ?: "$bidCount bids"
-        val accentColor = if (isUserHighBidder) WINNING_GREEN else OUTBID_RED
+        // Freeform `subtitle` wins; otherwise show the typed price verbatim.
+        val subText = subtitle
+            ?: currentBid?.let { "$currencySymbol$it" }
+            ?: header
 
         return TemplateRenderResult(
-            title = itemTitle,
-            body = body,
+            title = title,
+            // A stale push carries `staleMessage` as the current state's message; show it verbatim.
+            body = staleMessage ?: statusMessage,
             subText = subText,
-            largeIcon = TemplateAssets.resolveBitmap(context, itemImageKey),
-            accentColor = accentColor,
-            colorized = true,
+            largeIcon = TemplateAssets.resolveBitmap(context, image),
+            accentColor = statusColor ?: branding?.accentColor ?: fallbackTintColor,
+            colorized = statusColor != null,
             showProgress = false,
             progress = 0,
             progressMax = 0,

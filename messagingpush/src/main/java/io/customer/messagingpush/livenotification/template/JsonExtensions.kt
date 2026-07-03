@@ -1,5 +1,7 @@
 package io.customer.messagingpush.livenotification.template
 
+import android.graphics.Color
+import androidx.annotation.ColorInt
 import org.json.JSONObject
 
 /**
@@ -13,4 +15,21 @@ import org.json.JSONObject
 internal fun JSONObject.optStringNonEmpty(key: String): String? {
     if (isNull(key)) return null
     return optString(key).takeIf { it.isNotEmpty() }
+}
+
+/**
+ * Reads the `statusColor` field for [key] and parses it to an `@ColorInt`, or
+ * null when absent/blank/unparseable. Accepts the hex forms `Color.parseColor`
+ * understands (`#RRGGBB`, `#AARRGGBB`, and the named colors); a leading `#` is
+ * added when missing. Callers fall back to branding/default when this is null.
+ */
+@ColorInt
+internal fun JSONObject.optColorInt(key: String): Int? {
+    val raw = optStringNonEmpty(key) ?: return null
+    val candidate = if (raw.startsWith("#")) raw else "#$raw"
+    return try {
+        Color.parseColor(candidate)
+    } catch (e: IllegalArgumentException) {
+        null
+    }
 }

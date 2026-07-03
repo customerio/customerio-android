@@ -40,7 +40,10 @@ internal data class BasicNotificationParams(
     val deleteIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
-    val showProgress: Boolean
+    val showProgress: Boolean,
+    // Live updates are ongoing (non-dismissible); the terminal end-state is posted
+    // non-ongoing + auto-cancel so the user can swipe it away.
+    val ongoing: Boolean = true
 )
 
 /**
@@ -60,7 +63,8 @@ internal object BasicNotificationBuilder {
             .setSmallIcon(params.smallIcon)
             .setContentTitle(params.title)
             .setContentText(params.body)
-            .setOngoing(true)
+            .setOngoing(params.ongoing)
+            .setAutoCancel(!params.ongoing)
             .setOnlyAlertOnce(true)
             .setCategory(category)
             .setStyle(NotificationCompat.BigTextStyle().bigText(params.body))

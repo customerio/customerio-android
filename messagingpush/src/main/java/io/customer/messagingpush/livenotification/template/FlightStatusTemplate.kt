@@ -7,16 +7,16 @@ import org.json.JSONObject
 /**
  * `flightstatus` template — flight progress with optional in-flight progress bar.
  *
- * Fields: flightNumber, origin{code, city}, destination{code, city},
- * statusMessage (req), gate (opt), terminal (opt),
- * scheduledDeparture/estimatedArrival (req, epoch ms), progressFraction (opt, 0–1),
- * delayMinutes (opt).
+ * Freeform slots (rendered verbatim, never composed): `header` (opt),
+ * `status` (opt short label), `title` (req contextual line),
+ * `subtitle` (opt — gate/terminal/zone/bag).
+ * Typed: `origin`/`destination` {code, city} (req), `scheduledDeparture`/
+ * `estimatedArrival` (req, epoch ms), `progressFraction` (opt, 0–1),
+ * `statusColor` (opt, hex), `staleMessage` (opt).
  */
 internal object FlightStatusTemplate : LiveNotificationTemplate {
 
     override val name: String = TemplateRegistry.FLIGHT_STATUS
-
-    private const val DELAY_RED: Int = -0x33ccd0 // #CC3330
 
     override fun render(
         context: Context,
@@ -25,33 +25,21 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult? {
-        val flightNumber = data.optString(FlightStatusFields.FLIGHT_NUMBER)
-        val origin = data.optJSONObject(FlightStatusFields.ORIGIN)
-        val destination = data.optJSONObject(FlightStatusFields.DESTINATION)
-        val originCode = origin?.optString(AirportFields.CODE).orEmpty()
-        val destinationCode = destination?.optString(AirportFields.CODE).orEmpty()
+        val title = data.optString(FlightStatusFields.TITLE)
+        val status = data.optStringNonEmpty(FlightStatusFields.STATUS)
+        val subtitle = data.optStringNonEmpty(FlightStatusFields.SUBTITLE)
 
-        val statusMessage = data.optString(FlightStatusFields.STATUS_MESSAGE)
-        val gate = data.optStringNonEmpty(FlightStatusFields.GATE)
-        val terminal = data.optStringNonEmpty(FlightStatusFields.TERMINAL)
         val scheduledDeparture = data.optLong(FlightStatusFields.SCHEDULED_DEPARTURE).takeIf { it > 0 }
         val estimatedArrival = data.optLong(FlightStatusFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
         val progressFractionRaw =
             if (data.has(FlightStatusFields.PROGRESS_FRACTION)) data.optDouble(FlightStatusFields.PROGRESS_FRACTION) else Double.NaN
         val progressFraction = progressFractionRaw.takeIf { !it.isNaN() }
-        val delayMinutes = data.optInt(FlightStatusFields.DELAY_MINUTES, 0).takeIf { it > 0 }
+        val statusColor = data.optColorInt(FlightStatusFields.STATUS_COLOR)
+        val staleMessage = data.optStringNonEmpty(FlightStatusFields.STALE_MESSAGE)
 
-        // No usable content (fields missing / not flattened): don't render a blank notification.
-        if (flightNumber.isBlank() && statusMessage.isBlank() && originCode.isBlank() && destinationCode.isBlank()) {
+        // No usable content (required `title` missing / not flattened): don't render a blank notification.
+        if (title.isBlank()) {
             return null
-        }
-
-        val title = "$flightNumber · $originCode → $destinationCode"
-        val subText = "Gate ${gate ?: "TBA"} · Terminal ${terminal ?: "TBA"}"
-        val body = if (delayMinutes != null) {
-            "$statusMessage · Delayed $delayMinutes min"
-        } else {
-            statusMessage
         }
 
         val showProgress = progressFraction != null
@@ -60,17 +48,14 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
             ?.let { (it * 100).toInt() }
             ?: 0
         val countdownUntil = if (showProgress) estimatedArrival else scheduledDeparture
-        val accentColor = when {
-            delayMinutes != null -> DELAY_RED
-            else -> branding?.accentColor ?: fallbackTintColor
-        }
 
         return TemplateRenderResult(
             title = title,
-            body = body,
-            subText = subText,
+            // A stale push carries `staleMessage` as the current state's message; show it verbatim.
+            body = staleMessage ?: status.orEmpty(),
+            subText = subtitle,
             largeIcon = null,
-            accentColor = accentColor,
+            accentColor = statusColor ?: branding?.accentColor ?: fallbackTintColor,
             colorized = false,
             showProgress = showProgress,
             progress = progress,

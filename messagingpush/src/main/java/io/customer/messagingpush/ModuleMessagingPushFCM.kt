@@ -70,8 +70,16 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      *
      * @return the generated `activity_id`, used to correlate subsequent updates.
      */
-    fun startLiveNotification(data: LiveNotificationData): String =
-        startLiveNotification(data.activityType, data.fields())
+    fun startLiveNotification(data: LiveNotificationData): String {
+        val activityId = UUID.randomUUID().toString()
+        SDKComponent.liveNotificationManager.start(
+            activityId = activityId,
+            activityType = data.activityType,
+            attributes = data.attributes(),
+            contentState = data.contentState()
+        )
+        return activityId
+    }
 
     /**
      * Starts a live notification locally for a customer-defined [activityType]
@@ -85,7 +93,14 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      */
     fun startLiveNotification(activityType: String, data: Map<String, Any?>): String {
         val activityId = UUID.randomUUID().toString()
-        SDKComponent.liveNotificationManager.start(activityId, activityType, data)
+        // Custom types have no declared static/dynamic split, so all fields are
+        // treated as dynamic `contentState`; there are no static `attributes`.
+        SDKComponent.liveNotificationManager.start(
+            activityId = activityId,
+            activityType = activityType,
+            attributes = emptyMap(),
+            contentState = data
+        )
         return activityId
     }
 
@@ -97,7 +112,12 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * @param activityId the id returned by [startLiveNotification].
      */
     fun updateLiveNotification(activityId: String, data: LiveNotificationData) =
-        updateLiveNotification(activityId, data.activityType, data.fields())
+        SDKComponent.liveNotificationManager.update(
+            activityId = activityId,
+            activityType = data.activityType,
+            attributes = data.attributes(),
+            contentState = data.contentState()
+        )
 
     /**
      * Updates a live notification previously started via [startLiveNotification]
@@ -107,7 +127,13 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * @param data flattened fields delivered to the renderer.
      */
     fun updateLiveNotification(activityId: String, activityType: String, data: Map<String, Any?>) {
-        SDKComponent.liveNotificationManager.update(activityId, activityType, data)
+        // Custom types have no declared static/dynamic split; all fields are dynamic.
+        SDKComponent.liveNotificationManager.update(
+            activityId = activityId,
+            activityType = activityType,
+            attributes = emptyMap(),
+            contentState = data
+        )
     }
 
     /**

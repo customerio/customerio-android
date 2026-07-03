@@ -13,8 +13,9 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Tests for [CountdownTimerTemplate].
  *
+ * Freeform slots (`title`/`subtitle`/`expiredMessage`) are rendered verbatim.
  * Exercises the three decision branches:
- * - pre-target (`now < targetDate`) ⇒ body = `statusMessage`, countdownUntil = targetDate;
+ * - pre-target (`now < targetDate`) ⇒ body = `subtitle`, countdownUntil = targetDate;
  * - post-target with `expiredMessage` ⇒ body = `expiredMessage`, countdownUntil = null;
  * - post-target without `expiredMessage` ⇒ `cancelImmediately = true` so the
  *   handler can dismiss the activity rather than render a stale countdown.
@@ -35,21 +36,23 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
 
     private fun titleAttributes(title: String = "Flash Sale") = JSONObject().apply {
         put("title", title)
-        put("heroImageKey", "flash_sale_hero")
+        put("header", "Limited time")
+        put("image", "flash_sale_hero")
     }
 
     @Test
-    fun render_preTarget_setsCountdownAndStatusBody() {
+    fun render_preTarget_setsCountdownAndSubtitleBody() {
         val future = System.currentTimeMillis() + 60_000L
         val contentState = JSONObject().apply {
             put("targetDate", future)
-            put("statusMessage", "Sale starts in")
+            put("subtitle", "Sale ends in")
         }
 
         val result = render(titleAttributes(), contentState)
 
         result.title shouldBeEqualTo "Flash Sale"
-        result.body shouldBeEqualTo "Sale starts in"
+        result.body shouldBeEqualTo "Sale ends in"
+        result.subText shouldBeEqualTo "Limited time"
         result.countdownUntil shouldBeEqualTo future
         result.cancelImmediately.shouldBeFalse()
     }
@@ -59,7 +62,7 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
         val past = System.currentTimeMillis() - 60_000L
         val contentState = JSONObject().apply {
             put("targetDate", past)
-            put("statusMessage", "Sale starts in")
+            put("subtitle", "Sale ends in")
             put("expiredMessage", "Sale is live!")
         }
 
@@ -75,7 +78,7 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
         val past = System.currentTimeMillis() - 60_000L
         val contentState = JSONObject().apply {
             put("targetDate", past)
-            put("statusMessage", "Sale starts in")
+            put("subtitle", "Sale ends in")
         }
 
         val result = render(titleAttributes(), contentState)
@@ -88,25 +91,25 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
     @Test
     fun render_targetDateAbsent_isTreatedAsPreTarget() {
         // Spec: targetDate is required. Lenient parsing — missing targetDate must not
-        // crash; should render with countdownUntil = null and body = statusMessage.
+        // crash; should render with countdownUntil = null and body = subtitle.
         val contentState = JSONObject().apply {
-            put("statusMessage", "Sale starts in")
+            put("subtitle", "Sale ends in")
         }
 
         val result = render(titleAttributes(), contentState)
 
-        result.body shouldBeEqualTo "Sale starts in"
+        result.body shouldBeEqualTo "Sale ends in"
         result.countdownUntil.shouldBeNull()
         result.cancelImmediately.shouldBeFalse()
     }
 
     @Test
-    fun render_emptyHeroImageKey_returnsNullLargeIcon() {
+    fun render_emptyImageKey_returnsNullLargeIcon() {
         val attributes = JSONObject().apply {
             put("title", "x")
         }
         val contentState = JSONObject().apply {
-            put("statusMessage", "x")
+            put("subtitle", "x")
         }
 
         val result = render(attributes, contentState)

@@ -7,9 +7,11 @@ import org.json.JSONObject
 /**
  * `deliverytracking` template — segmented progress bar over delivery stages.
  *
- * Fields: orderId (req), recipientName (opt), statusMessage (req),
- * statusImageKey (opt), stepCurrent/stepTotal (req), estimatedArrival (opt,
- * epoch ms), driverName (opt).
+ * Freeform slots (rendered verbatim, never composed): `header` (opt),
+ * `title` (req), `subtitle` (opt — recipient/driver/detail).
+ * Typed: `image` (opt), `stepCurrent`/`stepTotal` (progress, req),
+ * `estimatedArrival` (opt, epoch ms), `statusColor` (opt, hex),
+ * `staleMessage` (opt).
  */
 internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
 
@@ -22,36 +24,30 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult? {
-        val orderId = data.optString(DeliveryTrackingFields.ORDER_ID)
-        val recipientName = data.optStringNonEmpty(DeliveryTrackingFields.RECIPIENT_NAME)
-        val statusMessage = data.optString(DeliveryTrackingFields.STATUS_MESSAGE)
-        val statusImageKey = data.optStringNonEmpty(DeliveryTrackingFields.STATUS_IMAGE_KEY)
+        val header = data.optStringNonEmpty(DeliveryTrackingFields.HEADER)
+        val title = data.optString(DeliveryTrackingFields.TITLE)
+        val subtitle = data.optStringNonEmpty(DeliveryTrackingFields.SUBTITLE)
+        val image = data.optStringNonEmpty(DeliveryTrackingFields.IMAGE)
         val stepCurrent = data.optInt(DeliveryTrackingFields.STEP_CURRENT, 0)
         val stepTotal = data.optInt(DeliveryTrackingFields.STEP_TOTAL, 1).coerceAtLeast(1)
         val estimatedArrival = data.optLong(DeliveryTrackingFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
-        val driverName = data.optStringNonEmpty(DeliveryTrackingFields.DRIVER_NAME)
+        val statusColor = data.optColorInt(DeliveryTrackingFields.STATUS_COLOR)
+        val staleMessage = data.optStringNonEmpty(DeliveryTrackingFields.STALE_MESSAGE)
 
-        // No usable content (fields missing / not flattened): don't render a blank notification.
-        if (orderId.isBlank() && statusMessage.isBlank() && recipientName == null && driverName == null) {
+        // No usable content (required `title` missing / not flattened): don't render a blank notification.
+        if (title.isBlank()) {
             return null
-        }
-
-        val title = recipientName?.let { "Delivery for $it" } ?: "Order #$orderId"
-        val subText = when {
-            driverName != null && orderId.isNotEmpty() -> "Driver: $driverName · Order #$orderId"
-            driverName != null -> "Driver: $driverName"
-            orderId.isNotEmpty() -> "Order #$orderId"
-            else -> null
         }
 
         val segments = List(stepTotal) { SegmentSpec(length = 1) }
 
         return TemplateRenderResult(
             title = title,
-            body = statusMessage,
-            subText = subText,
-            largeIcon = TemplateAssets.resolveBitmap(context, statusImageKey),
-            accentColor = branding?.accentColor ?: fallbackTintColor,
+            // A stale push carries `staleMessage` as the current state's message; show it verbatim.
+            body = staleMessage ?: subtitle.orEmpty(),
+            subText = header,
+            largeIcon = TemplateAssets.resolveBitmap(context, image),
+            accentColor = statusColor ?: branding?.accentColor ?: fallbackTintColor,
             colorized = false,
             showProgress = true,
             progress = stepCurrent.coerceIn(0, stepTotal),

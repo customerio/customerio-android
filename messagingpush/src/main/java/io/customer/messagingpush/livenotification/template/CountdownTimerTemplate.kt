@@ -5,12 +5,15 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `countdowntimer` template — chronometer ticking toward [targetDate].
+ * `countdowntimer` template — chronometer ticking toward `targetDate`.
  *
- * Fields: title (req), heroImageKey (opt), targetDate (req, epoch ms —
- * extendable across pushes), statusMessage (req, label above timer),
- * expiredMessage (opt). Post-target with no expiredMessage means the activity
- * should hide; SDK signals this via [TemplateRenderResult.cancelImmediately].
+ * Freeform slots (rendered verbatim, never composed): `header` (opt),
+ * `title` (req), `subtitle` (req — label above timer, e.g. "Sale ends in"),
+ * `expiredMessage` (opt).
+ * Typed: `targetDate` (req, epoch ms — extendable across pushes), `image` (opt),
+ * `statusColor` (opt, hex), `staleMessage` (opt). Post-target with no
+ * `expiredMessage` means the activity should hide; the SDK signals this via
+ * [TemplateRenderResult.cancelImmediately].
  */
 internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
@@ -23,15 +26,18 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
         smallIcon: Int,
         fallbackTintColor: Int?
     ): TemplateRenderResult? {
+        val header = data.optStringNonEmpty(CountdownTimerFields.HEADER)
         val title = data.optString(CountdownTimerFields.TITLE)
-        val heroImageKey = data.optStringNonEmpty(CountdownTimerFields.HERO_IMAGE_KEY)
+        val subtitle = data.optString(CountdownTimerFields.SUBTITLE)
+        val image = data.optStringNonEmpty(CountdownTimerFields.IMAGE)
         val targetDate = data.optLong(CountdownTimerFields.TARGET_DATE).takeIf { it > 0 }
-        val statusMessage = data.optString(CountdownTimerFields.STATUS_MESSAGE)
         val expiredMessage = data.optStringNonEmpty(CountdownTimerFields.EXPIRED_MESSAGE)
+        val statusColor = data.optColorInt(CountdownTimerFields.STATUS_COLOR)
+        val staleMessage = data.optStringNonEmpty(CountdownTimerFields.STALE_MESSAGE)
 
-        // No usable content (fields missing / not flattened): don't render a blank notification.
+        // No usable content (required `title` missing / not flattened): don't render a blank notification.
         // A real countdown always carries a targetDate, so this never blocks a post-target hide.
-        if (title.isBlank() && statusMessage.isBlank() && expiredMessage == null && targetDate == null) {
+        if (title.isBlank() && targetDate == null) {
             return null
         }
 
@@ -42,10 +48,11 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
         return TemplateRenderResult(
             title = title,
-            body = if (isPostTarget) expiredMessage.orEmpty() else statusMessage,
-            subText = null,
-            largeIcon = if (cancelImmediately) null else TemplateAssets.resolveBitmap(context, heroImageKey),
-            accentColor = if (cancelImmediately) null else (branding?.accentColor ?: fallbackTintColor),
+            // A stale push carries `staleMessage` as the current state's message; show it verbatim.
+            body = staleMessage ?: (if (isPostTarget) expiredMessage.orEmpty() else subtitle),
+            subText = header,
+            largeIcon = if (cancelImmediately) null else TemplateAssets.resolveBitmap(context, image),
+            accentColor = if (cancelImmediately) null else (statusColor ?: branding?.accentColor ?: fallbackTintColor),
             colorized = false,
             showProgress = false,
             progress = 0,

@@ -1,5 +1,6 @@
 package io.customer.messagingpush.livenotification.template
 
+import android.graphics.Color
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
@@ -10,11 +11,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Tests [DeliveryTrackingTemplate] rendering against the documented field schema.
+ * Tests [DeliveryTrackingTemplate] rendering against the finalized field
+ * contract: freeform slots (`header`/`title`/`subtitle`) are rendered verbatim
+ * (never composed) and `statusColor` (hex) drives the accent color.
  *
- * All fields arrive flattened in a single `data` object; the legacy
- * `attributes` / `content_state` grouping in these tests is purely for
- * readability and is merged via [flatten] before rendering.
+ * All fields arrive flattened in a single `data` object; the `attributes` /
+ * `contentState` grouping in these tests is purely for readability and is merged
+ * via [flatten] before rendering.
  */
 @RunWith(RobolectricTestRunner::class)
 internal class DeliveryTrackingTemplateTest : IntegrationTest() {
@@ -32,8 +35,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
 
     @Test
     fun render_givenNoUsableContent_returnsNull() {
-        // Payload arrived without the fields the template needs (e.g. content not flattened):
-        // render returns null so the handler skips posting instead of showing a blank notification.
+        // Required `title` missing: render returns null so the handler skips posting.
         val result = DeliveryTrackingTemplate.render(
             context = contextMock,
             data = JSONObject(),
@@ -46,25 +48,40 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     }
 
     @Test
-    fun render_givenAllFields_producesTitleBodySubTextAndProgress() {
+    fun render_givenStaleMessage_bodyShowsStaleMessageVerbatim() {
+        val contentState = JSONObject().apply {
+            put("title", "Out for delivery")
+            put("subtitle", "Driver: Pat")
+            put("staleMessage", "Info may be out of date")
+        }
+
+        val result = render(contentState = contentState)
+
+        // A stale push shows `staleMessage` verbatim as the body, taking over the status line.
+        result.title shouldBeEqualTo "Out for delivery"
+        result.body shouldBeEqualTo "Info may be out of date"
+    }
+
+    @Test
+    fun render_givenAllFields_mapsFreeformSlotsVerbatim() {
         val attributes = JSONObject().apply {
-            put("orderId", "ORD-42")
-            put("recipientName", "Alex")
+            put("header", "Order #ORD-42")
         }
         val contentState = JSONObject().apply {
-            put("statusMessage", "Out for delivery")
-            put("statusImageKey", "delivery_truck")
+            put("title", "Out for delivery")
+            put("subtitle", "Driver: Pat")
+            put("image", "delivery_truck")
             put("stepCurrent", 2)
             put("stepTotal", 4)
             put("estimatedArrival", 1700000000000L)
-            put("driverName", "Pat")
         }
 
         val result = render(attributes, contentState)
 
-        result.title shouldBeEqualTo "Delivery for Alex"
-        result.body shouldBeEqualTo "Out for delivery"
-        result.subText shouldBeEqualTo "Driver: Pat · Order #ORD-42"
+        // Freeform slots are rendered verbatim, never composed.
+        result.title shouldBeEqualTo "Out for delivery"
+        result.body shouldBeEqualTo "Driver: Pat"
+        result.subText shouldBeEqualTo "Order #ORD-42"
         result.showProgress.shouldBeTrue()
         result.progress shouldBeEqualTo 2
         result.progressMax shouldBeEqualTo 4
@@ -73,51 +90,37 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     }
 
     @Test
-    fun render_givenNoRecipientName_fallsBackToOrderTitle() {
-        val attributes = JSONObject().apply {
-            put("orderId", "ORD-77")
-        }
+    fun render_givenNoSubtitleOrHeader_bodyAndSubTextEmpty() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "Preparing")
+            put("title", "Preparing")
             put("stepCurrent", 1)
             put("stepTotal", 3)
         }
 
-        val result = render(attributes, contentState)
-
-        result.title shouldBeEqualTo "Order #ORD-77"
-        result.subText shouldBeEqualTo "Order #ORD-77"
-    }
-
-    @Test
-    fun render_givenNoDriverNoOrderId_subTextIsNull() {
-        val contentState = JSONObject().apply {
-            put("statusMessage", "On the way")
-            put("stepTotal", 3)
-        }
-
         val result = render(contentState = contentState)
 
+        result.title shouldBeEqualTo "Preparing"
+        result.body shouldBeEqualTo ""
         result.subText.shouldBeNull()
     }
 
     @Test
-    fun render_givenDriverButNoOrderId_subTextOmitsOrder() {
+    fun render_givenStatusColor_parsesHexIntoAccent() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "On the way")
-            put("driverName", "Pat")
+            put("title", "Delivered")
+            put("statusColor", "#36AE3F")
             put("stepTotal", 3)
         }
 
         val result = render(contentState = contentState)
 
-        result.subText shouldBeEqualTo "Driver: Pat"
+        result.accentColor shouldBeEqualTo Color.parseColor("#36AE3F")
     }
 
     @Test
     fun render_stepCurrentIsClampedIntoRange() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "Anywhere")
+            put("title", "Anywhere")
             put("stepCurrent", 99)
             put("stepTotal", 4)
         }
@@ -130,7 +133,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     @Test
     fun render_stepCurrentNegative_isClampedToZero() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "Anywhere")
+            put("title", "Anywhere")
             put("stepCurrent", -5)
             put("stepTotal", 4)
         }
@@ -143,7 +146,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     @Test
     fun render_stepTotalMissing_defaultsAtLeastToOne() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "Just placed")
+            put("title", "Just placed")
             put("stepCurrent", 0)
         }
 
@@ -156,7 +159,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     @Test
     fun render_stepTotalZero_isFlooredToOne() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "Edge case")
+            put("title", "Edge case")
             put("stepCurrent", 0)
             put("stepTotal", 0)
         }
@@ -170,7 +173,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     @Test
     fun render_estimatedArrivalNonPositive_countdownUntilIsNull() {
         val contentState = JSONObject().apply {
-            put("statusMessage", "No eta")
+            put("title", "No eta")
             put("estimatedArrival", 0L)
             put("stepTotal", 2)
         }

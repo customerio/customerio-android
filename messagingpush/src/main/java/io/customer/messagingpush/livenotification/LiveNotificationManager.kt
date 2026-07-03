@@ -30,11 +30,22 @@ internal class LiveNotificationManager(
     private val context: Context
         get() = SDKComponent.android().applicationContext
 
-    fun start(activityId: String, activityType: String, fields: Map<String, Any?>) {
-        renderLocally(buildBundle(activityId, activityType, fields, EVENT_START))
+    /**
+     * Starts a live notification locally. [attributes] is the static subset and
+     * [contentState] the dynamic subset (per the finalized field contract); their
+     * union is the flattened bundle the render path reads. The reported `start`
+     * event carries the two subsets separately.
+     */
+    fun start(
+        activityId: String,
+        activityType: String,
+        attributes: Map<String, Any?>,
+        contentState: Map<String, Any?>
+    ) {
+        renderLocally(buildBundle(activityId, activityType, attributes + contentState, EVENT_START))
         // A push-delivered `start` is backend-initiated, so the handler never reports
         // it; a local start is client-initiated, so we report it here.
-        reportStart(activityId, activityType, fields)
+        reportStart(activityId, activityType, attributes, contentState)
     }
 
     /**
@@ -43,10 +54,18 @@ internal class LiveNotificationManager(
      * is the client-initiated (on-device) update path; a push-delivered `update`
      * is backend-initiated and is rendered by [LiveNotificationHandler] without
      * being reported.
+     *
+     * The re-render reads the union of [attributes] and [contentState]; only the
+     * dynamic [contentState] is reported on `update`.
      */
-    fun update(activityId: String, activityType: String, fields: Map<String, Any?>) {
-        renderLocally(buildBundle(activityId, activityType, fields, EVENT_UPDATE))
-        reportUpdate(activityId, activityType, fields)
+    fun update(
+        activityId: String,
+        activityType: String,
+        attributes: Map<String, Any?>,
+        contentState: Map<String, Any?>
+    ) {
+        renderLocally(buildBundle(activityId, activityType, attributes + contentState, EVENT_UPDATE))
+        reportUpdate(activityId, activityType, contentState)
     }
 
     /**
@@ -140,7 +159,12 @@ internal class LiveNotificationManager(
         )
     }
 
-    private fun reportStart(activityId: String, activityType: String, fields: Map<String, Any?>) {
+    private fun reportStart(
+        activityId: String,
+        activityType: String,
+        attributes: Map<String, Any?>,
+        contentState: Map<String, Any?>
+    ) {
         val deviceId = SDKComponent.android().globalPreferenceStore.getDeviceToken()
         if (deviceId.isNullOrBlank()) {
             SDKComponent.logger.debug(
@@ -152,11 +176,12 @@ internal class LiveNotificationManager(
             instanceUUID = activityId,
             activityType = activityType,
             deviceId = deviceId,
-            payload = fields.toJsonSafePayload()
+            attributes = attributes.toJsonSafePayload(),
+            contentState = contentState.toJsonSafePayload()
         )
     }
 
-    private fun reportUpdate(activityId: String, activityType: String, fields: Map<String, Any?>) {
+    private fun reportUpdate(activityId: String, activityType: String, contentState: Map<String, Any?>) {
         val deviceId = SDKComponent.android().globalPreferenceStore.getDeviceToken()
         if (deviceId.isNullOrBlank()) {
             SDKComponent.logger.debug(
@@ -168,7 +193,7 @@ internal class LiveNotificationManager(
             instanceUUID = activityId,
             activityType = activityType,
             deviceId = deviceId,
-            payload = fields.toJsonSafePayload()
+            contentState = contentState.toJsonSafePayload()
         )
     }
 

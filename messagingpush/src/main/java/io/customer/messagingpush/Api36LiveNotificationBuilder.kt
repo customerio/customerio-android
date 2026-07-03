@@ -44,7 +44,10 @@ internal data class Api36LiveNotificationParams(
     val deleteIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
-    val showProgress: Boolean
+    val showProgress: Boolean,
+    // Live updates are ongoing (non-dismissible); the terminal end-state is posted
+    // non-ongoing + auto-cancel so the user can swipe it away.
+    val ongoing: Boolean = true
 )
 
 /**
@@ -74,18 +77,23 @@ internal object Api36LiveNotificationBuilder {
             .setSmallIcon(params.smallIcon)
             .setContentTitle(params.title)
             .setContentText(params.body)
-            .setOngoing(true)
+            .setOngoing(params.ongoing)
+            .setAutoCancel(!params.ongoing)
             .setOnlyAlertOnce(true)
 
-        if (canPostPromotedNotifications(params.context)) {
-            val extras = Bundle().apply {
-                putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+        // Promoted-ongoing treatment only applies while the activity is live; the terminal
+        // end-state is a normal, dismissible notification.
+        if (params.ongoing) {
+            if (canPostPromotedNotifications(params.context)) {
+                val extras = Bundle().apply {
+                    putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+                }
+                builder.addExtras(extras)
+            } else {
+                SDKComponent.logger.debug(
+                    "POST_PROMOTED_NOTIFICATIONS not granted; posting as standard ongoing"
+                )
             }
-            builder.addExtras(extras)
-        } else {
-            SDKComponent.logger.debug(
-                "POST_PROMOTED_NOTIFICATIONS not granted; posting as standard ongoing"
-            )
         }
 
         if (params.showProgress) {

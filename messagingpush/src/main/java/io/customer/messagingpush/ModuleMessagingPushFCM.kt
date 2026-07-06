@@ -15,6 +15,7 @@ import io.customer.messagingpush.di.pendingPushDeliveryStore
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.livenotification.LiveNotificationData
+import io.customer.messagingpush.livenotification.ULID
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
@@ -26,7 +27,6 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
-import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -71,7 +71,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * @return the generated `activity_id`, used to correlate subsequent updates.
      */
     fun startLiveNotification(data: LiveNotificationData): String {
-        val activityId = UUID.randomUUID().toString()
+        val activityId = ULID.generate()
         SDKComponent.liveNotificationManager.start(
             activityId = activityId,
             activityType = data.activityType,
@@ -92,7 +92,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * @return the generated `activity_id`.
      */
     fun startLiveNotification(activityType: String, data: Map<String, Any?>): String {
-        val activityId = UUID.randomUUID().toString()
+        val activityId = ULID.generate()
         // Custom types have no declared static/dynamic split, so all fields are
         // treated as dynamic `contentState`; there are no static `attributes`.
         SDKComponent.liveNotificationManager.start(

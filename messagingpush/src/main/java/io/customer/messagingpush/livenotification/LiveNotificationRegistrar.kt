@@ -18,10 +18,19 @@ import io.customer.sdk.core.di.SDKComponent.eventBus
  *
  * The signature dedup means re-identifying the same user with the same token —
  * e.g. on every app launch — does NOT re-send the same registrations. A new
- * token or a new user yields a new signature and re-registers. Live
- * notifications are auth-only: events for anonymous users are dropped by
- * [LiveNotificationLifecycleClient] (no signature stored), so a registration
- * skipped while anonymous re-fires once the user is identified.
+ * token or a new user yields a new signature and re-registers.
+ *
+ * Live notifications are auth-only. This registrar is the authoritative identity
+ * gate for registration: it registers only while [isIdentified], which it derives
+ * directly from [Event.UserChangedEvent] (`userId != null`). It deliberately does
+ * NOT rely on the data pipeline's `isUserIdentified` flag here, because that flag
+ * reads a cached user id that updates asynchronously *after* the identify — on the
+ * login turn it can still read false when this subscriber runs, which previously
+ * dropped the registration with no later trigger to re-fire it that launch. The
+ * event carries the identity synchronously, so gating on it closes that race
+ * without waiting/polling. (The track event's own user attribution is handled by
+ * the analytics store, whose reducer has already applied the identify by the time
+ * the registration is enqueued.)
  */
 internal class LiveNotificationRegistrar(
     private val client: LiveNotificationLifecycleClient,
@@ -34,6 +43,10 @@ internal class LiveNotificationRegistrar(
     @Volatile
     private var userId: String = ""
 
+    /** Whether the current profile is identified, per the latest [Event.UserChangedEvent]. */
+    @Volatile
+    private var isIdentified: Boolean = false
+
     private val enabledTypes: Set<String>
         get() = SDKComponent.pushModuleConfig.liveNotificationTypes
 
@@ -41,31 +54,45 @@ internal class LiveNotificationRegistrar(
         // Drop dedup entries for activities that ended long ago without an explicit `end`.
         store.trimStaleTimestamps()
 
-        eventBus.subscribe(Event.RegisterDeviceTokenEvent::class) { event ->
-            token = event.token
-            registerAll()
-        }
-        eventBus.subscribe(Event.UserChangedEvent::class) { event ->
-            userId = event.userId ?: event.anonymousId
-            registerAll()
-        }
-        eventBus.subscribe(Event.DeleteDeviceTokenEvent::class) {
-            // No token ⇒ nothing to register; a new token re-registers via its own signature.
-            // We deliberately do NOT clear stored signatures here: doing so made the routine
-            // delete+re-register token cycle on identify re-send every registration on each launch.
-            token = null
-        }
-        eventBus.subscribe(Event.ResetEvent::class) {
-            // Logout: remove the user's live notifications (no `end` event is sent) so they
-            // don't linger for the next user, and clear registrations so the next identified
-            // user re-registers. ResetEvent only fires on explicit clearIdentify, so unlike the
-            // routine token cycle above it's safe to clear signatures here.
-            SDKComponent.liveNotificationManager.cancelAllActivities()
-            store.clearRegistrations()
-        }
+        eventBus.subscribe(Event.RegisterDeviceTokenEvent::class) { onDeviceTokenChanged(it.token) }
+        eventBus.subscribe(Event.UserChangedEvent::class) { onUserChanged(it) }
+        eventBus.subscribe(Event.DeleteDeviceTokenEvent::class) { onDeviceTokenDeleted() }
+        eventBus.subscribe(Event.ResetEvent::class) { onReset() }
+    }
+
+    internal fun onDeviceTokenChanged(newToken: String) {
+        token = newToken
+        registerAll()
+    }
+
+    internal fun onUserChanged(event: Event.UserChangedEvent) {
+        userId = event.userId ?: event.anonymousId
+        // Authoritative identity signal — carried synchronously by the event, unlike the
+        // pipeline's asynchronously-updated isUserIdentified flag.
+        isIdentified = event.userId != null
+        registerAll()
+    }
+
+    internal fun onDeviceTokenDeleted() {
+        // No token ⇒ nothing to register; a new token re-registers via its own signature.
+        // We deliberately do NOT clear stored signatures here: doing so made the routine
+        // delete+re-register token cycle on identify re-send every registration on each launch.
+        token = null
+    }
+
+    internal fun onReset() {
+        // Logout: remove the user's live notifications (no `end` event is sent) so they
+        // don't linger for the next user, and clear registrations so the next identified
+        // user re-registers. ResetEvent only fires on explicit clearIdentify, so unlike the
+        // routine token cycle above it's safe to clear signatures here.
+        SDKComponent.liveNotificationManager.cancelAllActivities()
+        store.clearRegistrations()
     }
 
     private fun registerAll() {
+        // Register only for identified users. This is the single identity gate for registration;
+        // the client no longer re-checks the (laggy) pipeline flag for the token event.
+        if (!isIdentified) return
         val currentToken = token ?: return
         val signature = "$currentToken|$userId"
         for (activityType in enabledTypes) {

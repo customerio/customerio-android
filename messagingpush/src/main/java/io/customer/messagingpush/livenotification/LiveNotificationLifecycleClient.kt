@@ -140,17 +140,27 @@ internal class LiveNotificationLifecycleClientImpl(
                 PROP_PLATFORM to PLATFORM_ANDROID,
                 PROP_DEVICE_ID to deviceId,
                 PROP_PUSH_TO_START_TOKEN to deviceId
-            )
+            ),
+            // Identity is gated authoritatively upstream by LiveNotificationRegistrar (which only
+            // registers for identified users, keyed off UserChangedEvent). Re-reading the
+            // pipeline's isUserIdentified flag here would re-introduce the login-turn race: the
+            // flag can still read false right after identify, dropping the registration with no
+            // retry. The analytics store attributes this track to the identified user regardless.
+            requireIdentifiedUser = false
         )
 
-    /** Emits [event]; returns true if it was sent (pipeline ready + user identified). */
-    private fun track(event: String, properties: Map<String, Any?>): Boolean {
+    /**
+     * Emits [event]; returns true if it was sent. Requires the pipeline to be ready, and — unless
+     * [requireIdentifiedUser] is false — an identified user (lifecycle events are auth-only; the
+     * registration event gates identity upstream in the registrar instead).
+     */
+    private fun track(event: String, properties: Map<String, Any?>, requireIdentifiedUser: Boolean = true): Boolean {
         val pipeline = dataPipelineProvider()
         if (pipeline == null) {
             SDKComponent.logger.debug("Data pipeline unavailable; dropping live notification event '$event'.")
             return false
         }
-        if (!pipeline.isUserIdentified) {
+        if (requireIdentifiedUser && !pipeline.isUserIdentified) {
             SDKComponent.logger.debug("Live notifications require an identified user; dropping event '$event'.")
             return false
         }

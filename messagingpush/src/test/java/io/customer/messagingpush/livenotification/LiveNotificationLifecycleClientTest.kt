@@ -171,14 +171,27 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
     }
 
     @Test
-    fun events_areDroppedForAnonymousUser() {
+    fun lifecycleEvents_areDroppedForAnonymousUser() {
         every { pipeline.isUserIdentified } returns false
 
         client.reportStart("inst-1", "type", "fcm-tok", emptyMap(), emptyMap())
+        client.reportUpdate("inst-1", "type", "fcm-tok", emptyMap())
+        client.reportEnd("inst-1", "type", "fcm-tok")
+
+        verify(exactly = 0) { pipeline.track(any(), any()) }
+    }
+
+    @Test
+    fun registerPushToStart_isNotGatedByPipelineIdentity() {
+        // Identity is gated upstream by LiveNotificationRegistrar; the client must NOT re-check the
+        // laggy isUserIdentified flag for the registration event (that re-introduced the login race).
+        every { pipeline.isUserIdentified } returns false
+        every { pipeline.track(any(), any()) } returns Unit
+
         val emitted = client.registerPushToStart("type", "fcm-tok")
 
-        emitted.shouldBeFalse()
-        verify(exactly = 0) { pipeline.track(any(), any()) }
+        emitted.shouldBeTrue()
+        verify(exactly = 1) { pipeline.track(EVENT_LIVE_NOTIFICATION_TOKEN, any()) }
     }
 
     @Test

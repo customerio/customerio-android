@@ -764,4 +764,75 @@ class SseLifecycleManagerTest : JUnitTest() {
         // Then - SSE should NOT start (SSE flag is disabled)
         verify(exactly = 0) { sseConnectionManager.startConnection() }
     }
+
+    // =====================
+    // Backfill fetch on SSE-connect transitions (identify / sse-flag), not just foreground.
+    // SSE does not deliver pending messages on connect, so switching into the SSE-connected
+    // state must fetch existing messages; otherwise a fresh login shows an empty inbox until
+    // the next foreground. Regression for the "inbox empty on fresh login until bg/fg" bug.
+    // =====================
+
+    @Test
+    fun testUserBecomesIdentified_whenForegroundedAndSseEnabled_thenFetchesUserMessages() {
+        // Given - anonymous + SSE enabled + foregrounded
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = null,
+            anonymousId = "anonymous-123"
+        )
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+        // Foregrounding while anonymous does not fetch (polling handles anonymous)
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+
+        // When - user becomes identified (shouldUseSse flips true)
+        stateFlow.value = InAppMessagingState(
+            sseEnabled = true,
+            userId = "user-123",
+            anonymousId = "anonymous-123"
+        )
+        userIdentificationChangeCallback?.invoke(true)
+
+        // Then - backfill fetch fires so existing messages load without a foreground
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun testSseFlagChange_whenForegroundedAndUserIdentified_thenFetchesUserMessages() {
+        // Given - identified user + SSE disabled + foregrounded
+        stateFlow.value = InAppMessagingState(sseEnabled = false, userId = "user-123")
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
+        verify { lifecycle.addObserver(capture(observerSlot)) }
+        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
+        observer.onStart(processLifecycleOwner)
+        // Foregrounding while SSE disabled does not fetch here (polling handles it)
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+
+        // When - SSE flag flips true (shouldUseSse becomes true)
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
+        sseFlagChangeCallback?.invoke(true)
+
+        // Then - backfill fetch fires
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+    }
 }

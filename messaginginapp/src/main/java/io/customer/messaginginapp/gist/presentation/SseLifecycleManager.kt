@@ -72,12 +72,7 @@ internal class SseLifecycleManager(
         // Anonymous users should use polling instead of SSE
         if (state.shouldUseSse) {
             sseLogger.logAppForegrounded()
-            // The SSE endpoint does not send pending messages on connect — it only delivers
-            // new messages that arrive after the connection is established. Perform a one-time
-            // HTTP fetch to retrieve any messages sent while the app was backgrounded and the
-            // SSE connection was disconnected.
-            gistQueue.fetchUserMessages()
-            sseConnectionManager.startConnection()
+            startSseConnectionWithBackfill()
         } else {
             sseLogger.logAppForegroundedSseNotUsed(state.sseEnabled, state.isUserIdentified)
         }
@@ -90,6 +85,21 @@ internal class SseLifecycleManager(
 
         sseLogger.logAppBackgrounded()
         sseConnectionManager.stopConnection()
+    }
+
+    /**
+     * Starts the SSE connection, preceded by a one-time HTTP backfill fetch.
+     *
+     * The SSE endpoint does not send pending messages on connect — it only delivers messages that
+     * arrive AFTER the connection is established. So every transition INTO the SSE-connected state
+     * (app foregrounded, user becomes identified, or the SSE flag is enabled while foregrounded)
+     * must first fetch the messages that already exist for the user. Without this, on a fresh
+     * login the existing inbox is never retrieved until the next foreground — which is why it
+     * previously appeared only after a background/relaunch.
+     */
+    private fun startSseConnectionWithBackfill() {
+        gistQueue.fetchUserMessages()
+        sseConnectionManager.startConnection()
     }
 
     private fun subscribeToSseFlagChanges() {
@@ -106,7 +116,7 @@ internal class SseLifecycleManager(
             // Only start SSE connection if shouldUseSse (enabled AND user identified)
             if (state.shouldUseSse) {
                 sseLogger.logSseEnabledWhileForegrounded()
-                sseConnectionManager.startConnection()
+                startSseConnectionWithBackfill()
             } else if (sseEnabled && !state.isUserIdentified) {
                 // SSE enabled but user is anonymous - don't start SSE
                 sseLogger.logSseEnabledButUserAnonymous()
@@ -135,7 +145,7 @@ internal class SseLifecycleManager(
             if (state.shouldUseSse) {
                 // User became identified and SSE is enabled - start SSE connection
                 sseLogger.logEnablingSseForIdentifiedUser()
-                sseConnectionManager.startConnection()
+                startSseConnectionWithBackfill()
             } else if (!isIdentified && state.sseEnabled) {
                 // User became anonymous and SSE flag is enabled - stop SSE, fall back to polling
                 sseLogger.logDisablingSseForAnonymousUser()

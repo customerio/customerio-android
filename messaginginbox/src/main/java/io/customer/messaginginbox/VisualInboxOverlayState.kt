@@ -1,11 +1,9 @@
 package io.customer.messaginginbox
 
 import io.customer.jist.JistActionEvent
-import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.data.InboxVisibility
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
-import io.customer.messaginginapp.type.InboxActionMessage
 import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -171,7 +169,7 @@ internal class VisualInboxController(
                     markedOpenedQueueIds.add(message.queueId)
                     visualInbox.markMessageOpened(message)
                     // Observational host callback (item 14): a message was marked opened.
-                    notifyListener { messageOpened(message.toActionMessage()) }
+                    notifyListener { messageOpened(message) }
                 }
         } finally {
             markInFlight.set(false)
@@ -197,7 +195,7 @@ internal class VisualInboxController(
             deletedQueueIds.add(queueId)
             visualInbox.markMessageDeleted(message)
             // Observational host callback (item 14): a message was dismissed/removed.
-            notifyListener { messageDismissed(message.toActionMessage()) }
+            notifyListener { messageDismissed(message) }
         } finally {
             deleteInFlight.set(false)
         }
@@ -241,7 +239,7 @@ internal class VisualInboxController(
 
         // Host interception (item 13): true => host handled it, SDK runs no default nav (but still
         // honors the dismiss flag below).
-        val handledByHost = notifyHostHandled(message, event.name, url.orEmpty())
+        val handledByHost = notifyHostHandled(visibility, message, event.name, url.orEmpty())
 
         // SDK default navigation (item 12), unless the host handled it.
         val navigation = if (handledByHost) {
@@ -282,11 +280,13 @@ internal class VisualInboxController(
      * of this controller (the view may recompose/re-render the same row many times). Safe to call
      * from the renderer on every render.
      */
-    fun notifyMessageShown(message: JistInboxMessage) {
+    fun notifyMessageShown(visibility: InboxVisibility, message: JistInboxMessage) {
+        // Resolve the canonical InboxMessage (the same type NotificationInbox.getMessages() returns)
+        // from the visible set so the host receives the full message, not the internal render type.
+        val inboxMessage = (visibility as? InboxVisibility.Visible)
+            ?.messages?.firstOrNull { it.queueId == message.queueId } ?: return
         if (!shownQueueIds.add(message.queueId)) return
-        notifyListener {
-            messageShown(InboxActionMessage(messageId = message.queueId, deliveryId = message.deliveryId))
-        }
+        notifyListener { messageShown(inboxMessage) }
     }
 
     /** Track a clicked metric for [message], once per queueId. Reuses [VisualInbox.trackMessageClicked]. */
@@ -300,11 +300,20 @@ internal class VisualInboxController(
     }
 
     /** Invoke the host listener (if any), returning true if the host handled the action. */
-    private fun notifyHostHandled(message: JistInboxMessage, actionName: String, actionValue: String): Boolean {
+    private fun notifyHostHandled(
+        visibility: InboxVisibility,
+        message: JistInboxMessage,
+        actionName: String,
+        actionValue: String
+    ): Boolean {
         val listener = inboxEventListener ?: return false
+        // Hand the host the canonical InboxMessage (the same type NotificationInbox.getMessages()
+        // returns), resolved from the visible set; a missing message means nothing to intercept.
+        val inboxMessage = (visibility as? InboxVisibility.Visible)
+            ?.messages?.firstOrNull { it.queueId == message.queueId } ?: return false
         return try {
             listener.messageActionTaken(
-                message = InboxActionMessage(messageId = message.queueId, deliveryId = message.deliveryId),
+                message = inboxMessage,
                 actionName = actionName,
                 actionValue = actionValue
             )
@@ -340,10 +349,6 @@ internal class VisualInboxController(
     // Dedupe guard for the observational messageShown callback: notified once per queueId.
     private val shownQueueIds = HashSet<String>()
 }
-
-/** Build the public [InboxActionMessage] identity handed to [InboxEventListener] from an [InboxMessage]. */
-private fun InboxMessage.toActionMessage(): InboxActionMessage =
-    InboxActionMessage(messageId = queueId, deliveryId = deliveryId)
 
 /**
  * The SDK's resolved interpretation of a Jist inbox action, derived from the action's

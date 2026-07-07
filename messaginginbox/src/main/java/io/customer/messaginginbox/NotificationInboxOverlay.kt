@@ -362,7 +362,7 @@ private fun InboxListContent(
                 templates = templates,
                 theme = theme,
                 dividerColor = colors.dividerColor,
-                onMessageShown = controller::notifyMessageShown,
+                onMessageShown = { message -> controller.notifyMessageShown(state.visibility, message) },
                 onMessageAction = { message, event ->
                     // Controller resolves the action (dismiss / track+intercept / default nav) and
                     // returns a nav instruction; we (owning the Context) run it.

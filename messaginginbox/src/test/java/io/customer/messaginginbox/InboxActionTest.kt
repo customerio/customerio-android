@@ -6,7 +6,6 @@ import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.data.Branding
 import io.customer.messaginginapp.inbox.data.InboxVisibility
 import io.customer.messaginginapp.inbox.jist.JistInboxAdapter
-import io.customer.messaginginapp.type.InboxActionMessage
 import io.customer.messaginginapp.type.InboxEventListener
 import io.mockk.mockk
 import io.mockk.verify
@@ -166,9 +165,9 @@ class InboxActionTest {
     fun handleAction_givenHostHandlesAction_expectTrackedAndNoNav() {
         val messages = listOf(message("a"))
         val visualInbox = mockk<VisualInbox>(relaxed = true)
-        val captured = mutableListOf<Triple<InboxActionMessage, String, String>>()
+        val captured = mutableListOf<Triple<InboxMessage, String, String>>()
         val listener = object : InboxEventListener {
-            override fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String): Boolean {
+            override fun messageActionTaken(message: InboxMessage, actionName: String, actionValue: String): Boolean {
                 captured.add(Triple(message, actionName, actionValue))
                 return true // host handled it
             }
@@ -186,7 +185,7 @@ class InboxActionTest {
         // Still tracked (a click happened) and the listener got message id + delivery + action value.
         verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any()) }
         captured.size shouldBeEqualTo 1
-        captured.first().first.messageId shouldBeEqualTo "a"
+        captured.first().first.queueId shouldBeEqualTo "a"
         captured.first().first.deliveryId shouldBeEqualTo "d-a"
         captured.first().third shouldBeEqualTo "https://example.com"
     }
@@ -196,7 +195,7 @@ class InboxActionTest {
         val messages = listOf(message("a"))
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         val listener = object : InboxEventListener {
-            override fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String) = false
+            override fun messageActionTaken(message: InboxMessage, actionName: String, actionValue: String) = false
         }
         val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
 
@@ -214,7 +213,7 @@ class InboxActionTest {
         val messages = listOf(message("a"))
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         val listener = object : InboxEventListener {
-            override fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String): Boolean =
+            override fun messageActionTaken(message: InboxMessage, actionName: String, actionValue: String): Boolean =
                 throw RuntimeException("boom")
         }
         // Relaxed logger: the catch branch logs the listener failure.
@@ -248,10 +247,10 @@ class InboxActionTest {
         val shown = mutableListOf<String>()
         val opened = mutableListOf<String>()
         val dismissed = mutableListOf<String>()
-        override fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String) = false
-        override fun messageShown(message: InboxActionMessage) { shown.add(message.messageId) }
-        override fun messageOpened(message: InboxActionMessage) { opened.add(message.messageId) }
-        override fun messageDismissed(message: InboxActionMessage) { dismissed.add(message.messageId) }
+        override fun messageActionTaken(message: InboxMessage, actionName: String, actionValue: String) = false
+        override fun messageShown(message: InboxMessage) { shown.add(message.queueId) }
+        override fun messageOpened(message: InboxMessage) { opened.add(message.queueId) }
+        override fun messageDismissed(message: InboxMessage) { dismissed.add(message.queueId) }
     }
 
     @Test
@@ -286,10 +285,12 @@ class InboxActionTest {
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         val listener = RecordingListener()
         val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
-        val jist = JistInboxAdapter.toJist(message("a"))
+        val messageA = message("a")
+        val visibility = visible(listOf(messageA))
+        val jist = JistInboxAdapter.toJist(messageA)
 
-        controller.notifyMessageShown(jist)
-        controller.notifyMessageShown(jist)
+        controller.notifyMessageShown(visibility, jist)
+        controller.notifyMessageShown(visibility, jist)
 
         listener.shown shouldBeEqualTo listOf("a")
     }

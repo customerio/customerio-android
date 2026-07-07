@@ -1,5 +1,7 @@
 package io.customer.messaginginapp.type
 
+import io.customer.messaginginapp.gist.data.model.InboxMessage
+
 /**
  * Listener the host app registers to be notified when an action is taken on a visual notification
  * inbox message (e.g. the user taps a button/link inside a rendered message).
@@ -16,51 +18,38 @@ interface InboxEventListener {
     /**
      * Called when a non-dismiss action is taken on an inbox message.
      *
-     * @param message identity of the inbox message the action was taken on.
+     * @param message the inbox message the action was taken on.
      * @param actionName the Jist action name (e.g. `messageAction`).
      * @param actionValue the resolved action value, typically the action's url (may be empty if the
      * action carried no url).
      * @return `true` if the host fully handled the action (the SDK does nothing further); `false`
      * to let the SDK apply its default handling.
      */
-    fun messageActionTaken(message: InboxActionMessage, actionName: String, actionValue: String): Boolean
+    fun messageActionTaken(message: InboxMessage, actionName: String, actionValue: String): Boolean
 
     /**
      * Observational callback fired when a message is first shown/rendered in the inbox view. Fired
      * once per message (deduped) while the view is displayed. Purely informational — it does not
      * affect SDK behavior. Default no-op so the interface stays source-compatible.
      *
-     * @param message identity of the inbox message that was shown.
+     * @param message the inbox message that was shown.
      */
-    fun messageShown(message: InboxActionMessage) {}
+    fun messageShown(message: InboxMessage) {}
 
     /**
      * Observational callback fired when a message is marked opened (the inbox panel opening
      * auto-marks the currently-shown unopened messages). Purely informational. Default no-op so the
      * interface stays source-compatible.
      *
-     * @param message identity of the inbox message that was opened.
+     * @param message the inbox message that was opened.
      */
-    fun messageOpened(message: InboxActionMessage) {}
+    fun messageOpened(message: InboxMessage) {}
 
     /**
      * Observational callback fired when a message is dismissed/removed from the inbox. Purely
      * informational. Default no-op so the interface stays source-compatible.
      *
-     * @param message identity of the inbox message that was dismissed.
+     * @param message the inbox message that was dismissed.
      */
-    fun messageDismissed(message: InboxActionMessage) {}
+    fun messageDismissed(message: InboxMessage) {}
 }
-
-/**
- * Lightweight, public identity of an inbox message handed to [InboxEventListener]. Exposes the
- * stable identifiers a host needs to correlate the action with its own data, without leaking the
- * SDK's internal message/render types.
- *
- * @param messageId the inbox message's queue id.
- * @param deliveryId the message's delivery id, when present.
- */
-data class InboxActionMessage(
-    val messageId: String,
-    val deliveryId: String?
-)

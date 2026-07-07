@@ -5,7 +5,7 @@ import androidx.annotation.NonNull;
 import java.util.Locale;
 
 import io.customer.android.sample.java_layout.utils.Logger;
-import io.customer.messaginginapp.type.InboxActionMessage;
+import io.customer.messaginginapp.gist.data.model.InboxMessage;
 import io.customer.messaginginapp.type.InboxEventListener;
 
 /**
@@ -23,24 +23,24 @@ public class SampleInboxEventListener implements InboxEventListener {
     }
 
     @Override
-    public boolean messageActionTaken(@NonNull InboxActionMessage message, @NonNull String actionName, @NonNull String actionValue) {
-        logEvent("messageActionTaken. name: %s, value: %s, message: %s", actionName, actionValue, message.getMessageId());
+    public boolean messageActionTaken(@NonNull InboxMessage message, @NonNull String actionName, @NonNull String actionValue) {
+        logEvent("messageActionTaken. name: %s, value: %s, message: %s", actionName, actionValue, message.getQueueId());
         return false;
     }
 
     @Override
-    public void messageShown(@NonNull InboxActionMessage message) {
-        logEvent("messageShown. message: %s", message.getMessageId());
+    public void messageShown(@NonNull InboxMessage message) {
+        logEvent("messageShown. message: %s", message.getQueueId());
     }
 
     @Override
-    public void messageOpened(@NonNull InboxActionMessage message) {
-        logEvent("messageOpened. message: %s", message.getMessageId());
+    public void messageOpened(@NonNull InboxMessage message) {
+        logEvent("messageOpened. message: %s", message.getQueueId());
     }
 
     @Override
-    public void messageDismissed(@NonNull InboxActionMessage message) {
-        logEvent("messageDismissed. message: %s", message.getMessageId());
+    public void messageDismissed(@NonNull InboxMessage message) {
+        logEvent("messageDismissed. message: %s", message.getQueueId());
     }
 
     private void logEvent(@NonNull String format, @NonNull Object... args) {

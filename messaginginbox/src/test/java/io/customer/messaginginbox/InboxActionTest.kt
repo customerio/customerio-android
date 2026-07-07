@@ -172,7 +172,7 @@ class InboxActionTest {
                 return true // host handled it
             }
         }
-        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+        val controller = VisualInboxController(visualInbox, inboxEventListenerProvider = { listener })
 
         val nav = controller.handleAction(
             visible(messages),
@@ -197,7 +197,7 @@ class InboxActionTest {
         val listener = object : InboxEventListener {
             override fun messageActionTaken(message: InboxMessage, actionName: String, actionValue: String) = false
         }
-        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+        val controller = VisualInboxController(visualInbox, inboxEventListenerProvider = { listener })
 
         val nav = controller.handleAction(
             visible(messages),
@@ -217,7 +217,7 @@ class InboxActionTest {
                 throw RuntimeException("boom")
         }
         // Relaxed logger: the catch branch logs the listener failure.
-        val controller = VisualInboxController(visualInbox, inboxEventListener = listener, logger = mockk(relaxed = true))
+        val controller = VisualInboxController(visualInbox, inboxEventListenerProvider = { listener }, logger = mockk(relaxed = true))
 
         val nav = controller.handleAction(
             visible(messages),
@@ -258,7 +258,7 @@ class InboxActionTest {
         val messages = listOf(message("a"), message("b"))
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         val listener = RecordingListener()
-        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+        val controller = VisualInboxController(visualInbox, inboxEventListenerProvider = { listener })
 
         controller.markOpenMessagesOpened(visible(messages))
 
@@ -272,7 +272,7 @@ class InboxActionTest {
         val messages = listOf(message("a"))
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         val listener = RecordingListener()
-        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+        val controller = VisualInboxController(visualInbox, inboxEventListenerProvider = { listener })
 
         controller.dismissMessage(visible(messages), "a")
 
@@ -284,7 +284,7 @@ class InboxActionTest {
     fun notifyMessageShown_calledTwiceSameMessage_expectShownFiredOnce() {
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         val listener = RecordingListener()
-        val controller = VisualInboxController(visualInbox, inboxEventListener = listener)
+        val controller = VisualInboxController(visualInbox, inboxEventListenerProvider = { listener })
         val messageA = message("a")
         val visibility = visible(listOf(messageA))
         val jist = JistInboxAdapter.toJist(messageA)

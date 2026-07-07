@@ -521,8 +521,9 @@ private fun rememberInboxController(): VisualInboxController = remember {
     VisualInboxController(
         visualInbox = module.visualInbox(),
         // Host-registered inbox action/event listener (items 13/14), mirroring the in-app
-        // eventListener; resolved from the same module config the host built. Null when none set.
-        inboxEventListener = module.moduleConfig.inboxEventListener
+        // eventListener. Read from the module on each callback so a listener registered at runtime
+        // via ModuleMessagingInApp.setInboxEventListener takes effect; null when none is set.
+        inboxEventListenerProvider = { module.inboxEventListener }
     )
 }
 

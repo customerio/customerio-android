@@ -53,10 +53,11 @@ internal data class VisualInboxUiState(
  */
 internal class VisualInboxController(
     private val visualInbox: VisualInbox,
-    // Host-registered listener (item 13) notified when a non-dismiss action is taken. When it
-    // returns true the host handled the action and the SDK skips its default navigation. Resolved
-    // from the in-app module config at construction; null when the host registered none.
-    private val inboxEventListener: InboxEventListener? = null,
+    // Provider for the host-registered listener (item 13) notified when a non-dismiss action is
+    // taken. When it returns true the host handled the action and the SDK skips its default
+    // navigation. Invoked on each callback (not snapshotted) so a listener registered at runtime via
+    // ModuleMessagingInApp.setInboxEventListener takes effect; returns null when none is registered.
+    private val inboxEventListenerProvider: () -> InboxEventListener? = { null },
     // Logger for action diagnostics. Defaults to the SDK logger; injectable so unit tests can pass a
     // relaxed mock (the real LogcatLogger calls android.util.Log, which is not mocked on the JVM).
     private val logger: Logger = SDKComponent.logger,
@@ -306,7 +307,7 @@ internal class VisualInboxController(
         actionName: String,
         actionValue: String
     ): Boolean {
-        val listener = inboxEventListener ?: return false
+        val listener = inboxEventListenerProvider() ?: return false
         // Hand the host the canonical InboxMessage (the same type NotificationInbox.getMessages()
         // returns), resolved from the visible set; a missing message means nothing to intercept.
         val inboxMessage = (visibility as? InboxVisibility.Visible)
@@ -327,11 +328,11 @@ internal class VisualInboxController(
     /**
      * Invoke an observational callback (shown / opened / dismissed) on the host listener (if any).
      * A throwing host listener must never break the SDK, so any exception is caught and logged.
-     * Resolved from the same [inboxEventListener] (MessagingInAppModuleConfig.inboxEventListener) as
+     * Resolved from the same [inboxEventListenerProvider] (the module's current inbox listener) as
      * [messageActionTaken]; a null listener is a no-op.
      */
     private inline fun notifyListener(block: InboxEventListener.() -> Unit) {
-        val listener = inboxEventListener ?: return
+        val listener = inboxEventListenerProvider() ?: return
         try {
             listener.block()
         } catch (ex: Exception) {

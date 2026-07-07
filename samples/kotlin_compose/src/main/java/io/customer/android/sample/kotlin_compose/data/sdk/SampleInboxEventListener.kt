@@ -1,7 +1,7 @@
 package io.customer.android.sample.kotlin_compose.data.sdk
 
 import io.customer.android.sample.kotlin_compose.util.Logger
-import io.customer.messaginginapp.type.InboxActionMessage
+import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.type.InboxEventListener
 
 /**
@@ -14,24 +14,24 @@ import io.customer.messaginginapp.type.InboxEventListener
 class SampleInboxEventListener(private val logger: Logger = Logger()) : InboxEventListener {
 
     override fun messageActionTaken(
-        message: InboxActionMessage,
+        message: InboxMessage,
         actionName: String,
         actionValue: String
     ): Boolean {
-        logEvent("messageActionTaken. name: $actionName, value: $actionValue, message: ${message.messageId}")
+        logEvent("messageActionTaken. name: $actionName, value: $actionValue, message: ${message.queueId}")
         return false
     }
 
-    override fun messageShown(message: InboxActionMessage) {
-        logEvent("messageShown. message: ${message.messageId}")
+    override fun messageShown(message: InboxMessage) {
+        logEvent("messageShown. message: ${message.queueId}")
     }
 
-    override fun messageOpened(message: InboxActionMessage) {
-        logEvent("messageOpened. message: ${message.messageId}")
+    override fun messageOpened(message: InboxMessage) {
+        logEvent("messageOpened. message: ${message.queueId}")
     }
 
-    override fun messageDismissed(message: InboxActionMessage) {
-        logEvent("messageDismissed. message: ${message.messageId}")
+    override fun messageDismissed(message: InboxMessage) {
+        logEvent("messageDismissed. message: ${message.queueId}")
     }
 
     private fun logEvent(message: String) {

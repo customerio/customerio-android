@@ -22,6 +22,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
 	public final fun dismissMessage ()V
 	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
+	public final fun getInboxEventListener ()Lio/customer/messaginginapp/type/InboxEventListener;
 	public fun getModuleConfig ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public fun getModuleName ()Ljava/lang/String;
@@ -34,6 +35,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public final fun setColorScheme (Lio/customer/messaginginapp/type/ColorScheme;)V
+	public final fun setInboxEventListener (Lio/customer/messaginginapp/type/InboxEventListener;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
@@ -275,30 +277,17 @@ public final class io/customer/messaginginapp/type/InAppMessageKt {
 	public static final fun getMessage (Lio/customer/messaginginapp/type/InAppMessage;)Lio/customer/messaginginapp/gist/data/model/Message;
 }
 
-public final class io/customer/messaginginapp/type/InboxActionMessage {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/messaginginapp/type/InboxActionMessage;
-	public static synthetic fun copy$default (Lio/customer/messaginginapp/type/InboxActionMessage;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messaginginapp/type/InboxActionMessage;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getDeliveryId ()Ljava/lang/String;
-	public final fun getMessageId ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public abstract interface class io/customer/messaginginapp/type/InboxEventListener {
-	public abstract fun messageActionTaken (Lio/customer/messaginginapp/type/InboxActionMessage;Ljava/lang/String;Ljava/lang/String;)Z
-	public abstract fun messageDismissed (Lio/customer/messaginginapp/type/InboxActionMessage;)V
-	public abstract fun messageOpened (Lio/customer/messaginginapp/type/InboxActionMessage;)V
-	public abstract fun messageShown (Lio/customer/messaginginapp/type/InboxActionMessage;)V
+	public abstract fun messageActionTaken (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun messageDismissed (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public abstract fun messageOpened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public abstract fun messageShown (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 }
 
 public final class io/customer/messaginginapp/type/InboxEventListener$DefaultImpls {
-	public static fun messageDismissed (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/InboxActionMessage;)V
-	public static fun messageOpened (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/InboxActionMessage;)V
-	public static fun messageShown (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/InboxActionMessage;)V
+	public static fun messageDismissed (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public static fun messageOpened (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public static fun messageShown (Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 }
 
 public abstract interface class io/customer/messaginginapp/type/InlineMessageActionListener {

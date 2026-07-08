@@ -123,10 +123,12 @@ internal class LiveNotificationManager(
             for ((key, value) in fields) {
                 if (value != null) putString(key, value.toString())
             }
-            putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
+            putString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY, activityId)
             putString(LiveNotificationHandler.EVENT_KEY, event)
             putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
-            putString(LiveNotificationHandler.TIMESTAMP_KEY, System.currentTimeMillis().toString())
+            // Epoch SECONDS, matching the backend push wire contract, so the handler's
+            // out-of-order guard compares local- and push-originated timestamps in one unit.
+            putString(LiveNotificationHandler.TIMESTAMP_KEY, (System.currentTimeMillis() / 1000).toString())
         }
 
     private fun renderLocally(bundle: Bundle) {

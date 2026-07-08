@@ -9,8 +9,8 @@ import org.json.JSONObject
  *
  * Freeform slots (rendered verbatim, never composed): `header` (opt),
  * `title` (req), `subtitle` (opt — recipient/driver/detail).
- * Typed: `image` (opt), `stepCurrent`/`stepTotal` (progress, req),
- * `estimatedArrival` (opt, epoch ms), `statusColor` (opt, hex),
+ * Typed: `image` (opt), `progress` {current, total} (req nested object),
+ * `estimatedArrival` (opt, epoch seconds), `statusColor` (opt, hex),
  * `staleMessage` (opt).
  */
 internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
@@ -28,9 +28,12 @@ internal object DeliveryTrackingTemplate : LiveNotificationTemplate {
         val title = data.optString(DeliveryTrackingFields.TITLE)
         val subtitle = data.optStringNonEmpty(DeliveryTrackingFields.SUBTITLE)
         val image = data.optStringNonEmpty(DeliveryTrackingFields.IMAGE)
-        val stepCurrent = data.optInt(DeliveryTrackingFields.STEP_CURRENT, 0)
-        val stepTotal = data.optInt(DeliveryTrackingFields.STEP_TOTAL, 1).coerceAtLeast(1)
-        val estimatedArrival = data.optLong(DeliveryTrackingFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
+        // Progress is a nested { current, total } object (matches iOS content-state), not two
+        // flat scalars. Absent/partial progress falls back to a 0-of-1 bar.
+        val progress = data.optJSONObject(DeliveryTrackingFields.PROGRESS)
+        val stepCurrent = progress?.optInt(ProgressFields.CURRENT, 0) ?: 0
+        val stepTotal = (progress?.optInt(ProgressFields.TOTAL, 1) ?: 1).coerceAtLeast(1)
+        val estimatedArrival = data.optEpochSecondsAsMillis(DeliveryTrackingFields.ESTIMATED_ARRIVAL)
         val statusColor = data.optColorInt(DeliveryTrackingFields.STATUS_COLOR)
         val staleMessage = data.optStringNonEmpty(DeliveryTrackingFields.STALE_MESSAGE)
 

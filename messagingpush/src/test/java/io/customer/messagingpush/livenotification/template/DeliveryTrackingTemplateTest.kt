@@ -33,6 +33,13 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
         fallbackTintColor = null
     )!!
 
+    /** Builds the nested `progress` { current, total } object the template reads. */
+    private fun progress(current: Int? = null, total: Int? = null): JSONObject =
+        JSONObject().apply {
+            current?.let { put("current", it) }
+            total?.let { put("total", it) }
+        }
+
     @Test
     fun render_givenNoUsableContent_returnsNull() {
         // Required `title` missing: render returns null so the handler skips posting.
@@ -71,9 +78,9 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
             put("title", "Out for delivery")
             put("subtitle", "Driver: Pat")
             put("image", "delivery_truck")
-            put("stepCurrent", 2)
-            put("stepTotal", 4)
-            put("estimatedArrival", 1700000000000L)
+            put("progress", progress(current = 2, total = 4))
+            // Epoch SECONDS on the wire; the template converts to millis for setWhen.
+            put("estimatedArrival", 1700000000L)
         }
 
         val result = render(attributes, contentState)
@@ -86,6 +93,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
         result.progress shouldBeEqualTo 2
         result.progressMax shouldBeEqualTo 4
         result.segments.size shouldBeEqualTo 4
+        // Seconds in → millis out.
         result.countdownUntil shouldBeEqualTo 1700000000000L
     }
 
@@ -93,8 +101,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     fun render_givenNoSubtitleOrHeader_bodyAndSubTextEmpty() {
         val contentState = JSONObject().apply {
             put("title", "Preparing")
-            put("stepCurrent", 1)
-            put("stepTotal", 3)
+            put("progress", progress(current = 1, total = 3))
         }
 
         val result = render(contentState = contentState)
@@ -109,7 +116,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
         val contentState = JSONObject().apply {
             put("title", "Delivered")
             put("statusColor", "#36AE3F")
-            put("stepTotal", 3)
+            put("progress", progress(total = 3))
         }
 
         val result = render(contentState = contentState)
@@ -118,11 +125,10 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     }
 
     @Test
-    fun render_stepCurrentIsClampedIntoRange() {
+    fun render_currentIsClampedIntoRange() {
         val contentState = JSONObject().apply {
             put("title", "Anywhere")
-            put("stepCurrent", 99)
-            put("stepTotal", 4)
+            put("progress", progress(current = 99, total = 4))
         }
 
         val result = render(contentState = contentState)
@@ -131,11 +137,10 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     }
 
     @Test
-    fun render_stepCurrentNegative_isClampedToZero() {
+    fun render_currentNegative_isClampedToZero() {
         val contentState = JSONObject().apply {
             put("title", "Anywhere")
-            put("stepCurrent", -5)
-            put("stepTotal", 4)
+            put("progress", progress(current = -5, total = 4))
         }
 
         val result = render(contentState = contentState)
@@ -144,10 +149,10 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     }
 
     @Test
-    fun render_stepTotalMissing_defaultsAtLeastToOne() {
+    fun render_totalMissing_defaultsAtLeastToOne() {
         val contentState = JSONObject().apply {
             put("title", "Just placed")
-            put("stepCurrent", 0)
+            put("progress", progress(current = 0))
         }
 
         val result = render(contentState = contentState)
@@ -157,11 +162,39 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
     }
 
     @Test
-    fun render_stepTotalZero_isFlooredToOne() {
+    fun render_progressObjectMissing_defaultsToZeroOfOne() {
+        // Progress is a nested object; if it's absent entirely the bar is 0-of-1.
+        val contentState = JSONObject().apply {
+            put("title", "No progress object")
+        }
+
+        val result = render(contentState = contentState)
+
+        result.progress shouldBeEqualTo 0
+        result.progressMax shouldBeEqualTo 1
+    }
+
+    @Test
+    fun render_flatStepKeys_areIgnored() {
+        // Guards the contract: legacy flat `stepCurrent`/`stepTotal` are no longer read;
+        // only the nested `progress` object counts, so these fall back to 0-of-1.
+        val contentState = JSONObject().apply {
+            put("title", "Flat keys")
+            put("stepCurrent", 3)
+            put("stepTotal", 5)
+        }
+
+        val result = render(contentState = contentState)
+
+        result.progress shouldBeEqualTo 0
+        result.progressMax shouldBeEqualTo 1
+    }
+
+    @Test
+    fun render_totalZero_isFlooredToOne() {
         val contentState = JSONObject().apply {
             put("title", "Edge case")
-            put("stepCurrent", 0)
-            put("stepTotal", 0)
+            put("progress", progress(current = 0, total = 0))
         }
 
         val result = render(contentState = contentState)
@@ -175,7 +208,7 @@ internal class DeliveryTrackingTemplateTest : IntegrationTest() {
         val contentState = JSONObject().apply {
             put("title", "No eta")
             put("estimatedArrival", 0L)
-            put("stepTotal", 2)
+            put("progress", progress(total = 2))
         }
 
         val result = render(contentState = contentState)

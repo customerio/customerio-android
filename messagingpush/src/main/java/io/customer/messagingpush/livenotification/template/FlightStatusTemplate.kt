@@ -11,7 +11,7 @@ import org.json.JSONObject
  * `status` (opt short label), `title` (req contextual line),
  * `subtitle` (opt — gate/terminal/zone/bag).
  * Typed: `origin`/`destination` {code, city} (req), `scheduledDeparture`/
- * `estimatedArrival` (req, epoch ms), `progressFraction` (opt, 0–1),
+ * `estimatedArrival` (req, epoch seconds), `progressFraction` (opt, 0–1),
  * `statusColor` (opt, hex), `staleMessage` (opt).
  */
 internal object FlightStatusTemplate : LiveNotificationTemplate {
@@ -29,8 +29,8 @@ internal object FlightStatusTemplate : LiveNotificationTemplate {
         val status = data.optStringNonEmpty(FlightStatusFields.STATUS)
         val subtitle = data.optStringNonEmpty(FlightStatusFields.SUBTITLE)
 
-        val scheduledDeparture = data.optLong(FlightStatusFields.SCHEDULED_DEPARTURE).takeIf { it > 0 }
-        val estimatedArrival = data.optLong(FlightStatusFields.ESTIMATED_ARRIVAL).takeIf { it > 0 }
+        val scheduledDeparture = data.optEpochSecondsAsMillis(FlightStatusFields.SCHEDULED_DEPARTURE)
+        val estimatedArrival = data.optEpochSecondsAsMillis(FlightStatusFields.ESTIMATED_ARRIVAL)
         val progressFractionRaw =
             if (data.has(FlightStatusFields.PROGRESS_FRACTION)) data.optDouble(FlightStatusFields.PROGRESS_FRACTION) else Double.NaN
         val progressFraction = progressFractionRaw.takeIf { !it.isNaN() }

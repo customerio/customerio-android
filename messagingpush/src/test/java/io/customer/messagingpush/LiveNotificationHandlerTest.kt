@@ -18,18 +18,17 @@ import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.shadows.ShadowLooper
 
 /**
  * Tests for [LiveNotificationHandler] focused on envelope parsing and dispatch:
  *
- * - top-level wire keys (`activity_id`, `event`, `notification_type`, `timestamp`,
- *   `dismissal_date`) are read from the [Bundle];
+ * - top-level wire keys (`cioInstanceId`, `event`, `notification_type`, `timestamp`)
+ *   are read from the [Bundle];
  * - template fields arrive flattened at the envelope top level or nested under
  *   a `payload` object;
- * - missing `activity_id`, `event`, or unknown `notification_type` are dropped
+ * - missing `cioInstanceId`, `event`, or unknown `notification_type` are dropped
  *   without posting a notification;
- * - `event = "end"` cancels the notification immediately.
+ * - `event = "end"` posts the final state and leaves it visible for the user to dismiss.
  *
  * The actual rendered notification is opaque to these tests — that's covered by
  * the per-template render tests. Here we only assert the dispatch contract.
@@ -66,15 +65,13 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             put("title", "Status")
             put("homeTeam", JSONObject().put("name", "Home"))
         },
-        timestamp: Long? = null,
-        dismissalDate: Long? = null
+        timestamp: Long? = null
     ): Bundle {
         val bundle = Bundle()
-        if (activityId != null) bundle.putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
+        if (activityId != null) bundle.putString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY, activityId)
         if (event != null) bundle.putString(LiveNotificationHandler.EVENT_KEY, event)
         if (activityType != null) bundle.putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
         if (timestamp != null) bundle.putString(LiveNotificationHandler.TIMESTAMP_KEY, timestamp.toString())
-        if (dismissalDate != null) bundle.putString(LiveNotificationHandler.DISMISSAL_DATE_KEY, dismissalDate.toString())
         // Template fields ride flattened at the top level, as the backend delivers them.
         for (key in data.keys()) bundle.putString(key, data.get(key).toString())
         return bundle
@@ -100,11 +97,10 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     fun envelopeKeys_areTheCrossPlatformSpecKeys() {
         // Lock the wire-format constants so any future rename surfaces here.
         // Failure to update both the SDK and CIO backend would silently break live notifications.
-        LiveNotificationHandler.ACTIVITY_ID_KEY shouldBeEqualTo "activity_id"
+        LiveNotificationHandler.CIO_INSTANCE_ID_KEY shouldBeEqualTo "cioInstanceId"
         LiveNotificationHandler.EVENT_KEY shouldBeEqualTo "event"
         LiveNotificationHandler.NOTIFICATION_TYPE_KEY shouldBeEqualTo "notification_type"
         LiveNotificationHandler.TIMESTAMP_KEY shouldBeEqualTo "timestamp"
-        LiveNotificationHandler.DISMISSAL_DATE_KEY shouldBeEqualTo "dismissal_date"
     }
 
     // --- Happy-path dispatch ---
@@ -134,8 +130,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         val data = JSONObject().apply {
             put("title", "Out for delivery")
             put("subtitle", "For User")
-            put("stepCurrent", 2)
-            put("stepTotal", 4)
+            put("progress", JSONObject().put("current", 2).put("total", 4))
         }
         val bundle = newBundle(activityId = activityId, data = data)
 
@@ -173,8 +168,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
                 JSONObject().apply {
                     put("title", "preparing")
                     put("subtitle", "order abc-123")
-                    put("stepCurrent", "1")
-                    put("stepTotal", "4")
+                    put("progress", JSONObject().put("current", 1).put("total", 4))
                 }.toString()
             )
         }
@@ -195,7 +189,8 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
         val data = JSONObject().apply {
             put("title", "Flash Sale")
-            put("targetDate", System.currentTimeMillis() + 60_000L)
+            // Epoch SECONDS on the wire (60s ahead), not millis.
+            put("targetDate", System.currentTimeMillis() / 1000 + 60L)
             put("statusMessage", "Sale starts in")
         }
         invoke(handlerFor(newBundle(activityType = TemplateRegistry.COUNTDOWN_TIMER, data = data)))
@@ -294,15 +289,15 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     // --- End event: final state stays posted and dismissible ---
 
     @Test
-    fun handle_givenEventEndWithoutDismissalDate_postsAndLeavesVisible() {
+    fun handle_givenEventEnd_postsEndStateAndLeavesVisible() {
         val activityId = "ending-activity"
         val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
         val bundle = newBundle(activityId = activityId, event = "end")
 
         invoke(handlerFor(bundle))
 
-        // The end-state is posted and, without a dismissal_date, must REMAIN visible for
-        // the user to swipe away — the SDK does not cancel it.
+        // The end-state is posted and must REMAIN visible for the user to swipe away — the SDK
+        // never auto-removes an ended activity (matching iOS, which leaves it on screen).
         verify(exactly = 1) {
             notificationManager.notify(activityId, expectedNotifId, any<Notification>())
         }
@@ -368,35 +363,6 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         }
     }
 
-    // --- dismissal_date scheduling on end ---
-
-    @Test
-    fun handle_givenEndWithFutureDismissalDate_cancelsOnlyAfterDelay() {
-        val activityId = "scheduled-end"
-        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
-        val bundle = newBundle(
-            activityId = activityId,
-            event = "end",
-            dismissalDate = System.currentTimeMillis() + 60_000L
-        )
-
-        invoke(handlerFor(bundle))
-
-        // Posted now, but not cancelled until the dismissal_date is reached.
-        verify(exactly = 1) {
-            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
-        }
-        assertCalledNever {
-            notificationManager.cancel(activityId, expectedNotifId)
-        }
-
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-
-        verify(exactly = 1) {
-            notificationManager.cancel(activityId, expectedNotifId)
-        }
-    }
-
     @Test
     fun handle_givenStaleEndTimestamp_stillRendersEndState() {
         // `end` is terminal and bypasses the out-of-order guard, so it still renders its
@@ -406,7 +372,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
         invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 50L)))
 
-        // Both the update and the stale end post (2 notifies); no dismissal_date, so nothing cancels.
+        // Both the update and the stale end post (2 notifies); the SDK never cancels on end.
         verify(exactly = 2) {
             notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }

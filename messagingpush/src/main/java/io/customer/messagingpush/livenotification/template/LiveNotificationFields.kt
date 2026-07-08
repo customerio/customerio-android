@@ -29,8 +29,7 @@ internal object DeliveryTrackingFields {
     const val TITLE = CommonFields.TITLE
     const val SUBTITLE = CommonFields.SUBTITLE
     const val IMAGE = CommonFields.IMAGE
-    const val STEP_CURRENT = "stepCurrent"
-    const val STEP_TOTAL = "stepTotal"
+    const val PROGRESS = "progress"
     const val ESTIMATED_ARRIVAL = "estimatedArrival"
     const val STATUS_COLOR = CommonFields.STATUS_COLOR
     const val STALE_MESSAGE = CommonFields.STALE_MESSAGE
@@ -94,4 +93,9 @@ internal object AirportFields {
 internal object TeamFields {
     const val NAME = "name"
     const val LOGO = "logo"
+}
+
+internal object ProgressFields {
+    const val CURRENT = "current"
+    const val TOTAL = "total"
 }

@@ -42,9 +42,10 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
 
     @Test
     fun render_preTarget_setsCountdownAndSubtitleBody() {
-        val future = System.currentTimeMillis() + 60_000L
+        // targetDate is epoch SECONDS on the wire; the template converts to millis.
+        val futureSeconds = System.currentTimeMillis() / 1000 + 60L
         val contentState = JSONObject().apply {
-            put("targetDate", future)
+            put("targetDate", futureSeconds)
             put("subtitle", "Sale ends in")
         }
 
@@ -53,15 +54,15 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
         result.title shouldBeEqualTo "Flash Sale"
         result.body shouldBeEqualTo "Sale ends in"
         result.subText shouldBeEqualTo "Limited time"
-        result.countdownUntil shouldBeEqualTo future
+        result.countdownUntil shouldBeEqualTo futureSeconds * 1000L
         result.cancelImmediately.shouldBeFalse()
     }
 
     @Test
     fun render_postTargetWithExpiredMessage_swapsBodyAndClearsCountdown() {
-        val past = System.currentTimeMillis() - 60_000L
+        val pastSeconds = System.currentTimeMillis() / 1000 - 60L
         val contentState = JSONObject().apply {
-            put("targetDate", past)
+            put("targetDate", pastSeconds)
             put("subtitle", "Sale ends in")
             put("expiredMessage", "Sale is live!")
         }
@@ -75,9 +76,9 @@ internal class CountdownTimerTemplateTest : IntegrationTest() {
 
     @Test
     fun render_postTargetWithoutExpiredMessage_flagsCancelImmediately() {
-        val past = System.currentTimeMillis() - 60_000L
+        val pastSeconds = System.currentTimeMillis() / 1000 - 60L
         val contentState = JSONObject().apply {
-            put("targetDate", past)
+            put("targetDate", pastSeconds)
             put("subtitle", "Sale ends in")
         }
 

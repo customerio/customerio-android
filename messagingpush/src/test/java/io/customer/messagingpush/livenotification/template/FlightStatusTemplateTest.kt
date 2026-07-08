@@ -48,8 +48,8 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
             put("title", "JFK → LAX")
             put("status", "On time")
             put("subtitle", "Gate B12 · Terminal 4")
-            put("scheduledDeparture", 1700000000000L)
-            put("estimatedArrival", 1700100000000L)
+            put("scheduledDeparture", 1700000000L)
+            put("estimatedArrival", 1700100000L)
         }
 
         val result = render(baseAttributes(), contentState)
@@ -63,7 +63,7 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
     fun render_missingStatusAndSubtitle_bodyEmptySubTextNull() {
         val contentState = JSONObject().apply {
             put("title", "Boarding soon")
-            put("scheduledDeparture", 1700000000000L)
+            put("scheduledDeparture", 1700000000L)
         }
 
         val result = render(baseAttributes(), contentState)
@@ -91,8 +91,8 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
     fun render_progressFractionPresent_targetsEstimatedArrival() {
         val contentState = JSONObject().apply {
             put("title", "In flight")
-            put("scheduledDeparture", 1700000000000L)
-            put("estimatedArrival", 1700100000000L)
+            put("scheduledDeparture", 1700000000L)
+            put("estimatedArrival", 1700100000L)
             put("progressFraction", 0.5)
         }
 
@@ -108,8 +108,8 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
     fun render_progressFractionAbsent_targetsScheduledDeparture() {
         val contentState = JSONObject().apply {
             put("title", "Pre-departure")
-            put("scheduledDeparture", 1700000000000L)
-            put("estimatedArrival", 1700100000000L)
+            put("scheduledDeparture", 1700000000L)
+            put("estimatedArrival", 1700100000L)
         }
 
         val result = render(baseAttributes(), contentState)
@@ -122,7 +122,7 @@ internal class FlightStatusTemplateTest : IntegrationTest() {
     fun render_progressFractionOutsideZeroOne_isCoerced() {
         val contentState = JSONObject().apply {
             put("title", "In flight")
-            put("estimatedArrival", 1700100000000L)
+            put("estimatedArrival", 1700100000L)
             put("progressFraction", 2.5) // out of range; spec coerces to [0,1]
         }
 

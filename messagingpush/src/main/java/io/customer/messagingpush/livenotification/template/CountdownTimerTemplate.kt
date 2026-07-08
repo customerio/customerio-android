@@ -10,7 +10,7 @@ import org.json.JSONObject
  * Freeform slots (rendered verbatim, never composed): `header` (opt),
  * `title` (req), `subtitle` (req — label above timer, e.g. "Sale ends in"),
  * `expiredMessage` (opt).
- * Typed: `targetDate` (req, epoch ms — extendable across pushes), `image` (opt),
+ * Typed: `targetDate` (req, epoch seconds — extendable across pushes), `image` (opt),
  * `statusColor` (opt, hex), `staleMessage` (opt). Post-target with no
  * `expiredMessage` means the activity should hide; the SDK signals this via
  * [TemplateRenderResult.cancelImmediately].
@@ -30,7 +30,7 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
         val title = data.optString(CountdownTimerFields.TITLE)
         val subtitle = data.optString(CountdownTimerFields.SUBTITLE)
         val image = data.optStringNonEmpty(CountdownTimerFields.IMAGE)
-        val targetDate = data.optLong(CountdownTimerFields.TARGET_DATE).takeIf { it > 0 }
+        val targetDate = data.optEpochSecondsAsMillis(CountdownTimerFields.TARGET_DATE)
         val expiredMessage = data.optStringNonEmpty(CountdownTimerFields.EXPIRED_MESSAGE)
         val statusColor = data.optColorInt(CountdownTimerFields.STATUS_COLOR)
         val staleMessage = data.optStringNonEmpty(CountdownTimerFields.STALE_MESSAGE)

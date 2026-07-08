@@ -79,7 +79,7 @@ internal class LiveNotificationLifecycleClientImpl(
             event = EVENT_LIVE_NOTIFICATION,
             properties = buildMap {
                 put(PROP_EVENT_TYPE, EVENT_TYPE_START)
-                put(PROP_INSTANCE_UUID, instanceUUID)
+                put(PROP_CIO_INSTANCE_ID, instanceUUID)
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
@@ -101,7 +101,7 @@ internal class LiveNotificationLifecycleClientImpl(
             event = EVENT_LIVE_NOTIFICATION,
             properties = buildMap {
                 put(PROP_EVENT_TYPE, EVENT_TYPE_UPDATE)
-                put(PROP_INSTANCE_UUID, instanceUUID)
+                put(PROP_CIO_INSTANCE_ID, instanceUUID)
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
@@ -121,7 +121,7 @@ internal class LiveNotificationLifecycleClientImpl(
             event = EVENT_LIVE_NOTIFICATION,
             properties = buildMap {
                 put(PROP_EVENT_TYPE, EVENT_TYPE_END)
-                put(PROP_INSTANCE_UUID, instanceUUID)
+                put(PROP_CIO_INSTANCE_ID, instanceUUID)
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
@@ -174,7 +174,7 @@ internal class LiveNotificationLifecycleClientImpl(
 
         const val PROP_EVENT_TYPE = "eventType"
         const val PROP_REGISTRATION_TYPE = "registrationType"
-        const val PROP_INSTANCE_UUID = "instanceUUID"
+        const val PROP_CIO_INSTANCE_ID = "cioInstanceId"
         const val PROP_DEVICE_ID = "deviceId"
         const val PROP_PLATFORM = "platform"
 

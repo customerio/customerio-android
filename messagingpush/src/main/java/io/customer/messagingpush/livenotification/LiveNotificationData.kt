@@ -6,6 +6,7 @@ import io.customer.messagingpush.livenotification.template.CountdownTimerFields
 import io.customer.messagingpush.livenotification.template.DeliveryTrackingFields
 import io.customer.messagingpush.livenotification.template.FlightStatusFields
 import io.customer.messagingpush.livenotification.template.LiveScoreFields
+import io.customer.messagingpush.livenotification.template.ProgressFields
 import io.customer.messagingpush.livenotification.template.TeamFields
 import org.json.JSONObject
 
@@ -23,6 +24,10 @@ import org.json.JSONObject
  * (matching iOS's ActivityKit envelope) instead of a single merged payload.
  * Field names come from the shared `*Fields` constants so local-start and
  * push-render stay in sync.
+ *
+ * All date/timestamp fields (`targetDate`, `endTime`, `estimatedArrival`,
+ * `scheduledDeparture`) are **epoch seconds**, matching the cross-platform
+ * content-state contract and iOS's `EpochSecondsDate` — not milliseconds.
  *
  * For customer-defined activity types, use the `Map` overload of
  * `startLiveNotification` instead.
@@ -44,8 +49,7 @@ sealed interface LiveNotificationData {
         val header: String? = null,
         val subtitle: String? = null,
         val image: String? = null,
-        val stepCurrent: Int? = null,
-        val stepTotal: Int? = null,
+        val progress: Progress? = null,
         val estimatedArrival: Long? = null,
         val statusColor: String? = null,
         val staleMessage: String? = null
@@ -60,8 +64,7 @@ sealed interface LiveNotificationData {
             DeliveryTrackingFields.TITLE to title,
             DeliveryTrackingFields.SUBTITLE to subtitle,
             DeliveryTrackingFields.IMAGE to image,
-            DeliveryTrackingFields.STEP_CURRENT to stepCurrent,
-            DeliveryTrackingFields.STEP_TOTAL to stepTotal,
+            DeliveryTrackingFields.PROGRESS to progress?.toJson(),
             DeliveryTrackingFields.ESTIMATED_ARRIVAL to estimatedArrival,
             DeliveryTrackingFields.STATUS_COLOR to statusColor,
             DeliveryTrackingFields.STALE_MESSAGE to staleMessage
@@ -208,5 +211,11 @@ sealed interface LiveNotificationData {
         internal fun toJson(): JSONObject = JSONObject().put(TeamFields.NAME, name).apply {
             logo?.let { put(TeamFields.LOGO, it) }
         }
+    }
+
+    /** Step-based delivery progress for [DeliveryTracking] (1-based [current] of [total]). */
+    data class Progress(val current: Int, val total: Int) {
+        internal fun toJson(): JSONObject =
+            JSONObject().put(ProgressFields.CURRENT, current).put(ProgressFields.TOTAL, total)
     }
 }

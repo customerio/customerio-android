@@ -145,7 +145,7 @@ internal class CustomerIOPushNotificationHandler(
         )
 
         // Check if this is a live notification
-        val activityId = bundle.getString(LiveNotificationHandler.ACTIVITY_ID_KEY)
+        val activityId = bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)
         if (activityId != null) {
             val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
                 context = context,

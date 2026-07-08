@@ -11,7 +11,7 @@ import org.json.JSONObject
  * `title` (req — item), `subtitle` (opt — "47 bids"/your bid),
  * `statusMessage` (req — winning/outbid/ended).
  * Typed: `currentBid` (req, preformatted string) + `currencySymbol` (req),
- * `endTime` (req, epoch ms), `image` (opt), `statusColor` (opt, hex),
+ * `endTime` (req, epoch seconds), `image` (opt), `statusColor` (opt, hex),
  * `staleMessage` (opt).
  *
  * `statusColor` (sent by the server) drives the winning/outbid differentiation
@@ -37,7 +37,7 @@ internal object AuctionBidTemplate : LiveNotificationTemplate {
         val image = data.optStringNonEmpty(AuctionBidFields.IMAGE)
         val currencySymbol = data.optStringNonEmpty(AuctionBidFields.CURRENCY_SYMBOL) ?: "$"
         val currentBid = data.optStringNonEmpty(AuctionBidFields.CURRENT_BID)
-        val endTime = data.optLong(AuctionBidFields.END_TIME).takeIf { it > 0 }
+        val endTime = data.optEpochSecondsAsMillis(AuctionBidFields.END_TIME)
         val statusColor = data.optColorInt(AuctionBidFields.STATUS_COLOR)
         val staleMessage = data.optStringNonEmpty(AuctionBidFields.STALE_MESSAGE)
 

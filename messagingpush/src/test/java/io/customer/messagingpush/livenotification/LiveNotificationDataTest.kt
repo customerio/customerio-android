@@ -15,20 +15,21 @@ import org.robolectric.RobolectricTestRunner
 internal class LiveNotificationDataTest : IntegrationTest() {
 
     @Test
-    fun deliveryTracking_mapsActivityTypeAndScalarFields() {
+    fun deliveryTracking_mapsActivityTypeAndNestedProgress() {
         val data = LiveNotificationData.DeliveryTracking(
             title = "On the way",
             header = "Order update",
-            stepCurrent = 1,
-            stepTotal = 3
+            progress = LiveNotificationData.Progress(current = 1, total = 3)
         )
 
         data.activityType shouldBeEqualTo TemplateRegistry.DELIVERY_TRACKING
         val fields = data.fields()
         fields["title"] shouldBeEqualTo "On the way"
         fields["header"] shouldBeEqualTo "Order update"
-        fields["stepCurrent"] shouldBeEqualTo 1
-        fields["stepTotal"] shouldBeEqualTo 3
+        // Progress serializes as a nested { current, total } object (matches iOS content-state).
+        val progress = fields["progress"] as JSONObject
+        progress.getInt("current") shouldBeEqualTo 1
+        progress.getInt("total") shouldBeEqualTo 3
         // Unset optional fields are present as null; the manager omits them from the envelope.
         fields["subtitle"].shouldBeNull()
     }
@@ -39,8 +40,7 @@ internal class LiveNotificationDataTest : IntegrationTest() {
             title = "On the way",
             header = "Order update",
             subtitle = "For Alex",
-            stepCurrent = 1,
-            stepTotal = 3,
+            progress = LiveNotificationData.Progress(current = 1, total = 3),
             statusColor = "#36AE3F"
         )
 
@@ -52,7 +52,9 @@ internal class LiveNotificationDataTest : IntegrationTest() {
         val contentState = data.contentState()
         contentState["title"] shouldBeEqualTo "On the way"
         contentState["subtitle"] shouldBeEqualTo "For Alex"
-        contentState["stepCurrent"] shouldBeEqualTo 1
+        val progress = contentState["progress"] as JSONObject
+        progress.getInt("current") shouldBeEqualTo 1
+        progress.getInt("total") shouldBeEqualTo 3
         contentState["statusColor"] shouldBeEqualTo "#36AE3F"
         contentState.containsKey("header").shouldBeFalse()
     }

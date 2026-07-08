@@ -50,7 +50,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         NotificationCompat.Builder(contextMock, "channel").setSmallIcon(0).setContentTitle(title).build()
 
     private fun bundle(activityType: String, event: String = "start"): Bundle = Bundle().apply {
-        putString(LiveNotificationHandler.ACTIVITY_ID_KEY, "act-cb")
+        putString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY, "act-cb")
         putString(LiveNotificationHandler.EVENT_KEY, event)
         putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
     }

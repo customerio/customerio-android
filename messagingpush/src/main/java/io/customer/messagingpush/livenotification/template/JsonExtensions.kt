@@ -33,3 +33,13 @@ internal fun JSONObject.optColorInt(key: String): Int? {
         null
     }
 }
+
+/**
+ * Reads [key] as an epoch-**seconds** number — the cross-platform content-state
+ * timestamp contract (matches iOS `EpochSecondsDate`) — and returns it as epoch
+ * **milliseconds** for Android's millisecond-native time APIs
+ * (`System.currentTimeMillis`, `Notification.Builder.setWhen`). Returns null when
+ * the key is absent or non-positive.
+ */
+internal fun JSONObject.optEpochSecondsAsMillis(key: String): Long? =
+    optLong(key).takeIf { it > 0 }?.times(1000L)

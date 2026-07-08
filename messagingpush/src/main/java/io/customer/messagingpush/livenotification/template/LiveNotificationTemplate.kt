@@ -10,9 +10,9 @@ import org.json.JSONObject
  * Renders a single live-notification template.
  *
  * Each template owns its typed schema (e.g. `deliverytracking` knows about
- * `orderId`, `stepCurrent`, `statusImageKey`). The handler dispatches to a
- * concrete subtype via [TemplateRegistry.find] using the `activity_type` key
- * from the FCM envelope.
+ * `title`, `progress` {current, total}, `estimatedArrival`). The handler
+ * dispatches to a concrete subtype via [TemplateRegistry.find] using the
+ * `activity_type` key from the FCM envelope.
  *
  * All template fields arrive flattened in a single [data] object alongside the
  * envelope keys (unlike iOS, Android does not split static `attributes` from

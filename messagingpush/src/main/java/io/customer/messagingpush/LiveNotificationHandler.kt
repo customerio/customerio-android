@@ -8,8 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
@@ -24,7 +22,6 @@ import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.livenotification.template.TemplateRenderResult
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.core.di.SDKComponent
-import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -37,7 +34,7 @@ import org.json.JSONObject
  * `notification_type` (one of the closed set in [TemplateRegistry], prefixed
  * with `io.customer.liveactivities.`). Template fields arrive either flattened
  * at the envelope top level or nested under a `payload` object ([extractData]
- * handles both). Pushes share a stable [ACTIVITY_ID_KEY] so successive updates
+ * handles both). Pushes share a stable [CIO_INSTANCE_ID_KEY] so successive updates
  * replace the previous notification rather than creating new ones.
  */
 internal class LiveNotificationHandler(
@@ -45,11 +42,10 @@ internal class LiveNotificationHandler(
 ) {
 
     companion object {
-        const val ACTIVITY_ID_KEY = "activity_id"
+        const val CIO_INSTANCE_ID_KEY = "cioInstanceId"
         const val EVENT_KEY = "event"
         const val NOTIFICATION_TYPE_KEY = "notification_type"
         const val TIMESTAMP_KEY = "timestamp"
-        const val DISMISSAL_DATE_KEY = "dismissal_date"
 
         // The backend nests the template fields under a `payload` object; [extractData]
         // unwraps it. (Local-start still delivers them flattened at the top level.)
@@ -75,20 +71,14 @@ internal class LiveNotificationHandler(
          * of the same name (e.g. CountdownTimer's `title`).
          */
         private val RESERVED_KEYS = setOf(
-            ACTIVITY_ID_KEY,
+            CIO_INSTANCE_ID_KEY,
             EVENT_KEY,
             NOTIFICATION_TYPE_KEY,
             TIMESTAMP_KEY,
-            DISMISSAL_DATE_KEY,
             PAYLOAD_KEY,
             PushTrackingUtil.DELIVERY_ID_KEY,
             PushTrackingUtil.DELIVERY_TOKEN_KEY
         )
-
-        // Pending `end` dismissals, keyed by activity_id, so a new event for the same
-        // activity can cancel a scheduled removal (e.g. when an activity_id is reused).
-        private val dismissalHandler = Handler(Looper.getMainLooper())
-        private val pendingDismissals = ConcurrentHashMap<String, Runnable>()
     }
 
     fun handle(
@@ -110,7 +100,7 @@ internal class LiveNotificationHandler(
             )
         }
 
-        val activityId = bundle.getString(ACTIVITY_ID_KEY) ?: return
+        val activityId = bundle.getString(CIO_INSTANCE_ID_KEY) ?: return
         val event = bundle.getString(EVENT_KEY)
         if (event == null) {
             SDKComponent.logger.error(
@@ -131,7 +121,7 @@ internal class LiveNotificationHandler(
 
         // Out-of-order / duplicate guard. Android renders FCM data directly, so unlike iOS
         // (where APNs/ActivityKit order updates) the SDK must drop stale pushes itself. `end`
-        // is terminal and bypasses the guard so a stale `end` still cancels the notification.
+        // is terminal and bypasses the guard so a stale `end` still renders its final state.
         val store = SDKComponent.liveNotificationStore
         val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
         val lastSeen = store.lastTimestamp(activityId)
@@ -143,10 +133,6 @@ internal class LiveNotificationHandler(
                 return
             }
         }
-
-        // A new event for this activity supersedes any scheduled end-dismissal (handles
-        // activity_id reuse where the delayed cancel would otherwise kill the new notification).
-        cancelPendingDismissal(activityId)
 
         // Advance the high-water timestamp for ALL events (incl. `end`) so a later stale
         // update — even one arriving after `end` — is dropped by the guard above. Only ever
@@ -216,7 +202,9 @@ internal class LiveNotificationHandler(
                 // Remember the type so the host can later end this activity with just its id.
                 store.setActivityType(activityId, activityType)
             }
-            // An `end` with no renderer still falls through to cancel the existing notification.
+            // An `end` with no renderer is a no-op: the last-rendered state stays posted until
+            // the user dismisses it (the SDK never auto-removes an ended activity — matching iOS,
+            // which leaves the ended Live Activity on screen rather than dismissing it).
             !isEnd -> {
                 // template != null but result == null ⇒ the payload lacked the fields the
                 // template needs (e.g. content not flattened); we refuse to post a blank one.
@@ -237,8 +225,10 @@ internal class LiveNotificationHandler(
         // on-device-initiated changes are reported: local start/update (via
         // LiveNotificationManager) and user dismissal (via LiveNotificationDismissReceiver).
         if (isEnd) {
+            // The final end-state stays posted (rendered non-ongoing + auto-cancel above) so the
+            // user can read it and dismiss it with a swipe. The SDK never auto-removes it —
+            // matching iOS, which leaves an ended Live Activity on screen.
             store.clearActivityType(activityId)
-            scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
         }
     }
 
@@ -299,35 +289,6 @@ internal class LiveNotificationHandler(
                 )
             )
         }
-    }
-
-    /**
-     * On `end`, schedules removal of the notification at the server-provided
-     * `dismissal_date` (epoch ms). When absent, the SDK does NOT remove it: the
-     * final end-state stays posted (rendered non-ongoing + auto-cancel above) so
-     * the user can read it and dismiss it with a swipe. (Best-effort: a scheduled
-     * delay does not survive process death.)
-     */
-    private fun scheduleEndDismissal(
-        bundle: Bundle,
-        notificationManager: NotificationManager,
-        activityId: String,
-        notifId: Int
-    ) {
-        // No dismissal_date: leave the end-state visible for the user to dismiss.
-        val dismissAtMs = bundle.getString(DISMISSAL_DATE_KEY)?.toLongOrNull() ?: return
-        val delayMs = (dismissAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
-        val task = Runnable {
-            notificationManager.cancel(activityId, notifId)
-            pendingDismissals.remove(activityId)
-        }
-        pendingDismissals[activityId] = task
-        dismissalHandler.postDelayed(task, delayMs)
-    }
-
-    /** Cancels a scheduled end-dismissal for [activityId], if any. */
-    private fun cancelPendingDismissal(activityId: String) {
-        pendingDismissals.remove(activityId)?.let { dismissalHandler.removeCallbacks(it) }
     }
 
     private fun createDeleteIntent(

@@ -409,8 +409,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 /* header */ "Order #API-1001",
                 /* subtitle */ "Driver: Sara",
                 /* image */ "delivery_truck",
-                /* stepCurrent */ 3,
-                /* stepTotal */ 4,
+                /* progress */ new LiveNotificationData.Progress(3, 4),
                 /* estimatedArrival */ System.currentTimeMillis() + 30L * 60 * 1000,
                 /* statusColor */ null,
                 /* staleMessage */ null
@@ -433,8 +432,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 /* header */ "Order #API-1001",
                 /* subtitle */ "Driver: Sara",
                 /* image */ "delivery_door",
-                /* stepCurrent */ 4,
-                /* stepTotal */ 4,
+                /* progress */ new LiveNotificationData.Progress(4, 4),
                 /* estimatedArrival */ null,
                 /* statusColor */ null,
                 /* staleMessage */ null

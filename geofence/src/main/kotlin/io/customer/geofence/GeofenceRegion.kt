@@ -31,7 +31,9 @@ internal data class GeofenceRegion(
         GeofenceTransitionType.EXIT
     ),
     @SerialName("lastUpdated")
-    val lastUpdated: Long = 0L
+    val lastUpdated: Long = 0L,
+    @SerialName("geosetIds")
+    val geosetIds: List<String> = emptyList()
 )
 
 /** Transition types a geofence can monitor, mapped to GMS constants. */
@@ -66,3 +68,10 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
     transitionTypes.forEach { mask = mask or it.gmsValue }
     return mask
 }
+
+/**
+ * Equal for OS-registration purposes: everything but [geosetIds], which drive event fan-out, not
+ * GMS registration. A geoset-only change updates the cache without a needless re-register.
+ */
+internal fun GeofenceRegion.equalsIgnoringGeosetIds(other: GeofenceRegion): Boolean =
+    copy(geosetIds = other.geosetIds) == other

@@ -10,12 +10,23 @@ import org.junit.Test
 class PendingGeofenceDeliveryTest {
 
     @Test
-    fun key_expectGeofenceIdTransitionTimestampComposite() {
+    fun key_givenNoGeoset_expectNoneSuffix() {
         val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1_234L, "user-A", transitionId = "tid-1")
 
         // Doubles as the WorkManager unique-work name so the flush can cancel by key.
         // transitionId is intentionally NOT part of the key.
-        entry.key shouldBeEqualTo "biz-1_ENTER_1234"
+        entry.key shouldBeEqualTo "biz-1_ENTER_1234_none"
+    }
+
+    @Test
+    fun key_givenGeoset_expectGeosetInKey() {
+        // The per-geoset fan-out shares (geofenceId, transition, timestamp); the geoset keeps keys
+        // distinct so the entries don't overwrite each other in the store / WorkManager.
+        val enter7 = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1_234L, "user-A", transitionId = "tid-1", geosetId = "7")
+        val enter8 = enter7.copy(geosetId = "8")
+
+        enter7.key shouldBeEqualTo "biz-1_ENTER_1234_7"
+        enter8.key shouldBeEqualTo "biz-1_ENTER_1234_8"
     }
 
     @Test
@@ -80,6 +91,30 @@ class PendingGeofenceDeliveryTest {
         val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-6", geofenceName = null)
 
         entry.toEventProperties().keys shouldNotContain "geofenceName"
+    }
+
+    @Test
+    fun toEventProperties_givenNumericGeoset_expectGeosetIdAsLong() {
+        // Emitted as a number so the property type matches the server's int64 geoset id.
+        val entry = PendingGeofenceDelivery("biz-7", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-7", geosetId = "42")
+
+        entry.toEventProperties()["geosetId"] shouldBeEqualTo 42L
+    }
+
+    @Test
+    fun toEventProperties_givenNonNumericGeoset_expectGeosetIdAsString() {
+        // Non-numeric ids (should the backend ever send them) pass through unchanged rather than being dropped.
+        val entry = PendingGeofenceDelivery("biz-7", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-7", geosetId = "gs-abc")
+
+        entry.toEventProperties()["geosetId"] shouldBeEqualTo "gs-abc"
+    }
+
+    @Test
+    fun toEventProperties_givenNullGeoset_expectGeosetIdOmitted() {
+        // A fence with no geosets emits a single event carrying no geosetId.
+        val entry = PendingGeofenceDelivery("biz-8", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-8", geosetId = null)
+
+        entry.toEventProperties().keys shouldNotContain "geosetId"
     }
 
     @Test

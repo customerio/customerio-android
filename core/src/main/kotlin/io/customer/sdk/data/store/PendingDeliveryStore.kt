@@ -56,14 +56,23 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val listSerializer = ListSerializer(elementSerializer)
 
     /** Append a new entry, evicting the head if the store is at capacity. */
-    fun append(entry: T) {
+    fun append(entry: T) = appendAll(listOf(entry))
+
+    /**
+     * Append entries in one read-modify-write so a batch (e.g. a transition's per-geoset fan-out)
+     * persists atomically — a crash can't save some and lose the rest. Evicts from the head when
+     * over capacity. Named distinctly from [append] so a single-arg `append(x)` never resolves
+     * ambiguously against this overload (e.g. in mocked `append(any())` verifications).
+     */
+    fun appendAll(entries: List<T>) {
+        if (entries.isEmpty()) return
         lock.withLock {
-            val entries = readAll().toMutableList()
-            entries.add(entry)
-            while (entries.size > maxEntries) {
-                entries.removeAt(0)
+            val all = readAll().toMutableList()
+            all.addAll(entries)
+            while (all.size > maxEntries) {
+                all.removeAt(0)
             }
-            writeAll(entries)
+            writeAll(all)
         }
     }
 

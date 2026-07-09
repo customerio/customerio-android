@@ -27,6 +27,7 @@ private const val KEY_TRANSITION = "transition"
 private const val KEY_TRANSITION_ID = "transition_id"
 private const val KEY_TIMESTAMP = "timestamp"
 private const val KEY_USER_ID = "user_id"
+private const val KEY_GEOSET_ID = "geoset_id"
 
 /**
  * Schedules a [GeofenceEventWorker] for guaranteed delivery of a geofence transition event.
@@ -45,6 +46,7 @@ internal class GeofenceEventScheduler(
             .apply {
                 entry.userId?.let { putString(KEY_USER_ID, it) }
                 entry.geofenceName?.let { putString(KEY_GEOFENCE_NAME, it) }
+                entry.geosetId?.let { putString(KEY_GEOSET_ID, it) }
             }
             .build()
 
@@ -59,8 +61,7 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
-        // entry.key ("${geofenceId}_${transition}_${timestamp}") doubles as the
-        // unique-work name so the foreground flush can cancel this worker by key.
+        // entry.key doubles as the unique-work name so the foreground flush can cancel this worker by key.
         // Second-precision timestamp: same-second bursts collide (KEEP dedupes them);
         // later transitions get distinct keys so an offline-queued worker can't block legitimate re-entries.
         val workManager = workManagerProvider.getWorkManager()
@@ -116,7 +117,8 @@ internal class GeofenceEventWorker(
             userId = userId,
             // Always set by the scheduler; fall back to a fresh id so an unexpected miss still delivers.
             transitionId = inputData.getString(KEY_TRANSITION_ID) ?: UUID.randomUUID().toString(),
-            geofenceName = inputData.getString(KEY_GEOFENCE_NAME)
+            geofenceName = inputData.getString(KEY_GEOFENCE_NAME),
+            geosetId = inputData.getString(KEY_GEOSET_ID)
         )
 
         // No identified user at queue time — direct HTTP needs a userId, so

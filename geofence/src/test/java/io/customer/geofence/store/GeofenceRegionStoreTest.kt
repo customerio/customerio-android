@@ -67,17 +67,18 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun getCachedRegionName_givenCachedId_expectName() {
-        store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee")))
+    fun getCachedRegion_givenCachedId_expectRegion() {
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee", geosetIds = listOf("3", "4"))
+        store.saveCachedRegions(listOf(region))
 
-        store.getCachedRegionName("biz-1") shouldBeEqualTo "Coffee"
+        store.getCachedRegion("biz-1") shouldBeEqualTo region
     }
 
     @Test
-    fun getCachedRegionName_givenUnknownId_expectNull() {
+    fun getCachedRegion_givenUnknownId_expectNull() {
         store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee")))
 
-        store.getCachedRegionName("biz-missing") shouldBeEqualTo null
+        store.getCachedRegion("biz-missing") shouldBeEqualTo null
     }
 
     @Test

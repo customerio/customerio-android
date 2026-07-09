@@ -49,9 +49,10 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         timestamp: Long = 0L,
         userId: String? = "user-42",
         transitionId: String = "tid-seed",
-        geofenceName: String? = null
+        geofenceName: String? = null,
+        geosetId: String? = null
     ): PendingGeofenceDelivery =
-        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId, geofenceName)
+        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId, geofenceName, geosetId)
             .also { store.append(it) }
 
     @Test
@@ -76,6 +77,21 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         createWorker(inputData).doWork()
 
         coVerify(exactly = 1) { tracker.trackEvent(entry) }
+    }
+
+    @Test
+    fun doWork_givenGeosetIdInInput_expectGeosetOnTrackedEntryAndRemoved() = runTest {
+        // Round-trips geosetId through inputData: the reconstructed entry must match the stored
+        // per-geoset key (biz-1_ENTER_99_7), so the durable path sends + removes the right event.
+        val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L, geosetId = "7")
+        val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42", geosetId = "7")
+        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
+
+        val result = createWorker(inputData).doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        coVerify(exactly = 1) { tracker.trackEvent(entry) }
+        store.loadAll().isEmpty().shouldBeTrue()
     }
 
     @Test
@@ -142,7 +158,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.retry()
         // Restored so a WorkManager retry — or the foreground flush — can deliver later.
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0_none")
     }
 
     @Test
@@ -155,7 +171,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         val result = createWorker(inputData).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.failure()
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0_none")
     }
 
     @Test
@@ -170,7 +186,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
         // Entry must NOT be removed — flush still needs it.
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz-anon_ENTER_0")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz-anon_ENTER_0_none")
     }
 
     private fun buildInputData(
@@ -179,7 +195,8 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         timestamp: Long = 0L,
         userId: String? = "user-42",
         transitionId: String? = "tid-seed",
-        geofenceName: String? = null
+        geofenceName: String? = null,
+        geosetId: String? = null
     ): Data {
         val builder = Data.Builder()
             .putLong("timestamp", timestamp)
@@ -188,6 +205,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         transitionId?.let { builder.putString("transition_id", it) }
         userId?.let { builder.putString("user_id", it) }
         geofenceName?.let { builder.putString("geofence_name", it) }
+        geosetId?.let { builder.putString("geoset_id", it) }
         return builder.build()
     }
 

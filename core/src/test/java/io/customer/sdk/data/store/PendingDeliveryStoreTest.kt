@@ -65,6 +65,35 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun appendAll_givenMultipleEntries_expectAllPersistedAfterExisting() {
+        val store = newStore()
+        store.append(entry("a"))
+
+        store.appendAll(listOf(entry("b"), entry("c")))
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("a", "b", "c")
+    }
+
+    @Test
+    fun appendAll_givenEmpty_expectNoChange() {
+        val store = newStore()
+        store.append(entry("a"))
+
+        store.appendAll(emptyList())
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("a")
+    }
+
+    @Test
+    fun appendAll_givenOverCapacity_expectOldestEvicted() {
+        val store = newStore(maxEntries = 2)
+
+        store.appendAll(listOf(entry("a"), entry("b"), entry("c")))
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("b", "c")
+    }
+
+    @Test
     fun remove_givenExistingKey_expectEntryRemoved() {
         val store = newStore()
         val keep = entry("keep")

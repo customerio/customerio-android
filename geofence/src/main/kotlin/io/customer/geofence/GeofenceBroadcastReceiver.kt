@@ -135,34 +135,47 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
             logger.logTransitionEmitting(geofenceId, transition.name)
 
-            // Record the transition durably before scheduling. Two channels then
-            // deliver it at least once, deduped downstream by transitionId: the
-            // WorkManager worker (direct HTTP, survives process death) and the
-            // foreground flush (analytics pipeline). Append first so a WorkManager
-            // scheduling failure still leaves the entry for the flush; isolate the
-            // scheduler so it can't abandon the rest of the batch.
-            // Snapshot userId so a sign-out + sign-in before delivery can't
-            // reattribute this transition. Empty userId is treated as "not
-            // identified" per the SDK's `isUserIdentified` convention.
-            val entry = PendingGeofenceDelivery(
-                geofenceId = geofenceId,
-                transition = transition,
-                timestamp = timestamp,
-                userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() },
-                // Minted once here so every delivery attempt for this transition carries the same id.
-                transitionId = UUID.randomUUID().toString(),
-                geofenceName = androidComponent.geofenceRegionStore.getCachedRegionName(geofenceId)
-            )
-            androidComponent.pendingGeofenceDeliveryStore.append(entry)
-            // Anonymous entries can only be delivered via the foreground flush —
-            // skip the WorkManager schedule that would just no-op on null userId.
-            if (entry.userId != null) {
-                try {
-                    scheduler.schedule(entry)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    logger.logSchedulerFailed(geofenceId, transition.name, e.message)
+            // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
+            // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
+            val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+            // One transitionId for the whole crossing, shared across the per-geoset fan-out below.
+            val transitionId = UUID.randomUUID().toString()
+            val cachedRegion = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
+            val geofenceName = cachedRegion?.name?.takeIf { it.isNotEmpty() }
+            // One event per geoset; a fence with no geosets still emits one (null geoset) so a real
+            // OS transition is never dropped. Distinct so a fence listing the same geoset twice
+            // doesn't fan out to duplicate events.
+            val geosetIds: List<String?> = cachedRegion?.geosetIds?.distinct()?.takeIf { it.isNotEmpty() } ?: listOf(null)
+            val entries = geosetIds.map { geosetId ->
+                PendingGeofenceDelivery(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    timestamp = timestamp,
+                    userId = userId,
+                    transitionId = transitionId,
+                    geofenceName = geofenceName,
+                    geosetId = geosetId
+                )
+            }
+
+            // Persist the whole fan-out in one atomic write before any send, so an app kill
+            // mid-batch can't save some geosets and lose the rest (the cooldown is already spent,
+            // so a lost row would never retry). Two channels then deliver each entry at least once,
+            // deduped downstream by (transitionId, geoset): the WorkManager worker (direct HTTP,
+            // survives process death) and the foreground flush (analytics pipeline).
+            androidComponent.pendingGeofenceDeliveryStore.appendAll(entries)
+            entries.forEach { entry ->
+                // Anonymous entries can only be delivered via the foreground flush —
+                // skip the WorkManager schedule that would just no-op on null userId.
+                // Isolate the scheduler so one failure can't abandon the rest of the batch.
+                if (entry.userId != null) {
+                    try {
+                        scheduler.schedule(entry)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        logger.logSchedulerFailed(geofenceId, transition.name, e.message)
+                    }
                 }
             }
         }

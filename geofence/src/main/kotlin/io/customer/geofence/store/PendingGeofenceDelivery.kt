@@ -23,12 +23,17 @@ internal data class PendingGeofenceDelivery(
     /** Unix epoch **seconds** at receiver time. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
     val userId: String?,
-    /** Stable id minted once at capture so every delivery attempt dedupes to one event backend-side. Not part of [key]. */
+    /**
+     * Identifies the physical crossing, shared across its per-geoset fan-out (geosets differ by
+     * [geosetId]); backend dedup is keyed (transitionId, geoset). Not part of [key].
+     */
     val transitionId: String,
     /** Null when the fired geofence isn't in the cached region set. */
-    val geofenceName: String? = null
+    val geofenceName: String? = null,
+    /** Part of [key] so per-geoset entries for one crossing don't collide; null when the fence has no geosets. */
+    val geosetId: String? = null
 ) : PendingDeliveryStore.PendingDeliveryEntry {
-    override val key: String get() = "${geofenceId}_${transition.name}_$timestamp"
+    override val key: String get() = "${geofenceId}_${transition.name}_${timestamp}_${geosetId ?: "none"}"
 
     /**
      * Properties carried on the tracked "Geofence Transition" event. Kept here
@@ -40,6 +45,7 @@ internal data class PendingGeofenceDelivery(
         put("transition", transition.name.lowercase())
         put("geofenceId", geofenceId)
         put("transitionId", transitionId)
+        geosetId?.let { put("geosetId", it.toLongOrNull() ?: it) }
         geofenceName?.let { put("geofenceName", it) }
     }
 

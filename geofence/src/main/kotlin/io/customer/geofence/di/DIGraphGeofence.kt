@@ -13,7 +13,6 @@ import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl
 import io.customer.geofence.GeofenceServices
 import io.customer.geofence.GeofenceServicesImpl
-import io.customer.geofence.GeofenceSyncMode
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
 import io.customer.geofence.store.GeofenceCooldownStore
@@ -128,8 +127,7 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             manager = geofenceManager,
             secureUserStore = secureUserStore,
             clock = SDKComponent.clock,
-            logger = SDKComponent.geofenceLogger,
-            syncMode = GeofenceSyncMode.active
+            logger = SDKComponent.geofenceLogger
         )
     }
 

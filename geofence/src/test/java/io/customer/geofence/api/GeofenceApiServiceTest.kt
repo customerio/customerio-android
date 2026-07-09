@@ -10,7 +10,6 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContain
 import org.junit.Test
 
@@ -24,20 +23,10 @@ class GeofenceApiServiceTest {
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("{}")
 
-        service.fetchGeofences(GeofenceLocation(latitude = 1.0, longitude = 2.0))
+        service.fetchGeofences(GeofenceLocation(latitude = 1.0, longitude = 2.0), radiusMeters = 1000.0)
 
         capturedParams.captured.method shouldBeEqualTo HttpMethod.POST
         capturedParams.captured.path shouldBeEqualTo "/geofences/nearest"
-    }
-
-    @Test
-    fun fetchGeofences_givenNoLocation_expectNoBody() = runTest {
-        val capturedParams = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("{}")
-
-        service.fetchGeofences(location = null)
-
-        capturedParams.captured.body.shouldBeNull()
     }
 
     @Test

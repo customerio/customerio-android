@@ -10,14 +10,12 @@ import kotlinx.serialization.Serializable
 
 internal interface GeofenceApiService {
     /**
-     * Fetches geofences. When [location] is non-null (NEARBY) it's sent with [radiusMeters] in the
-     * request body so the backend returns the nearest set within that radius; when null (FETCH_ALL)
-     * no body is sent and the backend returns the full (capped) set. The request carries no user
-     * identity, so the location is not attributable to a user.
+     * Fetches the nearest geofences to [location] within [radiusMeters], sent in the request body.
+     * The request carries no user identity, so the location is not attributable to a user.
      */
     suspend fun fetchGeofences(
-        location: GeofenceLocation? = null,
-        radiusMeters: Double = 0.0
+        location: GeofenceLocation,
+        radiusMeters: Double
     ): Result<GeofenceApiResponse>
 }
 
@@ -27,16 +25,14 @@ internal class GeofenceApiServiceImpl(
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(
-        location: GeofenceLocation?,
+        location: GeofenceLocation,
         radiusMeters: Double
     ): Result<GeofenceApiResponse> {
         // `limit` is optional on the endpoint and omitted — the SDK caps the count locally.
-        val body = location?.let {
-            jsonSerializer.encode(
-                GeofenceNearestRequest.serializer(),
-                GeofenceNearestRequest(latitude = it.latitude, longitude = it.longitude, radius = radiusMeters)
-            )
-        }
+        val body = jsonSerializer.encode(
+            GeofenceNearestRequest.serializer(),
+            GeofenceNearestRequest(latitude = location.latitude, longitude = location.longitude, radius = radiusMeters)
+        )
         val params = HttpRequestParams(
             path = ENDPOINT_PATH,
             method = HttpMethod.POST,

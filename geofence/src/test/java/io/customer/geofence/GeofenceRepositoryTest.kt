@@ -47,20 +47,17 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Default: mirror real time so tests using relative timestamps work
         // without churn. Override for deterministic timing.
         every { clock.currentTimeMillis() } answers { System.currentTimeMillis() }
-        // Default to FETCH_ALL so these tests pin that mode explicitly; NEARBY tests rebuild via
-        // buildRepository(NEARBY). (GeofenceSyncMode.active is covered in GeofenceSyncModeTest.)
-        repository = buildRepository(GeofenceSyncMode.FETCH_ALL)
+        repository = buildRepository()
     }
 
-    private fun buildRepository(syncMode: GeofenceSyncMode) = GeofenceRepositoryImpl(
+    private fun buildRepository() = GeofenceRepositoryImpl(
         apiService = apiService,
         store = store,
         distanceFilter = distanceFilter,
         manager = manager,
         secureUserStore = secureUserStore,
         clock = clock,
-        logger = logger,
-        syncMode = syncMode
+        logger = logger
     )
 
     @Test
@@ -166,7 +163,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenFetchAllMode_expectFetchWithoutLocation() = runTest {
+    fun refresh_givenNeverSynced_expectRemoteFetchWithLocation() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns null // never synced -> remote fetch
         coEvery { apiService.fetchGeofences(any(), any()) } returns
@@ -176,50 +173,15 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 37.7749, longitude = -122.4194)
 
-        // Fetch-all sends no location; precise lat/lng stay on-device.
-        coVerify { apiService.fetchGeofences(null, any()) }
-    }
-
-    @Test
-    fun handleMovement_givenFetchAllModeAndMovedFar_expectLocalRefreshNotRemote() = runTest {
-        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
-        every { store.getCachedConfig() } returns sampleConfig()
-        every { store.getCachedRegions() } returns cached
-        every { store.getRegisteredIds() } returns setOf("biz-1")
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns cached
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        // 1° latitude ≈ 111 km — far beyond any radius — but fetch-all never re-fetches on movement.
-        repository.handleMovement(latitude = 1.0, longitude = 0.0)
-
-        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify { manager.replaceGeofences(any(), any()) }
-    }
-
-    @Test
-    fun refresh_givenNearbyMode_expectFetchWithLocation() = runTest {
-        repository = buildRepository(GeofenceSyncMode.NEARBY)
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastSyncTimestamp() } returns null // never synced -> remote fetch
-        coEvery { apiService.fetchGeofences(any(), any()) } returns
-            Result.success(sampleResponse(maxBusinessGeofences = 3))
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        repository.refresh(latitude = 37.7749, longitude = -122.4194)
-
-        // NEARBY sends the device location to the API.
+        // The device location is sent to the API.
         coVerify { apiService.fetchGeofences(GeofenceLocation(37.7749, -122.4194), any()) }
     }
 
     @Test
-    fun refresh_givenNearbyMode_expectSearchRadiusFromConfig() = runTest {
+    fun refresh_givenRemoteFetch_expectSearchRadiusFromConfig() = runTest {
         // radius = max(maxMonitoringDistance, remoteFetchRefreshTriggerRadius). Here the monitoring
         // cap (2 km) is tighter than the re-fetch radius (5 km), so the re-fetch radius wins — the
         // set must still cover everywhere the device can travel before the next re-fetch.
-        repository = buildRepository(GeofenceSyncMode.NEARBY)
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns null
         every { store.getCachedConfig() } returns sampleConfig(maxMonitoringDistance = 2_000f)
@@ -235,10 +197,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenNearbyModeFreshButMovedFar_expectRemoteFetchWithLocation() = runTest {
-        // NEARBY counterpart to the fetch-all "fresh but moved far" test: even within the freshness
-        // window, moving past the fetch radius makes the cached set no longer nearby -> re-fetch.
-        repository = buildRepository(GeofenceSyncMode.NEARBY)
+    fun refresh_givenFreshButMovedBeyondFetchRadius_expectRemoteFetchWithLocation() = runTest {
+        // Even within the freshness window, moving past the fetch radius makes the cached set no
+        // longer nearby -> re-fetch.
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L // time-fresh
         every { store.getCachedConfig() } returns sampleConfig() // remoteFetchRefreshTriggerRadius = 5 km
@@ -255,8 +216,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun handleMovement_givenNearbyModeAndMovedBeyondFetchRadius_expectRemoteFetchWithLocation() = runTest {
-        repository = buildRepository(GeofenceSyncMode.NEARBY)
+    fun handleMovement_givenMovedBeyondFetchRadius_expectRemoteFetchWithLocation() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
         every { store.getCachedConfig() } returns sampleConfig() // remoteFetchRefreshTriggerRadius = 5 km
@@ -272,8 +232,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun handleMovement_givenNearbyModeAndMovedWithinFetchRadius_expectLocalReRankNoFetch() = runTest {
-        repository = buildRepository(GeofenceSyncMode.NEARBY)
+    fun handleMovement_givenMovedWithinFetchRadius_expectLocalReRankNoFetch() = runTest {
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
@@ -291,31 +250,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenFetchAllModeFreshButMovedFar_expectLocalReRankNotRemote() = runTest {
-        // App killed while the user travelled far, reopened within the freshness window: the cached
-        // set is still valid (location-independent) but the registered nearest-N must be re-ranked
-        // for the new location — locally, without a server call.
-        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
-        every { store.getCachedConfig() } returns sampleConfig()
-        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
-        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
-        every { store.getCachedRegions() } returns cached
-        every { store.getRegisteredIds() } returns setOf("biz-1")
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns cached
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        // 1° latitude ≈ 111 km — far beyond localRefreshTriggerRadius — but within time freshness.
-        repository.refresh(latitude = 1.0, longitude = 0.0)
-
-        coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
-        coVerify { manager.replaceGeofences(any(), any()) }
-        verify(exactly = 0) { logger.logSyncSkippedFresh() }
-    }
-
-    @Test
-    fun refresh_givenFetchAllModeFreshAndNotMoved_expectSkip() = runTest {
+    fun refresh_givenFreshAndNotMoved_expectSkip() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
         every { store.getCachedConfig() } returns sampleConfig()
@@ -332,20 +267,21 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenFarFromLastFetchButAtLastRegistration_expectSkip() = runTest {
+    fun refresh_givenPastLocalRadiusFromFetchButAtLastRegistration_expectSkip() = runTest {
         // Ranking staleness is measured from the last registration (movement-trigger center), NOT the
-        // last API fetch. The device sits far from a stale fetch anchor but exactly where it was last
+        // last API fetch. The device sits ~2.2 km from the fetch anchor — beyond the 1 km local radius
+        // but within the 5 km fetch radius (so no remote re-fetch) — yet exactly where it was last
         // re-ranked, so the ranking is current → SKIP. Guards against measuring from the fetch anchor.
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L // time-fresh
         every { store.getCachedConfig() } returns sampleConfig() // local 1 km, remote 5 km
-        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0) // stale fetch anchor
-        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(1.0, 0.0) // last re-rank
-        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f))
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0) // fetch anchor
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.02, 0.0) // last re-rank
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.02, 0.0, 100f))
         every { store.getRegisteredIds() } returns setOf("biz-1") // regs intact
 
-        // At the last-registration point (0 m from it), but ~111 km from the fetch anchor.
-        repository.refresh(latitude = 1.0, longitude = 0.0)
+        // At the last-registration point (0 m from it), but ~2.2 km from the fetch anchor.
+        repository.refresh(latitude = 0.02, longitude = 0.0)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any(), any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }

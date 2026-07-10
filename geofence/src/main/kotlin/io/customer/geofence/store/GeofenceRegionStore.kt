@@ -31,7 +31,7 @@ import kotlinx.serialization.builtins.serializer
  *                                  closer to the user's real position than the anchor.
  *   lastSyncTimestamp           — freshness throttle; cleared so the next login re-fetches.
  *
- * Rationale: backend `/v1/geofences/nearby` is workspace-scoped (no userId on
+ * Rationale: the backend geofence fetch is workspace-scoped (no userId on
  * the wire), so cached regions/config stay valid for any user in the workspace
  * and are kept. Dropping the freshness timestamp makes the next login re-fetch
  * instead of riding the prior session's window. If backend ever adds per-user
@@ -50,8 +50,8 @@ internal interface GeofenceRegionStore {
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
 
-    /** Name of the cached region with [id], or null if it isn't cached. */
-    fun getCachedRegionName(id: String): String? = getCachedRegions().find { it.id == id }?.name
+    /** The cached region with [id], or null if it isn't cached. */
+    fun getCachedRegion(id: String): GeofenceRegion? = getCachedRegions().find { it.id == id }
 
     fun saveRegisteredIds(ids: Set<String>)
     fun getRegisteredIds(): Set<String>
@@ -82,6 +82,10 @@ internal interface GeofenceRegionStore {
 
     fun clearAll()
 }
+
+/** Cached config, or the constant fallback when none is cached. */
+internal fun GeofenceRegionStore.getCachedConfigOrFallback(): GeofenceConfig =
+    getCachedConfig() ?: GeofenceConfig.fallback()
 
 internal class GeofenceRegionStoreImpl(
     context: Context,

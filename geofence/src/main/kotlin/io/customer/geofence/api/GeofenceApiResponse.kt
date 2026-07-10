@@ -10,9 +10,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire shape of `GET /v1/geofences/nearby`. Backend ships only `geofences`
- * today; `config` and per-region `transition_types` / `last_updated` are
- * nullable forward-compat slots the SDK will honor when backend adds them.
+ * Wire shape of `POST /geofences/nearest`. `config` and the per-region
+ * `name` / `transition_types` / `last_updated` fields are optional forward-compat
+ * slots the SDK honors if the backend sends them and silently skips otherwise.
  */
 @Serializable
 internal data class GeofenceApiResponse(
@@ -64,7 +64,9 @@ internal data class GeofenceApiRegion(
     @SerialName("transition_types")
     val transitionTypes: List<String>? = null,
     @SerialName("last_updated")
-    val lastUpdated: Long? = null
+    val lastUpdated: Long? = null,
+    @SerialName("geoset_ids")
+    val geosetIds: List<String> = emptyList()
 )
 
 /** Returns `null` when backend didn't send a `config` block — gates the cache save. */
@@ -124,7 +126,8 @@ private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(
     longitude = longitude,
     radius = radius.toFloat(),
     transitionTypes = resolveTransitionTypes(transitionTypes),
-    lastUpdated = lastUpdated ?: 0L
+    lastUpdated = lastUpdated ?: 0L,
+    geosetIds = geosetIds
 )
 
 /**

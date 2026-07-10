@@ -27,6 +27,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeBlank
 import org.amshove.kluent.shouldNotBeNull
+import org.amshove.kluent.shouldNotContain
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -309,7 +310,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenCachedRegionName_expectNameOnEntry() = runTest {
-        every { mockStore.getCachedRegionName("biz-geofence") } returns "Coffee Shop"
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f, name = "Coffee Shop")
         val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
@@ -321,6 +323,86 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
         entrySlot.captured.geofenceName shouldBeEqualTo "Coffee Shop"
+    }
+
+    @Test
+    fun dispatchTransition_givenRegionWithMultipleGeosets_expectOneEventPerGeoset() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f, name = "Mall", geosetIds = listOf("7", "8", "9"))
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        // One event per geoset, in order, surfacing geosetId as a string property.
+        scheduled.map { it.geosetId } shouldBeEqualTo listOf("7", "8", "9")
+        // Numeric geoset ids are emitted as numbers so the type matches the server's int64.
+        scheduled.map { it.toEventProperties()["geosetId"] } shouldBeEqualTo listOf(7L, 8L, 9L)
+        // Same physical crossing => one shared transitionId, but distinct keys so entries don't collide.
+        scheduled.map { it.transitionId }.toSet().size shouldBeEqualTo 1
+        scheduled.map { it.key }.toSet().size shouldBeEqualTo 3
+        // Cooldown is a single gate for the crossing, not per geoset.
+        verify(exactly = 1) { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) }
+        pendingStore.loadAll().size shouldBeEqualTo 3
+    }
+
+    @Test
+    fun dispatchTransition_givenRegionWithDuplicateGeosets_expectDedupedInOrder() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f, geosetIds = listOf("7", "8", "7"))
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        // Duplicate geoset is dropped (order preserved) — no duplicate event for it.
+        scheduled.map { it.geosetId } shouldBeEqualTo listOf("7", "8")
+        pendingStore.loadAll().size shouldBeEqualTo 2
+    }
+
+    @Test
+    fun dispatchTransition_givenRegionWithSingleGeoset_expectSingleEventWithGeoset() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f, geosetIds = listOf("5"))
+        val entrySlot = slot<PendingGeofenceDelivery>()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.geosetId shouldBeEqualTo "5"
+    }
+
+    @Test
+    fun dispatchTransition_givenRegionWithNoGeosets_expectSingleEventWithoutGeoset() = runTest {
+        // Default relaxed store returns a null region => no geosets => a single event is still emitted
+        // so a real OS transition is never dropped.
+        val entrySlot = slot<PendingGeofenceDelivery>()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.geosetId.shouldBeNull()
+        entrySlot.captured.toEventProperties().keys shouldNotContain "geosetId"
     }
 
     @Test

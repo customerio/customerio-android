@@ -53,7 +53,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
         // At-least-once contract: send with the snapshotted entry, remove only after success.
         coVerify(exactly = 1) { mockTracker.trackEvent(entry) }
-        verify(exactly = 1) { mockStore.remove("biz-1_ENTER_42") }
+        verify(exactly = 1) { mockStore.remove("biz-1_ENTER_42_none") }
     }
 
     @Test

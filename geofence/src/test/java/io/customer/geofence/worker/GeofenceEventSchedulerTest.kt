@@ -69,7 +69,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 capture(workRequestSlot)
             )
         }
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234"
+        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
 
         val input = workRequestSlot.captured.workSpec.input
         input.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
@@ -84,6 +84,31 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
         constraints.requiredNetworkType shouldBeEqualTo NetworkType.CONNECTED
+    }
+
+    @Test
+    fun schedule_givenGeoset_expectGeosetIdInKeyAndInputData() = runTest {
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val workRequestSlot = slot<OneTimeWorkRequest>()
+        val uniqueKeySlot = slot<String>()
+
+        scheduler.schedule(
+            PendingGeofenceDelivery(
+                geofenceId = "biz-geofence-1",
+                transition = Event.GeofenceTransition.ENTER,
+                timestamp = 1_234L,
+                userId = "user-42",
+                transitionId = "tid-sched",
+                geosetId = "9"
+            )
+        )
+
+        verify(exactly = 1) {
+            workManager.enqueueUniqueWork(capture(uniqueKeySlot), ExistingWorkPolicy.KEEP, capture(workRequestSlot))
+        }
+        // Key carries the geoset so per-geoset workers don't collide under ExistingWorkPolicy.KEEP.
+        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
+        workRequestSlot.captured.workSpec.input.getString("geoset_id") shouldBeEqualTo "9"
     }
 
     @Test

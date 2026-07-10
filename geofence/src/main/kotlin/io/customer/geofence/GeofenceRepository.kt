@@ -6,6 +6,7 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.getCachedConfigOrFallback
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
@@ -84,7 +85,7 @@ internal class GeofenceRepositoryImpl(
                 return Result.success(Unit)
             }
 
-            val config = store.getCachedConfig() ?: GeofenceConfig.fallback()
+            val config = store.getCachedConfigOrFallback()
             return when (refreshAction(LocationCoordinates(latitude, longitude), config)) {
                 RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
@@ -159,7 +160,7 @@ internal class GeofenceRepositoryImpl(
             }
 
             val anchor = store.getLastApiFetchLocation()
-            val config = store.getCachedConfig() ?: GeofenceConfig.fallback()
+            val config = store.getCachedConfigOrFallback()
             val distanceFromAnchor = anchor?.distanceTo(latitude, longitude) ?: 0f
             // No anchor yet (first EXIT after install / clearAll / sign-out) bootstraps from the server.
             // Otherwise, a non-remote move always re-ranks locally — that's the floor for any EXIT.
@@ -199,7 +200,7 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("no cached state to restore")
             return Result.success(Unit)
         }
-        val cachedConfig = store.getCachedConfig() ?: GeofenceConfig.fallback()
+        val cachedConfig = store.getCachedConfigOrFallback()
         return performLocalRefresh(
             userId = userId,
             latitude = effectiveLocation.latitude,
@@ -217,16 +218,17 @@ internal class GeofenceRepositoryImpl(
     ): Result<Unit> {
         // NEARBY sends the device location so the backend can return the nearby set; FETCH_ALL sends
         // none. The request carries no user identity, so the location isn't attributable to a user.
+        // Search radius comes from the cached config (or fallback) — the fresh config only arrives in
+        // this response, so it can't inform the request that fetches it.
         val fetchLocation = if (syncMode == GeofenceSyncMode.NEARBY) GeofenceLocation(latitude, longitude) else null
-        val fetchResult = apiService.fetchGeofences(fetchLocation)
+        val requestRadiusMeters = store.getCachedConfigOrFallback().remoteSearchRadiusMeters()
+        val fetchResult = apiService.fetchGeofences(fetchLocation, requestRadiusMeters)
         return fetchResult.fold(
             onSuccess = { response ->
                 val regions = response.toDomainRegions()
                 // Config preference: server-shipped > last cached > constants.
                 val parsedConfig = response.toDomainConfig()
-                val config = parsedConfig
-                    ?: store.getCachedConfig()
-                    ?: GeofenceConfig.fallback()
+                val config = parsedConfig ?: store.getCachedConfigOrFallback()
                 registerNearestAndPersist(
                     userId = userId,
                     latitude = latitude,
@@ -283,7 +285,10 @@ internal class GeofenceRepositoryImpl(
             val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
             val cachedById = store.getCachedRegions().associateBy { it.id }
             regions
-                .filter { it.id in registeredBusinessIds && cachedById[it.id] == it }
+                .filter { region ->
+                    val cached = cachedById[region.id]
+                    region.id in registeredBusinessIds && cached?.equalsIgnoringGeosetIds(region) == true
+                }
                 .map { it.id }
                 .toSet()
         }

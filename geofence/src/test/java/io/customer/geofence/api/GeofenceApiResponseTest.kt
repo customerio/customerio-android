@@ -51,7 +51,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
                   "radius": 500,
                   "external_id": "ext-abc",
                   "transition_types": ["enter", "exit"],
-                  "last_updated": 1778760000
+                  "last_updated": 1778760000,
+                  "geoset_ids": [7, 8, 9]
                 }
               ]
             }
@@ -67,8 +68,31 @@ class GeofenceApiResponseTest : RobolectricTest() {
             radius = 500f,
             externalId = "ext-abc",
             transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT),
-            lastUpdated = 1_778_760_000L
+            lastUpdated = 1_778_760_000L,
+            geosetIds = listOf("7", "8", "9")
         )
+    }
+
+    @Test
+    fun parseAndMap_givenNoGeosetIds_expectEmpty() {
+        val regions = parseRegions(
+            """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100 } ] }"""
+        )
+
+        regions[0].geosetIds.shouldBeEmpty()
+    }
+
+    @Test
+    fun parseAndMap_givenNumericGeosetIdsOnWire_expectStringsInOrder() {
+        // Server contract: geoset_ids arrive as JSON numbers ([]int64). The SDK treats them as opaque
+        // string identifiers (like `id`), coercing each element without reordering.
+        val regions = parseRegions(
+            """
+            { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100, "geoset_ids": [1, 3, 7] } ] }
+            """.trimIndent()
+        )
+
+        regions[0].geosetIds shouldBeEqualTo listOf("1", "3", "7")
     }
 
     @Test

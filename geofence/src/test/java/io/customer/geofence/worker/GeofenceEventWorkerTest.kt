@@ -16,6 +16,8 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
@@ -41,8 +43,8 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         store.removeAll()
     }
 
-    // The worker only delivers an entry that's still in the shared store, so seed the
-    // store with the matching entry to model "this transition is still pending".
+    // inputData carries only the store key; the worker loads the full row from the pending store, so
+    // seed the store with the matching entry to model "this transition is still pending".
     private fun seed(
         geofenceId: String,
         transition: Event.GeofenceTransition,
@@ -50,18 +52,18 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         userId: String? = "user-42",
         transitionId: String = "tid-seed",
         geofenceName: String? = null,
-        geosetId: String? = null
+        geosetId: String? = null,
+        metadata: Map<String, JsonElement> = emptyMap()
     ): PendingGeofenceDelivery =
-        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId, geofenceName, geosetId)
+        PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId, geofenceName, geosetId, metadata)
             .also { store.append(it) }
 
     @Test
     fun doWork_givenPendingEntry_expectSuccessTrackerCalledAndEntryRemoved() = runTest {
         val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
-        val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42")
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
 
-        val result = createWorker(inputData).doWork()
+        val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 1) { tracker.trackEvent(entry) }
@@ -69,25 +71,20 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenGeofenceNameInInput_expectNameOnTrackedEntry() = runTest {
-        val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L, geofenceName = "Coffee Shop")
-        val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42", geofenceName = "Coffee Shop")
+    fun doWork_givenStoredEntryWithSnapshot_expectDeliveredFromStoreSnapshot() = runTest {
+        // The worker delivers the persisted row verbatim — name, geoset, and metadata come from the
+        // store snapshot, never from inputData — so a large metadata map is never at risk of loss.
+        val entry = seed(
+            "biz-1",
+            Event.GeofenceTransition.ENTER,
+            99L,
+            geofenceName = "Coffee Shop",
+            geosetId = "7",
+            metadata = mapOf("category" to JsonPrimitive("office"), "priority" to JsonPrimitive(3))
+        )
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
 
-        createWorker(inputData).doWork()
-
-        coVerify(exactly = 1) { tracker.trackEvent(entry) }
-    }
-
-    @Test
-    fun doWork_givenGeosetIdInInput_expectGeosetOnTrackedEntryAndRemoved() = runTest {
-        // Round-trips geosetId through inputData: the reconstructed entry must match the stored
-        // per-geoset key (biz-1_ENTER_99_7), so the durable path sends + removes the right event.
-        val entry = seed("biz-1", Event.GeofenceTransition.ENTER, 99L, geosetId = "7")
-        val inputData = buildInputData("biz-1", "ENTER", 99L, "user-42", geosetId = "7")
-        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
-
-        val result = createWorker(inputData).doWork()
+        val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 1) { tracker.trackEvent(entry) }
@@ -95,12 +92,11 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenValidExitInput_expectExitTransitionPassed() = runTest {
+    fun doWork_givenExitEntry_expectExitTransitionPassed() = runTest {
         val entry = seed("biz-2", Event.GeofenceTransition.EXIT, timestamp = 0L)
-        val inputData = buildInputData("biz-2", "EXIT", timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
 
-        createWorker(inputData).doWork()
+        createWorker(inputDataFor(entry.key)).doWork()
 
         coVerify(exactly = 1) { tracker.trackEvent(entry) }
     }
@@ -109,39 +105,15 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     fun doWork_givenEntryAlreadyDelivered_expectSuccessWithoutTracking() = runTest {
         // No matching entry in the store (the foreground flush already delivered + removed it):
         // the worker sees it's gone, so it must not send a duplicate.
-        val inputData = buildInputData("biz-already-delivered", "ENTER", timestamp = 0L, userId = "user-42")
-
-        val result = createWorker(inputData).doWork()
+        val result = createWorker(inputDataFor("biz-already-delivered_ENTER_0_none")).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
     }
 
     @Test
-    fun doWork_givenMissingGeofenceId_expectFailureWithoutTracking() = runTest {
-        val inputData = buildInputData(geofenceId = null, transition = "ENTER")
-
-        val result = createWorker(inputData).doWork()
-
-        result shouldBeEqualTo ListenableWorker.Result.failure()
-        coVerify(exactly = 0) { tracker.trackEvent(any()) }
-    }
-
-    @Test
-    fun doWork_givenMissingTransition_expectFailureWithoutTracking() = runTest {
-        val inputData = buildInputData(geofenceId = "biz", transition = null)
-
-        val result = createWorker(inputData).doWork()
-
-        result shouldBeEqualTo ListenableWorker.Result.failure()
-        coVerify(exactly = 0) { tracker.trackEvent(any()) }
-    }
-
-    @Test
-    fun doWork_givenInvalidTransition_expectFailureWithoutTracking() = runTest {
-        val inputData = buildInputData(geofenceId = "biz", transition = "DWELL")
-
-        val result = createWorker(inputData).doWork()
+    fun doWork_givenMissingEntryKey_expectFailureWithoutTracking() = runTest {
+        val result = createWorker(Data.EMPTY).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.failure()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
@@ -149,26 +121,24 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenIOException_expectRetryAndEntryRestored() = runTest {
-        seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
-        val inputData = buildInputData("biz", "ENTER", timestamp = 0L, userId = "user-42")
+        val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(IOException("network down"))
 
-        val result = createWorker(inputData).doWork()
+        val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.retry()
-        // Restored so a WorkManager retry — or the foreground flush — can deliver later.
+        // Left in place so a WorkManager retry — or the foreground flush — can deliver later.
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0_none")
     }
 
     @Test
     fun doWork_givenNonIOException_expectFailureAndEntryRestored() = runTest {
-        seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
-        val inputData = buildInputData("biz", "ENTER", timestamp = 0L, userId = "user-42")
+        val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(IllegalStateException("bad state"))
 
-        val result = createWorker(inputData).doWork()
+        val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.failure()
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0_none")
@@ -178,10 +148,9 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     fun doWork_givenNullUserId_expectDeferredWithoutTracking() = runTest {
         // Anonymous-at-queue-time path: HTTP needs a userId so we leave the
         // entry intact for the foreground flush (analytics pipeline + anonymousId).
-        seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)
-        val inputData = buildInputData("biz-anon", "ENTER", timestamp = 0L, userId = null)
+        val entry = seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)
 
-        val result = createWorker(inputData).doWork()
+        val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
@@ -189,25 +158,8 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz-anon_ENTER_0_none")
     }
 
-    private fun buildInputData(
-        geofenceId: String?,
-        transition: String?,
-        timestamp: Long = 0L,
-        userId: String? = "user-42",
-        transitionId: String? = "tid-seed",
-        geofenceName: String? = null,
-        geosetId: String? = null
-    ): Data {
-        val builder = Data.Builder()
-            .putLong("timestamp", timestamp)
-        geofenceId?.let { builder.putString("geofence_id", it) }
-        transition?.let { builder.putString("transition", it) }
-        transitionId?.let { builder.putString("transition_id", it) }
-        userId?.let { builder.putString("user_id", it) }
-        geofenceName?.let { builder.putString("geofence_name", it) }
-        geosetId?.let { builder.putString("geoset_id", it) }
-        return builder.build()
-    }
+    private fun inputDataFor(key: String): Data =
+        Data.Builder().putString("entry_key", key).build()
 
     private fun createWorker(inputData: Data): GeofenceEventWorker {
         return TestListenableWorkerBuilder<GeofenceEventWorker>(applicationMock)

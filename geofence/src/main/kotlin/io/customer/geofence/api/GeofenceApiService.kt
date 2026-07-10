@@ -10,13 +10,10 @@ import kotlinx.serialization.Serializable
 
 internal interface GeofenceApiService {
     /**
-     * Fetches the nearest geofences to [location] within [radiusMeters], sent in the request body.
-     * The request carries no user identity, so the location is not attributable to a user.
+     * Fetches the nearest geofences to [location], sent in the request body. The request carries no
+     * user identity, so the location is not attributable to a user.
      */
-    suspend fun fetchGeofences(
-        location: GeofenceLocation,
-        radiusMeters: Double
-    ): Result<GeofenceApiResponse>
+    suspend fun fetchGeofences(location: GeofenceLocation): Result<GeofenceApiResponse>
 }
 
 internal class GeofenceApiServiceImpl(
@@ -24,14 +21,11 @@ internal class GeofenceApiServiceImpl(
     private val jsonSerializer: GeofenceJsonSerializer
 ) : GeofenceApiService {
 
-    override suspend fun fetchGeofences(
-        location: GeofenceLocation,
-        radiusMeters: Double
-    ): Result<GeofenceApiResponse> {
-        // `limit` is optional on the endpoint and omitted — the SDK caps the count locally.
+    override suspend fun fetchGeofences(location: GeofenceLocation): Result<GeofenceApiResponse> {
+        // `radius`/`limit` are optional server-side and omitted.
         val body = jsonSerializer.encode(
             GeofenceNearestRequest.serializer(),
-            GeofenceNearestRequest(latitude = location.latitude, longitude = location.longitude, radius = radiusMeters)
+            GeofenceNearestRequest(latitude = location.latitude, longitude = location.longitude)
         )
         val params = HttpRequestParams(
             path = ENDPOINT_PATH,
@@ -57,7 +51,5 @@ private data class GeofenceNearestRequest(
     @SerialName("latitude")
     val latitude: Double,
     @SerialName("longitude")
-    val longitude: Double,
-    @SerialName("radius")
-    val radius: Double
+    val longitude: Double
 )

@@ -1,9 +1,13 @@
 package io.customer.geofence.store
 
+import io.customer.geofence.GeofenceRegion
 import io.customer.sdk.communication.Event
 import java.util.Date
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotContain
 import org.junit.Test
 
@@ -94,19 +98,10 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
-    fun toEventProperties_givenNumericGeoset_expectGeosetIdAsLong() {
-        // Emitted as a number so the property type matches the server's int64 geoset id.
+    fun toEventProperties_givenGeoset_expectGeosetIdAsString() {
         val entry = PendingGeofenceDelivery("biz-7", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-7", geosetId = "42")
 
-        entry.toEventProperties()["geosetId"] shouldBeEqualTo 42L
-    }
-
-    @Test
-    fun toEventProperties_givenNonNumericGeoset_expectGeosetIdAsString() {
-        // Non-numeric ids (should the backend ever send them) pass through unchanged rather than being dropped.
-        val entry = PendingGeofenceDelivery("biz-7", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-7", geosetId = "gs-abc")
-
-        entry.toEventProperties()["geosetId"] shouldBeEqualTo "gs-abc"
+        entry.toEventProperties()["geosetId"] shouldBeEqualTo "42"
     }
 
     @Test
@@ -115,6 +110,149 @@ class PendingGeofenceDeliveryTest {
         val entry = PendingGeofenceDelivery("biz-8", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-8", geosetId = null)
 
         entry.toEventProperties().keys shouldNotContain "geosetId"
+    }
+
+    @Test
+    fun toEventProperties_givenMetadata_expectMetadataWithPrimitiveTypesPreserved() {
+        val entry = PendingGeofenceDelivery(
+            "biz-m",
+            Event.GeofenceTransition.ENTER,
+            50L,
+            "user-A",
+            transitionId = "tid-m",
+            metadata = mapOf(
+                "category" to JsonPrimitive("office"),
+                "priority" to JsonPrimitive(3),
+                "ratio" to JsonPrimitive(1.5),
+                "vip" to JsonPrimitive(true)
+            )
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val metadata = entry.toEventProperties()["metadata"] as Map<String, Any>
+        metadata["category"] shouldBeEqualTo "office"
+        metadata["priority"] shouldBeEqualTo 3L
+        metadata["ratio"] shouldBeEqualTo 1.5
+        metadata["vip"] shouldBeEqualTo true
+    }
+
+    @Test
+    fun toEventProperties_givenEmptyMetadata_expectEmptyMetadataObject() {
+        // `metadata` is always present (empty object when the fence has none), never omitted.
+        val entry = PendingGeofenceDelivery("biz-m2", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-m2")
+
+        @Suppress("UNCHECKED_CAST")
+        val metadata = entry.toEventProperties()["metadata"] as Map<String, Any>
+        metadata.isEmpty() shouldBeEqualTo true
+    }
+
+    @Test
+    fun toEventProperties_givenNonPrimitiveMetadataValue_expectItDroppedButPrimitivesKept() {
+        // Contract is primitives only; a stray nested object is skipped, not crashed on.
+        val entry = PendingGeofenceDelivery(
+            "biz-m3",
+            Event.GeofenceTransition.ENTER,
+            50L,
+            "user-A",
+            transitionId = "tid-m3",
+            metadata = mapOf(
+                "category" to JsonPrimitive("office"),
+                "nested" to buildJsonObject { put("x", JsonPrimitive(1)) }
+            )
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val metadata = entry.toEventProperties()["metadata"] as Map<String, Any>
+        metadata.keys shouldContain "category"
+        metadata.keys shouldNotContain "nested"
+    }
+
+    @Test
+    fun withFreshestEventData_givenCachedRegion_expectNameAndMetadataFromCache() {
+        val entry = PendingGeofenceDelivery(
+            "biz-h",
+            Event.GeofenceTransition.ENTER,
+            50L,
+            "user-A",
+            transitionId = "tid-h",
+            geofenceName = "Stale",
+            metadata = mapOf("k" to JsonPrimitive("stale"))
+        )
+        val cached = GeofenceRegion(
+            id = "biz-h",
+            latitude = 1.0,
+            longitude = 2.0,
+            radius = 100f,
+            name = "Fresh",
+            metadata = mapOf("k" to JsonPrimitive("fresh"))
+        )
+
+        val resolved = entry.withFreshestEventData(cached)
+
+        resolved.geofenceName shouldBeEqualTo "Fresh"
+        resolved.metadata shouldBeEqualTo mapOf("k" to JsonPrimitive("fresh"))
+    }
+
+    @Test
+    fun withFreshestEventData_givenCachedRegionWithEmptyName_expectSnapshotNameKept() {
+        // A cached region whose name is now empty keeps the crossing-time snapshot name rather than
+        // dropping a name we once had; metadata still comes fresh from the cache.
+        val entry = PendingGeofenceDelivery(
+            "biz-h",
+            Event.GeofenceTransition.ENTER,
+            50L,
+            "user-A",
+            transitionId = "tid-h",
+            geofenceName = "Snapshot Name",
+            metadata = mapOf("k" to JsonPrimitive("stale"))
+        )
+        val cached = GeofenceRegion(
+            id = "biz-h",
+            latitude = 1.0,
+            longitude = 2.0,
+            radius = 100f,
+            name = "",
+            metadata = mapOf("k" to JsonPrimitive("fresh"))
+        )
+
+        val resolved = entry.withFreshestEventData(cached)
+
+        resolved.geofenceName shouldBeEqualTo "Snapshot Name"
+        resolved.metadata shouldBeEqualTo mapOf("k" to JsonPrimitive("fresh"))
+    }
+
+    @Test
+    fun withFreshestEventData_givenNullCachedRegion_expectSnapshotRetained() {
+        val entry = PendingGeofenceDelivery(
+            "biz-h2",
+            Event.GeofenceTransition.ENTER,
+            50L,
+            "user-A",
+            transitionId = "tid-h2",
+            geofenceName = "Snapshot",
+            metadata = mapOf("k" to JsonPrimitive("snap"))
+        )
+
+        val resolved = entry.withFreshestEventData(cachedRegion = null)
+
+        resolved shouldBeEqualTo entry
+    }
+
+    @Test
+    fun serialization_givenMetadata_expectRoundTripPreservesTypes() {
+        val entry = PendingGeofenceDelivery(
+            "biz-ser",
+            Event.GeofenceTransition.ENTER,
+            9L,
+            "user-A",
+            transitionId = "tid-ser",
+            metadata = mapOf("s" to JsonPrimitive("x"), "n" to JsonPrimitive(7), "b" to JsonPrimitive(false))
+        )
+
+        val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
+        val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), json)
+
+        restored shouldBeEqualTo entry
     }
 
     @Test

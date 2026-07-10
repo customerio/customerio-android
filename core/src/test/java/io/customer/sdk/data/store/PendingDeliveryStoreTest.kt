@@ -65,6 +65,23 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun get_givenExistingKey_expectMatchingEntry() {
+        val store = newStore()
+        val target = entry("target")
+        store.appendAll(listOf(entry("other"), target))
+
+        store.get(target.key) shouldBeEqualTo target
+    }
+
+    @Test
+    fun get_givenAbsentKey_expectNull() {
+        val store = newStore()
+        store.append(entry("other"))
+
+        store.get("missing") shouldBeEqualTo null
+    }
+
+    @Test
     fun appendAll_givenMultipleEntries_expectAllPersistedAfterExisting() {
         val store = newStore()
         store.append(entry("a"))

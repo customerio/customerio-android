@@ -1,7 +1,9 @@
 package io.customer.geofence.worker
 
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
+import io.customer.geofence.store.withFreshestEventData
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import io.customer.sdk.core.util.DispatchersProvider
@@ -28,7 +30,8 @@ internal interface GeofenceEventTracker {
 }
 
 internal class GeofenceEventTrackerImpl(
-    private val httpClient: CustomerIOHttpClient
+    private val httpClient: CustomerIOHttpClient,
+    private val regionStore: GeofenceRegionStore
 ) : GeofenceEventTracker {
 
     override suspend fun trackEvent(entry: PendingGeofenceDelivery): Result<Unit> {
@@ -39,8 +42,9 @@ internal class GeofenceEventTrackerImpl(
             )
         }
 
+        val event = entry.withFreshestEventData(regionStore.getCachedRegion(entry.geofenceId))
         val bodyJson = JSONObject().apply {
-            put("properties", JSONObject(entry.toEventProperties()))
+            put("properties", JSONObject(event.toEventProperties()))
             Iso8601TimestampFormatter.fromUnixSeconds(entry.timestamp)?.let { put("timestamp", it) }
             put("event", EventNames.GEOFENCE_TRANSITION)
             put("userId", userId)

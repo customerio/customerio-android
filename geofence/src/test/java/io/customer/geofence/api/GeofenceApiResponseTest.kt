@@ -11,6 +11,7 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
@@ -93,6 +94,99 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         regions[0].geosetIds shouldBeEqualTo listOf("1", "3", "7")
+    }
+
+    @Test
+    fun parseAndMap_givenQuotedStringGeosetIdsOnWire_expectStringsInOrder() {
+        // Defensive: geoset_ids are typed as strings, so a quoted form decodes identically to the numeric contract.
+        val regions = parseRegions(
+            """
+            { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100, "geoset_ids": ["1", "3", "7"] } ] }
+            """.trimIndent()
+        )
+
+        regions[0].geosetIds shouldBeEqualTo listOf("1", "3", "7")
+    }
+
+    @Test
+    fun parseAndMap_givenMetadata_expectPreservedWithPrimitiveTypes() {
+        val regions = parseRegions(
+            """
+            { "geofences": [ { "id": 100, "latitude": 0.0, "longitude": 0.0, "radius": 250,
+              "metadata": { "category": "office", "priority": 3, "vip": true } } ] }
+            """.trimIndent()
+        )
+
+        val metadata = regions[0].metadata
+        metadata["category"] shouldBeEqualTo JsonPrimitive("office")
+        metadata["priority"] shouldBeEqualTo JsonPrimitive(3)
+        metadata["vip"] shouldBeEqualTo JsonPrimitive(true)
+    }
+
+    @Test
+    fun parseAndMap_givenNoMetadata_expectEmptyMap() {
+        val regions = parseRegions(
+            """
+            { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100 } ] }
+            """.trimIndent()
+        )
+
+        regions[0].metadata.shouldBeEmpty()
+    }
+
+    @Test
+    fun parseAndMap_givenNonScalarMetadataValues_expectDroppedAtParseScalarsKept() {
+        // Non-scalar values (object/array/null) can't be emitted, so they're dropped at parse rather
+        // than stored — and one bad value must not fail the whole region parse.
+        val regions = parseRegions(
+            """
+            { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100,
+              "metadata": { "category": "office", "nested": { "x": 1 }, "tags": ["a", "b"], "missing": null } } ] }
+            """.trimIndent()
+        )
+
+        val metadata = regions[0].metadata
+        metadata.keys shouldContainSame listOf("category")
+        metadata["category"] shouldBeEqualTo JsonPrimitive("office")
+    }
+
+    @Test
+    fun parseAndMap_givenMalformedMetadataType_expectEmptyMetadataAndRegionStillParses() {
+        // `metadata` sent as a non-object (here a string) must not fail the region/response decode —
+        // it degrades to empty metadata while every other field parses normally.
+        val regions = parseRegions(
+            """
+            { "geofences": [ { "id": 1, "latitude": 1.5, "longitude": 2.5, "radius": 100, "metadata": "oops" } ] }
+            """.trimIndent()
+        )
+
+        regions.size shouldBeEqualTo 1
+        regions[0].id shouldBeEqualTo "1"
+        regions[0].latitude shouldBeEqualTo 1.5
+        regions[0].metadata.shouldBeEmpty()
+    }
+
+    @Test
+    fun parseAndMap_givenMoreThanMaxAttributes_expectCappedToMax() {
+        val attrs = (1..150).joinToString(",") { "\"k$it\": \"v$it\"" }
+        val regions = parseRegions(
+            """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100, "metadata": { $attrs } } ] }"""
+        )
+
+        regions[0].metadata.size shouldBeEqualTo 100
+    }
+
+    @Test
+    fun parseAndMap_givenOversizedTotalPayload_expectTrimmed() {
+        // No per-value cap (left to the server); the total-payload backstop drops the runaway entry.
+        val huge = "x".repeat(200 * 1024)
+        val regions = parseRegions(
+            """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100,
+              "metadata": { "a": "small", "z": "$huge" } } ] }"""
+        )
+
+        val metadata = regions[0].metadata
+        metadata.keys shouldContainSame listOf("a")
     }
 
     @Test

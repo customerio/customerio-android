@@ -1,10 +1,16 @@
 package io.customer.geofence.store
 
+import io.customer.geofence.GeofenceRegion
 import io.customer.sdk.communication.Event
 import io.customer.sdk.data.store.PendingDeliveryStore
 import java.util.Date
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 /**
  * A geofence transition observed locally but not yet confirmed as tracked by
@@ -31,7 +37,9 @@ internal data class PendingGeofenceDelivery(
     /** Null when the fired geofence isn't in the cached region set. */
     val geofenceName: String? = null,
     /** Part of [key] so per-geoset entries for one crossing don't collide; null when the fence has no geosets. */
-    val geosetId: String? = null
+    val geosetId: String? = null,
+    /** Snapshot of the fence's `metadata` at crossing time; the send-time fallback when it's left the cache. */
+    val metadata: Map<String, JsonElement> = emptyMap()
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String get() = "${geofenceId}_${transition.name}_${timestamp}_${geosetId ?: "none"}"
 
@@ -45,8 +53,10 @@ internal data class PendingGeofenceDelivery(
         put("transition", transition.name.lowercase())
         put("geofenceId", geofenceId)
         put("transitionId", transitionId)
-        geosetId?.let { put("geosetId", it.toLongOrNull() ?: it) }
+        geosetId?.let { put("geosetId", it) }
         geofenceName?.let { put("geofenceName", it) }
+        // Always present (empty when the fence has none), unlike the optional fields above.
+        put("metadata", metadata.toEventMetadata())
     }
 
     /**
@@ -67,4 +77,37 @@ internal data class PendingGeofenceDelivery(
     companion object {
         internal const val FILE_NAME = "cio_pending_geofence_delivery.json"
     }
+}
+
+/**
+ * Prefers the fence's current cached name + metadata, falling back to the crossing-time snapshot when
+ * it has left the cache. Both fields move together so they never mix points in time. Applied by every
+ * delivery path so all send an identical, consistently-sourced set.
+ */
+internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: GeofenceRegion?): PendingGeofenceDelivery {
+    if (cachedRegion == null) {
+        return this
+    }
+
+    return copy(
+        // Keep the snapshot name if the cached one is now empty — don't drop a name we once had.
+        geofenceName = cachedRegion.name.takeIf { it.isNotEmpty() } ?: geofenceName,
+        metadata = cachedRegion.metadata
+    )
+}
+
+// org.json's JSONObject and Segment's serializer reject JsonElement, so unwrap to Kotlin primitives;
+// non-scalars are already gone by ingestion but drop defensively here too.
+private fun Map<String, JsonElement>.toEventMetadata(): Map<String, Any> = buildMap {
+    this@toEventMetadata.forEach { (key, element) ->
+        (element as? JsonPrimitive)?.toKotlinPrimitiveOrNull()?.let { put(key, it) }
+    }
+}
+
+private fun JsonPrimitive.toKotlinPrimitiveOrNull(): Any? = when {
+    isString -> content
+    booleanOrNull != null -> booleanOrNull
+    longOrNull != null -> longOrNull
+    doubleOrNull != null -> doubleOrNull
+    else -> null
 }

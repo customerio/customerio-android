@@ -142,6 +142,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             val transitionId = UUID.randomUUID().toString()
             val cachedRegion = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
             val geofenceName = cachedRegion?.name?.takeIf { it.isNotEmpty() }
+            val metadata = cachedRegion?.metadata ?: emptyMap()
             // One event per geoset; a fence with no geosets still emits one (null geoset) so a real
             // OS transition is never dropped. Distinct so a fence listing the same geoset twice
             // doesn't fan out to duplicate events.
@@ -154,7 +155,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     userId = userId,
                     transitionId = transitionId,
                     geofenceName = geofenceName,
-                    geosetId = geosetId
+                    geosetId = geosetId,
+                    metadata = metadata
                 )
             }
 

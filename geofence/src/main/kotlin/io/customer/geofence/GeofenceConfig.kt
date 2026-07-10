@@ -42,16 +42,3 @@ internal data class GeofenceConfig(
         )
     }
 }
-
-/**
- * Radius (m) for the remote geofence fetch: the max of the monitoring cap and the re-fetch radius,
- * so the set covers both what we'll monitor and everywhere the device can reach before the next
- * re-fetch. A disabled cap (`Float.MAX_VALUE`) collapses to the finite fallback. Operates on the
- * already-coerced config, so the value is always in a sane range.
- */
-internal fun GeofenceConfig.remoteSearchRadiusMeters(): Double {
-    val cap = maxMonitoringDistance.takeIf {
-        it != GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
-    } ?: GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
-    return maxOf(cap, remoteFetchRefreshTriggerRadius).toDouble()
-}

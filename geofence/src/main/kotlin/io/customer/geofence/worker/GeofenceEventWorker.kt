@@ -13,21 +13,13 @@ import io.customer.geofence.di.geofenceEventTracker
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.store.PendingGeofenceDelivery
-import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryResult
 import io.customer.sdk.data.store.sendRemoveOnSuccess
-import java.util.UUID
 
-private const val KEY_GEOFENCE_ID = "geofence_id"
-private const val KEY_GEOFENCE_NAME = "geofence_name"
-private const val KEY_TRANSITION = "transition"
-private const val KEY_TRANSITION_ID = "transition_id"
-private const val KEY_TIMESTAMP = "timestamp"
-private const val KEY_USER_ID = "user_id"
-private const val KEY_GEOSET_ID = "geoset_id"
+private const val KEY_ENTRY_KEY = "entry_key"
 
 /**
  * Schedules a [GeofenceEventWorker] for guaranteed delivery of a geofence transition event.
@@ -38,16 +30,12 @@ internal class GeofenceEventScheduler(
     private val asyncTracker: AsyncGeofenceEventTracker
 ) {
     suspend fun schedule(entry: PendingGeofenceDelivery) {
+        // Only the store key rides through inputData; the worker loads the full row from the pending
+        // store. WorkManager caps Data at ~10 KB (a Binder/DB limit), so inlining the row — whose
+        // metadata can be large — risks an enqueue failure. The store already holds the authoritative
+        // snapshot, so carrying a copy would only risk drift anyway.
         val input = Data.Builder()
-            .putString(KEY_GEOFENCE_ID, entry.geofenceId)
-            .putString(KEY_TRANSITION, entry.transition.name)
-            .putString(KEY_TRANSITION_ID, entry.transitionId)
-            .putLong(KEY_TIMESTAMP, entry.timestamp)
-            .apply {
-                entry.userId?.let { putString(KEY_USER_ID, it) }
-                entry.geofenceName?.let { putString(KEY_GEOFENCE_NAME, it) }
-                entry.geosetId?.let { putString(KEY_GEOSET_ID, it) }
-            }
+            .putString(KEY_ENTRY_KEY, entry.key)
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<GeofenceEventWorker>()
@@ -90,41 +78,25 @@ internal class GeofenceEventWorker(
         // initialized the SDK yet; without this, SDKComponent.android() would throw.
         SDKComponent.setupAndroidComponent(context = applicationContext)
         val logger = SDKComponent.geofenceLogger
-        val geofenceId = inputData.getString(KEY_GEOFENCE_ID)
-        val transitionName = inputData.getString(KEY_TRANSITION)
-        val timestamp = inputData.getLong(KEY_TIMESTAMP, 0L)
-
-        if (geofenceId.isNullOrEmpty() || transitionName.isNullOrEmpty()) {
-            logger.logEventInvalidInput(geofenceId, transitionName)
+        val entryKey = inputData.getString(KEY_ENTRY_KEY)
+        if (entryKey.isNullOrEmpty()) {
+            logger.logEventInvalidInput(entryKey, null)
             return Result.failure()
         }
 
-        val transition = when (transitionName) {
-            Event.GeofenceTransition.ENTER.name -> Event.GeofenceTransition.ENTER
-            Event.GeofenceTransition.EXIT.name -> Event.GeofenceTransition.EXIT
-            else -> {
-                logger.logEventInvalidInput(geofenceId, transitionName)
-                return Result.failure()
-            }
-        }
-
-        val userId = inputData.getString(KEY_USER_ID)
+        // The receiver persists the row before scheduling, so it's normally present. A miss means the
+        // foreground flush already delivered and removed it — nothing to do.
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
-        val entry = PendingGeofenceDelivery(
-            geofenceId = geofenceId,
-            transition = transition,
-            timestamp = timestamp,
-            userId = userId,
-            // Always set by the scheduler; fall back to a fresh id so an unexpected miss still delivers.
-            transitionId = inputData.getString(KEY_TRANSITION_ID) ?: UUID.randomUUID().toString(),
-            geofenceName = inputData.getString(KEY_GEOFENCE_NAME),
-            geosetId = inputData.getString(KEY_GEOSET_ID)
-        )
+        val entry = store.get(entryKey)
+        if (entry == null) {
+            logger.logEventWorkerEntryMissing(entryKey)
+            return Result.success()
+        }
 
         // No identified user at queue time — direct HTTP needs a userId, so
         // leave the entry in the store for the foreground flush instead.
-        if (userId.isNullOrEmpty()) {
-            logger.logEventDeliveryDeferredAnonymous(geofenceId, transition.name)
+        if (entry.userId.isNullOrEmpty()) {
+            logger.logEventDeliveryDeferredAnonymous(entry.geofenceId, entry.transition.name)
             return Result.success()
         }
 
@@ -138,19 +110,19 @@ internal class GeofenceEventWorker(
             }
         ) {
             PendingDeliveryResult.AlreadyClaimed -> {
-                logger.logEventDeliverySkippedAlreadyDelivered(geofenceId, transition.name)
+                logger.logEventDeliverySkippedAlreadyDelivered(entry.geofenceId, entry.transition.name)
                 Result.success()
             }
             PendingDeliveryResult.Delivered -> {
-                logger.logEventDelivered(geofenceId, transition.name)
+                logger.logEventDelivered(entry.geofenceId, entry.transition.name)
                 Result.success()
             }
             is PendingDeliveryResult.Retryable -> {
-                logger.logEventDeliveryRetryable(geofenceId, transition.name, outcome.cause?.message)
+                logger.logEventDeliveryRetryable(entry.geofenceId, entry.transition.name, outcome.cause?.message)
                 Result.retry()
             }
             is PendingDeliveryResult.Failed -> {
-                logger.logEventDeliveryFailed(geofenceId, transition.name, outcome.cause?.message)
+                logger.logEventDeliveryFailed(entry.geofenceId, entry.transition.name, outcome.cause?.message)
                 Result.failure()
             }
         }

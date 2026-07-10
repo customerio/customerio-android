@@ -79,6 +79,9 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     /** Returns all pending entries in insertion order. */
     fun loadAll(): List<T> = lock.withLock { readAll() }
 
+    /** Returns the entry whose [PendingDeliveryEntry.key] equals [key], or null if none is present. */
+    fun get(key: String): T? = lock.withLock { readAll().firstOrNull { it.key == key } }
+
     /**
      * Remove the entry whose [PendingDeliveryEntry.key] equals [key]. No-op
      * if no such entry exists. Skips the write when no entry was actually

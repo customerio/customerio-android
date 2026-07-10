@@ -59,8 +59,7 @@ internal class GeofenceRepositoryImpl(
     private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore,
     private val clock: Clock,
-    private val logger: GeofenceLogger,
-    private val syncMode: GeofenceSyncMode
+    private val logger: GeofenceLogger
 ) : GeofenceRepository {
 
     // Dedup gate shared by refresh() and handleMovement(). If either is already running,
@@ -99,8 +98,7 @@ internal class GeofenceRepositoryImpl(
         }
     }
 
-    // Decision table for identify/launch refresh. Only the re-fetch question depends on the sync
-    // mode; staleness in time, staleness of the ranking, and OS-registration gaps are mode-agnostic.
+    // Decision table for identify/launch refresh.
     private fun refreshAction(location: LocationCoordinates, config: GeofenceConfig): RefreshAction {
         // Each distance is measured from its own reference: re-fetch from the last API fetch, re-rank
         // from the last registration (the movement-trigger center). Null (never set) → 0 → within radius.
@@ -111,7 +109,7 @@ internal class GeofenceRepositoryImpl(
 
         return when {
             isStaleInTime(config) -> RefreshAction.REMOTE
-            syncMode.movementRequiresRemoteFetch(distanceFromLastFetch, config) -> RefreshAction.REMOTE
+            movedBeyondFetchRadius(distanceFromLastFetch, config) -> RefreshAction.REMOTE
             isRankingStale(distanceFromLastRegistration, config) -> RefreshAction.LOCAL
             hasUnregisteredCache() -> RefreshAction.LOCAL
             // Without this a fresh-cache launch after a reboot would SKIP — registeredIds survive the
@@ -132,6 +130,11 @@ internal class GeofenceRepositoryImpl(
     // condition the live movement trigger fires on; refresh() catches an EXIT missed while app was dead.
     private fun isRankingStale(distanceFromLastRegistration: Float, config: GeofenceConfig): Boolean =
         distanceFromLastRegistration >= config.localRefreshTriggerRadius
+
+    // The cached set only covers the area around the last fetch; once the device moves past the fetch
+    // radius the set is no longer "nearby", so re-fetch from the server.
+    private fun movedBeyondFetchRadius(distanceFromAnchor: Float, config: GeofenceConfig): Boolean =
+        distanceFromAnchor >= config.remoteFetchRefreshTriggerRadius
 
     /** Cache holds regions but none are registered with the OS (e.g. regs lost on sign-out) → re-register. */
     private fun hasUnregisteredCache(): Boolean =
@@ -165,7 +168,7 @@ internal class GeofenceRepositoryImpl(
             // No anchor yet (first EXIT after install / clearAll / sign-out) bootstraps from the server.
             // Otherwise, a non-remote move always re-ranks locally — that's the floor for any EXIT.
             val needsRemoteFetch = anchor == null ||
-                syncMode.movementRequiresRemoteFetch(distanceFromAnchor, config)
+                movedBeyondFetchRadius(distanceFromAnchor, config)
             return if (needsRemoteFetch) {
                 performRemoteRefresh(userId, latitude, longitude)
             } else {
@@ -216,11 +219,11 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double
     ): Result<Unit> {
-        // NEARBY sends the device location so the backend can return the nearby set; FETCH_ALL sends
-        // none. The request carries no user identity, so the location isn't attributable to a user.
-        // Search radius comes from the cached config (or fallback) — the fresh config only arrives in
-        // this response, so it can't inform the request that fetches it.
-        val fetchLocation = if (syncMode == GeofenceSyncMode.NEARBY) GeofenceLocation(latitude, longitude) else null
+        // The device location lets the backend return the nearby set; the request carries no user
+        // identity, so it isn't attributable to a user. Search radius comes from the cached config
+        // (or fallback) — the fresh config only arrives in this response, so it can't inform the
+        // request that fetches it.
+        val fetchLocation = GeofenceLocation(latitude, longitude)
         val requestRadiusMeters = store.getCachedConfigOrFallback().remoteSearchRadiusMeters()
         val fetchResult = apiService.fetchGeofences(fetchLocation, requestRadiusMeters)
         return fetchResult.fold(

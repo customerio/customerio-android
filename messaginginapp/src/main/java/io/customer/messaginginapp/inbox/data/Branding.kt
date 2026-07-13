@@ -44,11 +44,18 @@ data class Branding(
         val dark: Map<String, Any?>? = null
     )
 
-    /** The floating notification-bell icon (patterns.inbox.floatingIcon). */
+    /**
+     * The floating notification-bell icon (patterns.inbox.floatingIcon).
+     *
+     * @param svg the raw bell glyph SVG markup, rendered dynamically by the overlay so the
+     *   workspace's configured bell is honored; the overlay falls back to a bundled default
+     *   when this is absent or unparseable.
+     */
     @InternalCustomerIOApi
     data class FloatingIcon(
         val background: String? = null,
-        val color: String? = null
+        val color: String? = null,
+        val svg: String? = null
     )
 
     /**

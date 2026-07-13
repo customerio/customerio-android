@@ -74,5 +74,6 @@ object Dependencies {
     const val composeUiGraphics = "androidx.compose.ui:ui-graphics"
     const val composeFoundation = "androidx.compose.foundation:foundation"
     const val composeMaterial = "androidx.compose.material:material"
+    const val composeMaterial3 = "androidx.compose.material3:material3"
     const val composeRuntime = "androidx.compose.runtime:runtime"
 }

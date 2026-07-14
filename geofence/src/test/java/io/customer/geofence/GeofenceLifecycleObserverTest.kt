@@ -34,7 +34,10 @@ class GeofenceLifecycleObserverTest {
         observer.onStart(owner)
         observer.onStart(owner)
 
-        verify(exactly = 2) { mockDeliveryFlusher.flush(any(), any()) }
+        // At-least-once so a crash between publish and row-removal re-delivers rather than drops.
+        verify(exactly = 2) {
+            mockDeliveryFlusher.flush(any(), PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE, any())
+        }
     }
 
     @Test
@@ -50,7 +53,7 @@ class GeofenceLifecycleObserverTest {
             metadata = mapOf("k" to JsonPrimitive("fresh"))
         )
         val publishSlot = slot<(PendingGeofenceDelivery) -> Unit>()
-        every { mockDeliveryFlusher.flush(any(), capture(publishSlot)) } returns Unit
+        every { mockDeliveryFlusher.flush(any(), any(), capture(publishSlot)) } returns Unit
         val eventSlot = slot<Event>()
         every { mockEventBus.publish(capture(eventSlot)) } returns Unit
 

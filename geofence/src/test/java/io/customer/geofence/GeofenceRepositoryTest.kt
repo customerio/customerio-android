@@ -972,7 +972,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { secureUserStore.getUserId() } returns null
         coEvery { manager.clearAll() } returns Result.success(Unit)
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
@@ -983,38 +983,75 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun reset_givenNewUserSignedInDuringWait_expectSkipWipe() = runTest {
-        // True re-login race: User A signed out, User B signed in before our
-        // reset ran. Current user differs from the one being reset → skip wipe
-        // so we don't clobber User B's freshly-written state.
+    fun reset_givenCurrentUserOwnsRegistration_expectSkipWipe() = runTest {
+        // Switch-account where the new user (B) already re-synced before this reset ran:
+        // B owns the live registration, so skip the wipe rather than clobber B's state.
         every { secureUserStore.getUserId() } returns "user-B"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        // Registration records owner = user-B.
+        repository.refresh(latitude = 1.0, longitude = 2.0)
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isSuccess shouldBeEqualTo true
         coVerify(exactly = 0) { manager.clearAll() }
         verify(exactly = 0) { store.clearUserScopedState() }
-        verify(exactly = 0) { store.clearAll() }
         verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
     }
 
     @Test
-    fun reset_givenSecureUserStoreNotYetCleared_expectWipeProceeds() = runTest {
-        // The two ResetEvent subscribers (datapipelines clearing
-        // secureUserStore, location running reset) race. If our reset runs
-        // first, secureUserStore.getUserId() still returns the signed-out
-        // user — but it's the SAME id, not a different user signed in. Must
-        // proceed with wipe; this is the regression Cursor flagged on #706.
+    fun reset_givenDifferentUserOwnsRegistration_expectWipeProceeds() = runTest {
+        // Switch-account where B is signed in but hasn't re-synced yet: the live
+        // registration still belongs to A, so wipe it — B's own sync re-registers.
         every { secureUserStore.getUserId() } returns "user-A"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         coEvery { manager.clearAll() } returns Result.success(Unit)
+        // Registration records owner = user-A...
+        repository.refresh(latitude = 1.0, longitude = 2.0)
+        // ...then user-B becomes the current user without re-syncing.
+        every { secureUserStore.getUserId() } returns "user-B"
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
             manager.clearAll()
             store.clearUserScopedState()
         }
+    }
+
+    @Test
+    fun reset_givenSameUserReidentifiedBeforeReset_expectSkipWipe() = runTest {
+        // clearIdentify() then identify() with the SAME user before reset() runs: the user still
+        // owns the live registration, so skip the teardown. Wiping + their re-sync would just
+        // re-register the same fences and fire a spurious INITIAL_TRIGGER_ENTER; their re-identify
+        // refresh keeps the registration current instead.
+        every { secureUserStore.getUserId() } returns "user-A"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        // Registration records owner = user-A, who is still the current user at reset time.
+        repository.refresh(latitude = 1.0, longitude = 2.0)
+
+        val result = repository.reset()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { manager.clearAll() }
+        verify(exactly = 0) { store.clearUserScopedState() }
+        verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
     }
 
     @Test
@@ -1027,7 +1064,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val error = RuntimeException("gms clear boom")
         coEvery { manager.clearAll() } returns Result.failure(error)
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error

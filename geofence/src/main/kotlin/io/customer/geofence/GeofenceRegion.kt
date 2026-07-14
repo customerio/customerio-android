@@ -23,7 +23,7 @@ internal data class GeofenceRegion(
     @SerialName("radius")
     val radius: Float,
     @SerialName("name")
-    val name: String = "",
+    val name: String? = null,
     @SerialName("externalId")
     val externalId: String? = null,
     @SerialName("transitionTypes")

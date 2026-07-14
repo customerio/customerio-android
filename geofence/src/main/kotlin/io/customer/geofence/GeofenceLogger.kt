@@ -48,6 +48,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }
 
+    fun logTransitionDroppedAnonymous(geofenceId: String, transitionName: String) {
+        logger.debug("Geofence '$geofenceId' $transitionName: dropped — no identified user (geofencing is identified-only)", tag = TAG)
+    }
+
     fun logUnknownTransition(transitionType: Int) {
         logger.debug("Ignoring geofence transition type=$transitionType (only ENTER and EXIT are tracked)", tag = TAG)
     }

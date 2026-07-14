@@ -43,13 +43,13 @@ internal interface GeofenceRepository {
      * Drops OS-registered geofences + wipes user-specific store state on
      * sign-out. Workspace cache (regions, config, last-sync) is preserved.
      *
-     * [signedOutUserId] is the user being signed out, captured synchronously
-     * at the call site. Used to distinguish a normal sign-out (current user
-     * still matches because `secureUserStore` hasn't been cleared yet by its
-     * own ResetEvent subscriber) from a true re-login (different user signed
-     * in during the reset window, skip wipe).
+     * Wipes unless the user signed in *now* already owns the live registration —
+     * i.e. a switch-account where the new user re-synced before this ran, whose
+     * state we must not clobber. `secureUserStore` is cleared synchronously in
+     * `clearIdentify` before the ResetEvent, so a null current user here reliably
+     * means a plain sign-out (wipe).
      */
-    suspend fun reset(signedOutUserId: String?): Result<Unit>
+    suspend fun reset(): Result<Unit>
 }
 
 internal class GeofenceRepositoryImpl(
@@ -70,6 +70,12 @@ internal class GeofenceRepositoryImpl(
     // Serializes state-mutation against reset() (sign-out). Held only around the
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
+
+    // User who owns the current OS registration, set on each successful register and read by
+    // reset() to tell a switch-account (new user already re-synced → keep) from a plain sign-out
+    // (→ wipe). In-memory only: sign-out never kills the process, and a reset only fires from an
+    // in-session clearIdentify, so this is always populated when it matters. Guarded by stateMutex.
+    private var registeredOwnerUserId: String? = null
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
@@ -353,6 +359,9 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // Record who this registration belongs to so a later sign-out can tell a plain
+                    // sign-out from a switch-account this user already re-synced (see reset()).
+                    registeredOwnerUserId = userId
                     // Stamp device uptime so the next refresh can detect a reboot (which wipes OS
                     // geofences) and force a full re-register instead of trusting registeredIds.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())
@@ -371,10 +380,14 @@ internal class GeofenceRepositoryImpl(
         }
     }
 
-    override suspend fun reset(signedOutUserId: String?): Result<Unit> = stateMutex.withLock {
-        // Skip only when a DIFFERENT user is signed in — see KDoc on [reset].
-        val currentUserId = secureUserStore.getUserId()
-        if (!currentUserId.isNullOrBlank() && currentUserId != signedOutUserId) {
+    override suspend fun reset(): Result<Unit> = stateMutex.withLock {
+        // Skip only when the user signed in *now* already owns the live registration — a
+        // switch-account where the new user re-synced first (registeredOwnerUserId is set under
+        // this same lock). Current user is read after clearIdentify cleared it, so null here means
+        // a plain sign-out → wipe. A different current user with a stale owner → wipe (the new
+        // user's sync re-registers).
+        val currentUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+        if (currentUserId != null && currentUserId == registeredOwnerUserId) {
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }
@@ -386,6 +399,7 @@ internal class GeofenceRepositoryImpl(
         // so the next login re-fetches.
         manager.clearAll().also { result ->
             if (result.isSuccess) {
+                registeredOwnerUserId = null
                 store.clearUserScopedState()
             }
         }

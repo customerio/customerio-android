@@ -25,6 +25,7 @@ import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeBlank
@@ -201,9 +202,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenAnonymousSession_expectEntryQueuedAndNoWorkerScheduled() = runTest {
-        // Worker can't HTTP without a userId, so for anonymous entries we skip
-        // WorkManager entirely — the foreground flush is the only delivery path.
+    fun dispatchTransition_givenAnonymousSession_expectDroppedNothingPersistedNorScheduled() = runTest {
+        // Geofencing is identified-only (backend rejects anonymous tracks), so an anonymous
+        // transition is dropped outright — nothing persisted, no worker scheduled.
         every { mockSecureUserStore.getUserId() } returns null
 
         receiver.dispatchTransition(
@@ -213,13 +214,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        pendingStore.loadAll().single().userId.shouldBeNull()
+        pendingStore.loadAll().shouldBeEmpty()
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
     @Test
-    fun dispatchTransition_givenEmptyUserId_expectTreatedAsAnonymous() = runTest {
-        // Matches the SDK's `isUserIdentified` semantics — empty = not identified.
+    fun dispatchTransition_givenEmptyUserId_expectTreatedAsAnonymousAndDropped() = runTest {
+        // Matches the SDK's `isUserIdentified` semantics — empty = not identified — so it's
+        // dropped like a null user: nothing persisted, no worker scheduled.
         every { mockSecureUserStore.getUserId() } returns ""
 
         receiver.dispatchTransition(
@@ -229,7 +231,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        pendingStore.loadAll().single().userId.shouldBeNull()
+        pendingStore.loadAll().shouldBeEmpty()
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 

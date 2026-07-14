@@ -137,4 +137,41 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.completeCount shouldBeEqualTo 2
         store.loadAll().isEmpty().shouldBeTrue()
     }
+
+    @Test
+    fun flush_givenAtLeastOnce_expectPublishedThenStoreEmptied() {
+        val store = newStore()
+        listOf("a", "b").forEach { store.append(TestEntry(it)) }
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(store).flush(callbacks, PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE) {
+            publishedKeys += it.key
+        }
+
+        publishedKeys shouldBeEqualTo listOf("a", "b")
+        callbacks.published shouldBeEqualTo listOf("a", "b")
+        callbacks.completeCount shouldBeEqualTo 2
+        store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun flush_givenAtLeastOnceAndPublishThrows_expectEntryRetainedForRetry() {
+        val store = newStore()
+        listOf("a", "bad", "c").forEach { store.append(TestEntry(it)) }
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(store).flush(callbacks, PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE) { entry ->
+            if (entry.key == "bad") throw IllegalStateException("publish failed")
+            publishedKeys += entry.key
+        }
+
+        // Publish precedes removal, so a throw keeps "bad" for the next flush to retry;
+        // successfully published entries are removed.
+        publishedKeys shouldBeEqualTo listOf("a", "c")
+        callbacks.failed shouldBeEqualTo listOf("bad")
+        callbacks.completeCount shouldBeEqualTo 2
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
+    }
 }

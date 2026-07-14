@@ -90,8 +90,7 @@ internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: Geofenc
     }
 
     return copy(
-        // Keep the snapshot name if the cached one is now empty — don't drop a name we once had.
-        geofenceName = cachedRegion.name.takeIf { it.isNotEmpty() } ?: geofenceName,
+        geofenceName = cachedRegion.name?.takeIf { it.isNotEmpty() },
         metadata = cachedRegion.metadata
     )
 }

@@ -56,7 +56,7 @@ internal data class GeofenceApiRegion(
     @SerialName("id")
     val id: String,
     @SerialName("name")
-    val name: String = "",
+    val name: String? = null,
     @SerialName("latitude")
     val latitude: Double,
     @SerialName("longitude")

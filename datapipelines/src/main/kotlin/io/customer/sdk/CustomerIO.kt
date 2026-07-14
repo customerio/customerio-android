@@ -166,9 +166,6 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
             registerDeviceToken(deviceToken = it.token)
         }
-        eventBus.subscribe<Event.ResetEvent> {
-            secureUserStore.clearAll()
-        }
         eventBus.subscribe<Event.GeofenceTransitionEvent> { geofenceEvent ->
             // Snapshotted userId (if any) overrides current SDK identity for this one event so a
             // sign-out + sign-in between queue and flush cannot reattribute. Null snapshot → no
@@ -358,6 +355,10 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
+        // Clear the persisted userId synchronously BEFORE publishing ResetEvent. Subscribers run
+        // asynchronously, so a live `secureUserStore` read inside one (e.g. geofence deciding whether
+        // to wipe) must observe the signed-out state here, not a stale value or a fast re-identify.
+        secureUserStore.clearAll()
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
         analytics.reset()

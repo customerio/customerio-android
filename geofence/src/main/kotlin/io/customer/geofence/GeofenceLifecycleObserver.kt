@@ -17,10 +17,11 @@ import io.customer.sdk.data.store.PendingDeliveryFlusher
  * transitions delivered.
  *
  * The shared [PendingDeliveryFlusher] cancels each transition's WorkManager
- * delivery and atomically claims it before publishing here, so this path stays
- * the primary deliverer; the worker (send-then-remove) can still race a
- * duplicate via direct HTTP, deduped downstream by transitionId. The entry's
- * snapshotted userId rides through on [io.customer.sdk.communication.Event.GeofenceTransitionEvent]
+ * delivery, then publishes and only then removes the row
+ * ([PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]) so a crash between
+ * publish and removal re-delivers rather than drops; the worker (send-then-remove)
+ * can likewise race a duplicate via direct HTTP, deduped downstream by transitionId.
+ * The entry's snapshotted userId rides through on [io.customer.sdk.communication.Event.GeofenceTransitionEvent]
  * so the pipeline subscriber attributes the track event to it.
  *
  * Thread safety: all lifecycle callbacks are delivered on the main thread
@@ -48,7 +49,8 @@ internal class GeofenceLifecycleObserver(
                 override fun onEntryFailed(entry: PendingGeofenceDelivery, cause: Throwable) =
                     logger.logForegroundFlushEntryFailed(entry.geofenceId, entry.transition.name, cause.message)
                 override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
-            }
+            },
+            guarantee = PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE
         ) { entry ->
             eventBus.publish(
                 entry.withFreshestEventData(regionStore.getCachedRegion(entry.geofenceId)).toGeofenceTransitionEvent()

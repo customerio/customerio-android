@@ -54,4 +54,16 @@ class DataPipelineEventBusInteractionTest : JUnitTest() {
 
         verify(exactly = 1) { mockSecureUserStore.saveUserId("user-sync") }
     }
+
+    @Test
+    fun givenClearIdentify_expectSecureUserStoreClearedSynchronously() {
+        // clearIdentify() must clear secureUserStore synchronously (before ResetEvent is delivered)
+        // so a reset subscriber gating on it (geofence deciding whether to wipe) observes the
+        // signed-out state, not a stale value. EventBus is mocked, so this passes only if the clear
+        // happens in clearIdentify() itself, not via event dispatch.
+        sdkInstance.identify("user-sync")
+        sdkInstance.clearIdentify()
+
+        verify(exactly = 1) { mockSecureUserStore.clearAll() }
+    }
 }

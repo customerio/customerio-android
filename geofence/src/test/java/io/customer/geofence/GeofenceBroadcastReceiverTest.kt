@@ -22,7 +22,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.io.File
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeBlank
@@ -326,6 +328,23 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenCachedRegionMetadata_expectMetadataSnapshotOnEntry() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f, metadata = mapOf("category" to JsonPrimitive("office")))
+        val entrySlot = slot<PendingGeofenceDelivery>()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
+        entrySlot.captured.metadata shouldBeEqualTo mapOf("category" to JsonPrimitive("office"))
+    }
+
+    @Test
     fun dispatchTransition_givenRegionWithMultipleGeosets_expectOneEventPerGeoset() = runTest {
         every { mockStore.getCachedRegion("biz-geofence") } returns
             GeofenceRegion("biz-geofence", 0.0, 0.0, 100f, name = "Mall", geosetIds = listOf("7", "8", "9"))
@@ -341,14 +360,35 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         // One event per geoset, in order, surfacing geosetId as a string property.
         scheduled.map { it.geosetId } shouldBeEqualTo listOf("7", "8", "9")
-        // Numeric geoset ids are emitted as numbers so the type matches the server's int64.
-        scheduled.map { it.toEventProperties()["geosetId"] } shouldBeEqualTo listOf(7L, 8L, 9L)
+        scheduled.map { it.toEventProperties()["geosetId"] } shouldBeEqualTo listOf("7", "8", "9")
         // Same physical crossing => one shared transitionId, but distinct keys so entries don't collide.
         scheduled.map { it.transitionId }.toSet().size shouldBeEqualTo 1
         scheduled.map { it.key }.toSet().size shouldBeEqualTo 3
         // Cooldown is a single gate for the crossing, not per geoset.
         verify(exactly = 1) { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) }
         pendingStore.loadAll().size shouldBeEqualTo 3
+    }
+
+    @Test
+    fun dispatchTransition_givenPersistFails_expectNoScheduleAndCooldownReleased() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f)
+        // Force the pending store's write to fail by turning its backing file into a directory.
+        val storeFile = File(applicationMock.applicationContext.filesDir, PendingGeofenceDelivery.FILE_NAME)
+        storeFile.delete()
+        storeFile.mkdirs()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        // Nothing durably queued: don't schedule a worker that would find no row, and roll back the
+        // cooldown so a later crossing can retry instead of being suppressed.
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        verify(exactly = 1) { mockCooldownFilter.release("biz-geofence", Event.GeofenceTransition.ENTER) }
     }
 
     @Test

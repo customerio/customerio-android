@@ -132,6 +132,14 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' $transitionName: worker skipped — entry no longer in store (already delivered via the analytics pipeline)", tag = TAG)
     }
 
+    fun logPersistFailed(geofenceId: String, transitionName: String) {
+        logger.error("Geofence '$geofenceId' $transitionName: failed to persist pending transition — skipped delivery and rolled back cooldown so a later crossing can retry", tag = TAG)
+    }
+
+    fun logEventWorkerEntryMissing(key: String) {
+        logger.debug("Geofence event worker skipped: no pending entry for '$key' (already delivered via the analytics pipeline)", tag = TAG)
+    }
+
     fun logForegroundFlushSnapshot(count: Int) {
         logger.debug("Geofence foreground flush: $count pending transition(s) to hand off to the analytics pipeline", tag = TAG)
     }

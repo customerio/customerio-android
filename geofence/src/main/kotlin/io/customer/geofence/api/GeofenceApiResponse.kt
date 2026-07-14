@@ -8,6 +8,10 @@ import io.customer.geofence.di.geofenceLogger
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Wire shape of `POST /geofences/nearest`. `config` and the per-region
@@ -66,7 +70,12 @@ internal data class GeofenceApiRegion(
     @SerialName("last_updated")
     val lastUpdated: Long? = null,
     @SerialName("geoset_ids")
-    val geosetIds: List<String> = emptyList()
+    val geosetIds: List<String> = emptyList(),
+    // Decoded as a tolerant JsonElement (not a typed map) so a malformed `metadata` — a non-object,
+    // or bad values inside — can never fail the region/response decode; [sanitizeMetadata] reduces
+    // anything that isn't a scalar object to empty.
+    @SerialName("metadata")
+    val metadata: JsonElement? = null
 )
 
 /** Returns `null` when backend didn't send a `config` block — gates the cache save. */
@@ -127,8 +136,31 @@ private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(
     radius = radius.toFloat(),
     transitionTypes = resolveTransitionTypes(transitionTypes),
     lastUpdated = lastUpdated ?: 0L,
-    geosetIds = geosetIds
+    geosetIds = geosetIds,
+    metadata = sanitizeMetadata(metadata)
 )
+
+/**
+ * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object
+ * (or is absent) becomes empty, non-scalar/null values are dropped, and count/size are capped as a
+ * backstop (see [GeofenceConstants]). Key order makes the capping deterministic. Never throws, so a
+ * malformed `metadata` yields empty metadata rather than failing the region.
+ */
+private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {
+    val obj = raw as? JsonObject ?: return emptyMap()
+    if (obj.isEmpty()) return emptyMap()
+    val kept = LinkedHashMap<String, JsonElement>()
+    var totalBytes = 0L
+    for (key in obj.keys.sorted()) {
+        if (kept.size >= GeofenceConstants.MAX_METADATA_COUNT) break
+        val primitive = obj.getValue(key) as? JsonPrimitive ?: continue
+        if (primitive is JsonNull) continue
+        totalBytes += key.toByteArray().size + primitive.content.toByteArray().size
+        if (totalBytes > GeofenceConstants.MAX_METADATA_PAYLOAD_BYTES) break
+        kept[key] = primitive
+    }
+    return kept
+}
 
 /**
  * Null / empty / all-unknown values fall back to `[ENTER, EXIT]`; mixed

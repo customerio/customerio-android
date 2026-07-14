@@ -166,6 +166,7 @@ class ModuleGeofence @JvmOverloads constructor(
                 GeofenceLifecycleObserver(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
                     eventBus = eventBus,
+                    regionStore = sdkAndroid.geofenceRegionStore,
                     logger = logger
                 )
             )

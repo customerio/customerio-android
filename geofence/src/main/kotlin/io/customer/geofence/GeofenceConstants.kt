@@ -43,6 +43,11 @@ internal object GeofenceConstants {
     // when the field is missing or non-positive.
     const val DEDUPE_COOLDOWN_MS = 60 * 60 * 1_000L
 
+    // Backstop on workspace `metadata` so a runaway payload can't bloat a background request; set
+    // well above the server, which does the real validation. Per-value size is left to the server.
+    const val MAX_METADATA_COUNT = 100
+    const val MAX_METADATA_PAYLOAD_BYTES = 100 * 1024 // 100 KB
+
     // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".
     // Our geofences are managed at the application level (we remove explicitly)
     // so OS-side expiration is disabled.

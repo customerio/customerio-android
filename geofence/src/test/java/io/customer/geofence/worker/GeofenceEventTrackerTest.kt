@@ -3,15 +3,20 @@ package io.customer.geofence.worker
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpRequestParams
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBeNull
@@ -24,12 +29,13 @@ import org.robolectric.RobolectricTestRunner
 class GeofenceEventTrackerTest : RobolectricTest() {
 
     private val httpClient: CustomerIOHttpClient = mockk(relaxed = true)
+    private val regionStore: GeofenceRegionStore = mockk(relaxed = true)
 
     private lateinit var tracker: GeofenceEventTrackerImpl
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
-        tracker = GeofenceEventTrackerImpl(httpClient)
+        tracker = GeofenceEventTrackerImpl(httpClient, regionStore)
     }
 
     private fun entry(
@@ -37,8 +43,9 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         transition: Event.GeofenceTransition = Event.GeofenceTransition.ENTER,
         timestamp: Long = 1_234_567_890L,
         userId: String? = "user-42",
-        transitionId: String = "transition-99"
-    ) = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId)
+        transitionId: String = "transition-99",
+        metadata: Map<String, JsonElement> = emptyMap()
+    ) = PendingGeofenceDelivery(geofenceId, transition, timestamp, userId, transitionId, metadata = metadata)
 
     @Test
     fun trackEvent_givenEnterTransition_expectPostToTrackWithCorrectBody() = runTest {
@@ -95,6 +102,68 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         result.isFailure shouldBeEqualTo true
         (result.exceptionOrNull() is IllegalArgumentException) shouldBeEqualTo true
         coVerify(exactly = 0) { httpClient.request(any()) }
+    }
+
+    @Test
+    fun trackEvent_givenMetadataSnapshotAndCacheMiss_expectMetadataFromSnapshot() = runTest {
+        // Region no longer cached → fall back to the crossing-time snapshot, emitting `metadata`
+        // as a nested object with primitives preserved by type.
+        val capturedParams = slot<HttpRequestParams>()
+        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
+        every { regionStore.getCachedRegion(any()) } returns null
+
+        tracker.trackEvent(
+            entry(
+                metadata = mapOf(
+                    "category" to JsonPrimitive("office"),
+                    "priority" to JsonPrimitive(3),
+                    "vip" to JsonPrimitive(true)
+                )
+            )
+        )
+
+        val metadata = JSONObject(capturedParams.captured.body.shouldNotBeNull())
+            .getJSONObject("properties").getJSONObject("metadata")
+        metadata.getString("category") shouldBeEqualTo "office"
+        metadata.getInt("priority") shouldBeEqualTo 3
+        metadata.getBoolean("vip") shouldBeEqualTo true
+    }
+
+    @Test
+    fun trackEvent_givenCachedRegion_expectNameAndMetadataFromCacheNotSnapshot() = runTest {
+        // Hybrid: the fence is still cached, so its current name + metadata win over the snapshot.
+        val capturedParams = slot<HttpRequestParams>()
+        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
+        every { regionStore.getCachedRegion("biz-geofence-1") } returns GeofenceRegion(
+            id = "biz-geofence-1",
+            latitude = 1.0,
+            longitude = 2.0,
+            radius = 100f,
+            name = "Fresh Name",
+            metadata = mapOf("category" to JsonPrimitive("fresh"))
+        )
+
+        tracker.trackEvent(
+            entry(metadata = mapOf("category" to JsonPrimitive("stale")))
+        )
+
+        val props = JSONObject(capturedParams.captured.body.shouldNotBeNull()).getJSONObject("properties")
+        props.getString("geofenceName") shouldBeEqualTo "Fresh Name"
+        props.getJSONObject("metadata").getString("category") shouldBeEqualTo "fresh"
+    }
+
+    @Test
+    fun trackEvent_givenNoMetadata_expectEmptyMetadataObject() = runTest {
+        val capturedParams = slot<HttpRequestParams>()
+        coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
+        every { regionStore.getCachedRegion(any()) } returns null
+
+        tracker.trackEvent(entry())
+
+        val props = JSONObject(capturedParams.captured.body.shouldNotBeNull()).getJSONObject("properties")
+        // `metadata` is always present, empty when the fence has none.
+        props.has("metadata") shouldBeEqualTo true
+        props.getJSONObject("metadata").length() shouldBeEqualTo 0
     }
 
     @Test

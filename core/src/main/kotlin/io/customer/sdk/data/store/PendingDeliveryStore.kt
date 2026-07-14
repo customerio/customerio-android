@@ -55,18 +55,22 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val lock = ReentrantLock()
     private val listSerializer = ListSerializer(elementSerializer)
 
-    /** Append a new entry, evicting the head if the store is at capacity. */
-    fun append(entry: T) = appendAll(listOf(entry))
+    /** Append a new entry, evicting the head if the store is at capacity. Returns whether it persisted. */
+    fun append(entry: T): Boolean = appendAll(listOf(entry))
 
     /**
      * Append entries in one read-modify-write so a batch (e.g. a transition's per-geoset fan-out)
      * persists atomically — a crash can't save some and lose the rest. Evicts from the head when
      * over capacity. Named distinctly from [append] so a single-arg `append(x)` never resolves
      * ambiguously against this overload (e.g. in mocked `append(any())` verifications).
+     *
+     * Returns `true` when persisted (empty input is a trivial success), `false` on write failure — so
+     * a caller relying on this store as its only durable copy can react (e.g. retry or surface it)
+     * instead of losing the entry silently.
      */
-    fun appendAll(entries: List<T>) {
-        if (entries.isEmpty()) return
-        lock.withLock {
+    fun appendAll(entries: List<T>): Boolean {
+        if (entries.isEmpty()) return true
+        return lock.withLock {
             val all = readAll().toMutableList()
             all.addAll(entries)
             while (all.size > maxEntries) {
@@ -78,6 +82,9 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
 
     /** Returns all pending entries in insertion order. */
     fun loadAll(): List<T> = lock.withLock { readAll() }
+
+    /** Returns the entry whose [PendingDeliveryEntry.key] equals [key], or null if none is present. */
+    fun get(key: String): T? = lock.withLock { readAll().firstOrNull { it.key == key } }
 
     /**
      * Remove the entry whose [PendingDeliveryEntry.key] equals [key]. No-op
@@ -150,15 +157,17 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         }
     }
 
-    private fun writeAll(entries: List<T>) {
-        try {
+    private fun writeAll(entries: List<T>): Boolean {
+        return try {
             file.writeText(Json.encodeToString(listSerializer, entries))
+            true
         } catch (ex: Exception) {
             logger.error(
                 "Failed to write pending delivery store ${file.name}",
                 tag = TAG,
                 throwable = ex
             )
+            false
         }
     }
 

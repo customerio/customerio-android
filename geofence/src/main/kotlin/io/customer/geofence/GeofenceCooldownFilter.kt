@@ -29,6 +29,14 @@ internal class GeofenceCooldownFilter(
         return true
     }
 
+    /**
+     * Rolls back a prior [tryAcquire] for this key so a later transition isn't suppressed. Used when
+     * the work that followed the acquire couldn't be durably queued, so the crossing can be retried.
+     */
+    @Synchronized
+    fun release(geofenceId: String, transition: Event.GeofenceTransition) =
+        store.remove(geofenceId, transition)
+
     @Synchronized
     fun clearAll() = store.clearAll()
 }

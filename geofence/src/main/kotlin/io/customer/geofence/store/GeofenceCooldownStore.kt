@@ -10,6 +10,7 @@ import io.customer.sdk.data.store.read
 internal interface GeofenceCooldownStore {
     fun getLastEmitTimestamp(geofenceId: String, transition: Event.GeofenceTransition): Long?
     fun recordEmit(geofenceId: String, transition: Event.GeofenceTransition, timestamp: Long)
+    fun remove(geofenceId: String, transition: Event.GeofenceTransition)
     fun clearAll()
 }
 
@@ -35,6 +36,10 @@ internal class GeofenceCooldownStoreImpl(
         timestamp: Long
     ) {
         prefs.edit { putLong(cooldownKey(geofenceId, transition), timestamp) }
+    }
+
+    override fun remove(geofenceId: String, transition: Event.GeofenceTransition) {
+        prefs.edit { remove(cooldownKey(geofenceId, transition)) }
     }
 
     override fun clearAll() {

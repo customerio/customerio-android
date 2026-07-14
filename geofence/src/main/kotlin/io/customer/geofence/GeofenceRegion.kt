@@ -4,6 +4,7 @@ import android.location.Location
 import com.google.android.gms.location.Geofence
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /**
  * A geographic region to monitor for enter/exit transitions.
@@ -33,7 +34,9 @@ internal data class GeofenceRegion(
     @SerialName("lastUpdated")
     val lastUpdated: Long = 0L,
     @SerialName("geosetIds")
-    val geosetIds: List<String> = emptyList()
+    val geosetIds: List<String> = emptyList(),
+    @SerialName("metadata")
+    val metadata: Map<String, JsonElement> = emptyMap()
 )
 
 /** Transition types a geofence can monitor, mapped to GMS constants. */
@@ -70,8 +73,13 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
 }
 
 /**
- * Equal for OS-registration purposes: everything but [geosetIds], which drive event fan-out, not
- * GMS registration. A geoset-only change updates the cache without a needless re-register.
+ * True when two regions match on the fields GMS registers (id, coordinates, radius, transition types).
+ * A change to only the event/bookkeeping fields (name, geosets, metadata, etc.) skips a re-register
+ * that would otherwise fire a spurious `INITIAL_TRIGGER_ENTER`.
  */
-internal fun GeofenceRegion.equalsIgnoringGeosetIds(other: GeofenceRegion): Boolean =
-    copy(geosetIds = other.geosetIds) == other
+internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolean =
+    id == other.id &&
+        latitude == other.latitude &&
+        longitude == other.longitude &&
+        radius == other.radius &&
+        transitionTypes == other.transitionTypes

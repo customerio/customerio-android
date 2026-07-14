@@ -2,7 +2,9 @@ package io.customer.geofence
 
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
+import io.customer.geofence.store.withFreshestEventData
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 
@@ -27,6 +29,7 @@ import io.customer.sdk.data.store.PendingDeliveryFlusher
 internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
     private val eventBus: EventBus,
+    private val regionStore: GeofenceRegionStore,
     private val logger: GeofenceLogger
 ) : DefaultLifecycleObserver {
 
@@ -47,7 +50,9 @@ internal class GeofenceLifecycleObserver(
                 override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
             }
         ) { entry ->
-            eventBus.publish(entry.toGeofenceTransitionEvent())
+            eventBus.publish(
+                entry.withFreshestEventData(regionStore.getCachedRegion(entry.geofenceId)).toGeofenceTransitionEvent()
+            )
         }
     }
 }

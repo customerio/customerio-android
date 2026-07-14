@@ -71,15 +71,11 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         }
         uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
 
+        // inputData carries only the store key; the worker loads the full row from the pending store.
         val input = workRequestSlot.captured.workSpec.input
-        input.getString("geofence_id") shouldBeEqualTo "biz-geofence-1"
-        input.getString("transition") shouldBeEqualTo "ENTER"
-        input.getString("transition_id") shouldBeEqualTo "tid-sched"
-        input.getLong("timestamp", -1L) shouldBeEqualTo 1_234L
-        input.getString("user_id") shouldBeEqualTo "user-42"
-        input.getString("geofence_name") shouldBeEqualTo "Coffee Shop"
-        input.hasKeyWithValueOfType("latitude", Double::class.javaObjectType) shouldBeEqualTo false
-        input.hasKeyWithValueOfType("longitude", Double::class.javaObjectType) shouldBeEqualTo false
+        input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
+        input.hasKeyWithValueOfType("geofence_id", String::class.java) shouldBeEqualTo false
+        input.hasKeyWithValueOfType("metadata", String::class.java) shouldBeEqualTo false
 
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
@@ -87,7 +83,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
     }
 
     @Test
-    fun schedule_givenGeoset_expectGeosetIdInKeyAndInputData() = runTest {
+    fun schedule_givenGeoset_expectGeosetIdInKey() = runTest {
         every { workManagerProvider.getWorkManager() } returns workManager
         val workRequestSlot = slot<OneTimeWorkRequest>()
         val uniqueKeySlot = slot<String>()
@@ -106,31 +102,10 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         verify(exactly = 1) {
             workManager.enqueueUniqueWork(capture(uniqueKeySlot), ExistingWorkPolicy.KEEP, capture(workRequestSlot))
         }
-        // Key carries the geoset so per-geoset workers don't collide under ExistingWorkPolicy.KEEP.
+        // Key carries the geoset so per-geoset workers don't collide under ExistingWorkPolicy.KEEP,
+        // and it's the same key inputData carries for the worker's store lookup.
         uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
-        workRequestSlot.captured.workSpec.input.getString("geoset_id") shouldBeEqualTo "9"
-    }
-
-    @Test
-    fun schedule_givenNullUserId_expectInputDataWithoutUserIdKey() = runTest {
-        // Worker reads user_id and treats absence as "anonymous-when-queued" → defer to flush.
-        every { workManagerProvider.getWorkManager() } returns workManager
-        val workRequestSlot = slot<OneTimeWorkRequest>()
-
-        scheduler.schedule(
-            PendingGeofenceDelivery(
-                geofenceId = "biz-anon",
-                transition = Event.GeofenceTransition.ENTER,
-                timestamp = 5L,
-                userId = null,
-                transitionId = "tid-anon"
-            )
-        )
-
-        verify { workManager.enqueueUniqueWork(any(), any(), capture(workRequestSlot)) }
-        val input = workRequestSlot.captured.workSpec.input
-        input.hasKeyWithValueOfType("user_id", String::class.java) shouldBeEqualTo false
-        input.hasKeyWithValueOfType("geofence_name", String::class.java) shouldBeEqualTo false
+        workRequestSlot.captured.workSpec.input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
     }
 
     @Test

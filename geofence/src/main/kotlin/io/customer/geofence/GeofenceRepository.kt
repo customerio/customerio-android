@@ -220,12 +220,9 @@ internal class GeofenceRepositoryImpl(
         longitude: Double
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
-        // identity, so it isn't attributable to a user. Search radius comes from the cached config
-        // (or fallback) — the fresh config only arrives in this response, so it can't inform the
-        // request that fetches it.
+        // identity, so it isn't attributable to a user.
         val fetchLocation = GeofenceLocation(latitude, longitude)
-        val requestRadiusMeters = store.getCachedConfigOrFallback().remoteSearchRadiusMeters()
-        val fetchResult = apiService.fetchGeofences(fetchLocation, requestRadiusMeters)
+        val fetchResult = apiService.fetchGeofences(fetchLocation)
         return fetchResult.fold(
             onSuccess = { response ->
                 val regions = response.toDomainRegions()
@@ -290,7 +287,7 @@ internal class GeofenceRepositoryImpl(
             regions
                 .filter { region ->
                     val cached = cachedById[region.id]
-                    region.id in registeredBusinessIds && cached?.equalsIgnoringGeosetIds(region) == true
+                    region.id in registeredBusinessIds && cached?.equalsForRegistration(region) == true
                 }
                 .map { it.id }
                 .toSet()

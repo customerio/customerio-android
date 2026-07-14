@@ -65,6 +65,23 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun get_givenExistingKey_expectMatchingEntry() {
+        val store = newStore()
+        val target = entry("target")
+        store.appendAll(listOf(entry("other"), target))
+
+        store.get(target.key) shouldBeEqualTo target
+    }
+
+    @Test
+    fun get_givenAbsentKey_expectNull() {
+        val store = newStore()
+        store.append(entry("other"))
+
+        store.get("missing") shouldBeEqualTo null
+    }
+
+    @Test
     fun appendAll_givenMultipleEntries_expectAllPersistedAfterExisting() {
         val store = newStore()
         store.append(entry("a"))
@@ -72,6 +89,23 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         store.appendAll(listOf(entry("b"), entry("c")))
 
         store.loadAll().map { it.id } shouldBeEqualTo listOf("a", "b", "c")
+    }
+
+    @Test
+    fun appendAll_givenWriteSucceeds_expectTrue() {
+        val store = newStore()
+
+        store.appendAll(listOf(entry("a"))) shouldBeEqualTo true
+    }
+
+    @Test
+    fun appendAll_givenWriteFails_expectFalse() {
+        val store = newStore()
+        // Force the write to fail by turning the backing file path into a directory.
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.appendAll(listOf(entry("a"))) shouldBeEqualTo false
     }
 
     @Test

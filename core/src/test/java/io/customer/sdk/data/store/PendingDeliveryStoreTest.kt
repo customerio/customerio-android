@@ -92,6 +92,23 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun appendAll_givenWriteSucceeds_expectTrue() {
+        val store = newStore()
+
+        store.appendAll(listOf(entry("a"))) shouldBeEqualTo true
+    }
+
+    @Test
+    fun appendAll_givenWriteFails_expectFalse() {
+        val store = newStore()
+        // Force the write to fail by turning the backing file path into a directory.
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.appendAll(listOf(entry("a"))) shouldBeEqualTo false
+    }
+
+    @Test
     fun appendAll_givenEmpty_expectNoChange() {
         val store = newStore()
         store.append(entry("a"))

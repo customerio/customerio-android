@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.io.File
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
@@ -366,6 +367,28 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // Cooldown is a single gate for the crossing, not per geoset.
         verify(exactly = 1) { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) }
         pendingStore.loadAll().size shouldBeEqualTo 3
+    }
+
+    @Test
+    fun dispatchTransition_givenPersistFails_expectNoScheduleAndCooldownReleased() = runTest {
+        every { mockStore.getCachedRegion("biz-geofence") } returns
+            GeofenceRegion("biz-geofence", 0.0, 0.0, 100f)
+        // Force the pending store's write to fail by turning its backing file into a directory.
+        val storeFile = File(applicationMock.applicationContext.filesDir, PendingGeofenceDelivery.FILE_NAME)
+        storeFile.delete()
+        storeFile.mkdirs()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        // Nothing durably queued: don't schedule a worker that would find no row, and roll back the
+        // cooldown so a later crossing can retry instead of being suppressed.
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        verify(exactly = 1) { mockCooldownFilter.release("biz-geofence", Event.GeofenceTransition.ENTER) }
     }
 
     @Test

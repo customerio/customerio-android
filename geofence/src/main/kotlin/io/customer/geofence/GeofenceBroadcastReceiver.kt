@@ -160,12 +160,16 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 )
             }
 
-            // Persist the whole fan-out in one atomic write before any send, so an app kill
-            // mid-batch can't save some geosets and lose the rest (the cooldown is already spent,
-            // so a lost row would never retry). Two channels then deliver each entry at least once,
-            // deduped downstream by (transitionId, geoset): the WorkManager worker (direct HTTP,
-            // survives process death) and the foreground flush (analytics pipeline).
-            androidComponent.pendingGeofenceDeliveryStore.appendAll(entries)
+            // Persist the whole fan-out atomically before any send, so an app kill mid-batch can't
+            // save some geosets and lose the rest. Both delivery channels (WorkManager worker +
+            // foreground flush) read the row back from this store, deduped by (transitionId, geoset).
+            // If the write fails there's nothing to deliver, so roll back the cooldown to allow a
+            // later retry and skip scheduling a worker that would find no row.
+            if (!androidComponent.pendingGeofenceDeliveryStore.appendAll(entries)) {
+                logger.logPersistFailed(geofenceId, transition.name)
+                cooldownFilter.release(geofenceId, transition)
+                return@forEach
+            }
             entries.forEach { entry ->
                 // Anonymous entries can only be delivered via the foreground flush —
                 // skip the WorkManager schedule that would just no-op on null userId.

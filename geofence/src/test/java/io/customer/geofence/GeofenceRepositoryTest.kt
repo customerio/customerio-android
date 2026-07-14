@@ -922,6 +922,48 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenRemoteFetchAndOnlyNameDiffers_expectIdKeptNotReRegistered() = runTest {
+        // A backend rename is event payload, not OS geometry — it must not force a re-register
+        // (which would fire INITIAL_TRIGGER_ENTER and emit a synthetic enter for a device inside).
+        val cached = GeofenceRegion("biz-1", 1.0, 2.0, 100f, name = "Old Name")
+        val incoming = cached.copy(name = "New Name")
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(cached)
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(incoming)
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refresh_givenRemoteFetchAndOnlyLastUpdatedDiffers_expectIdKeptNotReRegistered() = runTest {
+        // The backend can bump `last_updated` on an unchanged fence; that's bookkeeping, not geometry,
+        // so it must not re-register every fence on every sync (each would fire a spurious INITIAL enter).
+        val cached = GeofenceRegion("biz-1", 1.0, 2.0, 100f, lastUpdated = 1_000L)
+        val incoming = cached.copy(lastUpdated = 2_000L)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(cached)
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(incoming)
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
     fun reset_givenManagerSucceeds_expectUserScopedStateClearedAndWorkspaceCachePreserved() = runTest {
         // Sign-out cleanup: drop OS registrations + wipe user-scoped state
         // (anchor, movement-trigger location, registered IDs, freshness

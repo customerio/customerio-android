@@ -73,9 +73,13 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
 }
 
 /**
- * True when two regions are identical for OS-registration purposes — matching on everything except
- * the event-only fields ([geosetIds], [metadata]), which drive event payload rather than GMS geometry.
- * A change to only those updates the cache without a needless re-register.
+ * True when two regions match on the fields GMS registers (id, coordinates, radius, transition types).
+ * A change to only the event/bookkeeping fields (name, geosets, metadata, etc.) skips a re-register
+ * that would otherwise fire a spurious `INITIAL_TRIGGER_ENTER`.
  */
 internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolean =
-    copy(geosetIds = other.geosetIds, metadata = other.metadata) == other
+    id == other.id &&
+        latitude == other.latitude &&
+        longitude == other.longitude &&
+        radius == other.radius &&
+        transitionTypes == other.transitionTypes

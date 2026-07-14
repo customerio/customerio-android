@@ -34,6 +34,13 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
     }
 
     @Test
+    fun release_expectStoreRemovesKey() {
+        filter.release("biz-1", Event.GeofenceTransition.ENTER)
+
+        verify(exactly = 1) { mockStore.remove("biz-1", Event.GeofenceTransition.ENTER) }
+    }
+
+    @Test
     fun tryAcquire_givenNoPreviousEmit_expectTrueAndRecorded() {
         every { mockStore.getLastEmitTimestamp(any(), any()) } returns null
         every { mockClock.currentTimeMillis() } returns 100_000L

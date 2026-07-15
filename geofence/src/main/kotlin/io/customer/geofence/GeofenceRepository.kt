@@ -40,14 +40,14 @@ internal interface GeofenceRepository {
     suspend fun restoreFromCache(): Result<Unit>
 
     /**
-     * Drops OS-registered geofences + wipes user-specific store state on
-     * sign-out. Workspace cache (regions, config, last-sync) is preserved.
+     * Drops OS-registered geofences + wipes user-specific store state on a genuine
+     * sign-out. Workspace cache (regions, config) is preserved.
      *
-     * Wipes unless the user signed in *now* already owns the live registration —
-     * i.e. a switch-account where the new user re-synced before this ran, whose
-     * state we must not clobber. `secureUserStore` is cleared synchronously in
-     * `clearIdentify` before the ResetEvent, so a null current user here reliably
-     * means a plain sign-out (wipe).
+     * No-op while a user is signed in: geofences are workspace-scoped, so the active
+     * user reuses the existing registration and their identify-sync reconciles it —
+     * tearing it down here would only race that sync. `secureUserStore` is cleared
+     * synchronously in `clearIdentify` before the ResetEvent, so a null current user
+     * here reliably means a plain sign-out.
      */
     suspend fun reset(): Result<Unit>
 }
@@ -71,12 +71,6 @@ internal class GeofenceRepositoryImpl(
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
 
-    // User who owns the current OS registration, set on each successful register and read by
-    // reset() to tell a switch-account (new user already re-synced → keep) from a plain sign-out
-    // (→ wipe). In-memory only: sign-out never kills the process, and a reset only fires from an
-    // in-session clearIdentify, so this is always populated when it matters. Guarded by stateMutex.
-    private var registeredOwnerUserId: String? = null
-
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
         if (!refreshInProgress.compareAndSet(false, true)) {
@@ -95,16 +89,6 @@ internal class GeofenceRepositoryImpl(
                 RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
                 RefreshAction.SKIP -> {
-                    // The live registration is fresh and valid for this user (cache is
-                    // workspace-scoped), so claim ownership without re-registering — otherwise a
-                    // concurrent sign-out reset() could see a stale owner and wipe a registration
-                    // this user legitimately relies on. Re-check the user in case it changed while
-                    // we were deciding; guarded by the same lock reset() reads the owner under.
-                    stateMutex.withLock {
-                        if (secureUserStore.getUserId() == userId) {
-                            registeredOwnerUserId = userId
-                        }
-                    }
                     logger.logSyncSkippedFresh()
                     Result.success(Unit)
                 }
@@ -369,9 +353,6 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
-                    // Record who this registration belongs to so a later sign-out can tell a plain
-                    // sign-out from a switch-account this user already re-synced (see reset()).
-                    registeredOwnerUserId = userId
                     // Stamp device uptime so the next refresh can detect a reboot (which wipes OS
                     // geofences) and force a full re-register instead of trusting registeredIds.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())
@@ -391,13 +372,12 @@ internal class GeofenceRepositoryImpl(
     }
 
     override suspend fun reset(): Result<Unit> = stateMutex.withLock {
-        // Skip only when the user signed in *now* already owns the live registration — a
-        // switch-account where the new user re-synced first (registeredOwnerUserId is set under
-        // this same lock). Current user is read after clearIdentify cleared it, so null here means
-        // a plain sign-out → wipe. A different current user with a stale owner → wipe (the new
-        // user's sync re-registers).
+        // Skip the wipe while a user is signed in now: geofences are workspace-scoped, so the
+        // active user reuses the existing registration and their identify-sync reconciles it —
+        // tearing it down here would only race that sync. clearIdentify clears the user store
+        // synchronously before ResetEvent, so a null current user reliably means a plain sign-out.
         val currentUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-        if (currentUserId != null && currentUserId == registeredOwnerUserId) {
+        if (currentUserId != null) {
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }
@@ -409,7 +389,6 @@ internal class GeofenceRepositoryImpl(
         // so the next login re-fetches.
         manager.clearAll().also { result ->
             if (result.isSuccess) {
-                registeredOwnerUserId = null
                 store.clearUserScopedState()
             }
         }

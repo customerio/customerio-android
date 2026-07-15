@@ -199,7 +199,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         regions[0].id shouldBeEqualTo "9"
-        regions[0].name shouldBeEqualTo ""
+        regions[0].name.shouldBeNull()
         regions[0].externalId.shouldBeNull()
         regions[0].lastUpdated shouldBeEqualTo 0L
         regions[0].transitionTypes shouldContainSame listOf(

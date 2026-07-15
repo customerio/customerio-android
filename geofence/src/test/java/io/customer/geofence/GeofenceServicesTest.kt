@@ -212,7 +212,7 @@ class GeofenceServicesTest : RobolectricTest() {
         // drive a sync for the next user's first fix.
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
-        coEvery { repository.reset(any()) } returns Result.success(Unit)
+        coEvery { repository.reset() } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onRefreshRequested()
@@ -230,7 +230,7 @@ class GeofenceServicesTest : RobolectricTest() {
         // synchronously on sign-out — before repository.reset() runs on the scope —
         // so an in-process re-login can't rank the next user's geofences around the
         // previous user's location.
-        coEvery { repository.reset(any()) } returns Result.success(Unit)
+        coEvery { repository.reset() } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onUserSignedOut()
@@ -239,18 +239,16 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
-    fun onUserSignedOut_expectSignedOutUserIdCapturedSynchronouslyAndPassedToReset() = runTest(StandardTestDispatcher()) {
-        // The capture has to happen BEFORE scope.launch — otherwise a racing
-        // ResetEvent subscriber (datapipelines clears secureUserStore) could
-        // null it out by the time reset() reads it.
-        every { secureUserStore.getUserId() } returns "user-42"
-        coEvery { repository.reset(any()) } returns Result.success(Unit)
+    fun onUserSignedOut_expectRepositoryResetInvoked() = runTest(StandardTestDispatcher()) {
+        // Sign-out delegates the wipe decision to repository.reset(); the services layer
+        // just drops the anchor synchronously and kicks reset off the scope.
+        coEvery { repository.reset() } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onUserSignedOut()
         advanceUntilIdle()
 
-        coVerify { repository.reset("user-42") }
+        coVerify { repository.reset() }
         verify { logger.logGeofenceStateResetOnSignOut() }
     }
 }

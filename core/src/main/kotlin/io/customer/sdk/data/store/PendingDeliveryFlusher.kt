@@ -13,17 +13,11 @@ import kotlinx.coroutines.launch
  * (typically an app-foreground handoff), coordinating with the durable
  * WorkManager channel that also consumes the same store.
  *
- * For each pending entry it: cancels that entry's WorkManager unique work — so
- * the worker can't also deliver — then atomically
- * [claims][PendingDeliveryStore.claim] it and hands it to the caller's
- * [publish] block. Cancel happens before the claim on purpose: an `ENQUEUED`
- * or running worker flips to `CANCELLED` immediately, narrowing the window in
- * which both channels could race. Cancellation is best-effort and can lose
- * across process death, so the claim is what makes this flush deliver each
- * entry at most once. Whether the *system* is exactly- or at-least-once depends
- * on the paired worker: one that also claims before sending (push) is
- * exactly-once; one that sends-then-removes (geofence) is at-least-once and
- * relies on a stable id in the payload for downstream dedupe.
+ * For each pending entry it cancels that entry's WorkManager unique work — so the worker can't
+ * also deliver — then spends it against the store per the caller's [DeliveryGuarantee] and hands
+ * it to [publish]. Cancel is best-effort (can lose across process death), so the store op is what
+ * actually bounds duplicates; match the guarantee to the paired worker (push claims →
+ * [DeliveryGuarantee.AT_MOST_ONCE]; geofence sends-then-removes → [DeliveryGuarantee.AT_LEAST_ONCE]).
  *
  * Entries are processed in isolation: one failed cancel/publish does not abort
  * the batch, and an unclaimed or failed entry survives for the next flush. The
@@ -39,6 +33,30 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val workManagerProvider: CustomerIOWorkManagerProvider,
     private val dispatchersProvider: DispatchersProvider
 ) {
+
+    /**
+     * When the flush removes the store row relative to [publish] — the flush's half of a feature's
+     * overall delivery guarantee. The guarantee names describe the *system* (this flush paired with
+     * its worker + backend dedupe), not this step in isolation; see each value for what the flush
+     * alone actually provides.
+     */
+    enum class DeliveryGuarantee {
+        /**
+         * Claim (remove) the row before publishing. A crash after the claim drops the entry, so
+         * paired with a worker that also claims this is at-most-once (push): no duplicates, possible
+         * loss.
+         */
+        AT_MOST_ONCE,
+
+        /**
+         * Remove the row only after [publish] returns, so a crash before publish keeps it for the
+         * next flush. On its own this only *narrows* the loss window — [publish] is an in-process
+         * hand-off and the removal is not crash-atomic, so a crash after publish but before the
+         * event is durably queued can still drop it. At-least-once holds end-to-end via the paired
+         * send-then-remove worker (the durable channel) plus a stable payload id for dedupe.
+         */
+        AT_LEAST_ONCE
+    }
 
     /**
      * Per-feature observation hooks. All default to no-ops so callers only
@@ -66,7 +84,11 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
      * on [DispatchersProvider.background]. Safe to call on every foreground
      * transition — an empty store is a cheap no-op.
      */
-    fun flush(callbacks: Callbacks<T> = Callbacks(), publish: (T) -> Unit) {
+    fun flush(
+        callbacks: Callbacks<T> = Callbacks(),
+        guarantee: DeliveryGuarantee = DeliveryGuarantee.AT_MOST_ONCE,
+        publish: (T) -> Unit
+    ) {
         CoroutineScope(dispatchersProvider.background).launch {
             runCatching {
                 val pending = store.loadAll()
@@ -81,14 +103,17 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                             workManager.cancelUniqueWork(entry.key).await()
                             callbacks.onWorkCancelled(entry)
                         }
-                        // Atomically claim before publishing so this flush delivers
-                        // each entry at most once (and a worker that also claims —
-                        // push — can't deliver the same entry). Claiming per-entry
-                        // here, rather than batching a remove at the end, also means a
-                        // mid-loop CancellationException can't strand an already-
-                        // published entry for re-publish next flush.
-                        if (!store.claim(entry.key)) return@forEach
-                        publish(entry)
+                        // Order claim vs. publish per the caller's crash-safety guarantee (see [DeliveryGuarantee]).
+                        when (guarantee) {
+                            DeliveryGuarantee.AT_MOST_ONCE -> {
+                                if (!store.claim(entry.key)) return@forEach
+                                publish(entry)
+                            }
+                            DeliveryGuarantee.AT_LEAST_ONCE -> {
+                                publish(entry)
+                                store.remove(entry.key)
+                            }
+                        }
                         callbacks.onPublished(entry)
                         publishedCount++
                     } catch (ce: CancellationException) {

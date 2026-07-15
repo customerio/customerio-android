@@ -40,16 +40,16 @@ internal interface GeofenceRepository {
     suspend fun restoreFromCache(): Result<Unit>
 
     /**
-     * Drops OS-registered geofences + wipes user-specific store state on
-     * sign-out. Workspace cache (regions, config, last-sync) is preserved.
+     * Drops OS-registered geofences + wipes user-specific store state on a genuine
+     * sign-out. Workspace cache (regions, config) is preserved.
      *
-     * [signedOutUserId] is the user being signed out, captured synchronously
-     * at the call site. Used to distinguish a normal sign-out (current user
-     * still matches because `secureUserStore` hasn't been cleared yet by its
-     * own ResetEvent subscriber) from a true re-login (different user signed
-     * in during the reset window, skip wipe).
+     * No-op while a user is signed in: geofences are workspace-scoped, so the active
+     * user reuses the existing registration and their identify-sync reconciles it —
+     * tearing it down here would only race that sync. `secureUserStore` is cleared
+     * synchronously in `clearIdentify` before the ResetEvent, so a null current user
+     * here reliably means a plain sign-out.
      */
-    suspend fun reset(signedOutUserId: String?): Result<Unit>
+    suspend fun reset(): Result<Unit>
 }
 
 internal class GeofenceRepositoryImpl(
@@ -371,10 +371,13 @@ internal class GeofenceRepositoryImpl(
         }
     }
 
-    override suspend fun reset(signedOutUserId: String?): Result<Unit> = stateMutex.withLock {
-        // Skip only when a DIFFERENT user is signed in — see KDoc on [reset].
-        val currentUserId = secureUserStore.getUserId()
-        if (!currentUserId.isNullOrBlank() && currentUserId != signedOutUserId) {
+    override suspend fun reset(): Result<Unit> = stateMutex.withLock {
+        // Skip the wipe while a user is signed in now: geofences are workspace-scoped, so the
+        // active user reuses the existing registration and their identify-sync reconciles it —
+        // tearing it down here would only race that sync. clearIdentify clears the user store
+        // synchronously before ResetEvent, so a null current user reliably means a plain sign-out.
+        val currentUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+        if (currentUserId != null) {
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }

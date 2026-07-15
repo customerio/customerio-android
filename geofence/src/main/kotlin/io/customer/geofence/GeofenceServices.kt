@@ -32,8 +32,10 @@ internal interface GeofenceServices {
     fun onAppLaunch(latitude: Double?, longitude: Double?)
 
     /**
-     * Clears all geofence state so a subsequent user doesn't inherit the previous
-     * user's geofences. Fired when [Event.UserChangedEvent] arrives with a null userId.
+     * Clears all geofence state so a subsequent user doesn't inherit the previous user's geofences.
+     * Fired from the [Event.ResetEvent] subscriber. Whether to actually wipe is decided in
+     * [GeofenceRepository.reset], which compares the now-signed-out identity against the user that
+     * owns the live registration.
      */
     fun onUserSignedOut()
 
@@ -128,14 +130,9 @@ internal class GeofenceServicesImpl(
         // user's geofences around it. Clearing it now makes the next identify fall
         // back to a no-location skip and acquire a fresh fix instead.
         regionStore.clearLastMovementTriggerLocation()
-        // Snapshot the userId synchronously — the datapipelines `ResetEvent`
-        // subscriber races to clear `secureUserStore`, so a deferred read
-        // inside `reset()` could see null and misclassify a normal sign-out
-        // as a re-login.
-        val signedOutUserId = secureUserStore.getUserId()
         logger.logGeofenceStateResetOnSignOut()
         scope.launch {
-            repository.reset(signedOutUserId)
+            repository.reset()
         }
     }
 

@@ -129,15 +129,23 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
 
+            // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
+            // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
+            val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+            // Geofencing is identified-only: the backend rejects anonymous geofence tracks, so an
+            // anonymous transition has no deliverable path. Drop it before spending a cooldown slot
+            // or persisting a row neither channel could ever send.
+            if (userId == null) {
+                logger.logTransitionDroppedAnonymous(geofenceId, transition.name)
+                return@forEach
+            }
+
             if (!cooldownFilter.tryAcquire(geofenceId, transition)) {
                 logger.logTransitionSuppressed(geofenceId, transition.name)
                 return@forEach
             }
             logger.logTransitionEmitting(geofenceId, transition.name)
 
-            // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
-            // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
-            val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
             // One transitionId for the whole crossing, shared across the per-geoset fan-out below.
             val transitionId = UUID.randomUUID().toString()
             val cachedRegion = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
@@ -171,17 +179,13 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return@forEach
             }
             entries.forEach { entry ->
-                // Anonymous entries can only be delivered via the foreground flush —
-                // skip the WorkManager schedule that would just no-op on null userId.
                 // Isolate the scheduler so one failure can't abandon the rest of the batch.
-                if (entry.userId != null) {
-                    try {
-                        scheduler.schedule(entry)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logger.logSchedulerFailed(geofenceId, transition.name, e.message)
-                    }
+                try {
+                    scheduler.schedule(entry)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.logSchedulerFailed(geofenceId, transition.name, e.message)
                 }
             }
         }

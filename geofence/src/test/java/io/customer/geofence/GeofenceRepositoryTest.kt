@@ -972,7 +972,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { secureUserStore.getUserId() } returns null
         coEvery { manager.clearAll() } returns Result.success(Unit)
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
@@ -983,32 +983,30 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun reset_givenNewUserSignedInDuringWait_expectSkipWipe() = runTest {
-        // True re-login race: User A signed out, User B signed in before our
-        // reset ran. Current user differs from the one being reset → skip wipe
-        // so we don't clobber User B's freshly-written state.
+    fun reset_givenUserSignedInAtResetTime_expectSkipWipe() = runTest {
+        // A user is signed in when reset() runs — a fast account switch (A→B) or a same-user
+        // clearIdentify+identify. Geofences are workspace-scoped, so the active user reuses the
+        // existing registration and their identify-sync reconciles it; reset must NOT tear it
+        // down (that would race the sync and drop coverage). Holds regardless of what the racing
+        // refresh decided (REMOTE/LOCAL/SKIP), since reset keys only off the current user.
         every { secureUserStore.getUserId() } returns "user-B"
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isSuccess shouldBeEqualTo true
         coVerify(exactly = 0) { manager.clearAll() }
         verify(exactly = 0) { store.clearUserScopedState() }
-        verify(exactly = 0) { store.clearAll() }
         verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
     }
 
     @Test
-    fun reset_givenSecureUserStoreNotYetCleared_expectWipeProceeds() = runTest {
-        // The two ResetEvent subscribers (datapipelines clearing
-        // secureUserStore, location running reset) race. If our reset runs
-        // first, secureUserStore.getUserId() still returns the signed-out
-        // user — but it's the SAME id, not a different user signed in. Must
-        // proceed with wipe; this is the regression Cursor flagged on #706.
-        every { secureUserStore.getUserId() } returns "user-A"
+    fun reset_givenEmptyCurrentUser_expectWipeProceeds() = runTest {
+        // Empty userId is "not identified" (matches isUserIdentified), so it's a genuine sign-out
+        // and must wipe — same as a null user.
+        every { secureUserStore.getUserId() } returns ""
         coEvery { manager.clearAll() } returns Result.success(Unit)
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
@@ -1027,7 +1025,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val error = RuntimeException("gms clear boom")
         coEvery { manager.clearAll() } returns Result.failure(error)
 
-        val result = repository.reset(signedOutUserId = "user-A")
+        val result = repository.reset()
 
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error

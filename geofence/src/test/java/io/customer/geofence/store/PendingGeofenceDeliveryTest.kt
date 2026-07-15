@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotContain
 import org.junit.Test
@@ -194,9 +195,9 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
-    fun withFreshestEventData_givenCachedRegionWithEmptyName_expectSnapshotNameKept() {
-        // A cached region whose name is now empty keeps the crossing-time snapshot name rather than
-        // dropping a name we once had; metadata still comes fresh from the cache.
+    fun withFreshestEventData_givenCachedRegionWithNoName_expectNameClearedFromCache() {
+        // Region is still cached but its name is now gone → take the fresh (absent) name, not the
+        // stale snapshot. The snapshot is a fallback only for a region that has left the cache.
         val entry = PendingGeofenceDelivery(
             "biz-h",
             Event.GeofenceTransition.ENTER,
@@ -211,13 +212,13 @@ class PendingGeofenceDeliveryTest {
             latitude = 1.0,
             longitude = 2.0,
             radius = 100f,
-            name = "",
+            name = null,
             metadata = mapOf("k" to JsonPrimitive("fresh"))
         )
 
         val resolved = entry.withFreshestEventData(cached)
 
-        resolved.geofenceName shouldBeEqualTo "Snapshot Name"
+        resolved.geofenceName.shouldBeNull()
         resolved.metadata shouldBeEqualTo mapOf("k" to JsonPrimitive("fresh"))
     }
 

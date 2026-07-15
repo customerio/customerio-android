@@ -95,6 +95,16 @@ internal class GeofenceRepositoryImpl(
                 RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
                 RefreshAction.SKIP -> {
+                    // The live registration is fresh and valid for this user (cache is
+                    // workspace-scoped), so claim ownership without re-registering — otherwise a
+                    // concurrent sign-out reset() could see a stale owner and wipe a registration
+                    // this user legitimately relies on. Re-check the user in case it changed while
+                    // we were deciding; guarded by the same lock reset() reads the owner under.
+                    stateMutex.withLock {
+                        if (secureUserStore.getUserId() == userId) {
+                            registeredOwnerUserId = userId
+                        }
+                    }
                     logger.logSyncSkippedFresh()
                     Result.success(Unit)
                 }

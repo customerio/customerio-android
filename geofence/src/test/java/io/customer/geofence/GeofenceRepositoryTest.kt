@@ -1055,6 +1055,28 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun reset_givenNewUserRefreshSkippedBeforeReset_expectSkipWipe() = runTest {
+        // Fast switch-account: user B identifies and their refresh takes the fresh-cache SKIP path
+        // (no re-registration) before reset() runs. SKIP must claim ownership for B so the sign-out
+        // reset doesn't wipe the still-valid registration B now relies on.
+        every { secureUserStore.getUserId() } returns "user-B"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() // fresh → SKIP
+
+        val refreshResult = repository.refresh(latitude = 1.0, longitude = 2.0)
+
+        refreshResult.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { apiService.fetchGeofences(any()) } // SKIP took no remote fetch
+        verify { logger.logSyncSkippedFresh() }
+
+        val result = repository.reset()
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify(exactly = 0) { manager.clearAll() }
+        verify(exactly = 0) { store.clearUserScopedState() }
+        verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
+    }
+
+    @Test
     fun reset_givenManagerFails_expectStorePreservedForSelfHeal() = runTest {
         // If manager.clearAll fails (transient GMS error), the store MUST be
         // preserved — otherwise OS-side registrations orphan with no record to

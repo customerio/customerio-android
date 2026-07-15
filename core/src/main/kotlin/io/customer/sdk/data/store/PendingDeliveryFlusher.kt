@@ -34,18 +34,26 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val dispatchersProvider: DispatchersProvider
 ) {
 
-    /** How the foreground flush spends a pending entry against a possible mid-publish crash. */
+    /**
+     * When the flush removes the store row relative to [publish] — the flush's half of a feature's
+     * overall delivery guarantee. The guarantee names describe the *system* (this flush paired with
+     * its worker + backend dedupe), not this step in isolation; see each value for what the flush
+     * alone actually provides.
+     */
     enum class DeliveryGuarantee {
         /**
-         * Claim (remove) before publishing. If the process dies after the claim the entry is gone,
-         * so it delivers at most once. Pair with a worker that also claims — together exactly-once.
+         * Claim (remove) the row before publishing. A crash after the claim drops the entry, so
+         * paired with a worker that also claims this is at-most-once (push): no duplicates, possible
+         * loss.
          */
         AT_MOST_ONCE,
 
         /**
-         * Publish, then remove only after it returns. A crash between the two leaves the entry for
-         * the next flush to re-publish, so it delivers at least once; requires a stable payload id
-         * for downstream dedupe. Pair with a send-then-remove worker.
+         * Remove the row only after [publish] returns, so a crash before publish keeps it for the
+         * next flush. On its own this only *narrows* the loss window — [publish] is an in-process
+         * hand-off and the removal is not crash-atomic, so a crash after publish but before the
+         * event is durably queued can still drop it. At-least-once holds end-to-end via the paired
+         * send-then-remove worker (the durable channel) plus a stable payload id for dedupe.
          */
         AT_LEAST_ONCE
     }

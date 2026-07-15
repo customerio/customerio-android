@@ -18,11 +18,12 @@ import io.customer.sdk.data.store.PendingDeliveryFlusher
  *
  * The shared [PendingDeliveryFlusher] cancels each transition's WorkManager
  * delivery, then publishes and only then removes the row
- * ([PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]) so a crash between
- * publish and removal re-delivers rather than drops; the worker (send-then-remove)
- * can likewise race a duplicate via direct HTTP, deduped downstream by transitionId.
- * The entry's snapshotted userId rides through on [io.customer.sdk.communication.Event.GeofenceTransitionEvent]
- * so the pipeline subscriber attributes the track event to it.
+ * ([PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]), which keeps the row
+ * for a retry if the process dies before publish. It's the worker (send-then-remove
+ * via direct HTTP) that is the durable channel; duplicates across the two are deduped
+ * downstream by transitionId. The entry's snapshotted userId rides through on
+ * [io.customer.sdk.communication.Event.GeofenceTransitionEvent] so the pipeline
+ * subscriber attributes the track event to it.
  *
  * Thread safety: all lifecycle callbacks are delivered on the main thread
  * by `ProcessLifecycleOwner`, so no synchronization is needed.

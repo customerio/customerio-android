@@ -10,6 +10,7 @@ import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verifyOrder
+import java.io.File
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
@@ -35,12 +36,16 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         override val key: String get() = id
     }
 
+    private val fileName = "cio_test_flusher.json"
+
     private fun newStore() = PendingDeliveryStore(
         context = contextMock,
-        fileName = "cio_test_flusher.json",
+        fileName = fileName,
         elementSerializer = TestEntry.serializer(),
         logger = mockLogger
     ).also { it.removeAll() }
+
+    private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
 
     private fun newFlusher(store: PendingDeliveryStore<TestEntry>) =
         PendingDeliveryFlusher(store, workManagerProvider, dispatchers)
@@ -136,6 +141,28 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.failed shouldBeEqualTo listOf("bad")
         callbacks.completeCount shouldBeEqualTo 2
         store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun flush_givenAtMostOnceAndClaimWriteFails_expectNotPublishedAndEntryRetained() {
+        val store = newStore()
+        listOf("a", "b").forEach { store.append(TestEntry(it)) }
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        // Entries stay readable but the claiming write can't land, so claim reports failure and the
+        // flush must back off — leaving the rows for the worker rather than publishing a duplicate.
+        storeFile().setReadOnly()
+        try {
+            newFlusher(store).flush(callbacks) { publishedKeys += it.key }
+        } finally {
+            storeFile().setWritable(true)
+        }
+
+        publishedKeys shouldBeEqualTo emptyList()
+        callbacks.published shouldBeEqualTo emptyList()
+        callbacks.completeCount shouldBeEqualTo 0
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("a", "b")
     }
 
     @Test

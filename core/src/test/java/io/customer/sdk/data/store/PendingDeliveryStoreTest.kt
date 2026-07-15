@@ -177,6 +177,23 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun claim_givenRemovingWriteFails_expectFalseAndEntryPreserved() {
+        val store = newStore()
+        val target = entry("target")
+        store.append(target)
+        // Entry is readable but the removing write can't land, so the claim must
+        // not report success — the row stays for the other delivery channel.
+        storeFile().setReadOnly()
+        try {
+            store.claim(target.key) shouldBeEqualTo false
+        } finally {
+            storeFile().setWritable(true)
+        }
+
+        store.loadAll() shouldBeEqualTo listOf(target)
+    }
+
+    @Test
     fun remove_givenUnknownKey_expectNoOp() {
         val store = newStore()
         val keep = entry("keep")

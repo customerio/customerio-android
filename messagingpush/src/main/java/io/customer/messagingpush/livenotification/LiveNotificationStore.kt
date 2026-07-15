@@ -24,6 +24,23 @@ internal class LiveNotificationStore(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /**
+     * One-time cleanup for the namespace rename (`io.customer.liveactivities.*` →
+     * `io.customer.livenotifications.*`). Drops any registration signature whose
+     * activity-type key still uses the OLD namespace so the next identified session
+     * re-registers under the new identifiers instead of treating the old ones as
+     * already-registered. Idempotent: after the stale keys are gone it is a no-op,
+     * and it never touches signatures for the new namespace or custom types.
+     */
+    fun migrate() {
+        val stale = prefs.all.keys.filter {
+            it.startsWith(REG_PREFIX) && it.contains(LEGACY_ACTIVITY_TYPE_PREFIX)
+        }
+        if (stale.isNotEmpty()) {
+            prefs.edit { stale.forEach { remove(it) } }
+        }
+    }
+
     // --- Registration dedup (per activity_type) ---
 
     fun registrationSignature(activityType: String): String? =
@@ -108,6 +125,9 @@ internal class LiveNotificationStore(context: Context) {
         private const val REG_PREFIX = "reg:"
         private const val TS_PREFIX = "ts:"
         private const val TYPE_PREFIX = "type:"
+
+        // Old built-in namespace, replaced by `io.customer.livenotifications.` — used only by migrate().
+        private const val LEGACY_ACTIVITY_TYPE_PREFIX = "io.customer.liveactivities."
         private val DEFAULT_TS_TTL_MS = TimeUnit.DAYS.toMillis(7)
     }
 }

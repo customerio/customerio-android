@@ -5,15 +5,21 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `countdowntimer` template — chronometer ticking toward `targetDate`.
+ * `countdowntimer` template — a status headline over a live countdown to
+ * `endTime`, matching iOS `CIOCountdownTimerAttributes`.
  *
- * Freeform slots (rendered verbatim, never composed): `header` (opt),
- * `title` (req), `subtitle` (req — label above timer, e.g. "Sale ends in"),
- * `expiredMessage` (opt).
- * Typed: `targetDate` (req, epoch seconds — extendable across pushes), `image` (opt),
- * `statusColor` (opt, hex), `staleMessage` (opt). Post-target with no
- * `expiredMessage` means the activity should hide; the SDK signals this via
- * [TemplateRenderResult.cancelImmediately].
+ * Freeform slots (rendered verbatim, never composed): `header` (opt, static
+ * top-row label), `title` (req, primary status line), `statusMessage` (opt,
+ * secondary line). Structured: `endTime` (opt, epoch seconds).
+ *
+ * While `endTime` is in the future the template renders a live chronometer. The
+ * finished state is push-driven: the backend pushes a new content-state with a
+ * "done" `title`/`statusMessage` and no `endTime`, so when `endTime` is absent or
+ * already past, no chronometer is shown (the clock doesn't disappear on its own).
+ *
+ * Styling is branding-only: no image/statusColor. The accent falls back to the
+ * app branding accent then the FCM default tint; the large icon comes from the
+ * branding logo (applied by the handler, not here).
  */
 internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
@@ -28,31 +34,29 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
     ): TemplateRenderResult? {
         val header = data.optStringNonEmpty(CountdownTimerFields.HEADER)
         val title = data.optString(CountdownTimerFields.TITLE)
-        val subtitle = data.optString(CountdownTimerFields.SUBTITLE)
-        val image = data.optStringNonEmpty(CountdownTimerFields.IMAGE)
-        val targetDate = data.optEpochSecondsAsMillis(CountdownTimerFields.TARGET_DATE)
-        val expiredMessage = data.optStringNonEmpty(CountdownTimerFields.EXPIRED_MESSAGE)
-        val statusColor = data.optColorInt(CountdownTimerFields.STATUS_COLOR)
-        val staleMessage = data.optStringNonEmpty(CountdownTimerFields.STALE_MESSAGE)
+        val statusMessage = data.optStringNonEmpty(CountdownTimerFields.STATUS_MESSAGE)
+        val endTime = data.optEpochSecondsAsMillis(CountdownTimerFields.END_TIME)
 
-        // No usable content (required `title` missing / not flattened): don't render a blank notification.
-        // A real countdown always carries a targetDate, so this never blocks a post-target hide.
-        if (title.isBlank() && targetDate == null) {
+        // No usable content (required `title` missing / not flattened): don't render a blank
+        // notification. The finished-state push always carries a "done" title, so this never
+        // blocks the terminal state.
+        if (title.isBlank()) {
             return null
         }
 
+        // Finished state is push-driven: an absent/past endTime means "no live timer", so we
+        // simply omit the chronometer and show title + statusMessage.
         val now = System.currentTimeMillis()
-        val isPostTarget = targetDate != null && now >= targetDate
-        // Server pushed a post-target state with no message: hide the activity.
-        val cancelImmediately = isPostTarget && expiredMessage == null
+        val isCountingDown = endTime != null && now < endTime
 
         return TemplateRenderResult(
             title = title,
-            // A stale push carries `staleMessage` as the current state's message; show it verbatim.
-            body = staleMessage ?: (if (isPostTarget) expiredMessage.orEmpty() else subtitle),
+            body = statusMessage.orEmpty(),
             subText = header,
-            largeIcon = if (cancelImmediately) null else TemplateAssets.resolveBitmap(context, image),
-            accentColor = if (cancelImmediately) null else (statusColor ?: branding?.accentColor ?: fallbackTintColor),
+            // Branding-only: no per-push image. The handler fills largeIcon from the branding
+            // logo when this is null.
+            largeIcon = null,
+            accentColor = branding?.accentColor ?: fallbackTintColor,
             colorized = false,
             showProgress = false,
             progress = 0,
@@ -62,9 +66,8 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
             startIconRes = null,
             endIconRes = null,
             trackerIconRes = null,
-            countdownUntil = if (isPostTarget) null else targetDate,
-            deepLink = null,
-            cancelImmediately = cancelImmediately
+            countdownUntil = if (isCountingDown) endTime else null,
+            deepLink = null
         )
     }
 }

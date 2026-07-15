@@ -26,7 +26,7 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     private val lifecycleClient: LiveNotificationLifecycleClient = mockk(relaxed = true)
     private val manager = LiveNotificationManager(lifecycleClient)
 
-    private val type = "io.customer.liveactivities.deliverytracking"
+    private val type = "io.customer.livenotifications.segments"
 
     private fun saveToken() = SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
 

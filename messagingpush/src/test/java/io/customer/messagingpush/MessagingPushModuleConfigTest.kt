@@ -23,26 +23,26 @@ class MessagingPushModuleConfigTest : JUnit5Test() {
     fun enableLiveNotificationTypes_mapsBuiltInTypesToIdentifiers() {
         val config = MessagingPushModuleConfig.Builder()
             .enableLiveNotificationTypes(
-                LiveNotificationType.DELIVERY_TRACKING,
-                LiveNotificationType.LIVE_SCORE
+                LiveNotificationType.SEGMENTS,
+                LiveNotificationType.COUNTDOWN_TIMER
             )
             .build()
 
         config.liveNotificationTypes shouldContainSame setOf(
-            LiveNotificationType.DELIVERY_TRACKING.identifier,
-            LiveNotificationType.LIVE_SCORE.identifier
+            LiveNotificationType.SEGMENTS.identifier,
+            LiveNotificationType.COUNTDOWN_TIMER.identifier
         )
     }
 
     @Test
     fun enableTypes_builtInAndCustom_areAdditive() {
         val config = MessagingPushModuleConfig.Builder()
-            .enableLiveNotificationTypes(LiveNotificationType.AUCTION_BID)
+            .enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
             .enableCustomLiveNotificationTypes("com.acme.ride", "com.acme.workout")
             .build()
 
         config.liveNotificationTypes shouldContainSame setOf(
-            LiveNotificationType.AUCTION_BID.identifier,
+            LiveNotificationType.SEGMENTS.identifier,
             "com.acme.ride",
             "com.acme.workout"
         )

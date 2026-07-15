@@ -60,8 +60,8 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
     fun activityType_setGetClear() {
         store.activityType("act-1").shouldBeNull()
 
-        store.setActivityType("act-1", "io.customer.liveactivities.deliverytracking")
-        store.activityType("act-1") shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+        store.setActivityType("act-1", "io.customer.livenotifications.segments")
+        store.activityType("act-1") shouldBeEqualTo "io.customer.livenotifications.segments"
 
         store.clearActivityType("act-1")
         store.activityType("act-1").shouldBeNull()
@@ -88,10 +88,37 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
         val ttl = 1_000L
 
         store.setLastTimestamp("old", 1L, now = now - ttl - 1)
-        store.setActivityType("old", "io.customer.liveactivities.livescore")
+        store.setActivityType("old", "io.customer.livenotifications.segments")
 
         store.trimStaleTimestamps(ttlMs = ttl, now = now)
 
         store.activityType("old").shouldBeNull()
+    }
+
+    @Test
+    fun migrate_clearsOldNamespaceRegistrationsAndKeepsNewOnes() {
+        // Legacy registrations recorded under the old `io.customer.liveactivities.*` namespace...
+        store.setRegistrationSignature("io.customer.liveactivities.deliverytracking", "tok|user")
+        store.setRegistrationSignature("io.customer.liveactivities.auctionbid", "tok|user")
+        // ...alongside new-namespace and custom-type registrations that must survive.
+        store.setRegistrationSignature("io.customer.livenotifications.segments", "tok|user")
+        store.setRegistrationSignature("com.acme.custom", "tok|user")
+
+        store.migrate()
+
+        store.registrationSignature("io.customer.liveactivities.deliverytracking").shouldBeNull()
+        store.registrationSignature("io.customer.liveactivities.auctionbid").shouldBeNull()
+        store.registrationSignature("io.customer.livenotifications.segments") shouldBeEqualTo "tok|user"
+        store.registrationSignature("com.acme.custom") shouldBeEqualTo "tok|user"
+    }
+
+    @Test
+    fun migrate_isIdempotentAndSafeWhenNothingStale() {
+        store.setRegistrationSignature("io.customer.livenotifications.segments", "tok|user")
+
+        store.migrate()
+        store.migrate()
+
+        store.registrationSignature("io.customer.livenotifications.segments") shouldBeEqualTo "tok|user"
     }
 }

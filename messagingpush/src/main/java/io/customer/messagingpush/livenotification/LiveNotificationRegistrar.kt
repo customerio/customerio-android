@@ -51,6 +51,9 @@ internal class LiveNotificationRegistrar(
         get() = SDKComponent.pushModuleConfig.liveNotificationTypes
 
     fun start() {
+        // One-time cleanup of registration signatures left over from the old built-in
+        // namespace, so the new identifiers register cleanly on the next identify.
+        store.migrate()
         // Drop dedup entries for activities that ended long ago without an explicit `end`.
         store.trimStaleTimestamps()
 

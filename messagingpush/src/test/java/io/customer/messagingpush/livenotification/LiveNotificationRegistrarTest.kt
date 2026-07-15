@@ -26,7 +26,7 @@ internal class LiveNotificationRegistrarTest : IntegrationTest() {
 
     private val client: LiveNotificationLifecycleClient = mockk(relaxed = true)
     private val store: LiveNotificationStore = mockk(relaxed = true)
-    private val type = "io.customer.liveactivities.deliverytracking"
+    private val type = "io.customer.livenotifications.segments"
 
     private lateinit var registrar: LiveNotificationRegistrar
 
@@ -34,7 +34,7 @@ internal class LiveNotificationRegistrarTest : IntegrationTest() {
         super.setup(testConfig)
         ModuleMessagingPushFCM(
             MessagingPushModuleConfig.Builder()
-                .enableLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING)
+                .enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
                 .build()
         ).attachToSDKComponent()
         every { store.registrationSignature(any()) } returns null

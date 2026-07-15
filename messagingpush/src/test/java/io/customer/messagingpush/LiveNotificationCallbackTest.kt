@@ -35,7 +35,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
             MessagingPushModuleConfig.Builder().apply {
                 callback?.let { setNotificationCallback(it) }
                 // Enable a built-in type (for the override test) and the custom type.
-                enableLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING)
+                enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
                 enableCustomLiveNotificationTypes(customType)
             }.build()
         ).attachToSDKComponent()
@@ -72,7 +72,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         val posted = slot<Notification>()
         every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
 
-        invoke(bundle(LiveNotificationType.DELIVERY_TRACKING.identifier))
+        invoke(bundle(LiveNotificationType.SEGMENTS.identifier))
 
         posted.captured shouldBeEqualTo custom
     }

@@ -69,11 +69,8 @@ public class CustomerIORepository {
                         .setNotificationCallback(new LiveNotificationCallback())
                         // Live notifications are opt-in: enable the built-in template types...
                         .enableLiveNotificationTypes(
-                                LiveNotificationType.DELIVERY_TRACKING,
-                                LiveNotificationType.FLIGHT_STATUS,
-                                LiveNotificationType.LIVE_SCORE,
-                                LiveNotificationType.COUNTDOWN_TIMER,
-                                LiveNotificationType.AUCTION_BID
+                                LiveNotificationType.SEGMENTS,
+                                LiveNotificationType.COUNTDOWN_TIMER
                         )
                         // ...plus our two custom (app-rendered) types.
                         .enableCustomLiveNotificationTypes(

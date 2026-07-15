@@ -44,11 +44,8 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         // Live notifications are opt-in; enable all built-in types so the dispatch tests run.
         ModuleMessagingPushFCM(
             MessagingPushModuleConfig.Builder().enableLiveNotificationTypes(
-                LiveNotificationType.DELIVERY_TRACKING,
-                LiveNotificationType.FLIGHT_STATUS,
-                LiveNotificationType.LIVE_SCORE,
-                LiveNotificationType.COUNTDOWN_TIMER,
-                LiveNotificationType.AUCTION_BID
+                LiveNotificationType.SEGMENTS,
+                LiveNotificationType.COUNTDOWN_TIMER
             ).build()
         ).attachToSDKComponent()
     }
@@ -56,14 +53,14 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     private fun newBundle(
         activityId: String? = "live-act-1",
         event: String? = "start",
-        activityType: String? = TemplateRegistry.DELIVERY_TRACKING,
-        // Minimal renderable content: every built-in template treats `title` as required
-        // content, so envelope/ordering tests post a notification rather than being dropped by
-        // the "no usable content" guard (which is exercised separately). LiveScore keys off
-        // team names, so also supply a home team for the all-templates dispatch test.
+        activityType: String? = TemplateRegistry.SEGMENTS,
+        // Minimal renderable content: Segments treats `status` as required and CountdownTimer
+        // treats `title` as required, so supplying both means envelope/ordering tests post a
+        // notification for either template rather than being dropped by the "no usable content"
+        // guard (which is exercised separately).
         data: JSONObject = JSONObject().apply {
+            put("status", "Status")
             put("title", "Status")
-            put("homeTeam", JSONObject().put("name", "Home"))
         },
         timestamp: Long? = null
     ): Bundle {
@@ -106,13 +103,10 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     // --- Happy-path dispatch ---
 
     @Test
-    fun handle_givenAllFiveTemplates_postsNotificationForEach() {
+    fun handle_givenBothTemplates_postsNotificationForEach() {
         val templates = listOf(
-            TemplateRegistry.DELIVERY_TRACKING,
-            TemplateRegistry.FLIGHT_STATUS,
-            TemplateRegistry.LIVE_SCORE,
-            TemplateRegistry.COUNTDOWN_TIMER,
-            TemplateRegistry.AUCTION_BID
+            TemplateRegistry.SEGMENTS,
+            TemplateRegistry.COUNTDOWN_TIMER
         )
         for (activityType in templates) {
             invoke(handlerFor(newBundle(activityType = activityType)))
@@ -128,9 +122,10 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         val activityId = "live-activity-id-xyz"
         val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
         val data = JSONObject().apply {
-            put("title", "Out for delivery")
-            put("subtitle", "For User")
-            put("progress", JSONObject().put("current", 2).put("total", 4))
+            put("status", "Out for delivery")
+            put("substatus", "For User")
+            put("segmentsTotal", 4)
+            put("segmentsComplete", 2)
         }
         val bundle = newBundle(activityId = activityId, data = data)
 
@@ -166,9 +161,10 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             putString(
                 LiveNotificationHandler.PAYLOAD_KEY,
                 JSONObject().apply {
-                    put("title", "preparing")
-                    put("subtitle", "order abc-123")
-                    put("progress", JSONObject().put("current", 1).put("total", 4))
+                    put("status", "preparing")
+                    put("substatus", "order abc-123")
+                    put("segmentsTotal", 4)
+                    put("segmentsComplete", 1)
                 }.toString()
             )
         }
@@ -190,7 +186,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         val data = JSONObject().apply {
             put("title", "Flash Sale")
             // Epoch SECONDS on the wire (60s ahead), not millis.
-            put("targetDate", System.currentTimeMillis() / 1000 + 60L)
+            put("endTime", System.currentTimeMillis() / 1000 + 60L)
             put("statusMessage", "Sale starts in")
         }
         invoke(handlerFor(newBundle(activityType = TemplateRegistry.COUNTDOWN_TIMER, data = data)))
@@ -200,15 +196,16 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     @Test
     fun handle_givenNestedJsonFieldAsString_parsesAndPosts() {
-        // Nested objects (origin, homeTeam, …) arrive as JSON strings in FCM data;
-        // the handler parses them so templates can read the nested values.
+        // Nested objects can arrive as JSON strings in FCM data; the handler parses them into
+        // JSON containers. The 2 built-in templates read only flat fields, so a stray nested
+        // object is simply ignored — but parsing it must not break rendering.
         val data = JSONObject().apply {
-            put("title", "JFK → LAX")
-            put("status", "On time")
-            put("origin", JSONObject().put("code", "JFK"))
-            put("destination", JSONObject().put("code", "LAX"))
+            put("status", "On the way")
+            put("segmentsTotal", 3)
+            put("segmentsComplete", 1)
+            put("extra", JSONObject().put("ignored", "value"))
         }
-        val bundle = newBundle(activityType = TemplateRegistry.FLIGHT_STATUS, data = data)
+        val bundle = newBundle(activityType = TemplateRegistry.SEGMENTS, data = data)
 
         invoke(handlerFor(bundle))
 
@@ -246,7 +243,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         val bundle = newBundle(
             activityId = "no-content",
             event = "start",
-            activityType = TemplateRegistry.DELIVERY_TRACKING,
+            activityType = TemplateRegistry.SEGMENTS,
             data = JSONObject()
         )
 
@@ -268,7 +265,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     @Test
     fun handle_givenUnknownActivityType_dropsAndDoesNotNotify() {
-        invoke(handlerFor(newBundle(activityType = "io.customer.liveactivities.bogus")))
+        invoke(handlerFor(newBundle(activityType = "io.customer.livenotifications.bogus")))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
@@ -277,9 +274,9 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     @Test
     fun handle_givenBareTemplateNameWithoutSpecPrefix_dropsAndDoesNotNotify() {
-        // The cross-platform spec requires the `io.customer.liveactivities.` prefix.
-        // Bare names like "deliverytracking" must be rejected to stay aligned with iOS.
-        invoke(handlerFor(newBundle(activityType = "deliverytracking")))
+        // The cross-platform spec requires the `io.customer.livenotifications.` prefix.
+        // Bare names like "segments" must be rejected to stay aligned with iOS.
+        invoke(handlerFor(newBundle(activityType = "segments")))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())

@@ -32,7 +32,7 @@ import org.json.JSONObject
  * Live notifications are ongoing notifications that can be updated in-place
  * (the Android counterpart of iOS Live Activities). Each push declares a
  * `notification_type` (one of the closed set in [TemplateRegistry], prefixed
- * with `io.customer.liveactivities.`). Template fields arrive either flattened
+ * with `io.customer.livenotifications.`). Template fields arrive either flattened
  * at the envelope top level or nested under a `payload` object ([extractData]
  * handles both). Pushes share a stable [CIO_INSTANCE_ID_KEY] so successive updates
  * replace the previous notification rather than creating new ones.

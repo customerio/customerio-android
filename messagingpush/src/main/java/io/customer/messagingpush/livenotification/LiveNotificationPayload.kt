@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /**
  * Coerces live-notification template fields into values the data pipeline can
- * serialize: `org.json` containers (e.g. FlightStatus' `origin`) become plain
+ * serialize: `org.json` containers become plain
  * [Map]/[List], and null entries are dropped. Used by the on-device start/update
  * report path ([LiveNotificationManager]).
  */

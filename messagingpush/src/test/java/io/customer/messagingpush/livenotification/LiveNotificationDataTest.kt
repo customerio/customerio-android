@@ -6,7 +6,6 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
-import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -15,89 +14,82 @@ import org.robolectric.RobolectricTestRunner
 internal class LiveNotificationDataTest : IntegrationTest() {
 
     @Test
-    fun deliveryTracking_mapsActivityTypeAndNestedProgress() {
-        val data = LiveNotificationData.DeliveryTracking(
-            title = "On the way",
+    fun segments_mapsActivityTypeAndFlatCounts() {
+        val data = LiveNotificationData.Segments(
             header = "Order update",
-            progress = LiveNotificationData.Progress(current = 1, total = 3)
+            status = "On the way",
+            segmentsTotal = 3,
+            segmentsComplete = 1
         )
 
-        data.activityType shouldBeEqualTo TemplateRegistry.DELIVERY_TRACKING
+        data.activityType shouldBeEqualTo TemplateRegistry.SEGMENTS
         val fields = data.fields()
-        fields["title"] shouldBeEqualTo "On the way"
+        fields["status"] shouldBeEqualTo "On the way"
         fields["header"] shouldBeEqualTo "Order update"
-        // Progress serializes as a nested { current, total } object (matches iOS content-state).
-        val progress = fields["progress"] as JSONObject
-        progress.getInt("current") shouldBeEqualTo 1
-        progress.getInt("total") shouldBeEqualTo 3
+        // Flat integer segment counts (matches iOS content-state), not a nested progress object.
+        fields["segmentsTotal"] shouldBeEqualTo 3
+        fields["segmentsComplete"] shouldBeEqualTo 1
         // Unset optional fields are present as null; the manager omits them from the envelope.
-        fields["subtitle"].shouldBeNull()
+        fields["substatus"].shouldBeNull()
+        fields["trailingText"].shouldBeNull()
     }
 
     @Test
-    fun deliveryTracking_splitsStaticAttributesFromDynamicContentState() {
-        val data = LiveNotificationData.DeliveryTracking(
-            title = "On the way",
+    fun segments_splitsStaticAttributesFromDynamicContentState() {
+        val data = LiveNotificationData.Segments(
             header = "Order update",
-            subtitle = "For Alex",
-            progress = LiveNotificationData.Progress(current = 1, total = 3),
-            statusColor = "#36AE3F"
+            status = "On the way",
+            substatus = "For Alex",
+            segmentsTotal = 3,
+            segmentsComplete = 1,
+            trailingText = "5 min"
         )
+
+        // Static (attributes): header only.
+        data.attributes().containsKey("header").shouldBeTrue()
+        data.attributes().containsKey("status").shouldBeFalse()
+
+        // Dynamic (contentState): status, substatus, flat counts, trailingText.
+        val contentState = data.contentState()
+        contentState["status"] shouldBeEqualTo "On the way"
+        contentState["substatus"] shouldBeEqualTo "For Alex"
+        contentState["segmentsTotal"] shouldBeEqualTo 3
+        contentState["segmentsComplete"] shouldBeEqualTo 1
+        contentState["trailingText"] shouldBeEqualTo "5 min"
+        contentState.containsKey("header").shouldBeFalse()
+    }
+
+    @Test
+    fun countdownTimer_mapsActivityTypeAndSplitsAttributes() {
+        val data = LiveNotificationData.CountdownTimer(
+            header = "Limited time",
+            title = "Flash sale ends in",
+            statusMessage = "Hurry!",
+            endTime = 1700000000L
+        )
+
+        data.activityType shouldBeEqualTo TemplateRegistry.COUNTDOWN_TIMER
 
         // Static (attributes): header only.
         data.attributes().containsKey("header").shouldBeTrue()
         data.attributes().containsKey("title").shouldBeFalse()
 
-        // Dynamic (contentState): title, subtitle, progress, statusColor, etc.
+        // Dynamic (contentState): title, statusMessage, endTime.
         val contentState = data.contentState()
-        contentState["title"] shouldBeEqualTo "On the way"
-        contentState["subtitle"] shouldBeEqualTo "For Alex"
-        val progress = contentState["progress"] as JSONObject
-        progress.getInt("current") shouldBeEqualTo 1
-        progress.getInt("total") shouldBeEqualTo 3
-        contentState["statusColor"] shouldBeEqualTo "#36AE3F"
-        contentState.containsKey("header").shouldBeFalse()
+        contentState["title"] shouldBeEqualTo "Flash sale ends in"
+        contentState["statusMessage"] shouldBeEqualTo "Hurry!"
+        contentState["endTime"] shouldBeEqualTo 1700000000L
     }
 
     @Test
-    fun flightStatus_nestedAirportsSerializeToJsonInAttributes() {
-        val data = LiveNotificationData.FlightStatus(
-            title = "On time",
-            origin = LiveNotificationData.Airport("JFK", "New York"),
-            destination = LiveNotificationData.Airport("LAX")
+    fun countdownTimer_optionalFieldsAreNull() {
+        val data = LiveNotificationData.CountdownTimer(
+            header = "Limited time",
+            title = "Done"
         )
 
-        data.activityType shouldBeEqualTo TemplateRegistry.FLIGHT_STATUS
-
-        // Airports are static, so they live in attributes.
-        val origin = data.attributes()["origin"] as JSONObject
-        origin.getString("code") shouldBeEqualTo "JFK"
-        origin.getString("city") shouldBeEqualTo "New York"
-
-        val destination = data.attributes()["destination"] as JSONObject
-        destination.getString("code") shouldBeEqualTo "LAX"
-        // city omitted when not provided.
-        destination.has("city").shouldBeFalse()
-
-        // title is dynamic.
-        data.contentState()["title"] shouldBeEqualTo "On time"
-    }
-
-    @Test
-    fun liveScore_teamLogoSerializesUnderLogoKey() {
-        val data = LiveNotificationData.LiveScore(
-            homeTeam = LiveNotificationData.Team("Lakers", logo = "lakers_logo"),
-            awayTeam = LiveNotificationData.Team("Celtics"),
-            homeScore = 14,
-            awayScore = 7
-        )
-
-        val home = data.attributes()["homeTeam"] as JSONObject
-        home.getString("name") shouldBeEqualTo "Lakers"
-        home.getString("logo") shouldBeEqualTo "lakers_logo"
-
-        // Scores are dynamic.
-        data.contentState()["homeScore"] shouldBeEqualTo 14
-        data.contentState()["awayScore"] shouldBeEqualTo 7
+        val contentState = data.contentState()
+        contentState["statusMessage"].shouldBeNull()
+        contentState["endTime"].shouldBeNull()
     }
 }

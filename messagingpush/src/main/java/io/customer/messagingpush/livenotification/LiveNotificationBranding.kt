@@ -6,9 +6,9 @@ import androidx.annotation.ColorInt
  * App-level branding applied to live notifications.
  *
  * Registered once via [io.customer.messagingpush.MessagingPushModuleConfig.Builder.setLiveNotificationBranding]
- * and shared across every templated live notification this app posts. Templates
- * may override individual fields (e.g. accent color flips green/red for auction
- * winning/outbid state); when they do not, these values are used.
+ * and shared across every templated live notification this app posts. Built-in
+ * template styling is branding-only: the accent color and logo come from here
+ * (with the FCM default tint as the accent fallback), not from per-push fields.
  *
  * @property companyName Reserved for future templates that need to render a
  *   company label. Not consumed by any v1 template mapping.

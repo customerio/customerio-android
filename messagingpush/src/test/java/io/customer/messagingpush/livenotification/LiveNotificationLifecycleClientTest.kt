@@ -50,7 +50,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
 
         client.reportStart(
             instanceUUID = "inst-1",
-            activityType = "io.customer.liveactivities.deliverytracking",
+            activityType = "io.customer.livenotifications.segments",
             deviceId = "fcm-tok",
             attributes = mapOf("header" to "Order update"),
             contentState = mapOf("title" to "On the way")
@@ -61,7 +61,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
         props.captured[PROP_CIO_INSTANCE_ID] shouldBeEqualTo "inst-1"
         props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
         props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
-        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.livenotifications.segments"
         @Suppress("UNCHECKED_CAST")
         (props.captured[PROP_ATTRIBUTES] as Map<String, Any?>)["header"] shouldBeEqualTo "Order update"
         @Suppress("UNCHECKED_CAST")
@@ -89,7 +89,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
 
         client.reportUpdate(
             instanceUUID = "inst-2",
-            activityType = "io.customer.liveactivities.deliverytracking",
+            activityType = "io.customer.livenotifications.segments",
             deviceId = "fcm-tok",
             contentState = mapOf("title" to "Arriving")
         )
@@ -99,7 +99,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
         props.captured[PROP_CIO_INSTANCE_ID] shouldBeEqualTo "inst-2"
         props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
         props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
-        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.liveactivities.deliverytracking"
+        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.livenotifications.segments"
         // Update never carries static attributes.
         props.captured.containsKey(PROP_ATTRIBUTES).shouldBeFalse()
         @Suppress("UNCHECKED_CAST")

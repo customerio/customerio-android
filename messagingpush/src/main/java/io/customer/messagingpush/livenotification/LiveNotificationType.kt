@@ -2,7 +2,8 @@ package io.customer.messagingpush.livenotification
 
 /**
  * Built-in live-notification activity types (reverse-DNS [identifier]s matching
- * the iOS Live Activity identifiers).
+ * the iOS Live Notification identifiers — see iOS `CIOSegmentsAttributes` /
+ * `CIOCountdownTimerAttributes`).
  *
  * Pass these to
  * [io.customer.messagingpush.MessagingPushModuleConfig.Builder.enableLiveNotificationTypes]
@@ -15,9 +16,6 @@ package io.customer.messagingpush.livenotification
  * registered with the backend and pushes for non-enabled types are ignored.
  */
 enum class LiveNotificationType(val identifier: String) {
-    DELIVERY_TRACKING("io.customer.liveactivities.deliverytracking"),
-    FLIGHT_STATUS("io.customer.liveactivities.flightstatus"),
-    LIVE_SCORE("io.customer.liveactivities.livescore"),
-    COUNTDOWN_TIMER("io.customer.liveactivities.countdowntimer"),
-    AUCTION_BID("io.customer.liveactivities.auctionbid")
+    SEGMENTS("io.customer.livenotifications.segments"),
+    COUNTDOWN_TIMER("io.customer.livenotifications.countdowntimer")
 }

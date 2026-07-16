@@ -1,8 +1,12 @@
 package io.customer.messagingpush.livenotification
 
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.DispatchersProvider
 import io.mockk.mockk
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEmpty
@@ -27,6 +31,19 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     private val manager = LiveNotificationManager(lifecycleClient)
 
     private val type = "io.customer.livenotifications.segments"
+
+    override fun setup(testConfig: TestConfig) {
+        // Render runs on the background dispatcher; the stub makes it inline+synchronous.
+        super.setup(
+            testConfigurationDefault {
+                diGraph {
+                    sdk {
+                        overrideDependency<DispatchersProvider>(DispatchersProviderStub())
+                    }
+                }
+            } + testConfig
+        )
+    }
 
     private fun saveToken() = SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
 
@@ -92,6 +109,19 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
         manager.end("act-1")
 
         store.activityType("act-1").shouldBeNull()
+    }
+
+    @Test
+    fun end_afterLocalStart_reportsEndEvenWhenTypeNotPersisted() {
+        // A local start remembers the type for its id, so end() reports a matching
+        // end even if the render never persisted the activity type.
+        saveToken()
+        manager.start("act-1", type, attributes = emptyMap(), contentState = mapOf("title" to "Preparing"))
+        SDKComponent.liveNotificationStore.clearActivityType("act-1")
+
+        manager.end("act-1")
+
+        verify { lifecycleClient.reportEnd("act-1", type, "fcm-tok") }
     }
 
     @Test

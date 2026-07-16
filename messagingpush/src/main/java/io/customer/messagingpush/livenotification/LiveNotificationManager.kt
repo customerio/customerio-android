@@ -12,6 +12,10 @@ import io.customer.messagingpush.extensions.getMetaDataResource
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
+import io.customer.sdk.core.util.DispatchersProvider
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Renders live notifications locally on behalf of the host app and reports the
@@ -24,6 +28,14 @@ internal class LiveNotificationManager(
     private val context: Context
         get() = SDKComponent.android().applicationContext
 
+    private val dispatchers: DispatchersProvider
+        get() = SDKComponent.dispatchersProvider
+
+    // Last bundle rendered per activity id, so end() can re-render the final
+    // state as a dismissible notification and resolve the activity type even if
+    // the initial render never posted.
+    private val lastBundles = ConcurrentHashMap<String, Bundle>()
+
     /** Starts a live notification locally and reports a `start` event. */
     fun start(
         activityId: String,
@@ -31,7 +43,9 @@ internal class LiveNotificationManager(
         attributes: Map<String, Any?>,
         contentState: Map<String, Any?>
     ) {
-        renderLocally(buildBundle(activityId, activityType, attributes + contentState, EVENT_START))
+        val bundle = buildBundle(activityId, activityType, attributes + contentState, EVENT_START)
+        lastBundles[activityId] = Bundle(bundle)
+        render(bundle)
         reportStart(activityId, activityType, attributes, contentState)
     }
 
@@ -42,20 +56,38 @@ internal class LiveNotificationManager(
         attributes: Map<String, Any?>,
         contentState: Map<String, Any?>
     ) {
-        renderLocally(buildBundle(activityId, activityType, attributes + contentState, EVENT_UPDATE))
+        val bundle = buildBundle(activityId, activityType, attributes + contentState, EVENT_UPDATE)
+        lastBundles[activityId] = Bundle(bundle)
+        render(bundle)
         reportUpdate(activityId, activityType, contentState)
     }
 
-    /** Removes a previously started live notification and reports an `end` event. */
+    /**
+     * Ends a live notification locally and reports an `end` event. Rather than
+     * cancelling, it re-renders the last state as a terminal (non-ongoing)
+     * notification so the final state stays in the shade and is dismissible,
+     * matching push-delivered end.
+     */
     fun end(activityId: String) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
-
         val store = SDKComponent.liveNotificationStore
-        val activityType = store.activityType(activityId)
+        val lastBundle = lastBundles.remove(activityId)
+        // Prefer the type from the last local render; fall back to the persisted
+        // type (e.g. after process death) so a locally-started activity always
+        // reports a matching end.
+        val activityType = lastBundle?.getString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY)
+            ?: store.activityType(activityId)
+
+        if (lastBundle != null) {
+            val endBundle = Bundle(lastBundle).apply {
+                putString(LiveNotificationHandler.EVENT_KEY, EVENT_END)
+                putString(LiveNotificationHandler.TIMESTAMP_KEY, (System.currentTimeMillis() / 1000).toString())
+            }
+            render(endBundle)
+        }
+
         if (activityType == null) {
             SDKComponent.logger.debug(
-                "No known live notification for '$activityId'; canceled without reporting an end event."
+                "No known live notification for '$activityId'; nothing to end."
             )
         } else {
             reportEnd(activityId, activityType)
@@ -98,6 +130,15 @@ internal class LiveNotificationManager(
             putString(LiveNotificationHandler.TIMESTAMP_KEY, (System.currentTimeMillis() / 1000).toString())
         }
 
+    /**
+     * Renders off the caller's thread: a `RemoteUrl` branding logo triggers a
+     * blocking image download inside the handler, which must never run on the
+     * caller's (possibly main) thread.
+     */
+    private fun render(bundle: Bundle) {
+        CoroutineScope(dispatchers.background).launch { renderLocally(bundle) }
+    }
+
     private fun renderLocally(bundle: Bundle) {
         val ctx = context
         val appMetaData = ctx.applicationMetaData()
@@ -124,7 +165,8 @@ internal class LiveNotificationManager(
             smallIcon = smallIcon,
             tintColor = tintColor,
             channelId = channelId,
-            notificationManager = notificationManager
+            notificationManager = notificationManager,
+            bypassOrderGuard = true
         )
     }
 
@@ -184,6 +226,7 @@ internal class LiveNotificationManager(
     companion object {
         private const val EVENT_START = "start"
         private const val EVENT_UPDATE = "update"
+        private const val EVENT_END = "end"
         private const val FCM_DEFAULT_ICON = "com.google.firebase.messaging.default_notification_icon"
         private const val FCM_DEFAULT_COLOR = "com.google.firebase.messaging.default_notification_color"
     }

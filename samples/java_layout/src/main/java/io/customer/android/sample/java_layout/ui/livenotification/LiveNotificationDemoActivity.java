@@ -22,19 +22,12 @@ import io.customer.android.sample.java_layout.sdk.LiveNotificationCallback;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
-import io.customer.messagingpush.livenotification.LiveNotificationType;
+import io.customer.messagingpush.livenotification.LiveNotificationData;
 
 /**
  * Demo activity that simulates templated live-notification updates by sending
- * synthetic push messages through the SDK's actual push handling code path.
- * <p>
- * Each scenario builds a templated FCM data bundle that matches the
- * cross-platform live-activity envelope: top-level lifecycle keys
- * ({@code activity_id}, {@code event}, {@code activity_type}) plus the
- * template fields flattened alongside them (Android does not split static
- * {@code attributes} from dynamic {@code content_state}). The static branding
- * bundle lives in {@code MessagingPushModuleConfig} and is registered once at
- * SDK init.
+ * synthetic push messages through the SDK's real push handling path, and also
+ * exercises the local-start API and a backend-campaign trigger.
  */
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
@@ -45,31 +38,25 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private static final String EVENT_UPDATE = "update";
     private static final String EVENT_END = "end";
 
-    // activity_type values match the iOS Live Activity identifiers per the cross-platform spec.
-    private static final String ACTIVITY_TYPE_DELIVERY_TRACKING = "io.customer.liveactivities.deliverytracking";
-    private static final String ACTIVITY_TYPE_FLIGHT_STATUS = "io.customer.liveactivities.flightstatus";
-    private static final String ACTIVITY_TYPE_LIVE_SCORE = "io.customer.liveactivities.livescore";
-    private static final String ACTIVITY_TYPE_COUNTDOWN_TIMER = "io.customer.liveactivities.countdowntimer";
-    private static final String ACTIVITY_TYPE_AUCTION_BID = "io.customer.liveactivities.auctionbid";
-    private static final String ACTIVITY_TYPE_UNKNOWN = "io.customer.liveactivities.bogus";
+    // activity_type values match the iOS Live Notification identifiers per the cross-platform spec.
+    private static final String ACTIVITY_TYPE_SEGMENTS = "io.customer.livenotifications.segments";
+    private static final String ACTIVITY_TYPE_COUNTDOWN_TIMER = "io.customer.livenotifications.countdowntimer";
+    private static final String ACTIVITY_TYPE_UNKNOWN = "io.customer.livenotifications.bogus";
     // Custom (app-rendered) types — rendered by LiveNotificationCallback, not an SDK template.
     private static final String ACTIVITY_TYPE_RIDESHARE = LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE;
     private static final String ACTIVITY_TYPE_WORKOUT = LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT;
 
     private enum TemplateChoice {
-        DELIVERY_TRACKING, FLIGHT_STATUS, LIVE_SCORE, COUNTDOWN_TIMER, AUCTION_BID,
+        SEGMENTS, COUNTDOWN_TIMER,
         CUSTOM_RIDESHARE, CUSTOM_WORKOUT
     }
 
     // Event the backend campaign listens for; its `activity_type` property selects the template.
     private static final String CAMPAIGN_EVENT = "trigger_live";
-    // Dropdown order must match CAMPAIGN_TEMPLATE_LABELS below.
+    // Dropdown order must match the labels built in setupCampaignDropdown below.
     private static final String[] CAMPAIGN_ACTIVITY_TYPES = {
-            ACTIVITY_TYPE_DELIVERY_TRACKING,
-            ACTIVITY_TYPE_FLIGHT_STATUS,
-            ACTIVITY_TYPE_LIVE_SCORE,
-            ACTIVITY_TYPE_COUNTDOWN_TIMER,
-            ACTIVITY_TYPE_AUCTION_BID
+            ACTIVITY_TYPE_SEGMENTS,
+            ACTIVITY_TYPE_COUNTDOWN_TIMER
     };
 
     private int currentStep = 0;
@@ -78,6 +65,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     private boolean isAutoRunning = false;
     private int selectedCampaignIndex = 0;
     private CustomerIORepository customerIORepository;
+    private String lastApiActivityId = null;
 
     @Override
     protected ActivityLiveNotificationDemoBinding inflateViewBinding() {
@@ -99,6 +87,8 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         binding.autoButton.setOnClickListener(v -> autoRun());
         binding.unknownActivityTypeButton.setOnClickListener(v -> sendUnknownActivityType());
         binding.apiStartButton.setOnClickListener(v -> startViaApi());
+        binding.apiUpdateButton.setOnClickListener(v -> updateViaApi());
+        binding.apiEndButton.setOnClickListener(v -> endViaApi());
 
         setupCampaignDropdown();
         binding.campaignTriggerButton.setOnClickListener(v -> triggerCampaign());
@@ -117,26 +107,18 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     private TemplateChoice getSelectedTemplate() {
         int checkedId = binding.typeRadioGroup.getCheckedRadioButtonId();
-        if (checkedId == R.id.radio_flight_status) return TemplateChoice.FLIGHT_STATUS;
-        if (checkedId == R.id.radio_live_score) return TemplateChoice.LIVE_SCORE;
         if (checkedId == R.id.radio_countdown_timer) return TemplateChoice.COUNTDOWN_TIMER;
-        if (checkedId == R.id.radio_auction_bid) return TemplateChoice.AUCTION_BID;
         if (checkedId == R.id.radio_custom_rideshare) return TemplateChoice.CUSTOM_RIDESHARE;
         if (checkedId == R.id.radio_custom_workout) return TemplateChoice.CUSTOM_WORKOUT;
-        return TemplateChoice.DELIVERY_TRACKING;
+        return TemplateChoice.SEGMENTS;
     }
 
     private int getStepCount() {
         switch (getSelectedTemplate()) {
-            // Delivery: ordered → preparing → out-for-delivery → delivered
-            case DELIVERY_TRACKING: return 4;
-            // Flight: pre-departure → boarding → in-flight → arrived → delay-red variant
-            case FLIGHT_STATUS: return 5;
-            case LIVE_SCORE: return 4;
-            // Countdown: pre-target → near-target → expired (with message) → post-target dismiss
-            case COUNTDOWN_TIMER: return 4;
-            // Auction: outbid → winning → outbid again → ended → no-userBidAmount variant
-            case AUCTION_BID: return 5;
+            // Segments: ordered → preparing → out-for-delivery → delivered
+            case SEGMENTS: return 4;
+            // Countdown: 5 min out → 30s out → finished (push-driven, no endTime)
+            case COUNTDOWN_TIMER: return 3;
             // Rideshare (custom RemoteViews): en route → arriving → in trip → dropoff
             case CUSTOM_RIDESHARE: return 4;
             // Workout (builder API): warmup → running → final push → cooldown
@@ -196,150 +178,56 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     private void sendPush(String event, int step) {
         switch (getSelectedTemplate()) {
-            case DELIVERY_TRACKING: sendDeliveryTracking(event, step); break;
-            case FLIGHT_STATUS: sendFlightStatus(event, step); break;
-            case LIVE_SCORE: sendLiveScore(event, step); break;
+            case SEGMENTS: sendSegments(event, step); break;
             case COUNTDOWN_TIMER: sendCountdownTimer(event, step); break;
-            case AUCTION_BID: sendAuctionBid(event, step); break;
             case CUSTOM_RIDESHARE: sendCustomRideshare(event, step); break;
             case CUSTOM_WORKOUT: sendCustomWorkout(event, step); break;
         }
     }
 
-    private void sendDeliveryTracking(String event, int step) {
+    private void sendSegments(String event, int step) {
         String[] statuses = {
                 "Your order has been placed",
                 "Your order is being prepared",
                 "Your order is out for delivery",
                 "Your order has been delivered"
         };
-        // Distinct icon per step: ordered → preparing → out-for-delivery → delivered.
-        String[] imageKeys = {
-                "delivery_ordered",
-                "delivery_preparing",
-                "delivery_truck",
-                "delivery_delivered"
-        };
+        // Optional trailing readout (iOS Dynamic Island trailing edge, e.g. "5 min").
+        String[] trailing = {"30 min", "20 min", "5 min", "Delivered"};
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
-            attributes.put("orderId", "ABC-1234");
-            attributes.put("recipientName", "Mahmoud");
+            attributes.put("header", "Order #ABC-1234");
 
-            contentState.put("statusMessage", statuses[step]);
-            contentState.put("statusImageKey", imageKeys[step]);
-            contentState.put("stepCurrent", step + 1);
-            contentState.put("stepTotal", statuses.length);
-            contentState.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
-            if (step == 2) contentState.put("driverName", "Sam");
+            contentState.put("status", statuses[step]);
+            contentState.put("segmentsTotal", statuses.length);
+            contentState.put("segmentsComplete", step + 1);
+            contentState.put("trailingText", trailing[step]);
+            if (step == 2) contentState.put("substatus", "Driver: Sam");
         } catch (JSONException ignored) { }
-        fire(buildBundle("demo-delivery-tracking", event, ACTIVITY_TYPE_DELIVERY_TRACKING, attributes, contentState));
-    }
-
-    private void sendFlightStatus(String event, int step) {
-        String[] statuses = {"On time", "Boarding now", "In flight", "Arrived", "Delayed at gate"};
-        Double[] progress = {null, null, 0.55, 1.0, null};
-        // Step 4 exercises the delay-red accent branch.
-        int[] delayMinutes = {0, 0, 0, 0, 25};
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
-        try {
-            JSONObject origin = new JSONObject();
-            origin.put("code", "JFK");
-            origin.put("city", "New York");
-            JSONObject destination = new JSONObject();
-            destination.put("code", "LAX");
-            destination.put("city", "Los Angeles");
-
-            attributes.put("flightNumber", "AA1234");
-            attributes.put("origin", origin);
-            attributes.put("destination", destination);
-
-            contentState.put("statusMessage", statuses[step]);
-            contentState.put("gate", step >= 1 ? "B12" : JSONObject.NULL);
-            contentState.put("terminal", step >= 1 ? "4" : JSONObject.NULL);
-            contentState.put("scheduledDeparture", System.currentTimeMillis() + 45L * 60 * 1000);
-            contentState.put("estimatedArrival", System.currentTimeMillis() + 6L * 60 * 60 * 1000);
-            if (progress[step] != null) contentState.put("progressFraction", progress[step]);
-            if (delayMinutes[step] > 0) contentState.put("delayMinutes", delayMinutes[step]);
-        } catch (JSONException ignored) { }
-        fire(buildBundle("demo-flight-status", event, ACTIVITY_TYPE_FLIGHT_STATUS, attributes, contentState));
-    }
-
-    private void sendLiveScore(String event, int step) {
-        int[] homeScores = {0, 14, 21, 28};
-        int[] awayScores = {0, 7, 21, 24};
-        String[] periods = {"1st Quarter", "2nd Quarter", "3rd Quarter", "FT"};
-        String[] clocks = {"12:00", "5:30", "0:42", null};
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
-        try {
-            JSONObject homeTeam = new JSONObject();
-            homeTeam.put("name", "Lakers");
-            JSONObject awayTeam = new JSONObject();
-            awayTeam.put("name", "Celtics");
-
-            attributes.put("homeTeam", homeTeam);
-            attributes.put("awayTeam", awayTeam);
-            attributes.put("sport", "basketball");
-            attributes.put("leagueLogoKey", "league_nba");
-
-            contentState.put("homeScore", homeScores[step]);
-            contentState.put("awayScore", awayScores[step]);
-            contentState.put("period", periods[step]);
-            if (clocks[step] != null) contentState.put("clock", clocks[step]);
-        } catch (JSONException ignored) { }
-        fire(buildBundle("demo-live-score", event, ACTIVITY_TYPE_LIVE_SCORE, attributes, contentState));
+        fire(buildBundle("demo-segments", event, ACTIVITY_TYPE_SEGMENTS, attributes, contentState));
     }
 
     private void sendCountdownTimer(String event, int step) {
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
-            attributes.put("title", "Flash Sale");
-            attributes.put("heroImageKey", "flash_sale_hero");
+            attributes.put("header", "Limited time");
 
-            // Step 0: 5 min out. Step 1: 30s out. Step 2: post-target with expired message.
-            // Step 3: post-target with NO expiredMessage — exercises cancelImmediately path.
-            long now = System.currentTimeMillis();
-            long[] offsets = {5 * 60 * 1000L, 30 * 1000L, -1, -1};
-            contentState.put("targetDate", offsets[step] >= 0 ? now + offsets[step] : now - 1000);
-            contentState.put("statusMessage", "Sale starts in");
-            if (step == 2) contentState.put("expiredMessage", "Sale is live!");
-            // step == 3: deliberately omit expiredMessage
+            // endTime is epoch SECONDS on the wire, not millis.
+            long nowSeconds = System.currentTimeMillis() / 1000;
+            if (step == 2) {
+                // Finished state: a "done" title with no endTime, so the template drops the timer.
+                contentState.put("title", "Sale is live!");
+                contentState.put("statusMessage", "Shop now");
+            } else {
+                long[] offsets = {5 * 60L, 30L};
+                contentState.put("title", "Flash sale ends in");
+                contentState.put("statusMessage", "Don't miss out");
+                contentState.put("endTime", nowSeconds + offsets[step]);
+            }
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-countdown-timer", event, ACTIVITY_TYPE_COUNTDOWN_TIMER, attributes, contentState));
-    }
-
-    private void sendAuctionBid(String event, int step) {
-        // Step 0: outbid, step 1: winning, step 2: outbid again, step 3: ended
-        // Step 4: user has no bid in flight — exercises subtext "no user bid" branch.
-        boolean[] highBidder = {false, true, false, false, false};
-        String[] currentBids = {"1,200", "1,250", "1,300", "1,300", "1,300"};
-        String[] userBids = {"1,150", "1,250", "1,250", "1,250", null};
-        String[] statuses = {
-                "You've been outbid",
-                "You're winning",
-                "You've been outbid",
-                "Auction ended",
-                "You haven't bid yet"
-        };
-        int[] bidCounts = {7, 8, 9, 9, 9};
-        JSONObject attributes = new JSONObject();
-        JSONObject contentState = new JSONObject();
-        try {
-            attributes.put("itemTitle", "Vintage Camera");
-            attributes.put("itemImageKey", "auction_camera");
-            attributes.put("currencySymbol", "$");
-
-            contentState.put("currentBid", currentBids[step]);
-            contentState.put("bidCount", bidCounts[step]);
-            contentState.put("endTime", System.currentTimeMillis() + 10L * 60 * 1000);
-            contentState.put("statusMessage", statuses[step]);
-            contentState.put("isUserHighBidder", highBidder[step]);
-            if (userBids[step] != null) contentState.put("userBidAmount", userBids[step]);
-        } catch (JSONException ignored) { }
-        fire(buildBundle("demo-auction-bid", event, ACTIVITY_TYPE_AUCTION_BID, attributes, contentState));
     }
 
     // --- Custom (app-rendered) types: rendered by LiveNotificationCallback, not an SDK template ---
@@ -356,7 +244,6 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 "You've arrived"
         };
         String[] etas = {"6 min", "1 min", "12 min", "Now"};
-        // progress across the 4 stops
         int[] progress = {15, 40, 80, 100};
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
@@ -396,35 +283,58 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         fire(buildBundle("demo-workout", event, ACTIVITY_TYPE_WORKOUT, attributes, contentState));
     }
 
-    /**
-     * Exercises the public local-start API: the SDK generates the activity id, renders
-     * the notification immediately, and registers the instance with the backend.
-     */
+    /** Demonstrates the typed local-start API: {@code startLiveNotification(LiveNotificationData)}. */
     private void startViaApi() {
         ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
         if (module == null) return;
-        java.util.Map<String, Object> data = new java.util.HashMap<>();
-        data.put("orderId", "API-1001");
-        data.put("recipientName", "Mahmoud");
-        data.put("statusMessage", "Out for delivery (started via API)");
-        data.put("statusImageKey", "delivery_truck");
-        data.put("stepCurrent", 3);
-        data.put("stepTotal", 4);
-        data.put("driverName", "Sara");
-        data.put("estimatedArrival", System.currentTimeMillis() + 30L * 60 * 1000);
-        String activityId = module.startLiveNotification(LiveNotificationType.DELIVERY_TRACKING, data);
+        LiveNotificationData.Segments data = new LiveNotificationData.Segments(
+                /* header */ "Order #API-1001",
+                /* status */ "Out for delivery (started via API)",
+                /* substatus */ "Driver: Sara",
+                /* segmentsTotal */ 4,
+                /* segmentsComplete */ 3,
+                /* trailingText */ "5 min"
+        );
+        String activityId = module.startLiveNotification(data);
+        lastApiActivityId = activityId;
         binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + activityId, 1));
+    }
+
+    /**
+     * Demonstrates the typed local-update API:
+     * {@code updateLiveNotification(activityId, LiveNotificationData)} against the activity
+     * started via {@link #startViaApi()}.
+     */
+    private void updateViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null || lastApiActivityId == null) return;
+        LiveNotificationData.Segments data = new LiveNotificationData.Segments(
+                /* header */ "Order #API-1001",
+                /* status */ "Arriving now (updated via API)",
+                /* substatus */ "Driver: Sara",
+                /* segmentsTotal */ 4,
+                /* segmentsComplete */ 4,
+                /* trailingText */ "Now"
+        );
+        module.updateLiveNotification(lastApiActivityId, data);
+        binding.statusTextView.setText(getString(R.string.live_notification_status_format, "API:" + lastApiActivityId, 2));
+    }
+
+    /** Demonstrates the local-end API: {@code endLiveNotification(activityId)}. */
+    private void endViaApi() {
+        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        if (module == null || lastApiActivityId == null) return;
+        module.endLiveNotification(lastApiActivityId);
+        binding.statusTextView.setText(R.string.live_notification_status_ended);
+        lastApiActivityId = null;
     }
 
     // --- Campaign trigger ---
 
     private void setupCampaignDropdown() {
         String[] labels = {
-                getString(R.string.live_notification_type_delivery_tracking),
-                getString(R.string.live_notification_type_flight_status),
-                getString(R.string.live_notification_type_live_score),
-                getString(R.string.live_notification_type_countdown_timer),
-                getString(R.string.live_notification_type_auction_bid)
+                getString(R.string.live_notification_type_segments),
+                getString(R.string.live_notification_type_countdown_timer)
         };
         ArrayAdapter<String> adapter =
                 new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
@@ -435,22 +345,14 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     }
 
     /**
-     * Tracks the {@code trigger_live} event with the selected {@code activity_type} and a
-     * unique {@code timestamp}. A backend campaign listening for this event then pushes the
-     * real start/update/end lifecycle through the live-notification path — no synthetic local
-     * push here.
-     * <p>
-     * The {@code timestamp} property is meant to be injected into the {@code activity_id} of
-     * every payload via Liquid (e.g. {@code "activity_id": "order-{{ event.timestamp }}"}) so
-     * each campaign run gets a fresh activity id. Reusing an activity id across runs would hit
-     * the SDK's out-of-order guard (a prior {@code end} freezes that id's high-water timestamp),
-     * and the new pushes would be dropped as stale.
+     * Tracks the {@code trigger_live} event so a backend campaign pushes the real
+     * start/update/end lifecycle through the live-notification path.
      */
     private void triggerCampaign() {
         String activityType = CAMPAIGN_ACTIVITY_TYPES[selectedCampaignIndex];
         Map<String, String> properties = new HashMap<>();
         properties.put("activity_type", activityType);
-        // Unique per trigger; used by the campaign to build a fresh activity_id via Liquid.
+        // Unique per trigger; the campaign builds a fresh cioInstanceId from it via Liquid.
         properties.put("timestamp", String.valueOf(System.currentTimeMillis()));
         customerIORepository.trackEvent(CAMPAIGN_EVENT, properties);
         Snackbar.make(
@@ -484,10 +386,10 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         Bundle bundle = new Bundle();
         bundle.putString("CIO-Delivery-ID", UUID.randomUUID().toString());
         bundle.putString("CIO-Delivery-Token", DEMO_DELIVERY_TOKEN);
-        bundle.putString("activity_id", activityId);
+        // The SDK routes to the live-notification handler by the presence of `cioInstanceId`.
+        bundle.putString("cioInstanceId", activityId);
         bundle.putString("event", event);
-        bundle.putString("activity_type", activityType);
-        // The backend sends template fields flattened at the envelope top level.
+        bundle.putString("notification_type", activityType);
         putFlattened(bundle, attributes);
         putFlattened(bundle, contentState);
         return bundle;
@@ -499,8 +401,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             String key = keys.next();
             Object value = obj.opt(key);
             if (value == null || value == JSONObject.NULL) continue;
-            // Nested objects (origin, homeTeam, …) ride along as JSON strings,
-            // matching how FCM delivers non-scalar data values.
+            // Nested objects ride along as JSON strings, matching how FCM delivers them.
             bundle.putString(key, value.toString());
         }
     }

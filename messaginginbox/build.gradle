@@ -50,6 +50,9 @@ dependencies {
     implementation Dependencies.composeUi
     implementation Dependencies.composeUiGraphics
     implementation Dependencies.composeFoundation
+    // Material3 provides the drop-in overlay's native ModalBottomSheet (drag handle, drag-to-dismiss,
+    // partial/expanded detents, predictive-back), the true parallel to the iOS overlay's .sheet.
+    implementation Dependencies.composeMaterial3
     implementation Dependencies.composeRuntime
     implementation Dependencies.androidxLifecycleRuntimeCompose
     implementation Dependencies.coroutinesAndroid

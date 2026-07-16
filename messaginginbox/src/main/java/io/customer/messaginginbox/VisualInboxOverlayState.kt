@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.booleanOrNull
 
 /**
  * Read-only UI snapshot of the visual inbox, derived from the [VisualInbox] data layer. The
@@ -209,10 +209,11 @@ internal class VisualInboxController(
      *     [VisualInbox.trackMessageClicked] plumbing — no new network path) exactly once per
      *     queueId, then give the host listener (item 13) a chance to intercept. If the host returns
      *     true it fully handled the action and we return [InboxNavigation.None].
-     *  3. Otherwise the SDK applies its default navigation (item 12): an http(s) / openUrl / newTab
-     *     url opens in the system browser ([InboxNavigation.OpenUrl]); a deeplink is handed back to
-     *     the host ([InboxNavigation.None] after logging — the SDK cannot resolve app routes); a
-     *     missing/malformed url is a logged no-op.
+     *  3. Otherwise the SDK applies its default navigation (item 12): an `openUrl` (http(s)) value
+     *     opens externally in the system browser ([InboxNavigation.OpenUrl]); an `openDeeplink`
+     *     value is routed through the app's deep-link handling ([InboxNavigation.OpenDeeplink],
+     *     which the overlay resolves against the host app first, mirroring push/in-app deep links);
+     *     a `performAction` is host-only (no navigation); a missing/malformed value is a logged no-op.
      *
      * Returns a [InboxNavigation] the (Context-bearing) overlay executes, keeping this controller
      * free of Android Intent / Context dependencies so it stays unit-testable.
@@ -232,34 +233,48 @@ internal class VisualInboxController(
         // behavior (e.g. performAction), meaning "run the action AND remove the message". Captured
         // before any early-return so it applies whether or not the host intercepts the action.
         val dismissAfterAction = actionDismissFlag(event)
+        // Host-facing action name (web `data.name`, else the Jist event name) + resolved value.
+        val name = actionName(event)
         val url = resolution.url
         // Track the click against the same InboxMessage the UI renders (resolved from the visible
         // set), reusing the existing track-clicked plumbing. Deduped per queueId so a repeated tap
         // before the row updates does not double-count.
-        trackClicked(visibility, message, event.name)
+        trackClicked(visibility, message, name)
 
         // Host interception (item 13): true => host handled it, SDK runs no default nav (but still
         // honors the dismiss flag below).
-        val handledByHost = notifyHostHandled(visibility, message, event.name, url.orEmpty())
+        val handledByHost = notifyHostHandled(visibility, message, name, url.orEmpty())
 
         // SDK default navigation (item 12), unless the host handled it.
         val navigation = if (handledByHost) {
-            InboxNavigation.None
+            // The host performed the action. If it was a navigating action (openUrl / openDeeplink),
+            // still dismiss the presenting sheet so the SDK inbox doesn't linger over the host's
+            // destination (mirrors iOS). A non-navigating action (performAction / unknown) leaves the
+            // inbox open.
+            when (resolution) {
+                is InboxAction.OpenUrl, is InboxAction.Deeplink -> InboxNavigation.Dismiss
+                else -> InboxNavigation.None
+            }
         } else {
             when (resolution) {
                 is InboxAction.OpenUrl -> InboxNavigation.OpenUrl(resolution.url)
-                is InboxAction.Deeplink -> {
+                // openDeeplink: route through the app's deep-link handling (the overlay resolves the
+                // host app first, then external), mirroring push/in-app deep links.
+                is InboxAction.Deeplink -> InboxNavigation.OpenDeeplink(resolution.url)
+
+                // performAction is host-only: if no host listener handled it there is nothing for
+                // the SDK to navigate to.
+                is InboxAction.PerformAction -> {
                     logger.debug(
-                        "$INBOX_LOG_TAG deeplink '${resolution.url}' on ${message.queueId} not handled by host; " +
-                            "SDK cannot resolve app routes, no-op"
+                        "$INBOX_LOG_TAG performAction '$name' on ${message.queueId} not handled by host; no navigation"
                     )
                     InboxNavigation.None
                 }
 
                 is InboxAction.Unknown -> {
                     logger.debug(
-                        "$INBOX_LOG_TAG action '${event.name}' (behavior=${actionBehavior(event)}, url=${actionUrl(event)}) " +
-                            "on ${message.queueId}: no resolvable url/behavior, no-op"
+                        "$INBOX_LOG_TAG action '$name' (behavior=${actionBehavior(event)}, value=${actionValue(event)}) " +
+                            "on ${message.queueId}: no resolvable value/behavior, no-op"
                     )
                     InboxNavigation.None
                 }
@@ -353,98 +368,133 @@ internal class VisualInboxController(
 
 /**
  * The SDK's resolved interpretation of a Jist inbox action, derived from the action's
- * `name` / `data.behavior` / `data.url` shape. The live inbox emits the dismiss action as
- * `name = "messageAction"` with `data.behavior == "dismiss"`; other actions carry a `data.url`
- * (and/or an `openUrl` / `newTab` / `deeplink` behavior). See [resolveInboxAction].
+ * `data.behavior` / `data.action` shape (web parity — see gist-web `handleInboxAction` /
+ * `InboxActionConfig`). The live inbox emits dismiss as `data.behavior == "dismiss"`; other actions
+ * carry a `data.action` value and one of the `openUrl` / `openDeeplink` / `performAction` behaviors.
+ * See [resolveInboxAction].
  */
 internal sealed interface InboxAction {
-    /** The resolved url for the action, when present. */
+    /** The resolved action value (a url / deeplink), when present. */
     val url: String?
 
-    /** Remove (delete) the message. Web parity for a dismiss action. */
+    /** Remove (delete) the message. Web parity for a `dismiss` action. */
     object Dismiss : InboxAction {
         override val url: String? get() = null
     }
 
-    /** Open [url] in the system browser (http(s) / openUrl / newTab). */
+    /** Open [url] externally in the system browser (`openUrl`, or an http(s) value with no behavior). */
     data class OpenUrl(override val url: String) : InboxAction
 
-    /** A deeplink the host must resolve (the SDK cannot resolve app routes). */
+    /** Route [url] through the app's deep-link handling (`openDeeplink`, or a non-http scheme value). */
     data class Deeplink(override val url: String) : InboxAction
 
-    /** No resolvable url/behavior (e.g. missing/malformed url) — a no-op. */
+    /**
+     * A host-only action (`performAction`): the SDK performs no navigation, but the action [url]
+     * (value) is still handed to the host listener so it can perform the custom action.
+     */
+    data class PerformAction(override val url: String?) : InboxAction
+
+    /** No resolvable value/behavior (e.g. missing/malformed) — a no-op. */
     data class Unknown(override val url: String?) : InboxAction
 }
 
 /** Instruction the overlay (which owns an Android Context) executes after [VisualInboxController.handleAction]. */
 internal sealed interface InboxNavigation {
-    /** Nothing for the overlay to do (dismiss, host-handled, deeplink, or no-op already handled). */
+    /** Nothing for the overlay to do (a non-navigating performAction / unknown; the inbox stays open). */
     object None : InboxNavigation
 
-    /** Open [url] in the system browser via an ACTION_VIEW intent. */
+    /** Close the presenting sheet without the SDK navigating — the host already handled a nav action. */
+    object Dismiss : InboxNavigation
+
+    /** Open [url] externally in the system browser (ACTION_VIEW), then close the presenting sheet. */
     data class OpenUrl(val url: String) : InboxNavigation
+
+    /** Route [url] through the app's deep-link handling (host app first, then external), then close the sheet. */
+    data class OpenDeeplink(val url: String) : InboxNavigation
 }
 
 /**
- * Maps a Jist action event to the SDK's [InboxAction]. Determined from the action `name`,
- * `data.behavior` and `data.url`:
+ * Maps a Jist action event to the SDK's [InboxAction], matching the real gist-web `InboxActionConfig`
+ * shape (and the iOS overlay's `resolve`). STRICT `data.behavior` switch — no http/scheme guessing
+ * and no synthetic behaviors. Value is `data.action` (legacy `data.url` accepted as a fallback):
  *  - dismiss: `data.behavior == "dismiss"`, or the Jist-demo sentinels `name == "dismiss"` /
- *    `data.url == "#dismiss"`.
- *  - openUrl: `data.behavior` is `openUrl` / `newTab`, OR (absent a behavior) `data.url` is an
- *    http(s) url.
- *  - deeplink: `data.behavior == "deeplink"`, OR (absent a behavior) `data.url` is a non-http(s)
- *    scheme url (e.g. `myapp://...`).
- *  - unknown: no resolvable url/behavior (missing/malformed) — robust to nulls, never throws.
+ *    value `== "#dismiss"`.
+ *  - openUrl: `data.behavior == "openUrl"` → open the value externally in the browser. (Web's
+ *    `newTab` is a separate BOOLEAN flag on an openUrl action, not a behavior; on mobile there is no
+ *    "new tab", so we ignore it — the openUrl already opens externally.)
+ *  - openDeeplink: `data.behavior == "openDeeplink"` → route through the app's deep-link handling.
+ *  - performAction: `data.behavior == "performAction"` — host-only; the SDK performs no navigation.
+ *  - unknown: absent/unrecognized behavior (incl. the legacy demo `deeplink`, or a missing value) —
+ *    host-only no-op. The host listener still receives the action value. Robust to nulls, never throws.
  */
 internal fun resolveInboxAction(event: JistActionEvent): InboxAction {
     val behavior = actionBehavior(event)?.lowercase()
-    val url = actionUrl(event)?.takeIf { it.isNotBlank() }
+    val rawValue = actionValue(event)
+    val url = rawValue?.takeIf { it.isNotBlank() }
 
     val isDismiss = behavior == DISMISS_BEHAVIOR ||
         event.name == DISMISS_ACTION_NAME ||
-        actionUrl(event) == DISMISS_URL
+        rawValue == DISMISS_URL
     if (isDismiss) return InboxAction.Dismiss
 
     return when (behavior) {
-        OPEN_URL_BEHAVIOR, NEW_TAB_BEHAVIOR -> if (url != null) InboxAction.OpenUrl(url) else InboxAction.Unknown(null)
-        DEEPLINK_BEHAVIOR -> if (url != null) InboxAction.Deeplink(url) else InboxAction.Unknown(null)
-        else -> when {
-            url == null -> InboxAction.Unknown(null)
-            isHttpUrl(url) -> InboxAction.OpenUrl(url)
-            else -> InboxAction.Deeplink(url)
-        }
+        OPEN_URL_BEHAVIOR -> if (url != null) InboxAction.OpenUrl(url) else InboxAction.Unknown(null)
+        OPEN_DEEPLINK_BEHAVIOR -> if (url != null) InboxAction.Deeplink(url) else InboxAction.Unknown(null)
+        PERFORM_ACTION_BEHAVIOR -> InboxAction.PerformAction(url)
+        // Absent/unrecognized behavior (e.g. the legacy demo `deeplink`, or the web-only `newTab`
+        // which is a boolean flag rather than a behavior) is a host-only no-op — the SDK never
+        // guesses a browser/deeplink route from the value shape. The host still gets the value.
+        else -> InboxAction.Unknown(url)
     }
 }
 
-/** True for `http://` / `https://` urls (case-insensitive). These open in the system browser. */
-private fun isHttpUrl(url: String): Boolean =
-    url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
+/**
+ * Reads a STRING field from a JSON object — only when the primitive is actually a string.
+ * `contentOrNull` also returns the text of numeric / boolean primitives (e.g. `true` -> "true",
+ * `5` -> "5"), which the web parser rejects, so we gate on [JsonPrimitive.isString] to keep the
+ * native contract aligned (a non-string `action` / `behavior` / `name` yields null).
+ */
+private fun JsonObject.stringField(key: String): String? =
+    (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
 /**
- * Extracts the `url` string from a Jist action event's data object, or null if absent / not a
- * string. Safe casts throughout: a non-object `data` or non-primitive `url` yields null.
+ * Extracts the action value from a Jist action event's data object — the web-schema `data.action`,
+ * falling back to the legacy `data.url`. String-only (see [stringField]); a non-object `data`,
+ * missing key, or non-string value yields null.
  */
-private fun actionUrl(event: JistActionEvent): String? =
-    ((event.data as? JsonObject)?.get("url") as? JsonPrimitive)?.contentOrNull
+private fun actionValue(event: JistActionEvent): String? {
+    val data = event.data as? JsonObject ?: return null
+    return data.stringField("action") ?: data.stringField("url")
+}
 
 /**
  * Extracts the `behavior` string from a Jist action event's data object (e.g. the live inbox's
- * `messageAction = { behavior: "dismiss" }`), or null if absent / not a string. Safe casts.
+ * `messageAction = { behavior: "dismiss" }`). String-only; absent / non-string yields null.
  */
 private fun actionBehavior(event: JistActionEvent): String? =
-    ((event.data as? JsonObject)?.get("behavior") as? JsonPrimitive)?.contentOrNull
+    (event.data as? JsonObject)?.stringField("behavior")
+
+/**
+ * The host-facing action name: the web-schema `data.name` (string-only), falling back to the Jist
+ * event name. Handed to the host [InboxEventListener.messageActionTaken] and the clicked metric.
+ */
+private fun actionName(event: JistActionEvent): String =
+    (event.data as? JsonObject)?.stringField("name") ?: event.name
 
 /**
  * True when the action carries `data.dismiss == true` — "auto dismiss on click": remove the message
- * after running its (non-dismiss) action. Matches both a JSON boolean `true` and the string `"true"`.
+ * after running its (non-dismiss) action. Accepts the real JSON boolean `true` (the web shape) as
+ * well as the legacy string `"true"`.
  */
-private fun actionDismissFlag(event: JistActionEvent): Boolean =
-    ((event.data as? JsonObject)?.get("dismiss") as? JsonPrimitive)?.contentOrNull == "true"
+private fun actionDismissFlag(event: JistActionEvent): Boolean {
+    val dismiss = (event.data as? JsonObject)?.get("dismiss") as? JsonPrimitive ?: return false
+    return dismiss.booleanOrNull == true || (dismiss.isString && dismiss.content == "true")
+}
 
 /** Jist action `behavior` / sentinel constants matched by [resolveInboxAction] (compared lowercase). */
 private const val DISMISS_BEHAVIOR = "dismiss"
 private const val DISMISS_ACTION_NAME = "dismiss"
 private const val DISMISS_URL = "#dismiss"
 private const val OPEN_URL_BEHAVIOR = "openurl"
-private const val NEW_TAB_BEHAVIOR = "newtab"
-private const val DEEPLINK_BEHAVIOR = "deeplink"
+private const val OPEN_DEEPLINK_BEHAVIOR = "opendeeplink"
+private const val PERFORM_ACTION_BEHAVIOR = "performaction"

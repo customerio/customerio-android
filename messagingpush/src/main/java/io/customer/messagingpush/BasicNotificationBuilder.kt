@@ -11,19 +11,7 @@ import androidx.core.app.NotificationCompat
 
 /**
  * Parameters for building a live notification on pre-API 36 devices using
- * standard [NotificationCompat] styles.
- *
- * Supports:
- * - Standard linear progress bar (determinate)
- * - Accent color for notification chrome
- * - Colorized mode (tints the entire notification background)
- * - Title, body, and subtext via standard notification fields
- * - Countdown timer (countdown direction requires API 24+)
- *
- * Not supported on this tier (use [Api36LiveNotificationParams] on API 36+):
- * - Segmented progress bar with custom segment colors
- * - Progress points, start/end/tracker icons
- * - Promoted live update status
+ * standard [NotificationCompat] styles (no segments, points, or promoted status).
  */
 internal data class BasicNotificationParams(
     val context: Context,
@@ -41,8 +29,6 @@ internal data class BasicNotificationParams(
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
     val showProgress: Boolean,
-    // Live updates are ongoing (non-dismissible); the terminal end-state is posted
-    // non-ongoing + auto-cancel so the user can swipe it away.
     val ongoing: Boolean = true
 )
 
@@ -74,8 +60,7 @@ internal object BasicNotificationBuilder {
             builder.setProgress(params.progressMax, safeProgress, false)
         }
 
-        // Only count down to a future instant; a past target renders as an already-expired
-        // chronometer and can suppress the notification (see Api36LiveNotificationBuilder).
+        // Only count down to a future instant; a past target can suppress the notification.
         params.countdownUntil?.takeIf { it > System.currentTimeMillis() }?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)

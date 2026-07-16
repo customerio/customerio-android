@@ -5,34 +5,19 @@ import androidx.core.content.edit
 import java.util.concurrent.TimeUnit
 
 /**
- * Persistent state for live notifications, backed by a dedicated
- * SharedPreferences file:
- *
- * - **Registration dedup** (per `activity_type`): the last signature
- *   (`token|userId`) registered with the backend, so repeated app launches /
- *   unchanged tokens don't re-POST the registration.
- * - **Out-of-order / dedup guard** (per `activity_id`): the last `timestamp`
- *   seen, so a delayed or duplicate push that is older than one already
- *   rendered is dropped. Unlike iOS (where APNs/ActivityKit order updates), the
- *   Android SDK renders FCM data directly and must guard ordering itself.
- *
- * Timestamp entries are stored with their record time so stale ones (for
- * activities that ended long ago without an explicit `end`) can be trimmed on
- * app launch.
+ * Persistent live-notification state (dedicated SharedPreferences file):
+ * per-`activity_type` registration signatures, per-`activity_id` last-seen
+ * timestamps for the out-of-order guard, and per-`activity_id` activity types.
  */
 internal class LiveNotificationStore(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /**
-     * One-time cleanup for the namespace rename (`io.customer.liveactivities.*` →
-     * `io.customer.livenotifications.*`). Drops any registration signature whose
-     * activity-type key still uses the OLD namespace so the next identified session
-     * re-registers under the new identifiers instead of treating the old ones as
-     * already-registered. Idempotent: after the stale keys are gone it is a no-op,
-     * and it never touches signatures for the new namespace or custom types.
+     * One-time cleanup for the namespace rename: drops registration signatures
+     * keyed under the old `io.customer.liveactivities.*` namespace. Idempotent.
      *
-     * @return the number of stale registration signatures cleared (0 on a no-op run).
+     * @return the number of stale registration signatures cleared.
      */
     fun migrate(): Int {
         val stale = prefs.all.keys.filter {
@@ -91,9 +76,6 @@ internal class LiveNotificationStore(context: Context) {
     }
 
     // --- Activity type (per activity_id) ---
-    // Remembered when an activity is rendered so the host can end it later with
-    // just its id: the `end` CDP event needs the `notificationType`, and the SDK
-    // already saw it — the host shouldn't have to supply it again.
 
     /** The activity type last rendered for [activityId], or null if unknown. */
     fun activityType(activityId: String): String? =

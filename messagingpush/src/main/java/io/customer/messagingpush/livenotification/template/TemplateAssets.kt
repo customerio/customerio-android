@@ -16,14 +16,7 @@ import java.security.MessageDigest
 
 /**
  * Resolves a strongly-typed [LiveNotificationAsset] to a [Bitmap] for the
- * notification's color large-icon slot:
- *
- *  - [LiveNotificationAsset.Drawable] — a bundled `R.drawable.*` resource.
- *  - [LiveNotificationAsset.Bytes] — raw encoded image bytes (PNG/JPEG/…).
- *  - [LiveNotificationAsset.Resource] — a `file://`/`content://`/`android.resource://` image.
- *  - [LiveNotificationAsset.RemoteUrl] — an `http(s)` image, downloaded via
- *    [BitmapDownloader] and cached on disk so re-renders of the same activity
- *    don't re-fetch.
+ * notification's color large-icon slot.
  */
 internal object TemplateAssets {
 
@@ -64,10 +57,7 @@ internal object TemplateAssets {
         }
     }
 
-    /**
-     * Downloads [url] (caching the bytes on disk under the app cache dir) so the
-     * same image isn't re-fetched on every in-place update of an activity.
-     */
+    /** Downloads [url], caching the bytes on disk to avoid re-fetching. */
     private fun downloadCached(context: Context, url: String): Bitmap? {
         val cacheFile = File(File(context.cacheDir, URL_CACHE_DIR).apply { mkdirs() }, sha256(url))
         if (cacheFile.exists()) {

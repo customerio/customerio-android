@@ -7,10 +7,6 @@ import org.json.JSONObject
 /**
  * Returns the string value for [key], or null when the key is absent, holds an
  * explicit JSON null, or is empty.
- *
- * Prefer this over `optString(key).takeIf { it.isNotEmpty() }`: `optString`
- * returns the literal string `"null"` for an explicit JSON null, which would
- * otherwise slip past an `isNotEmpty()` guard and render as visible text.
  */
 internal fun JSONObject.optStringNonEmpty(key: String): String? {
     if (isNull(key)) return null
@@ -18,10 +14,8 @@ internal fun JSONObject.optStringNonEmpty(key: String): String? {
 }
 
 /**
- * Reads the `statusColor` field for [key] and parses it to an `@ColorInt`, or
- * null when absent/blank/unparseable. Accepts the hex forms `Color.parseColor`
- * understands (`#RRGGBB`, `#AARRGGBB`, and the named colors); a leading `#` is
- * added when missing. Callers fall back to branding/default when this is null.
+ * Parses [key] as a hex/named color to an `@ColorInt`, or null when
+ * absent/blank/unparseable. A leading `#` is added when missing.
  */
 @ColorInt
 internal fun JSONObject.optColorInt(key: String): Int? {
@@ -35,11 +29,8 @@ internal fun JSONObject.optColorInt(key: String): Int? {
 }
 
 /**
- * Reads [key] as an epoch-**seconds** number — the cross-platform content-state
- * timestamp contract (matches iOS `EpochSecondsDate`) — and returns it as epoch
- * **milliseconds** for Android's millisecond-native time APIs
- * (`System.currentTimeMillis`, `Notification.Builder.setWhen`). Returns null when
- * the key is absent or non-positive.
+ * Reads [key] as an epoch-**seconds** value and returns it as epoch
+ * **milliseconds**, or null when the key is absent or non-positive.
  */
 internal fun JSONObject.optEpochSecondsAsMillis(key: String): Long? =
     optLong(key).takeIf { it > 0 }?.times(1000L)

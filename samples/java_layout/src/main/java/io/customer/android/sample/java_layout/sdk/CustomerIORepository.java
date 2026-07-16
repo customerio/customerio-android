@@ -55,13 +55,12 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
-                        // One app-level brand applied to every live notification (Android branding
-                        // is app identity — accent + logo — not per-template styling like iOS).
+                        // One app-level brand applied to every live notification.
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",
                                 Color.parseColor("#FF6A00"),
                                 R.drawable.ic_live_delivery,                                        // @DrawableRes small icon
-                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_logo) // typed logo, no registry
+                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_logo) // typed logo
                         ))
                         // App-rendered custom types go through this callback.
                         .setNotificationCallback(new LiveNotificationCallback())

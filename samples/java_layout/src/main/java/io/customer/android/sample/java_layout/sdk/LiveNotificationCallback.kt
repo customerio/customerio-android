@@ -15,21 +15,11 @@ import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCa
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 
 /**
- * Sample host-app renderer for **custom** live-notification activity types — the
- * ones the SDK has no built-in template for. The SDK calls
- * [createLiveNotification] for every live-notification event; we return a fully
- * app-built [Notification] for the two custom types and `null` for the built-in
- * ones (so the SDK keeps rendering those from its own templates).
- *
- * Two deliberately different rendering strategies are shown:
- *  - [ACTIVITY_TYPE_RIDESHARE] → a **completely custom RemoteViews layout**
- *    (collapsed + expanded), with an app-drawn 4-stop progress strip.
- *  - [ACTIVITY_TYPE_WORKOUT] → the **standard NotificationCompat builder API**
- *    (determinate progress + BigTextStyle + action), requesting promoted-ongoing
- *    treatment on Android 16+.
- *
- * The SDK still owns posting: it keys the notification by `activity_id` (so
- * updates replace it) and cancels it on `end`.
+ * Sample host-app renderer for **custom** live-notification activity types (those
+ * the SDK has no built-in template for). Returns an app-built [Notification] for
+ * the two custom types — [ACTIVITY_TYPE_RIDESHARE] via a custom RemoteViews layout
+ * and [ACTIVITY_TYPE_WORKOUT] via the standard NotificationCompat builder — and
+ * `null` for built-in types so the SDK renders those itself.
  */
 class LiveNotificationCallback : CustomerIOPushNotificationCallback {
 
@@ -131,9 +121,7 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
             builder.addAction(R.drawable.ic_workout_run, "Pause", pauseIntent)
         }
 
-        // Request live-update (promoted-ongoing) treatment on Android 16+ (BAKLAVA).
-        // Requires POST_PROMOTED_NOTIFICATIONS (declared in the manifest), an ongoing
-        // notification with a title, an allowed style (BigTextStyle), and no colorize.
+        // Request promoted-ongoing (live-update) treatment on Android 16+ (BAKLAVA).
         if (Build.VERSION.SDK_INT >= 36 && !ended) {
             builder.addExtras(Bundle().apply { putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true) })
         }

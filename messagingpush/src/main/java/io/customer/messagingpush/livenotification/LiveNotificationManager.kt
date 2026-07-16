@@ -14,14 +14,8 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
 
 /**
- * Starts a live notification locally on behalf of the host app: renders it
- * immediately through the normal templating path, then reports a `start` event
- * to Customer.io so the backend learns the activity (and the device to push
- * updates to, carried as `deviceId`).
- *
- * Rendering goes straight through [LiveNotificationHandler] (not the FCM
- * delivery path), so no delivered/opened metric is fabricated for a
- * locally-started notification.
+ * Renders live notifications locally on behalf of the host app and reports the
+ * corresponding start/update/end lifecycle events to Customer.io.
  */
 internal class LiveNotificationManager(
     private val lifecycleClient: LiveNotificationLifecycleClient,
@@ -30,12 +24,7 @@ internal class LiveNotificationManager(
     private val context: Context
         get() = SDKComponent.android().applicationContext
 
-    /**
-     * Starts a live notification locally. [attributes] is the static subset and
-     * [contentState] the dynamic subset (per the finalized field contract); their
-     * union is the flattened bundle the render path reads. The reported `start`
-     * event carries the two subsets separately.
-     */
+    /** Starts a live notification locally and reports a `start` event. */
     fun start(
         activityId: String,
         activityType: String,
@@ -43,21 +32,10 @@ internal class LiveNotificationManager(
         contentState: Map<String, Any?>
     ) {
         renderLocally(buildBundle(activityId, activityType, attributes + contentState, EVENT_START))
-        // A push-delivered `start` is backend-initiated, so the handler never reports
-        // it; a local start is client-initiated, so we report it here.
         reportStart(activityId, activityType, attributes, contentState)
     }
 
-    /**
-     * Updates a live notification previously started via [start] (same
-     * [activityId]): re-renders it in place and reports an `update` event. This
-     * is the client-initiated (on-device) update path; a push-delivered `update`
-     * is backend-initiated and is rendered by [LiveNotificationHandler] without
-     * being reported.
-     *
-     * The re-render reads the union of [attributes] and [contentState]; only the
-     * dynamic [contentState] is reported on `update`.
-     */
+    /** Re-renders a previously started live notification and reports an `update` event. */
     fun update(
         activityId: String,
         activityType: String,
@@ -68,12 +46,7 @@ internal class LiveNotificationManager(
         reportUpdate(activityId, activityType, contentState)
     }
 
-    /**
-     * Ends a live notification the host app previously started (same
-     * [activityId]): removes the notification and reports an `end` event. The
-     * activity's type — needed for the event — is the one the SDK recorded when
-     * it rendered the activity, so the host only needs the [activityId].
-     */
+    /** Removes a previously started live notification and reports an `end` event. */
     fun end(activityId: String) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
@@ -92,12 +65,8 @@ internal class LiveNotificationManager(
     }
 
     /**
-     * Cancels every live notification the SDK is tracking and clears their
-     * stored state, WITHOUT reporting `end` events. Called on logout (reset):
-     * the activities belong to the now-cleared user's session and must not
-     * linger for the next user. No `end` is reported — the user is being
-     * de-identified (so the event would be dropped anyway), and per product we
-     * intentionally don't signal end on logout.
+     * Cancels every tracked live notification and clears their stored state,
+     * without reporting `end` events. Called on logout (reset).
      */
     fun cancelAllActivities() {
         val store = SDKComponent.liveNotificationStore
@@ -118,16 +87,14 @@ internal class LiveNotificationManager(
         event: String
     ): Bundle =
         Bundle().apply {
-            // Write template fields first so the reserved envelope keys below always
-            // win if a field key collides with one (e.g. a field named "timestamp").
+            // Write template fields first so the reserved envelope keys below win on collision.
             for ((key, value) in fields) {
                 if (value != null) putString(key, value.toString())
             }
             putString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY, activityId)
             putString(LiveNotificationHandler.EVENT_KEY, event)
             putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
-            // Epoch SECONDS, matching the backend push wire contract, so the handler's
-            // out-of-order guard compares local- and push-originated timestamps in one unit.
+            // Epoch seconds, matching the backend push wire contract.
             putString(LiveNotificationHandler.TIMESTAMP_KEY, (System.currentTimeMillis() / 1000).toString())
         }
 

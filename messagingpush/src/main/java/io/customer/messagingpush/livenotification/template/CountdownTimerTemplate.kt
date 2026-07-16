@@ -6,20 +6,7 @@ import org.json.JSONObject
 
 /**
  * `countdowntimer` template — a status headline over a live countdown to
- * `endTime`, matching iOS `CIOCountdownTimerAttributes`.
- *
- * Freeform slots (rendered verbatim, never composed): `header` (opt, static
- * top-row label), `title` (req, primary status line), `statusMessage` (opt,
- * secondary line). Structured: `endTime` (opt, epoch seconds).
- *
- * While `endTime` is in the future the template renders a live chronometer. The
- * finished state is push-driven: the backend pushes a new content-state with a
- * "done" `title`/`statusMessage` and no `endTime`, so when `endTime` is absent or
- * already past, no chronometer is shown (the clock doesn't disappear on its own).
- *
- * Styling is branding-only: no image/statusColor. The accent falls back to the
- * app branding accent then the FCM default tint; the large icon comes from the
- * branding logo (applied by the handler, not here).
+ * `endTime` (epoch seconds), matching iOS `CIOCountdownTimerAttributes`.
  */
 internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
@@ -37,15 +24,10 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
         val statusMessage = data.optStringNonEmpty(CountdownTimerFields.STATUS_MESSAGE)
         val endTime = data.optEpochSecondsAsMillis(CountdownTimerFields.END_TIME)
 
-        // No usable content (required `title` missing / not flattened): don't render a blank
-        // notification. The finished-state push always carries a "done" title, so this never
-        // blocks the terminal state.
         if (title.isBlank()) {
             return null
         }
 
-        // Finished state is push-driven: an absent/past endTime means "no live timer", so we
-        // simply omit the chronometer and show title + statusMessage.
         val now = System.currentTimeMillis()
         val isCountingDown = endTime != null && now < endTime
 
@@ -53,8 +35,6 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
             title = title,
             body = statusMessage.orEmpty(),
             subText = header,
-            // Branding-only: no per-push image. The handler fills largeIcon from the branding
-            // logo when this is null.
             largeIcon = null,
             accentColor = branding?.accentColor ?: fallbackTintColor,
             colorized = false,

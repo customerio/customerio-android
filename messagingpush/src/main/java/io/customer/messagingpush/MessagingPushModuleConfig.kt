@@ -78,12 +78,9 @@ class MessagingPushModuleConfig private constructor(
 
         /**
          * Enables live notifications for the given built-in [types] (rendered by
-         * the SDK's templates). **At least one type — built-in or custom — must be
-         * enabled** for live notifications to work; until then the feature is a
-         * no-op (nothing is registered with Customer.io and pushes for non-enabled
-         * types are ignored).
-         *
-         * Repeatable and additive with [enableCustomLiveNotificationTypes].
+         * the SDK's templates). At least one type — built-in or custom — must be
+         * enabled or the feature is a no-op. Repeatable and additive with
+         * [enableCustomLiveNotificationTypes].
          *
          * @param types built-in activity types to enable.
          */

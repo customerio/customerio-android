@@ -5,13 +5,7 @@ import androidx.annotation.DrawableRes
 
 /**
  * A strongly-typed image source for a live notification, passed directly to
- * [LiveNotificationBranding.logo] (the color large icon).
- *
- * The host app hands the SDK the image it wants rendered — a bundled drawable,
- * a `content://`/`file://` URI, raw bytes, or a remote URL — and the SDK loads
- * it when the notification renders. Android live notifications render in-process,
- * so the source is resolved directly when needed (no iOS-style App Group
- * container, manifest, or key registry).
+ * [LiveNotificationBranding.logo]. The SDK loads it when the notification renders.
  */
 sealed interface LiveNotificationAsset {
     /** A bundled drawable resource. */

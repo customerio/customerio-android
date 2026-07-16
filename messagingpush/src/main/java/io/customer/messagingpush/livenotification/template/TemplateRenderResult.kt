@@ -5,14 +5,9 @@ import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 
 /**
- * Normalized intermediate produced by every [LiveNotificationTemplate].
- *
- * The handler converts this into either [io.customer.messagingpush.Api36LiveNotificationParams]
- * or [io.customer.messagingpush.BasicNotificationParams] depending on the device's
- * API level — so this struct is the union of both target shapes.
- *
- * Fields that have no counterpart on the lower tier (segments, points, progress
- * icons) are silently ignored on pre-API-36 builds.
+ * Normalized render output produced by every [LiveNotificationTemplate]; the
+ * handler converts it into the API-36 or basic notification params. Fields with
+ * no pre-API-36 counterpart are ignored on lower tiers.
  */
 internal data class TemplateRenderResult(
     val title: String,

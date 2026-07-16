@@ -5,22 +5,10 @@ import io.customer.messagingpush.livenotification.template.SegmentsFields
 
 /**
  * Typed payload for starting a built-in live notification locally via
- * `ModuleMessagingPushFCM.startLiveNotification`. Each subtype knows its
- * [activityType] and exposes its fields three ways:
- *  - [fields] — the flat map the local device-render path reads (the same
- *    flattened shape the backend delivers to the templates);
- *  - [attributes] — the STATIC subset (iOS `attributes`); and
- *  - [contentState] — the DYNAMIC subset (iOS `contentState`).
+ * `ModuleMessagingPushFCM.startLiveNotification`. Each subtype exposes its
+ * [fields], plus the static [attributes] and dynamic [contentState] subsets.
  *
- * The static/dynamic split mirrors the finalized cross-platform field contract
- * so the CDP lifecycle event can carry `attributes` + `contentState` separately
- * (matching iOS's ActivityKit envelope) instead of a single merged payload.
- * Field names come from the shared `*Fields` constants so local-start and
- * push-render stay in sync, and match the iOS attribute property names verbatim.
- *
- * The `endTime` field is **epoch seconds**, matching the cross-platform
- * content-state contract and iOS's `EpochSecondsDate` — not milliseconds.
- *
+ * Time fields such as `endTime` are **epoch seconds**, not milliseconds.
  * For customer-defined activity types, use the `Map` overload of
  * `startLiveNotification` instead.
  */

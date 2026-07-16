@@ -6,26 +6,9 @@ import io.customer.sdk.core.pipeline.DataPipeline
 
 /**
  * Reports live-notification lifecycle to Customer.io as CDP track events.
- *
- * Replaces the former direct REST client: every edge operation is expressed as
- * one of two track events — [EVENT_LIVE_NOTIFICATION] (start/update/end) and
- * [EVENT_LIVE_NOTIFICATION_TOKEN] (push-to-start registration) — with the
- * contract fields carried under the event's `properties` (the mobile SDKs can
- * only attach custom data there; the edge reads them from `properties`). The
- * data pipeline owns batching, retry and flush, so this type is a thin mapper.
- *
- * Live notifications require an identified user: events emitted while anonymous
- * are dropped (logged at debug). Android has no per-instance push token like
- * iOS, so the instance-token registration flow is intentionally absent; the
- * FCM token travels as `deviceId` on the lifecycle events instead, and doubles
- * as the `pushToStartToken` on registration.
  */
 internal interface LiveNotificationLifecycleClient {
-    /**
-     * `start` edge op: a live activity was started locally on this device.
-     * Carries the static [attributes] and dynamic [contentState] as separate
-     * event properties (matching iOS's ActivityKit envelope).
-     */
+    /** Reports a `start` event with the static [attributes] and dynamic [contentState]. */
     fun reportStart(
         instanceUUID: String,
         activityType: String,
@@ -34,19 +17,10 @@ internal interface LiveNotificationLifecycleClient {
         contentState: Map<String, Any?>
     )
 
-    /**
-     * `update` edge op: the activity's content changed — either an `update` push
-     * arrived from the server or the host app called `updateLiveNotification`.
-     * Carries only the new dynamic content as [contentState] (attributes are
-     * static and set at start).
-     */
+    /** Reports an `update` event carrying the new dynamic [contentState]. */
     fun reportUpdate(instanceUUID: String, activityType: String, deviceId: String, contentState: Map<String, Any?>)
 
-    /**
-     * `end` edge op: the user dismissed the live notification. May carry a final
-     * dynamic [contentState] (the backend supports an end content-state); omitted
-     * when empty.
-     */
+    /** Reports an `end` event, optionally carrying a final dynamic [contentState]. */
     fun reportEnd(
         instanceUUID: String,
         activityType: String,
@@ -54,12 +28,7 @@ internal interface LiveNotificationLifecycleClient {
         contentState: Map<String, Any?> = emptyMap()
     )
 
-    /**
-     * `register_push_to_start` edge op. On Android the FCM token is sent as both
-     * [PROP_DEVICE_ID] and [PROP_PUSH_TO_START_TOKEN]. Returns true if the event
-     * was emitted (used by the registrar to decide whether to mark the type as
-     * registered).
-     */
+    /** Reports a `register_push_to_start` event; returns true if it was emitted. */
     fun registerPushToStart(activityType: String, deviceId: String): Boolean
 }
 
@@ -83,8 +52,6 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
-                // Start carries both the static `attributes` and dynamic `contentState`;
-                // both optional per the contract (omitted when empty).
                 if (attributes.isNotEmpty()) put(PROP_ATTRIBUTES, attributes)
                 if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
             }
@@ -105,7 +72,6 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
-                // Update carries only the new dynamic `contentState`; optional per the contract.
                 if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
             }
         )
@@ -125,7 +91,6 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_DEVICE_ID, deviceId)
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
-                // End may carry an optional final dynamic `contentState`.
                 if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
             }
         )
@@ -141,18 +106,13 @@ internal class LiveNotificationLifecycleClientImpl(
                 PROP_DEVICE_ID to deviceId,
                 PROP_PUSH_TO_START_TOKEN to deviceId
             ),
-            // Identity is gated authoritatively upstream by LiveNotificationRegistrar (which only
-            // registers for identified users, keyed off UserChangedEvent). Re-reading the
-            // pipeline's isUserIdentified flag here would re-introduce the login-turn race: the
-            // flag can still read false right after identify, dropping the registration with no
-            // retry. The analytics store attributes this track to the identified user regardless.
+            // Identity is gated upstream by LiveNotificationRegistrar for registration.
             requireIdentifiedUser = false
         )
 
     /**
-     * Emits [event]; returns true if it was sent. Requires the pipeline to be ready, and — unless
-     * [requireIdentifiedUser] is false — an identified user (lifecycle events are auth-only; the
-     * registration event gates identity upstream in the registrar instead).
+     * Emits [event]; returns true if it was sent. Requires a ready pipeline and,
+     * unless [requireIdentifiedUser] is false, an identified user.
      */
     private fun track(event: String, properties: Map<String, Any?>, requireIdentifiedUser: Boolean = true): Boolean {
         val pipeline = dataPipelineProvider()
@@ -178,8 +138,6 @@ internal class LiveNotificationLifecycleClientImpl(
         const val PROP_DEVICE_ID = "deviceId"
         const val PROP_PLATFORM = "platform"
 
-        // Wire key is `notificationType` (the CDP/edge "live activity → live notification"
-        // rename); the Android-side parameters keep the `activityType` domain name.
         const val PROP_NOTIFICATION_TYPE = "notificationType"
         const val PROP_ATTRIBUTES = "attributes"
         const val PROP_CONTENT_STATE = "contentState"

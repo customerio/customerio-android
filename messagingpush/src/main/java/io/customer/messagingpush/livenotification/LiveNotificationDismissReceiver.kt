@@ -8,14 +8,8 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 
 /**
- * Receives the delete intent the system fires when the user dismisses a live
- * notification, and reports an `end` event to Customer.io.
- *
- * Programmatic [android.app.NotificationManager.cancel] does NOT trigger a
- * delete intent, so server-driven `end` events (which cancel the notification)
- * do not produce a false user-dismissal report. The `instanceUUID`/`activityType`
- * ride on the intent extras (attached when the notification was shown); the
- * `deviceId` is the current FCM token, read here.
+ * Receives the delete intent fired when the user dismisses a live notification
+ * and reports an `end` event to Customer.io.
  */
 class LiveNotificationDismissReceiver : BroadcastReceiver() {
 
@@ -39,7 +33,6 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
     }
 
     internal companion object {
-        // Internal: only the SDK sets these (on the delete PendingIntent) and reads them here.
         internal const val EXTRA_ACTIVITY_ID = "io.customer.messagingpush.EXTRA_LIVE_ACTIVITY_ID"
         internal const val EXTRA_ACTIVITY_TYPE = "io.customer.messagingpush.EXTRA_LIVE_ACTIVITY_TYPE"
     }

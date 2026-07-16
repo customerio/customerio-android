@@ -52,8 +52,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
-        // Live notifications are opt-in: only wire up registration when the host app
-        // enabled at least one activity type. Start before requesting the token so the
+        // Live notifications are opt-in; start before requesting the token so the
         // registrar observes the resulting RegisterDeviceTokenEvent.
         if (moduleConfig.liveNotificationTypes.isNotEmpty()) {
             SDKComponent.liveNotificationRegistrar.start()
@@ -93,8 +92,6 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      */
     fun startLiveNotification(activityType: String, data: Map<String, Any?>): String {
         val activityId = ULID.generate()
-        // Custom types have no declared static/dynamic split, so all fields are
-        // treated as dynamic `contentState`; there are no static `attributes`.
         SDKComponent.liveNotificationManager.start(
             activityId = activityId,
             activityType = activityType,
@@ -127,7 +124,6 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * @param data flattened fields delivered to the renderer.
      */
     fun updateLiveNotification(activityId: String, activityType: String, data: Map<String, Any?>) {
-        // Custom types have no declared static/dynamic split; all fields are dynamic.
         SDKComponent.liveNotificationManager.update(
             activityId = activityId,
             activityType = activityType,

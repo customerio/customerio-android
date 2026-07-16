@@ -26,15 +26,8 @@ import io.customer.messagingpush.livenotification.LiveNotificationData;
 
 /**
  * Demo activity that simulates templated live-notification updates by sending
- * synthetic push messages through the SDK's actual push handling code path.
- * <p>
- * Each scenario builds a templated FCM data bundle that matches the
- * cross-platform live-activity envelope: top-level lifecycle keys
- * ({@code cioInstanceId}, {@code event}, {@code notification_type}) plus the
- * template fields flattened alongside them (Android does not split static
- * {@code attributes} from dynamic {@code content_state}). The static branding
- * bundle lives in {@code MessagingPushModuleConfig} and is registered once at
- * SDK init.
+ * synthetic push messages through the SDK's real push handling path, and also
+ * exercises the local-start API and a backend-campaign trigger.
  */
 public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotificationDemoBinding> {
 
@@ -221,12 +214,10 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         try {
             attributes.put("header", "Limited time");
 
-            // endTime is epoch SECONDS on the wire (iOS EpochSecondsDate), not millis.
+            // endTime is epoch SECONDS on the wire, not millis.
             long nowSeconds = System.currentTimeMillis() / 1000;
-            // Step 0: 5 min out. Step 1: 30s out. Step 2: finished (push-driven, no endTime).
             if (step == 2) {
-                // Finished state: a new content-state with a "done" title and no endTime, so the
-                // template drops the chronometer rather than resting a stale clock at 0:00.
+                // Finished state: a "done" title with no endTime, so the template drops the timer.
                 contentState.put("title", "Sale is live!");
                 contentState.put("statusMessage", "Shop now");
             } else {
@@ -253,7 +244,6 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
                 "You've arrived"
         };
         String[] etas = {"6 min", "1 min", "12 min", "Now"};
-        // progress across the 4 stops
         int[] progress = {15, 40, 80, 100};
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
@@ -293,10 +283,6 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         fire(buildBundle("demo-workout", event, ACTIVITY_TYPE_WORKOUT, attributes, contentState));
     }
 
-    /**
-     * Exercises the public local-start API: the SDK generates the activity id, renders
-     * the notification immediately, and registers the instance with the backend.
-     */
     /** Demonstrates the typed local-start API: {@code startLiveNotification(LiveNotificationData)}. */
     private void startViaApi() {
         ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
@@ -359,22 +345,14 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     }
 
     /**
-     * Tracks the {@code trigger_live} event with the selected {@code activity_type} and a
-     * unique {@code timestamp}. A backend campaign listening for this event then pushes the
-     * real start/update/end lifecycle through the live-notification path — no synthetic local
-     * push here.
-     * <p>
-     * The {@code timestamp} property is meant to be injected into the {@code cioInstanceId} of
-     * every payload via Liquid (e.g. {@code "cioInstanceId": "order-{{ event.timestamp }}"}) so
-     * each campaign run gets a fresh activity id. Reusing an activity id across runs would hit
-     * the SDK's out-of-order guard (a prior {@code end} freezes that id's high-water timestamp),
-     * and the new pushes would be dropped as stale.
+     * Tracks the {@code trigger_live} event so a backend campaign pushes the real
+     * start/update/end lifecycle through the live-notification path.
      */
     private void triggerCampaign() {
         String activityType = CAMPAIGN_ACTIVITY_TYPES[selectedCampaignIndex];
         Map<String, String> properties = new HashMap<>();
         properties.put("activity_type", activityType);
-        // Unique per trigger; used by the campaign to build a fresh cioInstanceId via Liquid.
+        // Unique per trigger; the campaign builds a fresh cioInstanceId from it via Liquid.
         properties.put("timestamp", String.valueOf(System.currentTimeMillis()));
         customerIORepository.trackEvent(CAMPAIGN_EVENT, properties);
         Snackbar.make(
@@ -408,12 +386,10 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
         Bundle bundle = new Bundle();
         bundle.putString("CIO-Delivery-ID", UUID.randomUUID().toString());
         bundle.putString("CIO-Delivery-Token", DEMO_DELIVERY_TOKEN);
-        // The SDK routes a push to the live-notification handler by the presence of `cioInstanceId`
-        // (matches iOS + the real backend); it must NOT be the legacy `activity_id` key.
+        // The SDK routes to the live-notification handler by the presence of `cioInstanceId`.
         bundle.putString("cioInstanceId", activityId);
         bundle.putString("event", event);
         bundle.putString("notification_type", activityType);
-        // The backend sends template fields flattened at the envelope top level.
         putFlattened(bundle, attributes);
         putFlattened(bundle, contentState);
         return bundle;
@@ -425,8 +401,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             String key = keys.next();
             Object value = obj.opt(key);
             if (value == null || value == JSONObject.NULL) continue;
-            // Nested objects ride along as JSON strings, matching how FCM delivers non-scalar
-            // data values.
+            // Nested objects ride along as JSON strings, matching how FCM delivers them.
             bundle.putString(key, value.toString());
         }
     }

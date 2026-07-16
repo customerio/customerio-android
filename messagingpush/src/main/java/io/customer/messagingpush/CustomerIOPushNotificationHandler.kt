@@ -144,7 +144,6 @@ internal class CustomerIOPushNotificationHandler(
             notificationManager = notificationManager
         )
 
-        // Check if this is a live notification
         val activityId = bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)
         if (activityId != null) {
             val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
@@ -153,8 +152,7 @@ internal class CustomerIOPushNotificationHandler(
                 appMetaData = appMetaData,
                 notificationManager = notificationManager
             )
-            // onNotificationComposed is intentionally not called for live notifications —
-            // their layout is SDK-controlled and cannot be safely modified by host apps.
+            // onNotificationComposed is intentionally not called for live notifications.
             LiveNotificationHandler(bundle).handle(
                 context = context,
                 deliveryId = deliveryId,

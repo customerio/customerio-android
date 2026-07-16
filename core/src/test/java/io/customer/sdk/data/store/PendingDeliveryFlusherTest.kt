@@ -230,4 +230,30 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.failed shouldBeEqualTo listOf("bad")
         store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
     }
+
+    @Test
+    fun flush_givenAtLeastOnceCancelThrowsAfterPublish_expectEntryStillPublishedAndRemoved() {
+        val store = newStore()
+        store.append(TestEntry("a"))
+        val failingCancel: Operation = mockk(relaxed = true) {
+            every { result } returns Futures.immediateFailedFuture(RuntimeException("cancel failed"))
+        }
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork("a") } returns failingCancel
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(store).flush(callbacks, PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE) {
+            publishedKeys += it.key
+        }
+
+        // Publish already delivered, so a best-effort cancel failure must not re-mark the entry
+        // failed or leave the row behind.
+        publishedKeys shouldBeEqualTo listOf("a")
+        callbacks.published shouldBeEqualTo listOf("a")
+        callbacks.failed shouldBeEqualTo emptyList()
+        store.loadAll().isEmpty().shouldBeTrue()
+    }
 }

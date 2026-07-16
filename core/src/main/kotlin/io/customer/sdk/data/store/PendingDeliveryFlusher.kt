@@ -115,11 +115,17 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                                 publish(entry)
                             }
                             DeliveryGuarantee.AT_LEAST_ONCE -> {
-                                // Cancel after publish succeeds: a throw skips cancel+remove, keeping the worker
-                                // as the durable fallback. Overlap is deduped by payload id.
+                                // Publish first so a throw keeps the worker as the durable fallback; once it
+                                // returns the entry is delivered, so remove commits it and the cancel is
+                                // best-effort cleanup whose failure can't un-deliver it (deduped by payload id).
                                 publish(entry)
-                                cancelWorker()
                                 store.remove(entry.key)
+                                try {
+                                    cancelWorker()
+                                } catch (ce: CancellationException) {
+                                    throw ce
+                                } catch (ignored: Exception) {
+                                }
                             }
                         }
                         callbacks.onPublished(entry)

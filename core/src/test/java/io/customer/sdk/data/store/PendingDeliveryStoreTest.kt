@@ -177,6 +177,24 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun claim_givenRemovingWriteFails_expectFalseAndEntryPreserved() {
+        val store = newStore()
+        val target = entry("target")
+        store.append(target)
+        // Entry is readable, but the atomic write can't stage its temp file while the store's
+        // directory is read-only, so the claim must fail and leave the row for the other channel.
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
+        try {
+            store.claim(target.key) shouldBeEqualTo false
+        } finally {
+            dir.setWritable(true)
+        }
+
+        store.loadAll() shouldBeEqualTo listOf(target)
+    }
+
+    @Test
     fun remove_givenUnknownKey_expectNoOp() {
         val store = newStore()
         val keep = entry("keep")

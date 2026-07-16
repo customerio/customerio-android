@@ -45,6 +45,32 @@ class PendingDeliveryClaimTest : RobolectricTest() {
     }
 
     @Test
+    fun claimSendRestore_givenClaimWriteFailsWithEntryPresent_expectRetryableAndSendNotInvoked() = runBlocking<Unit> {
+        val store = newStore()
+        val entry = TestEntry("stuck")
+        store.append(entry)
+        var sendInvoked = false
+
+        // Entry is readable, but the atomic write can't stage its temp file while the store's
+        // directory is read-only: claim returns false while the row is still present. That is not
+        // "delivered elsewhere", so it must retry and must not send.
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
+        val result = try {
+            store.claimSendRestore(entry) {
+                sendInvoked = true
+                Result.success(Unit)
+            }
+        } finally {
+            dir.setWritable(true)
+        }
+
+        result shouldBeInstanceOf PendingDeliveryResult.Retryable::class
+        sendInvoked shouldBeEqualTo false
+        store.loadAll() shouldBeEqualTo listOf(entry)
+    }
+
+    @Test
     fun claimSendRestore_givenSendSucceeds_expectDeliveredAndEntryRemoved() = runBlocking<Unit> {
         val store = newStore()
         val entry = TestEntry("ok")

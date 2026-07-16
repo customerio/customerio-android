@@ -13,11 +13,12 @@ import kotlinx.coroutines.launch
  * (typically an app-foreground handoff), coordinating with the durable
  * WorkManager channel that also consumes the same store.
  *
- * For each pending entry it cancels that entry's WorkManager unique work — so the worker can't
- * also deliver — then spends it against the store per the caller's [DeliveryGuarantee] and hands
- * it to [publish]. Cancel is best-effort (can lose across process death), so the store op is what
- * actually bounds duplicates; match the guarantee to the paired worker (push claims →
- * [DeliveryGuarantee.AT_MOST_ONCE]; geofence sends-then-removes → [DeliveryGuarantee.AT_LEAST_ONCE]).
+ * For each pending entry it cancels that entry's WorkManager unique work — so the two channels don't
+ * both deliver — and spends it against the store per the caller's [DeliveryGuarantee], which also
+ * decides when the cancel runs relative to the claim/publish (see the branches). Cancel is
+ * best-effort (can lose across process death), so the store op is what actually bounds duplicates;
+ * match the guarantee to the paired worker (push claims → [DeliveryGuarantee.AT_MOST_ONCE]; geofence
+ * sends-then-removes → [DeliveryGuarantee.AT_LEAST_ONCE]).
  *
  * Entries are processed in isolation: one failed cancel/publish does not abort
  * the batch, and an unclaimed or failed entry survives for the next flush. The
@@ -51,9 +52,9 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
         /**
          * Remove the row only after [publish] returns, so a crash before publish keeps it for the
          * next flush. On its own this only *narrows* the loss window — [publish] is an in-process
-         * hand-off and the removal is not crash-atomic, so a crash after publish but before the
-         * event is durably queued can still drop it. At-least-once holds end-to-end via the paired
-         * send-then-remove worker (the durable channel) plus a stable payload id for dedupe.
+         * hand-off (not durably queued), so a crash after publish but before the event is persisted
+         * can still drop it. At-least-once holds end-to-end via the paired send-then-remove worker
+         * (the durable channel) plus a stable payload id for dedupe.
          */
         AT_LEAST_ONCE
     }
@@ -99,19 +100,32 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                 var publishedCount = 0
                 pending.forEach { entry ->
                     try {
-                        if (workManager != null) {
-                            workManager.cancelUniqueWork(entry.key).await()
-                            callbacks.onWorkCancelled(entry)
+                        suspend fun cancelWorker() {
+                            if (workManager != null) {
+                                workManager.cancelUniqueWork(entry.key).await()
+                                callbacks.onWorkCancelled(entry)
+                            }
                         }
-                        // Order claim vs. publish per the caller's crash-safety guarantee (see [DeliveryGuarantee]).
                         when (guarantee) {
                             DeliveryGuarantee.AT_MOST_ONCE -> {
+                                // A false claim (already gone, or the removing write failed) means we don't own
+                                // the send — back off; the row is retried on the next flush.
+                                cancelWorker()
                                 if (!store.claim(entry.key)) return@forEach
                                 publish(entry)
                             }
                             DeliveryGuarantee.AT_LEAST_ONCE -> {
+                                // Publish first so a throw keeps the worker as the durable fallback; once it
+                                // returns the entry is delivered, so remove commits it and the cancel is
+                                // best-effort cleanup whose failure can't un-deliver it (deduped by payload id).
                                 publish(entry)
                                 store.remove(entry.key)
+                                try {
+                                    cancelWorker()
+                                } catch (ce: CancellationException) {
+                                    throw ce
+                                } catch (ignored: Exception) {
+                                }
                             }
                         }
                         callbacks.onPublished(entry)

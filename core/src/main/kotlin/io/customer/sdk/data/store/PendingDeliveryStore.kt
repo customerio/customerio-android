@@ -4,6 +4,7 @@ import android.content.Context
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.util.Logger
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlinx.serialization.KSerializer
@@ -23,7 +24,9 @@ import kotlinx.serialization.json.Json
  *
  * Storage is a single JSON file in [Context.filesDir]. All read-modify-write
  * sequences are guarded by an in-process [ReentrantLock] so concurrent appends
- * cannot corrupt the file. Capacity is capped at [maxEntries]; on overflow
+ * cannot corrupt the file, and each write is atomic — staged to a temp file
+ * then renamed over the target — so a failed or interrupted write leaves the
+ * previous file intact rather than a partial one. Capacity is capped at [maxEntries]; on overflow
  * the entry with the smallest [PendingDeliveryEntry.timestamp] is dropped so
  * the queue never grows without bound when the primary delivery path is
  * failing.
@@ -108,14 +111,17 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
      * channel whose [claim] returns true owns the send, the other backs off.
      * A read-only check is not enough — claim-then-send must be atomic, or a
      * slow send lets both channels act on the same still-present entry.
-     * Returns true if this call removed the entry, false if it was already gone.
+     * Returns true only when the removing write completed and this call owns
+     * the send; false when the entry was already gone or the write failed.
+     * [writeAll] is atomic, so a failed write leaves the prior file intact — a
+     * false return from a write failure therefore means the entry is still
+     * present for the other channel to claim.
      */
     fun claim(key: String): Boolean = lock.withLock {
         val entries = readAll()
         val filtered = entries.filterNot { it.key == key }
         if (filtered.size == entries.size) return@withLock false
         writeAll(filtered)
-        true
     }
 
     /**
@@ -158,10 +164,18 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     }
 
     private fun writeAll(entries: List<T>): Boolean {
+        val tmp = File(file.parentFile, "${file.name}.tmp")
         return try {
-            file.writeText(Json.encodeToString(listSerializer, entries))
+            tmp.writeText(Json.encodeToString(listSerializer, entries))
+            // Atomic swap: rename the fully-written temp over the target. A failed or interrupted
+            // write leaves the prior file intact rather than a truncated/partial one, so readers and
+            // claimers never see corrupt JSON.
+            if (!tmp.renameTo(file)) {
+                throw IOException("atomic rename failed for ${file.name}")
+            }
             true
         } catch (ex: Exception) {
+            tmp.delete()
             logger.error(
                 "Failed to write pending delivery store ${file.name}",
                 tag = TAG,

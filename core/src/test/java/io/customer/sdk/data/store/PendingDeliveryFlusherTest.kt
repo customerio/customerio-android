@@ -9,6 +9,7 @@ import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
@@ -139,6 +140,36 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
     }
 
     @Test
+    fun flush_givenAtMostOnceClaimWriteFails_expectNotPublishedAndRowRetainedForNextFlush() {
+        val store = newStore()
+        store.append(TestEntry("a"))
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        // Entry stays readable, but the atomic write can't stage its temp file while the store's
+        // directory is read-only, so claim reports failure and the flush backs off without publishing
+        // (no duplicate). The worker is already cancelled by then, so the retained row is retried on
+        // the next foreground flush — not by the worker.
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
+        try {
+            newFlusher(store).flush(callbacks) { publishedKeys += it.key }
+        } finally {
+            dir.setWritable(true)
+        }
+
+        verify { workManager.cancelUniqueWork("a") }
+        publishedKeys shouldBeEqualTo emptyList()
+        callbacks.published shouldBeEqualTo emptyList()
+        callbacks.completeCount shouldBeEqualTo 0
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("a")
+    }
+
+    @Test
     fun flush_givenAtLeastOnce_expectPublishedThenStoreEmptied() {
         val store = newStore()
         listOf("a", "b").forEach { store.append(TestEntry(it)) }
@@ -173,5 +204,53 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.failed shouldBeEqualTo listOf("bad")
         callbacks.completeCount shouldBeEqualTo 2
         store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
+    }
+
+    @Test
+    fun flush_givenAtLeastOncePublishThrowsWithWorkManager_expectFailedEntryWorkerNotCancelled() {
+        val store = newStore()
+        listOf("bad", "ok").forEach { store.append(TestEntry(it)) }
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val callbacks = RecordingCallbacks()
+
+        newFlusher(store).flush(callbacks, PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE) { entry ->
+            if (entry.key == "bad") throw IllegalStateException("publish failed")
+        }
+
+        // Cancel runs only after a successful publish, so a failed entry keeps its worker as the
+        // durable fallback (and the row is retained); a delivered entry has its worker cancelled.
+        verify(exactly = 0) { workManager.cancelUniqueWork("bad") }
+        verify { workManager.cancelUniqueWork("ok") }
+        callbacks.failed shouldBeEqualTo listOf("bad")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
+    }
+
+    @Test
+    fun flush_givenAtLeastOnceCancelThrowsAfterPublish_expectEntryStillPublishedAndRemoved() {
+        val store = newStore()
+        store.append(TestEntry("a"))
+        val failingCancel: Operation = mockk(relaxed = true) {
+            every { result } returns Futures.immediateFailedFuture(RuntimeException("cancel failed"))
+        }
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork("a") } returns failingCancel
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(store).flush(callbacks, PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE) {
+            publishedKeys += it.key
+        }
+
+        // Publish already delivered, so a best-effort cancel failure must not re-mark the entry
+        // failed or leave the row behind.
+        publishedKeys shouldBeEqualTo listOf("a")
+        callbacks.published shouldBeEqualTo listOf("a")
+        callbacks.failed shouldBeEqualTo emptyList()
+        store.loadAll().isEmpty().shouldBeTrue()
     }
 }

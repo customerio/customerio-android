@@ -79,7 +79,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     private fun handlerFor(bundle: Bundle): LiveNotificationHandler = LiveNotificationHandler(bundle)
 
-    private fun invoke(handler: LiveNotificationHandler) {
+    private fun invoke(handler: LiveNotificationHandler, bypassOrderGuard: Boolean = false) {
         handler.handle(
             context = contextMock,
             deliveryId = "delivery-id-1",
@@ -87,7 +87,8 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             smallIcon = 0,
             tintColor = null,
             channelId = channelId,
-            notificationManager = notificationManager
+            notificationManager = notificationManager,
+            bypassOrderGuard = bypassOrderGuard
         )
     }
 
@@ -401,6 +402,21 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 50L)))
 
         verify(exactly = 1) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenLocalBypass_rendersDespiteNonAdvancingTimestamp() {
+        // Local renders are host-ordered and bypass the guard, so two updates within
+        // the same wall-clock second (same epoch-second timestamp) both post, instead
+        // of the second being dropped as a duplicate.
+        val activityId = "local-bypass"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)), bypassOrderGuard = true)
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)), bypassOrderGuard = true)
+
+        verify(exactly = 2) {
             notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }
     }

@@ -35,6 +35,9 @@ internal object SegmentsTemplate : LiveNotificationTemplate {
 
         return TemplateRenderResult(
             title = status,
+            // Android has a single body slot, so trailingText only shows when
+            // substatus is absent; when both are set, trailingText is dropped
+            // (unlike iOS, which renders it on the progress bar's trailing edge).
             body = substatus ?: trailingText.orEmpty(),
             subText = header,
             largeIcon = null,

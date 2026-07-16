@@ -66,7 +66,10 @@ internal class LiveNotificationHandler(
         @DrawableRes smallIcon: Int,
         @ColorInt tintColor: Int?,
         channelId: String,
-        notificationManager: NotificationManager
+        notificationManager: NotificationManager,
+        // Locally-initiated renders are ordered by the host, so they skip the
+        // out-of-order guard that only exists to dedupe reordered server pushes.
+        bypassOrderGuard: Boolean = false
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -96,21 +99,22 @@ internal class LiveNotificationHandler(
         }
         val isEnd = event == EVENT_END
 
-        // Out-of-order / duplicate guard; `end` is terminal and bypasses it.
         val store = SDKComponent.liveNotificationStore
-        val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
-        val lastSeen = store.lastTimestamp(activityId)
-        if (!isEnd && timestamp != null) {
-            if (lastSeen != null && timestamp <= lastSeen) {
+
+        // Out-of-order / duplicate guard for reordered server pushes; `end` is
+        // terminal and local renders (host-ordered) bypass it entirely.
+        if (!bypassOrderGuard) {
+            val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
+            val lastSeen = store.lastTimestamp(activityId)
+            if (!isEnd && timestamp != null && lastSeen != null && timestamp <= lastSeen) {
                 SDKComponent.logger.debug(
                     "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp <= $lastSeen)."
                 )
                 return
             }
-        }
-
-        if (timestamp != null && (lastSeen == null || timestamp > lastSeen)) {
-            store.setLastTimestamp(activityId, timestamp)
+            if (timestamp != null && (lastSeen == null || timestamp > lastSeen)) {
+                store.setLastTimestamp(activityId, timestamp)
+            }
         }
 
         val template = TemplateRegistry.find(activityType)

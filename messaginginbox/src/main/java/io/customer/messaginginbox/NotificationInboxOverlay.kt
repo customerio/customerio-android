@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.customer.jist.JistActionEvent
 import io.customer.jist.JistMode
@@ -475,7 +476,7 @@ private fun InboxMessageList(
  */
 private fun openUrlInBrowser(context: android.content.Context, url: String): Boolean {
     return try {
-        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
         true
@@ -497,7 +498,7 @@ private fun openUrlInBrowser(context: android.content.Context, url: String): Boo
  * only on `messaginginapp`; this keeps the routing behavior without adding a module dependency.)
  */
 private fun openDeepLink(context: android.content.Context, url: String): Boolean {
-    val uri = android.net.Uri.parse(url)
+    val uri = url.toUri()
     val packageManager = context.packageManager
 
     // 1. Host app first: an ACTION_VIEW intent scoped to this package resolves only the app's own

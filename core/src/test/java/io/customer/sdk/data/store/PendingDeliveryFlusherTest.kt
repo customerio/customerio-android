@@ -9,6 +9,7 @@ import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import io.mockk.verifyOrder
 import java.io.File
 import kotlinx.serialization.Serializable
@@ -144,14 +145,19 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
     }
 
     @Test
-    fun flush_givenAtMostOnceAndClaimWriteFails_expectNotPublishedAndEntryRetained() {
+    fun flush_givenAtMostOnceClaimWriteFails_expectNotPublishedAndRowRetainedForNextFlush() {
         val store = newStore()
-        listOf("a", "b").forEach { store.append(TestEntry(it)) }
+        store.append(TestEntry("a"))
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
         val callbacks = RecordingCallbacks()
         val publishedKeys = mutableListOf<String>()
 
-        // Entries stay readable but the claiming write can't land, so claim reports failure and the
-        // flush must back off — leaving the rows for the worker rather than publishing a duplicate.
+        // Entry stays readable but the claiming write can't land, so claim reports failure and the
+        // flush backs off without publishing (no duplicate). The worker is already cancelled by then,
+        // so the retained row is retried on the next foreground flush — not by the worker.
         storeFile().setReadOnly()
         try {
             newFlusher(store).flush(callbacks) { publishedKeys += it.key }
@@ -159,10 +165,11 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
             storeFile().setWritable(true)
         }
 
+        verify { workManager.cancelUniqueWork("a") }
         publishedKeys shouldBeEqualTo emptyList()
         callbacks.published shouldBeEqualTo emptyList()
         callbacks.completeCount shouldBeEqualTo 0
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("a", "b")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("a")
     }
 
     @Test
@@ -199,6 +206,28 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         publishedKeys shouldBeEqualTo listOf("a", "c")
         callbacks.failed shouldBeEqualTo listOf("bad")
         callbacks.completeCount shouldBeEqualTo 2
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
+    }
+
+    @Test
+    fun flush_givenAtLeastOncePublishThrowsWithWorkManager_expectFailedEntryWorkerNotCancelled() {
+        val store = newStore()
+        listOf("bad", "ok").forEach { store.append(TestEntry(it)) }
+        val workManager: WorkManager = mockk(relaxed = true) {
+            every { cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
+        }
+        every { workManagerProvider.getWorkManager() } returns workManager
+        val callbacks = RecordingCallbacks()
+
+        newFlusher(store).flush(callbacks, PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE) { entry ->
+            if (entry.key == "bad") throw IllegalStateException("publish failed")
+        }
+
+        // Cancel runs only after a successful publish, so a failed entry keeps its worker as the
+        // durable fallback (and the row is retained); a delivered entry has its worker cancelled.
+        verify(exactly = 0) { workManager.cancelUniqueWork("bad") }
+        verify { workManager.cancelUniqueWork("ok") }
+        callbacks.failed shouldBeEqualTo listOf("bad")
         store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
     }
 }

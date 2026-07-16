@@ -108,10 +108,11 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
      * channel whose [claim] returns true owns the send, the other backs off.
      * A read-only check is not enough — claim-then-send must be atomic, or a
      * slow send lets both channels act on the same still-present entry.
-     * Returns true only if this call actually removed the entry from storage:
-     * false when it was already gone, and also false when the removing write
-     * failed, so the caller backs off and leaves the still-present entry for
-     * the other channel rather than sending a duplicate.
+     * Returns true only when the removing write completed and this call owns
+     * the send; false when the entry was already gone or the write failed. A
+     * false return means "you did not claim it — back off", not that the entry
+     * definitely survived: [writeAll] isn't crash-atomic, so a mid-write failure
+     * can still leave the file blank or partial.
      */
     fun claim(key: String): Boolean = lock.withLock {
         val entries = readAll()

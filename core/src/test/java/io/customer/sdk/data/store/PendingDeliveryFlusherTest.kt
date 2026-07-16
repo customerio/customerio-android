@@ -11,7 +11,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
-import java.io.File
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
@@ -37,16 +36,12 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         override val key: String get() = id
     }
 
-    private val fileName = "cio_test_flusher.json"
-
     private fun newStore() = PendingDeliveryStore(
         context = contextMock,
-        fileName = fileName,
+        fileName = "cio_test_flusher.json",
         elementSerializer = TestEntry.serializer(),
         logger = mockLogger
     ).also { it.removeAll() }
-
-    private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
 
     private fun newFlusher(store: PendingDeliveryStore<TestEntry>) =
         PendingDeliveryFlusher(store, workManagerProvider, dispatchers)
@@ -155,14 +150,16 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         val callbacks = RecordingCallbacks()
         val publishedKeys = mutableListOf<String>()
 
-        // Entry stays readable but the claiming write can't land, so claim reports failure and the
-        // flush backs off without publishing (no duplicate). The worker is already cancelled by then,
-        // so the retained row is retried on the next foreground flush — not by the worker.
-        storeFile().setReadOnly()
+        // Entry stays readable, but the atomic write can't stage its temp file while the store's
+        // directory is read-only, so claim reports failure and the flush backs off without publishing
+        // (no duplicate). The worker is already cancelled by then, so the retained row is retried on
+        // the next foreground flush — not by the worker.
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
         try {
             newFlusher(store).flush(callbacks) { publishedKeys += it.key }
         } finally {
-            storeFile().setWritable(true)
+            dir.setWritable(true)
         }
 
         verify { workManager.cancelUniqueWork("a") }

@@ -181,13 +181,14 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         val store = newStore()
         val target = entry("target")
         store.append(target)
-        // Entry is readable but the removing write can't land, so the claim must
-        // not report success — the row stays for the other delivery channel.
-        storeFile().setReadOnly()
+        // Entry is readable, but the atomic write can't stage its temp file while the store's
+        // directory is read-only, so the claim must fail and leave the row for the other channel.
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
         try {
             store.claim(target.key) shouldBeEqualTo false
         } finally {
-            storeFile().setWritable(true)
+            dir.setWritable(true)
         }
 
         store.loadAll() shouldBeEqualTo listOf(target)

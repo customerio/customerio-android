@@ -52,9 +52,9 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
         /**
          * Remove the row only after [publish] returns, so a crash before publish keeps it for the
          * next flush. On its own this only *narrows* the loss window — [publish] is an in-process
-         * hand-off and the removal is not crash-atomic, so a crash after publish but before the
-         * event is durably queued can still drop it. At-least-once holds end-to-end via the paired
-         * send-then-remove worker (the durable channel) plus a stable payload id for dedupe.
+         * hand-off (not durably queued), so a crash after publish but before the event is persisted
+         * can still drop it. At-least-once holds end-to-end via the paired send-then-remove worker
+         * (the durable channel) plus a stable payload id for dedupe.
          */
         AT_LEAST_ONCE
     }

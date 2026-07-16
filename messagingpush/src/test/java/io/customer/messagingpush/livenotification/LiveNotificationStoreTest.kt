@@ -1,8 +1,10 @@
 package io.customer.messagingpush.livenotification
 
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -52,5 +54,71 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
 
         store.lastTimestamp("old").shouldBeNull()
         store.lastTimestamp("fresh") shouldBeEqualTo 2L
+    }
+
+    @Test
+    fun activityType_setGetClear() {
+        store.activityType("act-1").shouldBeNull()
+
+        store.setActivityType("act-1", "io.customer.livenotifications.segments")
+        store.activityType("act-1") shouldBeEqualTo "io.customer.livenotifications.segments"
+
+        store.clearActivityType("act-1")
+        store.activityType("act-1").shouldBeNull()
+    }
+
+    @Test
+    fun trackedActivityIds_andClearAllActivities() {
+        store.setActivityType("a1", "type.a")
+        store.setActivityType("a2", "type.b")
+        store.setLastTimestamp("a1", 5L)
+
+        store.trackedActivityIds() shouldContainSame setOf("a1", "a2")
+
+        store.clearAllActivities()
+
+        store.trackedActivityIds().shouldBeEmpty()
+        store.activityType("a1").shouldBeNull()
+        store.lastTimestamp("a1").shouldBeNull()
+    }
+
+    @Test
+    fun trimStaleTimestamps_alsoRemovesPairedActivityType() {
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.setLastTimestamp("old", 1L, now = now - ttl - 1)
+        store.setActivityType("old", "io.customer.livenotifications.segments")
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.activityType("old").shouldBeNull()
+    }
+
+    @Test
+    fun migrate_clearsOldNamespaceRegistrationsAndKeepsNewOnes() {
+        // Legacy registrations recorded under the old `io.customer.liveactivities.*` namespace...
+        store.setRegistrationSignature("io.customer.liveactivities.deliverytracking", "tok|user")
+        store.setRegistrationSignature("io.customer.liveactivities.auctionbid", "tok|user")
+        // ...alongside new-namespace and custom-type registrations that must survive.
+        store.setRegistrationSignature("io.customer.livenotifications.segments", "tok|user")
+        store.setRegistrationSignature("com.acme.custom", "tok|user")
+
+        store.migrate()
+
+        store.registrationSignature("io.customer.liveactivities.deliverytracking").shouldBeNull()
+        store.registrationSignature("io.customer.liveactivities.auctionbid").shouldBeNull()
+        store.registrationSignature("io.customer.livenotifications.segments") shouldBeEqualTo "tok|user"
+        store.registrationSignature("com.acme.custom") shouldBeEqualTo "tok|user"
+    }
+
+    @Test
+    fun migrate_isIdempotentAndSafeWhenNothingStale() {
+        store.setRegistrationSignature("io.customer.livenotifications.segments", "tok|user")
+
+        store.migrate()
+        store.migrate()
+
+        store.registrationSignature("io.customer.livenotifications.segments") shouldBeEqualTo "tok|user"
     }
 }

@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import io.customer.android.sample.java_layout.R
@@ -45,26 +48,30 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
         val driver = extras.getString("driverName") ?: "Your driver"
         val vehicle = extras.getString("vehicle") ?: ""
         val plate = extras.getString("plate") ?: ""
+        val rating = extras.getString("rating") ?: ""
         val eta = extras.getString("etaText") ?: ""
         val status = extras.getString("statusMessage") ?: ""
         val step = extras.getString("step")?.toIntOrNull() ?: 0
         val progress = extras.getString("progress")?.toIntOrNull() ?: 0
 
         val title = if (ended) "Trip complete" else "$driver is on the way"
-        val subtitle = listOf(vehicle, plate).filter { it.isNotBlank() }.joinToString(" · ")
+        val avatarInitial = driver.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+        val vehicleLine = listOf(vehicle, plate).filter { it.isNotBlank() }.joinToString(" · ")
         val etaText = if (ended) "Done" else eta
 
         fun applyHeader(rv: RemoteViews) {
+            rv.setTextViewText(R.id.tv_avatar, avatarInitial)
             rv.setTextViewText(R.id.tv_title, title)
-            rv.setTextViewText(R.id.tv_subtitle, subtitle)
             rv.setTextViewText(R.id.tv_eta, etaText)
         }
 
+        // Collapsed is a compact single line; expanded adds the gold star rating + vehicle.
         val collapsed = RemoteViews(context.packageName, R.layout.notification_rideshare_collapsed)
         applyHeader(collapsed)
 
         val expanded = RemoteViews(context.packageName, R.layout.notification_rideshare_expanded)
         applyHeader(expanded)
+        expanded.setTextViewText(R.id.tv_subtitle, ratingLine(rating, vehicleLine))
         expanded.setTextViewText(R.id.tv_status, if (ended) "Thanks for riding with us" else status)
 
         val stepIds = intArrayOf(R.id.iv_step1, R.id.iv_step2, R.id.iv_step3, R.id.iv_step4)
@@ -86,6 +93,19 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .build()
+    }
+
+    /** Builds "★ 4.9 · Toyota Prius · 7XYZ123" with the star tinted gold. */
+    private fun ratingLine(rating: String, vehicleLine: String): CharSequence {
+        val parts = listOfNotNull(
+            rating.takeIf { it.isNotBlank() }?.let { "★ $it" },
+            vehicleLine.takeIf { it.isNotBlank() }
+        )
+        val full = parts.joinToString(" · ")
+        if (rating.isBlank() || full.isEmpty()) return full
+        return SpannableString(full).apply {
+            setSpan(ForegroundColorSpan(0xFFF5A623.toInt()), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
     }
 
     // --- Custom type 2: standard NotificationCompat builder API ---

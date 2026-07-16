@@ -186,24 +186,29 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
     }
 
     private void sendSegments(String event, int step) {
+        // A food-delivery order flow (bold status headline + supporting line), the
+        // canonical Android 16 ProgressStyle "Live Update" use case.
         String[] statuses = {
-                "Your order has been placed",
+                "Thanks for your order",
                 "Your order is being prepared",
-                "Your order is out for delivery",
-                "Your order has been delivered"
+                "Out for delivery",
+                "Delivered"
         };
-        // Optional trailing readout (iOS Dynamic Island trailing edge, e.g. "5 min").
-        String[] trailing = {"30 min", "20 min", "5 min", "Delivered"};
+        String[] substatuses = {
+                "We've received your order and we're on it",
+                "The kitchen is cooking it up",
+                "Your rider is on the way",
+                "Enjoy your meal!"
+        };
         JSONObject attributes = new JSONObject();
         JSONObject contentState = new JSONObject();
         try {
-            attributes.put("header", "Order #ABC-1234");
+            attributes.put("header", "Order #4021");
 
             contentState.put("status", statuses[step]);
+            contentState.put("substatus", substatuses[step]);
             contentState.put("segmentsTotal", statuses.length);
             contentState.put("segmentsComplete", step + 1);
-            contentState.put("trailingText", trailing[step]);
-            if (step == 2) contentState.put("substatus", "Driver: Sam");
         } catch (JSONException ignored) { }
         fire(buildBundle("demo-segments", event, ACTIVITY_TYPE_SEGMENTS, attributes, contentState));
     }
@@ -251,6 +256,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
             attributes.put("driverName", "Alex");
             attributes.put("vehicle", "Toyota Prius");
             attributes.put("plate", "7XYZ123");
+            attributes.put("rating", "4.9");
 
             contentState.put("statusMessage", statuses[step]);
             contentState.put("etaText", etas[step]);

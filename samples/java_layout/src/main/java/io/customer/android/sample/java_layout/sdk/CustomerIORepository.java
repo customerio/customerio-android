@@ -60,7 +60,7 @@ public class CustomerIORepository {
                                 "Customer.io Sample",
                                 Color.parseColor("#FF6A00"),
                                 R.drawable.ic_live_delivery,                                        // @DrawableRes small icon
-                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_logo) // typed logo
+                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_scooter) // typed logo
                         ))
                         // App-rendered custom types go through this callback.
                         .setNotificationCallback(new LiveNotificationCallback())

@@ -105,8 +105,7 @@ internal val SDKComponent.liveNotificationRegistrar: LiveNotificationRegistrar
 internal val SDKComponent.liveNotificationManager: LiveNotificationManager
     get() = singleton<LiveNotificationManager> {
         LiveNotificationManager(
-            lifecycleClient = liveNotificationLifecycleClient,
-            registrar = liveNotificationRegistrar
+            lifecycleClient = liveNotificationLifecycleClient
         )
     }
 

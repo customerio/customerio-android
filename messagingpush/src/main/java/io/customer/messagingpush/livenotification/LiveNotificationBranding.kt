@@ -1,26 +1,24 @@
 package io.customer.messagingpush.livenotification
 
 import androidx.annotation.ColorInt
+import androidx.annotation.DrawableRes
 
 /**
- * App-level branding applied to live notifications.
+ * App-level branding applied to live notifications, registered once via
+ * [io.customer.messagingpush.MessagingPushModuleConfig.Builder.setLiveNotificationBranding]
+ * and shared across every templated live notification this app posts.
  *
- * Registered once via [io.customer.messagingpush.MessagingPushModuleConfig.Builder.setLiveNotificationBranding]
- * and shared across every templated live notification this app posts. Templates
- * may override individual fields (e.g. accent color flips green/red for auction
- * winning/outbid state); when they do not, these values are used.
- *
- * @property companyName Reserved for future templates that need to render a
- *   company label. Not consumed by any v1 template mapping.
- * @property accentColor Default accent color applied via [android.app.Notification.Builder.setColor].
- * @property logoDrawableName Optional drawable resource name (looked up via
- *   `Context.getDrawableByName`) that overrides the small icon for live
- *   notifications only. The standard push channel still uses the small icon
- *   declared in FCM metadata. Hyphens are normalized to underscores before
- *   lookup so values like `cio-logo` resolve to `R.drawable.cio_logo`.
+ * @property companyName Reserved for future templates; not consumed today.
+ * @property accentColor Accent color applied via [android.app.Notification.Builder.setColor].
+ * @property smallIcon Optional bundled drawable overriding the status-bar small
+ *   icon for live notifications only (tinted with [accentColor]). Must be a
+ *   bundled drawable resource, not a remote or byte-backed image.
+ * @property logo Optional image rendered as the large icon when the active
+ *   template does not provide one. Accepts any [LiveNotificationAsset].
  */
 data class LiveNotificationBranding(
     val companyName: String,
     @ColorInt val accentColor: Int,
-    val logoDrawableName: String? = null
+    @DrawableRes val smallIcon: Int? = null,
+    val logo: LiveNotificationAsset? = null
 )

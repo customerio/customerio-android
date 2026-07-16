@@ -2,45 +2,41 @@ package io.customer.messagingpush.livenotification.template
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
-import io.customer.messagingpush.extensions.getDrawableByName
+import io.customer.messagingpush.livenotification.LiveNotificationAsset
+import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.sdk.core.di.SDKComponent
+import java.io.File
+import java.security.MessageDigest
 
 /**
- * Drawable lookup + bitmap conversion shared by every template.
- *
- * Templates carry image keys as kebab-case strings (e.g. `delivery-warehouse`)
- * but Android resource names only allow `[a-z0-9_]`. We normalize hyphens to
- * underscores before delegating to [Context.getDrawableByName], so spec values
- * resolve to the matching `R.drawable.*` entries the host app ships.
+ * Resolves a strongly-typed [LiveNotificationAsset] to a [Bitmap] for the
+ * notification's color large-icon slot.
  */
 internal object TemplateAssets {
 
-    @DrawableRes
-    fun resolveDrawable(context: Context, key: String?): Int? {
-        if (key.isNullOrBlank()) return null
-        val normalized = key.replace('-', '_')
-        val resolved = context.getDrawableByName(normalized)
-        if (resolved == null) {
-            // The key was specified but no drawable matched. This is a configuration
-            // mismatch (server pushing keys the host app hasn't bundled). The template
-            // still renders — large-icon slot stays empty per "design for absence" —
-            // but a warning surfaces so developers can diagnose missing assets.
-            SDKComponent.logger.debug(
-                "Live notification asset key '$key' did not resolve to a drawable; rendering without it."
-            )
-        }
-        return resolved
-    }
+    private const val URL_CACHE_DIR = "cio_live_notification_assets"
 
-    fun resolveBitmap(context: Context, key: String?): Bitmap? {
-        val res = resolveDrawable(context, key) ?: return null
-        return drawableResToBitmap(context, res)
-    }
+    fun toBitmap(context: Context, asset: LiveNotificationAsset): Bitmap? =
+        try {
+            when (asset) {
+                is LiveNotificationAsset.Drawable -> drawableResToBitmap(context, asset.resId)
+                is LiveNotificationAsset.Bytes -> BitmapFactory.decodeByteArray(asset.data, 0, asset.data.size)
+                is LiveNotificationAsset.Resource ->
+                    context.contentResolver.openInputStream(asset.uri).use { stream ->
+                        stream?.let { BitmapFactory.decodeStream(it) }
+                    }
+                is LiveNotificationAsset.RemoteUrl -> downloadCached(context, asset.url)
+            }
+        } catch (e: Exception) {
+            SDKComponent.logger.error("Failed to load live notification asset: ${e.message}")
+            null
+        }
 
     fun drawableResToBitmap(context: Context, @DrawableRes res: Int): Bitmap? {
         val drawable = ContextCompat.getDrawable(context, res) ?: return null
@@ -60,4 +56,24 @@ internal object TemplateAssets {
             null
         }
     }
+
+    /** Downloads [url], caching the bytes on disk to avoid re-fetching. */
+    private fun downloadCached(context: Context, url: String): Bitmap? {
+        val cacheFile = File(File(context.cacheDir, URL_CACHE_DIR).apply { mkdirs() }, sha256(url))
+        if (cacheFile.exists()) {
+            BitmapFactory.decodeFile(cacheFile.path)?.let { return it }
+        }
+        val bitmap = BitmapDownloader.download(url) ?: return null
+        try {
+            cacheFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        } catch (e: Exception) {
+            SDKComponent.logger.debug("Failed to cache live notification image '$url': ${e.message}")
+        }
+        return bitmap
+    }
+
+    private fun sha256(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray())
+            .joinToString("") { "%02x".format(it) }
 }

@@ -439,8 +439,9 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         val deliveryToken = String.random
         val inputData = createInputData(deliveryId, deliveryToken)
 
-        // Foreground handoff already claimed (delivered + removed) this entry.
+        // Foreground handoff already claimed (delivered + removed) this entry, so it's gone.
         every { mockPendingStore.claim(deliveryId) } returns false
+        every { mockPendingStore.get(deliveryId) } returns null
 
         val worker = createWorker(inputData)
         val result = worker.doWork()

@@ -3,6 +3,7 @@ package io.customer.sdk.data.store
 import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -22,12 +23,16 @@ class PendingDeliveryClaimTest : RobolectricTest() {
         override val key: String get() = id
     }
 
+    private val fileName = "cio_test_claim_send_restore.json"
+
     private fun newStore() = PendingDeliveryStore(
         context = contextMock,
-        fileName = "cio_test_claim_send_restore.json",
+        fileName = fileName,
         elementSerializer = TestEntry.serializer(),
         logger = mockLogger
     ).also { it.removeAll() }
+
+    private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
 
     @Test
     fun claimSendRestore_givenEntryNotPresent_expectAlreadyClaimedAndSendNotInvoked() = runBlocking<Unit> {
@@ -42,6 +47,30 @@ class PendingDeliveryClaimTest : RobolectricTest() {
 
         result shouldBeEqualTo PendingDeliveryResult.AlreadyClaimed
         sendInvoked shouldBeEqualTo false
+    }
+
+    @Test
+    fun claimSendRestore_givenClaimWriteFailsWithEntryPresent_expectRetryableAndSendNotInvoked() = runBlocking<Unit> {
+        val store = newStore()
+        val entry = TestEntry("stuck")
+        store.append(entry)
+        var sendInvoked = false
+
+        // Entry is readable but the claiming write can't land: claim returns false while the row is
+        // still present. That is not "delivered elsewhere", so it must retry and must not send.
+        storeFile().setReadOnly()
+        val result = try {
+            store.claimSendRestore(entry) {
+                sendInvoked = true
+                Result.success(Unit)
+            }
+        } finally {
+            storeFile().setWritable(true)
+        }
+
+        result shouldBeInstanceOf PendingDeliveryResult.Retryable::class
+        sendInvoked shouldBeEqualTo false
+        store.loadAll() shouldBeEqualTo listOf(entry)
     }
 
     @Test

@@ -34,8 +34,12 @@ sealed interface PendingDeliveryResult {
  * Atomically [claims][PendingDeliveryStore.claim] the entry before sending —
  * a read-only check is not enough, since a slow [send] would let both channels
  * act on the same still-present entry. If the claim is lost, [send] is never
- * invoked. On failure the entry is [restored][PendingDeliveryStore.append] so
- * a retry or the flush can deliver it later; on success it stays removed.
+ * invoked: a claim can fail because another channel already took the entry
+ * ([AlreadyClaimed][PendingDeliveryResult.AlreadyClaimed]) or because its
+ * removing write didn't land — the latter leaves the entry present and
+ * undelivered, so it's reported [Retryable][PendingDeliveryResult.Retryable].
+ * On failure the entry is [restored][PendingDeliveryStore.append] so a retry or
+ * the flush can deliver it later; on success it stays removed.
  *
  * Both the push and geofence workers share this so the claim/send/restore
  * logic lives in one place — only the per-channel [send] call differs.
@@ -46,7 +50,16 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
     isRetryable: (Throwable?) -> Boolean = { it is IOException },
     send: suspend () -> Result<Unit>
 ): PendingDeliveryResult {
-    if (!claim(entry.key)) return PendingDeliveryResult.AlreadyClaimed
+    if (!claim(entry.key)) {
+        // A false claim is either another channel taking the entry (now gone) or the removing write
+        // failing (still present). Only the former was delivered elsewhere; a still-present entry was
+        // claimed by no one, so retry rather than reporting success.
+        return if (get(entry.key) == null) {
+            PendingDeliveryResult.AlreadyClaimed
+        } else {
+            PendingDeliveryResult.Retryable(null)
+        }
+    }
 
     val result = send()
     return when {

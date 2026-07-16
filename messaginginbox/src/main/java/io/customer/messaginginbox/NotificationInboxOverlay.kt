@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -54,8 +56,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -63,6 +67,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.customer.jist.JistActionEvent
 import io.customer.jist.JistMode
+import io.customer.jist.JistTheme
 import io.customer.jist.JistView
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.inbox.VisualInbox
@@ -101,13 +106,15 @@ fun NotificationInboxBell(
 
     val branding = (state.visibility as? InboxVisibility.Visible)?.branding
     val chrome = rememberInboxChrome(branding)
+    val colors = rememberInboxColors(branding)
     InboxBellContent(
         unopenedCount = state.unopenedCount,
         showAlert = chrome.showAlert,
         bellSvg = chrome.bellSvg,
-        colors = rememberInboxColors(branding),
+        colors = colors,
         onClick = onClick,
-        modifier = modifier
+        modifier = modifier,
+        badgeTextSize = colors.badgeTextSize
     )
 }
 
@@ -121,6 +128,8 @@ fun NotificationInboxBell(
  * bottom sheet, use [NotificationInboxOverlay]; to drive your own bell, use [NotificationInboxBell].
  *
  * @param modifier Modifier applied to the list container.
+ * @param fonts optional custom-font registry forwarded to the Jist renderer — see
+ *   [NotificationInboxOverlay] for details. Empty (the default) = system fonts only.
  * @param onDismissRequest invoked when a tapped message navigates away (opens a url / deep link, or
  *   the host listener handled a navigating action). If you present this view in your own sheet or
  *   dialog, dismiss it here so the inbox doesn't linger over the destination. Null (default) = the
@@ -129,6 +138,7 @@ fun NotificationInboxBell(
 @Composable
 fun NotificationInboxView(
     modifier: Modifier = Modifier,
+    fonts: Map<String, FontFamily> = emptyMap(),
     onDismissRequest: (() -> Unit)? = null
 ) {
     val controller = rememberInboxController()
@@ -139,6 +149,7 @@ fun NotificationInboxView(
     InboxListContent(
         controller = controller,
         colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding),
+        fonts = fonts,
         onNavigatedAway = onDismissRequest,
         modifier = modifier.fillMaxSize()
     )
@@ -162,13 +173,19 @@ fun NotificationInboxView(
  * [NotificationInboxBell] and [NotificationInboxView] directly instead.
  *
  * @param modifier Modifier applied to the root overlay container.
+ * @param fonts optional custom-font registry forwarded to the Jist renderer: a map from the font
+ *   family name a message/branding theme references (e.g. `"Abril Fatface"`) to the loaded Compose
+ *   [FontFamily] (e.g. `FontFamily(Font(R.font.abril_fatface))`). Jist resolves a theme's
+ *   `fontFamily` token ONLY from this map, so a workspace theme that sets a custom font falls back to
+ *   the system font unless the host supplies it here. Empty (the default) = system fonts only.
  */
 @Composable
 fun NotificationInboxOverlay(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fonts: Map<String, FontFamily> = emptyMap()
 ) {
     val controller = rememberInboxController()
-    NotificationInboxOverlay(modifier = modifier, controller = controller)
+    NotificationInboxOverlay(modifier = modifier, controller = controller, fonts = fonts)
 }
 
 /**
@@ -179,7 +196,8 @@ fun NotificationInboxOverlay(
 @Composable
 internal fun NotificationInboxOverlay(
     modifier: Modifier = Modifier,
-    controller: VisualInboxController
+    controller: VisualInboxController,
+    fonts: Map<String, FontFamily> = emptyMap()
 ) {
     var sheetExpanded by remember { mutableStateOf(false) }
 
@@ -233,7 +251,8 @@ internal fun NotificationInboxOverlay(
                 onClick = { sheetExpanded = true },
                 modifier = Modifier
                     .align(chrome.position.alignment)
-                    .padding(16.dp)
+                    .padding(16.dp),
+                badgeTextSize = colors.badgeTextSize
             )
         }
     }
@@ -249,14 +268,16 @@ internal fun NotificationInboxOverlay(
             onDismissRequest = { sheetExpanded = false },
             sheetState = sheetState,
             shape = RoundedCornerShape(topStart = colors.cornerRadius, topEnd = colors.cornerRadius),
-            containerColor = colors.panelColor
-            // dragHandle omitted: ModalBottomSheet already uses BottomSheetDefaults.DragHandle by
-            // default. Passing it explicitly generated a public ComposableSingletons lambda in the
-            // API dump for no behavior change.
+            containerColor = colors.panelColor,
+            // MBL-2124: a compact grabber replaces the tall default BottomSheetDefaults.DragHandle
+            // (~24dp of vertical padding), which — stacked on the first message's own padding — left
+            // an excessive gap above the first message vs web. Keeps a drag-to-dismiss affordance.
+            dragHandle = { CompactDragHandle(colors.textColorPrimary) }
         ) {
             InboxListContent(
                 controller = controller,
                 colors = colors,
+                fonts = fonts,
                 // Close the sheet when a tapped message navigates via a deep link, so the deep-linked
                 // screen isn't left behind the sheet (openUrl external does not close).
                 onNavigatedAway = { sheetExpanded = false },
@@ -280,7 +301,9 @@ private fun InboxBellContent(
     bellSvg: String?,
     colors: InboxColors,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // MBL-2126/2127: branding-driven unread-badge text size (`unreadIndicator.text.size`).
+    badgeTextSize: TextUnit = BADGE_TEXT_SIZE
 ) {
     Box(modifier = modifier) {
         Box(
@@ -301,13 +324,16 @@ private fun InboxBellContent(
                 InboxBellIcon(
                     art = bellArt,
                     tint = colors.bellIconColor,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(BELL_GLYPH_SIZE)
                 )
             } else {
                 Image(
                     painter = painterResource(id = R.drawable.cio_inbox_notifications),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(colors.bellIconColor)
+                    colorFilter = ColorFilter.tint(colors.bellIconColor),
+                    // MBL-2123: pin the default bell to the same size as the branded glyph. Without an
+                    // explicit size it rendered at the drawable's intrinsic size (parity mismatch).
+                    modifier = Modifier.size(BELL_GLYPH_SIZE)
                 )
             }
         }
@@ -329,7 +355,13 @@ private fun InboxBellContent(
             ) {
                 BasicText(
                     text = unopenedCount.toString(),
-                    style = TextStyle(color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    // MBL-2126: color + size come from branding (`unreadIndicator.text`) rather than
+                    // being hardcoded white/10sp.
+                    style = TextStyle(
+                        color = colors.badgeTextColor,
+                        fontSize = badgeTextSize,
+                        fontWeight = FontWeight.Bold
+                    )
                 )
             }
         }
@@ -347,6 +379,8 @@ private fun InboxListContent(
     controller: VisualInboxController,
     colors: InboxColors,
     modifier: Modifier = Modifier,
+    // Custom-font registry forwarded to the Jist renderer (see NotificationInboxOverlay); empty = none.
+    fonts: Map<String, FontFamily> = emptyMap(),
     // Invoked when a tapped message navigates away via a deep link, so a host presenting this in a
     // sheet/dialog can dismiss it. Null (the default) for the embeddable NotificationInboxView.
     onNavigatedAway: (() -> Unit)? = null
@@ -383,6 +417,7 @@ private fun InboxListContent(
                 messages = state.messages,
                 templates = templates,
                 theme = theme,
+                fonts = fonts,
                 dividerColor = colors.dividerColor,
                 onMessageShown = { message -> controller.notifyMessageShown(state.visibility, message) },
                 onMessageAction = { message, event ->
@@ -418,7 +453,9 @@ private fun InboxMessageList(
     dividerColor: Color,
     onMessageShown: (JistInboxMessage) -> Unit,
     onMessageAction: (JistInboxMessage, JistActionEvent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Host-supplied custom fonts; provided to Jist via JistTheme so theme `fontFamily` tokens resolve.
+    fonts: Map<String, FontFamily> = emptyMap()
 ) {
     // No-template fallback (item 16): a message whose `type` has no decoded template can't be
     // rendered — skip it (do NOT render a blank row) and log so it's diagnosable.
@@ -434,34 +471,89 @@ private fun InboxMessageList(
             }
         }
     }
-    LazyColumn(modifier = modifier.fillMaxWidth()) {
-        items(renderable, key = { it.queueId }) { message ->
-            // Report "shown" once when the row enters composition (controller dedupes per session).
-            LaunchedEffect(message.queueId) { onMessageShown(message) }
-            // Decode the per-row Jist data once per message (not on every recomposition).
-            val data = remember(message) { InboxJistDecoder.decodeData(message) }
-            // Render with Jist: `name` selects the template by message type, `data` is the typed
-            // properties, `templates`/`theme` come from the data layer, `mode = Auto` follows the
-            // system light/dark setting, `formatDate` renders web-aligned relative time.
-            JistView(
-                name = message.type,
-                templates = templates,
-                data = data,
-                theme = theme,
-                mode = JistMode.Auto,
-                formatDate = { iso, name -> InboxJistDecoder.formatRelativeDate(iso, name) },
-                onAction = { event -> onMessageAction(message, event) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            )
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(dividerColor)
-            )
+    // Wrap the list in JistTheme so the injected font map is visible to every JistView composed
+    // lazily below (CUSTOM-FONTS). Only wrap when the host actually supplied fonts — an empty map
+    // would otherwise clobber Jist's own default font registry with nothing.
+    JistFontScope(fonts) {
+        LazyColumn(
+            modifier = modifier.fillMaxWidth(),
+            // MBL-2124: a small top/bottom inset instead of relying on the first item's full padding,
+            // keeping the top margin comfortable-but-tight under the compact drag handle (web parity).
+            contentPadding = PaddingValues(vertical = LIST_VERTICAL_PADDING)
+        ) {
+            items(renderable, key = { it.queueId }) { message ->
+                // Report "shown" once when the row enters composition (controller dedupes per session).
+                LaunchedEffect(message.queueId) { onMessageShown(message) }
+                // Decode the per-row Jist data once per message (not on every recomposition).
+                val data = remember(message) { InboxJistDecoder.decodeData(message) }
+                // Render with Jist: `name` selects the template by message type, `data` is the typed
+                // properties, `templates`/`theme` come from the data layer, `mode = Auto` follows the
+                // system light/dark setting, `formatDate` renders web-aligned relative time.
+                JistView(
+                    name = message.type,
+                    templates = templates,
+                    data = data,
+                    theme = theme,
+                    mode = JistMode.Auto,
+                    formatDate = { iso, name -> InboxJistDecoder.formatRelativeDate(iso, name) },
+                    onAction = { event -> onMessageAction(message, event) },
+                    // MBL-2124: horizontal + modest vertical padding (was a flat 16dp all sides), so the
+                    // first row no longer stacks a tall top inset on top of the drag handle.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = ITEM_VERTICAL_PADDING)
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(dividerColor)
+                )
+            }
         }
+    }
+}
+
+/**
+ * Provides [fonts] to Jist via [JistTheme] so theme `fontFamily` tokens resolve to the host's loaded
+ * [FontFamily]s (CUSTOM-FONTS). A no-op passthrough when [fonts] is empty (JistTheme's own default is
+ * also an empty map, so wrapping then would add a redundant CompositionLocalProvider for no effect).
+ */
+@Composable
+private fun JistFontScope(
+    fonts: Map<String, FontFamily>,
+    content: @Composable () -> Unit
+) {
+    if (fonts.isEmpty()) {
+        content()
+    } else {
+        JistTheme(fonts = fonts, content = content)
+    }
+}
+
+/**
+ * A compact bottom-sheet grabber (MBL-2124): a small rounded bar with tight vertical padding, in
+ * place of the tall default [androidx.compose.material3.BottomSheetDefaults.DragHandle]. Keeps a
+ * drag-to-dismiss affordance while bringing the top margin in line with the web inbox.
+ */
+@Composable
+private fun CompactDragHandle(
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(32.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color.copy(alpha = 0.4f))
+        )
     }
 }
 
@@ -650,6 +742,22 @@ private fun rememberInboxChrome(branding: Branding?): InboxChromeConfig = rememb
     )
 }
 
+/**
+ * Resolves the unread-badge text size (sp) from the raw `unreadIndicator.text` token map, or null
+ * when absent/unparseable so callers can fall back (dark override → light → [BADGE_TEXT_SIZE]). Reads
+ * the confirmed contract key `fontSize` (matching iOS), accepting a number or a string like `"12"` /
+ * `"12px"` / `"12sp"`.
+ */
+private fun badgeTextSizeFrom(text: Map<*, *>?): TextUnit? {
+    val raw = text?.get("fontSize") ?: return null
+    val value = when (raw) {
+        is Number -> raw.toFloat()
+        is String -> raw.trim().removeSuffix("px").removeSuffix("sp").toFloatOrNull()
+        else -> null
+    } ?: return null
+    return if (value > 0f) value.sp else null
+}
+
 /** Resolved chrome colors for the overlay. See [rememberInboxColors] for the resolution order. */
 private data class InboxColors(
     val bellColor: Color,
@@ -658,6 +766,11 @@ private data class InboxColors(
     val textColorPrimary: Color,
     val dividerColor: Color,
     val badgeColor: Color,
+    // MBL-2126: unread-badge label color from `unreadIndicator.text.color` (was hardcoded white).
+    val badgeTextColor: Color,
+    // MBL-2126/2127: unread-badge text size from `unreadIndicator.text.fontSize`. Resolved here (not
+    // in InboxChromeConfig) so it honors the dark-mode override like the color does.
+    val badgeTextSize: TextUnit,
     val cornerRadius: Dp
 )
 
@@ -710,9 +823,24 @@ private fun rememberInboxColors(branding: Branding? = null): InboxColors {
         val dividerColor = (dark.str("dividerColor") ?: dark.str("borderColor")).toColorOrNull()
             ?: (light?.dividerColor ?: light?.borderColor).toColorOrNull()
             ?: textColorSecondary.copy(alpha = 0.12f)
+        // MBL-2126: resolve the branded badge background; when the workspace does not configure
+        // `unreadIndicator.background`, fall back to the (branded) bell color rather than an
+        // off-brand literal red, so the badge stays on-brand. (If the branded value is a token
+        // reference string rather than a hex color, it can't be dereferenced here — see fix report.)
         val badgeColor = dark.childStr("unreadIndicator", "background").toColorOrNull()
             ?: light?.unreadIndicator?.background.toColorOrNull()
-            ?: Color(0xFFE53935)
+            ?: bellColor
+        // MBL-2126: badge label color from `unreadIndicator.text.color`. Final fallback contrasts
+        // against the resolved badge background (which itself can fall back to a light bell color),
+        // so the count never renders white-on-light — mirrors the bell icon's luminance fallback.
+        val badgeTextColor = dark.grandChildStr("unreadIndicator", "text", "color").toColorOrNull()
+            ?: (light?.unreadIndicator?.text?.get("color") as? String).toColorOrNull()
+            ?: if (badgeColor.luminance() > 0.5f) Color.Black else Color.White
+        // MBL-2126/2127: badge text size — dark override → light → compact default, mirroring the
+        // badge color's dark-awareness (and iOS, which resolves both from the dark override).
+        val badgeTextSize = badgeTextSizeFrom(dark.grandChildMap("unreadIndicator", "text"))
+            ?: badgeTextSizeFrom(light?.unreadIndicator?.text)
+            ?: BADGE_TEXT_SIZE
         val cornerRadius = light?.cornerRadius?.dp ?: PANEL_CORNER_RADIUS
 
         InboxColors(
@@ -722,6 +850,8 @@ private fun rememberInboxColors(branding: Branding? = null): InboxColors {
             textColorPrimary = textPrimary,
             dividerColor = dividerColor,
             badgeColor = badgeColor,
+            badgeTextColor = badgeTextColor,
+            badgeTextSize = badgeTextSize,
             cornerRadius = cornerRadius
         )
     }
@@ -733,6 +863,14 @@ private fun Map<*, *>?.str(key: String): String? = this?.get(key) as? String
 /** Reads a String from a nested child object of a raw branding (dark-mode override) map, or null. */
 private fun Map<*, *>?.childStr(child: String, key: String): String? =
     (this?.get(child) as? Map<*, *>)?.get(key) as? String
+
+/** Reads a String two objects deep in a raw branding (dark-mode override) map, or null. */
+private fun Map<*, *>?.grandChildStr(child: String, grandChild: String, key: String): String? =
+    ((this?.get(child) as? Map<*, *>)?.get(grandChild) as? Map<*, *>)?.get(key) as? String
+
+/** Reads a nested object two levels deep (e.g. `unreadIndicator.text`) from a raw branding map, or null. */
+private fun Map<*, *>?.grandChildMap(child: String, grandChild: String): Map<*, *>? =
+    (this?.get(child) as? Map<*, *>)?.get(grandChild) as? Map<*, *>
 
 /**
  * Parses a branding hex color string (`#RRGGBB` or `#RRGGBBAA`, CSS byte order) into a Compose
@@ -784,3 +922,15 @@ private const val INBOX_LOG_TAG = "[CIO-Inbox]"
 
 /** Fallback corner radius for the sheet's rounded top when branding does not configure one. */
 private val PANEL_CORNER_RADIUS = 12.dp
+
+/** MBL-2124: top/bottom inset for the message list content (paired with the compact drag handle). */
+private val LIST_VERTICAL_PADDING = 4.dp
+
+/** MBL-2124: per-message vertical padding (was a flat 16dp all sides on each row). */
+private val ITEM_VERTICAL_PADDING = 12.dp
+
+/** Bell glyph size, shared by the branded SVG and the bundled default so they render identically. */
+private val BELL_GLYPH_SIZE = 26.dp
+
+/** MBL-2127: default unread-badge text size when branding does not configure `unreadIndicator.text.size`. */
+private val BADGE_TEXT_SIZE = 10.sp

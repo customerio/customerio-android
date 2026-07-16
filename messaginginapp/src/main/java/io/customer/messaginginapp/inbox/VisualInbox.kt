@@ -83,9 +83,13 @@ class VisualInbox internal constructor(
 
     fun markMessageDeleted(message: InboxMessage) = notificationInbox.markMessageDeleted(message)
 
+    // Inbox click reporting goes through the existing generic "Report Delivery Event" metric (the
+    // in-app middleware publishes it for opened/clicked via TrackInAppMetricEvent), carrying both the
+    // action name AND value so it matches web — the CDP backend renders it as "Clicked Inbox Message"
+    // for an inbox delivery. No separate named CDP event is emitted (web doesn't send one either).
     @JvmOverloads
-    fun trackMessageClicked(message: InboxMessage, actionName: String? = null) =
-        notificationInbox.trackMessageClicked(message, actionName)
+    fun trackMessageClicked(message: InboxMessage, actionName: String? = null, actionValue: String? = null) =
+        notificationInbox.trackMessageClicked(message, actionName, actionValue)
 }
 
 /**

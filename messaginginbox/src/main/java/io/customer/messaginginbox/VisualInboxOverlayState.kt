@@ -168,6 +168,9 @@ internal class VisualInboxController(
                 .filter { !it.opened && it.queueId !in markedOpenedQueueIds }
                 .forEach { message ->
                     markedOpenedQueueIds.add(message.queueId)
+                    // markMessageOpened dispatches UpdateOpened, whose middleware reports the opened
+                    // metric via the generic `Report Delivery Event` (metric: opened) — matching web
+                    // (rendered as "Opened Inbox Message" for an inbox delivery). No named CDP event.
                     visualInbox.markMessageOpened(message)
                     // Observational host callback (item 14): a message was marked opened.
                     notifyListener { messageOpened(message) }
@@ -239,7 +242,7 @@ internal class VisualInboxController(
         // Track the click against the same InboxMessage the UI renders (resolved from the visible
         // set), reusing the existing track-clicked plumbing. Deduped per queueId so a repeated tap
         // before the row updates does not double-count.
-        trackClicked(visibility, message, name)
+        trackClicked(visibility, message, name, url)
 
         // Host interception (item 13): true => host handled it, SDK runs no default nav (but still
         // honors the dismiss flag below).
@@ -302,17 +305,29 @@ internal class VisualInboxController(
         val inboxMessage = (visibility as? InboxVisibility.Visible)
             ?.messages?.firstOrNull { it.queueId == message.queueId } ?: return
         if (!shownQueueIds.add(message.queueId)) return
+        // No "delivered" CDP event is emitted from the client — web doesn't send one; the backend
+        // synthesizes `Delivered Inbox Message` when the message is delivered to the inbox.
         notifyListener { messageShown(inboxMessage) }
     }
 
-    /** Track a clicked metric for [message], once per queueId. Reuses [VisualInbox.trackMessageClicked]. */
-    private fun trackClicked(visibility: InboxVisibility, message: JistInboxMessage, actionName: String?) {
+    /**
+     * Track a click for [message], once per queueId, via the existing generic delivery metric
+     * ([VisualInbox.trackMessageClicked]) — carrying both [actionName] and [actionValue] so the
+     * `Report Delivery Event` (metric: clicked) matches web (MBL-2125). The CDP backend renders it
+     * as "Clicked Inbox Message" for an inbox delivery; no separate named event is emitted.
+     */
+    private fun trackClicked(
+        visibility: InboxVisibility,
+        message: JistInboxMessage,
+        actionName: String?,
+        actionValue: String?
+    ) {
         val visible = visibility as? InboxVisibility.Visible ?: return
         val tracked = visible.messages.firstOrNull { it.queueId == message.queueId } ?: return
         // Reserve only AFTER confirming the message exists, so a failed lookup never permanently
         // dedupes (blocks) the click metric for later taps on the same message.
         if (!clickedQueueIds.add(message.queueId)) return
-        visualInbox.trackMessageClicked(tracked, actionName)
+        visualInbox.trackMessageClicked(tracked, actionName, actionValue)
     }
 
     /** Invoke the host listener (if any), returning true if the host handled the action. */

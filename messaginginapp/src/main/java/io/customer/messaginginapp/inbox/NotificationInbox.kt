@@ -239,13 +239,16 @@ class NotificationInbox internal constructor(
      *
      * @param message The inbox message that was clicked
      * @param actionName Optional name of the action clicked (e.g., "view_details", "dismiss")
+     * @param actionValue Optional value of the action clicked (e.g., the deep link / URL). Included
+     *   in the `Report Delivery Event` (metric: clicked) alongside the name, matching web.
      */
     @JvmOverloads
-    fun trackMessageClicked(message: InboxMessage, actionName: String? = null) {
+    fun trackMessageClicked(message: InboxMessage, actionName: String? = null, actionValue: String? = null) {
         inAppMessagingManager.dispatch(
             InAppMessagingAction.InboxAction.TrackClicked(
                 message = message,
-                actionName = actionName
+                actionName = actionName,
+                actionValue = actionValue
             )
         )
     }

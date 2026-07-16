@@ -4,17 +4,14 @@ import android.net.Uri
 import androidx.annotation.DrawableRes
 
 /**
- * An image asset registered by the host app and addressable by a string `key`
- * from live-notification templates (e.g. a team `logoKey`) and branding
- * ([LiveNotificationBranding.logoAssetKey]).
+ * A strongly-typed image source for a live notification, passed directly to
+ * [LiveNotificationBranding.logo] (the color large icon).
  *
- * Mirrors the behavior of the iOS asset library — assets are declared once at
- * configuration time and resolved by key when a notification renders — without
- * the iOS-specific on-disk machinery (App Group container, manifest, hashing):
- * Android live notifications render in-process, so a registered source is loaded
- * directly when needed.
- *
- * Register via [io.customer.messagingpush.MessagingPushModuleConfig.Builder.registerLiveNotificationAsset].
+ * The host app hands the SDK the image it wants rendered — a bundled drawable,
+ * a `content://`/`file://` URI, raw bytes, or a remote URL — and the SDK loads
+ * it when the notification renders. Android live notifications render in-process,
+ * so the source is resolved directly when needed (no iOS-style App Group
+ * container, manifest, or key registry).
  */
 sealed interface LiveNotificationAsset {
     /** A bundled drawable resource. */
@@ -30,4 +27,7 @@ sealed interface LiveNotificationAsset {
 
         override fun hashCode(): Int = data.contentHashCode()
     }
+
+    /** A remote http(s) image, downloaded and disk-cached at render time. */
+    data class RemoteUrl(val url: String) : LiveNotificationAsset
 }

@@ -53,7 +53,12 @@ internal class LiveNotificationRegistrar(
     fun start() {
         // One-time cleanup of registration signatures left over from the old built-in
         // namespace, so the new identifiers register cleanly on the next identify.
-        store.migrate()
+        val clearedByMigration = store.migrate()
+        if (clearedByMigration > 0) {
+            SDKComponent.logger.debug(
+                "Live Notifications: migration cleared $clearedByMigration stale registration(s) from the old namespace."
+            )
+        }
         // Drop dedup entries for activities that ended long ago without an explicit `end`.
         store.trimStaleTimestamps()
 
@@ -95,7 +100,16 @@ internal class LiveNotificationRegistrar(
     private fun registerAll() {
         // Register only for identified users. This is the single identity gate for registration;
         // the client no longer re-checks the (laggy) pipeline flag for the token event.
-        if (!isIdentified) return
+        if (!isIdentified) {
+            // Held: a token captured while anonymous is not sent (matches the iOS registrar). It
+            // re-fires automatically on the next identify (registerAll runs from onUserChanged).
+            if (token != null && enabledTypes.isNotEmpty()) {
+                SDKComponent.logger.debug(
+                    "Live Notifications: holding push-to-start registration for ${enabledTypes.size} type(s); no identified user."
+                )
+            }
+            return
+        }
         val currentToken = token ?: return
         val signature = "$currentToken|$userId"
         for (activityType in enabledTypes) {

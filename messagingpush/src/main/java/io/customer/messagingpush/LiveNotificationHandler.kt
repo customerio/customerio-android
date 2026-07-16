@@ -145,7 +145,7 @@ internal class LiveNotificationHandler(
         val template = TemplateRegistry.find(activityType)
         val data = extractData(bundle)
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
-        val effectiveSmallIcon = resolveSmallIcon(context, branding, smallIcon)
+        val effectiveSmallIcon = resolveSmallIcon(branding, smallIcon)
 
         val result = template?.render(
             context = context,
@@ -156,11 +156,11 @@ internal class LiveNotificationHandler(
         )?.let { rendered ->
             // The brand logo fills the color large-icon slot when the active template
             // didn't set one of its own. (The small icon is handled separately above
-            // via the drawable-only logoDrawableName.) Skip when the activity is about
-            // to be cancelled so we don't resolve/download a logo for nothing.
-            val brandingLogoKey = branding?.logoAssetKey
-            if (!rendered.cancelImmediately && rendered.largeIcon == null && !brandingLogoKey.isNullOrBlank()) {
-                rendered.copy(largeIcon = TemplateAssets.resolveBitmap(context, brandingLogoKey))
+            // via the drawable-only smallIcon.) Skip when the activity is about to be
+            // cancelled so we don't resolve/download a logo for nothing.
+            val brandingLogo = branding?.logo
+            if (!rendered.cancelImmediately && rendered.largeIcon == null && brandingLogo != null) {
+                rendered.copy(largeIcon = TemplateAssets.toBitmap(context, brandingLogo))
             } else {
                 rendered
             }
@@ -352,12 +352,12 @@ internal class LiveNotificationHandler(
 
     @DrawableRes
     private fun resolveSmallIcon(
-        context: Context,
         branding: LiveNotificationBranding?,
         fallback: Int
     ): Int {
-        // Reuses TemplateAssets' kebab→snake normalization + drawable lookup.
-        return TemplateAssets.resolveDrawable(context, branding?.logoDrawableName) ?: fallback
+        // Branding may override the status-bar glyph with a bundled drawable; otherwise
+        // fall back to the small icon declared in FCM metadata.
+        return branding?.smallIcon ?: fallback
     }
 
     private fun createIntentForNotificationClick(

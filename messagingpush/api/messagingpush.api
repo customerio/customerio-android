@@ -22,9 +22,8 @@ public final class io/customer/messagingpush/CustomerIOFirebaseMessagingService$
 
 public final class io/customer/messagingpush/MessagingPushModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
 	public static final field Companion Lio/customer/messagingpush/MessagingPushModuleConfig$Companion;
-	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/util/Set;Ljava/util/Map;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/util/Set;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAutoTrackPushEvents ()Z
-	public final fun getLiveNotificationAssets ()Ljava/util/Map;
 	public final fun getLiveNotificationBranding ()Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
 	public final fun getLiveNotificationTypes ()Ljava/util/Set;
 	public final fun getNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;
@@ -38,9 +37,6 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig$Builder :
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public final fun enableCustomLiveNotificationTypes ([Ljava/lang/String;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun enableLiveNotificationTypes ([Lio/customer/messagingpush/livenotification/LiveNotificationType;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
-	public final fun registerLiveNotificationAsset (Ljava/lang/String;I)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
-	public final fun registerLiveNotificationAsset (Ljava/lang/String;Landroid/net/Uri;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
-	public final fun registerLiveNotificationAsset (Ljava/lang/String;[B)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setAutoTrackPushEvents (Z)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setLiveNotificationBranding (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
 	public final fun setNotificationCallback (Lio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;)Lio/customer/messagingpush/MessagingPushModuleConfig$Builder;
@@ -160,6 +156,17 @@ public final class io/customer/messagingpush/livenotification/LiveNotificationAs
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/customer/messagingpush/livenotification/LiveNotificationAsset$RemoteUrl : io/customer/messagingpush/livenotification/LiveNotificationAsset {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationAsset$RemoteUrl;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationAsset$RemoteUrl;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationAsset$RemoteUrl;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getUrl ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/messagingpush/livenotification/LiveNotificationAsset$Resource : io/customer/messagingpush/livenotification/LiveNotificationAsset {
 	public fun <init> (Landroid/net/Uri;)V
 	public final fun component1 ()Landroid/net/Uri;
@@ -172,19 +179,19 @@ public final class io/customer/messagingpush/livenotification/LiveNotificationAs
 }
 
 public final class io/customer/messagingpush/livenotification/LiveNotificationBranding {
-	public fun <init> (Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;ILjava/lang/Integer;Lio/customer/messagingpush/livenotification/LiveNotificationAsset;)V
+	public synthetic fun <init> (Ljava/lang/String;ILjava/lang/Integer;Lio/customer/messagingpush/livenotification/LiveNotificationAsset;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()I
-	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
-	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Lio/customer/messagingpush/livenotification/LiveNotificationAsset;
+	public final fun copy (Ljava/lang/String;ILjava/lang/Integer;Lio/customer/messagingpush/livenotification/LiveNotificationAsset;)Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
+	public static synthetic fun copy$default (Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/lang/String;ILjava/lang/Integer;Lio/customer/messagingpush/livenotification/LiveNotificationAsset;ILjava/lang/Object;)Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAccentColor ()I
 	public final fun getCompanyName ()Ljava/lang/String;
-	public final fun getLogoAssetKey ()Ljava/lang/String;
-	public final fun getLogoDrawableName ()Ljava/lang/String;
+	public final fun getLogo ()Lio/customer/messagingpush/livenotification/LiveNotificationAsset;
+	public final fun getSmallIcon ()Ljava/lang/Integer;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

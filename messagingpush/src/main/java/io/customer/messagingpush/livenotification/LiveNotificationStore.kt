@@ -31,14 +31,17 @@ internal class LiveNotificationStore(context: Context) {
      * re-registers under the new identifiers instead of treating the old ones as
      * already-registered. Idempotent: after the stale keys are gone it is a no-op,
      * and it never touches signatures for the new namespace or custom types.
+     *
+     * @return the number of stale registration signatures cleared (0 on a no-op run).
      */
-    fun migrate() {
+    fun migrate(): Int {
         val stale = prefs.all.keys.filter {
             it.startsWith(REG_PREFIX) && it.contains(LEGACY_ACTIVITY_TYPE_PREFIX)
         }
         if (stale.isNotEmpty()) {
             prefs.edit { stale.forEach { remove(it) } }
         }
+        return stale.size
     }
 
     // --- Registration dedup (per activity_type) ---

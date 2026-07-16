@@ -8,8 +8,6 @@ import android.graphics.drawable.BitmapDrawable
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
-import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.extensions.getDrawableByName
 import io.customer.messagingpush.livenotification.LiveNotificationAsset
 import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.sdk.core.di.SDKComponent
@@ -17,58 +15,35 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * Resolves a live-notification image key to a [Bitmap], in priority order:
+ * Resolves a strongly-typed [LiveNotificationAsset] to a [Bitmap] for the
+ * notification's color large-icon slot:
  *
- *  1. **Remote URL** (`http`/`https`) — downloaded via [BitmapDownloader] and
- *     cached on disk so re-renders of the same activity don't re-fetch.
- *  2. **Registered asset** — a key declared by the host app via
- *     `registerLiveNotificationAsset` (drawable / URI / raw bytes).
- *  3. **Bundled drawable** — a `R.drawable.*` entry looked up by name. Keys are
- *     kebab-case in the spec (e.g. `delivery-warehouse`) but Android resource
- *     names only allow `[a-z0-9_]`, so hyphens are normalized to underscores.
- *
- * The notification **small icon** is not a bitmap slot (Android requires a
- * drawable resource there); [resolveDrawable] keeps the drawable-name-only path
- * for that case.
+ *  - [LiveNotificationAsset.Drawable] — a bundled `R.drawable.*` resource.
+ *  - [LiveNotificationAsset.Bytes] — raw encoded image bytes (PNG/JPEG/…).
+ *  - [LiveNotificationAsset.Resource] — a `file://`/`content://`/`android.resource://` image.
+ *  - [LiveNotificationAsset.RemoteUrl] — an `http(s)` image, downloaded via
+ *    [BitmapDownloader] and cached on disk so re-renders of the same activity
+ *    don't re-fetch.
  */
 internal object TemplateAssets {
 
     private const val URL_CACHE_DIR = "cio_live_notification_assets"
 
-    @DrawableRes
-    fun resolveDrawable(context: Context, key: String?): Int? {
-        if (key.isNullOrBlank()) return null
-        val normalized = key.replace('-', '_')
-        val resolved = context.getDrawableByName(normalized)
-        if (resolved == null) {
-            // The key was specified but no drawable matched. This is a configuration
-            // mismatch (server pushing keys the host app hasn't bundled). The template
-            // still renders — large-icon slot stays empty per "design for absence" —
-            // but a warning surfaces so developers can diagnose missing assets.
-            SDKComponent.logger.debug(
-                "Live notification asset key '$key' did not resolve to a drawable; rendering without it."
-            )
+    fun toBitmap(context: Context, asset: LiveNotificationAsset): Bitmap? =
+        try {
+            when (asset) {
+                is LiveNotificationAsset.Drawable -> drawableResToBitmap(context, asset.resId)
+                is LiveNotificationAsset.Bytes -> BitmapFactory.decodeByteArray(asset.data, 0, asset.data.size)
+                is LiveNotificationAsset.Resource ->
+                    context.contentResolver.openInputStream(asset.uri).use { stream ->
+                        stream?.let { BitmapFactory.decodeStream(it) }
+                    }
+                is LiveNotificationAsset.RemoteUrl -> downloadCached(context, asset.url)
+            }
+        } catch (e: Exception) {
+            SDKComponent.logger.error("Failed to load live notification asset: ${e.message}")
+            null
         }
-        return resolved
-    }
-
-    fun resolveBitmap(context: Context, key: String?): Bitmap? {
-        if (key.isNullOrBlank()) return null
-
-        // 1. Remote URL.
-        if (isRemoteUrl(key)) {
-            return downloadCached(context, key)
-        }
-
-        // 2. Host-registered asset.
-        SDKComponent.pushModuleConfig.liveNotificationAssets[key]?.let { asset ->
-            return loadRegisteredAsset(context, key, asset)
-        }
-
-        // 3. Bundled drawable by name.
-        val res = resolveDrawable(context, key) ?: return null
-        return drawableResToBitmap(context, res)
-    }
 
     fun drawableResToBitmap(context: Context, @DrawableRes res: Int): Bitmap? {
         val drawable = ContextCompat.getDrawable(context, res) ?: return null
@@ -88,24 +63,6 @@ internal object TemplateAssets {
             null
         }
     }
-
-    private fun isRemoteUrl(key: String): Boolean =
-        key.startsWith("http://", ignoreCase = true) || key.startsWith("https://", ignoreCase = true)
-
-    private fun loadRegisteredAsset(context: Context, key: String, asset: LiveNotificationAsset): Bitmap? =
-        try {
-            when (asset) {
-                is LiveNotificationAsset.Drawable -> drawableResToBitmap(context, asset.resId)
-                is LiveNotificationAsset.Bytes -> BitmapFactory.decodeByteArray(asset.data, 0, asset.data.size)
-                is LiveNotificationAsset.Resource ->
-                    context.contentResolver.openInputStream(asset.uri).use { stream ->
-                        stream?.let { BitmapFactory.decodeStream(it) }
-                    }
-            }
-        } catch (e: Exception) {
-            SDKComponent.logger.error("Failed to load registered live notification asset '$key': ${e.message}")
-            null
-        }
 
     /**
      * Downloads [url] (caching the bytes on disk under the app cache dir) so the

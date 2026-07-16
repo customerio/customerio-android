@@ -1,11 +1,8 @@
 package io.customer.messagingpush
 
-import android.net.Uri
-import androidx.annotation.DrawableRes
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTART
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
-import io.customer.messagingpush.livenotification.LiveNotificationAsset
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.sdk.core.module.CustomerIOModuleConfig
@@ -21,16 +18,13 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
  * live notifications. `null` means templates fall back to FCM metadata values.
  * @property liveNotificationTypes activity type identifiers (built-in + custom)
  * the host app enabled.
- * @property liveNotificationAssets host-registered image assets, addressable by
- * key from templates and branding.
  */
 class MessagingPushModuleConfig private constructor(
     val autoTrackPushEvents: Boolean,
     val notificationCallback: CustomerIOPushNotificationCallback?,
     val pushClickBehavior: PushClickBehavior,
     val liveNotificationBranding: LiveNotificationBranding?,
-    val liveNotificationTypes: Set<String>,
-    val liveNotificationAssets: Map<String, LiveNotificationAsset>
+    val liveNotificationTypes: Set<String>
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
@@ -38,7 +32,6 @@ class MessagingPushModuleConfig private constructor(
         private var pushClickBehavior: PushClickBehavior = ACTIVITY_PREVENT_RESTART
         private var liveNotificationBranding: LiveNotificationBranding? = null
         private val liveNotificationTypes: MutableSet<String> = mutableSetOf()
-        private val liveNotificationAssets: MutableMap<String, LiveNotificationAsset> = mutableMapOf()
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -114,48 +107,19 @@ class MessagingPushModuleConfig private constructor(
             return this
         }
 
-        /**
-         * Registers a bundled drawable as a live-notification image asset,
-         * addressable by [key] from templates (e.g. a team `logoKey`) and from
-         * [LiveNotificationBranding.logoAssetKey].
-         */
-        fun registerLiveNotificationAsset(key: String, @DrawableRes resId: Int): Builder {
-            liveNotificationAssets[key] = LiveNotificationAsset.Drawable(resId)
-            return this
-        }
-
-        /**
-         * Registers an image [uri] (`file://`, `content://`, or
-         * `android.resource://`) as a live-notification asset addressable by [key].
-         */
-        fun registerLiveNotificationAsset(key: String, uri: Uri): Builder {
-            liveNotificationAssets[key] = LiveNotificationAsset.Resource(uri)
-            return this
-        }
-
-        /**
-         * Registers raw encoded image [bytes] (PNG/JPEG/…) as a live-notification
-         * asset addressable by [key].
-         */
-        fun registerLiveNotificationAsset(key: String, bytes: ByteArray): Builder {
-            liveNotificationAssets[key] = LiveNotificationAsset.Bytes(bytes)
-            return this
-        }
-
         override fun build(): MessagingPushModuleConfig {
             return MessagingPushModuleConfig(
                 autoTrackPushEvents = autoTrackPushEvents,
                 notificationCallback = notificationCallback,
                 pushClickBehavior = pushClickBehavior,
                 liveNotificationBranding = liveNotificationBranding,
-                liveNotificationTypes = liveNotificationTypes.toSet(),
-                liveNotificationAssets = liveNotificationAssets.toMap()
+                liveNotificationTypes = liveNotificationTypes.toSet()
             )
         }
     }
 
     override fun toString(): String {
-        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes, liveNotificationAssets=$liveNotificationAssets)"
+        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes)"
     }
 
     companion object {

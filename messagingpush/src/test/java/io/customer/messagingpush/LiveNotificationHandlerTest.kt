@@ -6,6 +6,8 @@ import android.os.Bundle
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.livenotification.LiveNotificationAsset
+import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.testutils.core.IntegrationTest
@@ -14,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeNull
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -212,6 +215,60 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         verify(exactly = 1) {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
+    }
+
+    // --- Branding (small icon + large-icon logo) ---
+
+    @Test
+    fun handle_givenBrandingLogo_rendersLogoAsLargeIcon() {
+        // Segments is branding-only (sets no largeIcon of its own), so the handler fills the
+        // color large-icon slot from branding.logo — a strongly-typed LiveNotificationAsset.
+        attachBranding(
+            LiveNotificationBranding(
+                companyName = "Acme",
+                accentColor = 0xFF00FF00.toInt(),
+                logo = LiveNotificationAsset.Bytes(byteArrayOf(1, 2, 3, 4))
+            )
+        )
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        invoke(handlerFor(newBundle()))
+
+        posted.captured.getLargeIcon().shouldNotBeNull()
+    }
+
+    @Test
+    fun handle_givenBrandingSmallIcon_overridesFallback() {
+        // invoke() passes fallback smallIcon = 0; branding.smallIcon must override it.
+        val brandedSmallIcon = android.R.drawable.ic_dialog_info
+        attachBranding(
+            LiveNotificationBranding(
+                companyName = "Acme",
+                accentColor = 0xFF00FF00.toInt(),
+                smallIcon = brandedSmallIcon
+            )
+        )
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        invoke(handlerFor(newBundle()))
+
+        // The legacy int `icon` field mirrors the resId passed to setSmallIcon.
+        @Suppress("DEPRECATION")
+        posted.captured.icon shouldBeEqualTo brandedSmallIcon
+    }
+
+    private fun attachBranding(branding: LiveNotificationBranding) {
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .enableLiveNotificationTypes(
+                    LiveNotificationType.SEGMENTS,
+                    LiveNotificationType.COUNTDOWN_TIMER
+                )
+                .setLiveNotificationBranding(branding)
+                .build()
+        ).attachToSDKComponent()
     }
 
     // --- Missing required fields short-circuit ---

@@ -45,7 +45,11 @@ internal object SegmentsTemplate : LiveNotificationTemplate {
             return null
         }
 
-        val segments = List(segmentsTotal) { SegmentSpec(length = 1) }
+        // Colour the segments with the brand accent so the progress bar itself reads as branded:
+        // the system renders the completed portion (up to `progress`) solid and dims the upcoming
+        // portion, so a single accent gives the filled/faded split (mirrors the iOS segmented bar).
+        val accent = branding?.accentColor ?: fallbackTintColor
+        val segments = List(segmentsTotal) { SegmentSpec(length = 1, color = accent) }
 
         return TemplateRenderResult(
             title = status,
@@ -57,7 +61,7 @@ internal object SegmentsTemplate : LiveNotificationTemplate {
             // Branding-only: no per-push image. The handler fills largeIcon from the branding
             // logo when this is null.
             largeIcon = null,
-            accentColor = branding?.accentColor ?: fallbackTintColor,
+            accentColor = accent,
             colorized = false,
             showProgress = true,
             progress = segmentsComplete.coerceIn(0, segmentsTotal),

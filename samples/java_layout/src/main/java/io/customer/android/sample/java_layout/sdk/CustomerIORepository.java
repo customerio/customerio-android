@@ -21,6 +21,7 @@ import android.graphics.Color;
 import io.customer.android.sample.java_layout.R;
 import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.livenotification.LiveNotificationAsset;
 import io.customer.messagingpush.livenotification.LiveNotificationBranding;
 import io.customer.messagingpush.livenotification.LiveNotificationType;
 import io.customer.sdk.CustomerIO;
@@ -54,17 +55,14 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
+                        // One app-level brand applied to every live notification (Android branding
+                        // is app identity — accent + logo — not per-template styling like iOS).
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",
-                                Color.parseColor("#1B5E20"),
-                                // logoDrawableName: drawable-only small icon (status bar glyph).
-                                null,
-                                // logoAssetKey: color large-icon fallback, resolved through the
-                                // asset pipeline (here a registered asset key, below).
-                                "brand-logo"
+                                Color.parseColor("#FF6A00"),
+                                R.drawable.ic_live_delivery,                                        // @DrawableRes small icon
+                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_logo) // typed logo, no registry
                         ))
-                        // Register an image asset addressable by key from templates/branding.
-                        .registerLiveNotificationAsset("brand-logo", R.drawable.flash_sale_hero)
                         // App-rendered custom types go through this callback.
                         .setNotificationCallback(new LiveNotificationCallback())
                         // Live notifications are opt-in: enable the built-in template types...

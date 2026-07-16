@@ -6,6 +6,8 @@ import android.os.Bundle
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.livenotification.LiveNotificationAsset
+import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.testutils.core.IntegrationTest
@@ -14,22 +16,22 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeNull
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.shadows.ShadowLooper
 
 /**
  * Tests for [LiveNotificationHandler] focused on envelope parsing and dispatch:
  *
- * - top-level wire keys (`activity_id`, `event`, `activity_type`, `timestamp`,
- *   `dismissal_date`) are read from the [Bundle];
- * - template fields arrive flattened at the envelope top level (no
- *   `attributes` / `content_state` split);
- * - missing `activity_id`, `event`, or unknown `activity_type` are dropped
+ * - top-level wire keys (`cioInstanceId`, `event`, `notification_type`, `timestamp`)
+ *   are read from the [Bundle];
+ * - template fields arrive flattened at the envelope top level or nested under
+ *   a `payload` object;
+ * - missing `cioInstanceId`, `event`, or unknown `notification_type` are dropped
  *   without posting a notification;
- * - `event = "end"` cancels the notification immediately.
+ * - `event = "end"` posts the final state and leaves it visible for the user to dismiss.
  *
  * The actual rendered notification is opaque to these tests — that's covered by
  * the per-template render tests. Here we only assert the dispatch contract.
@@ -44,12 +46,9 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         super.setup(testConfig)
         // Live notifications are opt-in; enable all built-in types so the dispatch tests run.
         ModuleMessagingPushFCM(
-            MessagingPushModuleConfig.Builder().setLiveNotificationTypes(
-                LiveNotificationType.DELIVERY_TRACKING,
-                LiveNotificationType.FLIGHT_STATUS,
-                LiveNotificationType.LIVE_SCORE,
-                LiveNotificationType.COUNTDOWN_TIMER,
-                LiveNotificationType.AUCTION_BID
+            MessagingPushModuleConfig.Builder().enableLiveNotificationTypes(
+                LiveNotificationType.SEGMENTS,
+                LiveNotificationType.COUNTDOWN_TIMER
             ).build()
         ).attachToSDKComponent()
     }
@@ -57,17 +56,22 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     private fun newBundle(
         activityId: String? = "live-act-1",
         event: String? = "start",
-        activityType: String? = TemplateRegistry.DELIVERY_TRACKING,
-        data: JSONObject = JSONObject(),
-        timestamp: Long? = null,
-        dismissalDate: Long? = null
+        activityType: String? = TemplateRegistry.SEGMENTS,
+        // Minimal renderable content: Segments treats `status` as required and CountdownTimer
+        // treats `title` as required, so supplying both means envelope/ordering tests post a
+        // notification for either template rather than being dropped by the "no usable content"
+        // guard (which is exercised separately).
+        data: JSONObject = JSONObject().apply {
+            put("status", "Status")
+            put("title", "Status")
+        },
+        timestamp: Long? = null
     ): Bundle {
         val bundle = Bundle()
-        if (activityId != null) bundle.putString(LiveNotificationHandler.ACTIVITY_ID_KEY, activityId)
+        if (activityId != null) bundle.putString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY, activityId)
         if (event != null) bundle.putString(LiveNotificationHandler.EVENT_KEY, event)
-        if (activityType != null) bundle.putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
+        if (activityType != null) bundle.putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
         if (timestamp != null) bundle.putString(LiveNotificationHandler.TIMESTAMP_KEY, timestamp.toString())
-        if (dismissalDate != null) bundle.putString(LiveNotificationHandler.DISMISSAL_DATE_KEY, dismissalDate.toString())
         // Template fields ride flattened at the top level, as the backend delivers them.
         for (key in data.keys()) bundle.putString(key, data.get(key).toString())
         return bundle
@@ -93,23 +97,19 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     fun envelopeKeys_areTheCrossPlatformSpecKeys() {
         // Lock the wire-format constants so any future rename surfaces here.
         // Failure to update both the SDK and CIO backend would silently break live notifications.
-        LiveNotificationHandler.ACTIVITY_ID_KEY shouldBeEqualTo "activity_id"
+        LiveNotificationHandler.CIO_INSTANCE_ID_KEY shouldBeEqualTo "cioInstanceId"
         LiveNotificationHandler.EVENT_KEY shouldBeEqualTo "event"
-        LiveNotificationHandler.ACTIVITY_TYPE_KEY shouldBeEqualTo "activity_type"
+        LiveNotificationHandler.NOTIFICATION_TYPE_KEY shouldBeEqualTo "notification_type"
         LiveNotificationHandler.TIMESTAMP_KEY shouldBeEqualTo "timestamp"
-        LiveNotificationHandler.DISMISSAL_DATE_KEY shouldBeEqualTo "dismissal_date"
     }
 
     // --- Happy-path dispatch ---
 
     @Test
-    fun handle_givenAllFiveTemplates_postsNotificationForEach() {
+    fun handle_givenBothTemplates_postsNotificationForEach() {
         val templates = listOf(
-            TemplateRegistry.DELIVERY_TRACKING,
-            TemplateRegistry.FLIGHT_STATUS,
-            TemplateRegistry.LIVE_SCORE,
-            TemplateRegistry.COUNTDOWN_TIMER,
-            TemplateRegistry.AUCTION_BID
+            TemplateRegistry.SEGMENTS,
+            TemplateRegistry.COUNTDOWN_TIMER
         )
         for (activityType in templates) {
             invoke(handlerFor(newBundle(activityType = activityType)))
@@ -125,13 +125,52 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         val activityId = "live-activity-id-xyz"
         val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
         val data = JSONObject().apply {
-            put("orderId", "A-1")
-            put("recipientName", "User")
-            put("statusMessage", "Out for delivery")
-            put("stepCurrent", 2)
-            put("stepTotal", 4)
+            put("status", "Out for delivery")
+            put("substatus", "For User")
+            put("segmentsTotal", 4)
+            put("segmentsComplete", 2)
         }
         val bundle = newBundle(activityId = activityId, data = data)
+
+        invoke(handlerFor(bundle))
+
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenUpdateEvent_postsNotificationInPlace() {
+        // A server-pushed `update` re-renders the activity (same id) rather than being dropped.
+        // It is NOT reported as a lifecycle event — the backend initiated it, so it already knows.
+        val activityId = "live-activity-update"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+        val bundle = newBundle(activityId = activityId, event = "update")
+
+        invoke(handlerFor(bundle))
+
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenTemplateFieldsNestedUnderPayload_unwrapsAndPosts() {
+        // Backend delivers template fields nested under a `payload` object (JSON string),
+        // not flattened. The handler must unwrap them so the template renders.
+        val activityId = "payload-nested"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+        val bundle = newBundle(activityId = activityId, data = JSONObject()).apply {
+            putString(
+                LiveNotificationHandler.PAYLOAD_KEY,
+                JSONObject().apply {
+                    put("status", "preparing")
+                    put("substatus", "order abc-123")
+                    put("segmentsTotal", 4)
+                    put("segmentsComplete", 1)
+                }.toString()
+            )
+        }
 
         invoke(handlerFor(bundle))
 
@@ -149,7 +188,8 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
         val data = JSONObject().apply {
             put("title", "Flash Sale")
-            put("targetDate", System.currentTimeMillis() + 60_000L)
+            // Epoch SECONDS on the wire (60s ahead), not millis.
+            put("endTime", System.currentTimeMillis() / 1000 + 60L)
             put("statusMessage", "Sale starts in")
         }
         invoke(handlerFor(newBundle(activityType = TemplateRegistry.COUNTDOWN_TIMER, data = data)))
@@ -159,21 +199,76 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     @Test
     fun handle_givenNestedJsonFieldAsString_parsesAndPosts() {
-        // Nested objects (origin, homeTeam, …) arrive as JSON strings in FCM data;
-        // the handler parses them so templates can read the nested values.
+        // Nested objects can arrive as JSON strings in FCM data; the handler parses them into
+        // JSON containers. The 2 built-in templates read only flat fields, so a stray nested
+        // object is simply ignored — but parsing it must not break rendering.
         val data = JSONObject().apply {
-            put("flightNumber", "AA1")
-            put("origin", JSONObject().put("code", "JFK"))
-            put("destination", JSONObject().put("code", "LAX"))
-            put("statusMessage", "On time")
+            put("status", "On the way")
+            put("segmentsTotal", 3)
+            put("segmentsComplete", 1)
+            put("extra", JSONObject().put("ignored", "value"))
         }
-        val bundle = newBundle(activityType = TemplateRegistry.FLIGHT_STATUS, data = data)
+        val bundle = newBundle(activityType = TemplateRegistry.SEGMENTS, data = data)
 
         invoke(handlerFor(bundle))
 
         verify(exactly = 1) {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
+    }
+
+    // --- Branding (small icon + large-icon logo) ---
+
+    @Test
+    fun handle_givenBrandingLogo_rendersLogoAsLargeIcon() {
+        // Segments is branding-only (sets no largeIcon of its own), so the handler fills the
+        // color large-icon slot from branding.logo — a strongly-typed LiveNotificationAsset.
+        attachBranding(
+            LiveNotificationBranding(
+                companyName = "Acme",
+                accentColor = 0xFF00FF00.toInt(),
+                logo = LiveNotificationAsset.Bytes(byteArrayOf(1, 2, 3, 4))
+            )
+        )
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        invoke(handlerFor(newBundle()))
+
+        posted.captured.getLargeIcon().shouldNotBeNull()
+    }
+
+    @Test
+    fun handle_givenBrandingSmallIcon_overridesFallback() {
+        // invoke() passes fallback smallIcon = 0; branding.smallIcon must override it.
+        val brandedSmallIcon = android.R.drawable.ic_dialog_info
+        attachBranding(
+            LiveNotificationBranding(
+                companyName = "Acme",
+                accentColor = 0xFF00FF00.toInt(),
+                smallIcon = brandedSmallIcon
+            )
+        )
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        invoke(handlerFor(newBundle()))
+
+        // The legacy int `icon` field mirrors the resId passed to setSmallIcon.
+        @Suppress("DEPRECATION")
+        posted.captured.icon shouldBeEqualTo brandedSmallIcon
+    }
+
+    private fun attachBranding(branding: LiveNotificationBranding) {
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .enableLiveNotificationTypes(
+                    LiveNotificationType.SEGMENTS,
+                    LiveNotificationType.COUNTDOWN_TIMER
+                )
+                .setLiveNotificationBranding(branding)
+                .build()
+        ).attachToSDKComponent()
     }
 
     // --- Missing required fields short-circuit ---
@@ -198,6 +293,25 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     }
 
     @Test
+    fun handle_givenStartWithNoContentFields_doesNotPostEmptyNotification() {
+        // Enabled type + valid envelope, but the template fields never arrived (e.g. content
+        // wasn't flattened). The template can't render anything meaningful, so we must NOT post
+        // a blank notification.
+        val bundle = newBundle(
+            activityId = "no-content",
+            event = "start",
+            activityType = TemplateRegistry.SEGMENTS,
+            data = JSONObject()
+        )
+
+        invoke(handlerFor(bundle))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
     fun handle_givenMissingActivityType_dropsAndDoesNotNotify() {
         invoke(handlerFor(newBundle(activityType = null)))
 
@@ -208,7 +322,7 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     @Test
     fun handle_givenUnknownActivityType_dropsAndDoesNotNotify() {
-        invoke(handlerFor(newBundle(activityType = "io.customer.liveactivities.bogus")))
+        invoke(handlerFor(newBundle(activityType = "io.customer.livenotifications.bogus")))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
@@ -217,33 +331,47 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     @Test
     fun handle_givenBareTemplateNameWithoutSpecPrefix_dropsAndDoesNotNotify() {
-        // The cross-platform spec requires the `io.customer.liveactivities.` prefix.
-        // Bare names like "deliverytracking" must be rejected to stay aligned with iOS.
-        invoke(handlerFor(newBundle(activityType = "deliverytracking")))
+        // The cross-platform spec requires the `io.customer.livenotifications.` prefix.
+        // Bare names like "segments" must be rejected to stay aligned with iOS.
+        invoke(handlerFor(newBundle(activityType = "segments")))
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
     }
 
-    // --- End event dismisses immediately ---
+    // --- End event: final state stays posted and dismissible ---
 
     @Test
-    fun handle_givenEventEnd_cancelsImmediately() {
+    fun handle_givenEventEnd_postsEndStateAndLeavesVisible() {
         val activityId = "ending-activity"
         val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
         val bundle = newBundle(activityId = activityId, event = "end")
 
         invoke(handlerFor(bundle))
 
-        // Final state is posted, then removed immediately (dismissal_date scheduling
-        // arrives with the lifecycle-reporting work).
+        // The end-state is posted and must REMAIN visible for the user to swipe away — the SDK
+        // never auto-removes an ended activity (matching iOS, which leaves it on screen).
         verify(exactly = 1) {
             notificationManager.notify(activityId, expectedNotifId, any<Notification>())
         }
-        verify(exactly = 1) {
+        assertCalledNever {
             notificationManager.cancel(activityId, expectedNotifId)
         }
+    }
+
+    @Test
+    fun handle_givenEventEnd_postsUserDismissibleNotification() {
+        val activityId = "ending-dismissible"
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+        val bundle = newBundle(activityId = activityId, event = "end")
+
+        invoke(handlerFor(bundle))
+
+        // Non-ongoing so a swipe removes it; auto-cancel so a tap clears it.
+        (posted.captured.flags and Notification.FLAG_ONGOING_EVENT) shouldBeEqualTo 0
+        (posted.captured.flags and Notification.FLAG_AUTO_CANCEL) shouldBeEqualTo Notification.FLAG_AUTO_CANCEL
     }
 
     @Test
@@ -289,47 +417,18 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         }
     }
 
-    // --- dismissal_date scheduling on end ---
-
     @Test
-    fun handle_givenEndWithFutureDismissalDate_cancelsOnlyAfterDelay() {
-        val activityId = "scheduled-end"
-        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
-        val bundle = newBundle(
-            activityId = activityId,
-            event = "end",
-            dismissalDate = System.currentTimeMillis() + 60_000L
-        )
-
-        invoke(handlerFor(bundle))
-
-        // Posted now, but not cancelled until the dismissal_date is reached.
-        verify(exactly = 1) {
-            notificationManager.notify(activityId, expectedNotifId, any<Notification>())
-        }
-        assertCalledNever {
-            notificationManager.cancel(activityId, expectedNotifId)
-        }
-
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-
-        verify(exactly = 1) {
-            notificationManager.cancel(activityId, expectedNotifId)
-        }
-    }
-
-    @Test
-    fun handle_givenStaleEndTimestamp_stillCancels() {
-        // `end` is terminal and bypasses the out-of-order guard, so it always cancels
-        // even if its timestamp is not newer than the last update.
+    fun handle_givenStaleEndTimestamp_stillRendersEndState() {
+        // `end` is terminal and bypasses the out-of-order guard, so it still renders its
+        // final state even if its timestamp is not newer than the last update.
         val activityId = "stale-end"
-        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
 
         invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
         invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 50L)))
 
-        verify(exactly = 1) {
-            notificationManager.cancel(activityId, expectedNotifId)
+        // Both the update and the stale end post (2 notifies); the SDK never cancels on end.
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }
     }
 

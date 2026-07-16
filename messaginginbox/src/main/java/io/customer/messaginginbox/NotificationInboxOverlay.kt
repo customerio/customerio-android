@@ -389,10 +389,10 @@ private fun InboxListContent(
                     // returns a nav instruction; we (owning the Context) run it.
                     when (val nav = controller.handleAction(state.visibility, message, event)) {
                         is InboxNavigation.OpenUrl -> {
-                            // Open externally, then dismiss so the inbox doesn't linger behind the
-                            // browser / destination when the user returns.
-                            openUrlInBrowser(context, nav.url)
-                            onNavigatedAway?.invoke()
+                            // Open externally; on success dismiss so the inbox doesn't linger behind the
+                            // browser / destination. A failed open (no browser / bad url) keeps the sheet
+                            // up rather than closing onto nothing (mirrors OpenDeeplink).
+                            if (openUrlInBrowser(context, nav.url)) onNavigatedAway?.invoke()
                         }
                         is InboxNavigation.OpenDeeplink -> {
                             // Route through the app's deep-link handling; on success, dismiss so the
@@ -468,14 +468,20 @@ private fun InboxMessageList(
  * Default navigation for a resolved openUrl action (item 12): open [url] in the system browser via
  * an ACTION_VIEW intent. `FLAG_ACTIVITY_NEW_TASK` is set so it works from a non-Activity context.
  * Robust to a malformed url or a device with no browser: any failure is logged, never crashes.
+ *
+ * Returns true when the browser was launched, false on failure — so the caller only dismisses the
+ * inbox when navigation actually happened (mirroring [openDeepLink]); a failed open keeps the sheet
+ * up rather than closing onto nothing.
  */
-private fun openUrlInBrowser(context: android.content.Context, url: String) {
-    try {
+private fun openUrlInBrowser(context: android.content.Context, url: String): Boolean {
+    return try {
         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
+        true
     } catch (ex: Exception) {
         SDKComponent.logger.error("$INBOX_LOG_TAG failed to open url '$url' in browser: ${ex.message}")
+        false
     }
 }
 

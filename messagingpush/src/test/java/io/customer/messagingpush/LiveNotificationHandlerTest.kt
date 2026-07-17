@@ -16,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
 import org.json.JSONObject
 import org.junit.Test
@@ -388,6 +389,29 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
+    }
+
+    @Test
+    fun handle_givenEventEnd_attachesNoDeleteIntent() {
+        // A terminal end-state must not carry the dismiss intent, or swiping it would
+        // report a second `end` (duplicate) after the activity already ended.
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        invoke(handlerFor(newBundle(activityId = "end-no-delete", event = "end")))
+
+        posted.captured.deleteIntent.shouldBeNull()
+    }
+
+    @Test
+    fun handle_givenInProgressEvent_attachesDeleteIntent() {
+        // Start/update keep the dismiss intent so a user-swipe reports `end`.
+        val posted = slot<Notification>()
+        every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
+
+        invoke(handlerFor(newBundle(activityId = "start-with-delete", event = "start")))
+
+        posted.captured.deleteIntent.shouldNotBeNull()
     }
 
     @Test

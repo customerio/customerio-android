@@ -156,7 +156,9 @@ internal class LiveNotificationHandler(
             activityId = activityId
         )
         val pendingIntent = createIntentForNotificationClick(context, notifId, parsedPayload)
-        val deletePendingIntent = createDeleteIntent(context, notifId, activityId, activityType)
+        // Only in-progress notifications carry the dismiss intent (user-swipe -> end).
+        // A terminal `end` notification must not, or swiping it would report a second end.
+        val deletePendingIntent = if (isEnd) null else createDeleteIntent(context, notifId, activityId, activityType)
 
         // The host app may fully render the notification; otherwise fall back to the SDK template.
         val appNotification = SDKComponent.pushModuleConfig.notificationCallback
@@ -200,7 +202,7 @@ internal class LiveNotificationHandler(
         @DrawableRes effectiveSmallIcon: Int,
         result: TemplateRenderResult,
         pendingIntent: PendingIntent,
-        deletePendingIntent: PendingIntent,
+        deletePendingIntent: PendingIntent?,
         ongoing: Boolean
     ): Notification = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {

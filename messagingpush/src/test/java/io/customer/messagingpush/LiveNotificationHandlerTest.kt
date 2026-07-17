@@ -376,6 +376,21 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     }
 
     @Test
+    fun handle_givenEndWithNoRenderableContent_cancelsNotification() {
+        // An `end` whose final state can't render (empty template fields) has no end-state
+        // to show, so the prior (ongoing) notification is cancelled rather than left stuck.
+        val activityId = "empty-end"
+        val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", data = JSONObject())))
+
+        verify(exactly = 1) { notificationManager.cancel(activityId, expectedNotifId) }
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
     fun handle_givenEventStart_doesNotCancel() {
         val activityId = "starting-activity"
         val expectedNotifId = activityId.hashCode() and 0x7FFFFFFF

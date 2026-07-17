@@ -170,7 +170,12 @@ internal class LiveNotificationHandler(
                 notificationManager.notify(activityId, notifId, notification)
                 store.setActivityType(activityId, activityType)
             }
-            !isEnd -> {
+            isEnd -> {
+                // No renderable end-state, so there's nothing to leave in the shade:
+                // cancel the (previously ongoing) notification instead of stranding it.
+                notificationManager.cancel(activityId, notifId)
+            }
+            else -> {
                 val reason = if (template != null) {
                     "required content fields are missing (payload not flattened, or empty)"
                 } else {

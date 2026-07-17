@@ -67,6 +67,11 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * generates a unique activity id, renders the notification immediately, and
      * registers the instance with Customer.io so the backend can push updates.
      *
+     * The notification renders regardless of identity, but its lifecycle events
+     * (start/update/end) are only reported to Customer.io for an **identified
+     * user** — call `identify` first if you need the backend to track this
+     * activity and push updates/remote end (matches iOS Live Activities).
+     *
      * @return the generated `activity_id`, used to correlate subsequent updates.
      */
     fun startLiveNotification(data: LiveNotificationData): String {
@@ -86,6 +91,9 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * Custom types have no built-in template, so a
      * [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification]
      * must render them.
+     *
+     * As with the templated overload, lifecycle events are reported to
+     * Customer.io only for an identified user.
      *
      * @param data flattened fields delivered to the renderer.
      * @return the generated `activity_id`.

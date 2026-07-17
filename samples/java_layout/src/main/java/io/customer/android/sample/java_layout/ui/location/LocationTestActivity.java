@@ -224,7 +224,6 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.background_location_continue, (dialog, which) ->
                         backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
-                .setNeutralButton(R.string.open_settings, (dialog, which) -> openAppDetailsSettings())
                 .show();
     }
 

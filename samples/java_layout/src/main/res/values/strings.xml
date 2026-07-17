@@ -147,7 +147,7 @@
     <string name="bg_perm_section_title">BACKGROUND LOCATION</string>
     <string name="bg_perm_rationale_title">Allow background location?</string>
     <string name="background_location_description">Geofence background delivery requires the \"Allow all the time\" location authorization. Grant foreground access first; on Android 11+ the system routes the upgrade through Settings instead of showing a dialog.</string>
-    <string name="background_location_rationale_message">Geofence transitions only fire while the app is backgrounded if you grant \"Allow all the time\". On Android 11+ the system routes this through Settings instead of showing a dialog — use \"Open Settings\" below if no prompt appears.</string>
+    <string name="background_location_rationale_message">Geofence transitions only fire while the app is backgrounded if you grant \"Allow all the time\". Tap Continue to open the location permission screen, then select \"Allow all the time\".</string>
     <string name="background_location_continue">Continue</string>
 
     <!-- Background-location permission button states -->

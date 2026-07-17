@@ -56,6 +56,8 @@ internal class LiveNotificationRegistrar(
 
     internal fun onDeviceTokenDeleted() {
         token = null
+        // Drop dedup signatures so re-registering the same token later isn't skipped.
+        store.clearRegistrations()
     }
 
     internal fun onReset() {

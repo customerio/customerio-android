@@ -77,4 +77,12 @@ internal class LiveNotificationRegistrarTest : IntegrationTest() {
         registrar.onUserChanged(Event.UserChangedEvent(userId = "u1", anonymousId = "anon"))
         verify(exactly = 0) { client.registerPushToStart(any(), any()) }
     }
+
+    @Test
+    fun tokenDeleted_clearsRegistrationSignatures() {
+        // Otherwise re-registering the same token later would be deduped away.
+        registrar.onDeviceTokenDeleted()
+
+        verify { store.clearRegistrations() }
+    }
 }

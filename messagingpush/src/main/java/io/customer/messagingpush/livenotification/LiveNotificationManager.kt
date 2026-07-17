@@ -15,6 +15,8 @@ import io.customer.sdk.core.extensions.applicationMetaData
 import io.customer.sdk.core.util.DispatchersProvider
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -35,6 +37,15 @@ internal class LiveNotificationManager(
     // state as a dismissible notification and resolve the activity type even if
     // the initial render never posted.
     private val lastBundles = ConcurrentHashMap<String, Bundle>()
+
+    private val renderScope: CoroutineScope by lazy {
+        CoroutineScope(SupervisorJob() + dispatchers.background)
+    }
+
+    // Renders are chained so each waits for the previous one to finish, keeping
+    // them in submission order — a slow earlier render (e.g. a RemoteUrl logo
+    // download) can't complete after, and overwrite, a later one.
+    private var renderChain: Job = Job().also { it.complete() }
 
     /** Starts a live notification locally and reports a `start` event. */
     fun start(
@@ -110,6 +121,9 @@ internal class LiveNotificationManager(
             }
         }
         store.clearAllActivities()
+        // Drop cached per-instance bundles so a post-logout end() can't reuse a
+        // previous session's payload.
+        lastBundles.clear()
     }
 
     private fun buildBundle(
@@ -135,8 +149,13 @@ internal class LiveNotificationManager(
      * blocking image download inside the handler, which must never run on the
      * caller's (possibly main) thread.
      */
+    @Synchronized
     private fun render(bundle: Bundle) {
-        CoroutineScope(dispatchers.background).launch { renderLocally(bundle) }
+        val previous = renderChain
+        renderChain = renderScope.launch {
+            previous.join()
+            renderLocally(bundle)
+        }
     }
 
     private fun renderLocally(bundle: Bundle) {

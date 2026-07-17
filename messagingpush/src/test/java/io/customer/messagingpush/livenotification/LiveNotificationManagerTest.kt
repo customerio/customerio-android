@@ -135,6 +135,19 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     }
 
     @Test
+    fun end_afterCancelAllActivities_reportsNothing() {
+        // Logout must drop cached bundles too, so a later end() for a recycled id
+        // can't resurrect a previous session's activity.
+        saveToken()
+        manager.start("act-1", type, attributes = emptyMap(), contentState = mapOf("title" to "Preparing"))
+
+        manager.cancelAllActivities()
+        manager.end("act-1")
+
+        verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any()) }
+    }
+
+    @Test
     fun cancelAllActivities_clearsTrackedStateWithoutReporting() {
         saveToken()
         val store = SDKComponent.liveNotificationStore

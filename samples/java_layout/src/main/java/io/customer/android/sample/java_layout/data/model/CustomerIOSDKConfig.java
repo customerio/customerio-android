@@ -50,7 +50,7 @@ public class CustomerIOSDKConfig {
                 true,
                 false,
                 true,
-                LocationTrackingMode.ON_APP_START);
+                LocationTrackingMode.MANUAL);
     }
 
     @NonNull

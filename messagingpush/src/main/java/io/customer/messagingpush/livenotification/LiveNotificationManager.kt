@@ -94,6 +94,11 @@ internal class LiveNotificationManager(
                 putString(LiveNotificationHandler.TIMESTAMP_KEY, (System.currentTimeMillis() / 1000).toString())
             }
             render(endBundle)
+        } else {
+            // No cached content to render a terminal state (e.g. after process death):
+            // cancel so a previously ongoing notification isn't left stuck and non-dismissible.
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
         }
 
         if (activityType == null) {

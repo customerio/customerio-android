@@ -6,6 +6,8 @@ import android.content.Intent
 import io.customer.messagingpush.di.liveNotificationLifecycleClient
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Receives the delete intent fired when the user dismisses a live notification
@@ -25,11 +27,20 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
             )
             return
         }
-        SDKComponent.liveNotificationLifecycleClient.reportEnd(
-            instanceUUID = activityId,
-            activityType = activityType,
-            deviceId = deviceId
-        )
+        // Keep the process alive past onReceive() so the async CDP pipeline can
+        // persist the end event before the receiver's process is torn down.
+        val pendingResult = goAsync()
+        CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
+            try {
+                SDKComponent.liveNotificationLifecycleClient.reportEnd(
+                    instanceUUID = activityId,
+                    activityType = activityType,
+                    deviceId = deviceId
+                )
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     internal companion object {

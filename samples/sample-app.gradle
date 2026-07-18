@@ -4,6 +4,9 @@ if (localPropertiesFile.exists()) {
     localProperties.load(new FileInputStream(localPropertiesFile))
 }
 
+// Allow repeatable Maven consumer builds without editing the ignored samples/local.properties.
+def cioSDKVersion = project.findProperty("cioSDKVersion") ?: localProperties["sdkVersion"]
+
 // Common Compose version variables
 def compose_version = "1.4.1"
 def compose_bom_version = "2023.10.01"
@@ -53,7 +56,7 @@ android {
         String language = getConfigWithPrefix("language") ?: getLanguageFromPrefix(configKeyPrefix)
         String uiFramework = getConfigWithPrefix("uiFramework") ?: getUIFrameworkFromPrefix(configKeyPrefix)
         String sdkIntegration = "Maven"
-        String sdkVersion = localProperties["sdkVersion"]
+        String sdkVersion = cioSDKVersion?.toString()
         String branchName = localProperties["branchName"]
         String commitHash = localProperties["commitHash"]
         String commitsAheadCount = localProperties["commitsAheadCount"]
@@ -120,7 +123,6 @@ android {
 }
 
 dependencies {
-    def cioSDKVersion = localProperties["sdkVersion"]
     if (cioSDKVersion == null || cioSDKVersion.toString().isBlank()) {
         // Add local dependency for SDK modules, helpful for debugging
         implementation(project(":datapipelines"))
@@ -130,7 +132,7 @@ dependencies {
         implementation(project(":messaginginapp-compose"))
         implementation(project(":location"))
     } else {
-        // Stable releases dependency, use published versions directly
+        // Resolve published Maven artifacts instead of SDK project modules.
         implementation "io.customer.android:datapipelines:$cioSDKVersion"
         implementation "io.customer.android:messaging-push-fcm:$cioSDKVersion"
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"

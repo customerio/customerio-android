@@ -13,6 +13,7 @@ import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl
 import io.customer.geofence.GeofenceServices
 import io.customer.geofence.GeofenceServicesImpl
+import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
 import io.customer.geofence.store.GeofenceCooldownStore
@@ -92,6 +93,16 @@ internal val AndroidSDKComponent.asyncGeofenceEventTracker: AsyncGeofenceEventTr
 internal val AndroidSDKComponent.geofenceEventScheduler: GeofenceEventScheduler
     get() = singleton { GeofenceEventScheduler(SDKComponent.workManagerProvider, asyncGeofenceEventTracker) }
 
+internal val AndroidSDKComponent.geofenceTransitionEmitter: GeofenceTransitionEmitter
+    get() = singleton {
+        GeofenceTransitionEmitter(
+            cooldownFilter = geofenceCooldownFilter,
+            pendingStore = pendingGeofenceDeliveryStore,
+            scheduler = geofenceEventScheduler,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
 internal val SDKComponent.geofenceDistanceFilter: GeofenceDistanceFilter
     get() = newInstance<GeofenceDistanceFilter> { GeofenceDistanceFilter() }
 
@@ -127,6 +138,7 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             manager = geofenceManager,
             secureUserStore = secureUserStore,
             cooldownFilter = geofenceCooldownFilter,
+            transitionEmitter = geofenceTransitionEmitter,
             clock = SDKComponent.clock,
             logger = SDKComponent.geofenceLogger
         )

@@ -44,6 +44,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' $transitionName: suppressed — same transition fired within the cooldown window", tag = TAG)
     }
 
+    fun logInitialEnterInside(geofenceId: String) {
+        logger.debug("Geofence '$geofenceId': device already inside a newly-registered fence — synthesizing ENTER (GMS INITIAL_TRIGGER_ENTER is unreliable)", tag = TAG)
+    }
+
     fun logTransitionDroppedUnknownId(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }

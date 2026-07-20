@@ -88,7 +88,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             }
         )
         // Default: cooldown allows emission. Tests override this to test suppression.
-        every { mockCooldownFilter.tryAcquire(any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
         // Default: an identified user is the common case; the snapshot lands on the entry.
         // Tests that need an anonymous-at-queue-time scenario override this to null.
         every { mockSecureUserStore.getUserId() } returns "user-42"
@@ -442,7 +442,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         scheduled.map { it.transitionId }.toSet().size shouldBeEqualTo 1
         scheduled.map { it.key }.toSet().size shouldBeEqualTo 3
         // Cooldown is a single gate for the crossing, not per geoset.
-        verify(exactly = 1) { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 1) { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
         pendingStore.loadAll().size shouldBeEqualTo 3
     }
 
@@ -465,7 +465,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // Nothing durably queued: don't schedule a worker that would find no row, and roll back the
         // cooldown so a later crossing can retry instead of being suppressed.
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        verify(exactly = 1) { mockCooldownFilter.release("biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 1) { mockCooldownFilter.release("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
     }
 
     @Test
@@ -524,7 +524,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduled() = runTest {
-        every { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) } returns false
+        every { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) } returns false
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -547,7 +547,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         coVerifyOrder {
-            mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER)
+            mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER)
             mockScheduler.schedule(any())
         }
     }
@@ -615,7 +615,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
-        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any()) }
+        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf("biz-orphan")) }
     }
 

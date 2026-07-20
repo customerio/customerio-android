@@ -141,7 +141,6 @@ internal class GeofenceServicesImpl(
         }
     }
 
-    // Returns the launched sync Job, or null when the sync was skipped.
     private fun triggerSync(
         reason: String,
         latitude: Double?,

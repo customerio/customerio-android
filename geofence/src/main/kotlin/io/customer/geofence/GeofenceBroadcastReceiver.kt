@@ -144,7 +144,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
-            if (!cooldownFilter.tryAcquire(geofenceId, transition)) {
+            if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
                 logger.logTransitionSuppressed(geofenceId, transition.name)
                 return@forEach
             }
@@ -179,7 +179,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             // later retry and skip scheduling a worker that would find no row.
             if (!androidComponent.pendingGeofenceDeliveryStore.appendAll(entries)) {
                 logger.logPersistFailed(geofenceId, transition.name)
-                cooldownFilter.release(geofenceId, transition)
+                cooldownFilter.release(userId, geofenceId, transition)
                 return@forEach
             }
             entries.forEach { entry ->

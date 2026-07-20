@@ -388,8 +388,8 @@ internal class GeofenceRepositoryImpl(
             if (result.isSuccess) {
                 store.clearUserScopedState()
             }
-            // Cooldown is user-scoped suppression: wipe it on any genuine sign-out even if the OS
-            // clear failed, so the next user can't inherit the prior user's stale windows.
+            // Wipe the departing user's cooldown history on any genuine sign-out, even if the
+            // OS clear failed — keys are user-scoped, so this is data hygiene, not correctness.
             cooldownFilter.clearAll()
         }
     }

@@ -10,6 +10,11 @@ import org.json.JSONObject
  */
 internal object SegmentsTemplate : LiveNotificationTemplate {
 
+    // Upper bound on rendered segments. segmentsTotal comes from an untrusted push
+    // payload; without a cap a very large value allocates that many segment views and
+    // can exhaust memory while handling the push. Kept in sync with iOS + services.
+    private const val MAX_SEGMENTS = 20
+
     override val name: String = TemplateRegistry.SEGMENTS
 
     override fun render(
@@ -23,7 +28,7 @@ internal object SegmentsTemplate : LiveNotificationTemplate {
         val status = data.optString(SegmentsFields.STATUS)
         val substatus = data.optStringNonEmpty(SegmentsFields.SUBSTATUS)
         val trailingText = data.optStringNonEmpty(SegmentsFields.TRAILING_TEXT)
-        val segmentsTotal = data.optInt(SegmentsFields.SEGMENTS_TOTAL, 1).coerceAtLeast(1)
+        val segmentsTotal = data.optInt(SegmentsFields.SEGMENTS_TOTAL, 1).coerceIn(1, MAX_SEGMENTS)
         val segmentsComplete = data.optInt(SegmentsFields.SEGMENTS_COMPLETE, 0)
 
         if (status.isBlank()) {

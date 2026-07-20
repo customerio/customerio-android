@@ -9,8 +9,14 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.DispatchersProvider
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.amshove.kluent.shouldBeEmpty
-import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -76,6 +82,18 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     }
 
     @Test
+    fun update_afterEnded_isIgnored() {
+        // The activity ended locally or was dismissed (marked terminal): a later update
+        // must not repost it or report a stray update event.
+        saveToken()
+        SDKComponent.liveNotificationStore.markEnded("act-1")
+
+        manager.update("act-1", type, attributes = emptyMap(), contentState = mapOf("title" to "Late"))
+
+        verify(exactly = 0) { lifecycleClient.reportUpdate(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun update_withoutFcmToken_doesNotReport() {
         SDKComponent.android().globalPreferenceStore.removeDeviceToken()
 
@@ -101,14 +119,29 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     }
 
     @Test
-    fun end_clearsStoredActivityType() {
+    fun end_marksEndedAndRetainsTypeForLogoutCancel() {
         saveToken()
         val store = SDKComponent.liveNotificationStore
         store.setActivityType("act-1", type)
 
         manager.end("act-1")
 
-        store.activityType("act-1").shouldBeNull()
+        // End is terminal: the id is marked ended and its activity type is retained so a
+        // later logout can still cancel an ended-but-still-visible notification.
+        store.isEnded("act-1").shouldBeTrue()
+        store.activityType("act-1") shouldBeEqualTo type
+    }
+
+    @Test
+    fun end_calledTwice_reportsEndOnce() {
+        saveToken()
+        SDKComponent.liveNotificationStore.setActivityType("act-1", type)
+
+        manager.end("act-1")
+        manager.end("act-1")
+
+        // The second end is a no-op (already terminal): end is reported at most once per id.
+        verify(exactly = 1) { lifecycleClient.reportEnd("act-1", type, "fcm-tok") }
     }
 
     @Test
@@ -159,5 +192,32 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
         store.trackedActivityIds().shouldBeEmpty()
         // Logout must NOT emit end events.
         verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any()) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun renderQueuedBeforeReset_isDroppedAndNotReAddedToStore() {
+        // A render enqueued by start() before a logout must not run afterward and
+        // re-add the previous user's activity into the just-cleared store.
+        saveToken()
+        // Defer the render (StandardTestDispatcher) so we can interleave the reset
+        // between enqueue and execution deterministically.
+        val scheduler = TestCoroutineScheduler()
+        val deferred = StandardTestDispatcher(scheduler)
+        SDKComponent.overrideDependency<DispatchersProvider>(
+            object : DispatchersProvider {
+                override val background: CoroutineDispatcher = deferred
+                override val main: CoroutineDispatcher = deferred
+                override val default: CoroutineDispatcher = deferred
+            }
+        )
+        val manager = LiveNotificationManager(lifecycleClient)
+
+        manager.start("act-1", type, attributes = emptyMap(), contentState = mapOf("title" to "Preparing"))
+        manager.cancelAllActivities()
+        scheduler.advanceUntilIdle()
+
+        // The queued render saw the bumped generation and dropped, so nothing was re-added.
+        SDKComponent.liveNotificationStore.trackedActivityIds().shouldBeEmpty()
     }
 }

@@ -208,4 +208,19 @@ internal class SegmentsTemplateTest : IntegrationTest() {
         result.progressMax shouldBeEqualTo 1
         result.segments.size shouldBeEqualTo 1
     }
+
+    @Test
+    fun render_segmentsTotalAboveMax_isCappedAtTwenty() {
+        // An untrusted push payload can't blow up the segment allocation.
+        val contentState = JSONObject().apply {
+            put("status", "Huge payload")
+            put("segmentsTotal", 5000)
+            put("segmentsComplete", 4000)
+        }
+
+        val result = render(contentState = contentState)
+
+        result.progressMax shouldBeEqualTo 20
+        result.segments.size shouldBeEqualTo 20
+    }
 }

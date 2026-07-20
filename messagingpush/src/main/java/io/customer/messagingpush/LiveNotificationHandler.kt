@@ -67,8 +67,10 @@ internal class LiveNotificationHandler(
         @ColorInt tintColor: Int?,
         channelId: String,
         notificationManager: NotificationManager,
-        // Locally-initiated renders are ordered by the host, so they skip the
-        // out-of-order guard that only exists to dedupe reordered server pushes.
+        // Locally-initiated renders skip the entire server-push guard block (both the
+        // out-of-order timestamp dedupe and the terminal ended check/claim). They are
+        // governed by LiveNotificationManager instead, which enforces terminal state on
+        // the local start/update/end paths before rendering.
         bypassOrderGuard: Boolean = false
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -100,19 +102,45 @@ internal class LiveNotificationHandler(
         val isEnd = event == EVENT_END
 
         val store = SDKComponent.liveNotificationStore
+        val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
 
-        // Out-of-order / duplicate guard for reordered server pushes; `end` is
-        // terminal and local renders (host-ordered) bypass it entirely.
+        // Terminal / out-of-order guard for server pushes. Local renders are host-ordered
+        // and governed by LiveNotificationManager, so they bypass this entirely.
         if (!bypassOrderGuard) {
-            val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
-            val lastSeen = store.lastTimestamp(activityId)
-            if (!isEnd && timestamp != null && lastSeen != null && timestamp <= lastSeen) {
-                SDKComponent.logger.debug(
-                    "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp <= $lastSeen)."
-                )
+            if (isEnd) {
+                // Claim the terminal transition. Only the first `end` renders the terminal
+                // state; a duplicate or late `end` — including one arriving after the user
+                // already dismissed the notification (the dismiss receiver marks it ended) —
+                // is dropped so it can't re-post a notification the user already cleared.
+                if (!store.markEnded(activityId)) {
+                    SDKComponent.logger.debug(
+                        "Dropping duplicate/late end for already-ended live notification '$activityId'."
+                    )
+                    return
+                }
+            } else if (store.isEnded(activityId)) {
+                // A non-end event for an ended id (delayed/duplicate start or update) is stale.
+                SDKComponent.logger.debug("Dropping event for ended live notification '$activityId'.")
                 return
+            } else {
+                // Services emits whole-second timestamps, so an in-order start+update can
+                // share a second; reject only strictly-older pushes.
+                val lastSeen = store.lastTimestamp(activityId)
+                if (timestamp != null && lastSeen != null && timestamp < lastSeen) {
+                    SDKComponent.logger.debug(
+                        "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp < $lastSeen)."
+                    )
+                    return
+                }
             }
-            if (timestamp != null && (lastSeen == null || timestamp > lastSeen)) {
+        }
+
+        // Advance the high-water mark on BOTH paths: a local render must also bump it
+        // so a later delayed remote push at an intermediate timestamp can't overwrite
+        // newer local content.
+        if (timestamp != null) {
+            val lastSeen = store.lastTimestamp(activityId)
+            if (lastSeen == null || timestamp > lastSeen) {
                 store.setLastTimestamp(activityId, timestamp)
             }
         }
@@ -191,9 +219,9 @@ internal class LiveNotificationHandler(
         }
 
         // Pushes are server-initiated, so the handler never reports a lifecycle event.
-        if (isEnd) {
-            store.clearActivityType(activityId)
-        }
+        // The terminal marker was already claimed above (remote) or by the manager
+        // (local); the tracked activity type is intentionally kept (not cleared) so a
+        // subsequent logout can still cancel an ended-but-still-visible notification.
     }
 
     private fun buildSdkNotification(

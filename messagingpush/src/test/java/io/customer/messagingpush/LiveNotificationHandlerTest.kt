@@ -6,11 +6,13 @@ import android.os.Bundle
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.livenotification.LiveNotificationAsset
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import io.customer.sdk.core.di.SDKComponent
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -516,6 +518,84 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
         // Mark stays at 100, so the 75 update is dropped: only the first update and the end posted.
         verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenSameSecondTimestamp_isNotDropped() {
+        // Services emits whole-second timestamps, so an in-order start+update can share a
+        // second. The guard rejects only strictly-older pushes, so the same-second update
+        // must still render.
+        val activityId = "same-second"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "start", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_afterEnded_dropsDelayedStart() {
+        // Ended is terminal per id: a delayed/duplicate start arriving after end (any
+        // timestamp) is stale and dropped — there is no same-id revive.
+        val activityId = "ended-then-start"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "start", timestamp = 500L)))
+
+        // Only the update and the end posted; the post-end start was dropped.
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenLocalRender_advancesHighWaterMark() {
+        // A local render bypasses rejection but must still advance the high-water mark,
+        // so a later delayed remote push at an intermediate timestamp is dropped rather
+        // than overwriting the newer local content.
+        val activityId = "local-advances-mark"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 200L)), bypassOrderGuard = true)
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 150L)))
+
+        // The local update posted; the delayed remote 150 update was dropped.
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_duplicateRemoteEnd_isDropped() {
+        // Only the first `end` renders the terminal state; a later/duplicate remote end
+        // is dropped (it must not re-post the notification).
+        val activityId = "dup-end"
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "update", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 100L)))
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 200L)))
+
+        // update + first end posted; the second end dropped.
+        verify(exactly = 2) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_remoteEndAfterDismiss_doesNotRepost() {
+        // The user swiped an in-progress notification: the dismiss receiver marked the id
+        // ended (simulated here). A subsequent server `end` for the same id must be dropped
+        // so it can't re-show the notification the user already cleared.
+        val activityId = "dismissed-then-end"
+        SDKComponent.liveNotificationStore.markEnded(activityId)
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end", timestamp = 100L)))
+
+        verify(exactly = 0) {
             notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }
     }

@@ -5,6 +5,7 @@ import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -17,8 +18,13 @@ internal interface GeofenceServices {
     /**
      * Movement-trigger EXIT routes to the tier-dispatch path: re-rank cached regions
      * when within the API anchor's threshold, otherwise fetch fresh.
+     *
+     * Returns the refresh [Job] (null when the sync was skipped) so the broadcast
+     * receiver can hold its goAsync window open until the refresh lands — the
+     * movement trigger usually fires with the app backgrounded, where the process
+     * is fair game for the OS the moment the receiver finishes.
      */
-    fun onMovementTriggerExit(latitude: Double?, longitude: Double?)
+    fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job?
 
     /** Honours the freshness threshold — repeated identify within the window is a no-op. */
     fun onUserIdentified(latitude: Double?, longitude: Double?)
@@ -75,14 +81,13 @@ internal class GeofenceServicesImpl(
     // regardless of the no-location rearm flag.
     private val explicitRefreshRequested = AtomicBoolean(false)
 
-    override fun onMovementTriggerExit(latitude: Double?, longitude: Double?) {
+    override fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job? =
         triggerSync(
             reason = REASON_MOVEMENT_EXIT,
             latitude = latitude,
             longitude = longitude,
             action = repository::handleMovement
         )
-    }
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
         triggerSync(
@@ -141,15 +146,15 @@ internal class GeofenceServicesImpl(
         latitude: Double?,
         longitude: Double?,
         action: suspend (Double, Double) -> Result<Unit>
-    ) {
+    ): Job? {
         if (latitude == null || longitude == null) {
             lastSkippedForNoLocation.set(true)
             logger.logSyncSkippedNoLocation(reason)
-            return
+            return null
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
             logger.logSyncSkippedNoPermission(reason)
-            return
+            return null
         }
         if (!permissionChecker.isBackgroundDeliveryAvailable()) {
             logger.logBackgroundDeliveryUnavailable(reason)
@@ -159,9 +164,10 @@ internal class GeofenceServicesImpl(
         // Guarded by permissionChecker above; Android kills the process when
         // permissions are revoked, so no mid-flight revocation to handle.
         @SuppressLint("MissingPermission")
-        scope.launch {
+        val syncJob = scope.launch {
             action(latitude, longitude)
         }
+        return syncJob
     }
 
     private companion object {

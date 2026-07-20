@@ -21,8 +21,10 @@ import io.customer.sdk.core.di.setupAndroidComponent
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Receives OS geofence transition callbacks and dispatches them to the SDK. */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
@@ -94,6 +96,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     ) {
         val logger = SDKComponent.geofenceLogger
         val timestamp = SDKComponent.clock.currentTimeSeconds()
+        val dispatchStartUptimeMs = SDKComponent.clock.elapsedRealtime()
         val androidComponent = SDKComponent.android()
         val scheduler = androidComponent.geofenceEventScheduler
         val cooldownFilter = androidComponent.geofenceCooldownFilter
@@ -108,12 +111,13 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             androidComponent.geofenceManager.removeGeofencesByIds(unknownIds)
         }
 
+        var movementRefreshJob: Job? = null
         knownIds.forEach { geofenceId ->
             if (geofenceId == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
                 // ENTER fires on every re-registration and boot-restore can fire
                 // EXIT. Only EXIT drives a refresh.
                 if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
+                    movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
                 } else {
                     logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))
                 }
@@ -140,7 +144,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
-            if (!cooldownFilter.tryAcquire(geofenceId, transition)) {
+            if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
                 logger.logTransitionSuppressed(geofenceId, transition.name)
                 return@forEach
             }
@@ -175,7 +179,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             // later retry and skip scheduling a worker that would find no row.
             if (!androidComponent.pendingGeofenceDeliveryStore.appendAll(entries)) {
                 logger.logPersistFailed(geofenceId, transition.name)
-                cooldownFilter.release(geofenceId, transition)
+                cooldownFilter.release(userId, geofenceId, transition)
                 return@forEach
             }
             entries.forEach { entry ->
@@ -189,6 +193,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
         }
+
+        // Hold the goAsync window open until the refresh lands so the OS doesn't kill a
+        // backgrounded process mid-re-registration. Waits only for what's left of the
+        // dispatch budget — the persistence/GMS awaits above count against it. A timeout
+        // ends the wait only, not the refresh (it runs on the longer-lived services scope).
+        movementRefreshJob?.let { job ->
+            val remainingBudgetMs = DISPATCH_WAIT_BUDGET_MS - (SDKComponent.clock.elapsedRealtime() - dispatchStartUptimeMs)
+            if (remainingBudgetMs > 0) {
+                withTimeoutOrNull(remainingBudgetMs) { job.join() }
+            }
+        }
     }
 
     private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {
@@ -196,5 +211,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
         Geofence.GEOFENCE_TRANSITION_DWELL -> "DWELL"
         else -> "UNKNOWN($gmsTransitionType)"
+    }
+
+    internal companion object {
+        // goAsync grants ~10s before the OS considers the receiver blocked; total budget for
+        // one dispatch (persistence + GMS awaits + movement-refresh wait), with headroom.
+        private const val DISPATCH_WAIT_BUDGET_MS = 8_000L
     }
 }

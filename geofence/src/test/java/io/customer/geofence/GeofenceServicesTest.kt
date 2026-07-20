@@ -9,10 +9,14 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -80,12 +84,31 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onMovementTriggerExit_expectReturnedJobTracksRefreshCompletion() = runTest(StandardTestDispatcher()) {
+        // The receiver holds its goAsync window open by joining this job; a job that
+        // completes before the refresh finishes would let the OS kill the process
+        // mid-fetch/mid-re-registration.
+        coEvery { repository.handleMovement(any(), any()) } coAnswers {
+            delay(1_000)
+            Result.success(Unit)
+        }
+        val services = servicesWith(this)
+
+        val job = services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0).shouldNotBeNull()
+
+        job.isCompleted shouldBeEqualTo false
+        advanceUntilIdle()
+        job.isCompleted shouldBeEqualTo true
+    }
+
+    @Test
     fun onMovementTriggerExit_givenNullLocation_expectSkipAndLog() = runTest(StandardTestDispatcher()) {
         val services = servicesWith(this)
 
-        services.onMovementTriggerExit(latitude = null, longitude = 12.0)
+        val job = services.onMovementTriggerExit(latitude = null, longitude = 12.0)
         advanceUntilIdle()
 
+        job.shouldBeNull()
         coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { logger.logSyncSkippedNoLocation(any()) }
@@ -96,9 +119,10 @@ class GeofenceServicesTest : RobolectricTest() {
         every { permissionChecker.hasRequiredLocationPermissions() } returns false
         val services = servicesWith(this)
 
-        services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
+        val job = services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
         advanceUntilIdle()
 
+        job.shouldBeNull()
         coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { logger.logSyncSkippedNoPermission(any()) }

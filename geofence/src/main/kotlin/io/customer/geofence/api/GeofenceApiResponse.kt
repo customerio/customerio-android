@@ -61,8 +61,9 @@ internal data class GeofenceApiRegion(
     val latitude: Double,
     @SerialName("longitude")
     val longitude: Double,
+    // Double (not Int) so a fractional radius can't fail the whole response decode.
     @SerialName("radius")
-    val radius: Int,
+    val radius: Double,
     @SerialName("external_id")
     val externalId: String? = null,
     @SerialName("transition_types")

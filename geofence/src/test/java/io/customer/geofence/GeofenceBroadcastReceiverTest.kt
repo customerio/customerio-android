@@ -14,6 +14,7 @@ import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -23,6 +24,10 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import java.io.File
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
@@ -48,6 +53,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockManager: GeofenceManager = mockk(relaxed = true)
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
 
+    // Real-time behavior by default so entry timestamps stay realistic; the dispatch-budget
+    // test re-stubs elapsedRealtime to simulate time already spent inside a dispatch.
+    private val mockClock: Clock = mockk(relaxed = true) {
+        every { currentTimeSeconds() } answers { System.currentTimeMillis() / 1000 }
+        every { currentTimeMillis() } answers { System.currentTimeMillis() }
+        every { elapsedRealtime() } answers { android.os.SystemClock.elapsedRealtime() }
+    }
+
     // Real disk-backed store (Robolectric filesDir). The mocked scheduler never
     // claims, so an appended entry stays in the store and we can assert on it.
     private val pendingStore get() = SDKComponent.android().pendingGeofenceDeliveryStore
@@ -59,7 +72,10 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             testConfigurationDefault {
                 argument(ApplicationArgument(applicationMock))
                 diGraph {
-                    sdk { overrideDependency<EventBus>(mockEventBus) }
+                    sdk {
+                        overrideDependency<EventBus>(mockEventBus)
+                        overrideDependency<Clock>(mockClock)
+                    }
                     android {
                         overrideDependency<GeofenceEventScheduler>(mockScheduler)
                         overrideDependency<GeofenceServices>(mockServices)
@@ -72,7 +88,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             }
         )
         // Default: cooldown allows emission. Tests override this to test suppression.
-        every { mockCooldownFilter.tryAcquire(any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
         // Default: an identified user is the common case; the snapshot lands on the entry.
         // Tests that need an anonymous-at-queue-time scenario override this to null.
         every { mockSecureUserStore.getUserId() } returns "user-42"
@@ -266,6 +282,65 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenMovementTriggerExit_expectDispatchWaitsForRefreshJob() = runTest {
+        // Movement usually fires with the app backgrounded: the moment dispatch returns
+        // the goAsync window closes and the OS may kill the process mid-refresh, so
+        // dispatch must hold the window open until the refresh job lands.
+        val refreshJob = launch { delay(3_000) }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        refreshJob.isCompleted shouldBeEqualTo true
+    }
+
+    @Test
+    fun dispatchTransition_givenHungRefreshJob_expectWaitBoundedAndJobNotCancelled() = runTest {
+        // A hung GMS task must not blow the broadcast budget: the wait gives up after
+        // its timeout, but only the wait — the refresh itself keeps running on the
+        // services scope and self-completes if the process survives.
+        val refreshJob = launch { delay(60_000) }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        refreshJob.isActive shouldBeEqualTo true
+        refreshJob.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun dispatchTransition_givenDispatchBudgetAlreadySpent_expectNoWaitForRefreshJob() = runTest {
+        // Persistence/GMS awaits earlier in a dispatch count against the same budget as the
+        // join: once spent, dispatch must finish instead of stacking the full timeout on top.
+        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
+        val refreshJob = launch { delay(60_000) }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        // No virtual time consumed: the join was skipped, not merely timed out.
+        currentTime shouldBeEqualTo 0L
+        refreshJob.isActive shouldBeEqualTo true
+        refreshJob.cancel()
+    }
+
+    @Test
     fun dispatchTransition_givenMovementTriggerNonExit_expectServicesNotNotified() = runTest {
         // Movement trigger fires ENTER expectedly (INITIAL_TRIGGER_ENTER on re-registration)
         // and may also fire DWELL/ENTER on boot. Only EXIT drives a refresh — verify the
@@ -367,7 +442,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         scheduled.map { it.transitionId }.toSet().size shouldBeEqualTo 1
         scheduled.map { it.key }.toSet().size shouldBeEqualTo 3
         // Cooldown is a single gate for the crossing, not per geoset.
-        verify(exactly = 1) { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 1) { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
         pendingStore.loadAll().size shouldBeEqualTo 3
     }
 
@@ -390,7 +465,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // Nothing durably queued: don't schedule a worker that would find no row, and roll back the
         // cooldown so a later crossing can retry instead of being suppressed.
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        verify(exactly = 1) { mockCooldownFilter.release("biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 1) { mockCooldownFilter.release("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
     }
 
     @Test
@@ -449,7 +524,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduled() = runTest {
-        every { mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER) } returns false
+        every { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) } returns false
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -472,7 +547,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         coVerifyOrder {
-            mockCooldownFilter.tryAcquire("biz-geofence", Event.GeofenceTransition.ENTER)
+            mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER)
             mockScheduler.schedule(any())
         }
     }
@@ -540,7 +615,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
-        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any()) }
+        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf("biz-orphan")) }
     }
 

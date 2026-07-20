@@ -17,9 +17,13 @@ import io.mockk.slot
 import io.mockk.verify
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
@@ -1040,6 +1044,45 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Cooldown is user-scoped suppression, not registration state: it's wiped on a genuine
         // sign-out even when the OS clear fails, so the next user can't inherit stale windows.
         verify(exactly = 1) { cooldownFilter.clearAll() }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun refresh_givenIdentifyDuringInFlightResetWipe_expectDecisionWaitsAndRefreshes() = runTest {
+        // Reset passes its no-user check and suspends on the GMS clear; user B identifies
+        // meanwhile. The refresh decision must wait for the reset and see the wiped state —
+        // deciding on pre-wipe state would SKIP and leave B unmonitored after the wipe lands.
+        every { secureUserStore.getUserId() } returns null
+        // Pre-wipe state that would produce SKIP: fresh sync, registered IDs present, no movement.
+        every { store.getLastSyncTimestamp() } answers { clock.currentTimeMillis() }
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 1.0, 2.0, 100f))
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastRegistrationUptime() } returns null
+        // Model the wipe on the mock so a post-wipe decision sees stale state.
+        every { store.clearUserScopedState() } answers {
+            every { store.getLastSyncTimestamp() } returns null
+            every { store.getRegisteredIds() } returns emptySet()
+        }
+        val gmsClear = CompletableDeferred<Result<Unit>>()
+        coEvery { manager.clearAll() } coAnswers { gmsClear.await() }
+        coEvery { apiService.fetchGeofences(any()) } returns Result.failure(IOException("test: fetch reached"))
+
+        val resetJob = launch { repository.reset() }
+        runCurrent() // reset holds the state lock, suspended on the GMS clear
+        every { secureUserStore.getUserId() } returns "user-B"
+        val refreshJob = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent() // refresh's decision must now be blocked behind the lock
+        gmsClear.complete(Result.success(Unit))
+        advanceUntilIdle()
+        resetJob.join()
+        refreshJob.join()
+
+        // The decision saw the wiped (stale) state and refreshed instead of skipping.
+        verify(exactly = 0) { logger.logSyncSkippedFresh() }
+        coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
+        verify { store.clearUserScopedState() }
     }
 
     // ---------- handleMovement / tier dispatch ----------

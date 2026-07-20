@@ -96,6 +96,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     ) {
         val logger = SDKComponent.geofenceLogger
         val timestamp = SDKComponent.clock.currentTimeSeconds()
+        val dispatchStartUptimeMs = SDKComponent.clock.elapsedRealtime()
         val androidComponent = SDKComponent.android()
         val scheduler = androidComponent.geofenceEventScheduler
         val cooldownFilter = androidComponent.geofenceCooldownFilter
@@ -194,9 +195,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
 
         // Hold the goAsync window open until the refresh lands so the OS doesn't kill a
-        // backgrounded process mid-re-registration. Bounded; a timeout ends the wait only,
-        // not the refresh (it runs on the longer-lived services scope).
-        movementRefreshJob?.let { job -> withTimeoutOrNull(MOVEMENT_REFRESH_WAIT_TIMEOUT_MS) { job.join() } }
+        // backgrounded process mid-re-registration. Waits only for what's left of the
+        // dispatch budget — the persistence/GMS awaits above count against it. A timeout
+        // ends the wait only, not the refresh (it runs on the longer-lived services scope).
+        movementRefreshJob?.let { job ->
+            val remainingBudgetMs = DISPATCH_WAIT_BUDGET_MS - (SDKComponent.clock.elapsedRealtime() - dispatchStartUptimeMs)
+            if (remainingBudgetMs > 0) {
+                withTimeoutOrNull(remainingBudgetMs) { job.join() }
+            }
+        }
     }
 
     private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {
@@ -207,8 +214,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     internal companion object {
-        // goAsync grants ~10s before the OS considers the receiver blocked; leave headroom
-        // for the business-transition persistence handled before the wait.
-        private const val MOVEMENT_REFRESH_WAIT_TIMEOUT_MS = 8_000L
+        // goAsync grants ~10s before the OS considers the receiver blocked; total budget for
+        // one dispatch (persistence + GMS awaits + movement-refresh wait), with headroom.
+        private const val DISPATCH_WAIT_BUDGET_MS = 8_000L
     }
 }

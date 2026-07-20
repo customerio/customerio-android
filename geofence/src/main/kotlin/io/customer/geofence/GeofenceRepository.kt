@@ -83,7 +83,11 @@ internal class GeofenceRepositoryImpl(
             }
 
             val config = store.getCachedConfigOrFallback()
-            return when (refreshAction(LocationCoordinates(latitude, longitude), config)) {
+            // Decided under stateMutex so a concurrent sign-out reset can't wipe state right
+            // after this reads pre-wipe freshness/registrations and SKIPs — that would leave
+            // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
+            val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
+            return when (action) {
                 RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
                 RefreshAction.SKIP -> {

@@ -107,7 +107,8 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
 
     // Launcher behavior varies by API:
     // - API 29: shows the runtime dialog with "Allow all the time".
-    // - API 30+: OS may route to Settings (recent Pixel/Samsung) or silently no-op (others).
+    // - API 30+: OS routes to the app's location settings page rather than showing a dialog
+    //   (a few OEMs may no-op; the user enables it from system Settings in that case).
     //   Don't trust the `granted` flag — re-check actual permission state.
     private final ActivityResultLauncher<String> backgroundLocationLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
@@ -118,7 +119,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
                 }
                 // Not granted: respect the user's choice (API 29 dialog declined, API 30+ silent
                 // deny, or backed out of Settings). The next tap re-shows the rationale dialog,
-                // which has an explicit "Open Settings" action for recovery.
+                // whose Continue re-launches the same background-permission flow.
                 refreshGrantBackgroundLocationUI();
             });
 

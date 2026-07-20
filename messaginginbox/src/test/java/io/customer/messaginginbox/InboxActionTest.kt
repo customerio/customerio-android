@@ -387,6 +387,21 @@ class InboxActionTest {
         verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://x.io") }
     }
 
+    @Test
+    fun handleAction_givenTwoDifferentCtasSameMessage_expectEachTracked() {
+        // A message can carry multiple CTAs; web reports a click for each, so two DIFFERENT actions
+        // on the same message must both track (the same-action repeat above is what's deduped).
+        val messages = listOf(message("a"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        val controller = VisualInboxController(visualInbox)
+
+        controller.handleAction(visible(messages), JistInboxAdapter.toJist(messages.first()), event(behavior = "openUrl", action = "https://one.io"))
+        controller.handleAction(visible(messages), JistInboxAdapter.toJist(messages.first()), event(behavior = "openUrl", action = "https://two.io"))
+
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://one.io") }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://two.io") }
+    }
+
     // --- observe callbacks (item 14): shown / opened / dismissed ---
 
     private class RecordingListener : InboxEventListener {

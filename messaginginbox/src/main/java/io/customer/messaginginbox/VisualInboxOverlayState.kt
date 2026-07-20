@@ -324,9 +324,13 @@ internal class VisualInboxController(
     ) {
         val visible = visibility as? InboxVisibility.Visible ?: return
         val tracked = visible.messages.firstOrNull { it.queueId == message.queueId } ?: return
-        // Reserve only AFTER confirming the message exists, so a failed lookup never permanently
-        // dedupes (blocks) the click metric for later taps on the same message.
-        if (!clickedQueueIds.add(message.queueId)) return
+        // Dedupe per DISTINCT action (queueId + action name + value), NOT per message: a single
+        // message can carry multiple CTAs and web reports a click for each, so two different actions
+        // on the same message must each report. Only a repeat of the SAME action (e.g. a rapid
+        // double-tap of one CTA) is suppressed here; the backend deduplicates the delivery's
+        // first-click metric regardless. Reserve only AFTER confirming the message exists, so a
+        // failed lookup never permanently blocks later clicks.
+        if (!clickedActions.add(Triple(message.queueId, actionName, actionValue))) return
         visualInbox.trackMessageClicked(tracked, actionName, actionValue)
     }
 
@@ -374,8 +378,10 @@ internal class VisualInboxController(
         const val INBOX_LOG_TAG = "[CIO-Inbox]"
     }
 
-    // Dedupe guard for click tracking: a message clicked in this session is tracked once.
-    private val clickedQueueIds = HashSet<String>()
+    // Dedupe guard for click tracking, keyed by DISTINCT action (queueId + action name + value) so a
+    // message with multiple CTAs reports a click for each (web parity); only a repeat of the same
+    // action is suppressed.
+    private val clickedActions = HashSet<Triple<String, String?, String?>>()
 
     // Dedupe guard for the observational messageShown callback: notified once per queueId.
     private val shownQueueIds = HashSet<String>()

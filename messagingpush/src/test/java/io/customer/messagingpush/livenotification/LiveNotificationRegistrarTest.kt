@@ -62,6 +62,28 @@ internal class LiveNotificationRegistrarTest : IntegrationTest() {
     }
 
     @Test
+    fun onUserChanged_feedsIdentityToLifecycleClient() {
+        // The client gates local lifecycle events on this synchronous signal instead of
+        // the pipeline's laggy isUserIdentified flag (avoids dropping the first event after login).
+        registrar.onUserChanged(Event.UserChangedEvent(userId = "u1", anonymousId = "anon"))
+        verify { client.setIdentified(true) }
+
+        registrar.onUserChanged(Event.UserChangedEvent(userId = null, anonymousId = "anon"))
+        verify { client.setIdentified(false) }
+    }
+
+    @Test
+    fun onReset_clearsLifecycleIdentity() {
+        // Logout must gate off local lifecycle reporting until a new identify, so the
+        // client's identity is reset to false on reset.
+        registrar.onUserChanged(Event.UserChangedEvent(userId = "u1", anonymousId = "anon"))
+
+        registrar.onReset()
+
+        verify { client.setIdentified(false) }
+    }
+
+    @Test
     fun register_defersUntilIdentified_whenTokenArrivesFirstWhileAnonymous() {
         // Token before any identify → nothing registered yet (still anonymous).
         registrar.onDeviceTokenChanged("fcm-tok")

@@ -38,7 +38,9 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
     private val client = LiveNotificationLifecycleClientImpl(dataPipelineProvider = { pipeline })
 
     private fun identified() {
-        every { pipeline.isUserIdentified } returns true
+        // Identity is fed synchronously via setIdentified (from UserChangedEvent), not
+        // read from the pipeline's laggy isUserIdentified flag.
+        client.setIdentified(true)
     }
 
     @Test
@@ -172,7 +174,7 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
 
     @Test
     fun lifecycleEvents_areDroppedForAnonymousUser() {
-        every { pipeline.isUserIdentified } returns false
+        client.setIdentified(false)
 
         client.reportStart("inst-1", "type", "fcm-tok", emptyMap(), emptyMap())
         client.reportUpdate("inst-1", "type", "fcm-tok", emptyMap())
@@ -182,10 +184,24 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
     }
 
     @Test
-    fun registerPushToStart_isNotGatedByPipelineIdentity() {
-        // Identity is gated upstream by LiveNotificationRegistrar; the client must NOT re-check the
-        // laggy isUserIdentified flag for the registration event (that re-introduced the login race).
+    fun lifecycleEvents_gateOnSyncIdentityNotPipelineFlag() {
+        // The pipeline's own flag lags a synchronous identify(); the client must gate on
+        // the identity fed via setIdentified (from UserChangedEvent) so the first event
+        // right after login isn't dropped.
         every { pipeline.isUserIdentified } returns false
+        every { pipeline.track(any(), any()) } returns Unit
+        client.setIdentified(true)
+
+        client.reportStart("inst-1", "type", "fcm-tok", emptyMap(), emptyMap())
+
+        verify(exactly = 1) { pipeline.track(EVENT_LIVE_NOTIFICATION, any()) }
+    }
+
+    @Test
+    fun registerPushToStart_isNotGatedByIdentity() {
+        // Identity is gated upstream by LiveNotificationRegistrar; the client must NOT
+        // re-check identity for the registration event (that re-introduced the login race).
+        client.setIdentified(false)
         every { pipeline.track(any(), any()) } returns Unit
 
         val emitted = client.registerPushToStart("type", "fcm-tok")

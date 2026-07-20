@@ -59,7 +59,7 @@ internal class LiveNotificationStore(context: Context) {
         prefs.edit { remove(TS_PREFIX + activityId) }
     }
 
-    /** Removes timestamp entries (and their paired activity types) recorded longer than [ttlMs] ago. Intended to run on app launch. */
+    /** Removes timestamp entries (and their paired activity types + ended markers) recorded longer than [ttlMs] ago. Intended to run on app launch. */
     fun trimStaleTimestamps(ttlMs: Long = DEFAULT_TS_TTL_MS, now: Long = System.currentTimeMillis()) {
         val staleActivityIds = prefs.all.entries.filter { (key, value) ->
             key.startsWith(TS_PREFIX) &&
@@ -70,9 +70,32 @@ internal class LiveNotificationStore(context: Context) {
                 staleActivityIds.forEach {
                     remove(TS_PREFIX + it)
                     remove(TYPE_PREFIX + it)
+                    remove(END_PREFIX + it)
                 }
             }
         }
+    }
+
+    // --- Terminal state (per activity_id) ---
+
+    /**
+     * True once [activityId] has reached a terminal state (local end, remote end,
+     * or user dismissal). `activity_id`s are unique per activity and `end` is
+     * terminal, so any later event for an ended id is stale and must be dropped.
+     */
+    fun isEnded(activityId: String): Boolean =
+        prefs.contains(END_PREFIX + activityId)
+
+    /**
+     * Marks [activityId] terminal, returning `true` only if this call set it (i.e.
+     * it was not already ended). Callers use the return value to report `end` at
+     * most once per id. The marker is never cleared per-id; it is reclaimed by
+     * [trimStaleTimestamps] (TTL) and [clearAllActivities] (logout).
+     */
+    fun markEnded(activityId: String, now: Long = System.currentTimeMillis()): Boolean {
+        if (prefs.contains(END_PREFIX + activityId)) return false
+        prefs.edit { putString(END_PREFIX + activityId, now.toString()) }
+        return true
     }
 
     // --- Activity type (per activity_id) ---
@@ -96,11 +119,11 @@ internal class LiveNotificationStore(context: Context) {
             .map { it.removePrefix(TYPE_PREFIX) }
             .toSet()
 
-    /** Clears all per-activity state (timestamps + types). Used on logout/reset. */
+    /** Clears all per-activity state (timestamps + types + ended markers). Used on logout/reset. */
     fun clearAllActivities() {
         prefs.edit {
             prefs.all.keys
-                .filter { it.startsWith(TS_PREFIX) || it.startsWith(TYPE_PREFIX) }
+                .filter { it.startsWith(TS_PREFIX) || it.startsWith(TYPE_PREFIX) || it.startsWith(END_PREFIX) }
                 .forEach { remove(it) }
         }
     }
@@ -110,6 +133,7 @@ internal class LiveNotificationStore(context: Context) {
         private const val REG_PREFIX = "reg:"
         private const val TS_PREFIX = "ts:"
         private const val TYPE_PREFIX = "type:"
+        private const val END_PREFIX = "end:"
 
         // Old built-in namespace, replaced by `io.customer.livenotifications.` — used only by migrate().
         private const val LEGACY_ACTIVITY_TYPE_PREFIX = "io.customer.liveactivities."

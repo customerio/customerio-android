@@ -30,12 +30,30 @@ internal interface LiveNotificationLifecycleClient {
 
     /** Reports a `register_push_to_start` event; returns true if it was emitted. */
     fun registerPushToStart(activityType: String, deviceId: String): Boolean
+
+    /**
+     * Updates the cached identified-user state used to gate lifecycle events. Fed
+     * synchronously from `Event.UserChangedEvent` (via [LiveNotificationRegistrar])
+     * rather than the pipeline's own flag, which lags a synchronous `identify()` and
+     * would otherwise drop the first start/update/end right after login.
+     */
+    fun setIdentified(identified: Boolean)
 }
 
 @OptIn(InternalCustomerIOApi::class)
 internal class LiveNotificationLifecycleClientImpl(
     private val dataPipelineProvider: () -> DataPipeline? = { SDKComponent.getOrNull<DataPipeline>() }
 ) : LiveNotificationLifecycleClient {
+
+    // Identified-user state, fed synchronously from Event.UserChangedEvent via the
+    // registrar. Used instead of pipeline.isUserIdentified, which lags a synchronous
+    // identify() and would drop the first lifecycle event right after login.
+    @Volatile
+    private var isIdentified: Boolean = false
+
+    override fun setIdentified(identified: Boolean) {
+        isIdentified = identified
+    }
 
     override fun reportStart(
         instanceUUID: String,
@@ -120,7 +138,7 @@ internal class LiveNotificationLifecycleClientImpl(
             SDKComponent.logger.debug("Data pipeline unavailable; dropping live notification event '$event'.")
             return false
         }
-        if (requireIdentifiedUser && !pipeline.isUserIdentified) {
+        if (requireIdentifiedUser && !isIdentified) {
             SDKComponent.logger.debug("Live notifications require an identified user; dropping event '$event'.")
             return false
         }

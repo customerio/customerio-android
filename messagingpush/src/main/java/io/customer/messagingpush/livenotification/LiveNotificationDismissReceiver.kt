@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import io.customer.messagingpush.di.liveNotificationLifecycleClient
+import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +25,18 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
         if (deviceId.isNullOrBlank()) {
             SDKComponent.logger.debug(
                 "No FCM token available; skipping end event for live notification '$activityId'."
+            )
+            return
+        }
+
+        // Claim the terminal transition only after confirming we can report it, so a
+        // missing token doesn't mark the id terminal (losing the end and blocking any
+        // later one). Report `end` at most once per id; if already ended (e.g.
+        // endLiveNotification ran) skip the duplicate. Marking ended also retains the
+        // store's ordering guard so a later push can't repost the dismissed notification.
+        if (!SDKComponent.liveNotificationStore.markEnded(activityId)) {
+            SDKComponent.logger.debug(
+                "Live notification '$activityId' already ended; skipping dismiss end event."
             )
             return
         }

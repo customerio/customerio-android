@@ -47,6 +47,12 @@ internal class LiveNotificationManager(
     // download) can't complete after, and overwrite, a later one.
     private var renderChain: Job = Job().also { it.complete() }
 
+    // Bumped on reset. A render enqueued before a logout captures the current
+    // generation; if it changed by the time the render runs, the render is dropped
+    // so it can't re-post a previous user's activity into a just-cleared store.
+    @Volatile
+    private var renderGeneration = 0
+
     /** Starts a live notification locally and reports a `start` event. */
     fun start(
         activityId: String,
@@ -57,6 +63,12 @@ internal class LiveNotificationManager(
         val bundle = buildBundle(activityId, activityType, attributes + contentState, EVENT_START)
         lastBundles[activityId] = Bundle(bundle)
         render(bundle)
+        // Lifecycle reporting is intentionally decoupled from the local render: the
+        // app called start/update/end, so Customer.io must track the activity (and be
+        // able to push updates / remote-end it) even when the local render posts nothing
+        // — e.g. a custom type with no built-in template, or a transient render failure.
+        // The report is not blocking (token read is an in-memory pref; track() enqueues),
+        // so it stays on the caller thread; identity gating still applies in the client.
         reportStart(activityId, activityType, attributes, contentState)
     }
 
@@ -67,6 +79,16 @@ internal class LiveNotificationManager(
         attributes: Map<String, Any?>,
         contentState: Map<String, Any?>
     ) {
+        // Terminal state is governed here for local renders (they bypass the handler's
+        // server-push guard): an update after the activity ended locally or was dismissed
+        // must not repost it or report a stray update. `start` mints a fresh id, and
+        // `end` guards itself, so only `update` needs this check.
+        if (SDKComponent.liveNotificationStore.isEnded(activityId)) {
+            SDKComponent.logger.debug(
+                "Live notification '$activityId' already ended; ignoring update."
+            )
+            return
+        }
         val bundle = buildBundle(activityId, activityType, attributes + contentState, EVENT_UPDATE)
         lastBundles[activityId] = Bundle(bundle)
         render(bundle)
@@ -82,6 +104,15 @@ internal class LiveNotificationManager(
     fun end(activityId: String) {
         val store = SDKComponent.liveNotificationStore
         val lastBundle = lastBundles.remove(activityId)
+        // Already terminal (e.g. the user dismissed it, or end was already called):
+        // end is idempotent per id, so don't re-render a dismissed notification or
+        // report a second end.
+        if (store.isEnded(activityId)) {
+            SDKComponent.logger.debug(
+                "Live notification '$activityId' already ended; nothing to do."
+            )
+            return
+        }
         // Prefer the type from the last local render; fall back to the persisted
         // type (e.g. after process death) so a locally-started activity always
         // reports a matching end.
@@ -101,22 +132,31 @@ internal class LiveNotificationManager(
             notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
         }
 
+        // Claim the terminal transition so `end` is reported at most once per id
+        // (a prior user swipe-dismiss may have already reported it). The store's
+        // timestamp/type are intentionally NOT cleared: the terminal marker and the
+        // high-water mark must survive so a delayed older push can't resurrect the
+        // activity, and logout can still cancel a still-visible ended notification.
+        // Reclamation happens via the store's TTL trim / logout clear.
         if (activityType == null) {
             SDKComponent.logger.debug(
                 "No known live notification for '$activityId'; nothing to end."
             )
-        } else {
+        } else if (store.markEnded(activityId)) {
             reportEnd(activityId, activityType)
         }
-        store.clearTimestamp(activityId)
-        store.clearActivityType(activityId)
     }
 
     /**
      * Cancels every tracked live notification and clears their stored state,
      * without reporting `end` events. Called on logout (reset).
      */
+    @Synchronized
     fun cancelAllActivities() {
+        // Invalidate any render queued before this reset (see render()) so a
+        // start()'s enqueued work can't re-add a previous user's activity after the
+        // store is cleared below.
+        renderGeneration++
         val store = SDKComponent.liveNotificationStore
         val ids = store.trackedActivityIds()
         if (ids.isNotEmpty()) {
@@ -156,9 +196,13 @@ internal class LiveNotificationManager(
      */
     @Synchronized
     private fun render(bundle: Bundle) {
+        val generation = renderGeneration
         val previous = renderChain
         renderChain = renderScope.launch {
             previous.join()
+            // A logout/reset after this render was queued invalidates it, so it can't
+            // re-post a previous user's activity into a store that reset just cleared.
+            if (generation != renderGeneration) return@launch
             renderLocally(bundle)
         }
     }

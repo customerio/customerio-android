@@ -3,7 +3,9 @@ package io.customer.messagingpush.livenotification
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,6 +95,40 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
         store.trimStaleTimestamps(ttlMs = ttl, now = now)
 
         store.activityType("old").shouldBeNull()
+    }
+
+    @Test
+    fun markEnded_claimsOnceAndReportsTerminalState() {
+        store.isEnded("act-1").shouldBeFalse()
+
+        // First mark wins (claims the terminal transition); repeats return false.
+        store.markEnded("act-1").shouldBeTrue()
+        store.isEnded("act-1").shouldBeTrue()
+        store.markEnded("act-1").shouldBeFalse()
+        store.markEnded("act-1").shouldBeFalse()
+    }
+
+    @Test
+    fun clearAllActivities_removesEndedMarker() {
+        store.markEnded("a1")
+        store.setActivityType("a1", "type.a")
+
+        store.clearAllActivities()
+
+        store.isEnded("a1").shouldBeFalse()
+    }
+
+    @Test
+    fun trimStaleTimestamps_alsoRemovesEndedMarker() {
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.setLastTimestamp("old", 1L, now = now - ttl - 1)
+        store.markEnded("old")
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.isEnded("old").shouldBeFalse()
     }
 
     @Test

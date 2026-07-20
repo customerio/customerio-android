@@ -22,8 +22,9 @@ import org.json.JSONObject
  *
  * Precondition: [entry] must carry a non-null [PendingGeofenceDelivery.userId]
  * (the user identified when the transition fired, snapshotted at queue time so
- * sign-out + sign-in cannot reattribute). Anonymous entries belong on the
- * foreground-flush path and must not be passed here.
+ * sign-out + sign-in cannot reattribute). Anonymous transitions are dropped at
+ * the receiver before they're ever persisted, so a null userId here is a bug;
+ * the guard below fails the send defensively.
  */
 internal interface GeofenceEventTracker {
     suspend fun trackEvent(entry: PendingGeofenceDelivery): Result<Unit>
@@ -68,8 +69,9 @@ internal class GeofenceEventTrackerImpl(
  * retry rather than dropping it. The duplicate this can produce (overlap with
  * the flush) is deduped backend-side via the stable transitionId.
  *
- * Entries with a null [PendingGeofenceDelivery.userId] are left untouched here;
- * the foreground flush handles them via the analytics pipeline's anonymousId.
+ * Entries with a null [PendingGeofenceDelivery.userId] shouldn't exist (the
+ * receiver drops anonymous transitions before persisting); the guard below is
+ * defensive and leaves such an entry untouched.
  */
 internal class AsyncGeofenceEventTracker(
     private val tracker: GeofenceEventTracker,

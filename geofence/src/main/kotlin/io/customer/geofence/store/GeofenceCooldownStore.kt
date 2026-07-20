@@ -11,6 +11,7 @@ internal interface GeofenceCooldownStore {
     fun getLastEmitTimestamp(geofenceId: String, transition: Event.GeofenceTransition): Long?
     fun recordEmit(geofenceId: String, transition: Event.GeofenceTransition, timestamp: Long)
     fun remove(geofenceId: String, transition: Event.GeofenceTransition)
+    fun pruneOlderThan(cutoffTimestamp: Long)
     fun clearAll()
 }
 
@@ -42,11 +43,26 @@ internal class GeofenceCooldownStoreImpl(
         prefs.edit { remove(cooldownKey(geofenceId, transition)) }
     }
 
+    override fun pruneOlderThan(cutoffTimestamp: Long) {
+        // MAX_VALUE default keeps entries whose value can't be read (never prune on doubt).
+        val stale = prefs.read {
+            all.keys.filter { key ->
+                key.startsWith(KEY_PREFIX) && getLong(key, Long.MAX_VALUE) < cutoffTimestamp
+            }
+        }.orEmpty()
+        if (stale.isEmpty()) return
+        prefs.edit { stale.forEach { remove(it) } }
+    }
+
     override fun clearAll() {
         prefs.edit { clear() }
     }
 
     private fun cooldownKey(geofenceId: String, transition: Event.GeofenceTransition): String {
-        return "cio_cooldown_${geofenceId}_${transition.name}"
+        return "$KEY_PREFIX${geofenceId}_${transition.name}"
+    }
+
+    internal companion object {
+        private const val KEY_PREFIX = "cio_cooldown_"
     }
 }

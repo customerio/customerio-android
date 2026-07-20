@@ -9,24 +9,17 @@ import io.customer.sdk.communication.EventBus
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 
 /**
- * Lifecycle observer registered with `ProcessLifecycleOwner` during the
- * geofence module's initialization. On every foreground entry it flushes
- * pending OS-delivered geofence transitions through the analytics pipeline —
- * unconditionally, independent of the location module's tracking mode, so a
- * customer using geofencing with MANUAL location tracking still gets pending
- * transitions delivered.
+ * Registered with `ProcessLifecycleOwner` at geofence-module init. On every foreground
+ * entry it flushes pending OS-delivered transitions through the analytics pipeline,
+ * independent of the location tracking mode (so MANUAL still delivers).
  *
- * The shared [PendingDeliveryFlusher] cancels each transition's WorkManager
- * delivery, then publishes and only then removes the row
- * ([PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]), which keeps the row
- * for a retry if the process dies before publish. It's the worker (send-then-remove
- * via direct HTTP) that is the durable channel; duplicates across the two are deduped
- * downstream by transitionId. The entry's snapshotted userId rides through on
- * [io.customer.sdk.communication.Event.GeofenceTransitionEvent] so the pipeline
- * subscriber attributes the track event to it.
+ * The shared [PendingDeliveryFlusher] runs [PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]:
+ * publish, remove, then best-effort cancel the WorkManager delivery. The worker
+ * (send-then-remove) is the durable channel while the row exists; duplicates across the
+ * two are deduped downstream by transitionId. The entry's snapshotted userId rides through
+ * on [io.customer.sdk.communication.Event.GeofenceTransitionEvent] for attribution.
  *
- * Thread safety: all lifecycle callbacks are delivered on the main thread
- * by `ProcessLifecycleOwner`, so no synchronization is needed.
+ * All lifecycle callbacks arrive on the main thread, so no synchronization is needed.
  */
 internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,

@@ -21,8 +21,10 @@ import io.customer.sdk.core.di.setupAndroidComponent
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Receives OS geofence transition callbacks and dispatches them to the SDK. */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
@@ -108,12 +110,13 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             androidComponent.geofenceManager.removeGeofencesByIds(unknownIds)
         }
 
+        var movementRefreshJob: Job? = null
         knownIds.forEach { geofenceId ->
             if (geofenceId == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
                 // ENTER fires on every re-registration and boot-restore can fire
                 // EXIT. Only EXIT drives a refresh.
                 if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
+                    movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
                 } else {
                     logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))
                 }
@@ -189,6 +192,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
         }
+
+        // Hold the goAsync window open until the refresh lands so the OS doesn't kill a
+        // backgrounded process mid-re-registration. Bounded; a timeout ends the wait only,
+        // not the refresh (it runs on the longer-lived services scope).
+        movementRefreshJob?.let { job -> withTimeoutOrNull(MOVEMENT_REFRESH_WAIT_TIMEOUT_MS) { job.join() } }
     }
 
     private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {
@@ -196,5 +204,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
         Geofence.GEOFENCE_TRANSITION_DWELL -> "DWELL"
         else -> "UNKNOWN($gmsTransitionType)"
+    }
+
+    internal companion object {
+        // goAsync grants ~10s before the OS considers the receiver blocked; leave headroom
+        // for the business-transition persistence handled before the wait.
+        private const val MOVEMENT_REFRESH_WAIT_TIMEOUT_MS = 8_000L
     }
 }

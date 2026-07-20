@@ -50,6 +50,31 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
     }
 
     @Test
+    fun tryAcquire_givenAllowedEmit_expectStalePruneSweep() {
+        // Each allowed emit sweeps entries older than the max clampable cooldown —
+        // they can't suppress under any config, so pruning them bounds the store
+        // as fence definitions churn.
+        every { mockStore.getLastEmitTimestamp(any(), any()) } returns null
+        val now = 100_000L + GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
+        every { mockClock.currentTimeMillis() } returns now
+
+        filter.tryAcquire("biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+
+        verify(exactly = 1) { mockStore.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS) }
+    }
+
+    @Test
+    fun tryAcquire_givenSuppressedEmit_expectNoPruneSweep() {
+        val lastEmit = 100_000L
+        every { mockStore.getLastEmitTimestamp("biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
+        every { mockClock.currentTimeMillis() } returns lastEmit + 1
+
+        filter.tryAcquire("biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
+
+        verify(exactly = 0) { mockStore.pruneOlderThan(any()) }
+    }
+
+    @Test
     fun tryAcquire_givenPreviousEmitWithinCooldown_expectFalseAndNotRecorded() {
         val lastEmit = 100_000L
         val now = lastEmit + (GeofenceConstants.DEDUPE_COOLDOWN_MS - 1)

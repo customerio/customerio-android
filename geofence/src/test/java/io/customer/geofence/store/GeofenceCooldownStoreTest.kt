@@ -69,6 +69,31 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun pruneOlderThan_expectOnlyEntriesBeforeCutoffRemoved() {
+        store.recordEmit("biz-old", Event.GeofenceTransition.ENTER, 100L)
+        store.recordEmit("biz-at-cutoff", Event.GeofenceTransition.ENTER, 500L)
+        store.recordEmit("biz-fresh", Event.GeofenceTransition.EXIT, 900L)
+
+        store.pruneOlderThan(500L)
+
+        store.getLastEmitTimestamp("biz-old", Event.GeofenceTransition.ENTER).shouldBeNull()
+        // Cutoff is exclusive: an entry recorded exactly at the cutoff survives.
+        store.getLastEmitTimestamp("biz-at-cutoff", Event.GeofenceTransition.ENTER) shouldBeEqualTo 500L
+        store.getLastEmitTimestamp("biz-fresh", Event.GeofenceTransition.EXIT) shouldBeEqualTo 900L
+    }
+
+    @Test
+    fun pruneOlderThan_givenIdWithUnderscores_expectPruned() {
+        // Keys embed the geofenceId between fixed prefix/suffix; underscores in the
+        // id must not confuse the prefix scan.
+        store.recordEmit("biz_with_underscores", Event.GeofenceTransition.ENTER, 100L)
+
+        store.pruneOlderThan(500L)
+
+        store.getLastEmitTimestamp("biz_with_underscores", Event.GeofenceTransition.ENTER).shouldBeNull()
+    }
+
+    @Test
     fun clearAll_expectAllValuesRemoved() {
         store.recordEmit("biz-1", Event.GeofenceTransition.ENTER, 100L)
         store.recordEmit("biz-2", Event.GeofenceTransition.EXIT, 200L)

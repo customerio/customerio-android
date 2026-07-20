@@ -3,7 +3,6 @@ package io.customer.geofence
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
-import io.customer.geofence.di.geofenceCooldownFilter
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceRegionStore
@@ -18,6 +17,8 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.MainThreadPoster
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 private const val MODULE_NAME = "Geofence"
 
@@ -132,13 +133,13 @@ class ModuleGeofence @JvmOverloads constructor(
             }
         }
 
-        // Sign-out: clear geofence state and cooldown so the next user (or anonymous
-        // session) doesn't inherit anything from the previous identity. ResetEvent
-        // fires from `clearIdentify()` before `UserChangedEvent(null)`, so it's the
-        // explicit "wipe user state" signal — analogous to analytics.reset().
+        // Sign-out: clear geofence state (and, inside the repository's guarded reset,
+        // the cooldown history) so the next user (or anonymous session) doesn't inherit
+        // anything from the previous identity. ResetEvent fires from `clearIdentify()`
+        // before `UserChangedEvent(null)`, so it's the explicit "wipe user state"
+        // signal — analogous to analytics.reset().
         eventBus.subscribe<Event.ResetEvent> {
             sdkAndroid.geofenceServices.onUserSignedOut()
-            sdkAndroid.geofenceCooldownFilter.clearAll()
         }
     }
 
@@ -174,15 +175,26 @@ class ModuleGeofence @JvmOverloads constructor(
             // Defensive sync at launch: if a user identified in a previous session is still
             // persisted, kick off a geofence refresh now (anchored at the registration center).
             // The repository's freshness threshold makes this a cheap no-op when identify also
-            // fires shortly after init (the common case).
-            val existingUserId = sdkAndroid.secureUserStore.getUserId()
-            if (!existingUserId.isNullOrEmpty()) {
-                val anchor = refreshAnchor(sdkAndroid, locationModule)
-                sdkAndroid.geofenceServices.onAppLaunch(
-                    latitude = anchor?.latitude,
-                    longitude = anchor?.longitude
-                )
-                autoAcquireIfNeeded(locationModule, anchor)
+            // fires shortly after init (the common case). Runs off the main thread — the reads
+            // below hit SharedPreferences plus a Keystore decrypt, which can block for hundreds
+            // of ms on some OEMs; only the observer registration above needs the main thread.
+            val launchScope = SDKComponent.scopeProvider.geofenceScope
+            launchScope.launch {
+                try {
+                    val existingUserId = sdkAndroid.secureUserStore.getUserId()
+                    if (!existingUserId.isNullOrEmpty()) {
+                        val anchor = refreshAnchor(sdkAndroid, locationModule)
+                        sdkAndroid.geofenceServices.onAppLaunch(
+                            latitude = anchor?.latitude,
+                            longitude = anchor?.longitude
+                        )
+                        autoAcquireIfNeeded(locationModule, anchor)
+                    }
+                } finally {
+                    // One-shot: geofenceScope mints a fresh scope per access, so cancel it once
+                    // the launch read completes rather than leaking its Job.
+                    launchScope.cancel()
+                }
             }
         }
     }

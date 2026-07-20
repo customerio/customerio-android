@@ -146,8 +146,9 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenNullUserId_expectDeferredWithoutTracking() = runTest {
-        // Anonymous-at-queue-time path: HTTP needs a userId so we leave the
-        // entry intact for the foreground flush (analytics pipeline + anonymousId).
+        // Defensive-only: the receiver drops anonymous transitions before persisting, so a
+        // null-userId row shouldn't exist. If one does, leave it rather than send a track
+        // the backend would reject.
         val entry = seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)
 
         val result = createWorker(inputDataFor(entry.key)).doWork()

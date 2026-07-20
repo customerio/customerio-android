@@ -23,6 +23,8 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import java.io.File
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
@@ -263,6 +265,43 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         verify { mockServices.onMovementTriggerExit(37.7749, -122.4194) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementTriggerExit_expectDispatchWaitsForRefreshJob() = runTest {
+        // Movement usually fires with the app backgrounded: the moment dispatch returns
+        // the goAsync window closes and the OS may kill the process mid-refresh, so
+        // dispatch must hold the window open until the refresh job lands.
+        val refreshJob = launch { delay(3_000) }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        refreshJob.isCompleted shouldBeEqualTo true
+    }
+
+    @Test
+    fun dispatchTransition_givenHungRefreshJob_expectWaitBoundedAndJobNotCancelled() = runTest {
+        // A hung GMS task must not blow the broadcast budget: the wait gives up after
+        // its timeout, but only the wait — the refresh itself keeps running on the
+        // services scope and self-completes if the process survives.
+        val refreshJob = launch { delay(60_000) }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        refreshJob.isActive shouldBeEqualTo true
+        refreshJob.cancel()
     }
 
     @Test

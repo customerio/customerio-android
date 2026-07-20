@@ -93,8 +93,9 @@ internal class GeofenceEventWorker(
             return Result.success()
         }
 
-        // No identified user at queue time — direct HTTP needs a userId, so
-        // leave the entry in the store for the foreground flush instead.
+        // Shouldn't happen — the receiver drops anonymous transitions before
+        // persisting. Defensive: leave the row rather than send a track the
+        // backend would reject.
         if (entry.userId.isNullOrEmpty()) {
             logger.logEventDeliveryDeferredAnonymous(entry.geofenceId, entry.transition.name)
             return Result.success()

@@ -26,6 +26,9 @@ internal class GeofenceCooldownFilter(
         val now = clock.currentTimeMillis()
         if (last != null && (now - last) < cooldownMs) return false
         store.recordEmit(geofenceId, transition, now)
+        // Sweep entries past the max possible cooldown — they can't suppress under any config —
+        // to bound the store as fences churn, without the double-fire risk of pruning by cached set.
+        store.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS)
         return true
     }
 

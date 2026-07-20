@@ -40,14 +40,11 @@ internal interface GeofenceRepository {
     suspend fun restoreFromCache(): Result<Unit>
 
     /**
-     * Drops OS-registered geofences + wipes user-specific store state on a genuine
-     * sign-out. Workspace cache (regions, config) is preserved.
+     * On a genuine sign-out: drops OS-registered geofences and wipes user-scoped store state
+     * (including cooldown history); workspace cache (regions, config) is preserved.
      *
-     * No-op while a user is signed in: geofences are workspace-scoped, so the active
-     * user reuses the existing registration and their identify-sync reconciles it —
-     * tearing it down here would only race that sync. `secureUserStore` is cleared
-     * synchronously in `clearIdentify` before the ResetEvent, so a null current user
-     * here reliably means a plain sign-out.
+     * No-op while a user is signed in — geofences are workspace-scoped, so the active user reuses
+     * the registration and identify-sync reconciles it; tearing it down would only race that sync.
      */
     suspend fun reset(): Result<Unit>
 }
@@ -58,6 +55,7 @@ internal class GeofenceRepositoryImpl(
     private val distanceFilter: GeofenceDistanceFilter,
     private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore,
+    private val cooldownFilter: GeofenceCooldownFilter,
     private val clock: Clock,
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
@@ -372,25 +370,23 @@ internal class GeofenceRepositoryImpl(
     }
 
     override suspend fun reset(): Result<Unit> = stateMutex.withLock {
-        // Skip the wipe while a user is signed in now: geofences are workspace-scoped, so the
-        // active user reuses the existing registration and their identify-sync reconciles it —
-        // tearing it down here would only race that sync. clearIdentify clears the user store
-        // synchronously before ResetEvent, so a null current user reliably means a plain sign-out.
+        // clearIdentify clears the user store synchronously before ResetEvent, so a non-null user
+        // here means this reset was superseded by a new sign-in — skip the wipe (see interface doc).
         val currentUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
         if (currentUserId != null) {
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }
-        // Clear OS-side FIRST, then wipe user-scoped store state. On
-        // manager.clearAll failure preserve everything so the next refresh's
-        // stale-cleanup diff retries removal — without it, unremoved OS regs
-        // orphan with no record to drive cleanup. Cached regions/config are
-        // kept; the freshness timestamp is dropped (in clearUserScopedState)
-        // so the next login re-fetches.
+        // Clear OS-side first. On failure, preserve store state so the next refresh's stale-cleanup
+        // diff can retry removal (unremoved OS regs would otherwise orphan). Cached regions/config
+        // are kept; the freshness timestamp is dropped so the next login re-fetches.
         manager.clearAll().also { result ->
             if (result.isSuccess) {
                 store.clearUserScopedState()
             }
+            // Cooldown is user-scoped suppression: wipe it on any genuine sign-out even if the OS
+            // clear failed, so the next user can't inherit the prior user's stale windows.
+            cooldownFilter.clearAll()
         }
     }
 

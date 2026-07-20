@@ -37,6 +37,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     private val distanceFilter: GeofenceDistanceFilter = mockk(relaxed = true)
     private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val clock: Clock = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val jsonSerializer = GeofenceJsonSerializer()
@@ -57,6 +58,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         distanceFilter = distanceFilter,
         manager = manager,
         secureUserStore = secureUserStore,
+        cooldownFilter = cooldownFilter,
         clock = clock,
         logger = logger
     )
@@ -979,6 +981,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             manager.clearAll()
             store.clearUserScopedState()
         }
+        verify { cooldownFilter.clearAll() }
         verify(exactly = 0) { store.clearAll() }
     }
 
@@ -996,6 +999,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         coVerify(exactly = 0) { manager.clearAll() }
         verify(exactly = 0) { store.clearUserScopedState() }
+        // Registrations survive, so their suppression windows must too — wiping the
+        // cooldown here would let still-registered fences re-emit inside the window.
+        verify(exactly = 0) { cooldownFilter.clearAll() }
         verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
     }
 
@@ -1031,6 +1037,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.exceptionOrNull() shouldBeEqualTo error
         verify(exactly = 0) { store.clearUserScopedState() }
         verify(exactly = 0) { store.clearAll() }
+        // Cooldown is user-scoped suppression, not registration state: it's wiped on a genuine
+        // sign-out even when the OS clear fails, so the next user can't inherit stale windows.
+        verify(exactly = 1) { cooldownFilter.clearAll() }
     }
 
     // ---------- handleMovement / tier dispatch ----------

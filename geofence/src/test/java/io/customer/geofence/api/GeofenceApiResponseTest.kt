@@ -75,6 +75,17 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenFractionalRadius_expectDecodeSucceeds() {
+        // A backend sending 150.5 (or 150.0) must not fail the whole response —
+        // the domain radius is a Float either way.
+        val regions = parseRegions(
+            """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 150.5 } ] }"""
+        )
+
+        regions[0].radius shouldBeEqualTo 150.5f
+    }
+
+    @Test
     fun parseAndMap_givenNoGeosetIds_expectEmpty() {
         val regions = parseRegions(
             """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100 } ] }"""

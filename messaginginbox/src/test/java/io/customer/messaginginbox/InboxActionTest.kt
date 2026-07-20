@@ -188,7 +188,7 @@ class InboxActionTest {
         nav shouldBeEqualTo InboxNavigation.None
         verify(exactly = 1) { visualInbox.markMessageDeleted(match { it.queueId == "a" }) }
         // Dismiss is not a click — no clicked metric.
-        verify(exactly = 0) { visualInbox.trackMessageClicked(any(), any()) }
+        verify(exactly = 0) { visualInbox.trackMessageClicked(any(), any(), any()) }
     }
 
     @Test
@@ -205,7 +205,7 @@ class InboxActionTest {
 
         nav.shouldBeInstanceOf<InboxNavigation.OpenUrl>()
         (nav as InboxNavigation.OpenUrl).url shouldBeEqualTo "https://example.com"
-        verify(exactly = 1) { visualInbox.trackMessageClicked(match { it.queueId == "a" }, "messageAction") }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(match { it.queueId == "a" }, "messageAction", "https://example.com") }
     }
 
     @Test
@@ -223,7 +223,7 @@ class InboxActionTest {
         // No host listener => the SDK routes the deeplink itself (the overlay resolves the intent).
         nav.shouldBeInstanceOf<InboxNavigation.OpenDeeplink>()
         (nav as InboxNavigation.OpenDeeplink).url shouldBeEqualTo "myapp://home"
-        verify(exactly = 1) { visualInbox.trackMessageClicked(match { it.queueId == "a" }, any()) }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(match { it.queueId == "a" }, any(), "myapp://home") }
     }
 
     @Test
@@ -240,7 +240,7 @@ class InboxActionTest {
 
         // performAction is host-only; with no host listener there is nothing for the SDK to navigate.
         nav shouldBeEqualTo InboxNavigation.None
-        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any()) }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "doThing") }
     }
 
     @Test
@@ -287,7 +287,7 @@ class InboxActionTest {
 
         // The host-facing action name comes from web-schema `data.name`, not the Jist event name.
         captured.single() shouldBeEqualTo "cta_click"
-        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), "cta_click") }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), "cta_click", "https://x.io") }
     }
 
     @Test
@@ -313,7 +313,7 @@ class InboxActionTest {
         // dismisses so the inbox doesn't linger over the host's destination.
         nav shouldBeEqualTo InboxNavigation.Dismiss
         // Still tracked (a click happened) and the listener got message id + delivery + action value.
-        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any()) }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://example.com") }
         captured.size shouldBeEqualTo 1
         captured.first().first.queueId shouldBeEqualTo "a"
         captured.first().first.deliveryId shouldBeEqualTo "d-a"
@@ -384,7 +384,22 @@ class InboxActionTest {
         controller.handleAction(visible(messages), JistInboxAdapter.toJist(messages.first()), event(behavior = "openUrl", action = "https://x.io"))
         controller.handleAction(visible(messages), JistInboxAdapter.toJist(messages.first()), event(behavior = "openUrl", action = "https://x.io"))
 
-        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any()) }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://x.io") }
+    }
+
+    @Test
+    fun handleAction_givenTwoDifferentCtasSameMessage_expectEachTracked() {
+        // A message can carry multiple CTAs; web reports a click for each, so two DIFFERENT actions
+        // on the same message must both track (the same-action repeat above is what's deduped).
+        val messages = listOf(message("a"))
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        val controller = VisualInboxController(visualInbox)
+
+        controller.handleAction(visible(messages), JistInboxAdapter.toJist(messages.first()), event(behavior = "openUrl", action = "https://one.io"))
+        controller.handleAction(visible(messages), JistInboxAdapter.toJist(messages.first()), event(behavior = "openUrl", action = "https://two.io"))
+
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://one.io") }
+        verify(exactly = 1) { visualInbox.trackMessageClicked(any(), any(), "https://two.io") }
     }
 
     // --- observe callbacks (item 14): shown / opened / dismissed ---

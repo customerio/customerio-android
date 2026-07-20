@@ -14,7 +14,7 @@ import kotlin.math.min
 
 /**
  * Renders a pre-built branding bell glyph ([InboxBellSvg.BellArt]) — the workspace's configured
- * `patterns.inbox.floatingIcon.svg`, parsed once into a combined even-odd path — scaled-to-fit the
+ * `patterns.inbox.floatingIcon.svg`, parsed once into one path per `<path>` (each with its own fill rule) — scaled-to-fit the
  * target size (aspect preserved) and filled with [tint].
  *
  * The art is built (and validated) up front by [InboxBellSvg.buildArt]; callers pass the result only
@@ -37,7 +37,9 @@ internal fun InboxBellIcon(
             scale(scaleX = scale, scaleY = scale, pivot = Offset.Zero) {
                 // Shift the viewBox origin to (0,0) before scaling so a non-zero minX/minY viewBox fits.
                 translate(left = -art.minX, top = -art.minY) {
-                    drawPath(path = art.path, color = tint)
+                    // Fill each <path> INDEPENDENTLY (each with its own fill rule) so overlapping paths don't flip
+                    // each other's winding parity (MBL-2123). Uniform tint → the union reads as one glyph.
+                    art.paths.forEach { path -> drawPath(path = path, color = tint) }
                 }
             }
         }
@@ -52,44 +54,68 @@ internal fun InboxBellIcon(
  * caller so the SVG is parsed once, not per frame.
  */
 internal object InboxBellSvg {
-    /** A built, ready-to-draw bell glyph: the combined even-odd [Path] plus its source viewBox. */
+    /**
+     * A built, ready-to-draw bell glyph: one [Path] per source `<path>` element (each with its own fill rule, filled
+     * independently — see [InboxBellIcon]) plus its source viewBox.
+     */
     data class BellArt(
-        val path: Path,
+        val paths: List<Path>,
         val minX: Float,
         val minY: Float,
         val width: Float,
         val height: Float
     )
 
-    /** Parsed geometry: viewBox origin/size + the `d` string of each `<path>`. */
+    /** One `<path>` element: its `d` geometry + whether it fills even-odd (else nonzero). */
+    data class PathSpec(val d: String, val evenOdd: Boolean)
+
+    /** Parsed geometry: viewBox origin/size + the per-`<path>` specs. */
     data class Parsed(
         val minX: Float,
         val minY: Float,
         val width: Float,
         val height: Float,
-        val pathData: List<String>
+        val paths: List<PathSpec>
     )
 
     private val VIEW_BOX = Regex("""viewBox\s*=\s*["']\s*([^"']+?)\s*["']""", RegexOption.IGNORE_CASE)
-    private val PATH_D = Regex("""<path\b[^>]*?\bd\s*=\s*["']([^"']+)["']""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val PATH_TAG = Regex("""<path\b[^>]*>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val SVG_TAG = Regex("""<svg\b[^>]*>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val D_ATTR = Regex("""\bd\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+
+    // `fill-rule="evenodd"` (attribute) or `fill-rule: evenodd` (CSS style), either rule, any quoting.
+    private val FILL_RULE = Regex("""fill-rule\s*[=:]\s*["']?\s*(evenodd|nonzero)""", RegexOption.IGNORE_CASE)
 
     /**
      * Parse [svg], or return null when there is nothing renderable (no `<path d>`). A missing
-     * `viewBox` defaults to a 24×24 box so a bare `<svg><path/></svg>` still fits.
+     * `viewBox` defaults to a 24×24 box so a bare `<svg><path/></svg>` still fits. Each `<path>`
+     * carries its OWN fill rule — the path's declared `fill-rule`, else the root `<svg>`'s, else
+     * nonzero (the SVG/CSS default) — matching how a browser fills each path (MBL-2123), and matching
+     * iOS which likewise honors the declared rule per path.
      */
     fun parse(svg: String): Parsed? {
-        val pathData = PATH_D.findAll(svg).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
-        if (pathData.isEmpty()) return null
+        val rootEvenOdd = SVG_TAG.find(svg)?.value?.let { fillRuleEvenOdd(it) }
+        val paths = PATH_TAG.findAll(svg).mapNotNull { match ->
+            val tag = match.value
+            val d = D_ATTR.find(tag)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+            PathSpec(d = d, evenOdd = fillRuleEvenOdd(tag) ?: rootEvenOdd ?: false)
+        }.toList()
+        if (paths.isEmpty()) return null
 
         val box = VIEW_BOX.find(svg)?.groupValues?.get(1)
             ?.split(Regex("[\\s,]+"))
             ?.mapNotNull { it.toFloatOrNull() }
         return if (box != null && box.size == 4 && box[2] > 0f && box[3] > 0f) {
-            Parsed(minX = box[0], minY = box[1], width = box[2], height = box[3], pathData = pathData)
+            Parsed(minX = box[0], minY = box[1], width = box[2], height = box[3], paths = paths)
         } else {
-            Parsed(minX = 0f, minY = 0f, width = 24f, height = 24f, pathData = pathData)
+            Parsed(minX = 0f, minY = 0f, width = 24f, height = 24f, paths = paths)
         }
     }
+
+    /** true if [tag] declares `fill-rule` evenodd, false if nonzero, null if it declares neither. */
+    private fun fillRuleEvenOdd(tag: String): Boolean? =
+        FILL_RULE.find(tag)?.groupValues?.get(1)?.equals("evenodd", ignoreCase = true)
 
     /**
      * Build a ready-to-draw [BellArt] from raw [svg], or null when it cannot be rendered (no
@@ -100,11 +126,16 @@ internal object InboxBellSvg {
     fun buildArt(svg: String): BellArt? {
         val parsed = parse(svg) ?: return null
         return try {
-            val path = Path().apply {
-                fillType = PathFillType.EvenOdd
-                parsed.pathData.forEach { d -> addPath(PathParser().parsePathString(d).toPath()) }
+            // Build each <path> as its OWN path with its declared fill rule (nonzero default), filled
+            // independently by InboxBellIcon. Merging them into one path + a single fill rule flips
+            // parity where paths overlap, producing a malformed glyph (MBL-2123); browsers fill each
+            // <path> on its own with that path's own rule.
+            val paths = parsed.paths.mapNotNull { spec ->
+                PathParser().parsePathString(spec.d).toPath()
+                    .apply { fillType = if (spec.evenOdd) PathFillType.EvenOdd else PathFillType.NonZero }
+                    .takeIf { !it.isEmpty }
             }
-            if (path.isEmpty) null else BellArt(path, parsed.minX, parsed.minY, parsed.width, parsed.height)
+            if (paths.isEmpty()) null else BellArt(paths, parsed.minX, parsed.minY, parsed.width, parsed.height)
         } catch (ex: Exception) {
             null
         }

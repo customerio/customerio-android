@@ -680,6 +680,42 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     }
 
     @Test
+    fun processInboxMessages_givenTrackClickedWithActionValue_shouldPublishMetricWithNameAndValue() {
+        // Given an inbox message in state
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = createInboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
+        val actionName = "view_details"
+        val actionValue = "https://example.com"
+        val action = InAppMessagingAction.InboxAction.TrackClicked(inboxMessage, actionName, actionValue)
+
+        // When the middleware processes the action
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Then it should publish a generic "Report Delivery Event" (Metric.Clicked) carrying BOTH the
+        // action name and value (web parity) — no separate named inbox event.
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = mapOf("actionName" to actionName, "actionValue" to actionValue)
+                )
+            )
+        }
+        verify { nextFn(action) }
+    }
+
+    @Test
     fun processInboxMessages_givenTrackClickedWithoutActionName_shouldPublishMetricWithoutParams() {
         // Given an inbox message in state
         val deliveryId = String.random
@@ -712,6 +748,38 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         }
 
         // And it should pass the action to the next middleware/reducer
+        verify { nextFn(action) }
+    }
+
+    @Test
+    fun processInboxMessages_givenTrackClickedWithEmptyActionValue_shouldOmitEmptyParams() {
+        val deliveryId = String.random
+        val queueId = String.random
+        val inboxMessage = createInboxMessage(deliveryId = deliveryId, queueId = queueId, opened = false)
+
+        val state = InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            inboxMessages = setOf(inboxMessage)
+        )
+        every { store.state } returns state
+
+        // A value-less action arrives with empty strings, not null.
+        val action = InAppMessagingAction.InboxAction.TrackClicked(inboxMessage, actionName = "", actionValue = "")
+
+        val middleware = processInboxMessages()
+        middleware(store)(nextFn)(action)
+
+        // Empty name/value are omitted entirely (web parity) — no `actionValue: ""`.
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = emptyMap()
+                )
+            )
+        }
         verify { nextFn(action) }
     }
 

@@ -21,7 +21,9 @@ class InboxBellSvgTest {
         parsed.minY shouldBeEqualTo 0f
         parsed.width shouldBeEqualTo 24f
         parsed.height shouldBeEqualTo 25f
-        parsed.pathData shouldBeEqualTo listOf("M0 0 L24 0 L24 25 Z")
+        parsed.paths.map { it.d } shouldBeEqualTo listOf("M0 0 L24 0 L24 25 Z")
+        // No declared fill-rule → nonzero (the SVG/CSS default), matching iOS.
+        parsed.paths.single().evenOdd shouldBeEqualTo false
     }
 
     @Test
@@ -29,7 +31,22 @@ class InboxBellSvgTest {
         val svg = """<svg viewBox="0 0 24 25"><path d="M0 0 L10 0 Z"/><path fill-rule="evenodd" d="M12 12 L20 20 Z"/></svg>"""
         val parsed = InboxBellSvg.parse(svg)
         parsed.shouldNotBeNull()
-        parsed.pathData shouldBeEqualTo listOf("M0 0 L10 0 Z", "M12 12 L20 20 Z")
+        parsed.paths.map { it.d } shouldBeEqualTo listOf("M0 0 L10 0 Z", "M12 12 L20 20 Z")
+        // Per-path fill rule: first has none (nonzero default), second declares evenodd.
+        parsed.paths.map { it.evenOdd } shouldBeEqualTo listOf(false, true)
+    }
+
+    @Test
+    fun parse_fillRule_resolvesPerPath() {
+        // Explicit nonzero → false.
+        InboxBellSvg.parse("""<svg viewBox="0 0 24 25"><path fill-rule="nonzero" d="M0 0 Z"/></svg>""")!!
+            .paths.single().evenOdd shouldBeEqualTo false
+        // CSS-style spelling inside style="" → true.
+        InboxBellSvg.parse("""<svg viewBox="0 0 24 25"><path style="fill-rule: evenodd" d="M0 0 Z"/></svg>""")!!
+            .paths.single().evenOdd shouldBeEqualTo true
+        // A path with no rule inherits the root <svg>'s declared rule.
+        InboxBellSvg.parse("""<svg fill-rule="evenodd" viewBox="0 0 24 25"><path d="M0 0 Z"/></svg>""")!!
+            .paths.single().evenOdd shouldBeEqualTo true
     }
 
     @Test
@@ -73,6 +90,8 @@ class InboxBellSvgTest {
             """<path fill-rule="evenodd" d="M11.5 1.68C10.5 1.68 9.62 2.56 9.62 3.65Z"/></svg>"""
         val parsed = InboxBellSvg.parse(svg)
         parsed.shouldNotBeNull()
-        parsed.pathData.size shouldBeEqualTo 3
+        parsed.paths.size shouldBeEqualTo 3
+        // The real glyph declares fill-rule="evenodd" on every path.
+        parsed.paths.all { it.evenOdd } shouldBeEqualTo true
     }
 }

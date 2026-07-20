@@ -243,6 +243,29 @@ class NotificationInboxTest : IntegrationTest() {
     }
 
     @Test
+    fun trackMessageClicked_givenActionNameAndValue_expectMetricEventPublishedWithBoth() = runTest {
+        val deliveryId = "inbox1"
+        val message = createInboxMessage(deliveryId = deliveryId, queueId = "queue-123", opened = false)
+
+        initializeAndSetUser()
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(message)))
+
+        // The three-arg overload (kept separate from the two-arg method for binary compatibility)
+        // carries actionValue through to the metric params alongside actionName.
+        notificationInbox.trackMessageClicked(message, "view_details", "https://example.com")
+
+        verify {
+            mockEventBus.publish(
+                Event.TrackInAppMetricEvent(
+                    deliveryID = deliveryId,
+                    event = Metric.Clicked,
+                    params = mapOf("actionName" to "view_details", "actionValue" to "https://example.com")
+                )
+            )
+        }
+    }
+
+    @Test
     fun addChangeListener_givenNoTopicFilter_expectListenerReceivesAllMessages() = runTest {
         initializeAndSetUser()
 

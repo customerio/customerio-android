@@ -285,8 +285,15 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
                     }
 
                     is InAppMessagingAction.InboxAction.TrackClicked -> {
-                        // Track click metric for analytics
-                        val params = action.actionName?.let { mapOf("actionName" to it) } ?: emptyMap()
+                        // Track click metric for analytics via the generic "Report Delivery Event"
+                        // (metric: clicked), carrying the action name AND value to match web — the CDP
+                        // backend renders it as "Clicked Inbox Message" for an inbox delivery.
+                        // Omit empty name/value so a value-less action doesn't emit `actionValue: ""`
+                        // — web omits the field entirely when there is no value.
+                        val params = buildMap {
+                            action.actionName?.takeIf { it.isNotEmpty() }?.let { put("actionName", it) }
+                            action.actionValue?.takeIf { it.isNotEmpty() }?.let { put("actionValue", it) }
+                        }
 
                         logger.debug("Inbox message clicked: ${currentMessage.toLogString()}")
                         currentMessage.deliveryId?.let { deliveryId ->

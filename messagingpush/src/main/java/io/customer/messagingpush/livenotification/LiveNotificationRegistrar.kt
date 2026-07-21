@@ -51,9 +51,6 @@ internal class LiveNotificationRegistrar(
     internal fun onUserChanged(event: Event.UserChangedEvent) {
         userId = event.userId ?: event.anonymousId
         isIdentified = event.userId != null
-        // Feed identity to the lifecycle client synchronously so local start/update/end
-        // reporting isn't gated by the pipeline's laggy isUserIdentified flag.
-        client.setIdentified(isIdentified)
         registerAll()
     }
 
@@ -66,11 +63,12 @@ internal class LiveNotificationRegistrar(
     internal fun onReset() {
         SDKComponent.liveNotificationManager.cancelAllActivities()
         store.clearRegistrations()
-        // Drop identity so post-logout local start/update/end aren't reported as the
-        // previous (identified) user until a new UserChangedEvent arrives.
+        // Drop identity so a post-logout push-to-start registration isn't sent for the
+        // previous (identified) user until a new UserChangedEvent arrives. Local
+        // start/update/end gating uses pipeline.isUserIdentified, cleared synchronously by
+        // clearIdentify().
         userId = ""
         isIdentified = false
-        client.setIdentified(false)
     }
 
     private fun registerAll() {

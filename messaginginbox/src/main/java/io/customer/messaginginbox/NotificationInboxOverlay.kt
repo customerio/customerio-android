@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -347,11 +346,15 @@ private fun InboxBellContent(
                     .align(Alignment.TopEnd)
                     .offset(x = 4.dp, y = (-4).dp)
                     .semantics { contentDescription = "$unopenedCount unread notifications" }
-                    .heightIn(min = 16.dp)
-                    .widthIn(min = 16.dp)
-                    .clip(CircleShape)
+                    // Geometry mirrors web (#gist-inbox-badge): a 20dp-tall stadium (radius =
+                    // height/2) with min-width 20 + 6dp horizontal padding, so a single digit is a
+                    // circle and multi-digit counts grow horizontally instead of forcing a full
+                    // circle (MBL-2127). Offset (4, -4) matches web's top:-4/right:-4.
+                    .height(20.dp)
+                    .widthIn(min = 20.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(colors.badgeColor)
-                    .padding(horizontal = 4.dp)
+                    .padding(horizontal = 6.dp)
             ) {
                 BasicText(
                     text = unopenedCount.toString(),

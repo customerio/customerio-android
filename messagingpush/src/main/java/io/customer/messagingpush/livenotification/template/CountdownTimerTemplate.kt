@@ -5,12 +5,8 @@ import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import org.json.JSONObject
 
 /**
- * `countdowntimer` template — chronometer ticking toward [targetDate].
- *
- * Fields: title (req), heroImageKey (opt), targetDate (req, epoch ms —
- * extendable across pushes), statusMessage (req, label above timer),
- * expiredMessage (opt). Post-target with no expiredMessage means the activity
- * should hide; SDK signals this via [TemplateRenderResult.cancelImmediately].
+ * `countdowntimer` template — a status headline over a live countdown to
+ * `endTime` (epoch seconds), matching iOS `CIOCountdownTimerAttributes`.
  */
 internal object CountdownTimerTemplate : LiveNotificationTemplate {
 
@@ -22,24 +18,25 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
         branding: LiveNotificationBranding?,
         smallIcon: Int,
         fallbackTintColor: Int?
-    ): TemplateRenderResult {
+    ): TemplateRenderResult? {
+        val header = data.optStringNonEmpty(CountdownTimerFields.HEADER)
         val title = data.optString(CountdownTimerFields.TITLE)
-        val heroImageKey = data.optStringNonEmpty(CountdownTimerFields.HERO_IMAGE_KEY)
-        val targetDate = data.optLong(CountdownTimerFields.TARGET_DATE).takeIf { it > 0 }
-        val statusMessage = data.optString(CountdownTimerFields.STATUS_MESSAGE)
-        val expiredMessage = data.optStringNonEmpty(CountdownTimerFields.EXPIRED_MESSAGE)
+        val statusMessage = data.optStringNonEmpty(CountdownTimerFields.STATUS_MESSAGE)
+        val endTime = data.optEpochSecondsAsMillis(CountdownTimerFields.END_TIME)
+
+        if (title.isBlank()) {
+            return null
+        }
 
         val now = System.currentTimeMillis()
-        val isPostTarget = targetDate != null && now >= targetDate
-        // Server pushed a post-target state with no message: hide the activity.
-        val cancelImmediately = isPostTarget && expiredMessage == null
+        val isCountingDown = endTime != null && now < endTime
 
         return TemplateRenderResult(
             title = title,
-            body = if (isPostTarget) expiredMessage.orEmpty() else statusMessage,
-            subText = null,
-            largeIcon = if (cancelImmediately) null else TemplateAssets.resolveBitmap(context, heroImageKey),
-            accentColor = if (cancelImmediately) null else (branding?.accentColor ?: fallbackTintColor),
+            body = statusMessage.orEmpty(),
+            subText = header,
+            largeIcon = null,
+            accentColor = branding?.accentColor ?: fallbackTintColor,
             colorized = false,
             showProgress = false,
             progress = 0,
@@ -49,9 +46,8 @@ internal object CountdownTimerTemplate : LiveNotificationTemplate {
             startIconRes = null,
             endIconRes = null,
             trackerIconRes = null,
-            countdownUntil = if (isPostTarget) null else targetDate,
-            deepLink = null,
-            cancelImmediately = cancelImmediately
+            countdownUntil = if (isCountingDown) endTime else null,
+            deepLink = null
         )
     }
 }

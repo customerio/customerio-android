@@ -13,6 +13,7 @@ import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.livenotification.LiveNotificationData
+import io.customer.messagingpush.livenotification.ULID
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
@@ -22,7 +23,6 @@ import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.events.Metric
-import java.util.UUID
 import kotlinx.coroutines.flow.filter
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
@@ -42,8 +42,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
-        // Live notifications are opt-in: only wire up registration when the host app
-        // enabled at least one activity type. Start before requesting the token so the
+        // Live notifications are opt-in; start before requesting the token so the
         // registrar observes the resulting RegisterDeviceTokenEvent.
         if (moduleConfig.liveNotificationTypes.isNotEmpty()) {
             SDKComponent.liveNotificationRegistrar.start()
@@ -58,25 +57,88 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * generates a unique activity id, renders the notification immediately, and
      * registers the instance with Customer.io so the backend can push updates.
      *
+     * The notification renders regardless of identity, but its lifecycle events
+     * (start/update/end) are only reported to Customer.io for an **identified
+     * user** — call `identify` first if you need the backend to track this
+     * activity and push updates/remote end (matches iOS Live Activities).
+     *
      * @return the generated `activity_id`, used to correlate subsequent updates.
      */
-    fun startLiveNotification(data: LiveNotificationData): String =
-        startLiveNotification(data.activityType, data.fields())
+    fun startLiveNotification(data: LiveNotificationData): String {
+        val activityId = ULID.generate()
+        SDKComponent.liveNotificationManager.start(
+            activityId = activityId,
+            activityType = data.activityType,
+            attributes = data.attributes(),
+            contentState = data.contentState()
+        )
+        return activityId
+    }
 
     /**
      * Starts a live notification locally for a customer-defined [activityType]
-     * (one registered via [MessagingPushModuleConfig.Builder.registerLiveNotificationTypes]).
+     * (one enabled via [MessagingPushModuleConfig.Builder.enableCustomLiveNotificationTypes]).
      * Custom types have no built-in template, so a
      * [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification]
      * must render them.
+     *
+     * As with the templated overload, lifecycle events are reported to
+     * Customer.io only for an identified user.
      *
      * @param data flattened fields delivered to the renderer.
      * @return the generated `activity_id`.
      */
     fun startLiveNotification(activityType: String, data: Map<String, Any?>): String {
-        val activityId = UUID.randomUUID().toString()
-        SDKComponent.liveNotificationManager.start(activityId, activityType, data)
+        val activityId = ULID.generate()
+        SDKComponent.liveNotificationManager.start(
+            activityId = activityId,
+            activityType = activityType,
+            attributes = emptyMap(),
+            contentState = data
+        )
         return activityId
+    }
+
+    /**
+     * Updates a live notification previously started via [startLiveNotification]
+     * for a built-in template type: re-renders it in place and reports an
+     * `update` event to Customer.io.
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     */
+    fun updateLiveNotification(activityId: String, data: LiveNotificationData) =
+        SDKComponent.liveNotificationManager.update(
+            activityId = activityId,
+            activityType = data.activityType,
+            attributes = data.attributes(),
+            contentState = data.contentState()
+        )
+
+    /**
+     * Updates a live notification previously started via [startLiveNotification]
+     * for a customer-defined [activityType].
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     * @param data flattened fields delivered to the renderer.
+     */
+    fun updateLiveNotification(activityId: String, activityType: String, data: Map<String, Any?>) {
+        SDKComponent.liveNotificationManager.update(
+            activityId = activityId,
+            activityType = activityType,
+            attributes = emptyMap(),
+            contentState = data
+        )
+    }
+
+    /**
+     * Ends a live notification previously started via [startLiveNotification]:
+     * removes it and reports an `end` event. Only the [activityId] returned by
+     * [startLiveNotification] is needed — the SDK remembers the activity type.
+     *
+     * @param activityId the id returned by [startLiveNotification].
+     */
+    fun endLiveNotification(activityId: String) {
+        SDKComponent.liveNotificationManager.end(activityId)
     }
 
     private fun subscribeToLifecycleEvents() {

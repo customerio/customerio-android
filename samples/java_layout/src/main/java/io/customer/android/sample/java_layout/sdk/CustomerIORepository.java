@@ -18,8 +18,10 @@ import io.customer.location.LocationModuleConfig;
 import io.customer.location.ModuleLocation;
 import android.graphics.Color;
 
+import io.customer.android.sample.java_layout.R;
 import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.livenotification.LiveNotificationAsset;
 import io.customer.messagingpush.livenotification.LiveNotificationBranding;
 import io.customer.messagingpush.livenotification.LiveNotificationType;
 import io.customer.sdk.CustomerIO;
@@ -53,21 +55,22 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
+                        // One app-level brand applied to every live notification.
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",
-                                Color.parseColor("#1B5E20"),
-                                null
+                                Color.parseColor("#FF6A00"),
+                                R.drawable.ic_live_delivery,                                        // @DrawableRes small icon
+                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_scooter) // typed logo
                         ))
                         // App-rendered custom types go through this callback.
                         .setNotificationCallback(new LiveNotificationCallback())
-                        // Live notifications are opt-in: enable the built-in template
-                        // types plus our two custom (app-rendered) types.
-                        .setLiveNotificationTypes(
-                                LiveNotificationType.DELIVERY_TRACKING,
-                                LiveNotificationType.FLIGHT_STATUS,
-                                LiveNotificationType.LIVE_SCORE,
-                                LiveNotificationType.COUNTDOWN_TIMER,
-                                LiveNotificationType.AUCTION_BID,
+                        // Live notifications are opt-in: enable the built-in template types...
+                        .enableLiveNotificationTypes(
+                                LiveNotificationType.SEGMENTS,
+                                LiveNotificationType.COUNTDOWN_TIMER
+                        )
+                        // ...plus our two custom (app-rendered) types.
+                        .enableCustomLiveNotificationTypes(
                                 LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE,
                                 LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT
                         )

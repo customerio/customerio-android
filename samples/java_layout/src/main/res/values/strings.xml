@@ -192,11 +192,8 @@
     <string name="live_notification_section_type">Notification Type</string>
     <string name="live_notification_section_manual">Manual Control</string>
     <string name="live_notification_section_auto">Auto Sequence</string>
-    <string name="live_notification_type_delivery_tracking">Delivery Tracking</string>
-    <string name="live_notification_type_flight_status">Flight Status</string>
-    <string name="live_notification_type_live_score">Live Score</string>
+    <string name="live_notification_type_segments">Segments</string>
     <string name="live_notification_type_countdown_timer">Countdown Timer</string>
-    <string name="live_notification_type_auction_bid">Auction Bid</string>
     <string name="live_notification_type_rideshare">Rideshare (custom layout)</string>
     <string name="live_notification_type_workout">Workout (builder API)</string>
     <string name="live_notification_rideshare_eta">ETA</string>
@@ -211,5 +208,7 @@
     <string name="live_notification_section_debug">Debug</string>
     <string name="live_notification_debug_unknown_activity_type">Fire unknown activity_type</string>
     <string name="live_notification_debug_start_via_api">Start via startLiveNotification() API</string>
+    <string name="live_notification_debug_update_via_api">Update via updateLiveNotification() API</string>
+    <string name="live_notification_debug_end_via_api">End via endLiveNotification() API</string>
 
 </resources>

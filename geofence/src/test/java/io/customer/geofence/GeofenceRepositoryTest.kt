@@ -1410,9 +1410,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenRebootWipedOsState_expectInitialEnterForAlreadyRegisteredFence() = runTest {
-        // Uptime regressed since the last registration → reboot wiped GMS state, so a fence still
-        // in registeredIds counts as newly monitored and the enter is synthesized.
+    fun refresh_givenRebootWipedOsState_expectReRegistrationButNoInitialEnter() = runTest {
+        // Uptime regressed → reboot wiped GMS, so everything is re-added (empty existing set). But
+        // the launch anchor can predate the reboot, so containment can't be trusted — a fence whose
+        // params didn't change stays silent (mirrors restoreFromCache).
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
@@ -1426,9 +1427,29 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
+        coVerify { manager.replaceGeofences(any(), emptySet()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenRegisteredFenceParamsChangedDeviceInside_expectInitialEnter() = runTest {
+        // Server grew g-1's radius (50 → 100 m): the fence is re-added to GMS, so it synthesizes
+        // like a new fence when the device is inside the new geometry.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
         coVerify(exactly = 1) {
             transitionEmitter.emit(
-                geofenceId = "biz-1",
+                geofenceId = "g-1",
                 transition = Event.GeofenceTransition.ENTER,
                 userId = "user-42",
                 timestampSeconds = any(),
@@ -1437,6 +1458,32 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 geosetIds = any()
             )
         }
+    }
+
+    @Test
+    fun refresh_givenUserChangesDuringRegistration_expectNoInitialEnter() = runTest {
+        // clearIdentify rewrites the user store without taking stateMutex, so identity can change
+        // while the GMS call is awaited; synthesis must recheck before queueing a delivery row.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val gmsGate = CompletableDeferred<Unit>()
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            gmsGate.await()
+            Result.success(Unit)
+        }
+
+        val refreshJob = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent() // pre-register identity check passed; now suspended in the GMS call
+        every { secureUserStore.getUserId() } returns null // signed out mid-await
+        gmsGate.complete(Unit)
+        refreshJob.join()
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test

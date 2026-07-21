@@ -291,20 +291,25 @@ internal class GeofenceRepositoryImpl(
         val existingBusinessIds = if (osStateWipedByReboot()) {
             emptySet()
         } else {
-            val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
-            val cachedById = store.getCachedRegions().associateBy { it.id }
-            regions
-                .filter { region ->
-                    val cached = cachedById[region.id]
-                    region.id in registeredBusinessIds && cached?.equalsForRegistration(region) == true
-                }
-                .map { it.id }
-                .toSet()
+            unchangedRegisteredIds(regions)
         }
         return manager.replaceGeofences(
             regions = regions,
             existingBusinessIds = existingBusinessIds
         )
+    }
+
+    /** Business IDs already registered whose GMS-relevant params match the cache — safe to skip re-adding. */
+    private fun unchangedRegisteredIds(regions: List<GeofenceRegion>): Set<String> {
+        val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+        val cachedById = store.getCachedRegions().associateBy { it.id }
+        return regions
+            .filter { region ->
+                val cached = cachedById[region.id]
+                region.id in registeredBusinessIds && cached?.equalsForRegistration(region) == true
+            }
+            .map { it.id }
+            .toSet()
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -344,13 +349,10 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
-            // Snapshot already-monitored fences before register overwrites the set — initial-enter
-            // fires only for newly-monitored ones. A reboot wipes OS state, so treat all as new.
-            val previouslyRegisteredBusinessIds = if (osStateWipedByReboot()) {
-                emptySet()
-            } else {
-                store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
-            }
+            // Synthesis baseline, snapshotted before register/persist mutate the store. Unlike the
+            // registration diff, no reboot override: the post-reboot anchor can predate the reboot,
+            // so containment can't be trusted (same reason boot restore skips synthesis).
+            val unchangedRegistered = unchangedRegisteredIds(nearest)
             val registrationResult = register(regionsToRegister).also { result ->
                 if (result.isSuccess) {
                     // Stale cleanup — Manager added new−existing, we remove
@@ -386,7 +388,13 @@ internal class GeofenceRepositoryImpl(
                 }
             }
             if (registrationResult.isSuccess && emitInitialEnter) {
-                emitInitialEnters(nearest, previouslyRegisteredBusinessIds, userId, latitude, longitude)
+                // Identity can change during the awaited GMS call, and reset doesn't clear pending
+                // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
+                if (secureUserStore.getUserId() == userId) {
+                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
+                } else {
+                    logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
+                }
             }
             registrationResult
         }
@@ -395,20 +403,20 @@ internal class GeofenceRepositoryImpl(
     /**
      * Synthesizes an ENTER for each newly-registered fence the device is already inside — GMS's
      * `INITIAL_TRIGGER_ENTER` unreliably drops this for a region added around a stationary device.
-     * Scoped to fences not in [previouslyRegisteredBusinessIds] (a re-register of the same set stays
-     * silent; sign-out clears the set, so the next sign-in re-fires). Cooldown-deduped, so a real GMS
-     * ENTER and this one collapse to one event. Runs under [stateMutex] with [userId] rechecked.
+     * "New" = not in [unchangedRegisteredIds]: brand-new fences and re-added param changes fire,
+     * an unchanged re-register stays silent. Cooldown-deduped, so a real GMS ENTER and this one
+     * collapse to one event.
      */
     private suspend fun emitInitialEnters(
         candidates: List<GeofenceRegion>,
-        previouslyRegisteredBusinessIds: Set<String>,
+        unchangedRegisteredIds: Set<String>,
         userId: String,
         latitude: Double,
         longitude: Double
     ) {
         val timestamp = clock.currentTimeSeconds()
         candidates.forEach { region ->
-            val newlyRegistered = region.id !in previouslyRegisteredBusinessIds
+            val newlyRegistered = region.id !in unchangedRegisteredIds
             val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
             // Compare against the full radius: GMS has no per-region monitored-radius cap.
             val inside = region.distanceTo(latitude, longitude) <= region.radius

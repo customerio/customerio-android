@@ -5,24 +5,29 @@ import androidx.core.content.edit
 import java.util.concurrent.TimeUnit
 
 /**
- * Persistent state for live notifications, backed by a dedicated
- * SharedPreferences file:
- *
- * - **Registration dedup** (per `activity_type`): the last signature
- *   (`token|userId`) registered with the backend, so repeated app launches /
- *   unchanged tokens don't re-POST the registration.
- * - **Out-of-order / dedup guard** (per `activity_id`): the last `timestamp`
- *   seen, so a delayed or duplicate push that is older than one already
- *   rendered is dropped. Unlike iOS (where APNs/ActivityKit order updates), the
- *   Android SDK renders FCM data directly and must guard ordering itself.
- *
- * Timestamp entries are stored with their record time so stale ones (for
- * activities that ended long ago without an explicit `end`) can be trimmed on
- * app launch.
+ * Persistent live-notification state (dedicated SharedPreferences file):
+ * per-`activity_type` registration signatures, per-`activity_id` last-seen
+ * timestamps for the out-of-order guard, and per-`activity_id` activity types.
  */
 internal class LiveNotificationStore(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /**
+     * One-time cleanup for the namespace rename: drops registration signatures
+     * keyed under the old `io.customer.liveactivities.*` namespace. Idempotent.
+     *
+     * @return the number of stale registration signatures cleared.
+     */
+    fun migrate(): Int {
+        val stale = prefs.all.keys.filter {
+            it.startsWith(REG_PREFIX) && it.contains(LEGACY_ACTIVITY_TYPE_PREFIX)
+        }
+        if (stale.isNotEmpty()) {
+            prefs.edit { stale.forEach { remove(it) } }
+        }
+        return stale.size
+    }
 
     // --- Registration dedup (per activity_type) ---
 
@@ -54,14 +59,72 @@ internal class LiveNotificationStore(context: Context) {
         prefs.edit { remove(TS_PREFIX + activityId) }
     }
 
-    /** Removes timestamp entries recorded longer than [ttlMs] ago. Intended to run on app launch. */
+    /** Removes timestamp entries (and their paired activity types + ended markers) recorded longer than [ttlMs] ago. Intended to run on app launch. */
     fun trimStaleTimestamps(ttlMs: Long = DEFAULT_TS_TTL_MS, now: Long = System.currentTimeMillis()) {
-        val staleKeys = prefs.all.entries.filter { (key, value) ->
+        val staleActivityIds = prefs.all.entries.filter { (key, value) ->
             key.startsWith(TS_PREFIX) &&
                 ((value as? String)?.substringAfter('|', "")?.toLongOrNull()?.let { now - it > ttlMs } ?: true)
-        }.map { it.key }
-        if (staleKeys.isNotEmpty()) {
-            prefs.edit { staleKeys.forEach { remove(it) } }
+        }.map { it.key.removePrefix(TS_PREFIX) }
+        if (staleActivityIds.isNotEmpty()) {
+            prefs.edit {
+                staleActivityIds.forEach {
+                    remove(TS_PREFIX + it)
+                    remove(TYPE_PREFIX + it)
+                    remove(END_PREFIX + it)
+                }
+            }
+        }
+    }
+
+    // --- Terminal state (per activity_id) ---
+
+    /**
+     * True once [activityId] has reached a terminal state (local end, remote end,
+     * or user dismissal). `activity_id`s are unique per activity and `end` is
+     * terminal, so any later event for an ended id is stale and must be dropped.
+     */
+    fun isEnded(activityId: String): Boolean =
+        prefs.contains(END_PREFIX + activityId)
+
+    /**
+     * Marks [activityId] terminal, returning `true` only if this call set it (i.e.
+     * it was not already ended). Callers use the return value to report `end` at
+     * most once per id. The marker is never cleared per-id; it is reclaimed by
+     * [trimStaleTimestamps] (TTL) and [clearAllActivities] (logout).
+     */
+    fun markEnded(activityId: String, now: Long = System.currentTimeMillis()): Boolean {
+        if (prefs.contains(END_PREFIX + activityId)) return false
+        prefs.edit { putString(END_PREFIX + activityId, now.toString()) }
+        return true
+    }
+
+    // --- Activity type (per activity_id) ---
+
+    /** The activity type last rendered for [activityId], or null if unknown. */
+    fun activityType(activityId: String): String? =
+        prefs.getString(TYPE_PREFIX + activityId, null)
+
+    fun setActivityType(activityId: String, activityType: String) {
+        prefs.edit { putString(TYPE_PREFIX + activityId, activityType) }
+    }
+
+    fun clearActivityType(activityId: String) {
+        prefs.edit { remove(TYPE_PREFIX + activityId) }
+    }
+
+    /** Every activity id the SDK currently tracks (rendered and not yet ended). */
+    fun trackedActivityIds(): Set<String> =
+        prefs.all.keys
+            .filter { it.startsWith(TYPE_PREFIX) }
+            .map { it.removePrefix(TYPE_PREFIX) }
+            .toSet()
+
+    /** Clears all per-activity state (timestamps + types + ended markers). Used on logout/reset. */
+    fun clearAllActivities() {
+        prefs.edit {
+            prefs.all.keys
+                .filter { it.startsWith(TS_PREFIX) || it.startsWith(TYPE_PREFIX) || it.startsWith(END_PREFIX) }
+                .forEach { remove(it) }
         }
     }
 
@@ -69,6 +132,11 @@ internal class LiveNotificationStore(context: Context) {
         private const val PREFS_NAME = "io.customer.messagingpush.live_notifications"
         private const val REG_PREFIX = "reg:"
         private const val TS_PREFIX = "ts:"
+        private const val TYPE_PREFIX = "type:"
+        private const val END_PREFIX = "end:"
+
+        // Old built-in namespace, replaced by `io.customer.livenotifications.` — used only by migrate().
+        private const val LEGACY_ACTIVITY_TYPE_PREFIX = "io.customer.liveactivities."
         private val DEFAULT_TS_TTL_MS = TimeUnit.DAYS.toMillis(7)
     }
 }

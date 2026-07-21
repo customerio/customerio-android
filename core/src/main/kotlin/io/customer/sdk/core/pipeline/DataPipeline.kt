@@ -12,6 +12,11 @@ import io.customer.base.internal.InternalCustomerIOApi
  */
 @InternalCustomerIOApi
 interface DataPipeline {
+    /**
+     * Whether a user is currently identified. Updated synchronously on the caller's thread
+     * during identify()/clearIdentify(), so it is accurate the instant those calls return —
+     * a consumer may gate on it immediately after identify() without racing async propagation.
+     */
     val isUserIdentified: Boolean
     fun track(name: String, properties: Map<String, Any?>)
 }

@@ -71,7 +71,12 @@ internal class LiveNotificationHandler(
         // out-of-order timestamp dedupe and the terminal ended check/claim). They are
         // governed by LiveNotificationManager instead, which enforces terminal state on
         // the local start/update/end paths before rendering.
-        bypassOrderGuard: Boolean = false
+        bypassOrderGuard: Boolean = false,
+        // Re-checked after the (potentially slow) render work and immediately before the
+        // notification is posted and the activity type is written back. Returns true when a
+        // logout/reset landed during rendering, in which case the render is dropped so it
+        // can't post or re-store a previous user's activity. Local renders only.
+        isSuperseded: () -> Boolean = { false }
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -193,6 +198,16 @@ internal class LiveNotificationHandler(
             ?.createLiveNotification(parsedPayload, context)
         val notification = appNotification ?: result?.let {
             buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent, ongoing = !isEnd)
+        }
+
+        // A logout/reset may have landed while the branding logo downloaded or the app
+        // renderer ran above. If so, drop this render: don't post the notification and don't
+        // write the activity type back into the store that reset just cleared.
+        if (isSuperseded()) {
+            SDKComponent.logger.debug(
+                "Live notification render for '$activityId' was superseded by a reset; dropping."
+            )
+            return
         }
 
         when {

@@ -8,6 +8,7 @@ import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
 import io.customer.location.LocationCoordinates
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
@@ -56,6 +57,7 @@ internal class GeofenceRepositoryImpl(
     private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore,
     private val cooldownFilter: GeofenceCooldownFilter,
+    private val transitionEmitter: GeofenceTransitionEmitter,
     private val clock: Clock,
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
@@ -87,9 +89,14 @@ internal class GeofenceRepositoryImpl(
             // after this reads pre-wipe freshness/registrations and SKIPs — that would leave
             // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
+            // A launch/identify refresh runs with the persisted anchor, which a reboot can leave
+            // pointing at a pre-reboot position — containment can't be trusted, so no synthesis
+            // this pass (mirrors restoreFromCache). The flag drops once registration re-stamps
+            // uptime. Sign-in is unaffected: sign-out clears the stamp with the anchor.
+            val emitInitialEnter = !osStateWipedByReboot()
             return when (action) {
-                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
-                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
+                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, emitInitialEnter)
+                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, emitInitialEnter = emitInitialEnter)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
                     Result.success(Unit)
@@ -211,7 +218,10 @@ internal class GeofenceRepositoryImpl(
             latitude = effectiveLocation.latitude,
             longitude = effectiveLocation.longitude,
             cachedConfig = cachedConfig,
-            register = manager::replaceGeofencesForBootRestore
+            register = manager::replaceGeofencesForBootRestore,
+            // No initial-enter on boot restore: the cached anchor may be stale if the device moved
+            // while off, so containment can't be trusted.
+            emitInitialEnter = false
         )
     }
 
@@ -219,7 +229,8 @@ internal class GeofenceRepositoryImpl(
     private suspend fun performRemoteRefresh(
         userId: String,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        emitInitialEnter: Boolean = true
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
@@ -237,6 +248,7 @@ internal class GeofenceRepositoryImpl(
                     longitude = longitude,
                     regions = regions,
                     config = config,
+                    emitInitialEnter = emitInitialEnter,
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
@@ -261,14 +273,16 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         cachedConfig: GeofenceConfig,
-        register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff
+        register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
+        emitInitialEnter: Boolean = true
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
         longitude = longitude,
         regions = store.getCachedRegions(),
         config = cachedConfig,
-        register = register
+        register = register,
+        emitInitialEnter = emitInitialEnter
     )
 
     /**
@@ -284,20 +298,25 @@ internal class GeofenceRepositoryImpl(
         val existingBusinessIds = if (osStateWipedByReboot()) {
             emptySet()
         } else {
-            val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
-            val cachedById = store.getCachedRegions().associateBy { it.id }
-            regions
-                .filter { region ->
-                    val cached = cachedById[region.id]
-                    region.id in registeredBusinessIds && cached?.equalsForRegistration(region) == true
-                }
-                .map { it.id }
-                .toSet()
+            unchangedRegisteredIds(regions)
         }
         return manager.replaceGeofences(
             regions = regions,
             existingBusinessIds = existingBusinessIds
         )
+    }
+
+    /** Business IDs already registered whose GMS-relevant params match the cache — safe to skip re-adding. */
+    private fun unchangedRegisteredIds(regions: List<GeofenceRegion>): Set<String> {
+        val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+        val cachedById = store.getCachedRegions().associateBy { it.id }
+        return regions
+            .filter { region ->
+                val cached = cachedById[region.id]
+                region.id in registeredBusinessIds && cached?.equalsForRegistration(region) == true
+            }
+            .map { it.id }
+            .toSet()
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -308,7 +327,8 @@ internal class GeofenceRepositoryImpl(
         regions: List<GeofenceRegion>,
         config: GeofenceConfig,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
-        onRegistered: () -> Unit = {}
+        onRegistered: () -> Unit = {},
+        emitInitialEnter: Boolean = true
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
         val nearest = distanceFilter.nearest(
@@ -336,7 +356,11 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
-            register(regionsToRegister).also { result ->
+            // Synthesis baseline, snapshotted before register/persist mutate the store. No reboot
+            // override here (unlike the registration diff): callers disable synthesis outright
+            // while the reboot flag is up — the anchor can predate the reboot.
+            val unchangedRegistered = unchangedRegisteredIds(nearest)
+            val registrationResult = register(regionsToRegister).also { result ->
                 if (result.isSuccess) {
                     // Stale cleanup — Manager added new−existing, we remove
                     // existing−new. Runs only on add success; on failure leave
@@ -370,6 +394,50 @@ internal class GeofenceRepositoryImpl(
                     logger.logSyncSucceeded(nearest.size)
                 }
             }
+            if (registrationResult.isSuccess && emitInitialEnter) {
+                // Identity can change during the awaited GMS call, and reset doesn't clear pending
+                // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
+                if (secureUserStore.getUserId() == userId) {
+                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
+                } else {
+                    logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
+                }
+            }
+            registrationResult
+        }
+    }
+
+    /**
+     * Synthesizes an ENTER for each newly-registered fence the device is already inside — GMS's
+     * `INITIAL_TRIGGER_ENTER` unreliably drops this for a region added around a stationary device.
+     * "New" = not in [unchangedRegisteredIds]: brand-new fences and re-added param changes fire,
+     * an unchanged re-register stays silent. Cooldown-deduped, so a real GMS ENTER and this one
+     * collapse to one event.
+     */
+    private suspend fun emitInitialEnters(
+        candidates: List<GeofenceRegion>,
+        unchangedRegisteredIds: Set<String>,
+        userId: String,
+        latitude: Double,
+        longitude: Double
+    ) {
+        val timestamp = clock.currentTimeSeconds()
+        candidates.forEach { region ->
+            val newlyRegistered = region.id !in unchangedRegisteredIds
+            val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
+            // Compare against the full radius: GMS has no per-region monitored-radius cap.
+            val inside = region.distanceTo(latitude, longitude) <= region.radius
+            if (!newlyRegistered || !monitorsEnter || !inside) return@forEach
+            logger.logInitialEnterInside(region.id)
+            transitionEmitter.emit(
+                geofenceId = region.id,
+                transition = Event.GeofenceTransition.ENTER,
+                userId = userId,
+                timestampSeconds = timestamp,
+                geofenceName = region.name,
+                metadata = region.metadata,
+                geosetIds = region.geosetIds
+            )
         }
     }
 

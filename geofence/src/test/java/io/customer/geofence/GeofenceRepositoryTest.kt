@@ -6,6 +6,7 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.api.GeofenceApiResponse
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
@@ -42,6 +43,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
+    private val transitionEmitter: GeofenceTransitionEmitter = mockk(relaxed = true)
     private val clock: Clock = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val jsonSerializer = GeofenceJsonSerializer()
@@ -63,6 +65,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         manager = manager,
         secureUserStore = secureUserStore,
         cooldownFilter = cooldownFilter,
+        transitionEmitter = transitionEmitter,
         clock = clock,
         logger = logger
     )
@@ -1374,6 +1377,232 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         verify { distanceFilter.nearest(any(), any(), any(), max = 3, maxDistanceMeters = 50_000f) }
+    }
+
+    // ---------- initial enter-when-inside (synthesized; GMS INITIAL_TRIGGER_ENTER is unreliable) ----------
+
+    @Test
+    fun refresh_givenNewlyRegisteredFenceDeviceInside_expectInitialEnterEmitted() = runTest {
+        // Fresh cache but OS regs wiped → local re-register; the fence is newly registered and the
+        // device sits inside it → synthesize the ENTER GMS may have dropped.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet() // newly registered
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "biz-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any()
+            )
+        }
+    }
+
+    @Test
+    fun refresh_givenRebootWipedOsState_expectReRegistrationButNoInitialEnter() = runTest {
+        // Uptime regressed → reboot wiped GMS, so everything is re-added (empty existing set). But
+        // the launch anchor can predate the reboot, so containment can't be trusted — no synthesis
+        // for any fence, registered (biz-1) or never-registered (biz-2), mirroring restoreFromCache.
+        val cached = listOf(
+            GeofenceRegion("biz-1", 0.0, 0.0, 100f),
+            GeofenceRegion("biz-2", 0.0, 0.0, 100f)
+        )
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastRegistrationUptime() } returns 500_000L
+        every { clock.elapsedRealtime() } returns 1_000L // below last registration uptime → rebooted
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify { manager.replaceGeofences(any(), emptySet()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenRebootAndStaleCache_expectRemoteFetchButNoInitialEnter() = runTest {
+        // Reboot + expired cache → remote re-fetch, still anchored at the untrusted persisted
+        // point — a newly fetched fence containing it must not synthesize either.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns emptyList()
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getLastRegistrationUptime() } returns 500_000L
+        every { clock.elapsedRealtime() } returns 1_000L // rebooted
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenRegisteredFenceParamsChangedDeviceInside_expectInitialEnter() = runTest {
+        // Server grew g-1's radius (50 → 100 m): the fence is re-added to GMS, so it synthesizes
+        // like a new fence when the device is inside the new geometry.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "g-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any()
+            )
+        }
+    }
+
+    @Test
+    fun refresh_givenUserChangesDuringRegistration_expectNoInitialEnter() = runTest {
+        // clearIdentify rewrites the user store without taking stateMutex, so identity can change
+        // while the GMS call is awaited; synthesis must recheck before queueing a delivery row.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val gmsGate = CompletableDeferred<Unit>()
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            gmsGate.await()
+            Result.success(Unit)
+        }
+
+        val refreshJob = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent() // pre-register identity check passed; now suspended in the GMS call
+        every { secureUserStore.getUserId() } returns null // signed out mid-await
+        gmsGate.complete(Unit)
+        refreshJob.join()
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenAlreadyRegisteredFenceDeviceInside_expectNoInitialEnter() = runTest {
+        // Device is inside, but the fence was already monitored (regs intact, no reboot) → no
+        // re-emit; only a genuinely-new registration synthesizes an enter.
+        val cached = listOf(GeofenceRegion("biz-1", 0.02, 0.0, 300f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns setOf("biz-1") // already registered, regs intact
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        // ~2.2 km move → local re-rank runs, and the device is inside biz-1 (radius 300 m at 0.02,0.0).
+        repository.refresh(latitude = 0.02, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenNewlyRegisteredFenceDeviceOutside_expectNoInitialEnter() = runTest {
+        // Newly registered but the device isn't within the fence radius → no synthesized enter.
+        // Fence ~111 km from the (0,0) anchor; local re-register (fresh cache, regs wiped).
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenExitOnlyFenceDeviceInside_expectNoInitialEnter() = runTest {
+        // A fence that doesn't monitor ENTER gets no synthesized enter, even sitting inside it.
+        val cached = listOf(
+            GeofenceRegion("biz-1", 0.0, 0.0, 100f, transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        )
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenRegistrationFails_expectNoInitialEnter() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(RuntimeException("gms boom"))
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreFromCache_givenDeviceInside_expectNoInitialEnter() = runTest {
+        // Boot restore never synthesizes an enter — its anchor may be stale after the device moved
+        // while off, so containment can't be trusted (matches iOS).
+        val movementLoc = GeofenceLocation(latitude = 50.0, longitude = 60.0)
+        val cached = listOf(GeofenceRegion("biz-1", 50.0, 60.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastMovementTriggerLocation() } returns movementLoc
+        every { store.getLastApiFetchLocation() } returns null
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(cached, 50.0, 60.0, any(), any()) } returns cached
+        coEvery { manager.replaceGeofencesForBootRestore(any()) } returns Result.success(Unit)
+
+        repository.restoreFromCache()
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
     }
 
     private fun sampleConfig(

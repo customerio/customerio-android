@@ -6,19 +6,15 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
-import io.customer.geofence.di.geofenceCooldownFilter
-import io.customer.geofence.di.geofenceEventScheduler
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
-import io.customer.geofence.di.pendingGeofenceDeliveryStore
-import io.customer.geofence.store.PendingGeofenceDelivery
+import io.customer.geofence.di.geofenceTransitionEmitter
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
-import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -98,8 +94,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val timestamp = SDKComponent.clock.currentTimeSeconds()
         val dispatchStartUptimeMs = SDKComponent.clock.elapsedRealtime()
         val androidComponent = SDKComponent.android()
-        val scheduler = androidComponent.geofenceEventScheduler
-        val cooldownFilter = androidComponent.geofenceCooldownFilter
+        val transitionEmitter = androidComponent.geofenceTransitionEmitter
         // Defense-in-depth against orphans (failed clearAll, app-data wipe, SDK
         // ID-format changes): events for unregistered IDs are dropped and the OS-side
         // registration is removed so it stops firing.
@@ -144,54 +139,16 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
-            if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
-                logger.logTransitionSuppressed(geofenceId, transition.name)
-                return@forEach
-            }
-            logger.logTransitionEmitting(geofenceId, transition.name)
-
-            // One transitionId for the whole crossing, shared across the per-geoset fan-out below.
-            val transitionId = UUID.randomUUID().toString()
             val cachedRegion = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
-            val geofenceName = cachedRegion?.name?.takeIf { it.isNotEmpty() }
-            val metadata = cachedRegion?.metadata ?: emptyMap()
-            // One event per geoset; a fence with no geosets still emits one (null geoset) so a real
-            // OS transition is never dropped. Distinct so a fence listing the same geoset twice
-            // doesn't fan out to duplicate events.
-            val geosetIds: List<String?> = cachedRegion?.geosetIds?.distinct()?.takeIf { it.isNotEmpty() } ?: listOf(null)
-            val entries = geosetIds.map { geosetId ->
-                PendingGeofenceDelivery(
-                    geofenceId = geofenceId,
-                    transition = transition,
-                    timestamp = timestamp,
-                    userId = userId,
-                    transitionId = transitionId,
-                    geofenceName = geofenceName,
-                    geosetId = geosetId,
-                    metadata = metadata
-                )
-            }
-
-            // Persist the whole fan-out atomically before any send, so an app kill mid-batch can't
-            // save some geosets and lose the rest. Both delivery channels (WorkManager worker +
-            // foreground flush) read the row back from this store, deduped by (transitionId, geoset).
-            // If the write fails there's nothing to deliver, so roll back the cooldown to allow a
-            // later retry and skip scheduling a worker that would find no row.
-            if (!androidComponent.pendingGeofenceDeliveryStore.appendAll(entries)) {
-                logger.logPersistFailed(geofenceId, transition.name)
-                cooldownFilter.release(userId, geofenceId, transition)
-                return@forEach
-            }
-            entries.forEach { entry ->
-                // Isolate the scheduler so one failure can't abandon the rest of the batch.
-                try {
-                    scheduler.schedule(entry)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    logger.logSchedulerFailed(geofenceId, transition.name, e.message)
-                }
-            }
+            transitionEmitter.emit(
+                geofenceId = geofenceId,
+                transition = transition,
+                userId = userId,
+                timestampSeconds = timestamp,
+                geofenceName = cachedRegion?.name,
+                metadata = cachedRegion?.metadata ?: emptyMap(),
+                geosetIds = cachedRegion?.geosetIds ?: emptyList()
+            )
         }
 
         // Hold the goAsync window open until the refresh lands so the OS doesn't kill a

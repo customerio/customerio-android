@@ -16,15 +16,7 @@ import io.customer.messagingpush.livenotification.template.PointSpec
 import io.customer.messagingpush.livenotification.template.SegmentSpec
 import io.customer.sdk.core.di.SDKComponent
 
-/**
- * Parameters for building a promoted live notification on API 36+ (BAKLAVA).
- *
- * When [showProgress] is true, uses [Notification.ProgressStyle] with full
- * segmented progress bar support. When false, uses [Notification.BigTextStyle]
- * for text-only live updates (sports scores, auction bids, etc.).
- *
- * Both modes request promoted ongoing status for live update treatment.
- */
+/** Parameters for building a promoted live notification on API 36+ (BAKLAVA). */
 internal data class Api36LiveNotificationParams(
     val context: Context,
     val channelId: String,
@@ -44,26 +36,14 @@ internal data class Api36LiveNotificationParams(
     val deleteIntent: PendingIntent?,
     val countdownUntil: Long?,
     val largeIcon: Bitmap?,
-    val showProgress: Boolean
+    val showProgress: Boolean,
+    val ongoing: Boolean = true
 )
 
-/**
- * Builds promoted live notifications on API 36+ (BAKLAVA).
- *
- * Uses [Notification.ProgressStyle] for progress-based notifications and
- * [Notification.BigTextStyle] for text-only live updates. Both styles are
- * valid for promoted live updates per Android documentation.
- *
- * Requirements for promoted live updates (customer responsibility):
- * - App manifest must declare `android.permission.POST_PROMOTED_NOTIFICATIONS`
- * - Notification must not be colorized (this builder does not call setColorized)
- * - Notification must use an allowed style (ProgressStyle or BigTextStyle)
- * - Notification must have a title and be ongoing
- */
+/** Builds promoted live notifications on API 36+ (BAKLAVA). */
 internal object Api36LiveNotificationBuilder {
 
-    // Notification.EXTRA_REQUEST_PROMOTED_ONGOING was added in extension SDK 36.1.
-    // Use the raw string value so we can compile against base API 36.
+    // Raw string value (EXTRA_REQUEST_PROMOTED_ONGOING is only in extension SDK 36.1).
     private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
     private const val POST_PROMOTED_NOTIFICATIONS_PERMISSION =
         "android.permission.POST_PROMOTED_NOTIFICATIONS"
@@ -74,18 +54,21 @@ internal object Api36LiveNotificationBuilder {
             .setSmallIcon(params.smallIcon)
             .setContentTitle(params.title)
             .setContentText(params.body)
-            .setOngoing(true)
+            .setOngoing(params.ongoing)
+            .setAutoCancel(!params.ongoing)
             .setOnlyAlertOnce(true)
 
-        if (canPostPromotedNotifications(params.context)) {
-            val extras = Bundle().apply {
-                putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+        if (params.ongoing) {
+            if (canPostPromotedNotifications(params.context)) {
+                val extras = Bundle().apply {
+                    putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+                }
+                builder.addExtras(extras)
+            } else {
+                SDKComponent.logger.debug(
+                    "POST_PROMOTED_NOTIFICATIONS not granted; posting as standard ongoing"
+                )
             }
-            builder.addExtras(extras)
-        } else {
-            SDKComponent.logger.debug(
-                "POST_PROMOTED_NOTIFICATIONS not granted; posting as standard ongoing"
-            )
         }
 
         if (params.showProgress) {
@@ -124,9 +107,7 @@ internal object Api36LiveNotificationBuilder {
             builder.style = Notification.BigTextStyle().bigText(params.body)
         }
 
-        // Only start a count-down chronometer to a future instant. A stale/past target
-        // (e.g. an estimatedArrival that has already elapsed) would render as an
-        // already-expired live update and the system may suppress the notification entirely.
+        // Only count down to a future instant; a past target can suppress the notification.
         params.countdownUntil?.takeIf { it > System.currentTimeMillis() }?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)

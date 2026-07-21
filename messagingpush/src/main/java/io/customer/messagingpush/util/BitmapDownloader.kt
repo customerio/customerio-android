@@ -13,7 +13,13 @@ internal object BitmapDownloader {
     fun download(imageUrl: String): Bitmap? = runBlocking {
         withContext(Dispatchers.IO) {
             try {
-                URL(imageUrl).openStream().use { input ->
+                // Bound connect + read so a stalled fetch can't block the caller
+                // (e.g. the FCM delivery thread) indefinitely.
+                val connection = URL(imageUrl).openConnection().apply {
+                    connectTimeout = DOWNLOAD_TIMEOUT_MS
+                    readTimeout = DOWNLOAD_TIMEOUT_MS
+                }
+                connection.getInputStream().use { input ->
                     BitmapFactory.decodeStream(input)
                 }
             } catch (e: Exception) {
@@ -22,4 +28,6 @@ internal object BitmapDownloader {
             }
         }
     }
+
+    private const val DOWNLOAD_TIMEOUT_MS = 10_000
 }

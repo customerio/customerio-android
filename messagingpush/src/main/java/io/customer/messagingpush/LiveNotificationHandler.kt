@@ -8,8 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
@@ -24,60 +22,41 @@ import io.customer.messagingpush.livenotification.template.TemplateRegistry
 import io.customer.messagingpush.livenotification.template.TemplateRenderResult
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.core.di.SDKComponent
-import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * Dispatches templated live notifications.
- *
- * Live notifications are ongoing notifications that can be updated in-place
- * (the Android counterpart of iOS Live Activities). Each push declares an
- * `activity_type` (one of the closed set in [TemplateRegistry], prefixed with
- * `io.customer.liveactivities.`). Unlike iOS, Android does not split static
- * `attributes` from dynamic `content-state`: all template fields arrive
- * flattened at the envelope top level. Pushes share a stable [ACTIVITY_ID_KEY]
- * so successive updates replace the previous notification rather than creating
- * new ones.
+ * Dispatches templated live notifications — ongoing notifications updated
+ * in-place (the Android counterpart of iOS Live Activities). Pushes sharing a
+ * [CIO_INSTANCE_ID_KEY] replace the previous notification rather than stacking.
  */
 internal class LiveNotificationHandler(
     private val bundle: Bundle
 ) {
 
     companion object {
-        const val ACTIVITY_ID_KEY = "activity_id"
+        const val CIO_INSTANCE_ID_KEY = "cioInstanceId"
         const val EVENT_KEY = "event"
-        const val ACTIVITY_TYPE_KEY = "activity_type"
+        const val NOTIFICATION_TYPE_KEY = "notification_type"
         const val TIMESTAMP_KEY = "timestamp"
-        const val DISMISSAL_DATE_KEY = "dismissal_date"
+        const val PAYLOAD_KEY = "payload"
 
         private const val EVENT_END = "end"
 
-        /**
-         * Live-notification envelope keys that are never template fields.
-         * Everything else in the bundle is flattened into the template `data`
-         * object.
-         *
-         * Note: standard-push keys (`title`, `body`, `image`, `link`, …) are
-         * intentionally NOT reserved here — they are not part of the live
-         * envelope, and reserving them would shadow legitimate template fields
-         * of the same name (e.g. CountdownTimer's `title`).
-         */
+        /** Deterministic notification id for an [activityId] so successive events address the same notification. */
+        internal fun notificationId(activityId: String): Int = activityId.hashCode() and 0x7FFFFFFF
+
+        /** Envelope keys that are never template fields; everything else is flattened into the template `data`. */
         private val RESERVED_KEYS = setOf(
-            ACTIVITY_ID_KEY,
+            CIO_INSTANCE_ID_KEY,
             EVENT_KEY,
-            ACTIVITY_TYPE_KEY,
+            NOTIFICATION_TYPE_KEY,
             TIMESTAMP_KEY,
-            DISMISSAL_DATE_KEY,
+            PAYLOAD_KEY,
             PushTrackingUtil.DELIVERY_ID_KEY,
             PushTrackingUtil.DELIVERY_TOKEN_KEY
         )
-
-        // Pending `end` dismissals, keyed by activity_id, so a new event for the same
-        // activity can cancel a scheduled removal (e.g. when an activity_id is reused).
-        private val dismissalHandler = Handler(Looper.getMainLooper())
-        private val pendingDismissals = ConcurrentHashMap<String, Runnable>()
     }
 
     fun handle(
@@ -87,7 +66,12 @@ internal class LiveNotificationHandler(
         @DrawableRes smallIcon: Int,
         @ColorInt tintColor: Int?,
         channelId: String,
-        notificationManager: NotificationManager
+        notificationManager: NotificationManager,
+        // Locally-initiated renders skip the entire server-push guard block (both the
+        // out-of-order timestamp dedupe and the terminal ended check/claim). They are
+        // governed by LiveNotificationManager instead, which enforces terminal state on
+        // the local start/update/end paths before rendering.
+        bypassOrderGuard: Boolean = false
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -99,7 +83,7 @@ internal class LiveNotificationHandler(
             )
         }
 
-        val activityId = bundle.getString(ACTIVITY_ID_KEY) ?: return
+        val activityId = bundle.getString(CIO_INSTANCE_ID_KEY) ?: return
         val event = bundle.getString(EVENT_KEY)
         if (event == null) {
             SDKComponent.logger.error(
@@ -108,8 +92,7 @@ internal class LiveNotificationHandler(
             return
         }
 
-        // Live notifications are opt-in: only handle activity types the host app enabled.
-        val activityType = bundle.getString(ACTIVITY_TYPE_KEY)
+        val activityType = bundle.getString(NOTIFICATION_TYPE_KEY)
         if (activityType == null || activityType !in SDKComponent.pushModuleConfig.liveNotificationTypes) {
             SDKComponent.logger.debug(
                 "Live notification type '$activityType' is not enabled; ignoring activity '$activityId'."
@@ -118,37 +101,54 @@ internal class LiveNotificationHandler(
         }
         val isEnd = event == EVENT_END
 
-        // Out-of-order / duplicate guard. Android renders FCM data directly, so unlike iOS
-        // (where APNs/ActivityKit order updates) the SDK must drop stale pushes itself. `end`
-        // is terminal and bypasses the guard so a stale `end` still cancels the notification.
         val store = SDKComponent.liveNotificationStore
         val timestamp = bundle.getString(TIMESTAMP_KEY)?.toLongOrNull()
-        val lastSeen = store.lastTimestamp(activityId)
-        if (!isEnd && timestamp != null) {
-            if (lastSeen != null && timestamp <= lastSeen) {
-                SDKComponent.logger.debug(
-                    "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp <= $lastSeen)."
-                )
+
+        // Terminal / out-of-order guard for server pushes. Local renders are host-ordered
+        // and governed by LiveNotificationManager, so they bypass this entirely.
+        if (!bypassOrderGuard) {
+            if (isEnd) {
+                // Claim the terminal transition. Only the first `end` renders the terminal
+                // state; a duplicate or late `end` — including one arriving after the user
+                // already dismissed the notification (the dismiss receiver marks it ended) —
+                // is dropped so it can't re-post a notification the user already cleared.
+                if (!store.markEnded(activityId)) {
+                    SDKComponent.logger.debug(
+                        "Dropping duplicate/late end for already-ended live notification '$activityId'."
+                    )
+                    return
+                }
+            } else if (store.isEnded(activityId)) {
+                // A non-end event for an ended id (delayed/duplicate start or update) is stale.
+                SDKComponent.logger.debug("Dropping event for ended live notification '$activityId'.")
                 return
+            } else {
+                // Services emits whole-second timestamps, so an in-order start+update can
+                // share a second; reject only strictly-older pushes.
+                val lastSeen = store.lastTimestamp(activityId)
+                if (timestamp != null && lastSeen != null && timestamp < lastSeen) {
+                    SDKComponent.logger.debug(
+                        "Dropping out-of-order/duplicate live notification for '$activityId' (timestamp $timestamp < $lastSeen)."
+                    )
+                    return
+                }
             }
         }
 
-        // A new event for this activity supersedes any scheduled end-dismissal (handles
-        // activity_id reuse where the delayed cancel would otherwise kill the new notification).
-        cancelPendingDismissal(activityId)
-
-        // Advance the high-water timestamp for ALL events (incl. `end`) so a later stale
-        // update — even one arriving after `end` — is dropped by the guard above. Only ever
-        // move it forward: a stale, out-of-order `end` (which bypasses the guard) must not
-        // lower the mark, or a later stale update could slip through and resurrect the activity.
-        if (timestamp != null && (lastSeen == null || timestamp > lastSeen)) {
-            store.setLastTimestamp(activityId, timestamp)
+        // Advance the high-water mark on BOTH paths: a local render must also bump it
+        // so a later delayed remote push at an intermediate timestamp can't overwrite
+        // newer local content.
+        if (timestamp != null) {
+            val lastSeen = store.lastTimestamp(activityId)
+            if (lastSeen == null || timestamp > lastSeen) {
+                store.setLastTimestamp(activityId, timestamp)
+            }
         }
 
         val template = TemplateRegistry.find(activityType)
         val data = extractData(bundle)
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
-        val effectiveSmallIcon = resolveSmallIcon(context, branding, smallIcon)
+        val effectiveSmallIcon = resolveSmallIcon(branding, smallIcon)
 
         val result = template?.render(
             context = context,
@@ -156,9 +156,17 @@ internal class LiveNotificationHandler(
             branding = branding,
             smallIcon = effectiveSmallIcon,
             fallbackTintColor = tintColor
-        )
+        )?.let { rendered ->
+            // The brand logo fills the large-icon slot when the template didn't set one.
+            val brandingLogo = branding?.logo
+            if (!rendered.cancelImmediately && rendered.largeIcon == null && brandingLogo != null) {
+                rendered.copy(largeIcon = TemplateAssets.toBitmap(context, brandingLogo))
+            } else {
+                rendered
+            }
+        }
 
-        val notifId = activityId.hashCode() and 0x7FFFFFFF
+        val notifId = notificationId(activityId)
 
         if (result?.cancelImmediately == true) {
             notificationManager.cancel(activityId, notifId)
@@ -176,31 +184,44 @@ internal class LiveNotificationHandler(
             activityId = activityId
         )
         val pendingIntent = createIntentForNotificationClick(context, notifId, parsedPayload)
-        val deletePendingIntent = createDeleteIntent(context, notifId, activityId)
+        // Only in-progress notifications carry the dismiss intent (user-swipe -> end).
+        // A terminal `end` notification must not, or swiping it would report a second end.
+        val deletePendingIntent = if (isEnd) null else createDeleteIntent(context, notifId, activityId, activityType)
 
-        // The host app may fully render the notification; otherwise fall back to the
-        // SDK template. Custom (template-less) types must be rendered by the callback.
+        // The host app may fully render the notification; otherwise fall back to the SDK template.
         val appNotification = SDKComponent.pushModuleConfig.notificationCallback
             ?.createLiveNotification(parsedPayload, context)
         val notification = appNotification ?: result?.let {
-            buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent)
+            buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent, ongoing = !isEnd)
         }
 
         when {
-            notification != null -> notificationManager.notify(activityId, notifId, notification)
-            // An `end` with no renderer still falls through to cancel the existing notification.
-            !isEnd -> {
+            notification != null -> {
+                notificationManager.notify(activityId, notifId, notification)
+                store.setActivityType(activityId, activityType)
+            }
+            isEnd -> {
+                // No renderable end-state, so there's nothing to leave in the shade:
+                // cancel the (previously ongoing) notification instead of stranding it.
+                notificationManager.cancel(activityId, notifId)
+            }
+            else -> {
+                val reason = if (template != null) {
+                    "required content fields are missing (payload not flattened, or empty)"
+                } else {
+                    "no built-in template and createLiveNotification returned null"
+                }
                 SDKComponent.logger.error(
-                    "No renderer for live notification type '$activityType': no built-in template and " +
-                        "createLiveNotification returned null; dropping activity '$activityId'."
+                    "Not posting live notification '$activityId' (type '$activityType'): $reason."
                 )
                 return
             }
         }
 
-        if (isEnd) {
-            scheduleEndDismissal(bundle, notificationManager, activityId, notifId)
-        }
+        // Pushes are server-initiated, so the handler never reports a lifecycle event.
+        // The terminal marker was already claimed above (remote) or by the manager
+        // (local); the tracked activity type is intentionally kept (not cleared) so a
+        // subsequent logout can still cancel an ended-but-still-visible notification.
     }
 
     private fun buildSdkNotification(
@@ -209,7 +230,8 @@ internal class LiveNotificationHandler(
         @DrawableRes effectiveSmallIcon: Int,
         result: TemplateRenderResult,
         pendingIntent: PendingIntent,
-        deletePendingIntent: PendingIntent
+        deletePendingIntent: PendingIntent?,
+        ongoing: Boolean
     ): Notification = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA -> {
             Api36LiveNotificationBuilder.build(
@@ -232,7 +254,8 @@ internal class LiveNotificationHandler(
                     deleteIntent = deletePendingIntent,
                     countdownUntil = result.countdownUntil,
                     largeIcon = result.largeIcon,
-                    showProgress = result.showProgress
+                    showProgress = result.showProgress,
+                    ongoing = ongoing
                 )
             )
         }
@@ -253,50 +276,22 @@ internal class LiveNotificationHandler(
                     deleteIntent = deletePendingIntent,
                     countdownUntil = result.countdownUntil,
                     largeIcon = result.largeIcon,
-                    showProgress = result.showProgress
+                    showProgress = result.showProgress,
+                    ongoing = ongoing
                 )
             )
         }
     }
 
-    /**
-     * On `end`, removes the notification at the server-provided `dismissal_date`
-     * (epoch ms). When absent, the activity is removed immediately — there is no
-     * invented default delay. (Best-effort: a long delay does not survive
-     * process death.)
-     */
-    private fun scheduleEndDismissal(
-        bundle: Bundle,
-        notificationManager: NotificationManager,
-        activityId: String,
-        notifId: Int
-    ) {
-        val dismissAtMs = bundle.getString(DISMISSAL_DATE_KEY)?.toLongOrNull()
-        if (dismissAtMs == null) {
-            notificationManager.cancel(activityId, notifId)
-            return
-        }
-        val delayMs = (dismissAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
-        val task = Runnable {
-            notificationManager.cancel(activityId, notifId)
-            pendingDismissals.remove(activityId)
-        }
-        pendingDismissals[activityId] = task
-        dismissalHandler.postDelayed(task, delayMs)
-    }
-
-    /** Cancels a scheduled end-dismissal for [activityId], if any. */
-    private fun cancelPendingDismissal(activityId: String) {
-        pendingDismissals.remove(activityId)?.let { dismissalHandler.removeCallbacks(it) }
-    }
-
     private fun createDeleteIntent(
         context: Context,
         requestCode: Int,
-        activityId: String
+        activityId: String,
+        activityType: String
     ): PendingIntent {
         val intent = Intent(context, LiveNotificationDismissReceiver::class.java).apply {
             putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_ID, activityId)
+            putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_TYPE, activityType)
         }
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -307,11 +302,9 @@ internal class LiveNotificationHandler(
     }
 
     /**
-     * Collects the flattened template fields from the FCM envelope: every
-     * top-level bundle key that is not a [RESERVED_KEYS] envelope key. String
-     * values that look like JSON objects/arrays (e.g. `origin`, `homeTeam`) are
-     * parsed so templates can read them as nested structures; scalar strings
-     * are kept verbatim and coerced on read by `JSONObject.optInt`/`optLong`/etc.
+     * Collects the template fields from the FCM envelope: top-level keys not in
+     * [RESERVED_KEYS], merged with any nested `payload` object (which wins on
+     * collision). JSON-object/array strings are parsed; scalars kept verbatim.
      */
     private fun extractData(bundle: Bundle): JSONObject {
         val data = JSONObject()
@@ -319,6 +312,12 @@ internal class LiveNotificationHandler(
             if (key in RESERVED_KEYS) continue
             val raw = bundle.getString(key) ?: continue
             data.put(key, coerceJsonValue(raw))
+        }
+        val payload = bundle.getString(PAYLOAD_KEY)?.let { coerceJsonValue(it) as? JSONObject }
+        if (payload != null) {
+            for (key in payload.keys()) {
+                data.put(key, payload.get(key))
+            }
         }
         return data
     }
@@ -338,12 +337,10 @@ internal class LiveNotificationHandler(
 
     @DrawableRes
     private fun resolveSmallIcon(
-        context: Context,
         branding: LiveNotificationBranding?,
         fallback: Int
     ): Int {
-        // Reuses TemplateAssets' kebab→snake normalization + drawable lookup.
-        return TemplateAssets.resolveDrawable(context, branding?.logoDrawableName) ?: fallback
+        return branding?.smallIcon ?: fallback
     }
 
     private fun createIntentForNotificationClick(

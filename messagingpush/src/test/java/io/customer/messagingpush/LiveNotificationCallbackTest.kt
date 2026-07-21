@@ -35,7 +35,8 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
             MessagingPushModuleConfig.Builder().apply {
                 callback?.let { setNotificationCallback(it) }
                 // Enable a built-in type (for the override test) and the custom type.
-                setLiveNotificationTypes(LiveNotificationType.DELIVERY_TRACKING, customType)
+                enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
+                enableCustomLiveNotificationTypes(customType)
             }.build()
         ).attachToSDKComponent()
     }
@@ -49,9 +50,9 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         NotificationCompat.Builder(contextMock, "channel").setSmallIcon(0).setContentTitle(title).build()
 
     private fun bundle(activityType: String, event: String = "start"): Bundle = Bundle().apply {
-        putString(LiveNotificationHandler.ACTIVITY_ID_KEY, "act-cb")
+        putString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY, "act-cb")
         putString(LiveNotificationHandler.EVENT_KEY, event)
-        putString(LiveNotificationHandler.ACTIVITY_TYPE_KEY, activityType)
+        putString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY, activityType)
     }
 
     private fun invoke(b: Bundle) = LiveNotificationHandler(b).handle(
@@ -71,7 +72,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         val posted = slot<Notification>()
         every { notificationManager.notify(any<String>(), any<Int>(), capture(posted)) } returns Unit
 
-        invoke(bundle(LiveNotificationType.DELIVERY_TRACKING))
+        invoke(bundle(LiveNotificationType.SEGMENTS.identifier))
 
         posted.captured shouldBeEqualTo custom
     }
@@ -100,9 +101,10 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     }
 
     @Test
-    fun customType_endWithoutRenderer_stillCancels() {
-        // Even with no notification to post (custom type, no callback), an `end` must
-        // still cancel/clean up the existing notification.
+    fun customType_endWithoutRenderer_cancelsSinceThereIsNoEndState() {
+        // Custom type, no callback → no end-state to post. With nothing to show for the
+        // end, the SDK cancels the notification rather than leaving the prior ongoing
+        // one stuck and non-dismissible.
         attach(callback = null)
         val expectedNotifId = "act-cb".hashCode() and 0x7FFFFFFF
 

@@ -89,9 +89,14 @@ internal class GeofenceRepositoryImpl(
             // after this reads pre-wipe freshness/registrations and SKIPs — that would leave
             // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
+            // A launch/identify refresh runs with the persisted anchor, which a reboot can leave
+            // pointing at a pre-reboot position — containment can't be trusted, so no synthesis
+            // this pass (mirrors restoreFromCache). The flag drops once registration re-stamps
+            // uptime. Sign-in is unaffected: sign-out clears the stamp with the anchor.
+            val emitInitialEnter = !osStateWipedByReboot()
             return when (action) {
-                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude)
-                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config)
+                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, emitInitialEnter)
+                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, emitInitialEnter = emitInitialEnter)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
                     Result.success(Unit)
@@ -224,7 +229,8 @@ internal class GeofenceRepositoryImpl(
     private suspend fun performRemoteRefresh(
         userId: String,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        emitInitialEnter: Boolean = true
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
@@ -242,6 +248,7 @@ internal class GeofenceRepositoryImpl(
                     longitude = longitude,
                     regions = regions,
                     config = config,
+                    emitInitialEnter = emitInitialEnter,
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
@@ -349,9 +356,9 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
-            // Synthesis baseline, snapshotted before register/persist mutate the store. Unlike the
-            // registration diff, no reboot override: the post-reboot anchor can predate the reboot,
-            // so containment can't be trusted (same reason boot restore skips synthesis).
+            // Synthesis baseline, snapshotted before register/persist mutate the store. No reboot
+            // override here (unlike the registration diff): callers disable synthesis outright
+            // while the reboot flag is up — the anchor can predate the reboot.
             val unchangedRegistered = unchangedRegisteredIds(nearest)
             val registrationResult = register(regionsToRegister).also { result ->
                 if (result.isSuccess) {

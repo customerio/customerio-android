@@ -1412,9 +1412,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
     @Test
     fun refresh_givenRebootWipedOsState_expectReRegistrationButNoInitialEnter() = runTest {
         // Uptime regressed → reboot wiped GMS, so everything is re-added (empty existing set). But
-        // the launch anchor can predate the reboot, so containment can't be trusted — a fence whose
-        // params didn't change stays silent (mirrors restoreFromCache).
-        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        // the launch anchor can predate the reboot, so containment can't be trusted — no synthesis
+        // for any fence, registered (biz-1) or never-registered (biz-2), mirroring restoreFromCache.
+        val cached = listOf(
+            GeofenceRegion("biz-1", 0.0, 0.0, 100f),
+            GeofenceRegion("biz-2", 0.0, 0.0, 100f)
+        )
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
         every { store.getCachedRegions() } returns cached
@@ -1428,6 +1431,28 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify { manager.replaceGeofences(any(), emptySet()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenRebootAndStaleCache_expectRemoteFetchButNoInitialEnter() = runTest {
+        // Reboot + expired cache → remote re-fetch, still anchored at the untrusted persisted
+        // point — a newly fetched fence containing it must not synthesize either.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns emptyList()
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getLastRegistrationUptime() } returns 500_000L
+        every { clock.elapsedRealtime() } returns 1_000L // rebooted
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
     }
 
